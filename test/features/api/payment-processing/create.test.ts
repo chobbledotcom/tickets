@@ -12,9 +12,9 @@ import {
   bookingSlot,
   createAttendeeForSession,
   pairEntriesByListing,
-  promoCodeActivities,
 } from "#routes/api/payment-processing/create.ts";
 import { specForFailure } from "#routes/api/payment-processing/store-refund.ts";
+import { promoActivityLines } from "#routes/api/payment-processing/tail.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type {
   ModifierApplication,
@@ -104,7 +104,7 @@ test("fails when a promo code has no pricing application", () => {
   };
   const listing: ListingWithCount = testListingWithCount();
 
-  expect(() => promoCodeActivities([spec], [], listing, 1)).toThrow(
+  expect(() => promoActivityLines([spec], [], listing)).toThrow(
     "Modifier application 1 was not loaded for promo code activity",
   );
 });
@@ -243,6 +243,7 @@ const preparationResult = (options: PreparationOptions) => {
     "stable-ticket-token",
     1,
     new Map(),
+    [],
   );
 };
 
@@ -400,7 +401,10 @@ describeWithEnv("payment booking lines", { db: true }, () => {
       };
 
       await logActivities(
-        promoCodeActivities([spec], [application], listing, attendee.id),
+        promoActivityLines([spec], [application], listing).map((line) => ({
+          ...line,
+          attendeeId: attendee.id,
+        })),
       );
 
       const [row] = await queryAll<{ message: string }>(

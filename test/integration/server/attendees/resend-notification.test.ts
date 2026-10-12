@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 // jscpd:ignore-end
 import type { AttendeeInput } from "#db/attendee-types.ts";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
+import { execute, queryOne } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import { addMonthsIso } from "#shared/dates.ts";
 import { nowIso } from "#shared/now.ts";
@@ -22,6 +23,7 @@ import {
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { configureTestEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
@@ -158,6 +160,53 @@ describeWithEnv(
 
         // Verify webhook was sent
         expect(webhookFetch.calls.length).toBeGreaterThan(0);
+      });
+
+      /** Book the standard fixture, force both flags up, and run the resend.
+       * Returns the flags as stored after the resend ran. */
+      const resendWithFlags = async (
+        status: number,
+      ): Promise<{ email_pending: number; webhooks_pending: number }> => {
+        await configureTestEmail();
+        const { attendee } = await setupAdminTest({
+          fields: "email",
+          webhookUrl: "https://example.com/webhook",
+        });
+        await execute(
+          "UPDATE attendees SET email_pending = 1, webhooks_pending = 1 WHERE id = ?",
+          [attendee.id],
+        );
+        using _fetch = stubFetch(() => new Response("", { status }));
+        const { response } = await adminFormPost(
+          `/admin/attendees/${attendee.id}/resend-notification`,
+          { confirm_identifier: "John Doe" },
+        );
+        expect(response.status).toBe(302);
+        const row = await queryOne<{
+          email_pending: number;
+          webhooks_pending: number;
+        }>(
+          "SELECT email_pending, webhooks_pending FROM attendees WHERE id = ?",
+          [attendee.id],
+        );
+        return row!;
+      };
+
+      test("a resend whose sends are accepted clears the pending flags", async () => {
+        // Each send was accepted, so each side's flag is down.
+        expect(await resendWithFlags(200)).toEqual({
+          email_pending: 0,
+          webhooks_pending: 0,
+        });
+      });
+
+      test("a resend whose sends are refused leaves the pending flags up", async () => {
+        // The far side accepted nothing, so both flags still say the sends
+        // are owed.
+        expect(await resendWithFlags(500)).toEqual({
+          email_pending: 1,
+          webhooks_pending: 1,
+        });
       });
 
       test("logs activity when notification is re-sent", async () => {

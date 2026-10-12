@@ -4,13 +4,14 @@
 
 import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import type { AttendeeKind } from "#db/attendees/kind.ts";
+import type { PendingNotificationFlag } from "#db/attendees/notification-flags.ts";
 import type { BookingSource } from "#db/contact-tokens.ts";
 import type { AttendeeCreationFailureReason } from "#shared/attendee-failures.ts";
 import type { Attendee, ContactFields, ContactInfo } from "#types";
 
 /** Per-(child, parent) unit allocation from the booking fold: the quantity of
  * `childId` chosen under `parentId` in one order. An order where the same child
- * appears under two parents has two entries (distinct parentIds); the summed
+ * appears under two parents has two entries (distinct parentIds). The summed
  * `qty` over all entries for one child equals that child's `quantities` map
  * value.
  * Used by `expandChildAllocations` to produce one `listing_attendees` row per
@@ -48,6 +49,8 @@ export type BuildAttendeeInput = ContactInfo & {
   insertId: number | bigint | undefined;
   listingId: number;
   created: string;
+  emailPending?: PendingNotificationFlag | undefined;
+  webhooksPending?: PendingNotificationFlag | undefined;
   kind: string;
   paymentId: string;
   quantity: number;
@@ -124,6 +127,15 @@ export type AttendeeInput = ContactFields & {
    * checkout path can never be silently left uncounted; the admin manual-add
    * paths pass "admin" explicitly. */
   source?: BookingSource;
+  /** Whether the confirmation email is owed from birth, and who the booking
+   * came from: 0 none, 1 booked online, 2 added by an admin. Defaults to 0.
+   * The paid path sets 1 when a booked listing collects an email; the admin
+   * add paths set 2 under the same condition. */
+  emailPending?: PendingNotificationFlag;
+  /** Whether the registration webhooks are owed from birth, with the same
+   * values as `emailPending`. Only the paid path sets this (1), when a booked
+   * listing has a webhook URL. Defaults to 0. */
+  webhooksPending?: PendingNotificationFlag;
   /** Stable token used to make a retried create identify the same attendee. */
   ticketToken?: string;
 };

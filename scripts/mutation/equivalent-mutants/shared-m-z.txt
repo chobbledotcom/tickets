@@ -26,7 +26,7 @@ src/features/api/webhooks.ts::authenticateWebhook.signature~0pl7bfz  ?? → || a
 # rethrow threshold has no further observable result.
 src/shared/webhook/delivery.ts::sendRegistrationNotifications~0pfucc6@2  0 → 1 audited:08h3zqa # one error is already reported; pending-work consumes the later rejection
 src/shared/webhook/delivery.ts::sendRegistrationNotifications~166dat4  0 → 1 audited:08h3zqa # the rethrown error's value is unobservable: every caller hands the promise to pending-work, which settles it with allSettled
-src/shared/webhook/delivery.ts::sendRegistrationWebhooks.facts~007uooi  ?? → || audited:08h3zqa # suppliedFacts is undefined or a RegistrationPackageFacts object carrying two Maps; every present object is truthy
+src/shared/webhook/delivery.ts::sendRegistrationWebhooks.facts~007uooi  ?? → || audited:1tmc6me # suppliedFacts is undefined or a RegistrationPackageFacts object; every present object is truthy
 src/shared/webhook/delivery.ts::completedRegistrationDelivery.failed~1mnm6jp  false → true audited:08h3zqa # the arm's errors array always holds the rejection reason, so errors.length > 0 reports it and the failed flag is never read
 # Re-derived against the five delivery suites on this branch. The
 # needsPackageFacts "> → <=" mutant and the packageFacts ternary arm swap died
@@ -40,9 +40,8 @@ src/shared/webhook/delivery.ts::completedRegistrationDelivery.failed~1mnm6jp  fa
 # performs the same facts read and reports a failed read through the same
 # incident path.
 src/shared/webhook/delivery.ts::queueRegistrationNotifications.needsPackageFacts~0u9opea  0 → 1 audited:08h3zqa # as above: with one webhook URL the mutated gate defers to the send's own fallback load, which is the same read with the same result
-src/shared/webhook/delivery.ts::queueRegistrationNotifications.packageFacts~0fhpirc  ?? → || audited:08h3zqa # suppliedPackageFacts is undefined or a RegistrationPackageFacts object; every present object is truthy
-src/shared/webhook/delivery.ts::logAndNotifyRegistration~0y21tpk  ?? → || audited:08h3zqa # priorActivities is undefined or an activity array; an empty array is truthy, so both operators fall back only on undefined
-src/shared/webhook/delivery.ts::logAndNotifyRegistration~18zsvut  ?? → || audited:08h3zqa # siteAssignmentEntries is undefined or an EmailEntry array; arrays are always truthy
+src/shared/webhook/delivery.ts::queueRegistrationNotifications.packageFacts~0fhpirc  ?? → || audited:1tmc6me # suppliedPackageFacts is undefined or a RegistrationPackageFacts object; every present object is truthy
+src/shared/webhook/delivery.ts::logAndNotifyRegistration~18zsvut  ?? → || audited:1tmc6me # siteAssignmentEntries is undefined or an EmailEntry array; arrays are always truthy
 
 # public-listing.ts: both ?? fallbacks guard an array-typed value, and every
 # array is truthy, so the ?? and || fallbacks agree — only undefined/null fall

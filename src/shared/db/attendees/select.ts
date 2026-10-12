@@ -189,6 +189,8 @@ const coreColumns = (join: AttendeeJoin): string =>
     "attendee.pii_blob",
     "attendee.status_id",
     "attendee.split_logistics_agents",
+    "attendee.email_pending",
+    "attendee.webhooks_pending",
     listingIntColumn(join, "listing_id"),
     "SUBSTR(listingAttendee.start_at, 1, 10) as date",
     listingIntColumn(join, "quantity"),

@@ -113,6 +113,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   created: "2024-01-01T12:00:00Z",
   date: null,
   email: "john@example.com",
+  email_pending: 0,
   end_date: null,
   id: 1,
   kind: "attendee",
@@ -134,6 +135,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   ticket_token: "test-token-1",
   // Hand-crafted fixture stand-in for the stored blind index — test cast.
   ticket_token_index: "test-token-index-1" as BlindIndex,
+  webhooks_pending: 0,
   ...overrides,
 });
 

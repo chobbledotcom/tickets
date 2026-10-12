@@ -21,6 +21,7 @@ import {
   AttendeeNotesSection,
   type NotesViewProps,
 } from "#templates/admin/attendee-notes.tsx";
+import { pendingNotificationBadges } from "#templates/admin/attendee-notification-badges.tsx";
 import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
 import { MaybeButtonLink } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
@@ -91,7 +92,15 @@ export const attendeeSummaryRows = ({
   hasRealLine: boolean;
 }): SummaryRow[] =>
   compact([
-    { labelKey: "common.name", value: attendee.name },
+    {
+      labelKey: "common.name",
+      value: (
+        <span>
+          {attendee.name}
+          {pendingNotificationBadges(attendee)}
+        </span>
+      ),
+    },
     attendee.email
       ? {
           href: `mailto:${attendee.email}`,
