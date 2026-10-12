@@ -77,18 +77,29 @@ const isLocalDevelopmentHost = (domain: string): boolean =>
 
 /** Load the effective domain from DB, falling back to the request URL hostname. */
 export const loadEffectiveDomain = (requestUrl: URL): string => {
-  const custom = settings.customDomain;
-  const validated = custom ? settings.customDomainLastValidated : null;
-  const domain =
-    custom && validated
-      ? custom
-      : settings.bunnySubdomain
-        ? settings.bunnySubdomain
-        : requestUrl.hostname;
+  const domain = effectiveDomainFromSettings(
+    settings.customDomain,
+    settings.bunnySubdomain,
+    settings.customDomainLastValidated,
+    requestUrl.hostname,
+  );
   setRequestEffectiveDomain(domain);
   fallbackDomain.domain = domain;
   return domain;
 };
+
+/** The site's own domain from its settings, falling back to the host the
+ * request named: a validated custom domain wins, then the Bunny subdomain.
+ * Every absolute-URL reader shares it, so the readers cannot disagree. */
+export const effectiveDomainFromSettings = (
+  customDomain: string,
+  bunnySubdomain: string,
+  customDomainLastValidated: string,
+  requestHost: string,
+): string =>
+  customDomain && customDomainLastValidated
+    ? customDomain
+    : bunnySubdomain || requestHost;
 
 /**
  * Seed the effective domain from the request's own hostname.

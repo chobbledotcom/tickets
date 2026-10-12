@@ -6,7 +6,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { escapeIcs, escapeXml } from "#routes/feeds.ts";
+import { escapeIcs } from "#routes/feeds.ts";
+import { escapeXml } from "#shared/xml.ts";
 import { expectHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -107,8 +108,7 @@ const feedExclusionTests = (feedPath: string, emptyMarker: string) => {
       name: "Last One",
     });
     await deactivateTestListing(only.id);
-    // The bundle can't sell (its sole member is inactive), so neither the
-    // package nor the member appears — the feed is empty.
+    // The bundle cannot sell (its member is inactive), so the feed is empty.
     await expectHtml(await handleRequest(mockRequest(feedPath)), {
       notContains: ["Gone Bundle", "Last One", emptyMarker],
     });
@@ -486,9 +486,9 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
       "cookie@test.com",
     );
 
-    // A calendar client subscribing to the feed sends its session cookie but
-    // cannot attach an x-csrf-token header, so this safe GET must not demand
-    // one — otherwise the feed is unusable from a browser/calendar session.
+    // A calendar client sends its session cookie but no x-csrf-token header,
+    // so this safe GET must not demand one — otherwise the feed is unusable
+    // from a browser/calendar session.
     const { cookie } = await getTestSession();
     await expectCalendarFeed(
       mockRequest("/caldav/events.ics", { headers: { cookie } }),

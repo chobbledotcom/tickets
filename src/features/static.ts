@@ -19,6 +19,7 @@ import {
 } from "#routes/assets.ts";
 import { handleRobotsTxt } from "#routes/robots-txt.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
+import { handleSitemapXml } from "#routes/sitemap.ts";
 
 /** Static routes definition */
 const staticRoutes = defineRoutes({
@@ -33,8 +34,9 @@ const staticRoutes = defineRoutes({
   "GET /logistics-map.css": () => handleLogisticsMapCss(),
   "GET /logistics-map.js": () => handleLogisticsMapJs(),
   "GET /markdown-editor.js": () => handleMarkdownEditorJs(),
-  "GET /robots.txt": () => handleRobotsTxt(),
+  "GET /robots.txt": (request) => handleRobotsTxt(request),
   "GET /scanner.js": () => handleScannerJs(),
+  "GET /sitemap.xml": (request) => handleSitemapXml(request),
   "GET /style.css": () => handleStyleCss(),
 });
 
