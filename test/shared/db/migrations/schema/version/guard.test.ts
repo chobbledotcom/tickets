@@ -115,6 +115,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-10-05_listing_min_quantity",
         "2026-10-07_holiday_date_padding",
         "2026-10-11_custom_css_bunny_fonts",
+        "2026-10-12_listing_fields_trim",
       ],
       schemaHash: "1h8mi7d",
     });
