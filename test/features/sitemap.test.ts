@@ -7,6 +7,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { executeWithoutCacheInvalidation } from "#db/client.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { invalidateListingsCache } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { handleSitemapXml } from "#routes/sitemap.ts";
@@ -50,9 +52,12 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
   test("lists the site's public pages, listings and groups", async () => {
     await enablePublicSite();
     try {
-      const listing = await createTestListing({ name: "Concert Tickets" });
-      await createTestListing({ hidden: true, name: "Hidden Concert" });
       const group = await createTestGroup({ name: "Package Deal" });
+      const listing = await createTestListing({
+        groupIds: [group.id],
+        name: "Concert Tickets",
+      });
+      await createTestListing({ hidden: true, name: "Hidden Concert" });
       await createTestGroup({ hidden: true, name: "Secret Bundle" });
       await createTestSitePage("plans");
       const post = await createTestNewsPost("Festival News");
@@ -66,6 +71,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       );
       expect(xml).toContain("<loc>https://localhost/</loc>");
       expect(xml).toContain("<loc>https://localhost/listings</loc>");
+      expect(xml).toContain("<loc>https://localhost/news</loc>");
       expect(xml).toContain("<loc>https://localhost/page/plans</loc>");
       expect(xml).toContain(`<loc>https://localhost/news/${post.slug}</loc>`);
       expect(xml).toContain(
@@ -80,6 +86,103 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       expect(xml).not.toContain("secret-bundle");
       expect(xml).not.toContain("/admin");
     } finally {
+      await disablePublicSite();
+    }
+  });
+
+  test("lists a fixed page only when its handler serves it", async () => {
+    await enablePublicSite();
+    try {
+      // With no terms text, no contact content, the order page off, and no
+      // news posts, each of those pages answers 404, so the sitemap names
+      // none of them. Home and /listings always serve behind the gate.
+      const empty = await (
+        await handleRequest(mockRequest("/sitemap.xml"))
+      ).text();
+      expect(empty).toContain("<loc>https://localhost/</loc>");
+      expect(empty).toContain("<loc>https://localhost/listings</loc>");
+      expect(empty).not.toContain("<loc>https://localhost/terms</loc>");
+      expect(empty).not.toContain("<loc>https://localhost/contact</loc>");
+      expect(empty).not.toContain("<loc>https://localhost/order</loc>");
+      expect(empty).not.toContain("<loc>https://localhost/news</loc>");
+
+      // Give every page what its handler requires, and the document lists it.
+      await settings.update.orderEnabled(true);
+      await settings.update.terms("Be kind to the venue.");
+      await settings.update.contactPageText("Write to us at the desk.");
+      await createTestNewsPost("Opening Week");
+      const served = await (
+        await handleRequest(mockRequest("/sitemap.xml"))
+      ).text();
+      expect(served).toContain("<loc>https://localhost/terms</loc>");
+      expect(served).toContain("<loc>https://localhost/contact</loc>");
+      expect(served).toContain("<loc>https://localhost/order</loc>");
+      expect(served).toContain("<loc>https://localhost/news</loc>");
+    } finally {
+      await settings.update.orderEnabled(false);
+      await settings.update.terms("");
+      await settings.update.contactPageText("");
+      await disablePublicSite();
+    }
+  });
+
+  test("lists a listing only when its /ticket page would serve it", async () => {
+    await enablePublicSite();
+    try {
+      const parent = await createTestListing({ name: "Parent Deal" });
+      const child = await createTestListing({ name: "Child Seat" });
+      await listingChildren.setIds(parent.id, [child.id]);
+      await createTestListing({ active: false, name: "Paused Concert" });
+
+      const xml = await (
+        await handleRequest(mockRequest("/sitemap.xml"))
+      ).text();
+      // A child that sells only through its parent has no /ticket page of
+      // its own, and a paused listing answers 404. The parent stays in.
+      expect(xml).not.toContain(child.slug);
+      expect(xml).not.toContain("paused-concert");
+      expect(xml).toContain(
+        `<loc>https://localhost/ticket/${parent.slug}</loc>`,
+      );
+    } finally {
+      await disablePublicSite();
+    }
+  });
+
+  test("lists a group only when its page still offers a booking", async () => {
+    await enablePublicSite();
+    try {
+      await createTestGroup({ name: "Members Only Club" });
+
+      // No member, no bookable page, so the group is out.
+      const xml = await (
+        await handleRequest(mockRequest("/sitemap.xml"))
+      ).text();
+      expect(xml).not.toContain("members-only-club");
+    } finally {
+      await disablePublicSite();
+    }
+  });
+
+  test("a cold read applies the inherited hidden flag", async () => {
+    await enablePublicSite();
+    try {
+      const listing = await createTestListing({
+        hidden: false,
+        name: "Inherits Secret",
+        useDefaults: true,
+      });
+      await settings.update.listingDefaults({ hidden: true });
+      // A fresh isolate holds neither the settings snapshot nor a decrypted
+      // catalog; drop both, so the handler's own load decides.
+      settings.invalidateCache();
+      invalidateListingsCache();
+      const xml = await (
+        await handleRequest(mockRequest("/sitemap.xml"))
+      ).text();
+      expect(xml).not.toContain(listing.slug);
+    } finally {
+      await settings.update.listingDefaults({});
       await disablePublicSite();
     }
   });
