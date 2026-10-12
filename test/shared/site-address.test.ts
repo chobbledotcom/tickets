@@ -105,6 +105,10 @@ describe("visitSiteUrl", () => {
     expect(visitSiteUrl("child.bunny.net")).toBe("https://child.b-cdn.net");
   });
 
+  test("gives a bare CDN hostname its absolute https address", () => {
+    expect(visitSiteUrl("test-42.b-cdn.net")).toBe("https://test-42.b-cdn.net");
+  });
+
   test("leaves a b-cdn.net URL as it is", () => {
     expect(visitSiteUrl("https://child.b-cdn.net")).toBe(
       "https://child.b-cdn.net",

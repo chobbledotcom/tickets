@@ -207,6 +207,20 @@ describe("built-site templates", () => {
       );
     });
 
+    test("links a bare saved hostname as an absolute address", () => {
+      const site = testBuiltSite({ siteUrl: "test-42.b-cdn.net" });
+      const edit = String(BuiltSiteEditPanel({ site }));
+      expect(edit).toContain(
+        'href="https://test-42.b-cdn.net" target="_blank" rel="noopener noreferrer"',
+      );
+    });
+
+    test("rewrites a bare zone hostname and keeps the link absolute", () => {
+      const site = testBuiltSite({ siteUrl: "x.bunny.net" });
+      const edit = String(BuiltSiteEditPanel({ site }));
+      expect(edit).toContain('href="https://x.b-cdn.net"');
+    });
+
     test("adds no (visit) link when no site URL is saved", () => {
       const site = testBuiltSite({ siteUrl: "" });
       const edit = String(BuiltSiteEditPanel({ site }));

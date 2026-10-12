@@ -64,6 +64,42 @@ describe("inBuiltSitesOrder", () => {
     ).toEqual(["Sooner", "Dated", "Undated"]);
   });
 
+  test("compares deadline instants, not their spelling", () => {
+    const zuluSpelling = site({
+      id: 10,
+      name: "Alpha",
+      readOnlyFrom: "2026-10-31T23:59:59Z",
+    });
+    const millisSpelling = site({
+      id: 11,
+      name: "Zulu",
+      readOnlyFrom: "2026-10-31T23:59:59.000Z",
+    });
+    const undated = site({ id: 12, name: "Undated", readOnlyFrom: "" });
+    expect(
+      inBuiltSitesOrder("read_only_from")([
+        undated,
+        millisSpelling,
+        zuluSpelling,
+      ]).map((s) => s.name),
+    ).toEqual(["Alpha", "Zulu", "Undated"]);
+    const exactSecond = site({
+      id: 13,
+      name: "Zeta",
+      readOnlyFrom: "2026-10-31T23:59:59Z",
+    });
+    const halfSecondLater = site({
+      id: 14,
+      name: "Alpha",
+      readOnlyFrom: "2026-10-31T23:59:59.500Z",
+    });
+    expect(
+      inBuiltSitesOrder("read_only_from")([halfSecondLater, exactSecond]).map(
+        (s) => s.name,
+      ),
+    ).toEqual(["Zeta", "Alpha"]);
+  });
+
   test("breaks equal sort keys by name", () => {
     const first = site({
       created: "2026-01-01T00:00:00Z",
@@ -86,5 +122,10 @@ describe("inBuiltSitesOrder", () => {
     expect(
       inBuiltSitesOrder("read_only_from")([lateZ, lateA]).map((s) => s.name),
     ).toEqual(["Alp", "Zulu"]);
+    const noneZ = site({ id: 15, name: "Zed", readOnlyFrom: "" });
+    const noneA = site({ id: 16, name: "Amy", readOnlyFrom: "" });
+    expect(
+      inBuiltSitesOrder("read_only_from")([noneZ, noneA]).map((s) => s.name),
+    ).toEqual(["Amy", "Zed"]);
   });
 });

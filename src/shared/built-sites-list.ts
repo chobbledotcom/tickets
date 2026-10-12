@@ -7,7 +7,6 @@
 import * as v from "valibot";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { sort } from "#fp";
-import { compareOptionalDates } from "#shared/attendee-list-controls.ts";
 import { compareByName } from "#shared/name-order.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 
@@ -28,6 +27,22 @@ export const readBuiltSitesSort = (query: URLSearchParams): BuiltSitesSort => {
   return raw !== null && isBuiltSitesSort(raw) ? raw : "name";
 };
 
+/** The deadline's instant in milliseconds, or null when no deadline is set. */
+const deadlineInstant = (deadline: string): number | null =>
+  deadline === "" ? null : Date.parse(deadline);
+
+/** The deadlines in time order. A site with no deadline sorts after the dated
+ * ones. The stored spellings ("…59Z" and "…59.000Z") name the same instant,
+ * so equal deadlines reach the name tie-breaker. */
+const compareDeadlines = (first: string, second: string): number => {
+  const firstInstant = deadlineInstant(first);
+  const secondInstant = deadlineInstant(second);
+  if (firstInstant === null || secondInstant === null) {
+    return firstInstant === secondInstant ? 0 : firstInstant === null ? 1 : -1;
+  }
+  return firstInstant - secondInstant;
+};
+
 /** Order rows by the chosen sort: name A to Z, created newest first, and
  * read-only deadline soonest first. A site with no read-only deadline sorts
  * after the dated ones, and equal keys fall back to the name. */
@@ -43,7 +58,7 @@ export const inBuiltSitesOrder =
         );
       }
       return (
-        compareOptionalDates(first.readOnlyFrom, second.readOnlyFrom) ||
+        compareDeadlines(first.readOnlyFrom, second.readOnlyFrom) ||
         compareByName(first, second)
       );
     })(rows);

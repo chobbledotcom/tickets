@@ -16,19 +16,26 @@ const STABLE_HOST_SUFFIXES: readonly (readonly [
  * a path segment. */
 const ZONE_HOST_SUFFIX = ".bunny.net";
 
-/** The "(visit)" address for a saved site URL: the same URL with its host's
- * raw zone suffix swapped for the CDN one. A custom domain, or a host that is
- * already the CDN name, comes back unchanged. */
-export const visitSiteUrl = (siteUrl: string): string => {
-  const url = new URL(
-    /^https?:\/\//i.test(siteUrl) ? siteUrl : `https://${siteUrl}`,
-  );
-  const { hostname } = url;
-  if (!hostname.endsWith(ZONE_HOST_SUFFIX)) return siteUrl;
-  url.hostname = `${hostname.slice(0, hostname.length - ZONE_HOST_SUFFIX.length)}.b-cdn.net`;
-  return `${url.origin}${
+/** The absolute address a URL renders as: origin, path, query, and hash,
+ * without the slash-only path. */
+const renderedUrl = (url: URL): string =>
+  `${url.origin}${
     url.pathname === "/" ? "" : url.pathname
   }${url.search}${url.hash}`;
+
+/** The "(visit)" address for a saved site URL: the same URL with its host's
+ * raw zone suffix swapped for the CDN one. A custom domain, or a host that is
+ * already the CDN name, comes back unchanged. A saved bare hostname becomes
+ * its https address, never a relative one. */
+export const visitSiteUrl = (siteUrl: string): string => {
+  const bare = !/^https?:\/\//i.test(siteUrl);
+  const url = new URL(bare ? `https://${siteUrl}` : siteUrl);
+  const { hostname } = url;
+  if (!hostname.endsWith(ZONE_HOST_SUFFIX)) {
+    return bare ? renderedUrl(url) : siteUrl;
+  }
+  url.hostname = `${hostname.slice(0, hostname.length - ZONE_HOST_SUFFIX.length)}.b-cdn.net`;
+  return renderedUrl(url);
 };
 
 /** The stable hostname for the same site as `hostname`; any hostname that
