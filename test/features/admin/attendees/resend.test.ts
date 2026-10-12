@@ -11,6 +11,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
+import { execute } from "#db/client.ts";
 import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
@@ -462,22 +463,16 @@ describeWithEnv("the booking source a re-send reports", { db: true }, () => {
     expect(postedWebhookBody(before)?.source).toBe("admin");
   });
 
-  test("a booking with no contact history is refused", async () => {
+  test("a booking with no contact history reports unknown", async () => {
     const { attendee } = await setupListingAndAttendee({
       listing: { name: "Historyless", webhookUrl: WEBHOOK_URL },
       name: "No History",
     });
-    const { execute } = await import("#db/client.ts");
     await execute("DELETE FROM contact_preferences");
     const before = fetch.calls.length;
 
-    const { response } = await resend(attendee.id, "No History");
+    await resend(attendee.id, "No History");
 
-    expectRedirectWithFlash(
-      `/admin/attendees/${attendee.id}/actions`,
-      t("attendees.resend_refused_no_source"),
-      false,
-    )(response);
-    expect(postedWebhookBody(before)).toBeNull();
+    expect(postedWebhookBody(before)?.source).toBe("unknown");
   });
 });

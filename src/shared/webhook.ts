@@ -10,7 +10,7 @@ import {
 } from "#booking/price-tree.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#db/built-sites.ts";
-import type { BookingSource } from "#db/contact-tokens.ts";
+import type { WebhookBookingSource } from "#db/contact-tokens.ts";
 import { settings } from "#db/settings.ts";
 import { sumOf } from "#fp";
 import { bookedSpanDays } from "#shared/dates.ts";
@@ -40,10 +40,10 @@ export type WebhookTicket = {
 /** Consolidated payload sent to webhook endpoints */
 export type WebhookPayload = ContactInfo & {
   notification_type: "registration.completed";
-  /** How the booking was made: "public" is a booking the person made online
-   * (checkout, reservation, or API), "admin" is a booking an admin added by
-   * hand. */
-  source: BookingSource;
+  /** How the booking was made. "public" is a booking the person made online
+   * (checkout, reservation, or API). "admin" is a booking an admin added by
+   * hand. "unknown" means no stored contact history holds the answer. */
+  source: WebhookBookingSource;
   price_paid: number | null;
   /** Outstanding order balance still owed, in minor units. 0 when fully paid;
    * positive when a booking was taken without collecting payment (e.g. no
@@ -143,13 +143,13 @@ const ticketUnitPrice = (
 
 /**
  * Build a consolidated webhook payload from registration entries. `source` is
- * required, so a new booking path cannot send a payload without saying how
- * the booking was made.
+ * required: a new booking path states its stored source, and a re-send of a
+ * booking with no contact history states "unknown".
  */
 export const buildWebhookPayload = (
   entries: RegistrationEntry[],
   currency: string,
-  source: BookingSource,
+  source: WebhookBookingSource,
   pricingByGroup: PackagePricingByGroup = new Map(),
 ): WebhookPayload => {
   const first = entries[0]!;

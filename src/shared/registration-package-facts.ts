@@ -1,4 +1,4 @@
-import type { BookingSource } from "#db/contact-tokens.ts";
+import type { WebhookBookingSource } from "#db/contact-tokens.ts";
 import {
   getPackageDisplaysByIds,
   loadPackageMemberPricingByGroupIds,
@@ -60,7 +60,7 @@ export const waitForRegistrationDeliveries = async <
 export type RegistrationNotification<Entry extends PackageRow> = (
   entries: Entry[],
   currency: string,
-  source: BookingSource,
+  source: WebhookBookingSource,
   suppliedFacts?: RegistrationPackageFacts,
 ) => Promise<RegistrationDeliveryResult>;
 

@@ -1,5 +1,5 @@
 import { type ActivityToLog, logActivities } from "#db/activity-log.ts";
-import type { BookingSource } from "#db/contact-tokens.ts";
+import type { WebhookBookingSource } from "#db/contact-tokens.ts";
 import { settings } from "#db/settings.ts";
 import { flatMap, mapNotNullish, unique } from "#fp";
 import { t, withMessageGroups } from "#i18n";
@@ -146,7 +146,7 @@ const reportRegistrationDeliveryError = async (): Promise<void> => {
 const sendRegistrationNotifications = async (
   entries: EmailEntry[],
   currency: string,
-  source: BookingSource,
+  source: WebhookBookingSource,
   packageFacts?: RegistrationPackageFacts,
   freeTexts?: FreeTextAnswers,
 ): Promise<void> => {
@@ -172,7 +172,7 @@ const sendRegistrationNotifications = async (
 const queueRegistrationNotifications = async (
   entries: EmailEntry[],
   currency: string,
-  source: BookingSource,
+  source: WebhookBookingSource,
   suppliedPackageFacts?: RegistrationPackageFacts,
   freeTexts?: FreeTextAnswers,
 ): Promise<void> => {
@@ -229,9 +229,10 @@ export interface NotifyRegistrationOptions {
   siteAssignmentEntries?: EmailEntry[] | undefined;
   /** The hashed renewal token, when this booking came from /renew. */
   siteTokenIndex?: string | undefined;
-  /** How the booking was made: "public" is a booking the person made online,
-   * "admin" is a booking an admin added by hand. */
-  source: BookingSource;
+  /** How the booking was made. "public" is a booking the person made online,
+   * "admin" is a booking an admin added by hand. "unknown" means no stored
+   * contact history holds the answer, which a re-send reports. */
+  source: WebhookBookingSource;
 }
 
 /** Record a registration and queue its external notifications. */

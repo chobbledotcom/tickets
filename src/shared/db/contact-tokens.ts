@@ -28,6 +28,10 @@ import { nowMs } from "#shared/now.ts";
  * key. */
 export type BookingSource = "admin" | "public";
 
+/** The source a webhook payload reports: the stored source, or "unknown"
+ * when no stored contact history holds the answer. */
+export type WebhookBookingSource = BookingSource | "unknown";
+
 /** A booked ticket token linked to a contact, with the source that booked it. */
 export type BookingToken = { source: BookingSource; token: string };
 

@@ -255,8 +255,7 @@ for all optional variables.
 - Outbound POST on every registration (free or paid) to per-listing and/or
   global webhook URLs
 - Payload: name, email, phone, address, amount, currency, payment ID, ticket
-  URL, per-ticket details, and whether the booking was made online or by an
-  admin (`source`)
+  URL, per-ticket details, and how the booking was made (`source`)
 - Multi-listing bookings send one consolidated webhook
 
 <details>
@@ -295,7 +294,8 @@ for all optional variables.
 
 Prices are in the smallest currency unit (for example pence, cents). The
 `source` field says how the booking was made: `public` is a booking the person
-made online, `admin` is a booking an admin added by hand. For
+made online, `admin` is a booking an admin added by hand, and `unknown` means
+no stored contact history holds the answer. For
 multi-listing bookings the `tickets` array contains one entry per listing and
 the `ticket_url` combines tokens with `+` - one webhook, not several.
 

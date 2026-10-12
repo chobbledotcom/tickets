@@ -244,21 +244,14 @@ const resendNotification = async (
 
   // The webhook reports how the booking was made. It reads the stored
   // booking, not who pressed the button. A booking with no contact history
-  // has no stored source, so the re-send refuses rather than send a guess.
-  const source = await storedBookingSource(
-    data.attendee.email,
-    data.attendee.phone,
-    data.attendee.ticket_token,
-    await requireRequestPrivateKey(),
-  );
-  if (source === null) {
-    return redirect(
-      actionsTab,
-      t("attendees.resend_refused_no_source"),
-      false,
-      { form },
-    );
-  }
+  // has no stored source, so the payload says "unknown".
+  const source =
+    (await storedBookingSource(
+      data.attendee.email,
+      data.attendee.phone,
+      data.attendee.ticket_token,
+      await requireRequestPrivateKey(),
+    )) ?? "unknown";
 
   // A refunded line bought nothing now, so the resend must not notify it
   // again.
