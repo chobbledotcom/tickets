@@ -24,7 +24,6 @@ import {
 import { isPublicListing } from "#shared/listing-visibility.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { escapeXml } from "#shared/xml.ts";
-import { navFlags } from "#templates/public/shared.tsx";
 
 const SITEMAP_CONTENT_TYPE = "application/xml";
 
@@ -48,14 +47,16 @@ const SITEMAP_SETTINGS_KEYS = [
  *  check fails. Each is listed only while the check passes, and the flags
  *  are the ones the public nav renders its links from. /news joins them
  *  when the news list has a post to show. */
-const fixedPublicPaths = (hasNews: boolean): string[] => {
-  const { hasContact, hasOrder, hasTerms } = navFlags();
+const fixedPublicPaths = (
+  flags: { hasContact: boolean; hasOrder: boolean; hasTerms: boolean },
+  hasNews: boolean,
+): string[] => {
   const served: [string, boolean][] = [
     ["/", true],
     ["/listings", true],
-    ["/terms", hasTerms],
-    ["/contact", hasContact],
-    ["/order", hasOrder],
+    ["/terms", flags.hasTerms],
+    ["/contact", flags.hasContact],
+    ["/order", flags.hasOrder],
     ["/news", hasNews],
   ];
   return served.filter(([, loads]) => loads).map(([path]) => path);
@@ -86,8 +87,12 @@ const publicPaths = async (): Promise<string[]> => {
   const nonStandaloneChildIds = await getNonStandaloneChildIds(
     listings.map((listing) => listing.id),
   );
+  // shared.tsx renders the public pages and must stay off the cold-start
+  // path. The static sitemap route loads its nav flags only when it serves,
+  // like every other public page defers it.
+  const { navFlags } = await import("#templates/public/shared.tsx");
   return [
-    ...fixedPublicPaths(posts.length > 0),
+    ...fixedPublicPaths(navFlags(), posts.length > 0),
     ...pages.map((page) => `/page/${page.slug}`),
     ...posts.map((post) => `/news/${post.slug}`),
     ...listings
