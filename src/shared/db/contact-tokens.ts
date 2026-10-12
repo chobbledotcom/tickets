@@ -352,7 +352,9 @@ export type ContactTokenSync = {
   before: ContactTokenValues;
   after: ContactTokenValues;
   privateKey: CryptoKey;
-  /** Source to use when a token is first attached by this admin-side sync. */
+  /** Source to use when a token is first attached and no stored history
+   * names the booking's source — a genuinely admin-made booking. A channel
+   * the edit adds inherits the stored source instead. */
   source: BookingSource;
   /** Only real bookings should be linked into Previous bookings. */
   hasBooking: boolean;
@@ -377,6 +379,7 @@ const valueFor = (
 const syncChannelToken = async (
   channel: ContactChannel,
   sync: ContactTokenSync,
+  storedSource: BookingSource | null,
   transaction?: TxScope,
 ): Promise<void> => {
   const oldHash = await hashForValue(channel, valueFor(channel, sync.before));
@@ -396,10 +399,33 @@ const syncChannelToken = async (
   await ensureBookingToken(
     newHash,
     sync.ticketToken,
-    removedSource ?? sync.source,
+    removedSource ?? storedSource ?? sync.source,
     changed || sync.firstRealBooking,
     transaction,
   );
+};
+
+/** The source the attendee's stored contact history already gives this
+ * booking, or null when no contact holds the token. Scanned before either
+ * channel sync writes, over the contacts the edit moves between. */
+const storedSourceFor = async (
+  sync: ContactTokenSync,
+  transaction?: TxScope,
+): Promise<BookingSource | null> => {
+  for (const channel of ["email", "sms"] as const) {
+    for (const value of [
+      valueFor(channel, sync.before),
+      valueFor(channel, sync.after),
+    ]) {
+      const hash = await hashForValue(channel, value);
+      if (hash === null) continue;
+      const line = await findTokenLine(hash, sync.ticketToken, transaction);
+      if (line) {
+        return (await parseTokenEntry(line.encrypted, sync.privateKey)).source;
+      }
+    }
+  }
+  return null;
 };
 
 /** Keep an attendee's ticket token under the contacts that currently own it. */
@@ -407,6 +433,7 @@ export const syncAttendeeContactTokens = async (
   sync: ContactTokenSync,
   transaction?: TxScope,
 ): Promise<void> => {
-  await syncChannelToken("email", sync, transaction);
-  await syncChannelToken("sms", sync, transaction);
+  const storedSource = await storedSourceFor(sync, transaction);
+  await syncChannelToken("email", sync, storedSource, transaction);
+  await syncChannelToken("sms", sync, storedSource, transaction);
 };

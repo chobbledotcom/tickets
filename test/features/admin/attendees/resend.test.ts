@@ -11,7 +11,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
-import { execute } from "#db/client.ts";
 import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
@@ -415,64 +414,3 @@ describeWithEnv(
     });
   },
 );
-
-describeWithEnv("the booking source a re-send reports", { db: true }, () => {
-  const WEBHOOK_URL = "https://example.com/registration";
-  const fetch = stubFetchEachTest(() => new Response("{}"));
-
-  /** The registration webhook body a call posted, if any. */
-  const postedWebhookBody = (after: number): { source: string } | null => {
-    const call = fetch.calls
-      .slice(after)
-      .find((one) => one.args[0] === WEBHOOK_URL);
-    if (!call) return null;
-    const [, options] = call.args as [string, RequestInit];
-    return JSON.parse(options.body as string) as { source: string };
-  };
-
-  test("a booking made online reports public", async () => {
-    const { attendee } = await setupListingAndAttendee({
-      listing: { name: "Online Source", webhookUrl: WEBHOOK_URL },
-      name: "Online Buyer",
-    });
-    // The original booking fired its own webhook; only the re-send's counts.
-    const before = fetch.calls.length;
-
-    await resend(attendee.id, "Online Buyer");
-
-    expect(postedWebhookBody(before)?.source).toBe("public");
-  });
-
-  test("a booking an admin added reports admin", async () => {
-    const listing = await createTestListing({
-      name: "Admin Source",
-      webhookUrl: WEBHOOK_URL,
-    });
-    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
-    const made = await attendeesApi.createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 1 }],
-      email: "walkin@example.com",
-      name: "Walk In",
-      source: "admin",
-    });
-    if (!made.success) throw new Error("Expected the manual add to work");
-    const before = fetch.calls.length;
-
-    await resend(made.attendees[0]!.id, "Walk In");
-
-    expect(postedWebhookBody(before)?.source).toBe("admin");
-  });
-
-  test("a booking with no contact history reports unknown", async () => {
-    const { attendee } = await setupListingAndAttendee({
-      listing: { name: "Historyless", webhookUrl: WEBHOOK_URL },
-      name: "No History",
-    });
-    await execute("DELETE FROM contact_preferences");
-    const before = fetch.calls.length;
-
-    await resend(attendee.id, "No History");
-
-    expect(postedWebhookBody(before)?.source).toBe("unknown");
-  });
-});

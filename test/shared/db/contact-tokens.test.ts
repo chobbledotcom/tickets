@@ -375,6 +375,22 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     ]);
   });
 
+  test("syncAttendeeContactTokens gives an added field the booking's stored source", async () => {
+    const pk = await getTestPrivateKey();
+    const phone = "07700 900123";
+    const newHash = await hashEmail("added@example.com");
+    await seedOrderActivity("", phone, "public", "tok-added");
+    await syncToken(
+      "tok-added",
+      { email: "", phone },
+      { email: "added@example.com", phone },
+      pk,
+    );
+    expect(await readAllTokens(newHash, pk)).toEqual([
+      { source: "public", token: "tok-added" },
+    ]);
+  });
+
   test("syncAttendeeContactTokens links a legacy moved contact with no old token", async () => {
     const pk = await getTestPrivateKey();
     const newHash = await hashEmail("legacy-fresh@example.com");
