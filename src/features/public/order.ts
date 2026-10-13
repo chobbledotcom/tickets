@@ -103,10 +103,7 @@ const loadOrderPools = async (
     remainingByGroupDay: snapshot.groupByDay,
     remainingByGroupId: snapshot.datelessGroupRemaining,
     remainingByListingDay: perDayRemainingFromSnapshot(snapshot, involved),
-    remainingByListingId: datelessRemainingFromSnapshot(
-      dateless,
-      snapshot,
-    ),
+    remainingByListingId: datelessRemainingFromSnapshot(dateless, snapshot),
   };
 };
 
