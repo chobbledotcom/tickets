@@ -55,4 +55,8 @@ describe("the zero-match guard on the compact runner", () => {
   test("passes a filtered run that executed a leaf", async () => {
     expect(await runFixture("nested.ts", "leaf alpha")).toBe(0);
   });
+
+  test("passes a filtered run whose match is a plain parent with an ignored step", async () => {
+    expect(await runFixture("step-parent.ts", "plain parent")).toBe(0);
+  });
 });

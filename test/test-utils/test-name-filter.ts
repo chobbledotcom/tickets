@@ -107,6 +107,18 @@ export const createTestNameFilter = (
    * a run that kept nothing under it never registers it. */
   let pendingGlobal: readonly unknown[] | undefined;
 
+  /** Names a suite this filter registered, for the compact runner's
+   * zero-execution decision: the suite's own pass ran no test body. The
+   * runner reads kept-suite lines from the marks file after the child exits;
+   * console output does not survive the child's reporter. */
+  const announceSuite = (name: string): void => {
+    const marksPath = Deno.env.get("TICKETS_TEST_FILTER_MARKS");
+    if (marksPath === undefined) return;
+    Deno.writeTextFileSync(marksPath, `kept-suite ${name}\n`, {
+      append: true,
+    });
+  };
+
   /** Records a kept path, marks every open suite as kept, and registers the
    * hidden global suite when a kept leaf just made it needed. The global
    * suite bypasses the patch's drop branch: its own name never matches a
@@ -120,6 +132,7 @@ export const createTestNameFilter = (
       const definition = globalArgs[0] as Deno.TestDefinition;
       // The hidden suite's steps are the file's top-level describes and its,
       // so the same run-time filter applies inside it.
+      announceSuite(definition.name!);
       realTest({
         ...definition,
         fn: (t: Deno.TestContext) => definition.fn!(filteredContext(t, [])),
@@ -172,6 +185,7 @@ export const createTestNameFilter = (
     name: string,
   ): unknown => {
     keep([name]);
+    announceSuite(name);
     suspended += 1;
     try {
       return bdd.describe(...args);
@@ -185,6 +199,7 @@ export const createTestNameFilter = (
   const registerKeptFrame = (frame: DescribeFrame): void => {
     if (!frame.kept || frame.args === undefined) return;
     keep([...frames.map((open) => open.name), frame.name]);
+    announceSuite(frame.name);
     const definition = frame.args[0] as Deno.TestDefinition;
     // A kept suite's own name did not match, so its run-time steps go through
     // the filtered context and its empty nested suites stay out of the report.
@@ -196,7 +211,13 @@ export const createTestNameFilter = (
   };
 
   const describeWrapper = ((...args: Parameters<BddFunctions["describe"]>) => {
-    if (suspended > 0) return bdd.describe(...args);
+    if (suspended > 0) {
+      // A nested suite of a matched suite is part of the same BDD subtree;
+      // its own result is a container the runner may have to discount.
+      const nested = nameOf(args);
+      if (nested !== undefined) announceSuite(nested);
+      return bdd.describe(...args);
+    }
     const name = nameOf(args);
     if (name !== undefined && matches(name)) {
       return describeMatched(args, name);

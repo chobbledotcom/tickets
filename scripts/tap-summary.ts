@@ -22,8 +22,9 @@ export type CompactTapSummary = {
   failed: number;
   /** Results deno reported as skipped (an ignored test), which ran nothing. */
   skipped: number;
-  /** Suite results that closed at the left edge after indented children: the
-   * container ran, but no test body under it reported. */
+  /** Results that closed at the left edge after indented children — BDD
+   * suite containers and plain test parents alike. The runner discounts at
+   * most the suite count the child announced. */
   containerPasses: number;
   failures: CompactFailure[];
   sawTap: boolean;
