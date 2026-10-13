@@ -4,6 +4,7 @@ import { stub } from "@std/testing/mock";
 import { bookingEventGroup } from "#accounting/mappers.ts";
 import { allTransfers } from "#accounting/queries.ts";
 import { legReference } from "#accounting/refs.ts";
+import { encrypt } from "#crypto/encryption.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -31,8 +32,10 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { configureTestEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   expectProcessedPaymentReference,
@@ -84,8 +87,35 @@ const expectContactActivity = async (
 };
 
 describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
+  const fetchSpy = stubFetchEachTest(() => new Response());
+  // The spy records the file's whole run; each test counts only the calls
+  // its own requests made.
+  const callsSince = (baseline: number, url: string): number =>
+    fetchSpy.calls
+      .slice(baseline)
+      .filter((one) => String(one.args[0]).includes(url)).length;
+  const resendBodies = (baseline: number): { to: [string, ...string[]] }[] =>
+    fetchSpy.calls
+      .slice(baseline)
+      .filter((one) => String(one.args[0]).includes("api.resend.com"))
+      .map((one) => JSON.parse(one.args[1].body as string));
+
   test("recovers a committed result across webhook, redirect, and ledger replay", async () => {
+    const fetchCallsBefore = fetchSpy.calls.length;
+    const registrationCalls = (): number =>
+      callsSince(fetchCallsBefore, "https://registration.example.com/hook");
     const listing = await setupWithListing();
+    // The listings.fields column stores env-key encrypted values, so the
+    // fixture writes the collected field the way every write path does.
+    await execute(
+      "UPDATE listings SET fields = ?, webhook_url = ? WHERE id = ?",
+      [
+        await encrypt("email"),
+        await encrypt("https://registration.example.com/hook"),
+        listing.id,
+      ],
+    );
+    await configureTestEmail({ businessEmail: "owner@example.com" });
     const sessionId = "cs_lost_committed_result";
     const email = "recovered@example.com";
     const phone = "+447700900123";
@@ -199,6 +229,18 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           );
           await expectContactActivity(email, phone, privateKey, ticketToken);
 
+          // The lost result committed the booking without queueing its
+          // sends; this recovery queued exactly one buyer confirmation and
+          // one owner copy (two Resend calls) and one registration webhook.
+          expect(registrationCalls()).toBe(1);
+          const emailBodies = resendBodies(fetchCallsBefore);
+          expect(
+            emailBodies.filter((body) => body.to[0] === email).length,
+          ).toBe(1);
+          expect(
+            emailBodies.filter((body) => body.to[0] === "owner@example.com")
+              .length,
+          ).toBe(1);
           const retrieve = stubRetrieveCheckoutSession({
             amountTotal: 900,
             metadata,
@@ -234,6 +276,18 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           expect(await decryptSessionTokens(replayed!.ticket_tokens)).toBe("");
           expect(await getAttendeesRaw(listing.id)).toEqual([attendee]);
           await expectContactActivity(email, phone, privateKey, ticketToken);
+          // The finalized-session replay answers send-free: the recovery
+          // already queued the one send the booking owed.
+          expect(registrationCalls()).toBe(1);
+          const replayEmailBodies = resendBodies(fetchCallsBefore);
+          expect(
+            replayEmailBodies.filter((body) => body.to[0] === email).length,
+          ).toBe(1);
+          expect(
+            replayEmailBodies.filter(
+              (body) => body.to[0] === "owner@example.com",
+            ).length,
+          ).toBe(1);
           expect(await allTransfers()).toEqual(transfersAfterCommit);
           expect(await modifierUsedQuantities([modifier.id])).toEqual(
             new Map([[modifier.id, 1]]),

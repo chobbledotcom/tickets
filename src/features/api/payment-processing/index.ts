@@ -268,9 +268,11 @@ const processNewBookingSession = async (
   if (honoured.ok === null) {
     return recoverOrRefundUnexpectedCreate({
       error: honoured.error,
+      intent,
       listingId: signedListingId,
       session,
       ticketToken,
+      validatedItems,
     });
   }
   if (!honoured.ok) {

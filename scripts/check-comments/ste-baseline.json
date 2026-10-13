@@ -196,7 +196,6 @@
   "src/features/public/free-reservation.ts": {
     "banned-modal": 1,
     "long-sentence": 7,
-    "participle": 1,
     "contraction": 1,
     "semicolon": 2
   },

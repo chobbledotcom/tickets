@@ -4,9 +4,14 @@
 
 import { formatAtomicError } from "#booking/form.ts";
 import type { TicketListing } from "#booking/model.ts";
+import {
+  bookingActivityStatements,
+  sealBookedActivities,
+} from "#db/activity-log.ts";
 import { requirePublicStatusId } from "#db/attendee-statuses.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
+import type { BatchTail } from "#db/attendees/create-batch.ts";
 import type { ModifierUsage } from "#db/modifier-usage.ts";
 import { bookedAnswersTail } from "#db/questions/attendee-answers/at-booking.ts";
 import {
@@ -26,6 +31,7 @@ import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { nowIso } from "#shared/now.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
+import { registeredActivityMessage } from "#shared/webhook/delivery.ts";
 import type { ContactInfo } from "#types";
 
 type FreeReservationParams = {
@@ -41,13 +47,14 @@ type FreeReservationParams = {
   /** Modifier stock to consume in the create transaction. Amounts are zeroed when
    *  payments are disabled — stock is still capped, nothing is charged. */
   modifierUsages: ModifierUsage[];
-  /** Priced order to post to the ledger, or null to skip it (payments disabled —
-   *  no money to record). Lets a zero-total free booking record the same
-   *  sale/discount/balance legs a paid one would. */
+  /** Priced order to post to the ledger. Null skips it when payments are
+   *  disabled, so there is no money to record. Lets a zero-total free
+   *  booking record the same sale, discount, and balance legs a paid one
+   *  would. */
   ledgerOrder: PricedOrder | null;
-  /** Per-(child, parent) allocations from the fold: when present,
+  /** Per-(child, parent) allocations from the fold. When present,
    * `createFreeReservation` expands each child booking into one row per
-   * allocation instead of one summed row, giving each row its real
+   * allocation. It writes one summed row otherwise. Each row keeps its real
    * `parentListingId`. Absent for legacy/no-parent orders. */
   allocations?: ChildAllocation[] | undefined;
   /** The submission's per-listing answers, keyed by `String(listing.id)`.
@@ -117,6 +124,25 @@ export const createFreeReservation = async ({
           ),
           finalBookings.map((booking) => booking.listingId),
         );
+  // The booking's own registration activity lines ride the boundary too, so
+  // a committed booking always carries its "Attendee registered for" lines —
+  // a failure in the activity write rolls the booking back instead of
+  // leaving a booked order with no registration record. The lines are sealed
+  // with the owner public key before the boundary opens, and each resolves
+  // its attendee from the batch's own ticket token.
+  const sealedActivities = await sealBookedActivities(
+    finalBookings.map((booking) => {
+      const listing = listingById.get(booking.listingId)!;
+      return {
+        listing,
+        message: registeredActivityMessage(listing.name),
+      };
+    }),
+  );
+  const ride: BatchTail = (tokenIndex) => [
+    ...(answersTail === undefined ? [] : answersTail(tokenIndex)),
+    ...bookingActivityStatements(sealedActivities, tokenIndex),
+  ];
   // When there are legs to post or stock to consume, commit the booking, its
   // modifier stock, and its sale legs as ONE batch (exactly as the paid webhook
   // does) — never an interactive transaction held open across a read-per-leg. The
@@ -142,9 +168,9 @@ export const createFreeReservation = async ({
             occurredAt: nowIso(),
             pricedOrder: ledgerOrder ?? EMPTY_PRICED_ORDER,
           }),
-          answersTail,
+          ride,
         )
-      : await attendeesApi.createAttendeeAtomic(input, undefined, answersTail);
+      : await attendeesApi.createAttendeeAtomic(input, undefined, ride);
   if (result === "sold-out") {
     return { error: MODIFIER_SOLD_OUT_MESSAGE, success: false };
   }

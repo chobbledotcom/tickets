@@ -7,13 +7,16 @@ import {
   finalizeSessionIfUnresolved,
   reserveSession,
 } from "#db/processed-payments.ts";
+import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import { recoverOrRefundUnexpectedCreate } from "#routes/api/payment-processing/recovery.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { paidSession } from "#test-utils/payment-session.ts";
 import type { ListingWithCount } from "#types";
+import { bookingIntent } from "./index/helpers.ts";
 
 /** The listing a test just made. It is always there; saying so here keeps
  *  every case below from repeating the check. */
@@ -37,19 +40,37 @@ const prepareTicketToken = async (
   return token;
 };
 
+/** The validated items and intent a one-listing booking carries: the shape
+ *  the reconstruction pairs the committed rows against. */
+const oneListingItems = (loaded: ListingWithCount): ValidatedItem[] => [
+  {
+    expectedPrice: loaded.unit_price,
+    item: { e: loaded.id, p: loaded.unit_price, q: 1 },
+    listing: loaded,
+    name: loaded.name,
+  },
+];
+
+const oneListingIntent = (loaded: ListingWithCount): BookingIntent =>
+  bookingIntent([{ e: loaded.id, p: loaded.unit_price, q: 1 }]);
+
 /** Runs the recovery with the answer it owes: success over the committed
  * booking, or the original error after the retry's reservation release. */
 const runRecovery = async (opts: {
   error: unknown;
+  intent: BookingIntent;
   listingId: number;
   sessionId: string;
   ticketToken: string;
+  validatedItems: ValidatedItem[];
 }): Promise<PaymentResult> =>
   recoverOrRefundUnexpectedCreate({
     error: opts.error,
+    intent: opts.intent,
     listingId: opts.listingId,
     session: paidSession(opts.sessionId),
     ticketToken: opts.ticketToken,
+    validatedItems: opts.validatedItems,
   });
 
 describeWithEnv(
@@ -77,9 +98,11 @@ describeWithEnv(
 
       const result = await runRecovery({
         error: new Error("the write went quiet"),
+        intent: oneListingIntent(loaded),
         listingId: loaded.id,
         sessionId: "cs_recover",
         ticketToken: await prepareTicketToken(attendee.id, "tok_recover"),
+        validatedItems: oneListingItems(loaded),
       });
 
       expect(result).toEqual({
@@ -105,9 +128,11 @@ describeWithEnv(
       await expect(
         runRecovery({
           error: new Error("the write rolled back"),
+          intent: oneListingIntent(loaded),
           listingId: loaded.id,
           sessionId: "cs_rollback",
           ticketToken: "tok_never_written",
+          validatedItems: oneListingItems(loaded),
         }),
       ).rejects.toThrow("the write rolled back");
 
@@ -135,9 +160,11 @@ describeWithEnv(
       await expect(
         runRecovery({
           error: original,
+          intent: oneListingIntent(loaded),
           listingId: loaded.id,
           sessionId: "cs_unknown",
           ticketToken: "tok_unknown",
+          validatedItems: oneListingItems(loaded),
         }),
       ).rejects.toThrow("nobody knows what happened");
     });
@@ -162,9 +189,11 @@ describeWithEnv(
       await expect(
         runRecovery({
           error: new Error("ticket without a finished payment"),
+          intent: oneListingIntent(loaded),
           listingId: loaded.id,
           sessionId: "cs_mismatch",
           ticketToken: await prepareTicketToken(attendee.id, "tok_mismatch"),
+          validatedItems: oneListingItems(loaded),
         }),
       ).rejects.toThrow("ticket without a finished payment");
     });
