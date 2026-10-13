@@ -35,7 +35,7 @@ const runFixture = async (fixture: string, filter: string): Promise<number> => {
           },
           nameFilter: filter,
         },
-      )
+      ),
     );
     return value;
   } finally {
