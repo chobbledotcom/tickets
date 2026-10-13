@@ -11,8 +11,7 @@
  * by hand shows orange.
  */
 
-import { inPlaceholders, queryOne, type SqlStatement } from "#db/client.ts";
-import { requireValue } from "#shared/required-value.ts";
+import { inPlaceholders, type SqlStatement } from "#db/client.ts";
 import type { Attendee } from "#types";
 
 /** The stored value of a pending-notification flag. */
@@ -72,18 +71,3 @@ export const emailOwedSql = (attendeeRef: string): string => `EXISTS (
 export const emailBadgeOwed = (
   attendee: Pick<Attendee, "email_owed" | "email_pending">,
 ): boolean => attendee.email_pending > 0 && attendee.email_owed === 1;
-
-/** How many bookings still owe a notification send. The dashboard shows this
- * count when it is above zero. An email flag counts only while a booked
- * listing still collects an email, the same rule the badge applies. */
-export const countAttendeesWithPendingFlags = async (): Promise<number> => {
-  const row = await queryOne<{ n: number }>(
-    `SELECT COUNT(*) AS n FROM attendees
-     WHERE (email_pending > 0 AND ${emailOwedSql("attendees")})
-        OR webhooks_pending > 0`,
-  );
-  // A COUNT always yields one row. A missing row means the query broke.
-  return Number(
-    requireValue(row, "The pending-notification count returned no row").n,
-  );
-};

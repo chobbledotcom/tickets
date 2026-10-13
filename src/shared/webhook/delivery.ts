@@ -1,7 +1,7 @@
 import { logActivities } from "#db/activity-log.ts";
-import type { WebhookBookingSource } from "#db/contact-tokens.ts";
 import { clearPendingFlagStatement } from "#db/attendees/notification-flags.ts";
 import { executeBatch } from "#db/client.ts";
+import type { WebhookBookingSource } from "#db/contact-tokens.ts";
 import { settings } from "#db/settings.ts";
 import { flatMap, mapNotNullish, unique } from "#fp";
 import { t, withMessageGroups } from "#i18n";
@@ -201,12 +201,7 @@ const sendRegistrationNotifications = async (
   const webhooksAttempted = registrationWebhookUrls(entries).length > 0;
   const emailAttempted = buyerConfirmationAttempted(entries);
   const [webhookResult, emailResult] = await Promise.allSettled([
-    sendRegistrationWebhooks(
-      entries,
-      currency,
-      send.source,
-      send.packageFacts,
-    ),
+    sendRegistrationWebhooks(entries, currency, send.source, send.packageFacts),
     sendRegistrationEmails(
       entries,
       currency,
