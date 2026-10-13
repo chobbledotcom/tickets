@@ -127,22 +127,23 @@ const readPipeline = async (
  * Remote requests go through the configured fetch. */
 export const createDatabaseClient = (callerConfig: Config): Client => {
   const config: Config = {
-    fetch: async (input: Request) => {
+    fetch: async (input: Request, init?: RequestInit) => {
       // The library's HTTP engine hands the configured fetch its own Request
       // object, not a native one, and passes no second argument. Rebuild the
       // native request from the wire facts the object carries, read through
-      // its own API, so Deno's fetch sees a request it understands.
+      // its own API, so Deno's fetch sees a request it understands. Forward
+      // the engine's call arguments unchanged.
       const body = await input.text();
       const headers = new Headers();
       for (const [name, value] of input.headers.entries()) {
         headers.set(name, value);
       }
       const native = new Request(input.url, {
+        body,
         headers,
         method: input.method,
-        ...(body === "" ? {} : { body }),
       });
-      return fetch(native);
+      return fetch(native, init);
     },
     ...callerConfig,
   };
