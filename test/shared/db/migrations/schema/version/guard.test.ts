@@ -132,7 +132,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Store whether the custom CSS uses Bunny's fonts, scanned from the saved CSS.",
+        "Store every listing's contact fields as trimmed, comma-joined tokens.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });
