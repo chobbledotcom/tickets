@@ -2,10 +2,7 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import {
-  type BookingScope,
-  getAttendeeBookingRowsRaw,
-} from "#db/attendees/queries.ts";
+import { getAttendeeBookingRowsRaw } from "#db/attendees/queries.ts";
 import { storedBookingSource } from "#db/contact-tokens.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { hasAnyPaymentReference } from "#db/payment-references.ts";
