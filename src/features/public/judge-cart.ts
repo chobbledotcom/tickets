@@ -18,6 +18,7 @@ import { packageMemberIds } from "#booking/page-packages.ts";
 import type { Holiday } from "#db/holidays.ts";
 import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
+import { requireValue } from "#shared/required-value.ts";
 /* jscpd:ignore-end */
 import type { TicketCtx } from "./types.ts";
 
@@ -57,9 +58,12 @@ const questionOf = (
 });
 
 /** Why the gate refuses: the option's own name for the walk's sold-out
- * message. A package names its first member, as the walk's fold errors do. */
-const optionName = (parents: readonly TicketListing[]): string =>
-  parents[0]?.listing.name ?? "";
+ * message. A package names its first member, as the walk's fold errors do.
+ * Every judged option carries at least one parent. */
+const optionName = (parents: readonly TicketListing[]): string => {
+  const first = requireValue(parents[0], "A judged option has no parents");
+  return first.listing.name;
+};
 
 /** Ask the judge about every option the buyer is booking. A refusal that the
  * walk cannot name refuses the cart. That class holds a closed or sold-out
