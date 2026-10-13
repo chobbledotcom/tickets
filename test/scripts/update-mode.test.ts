@@ -112,6 +112,20 @@ describe("runUpdateMode", () => {
     expect(calls.length).toBe(2);
   });
 
+  test("the page fetch carries an abort timeout so a stall cannot wedge the wait", async () => {
+    const { calls, fetchText } = stubFetch(
+      [response(true, 204, "")],
+      [activePage],
+    );
+    await runUpdateMode(["begin", "42", "https://site.example"], io(fetchText));
+    const [setCall, pageCall] = calls;
+    // The page fetch must end on its own before the wait's deadline, or a
+    // stalled connection keeps the command pending forever.
+    expect(pageCall?.init.signal).toBeInstanceOf(AbortSignal);
+    // Only the page fetch is bounded; the Bunny API calls keep no signal.
+    expect(setCall?.init.signal).toBeUndefined();
+  });
+
   test("begin skips the wait for a build that predates update mode", async () => {
     const { calls, fetchText } = stubFetch(
       [response(true, 204, "")],

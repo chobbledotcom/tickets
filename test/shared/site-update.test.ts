@@ -138,6 +138,26 @@ describeWithEnv(
       });
       expect(updatePageState(await io.fetchPage())).toBe("active");
     });
+
+    test("fetchPage bounds one update-page request with an abort timeout", async () => {
+      let pageInit: RequestInit | undefined;
+      using _fetch = stubFetch((url, init) => {
+        if (url === "https://site.example/read-only") {
+          pageInit = init;
+          return new Response(updatePageMeta("active"));
+        }
+        return new Response("missing", { status: 404 });
+      });
+      const io = hostedSiteUpdateGuardIo({
+        hostingId: "8500",
+        hostingProvider: "bunny",
+        siteUrl: "https://site.example",
+      });
+      expect(updatePageState(await io.fetchPage())).toBe("active");
+      // A stalled page request must end before the wait's deadline, or the
+      // deadline can never fire.
+      expect(pageInit?.signal).toBeInstanceOf(AbortSignal);
+    });
   },
 );
 

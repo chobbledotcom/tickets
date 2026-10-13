@@ -23,6 +23,7 @@ import { BUNNY_API_BASE, formatBunnyError } from "#scripts/deploy-edge-lib.ts";
 import type { FetchText, FetchTextResult } from "#scripts/fetch-text.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import {
+  fetchBoundedUpdatePage,
   UPDATE_FLAG_VALUE,
   UPDATE_IN_PROGRESS_VAR,
   type UpdateIoOptions,
@@ -119,7 +120,7 @@ const fetchReadOnlyPage = async (site: {
   siteUrl: string;
 }): Promise<string> => {
   const url = `${siteBaseUrl(site.siteUrl)}/read-only`;
-  const response = await site.fetchText(url, { method: "GET" });
+  const response = await fetchBoundedUpdatePage(site.fetchText, url);
   if (!response.ok) {
     throw new Error(
       `The update page check failed (HTTP ${response.status}) for ${url}.`,

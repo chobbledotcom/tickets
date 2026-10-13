@@ -30,6 +30,7 @@ import {
   isNewerVersion,
 } from "#shared/update.ts";
 import {
+  fetchBoundedUpdatePage,
   runUnderUpdateGuard,
   UPDATE_FLAG_LIFTED_VALUE,
   UPDATE_IN_PROGRESS_VAR,
@@ -114,7 +115,7 @@ export const hostedSiteUpdateGuardIo = (site: {
   return {
     clearFlag: () => setFlag(UPDATE_FLAG_LIFTED_VALUE),
     fetchPage: async () => {
-      const response = await fetchText(pageUrl);
+      const response = await fetchBoundedUpdatePage(fetchText, pageUrl);
       if (!response.ok) {
         throw new Error(
           `The update page check failed (HTTP ${response.status}).`,

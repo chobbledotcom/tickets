@@ -62,6 +62,25 @@ export const updatePageBuildTag = (html: string): string | null =>
 export const UPDATE_WAIT_INTERVAL_MS = 5_000;
 export const UPDATE_WAIT_TIMEOUT_MS = 180_000;
 
+/** The longest one update-page fetch can take. A stalled connection must end
+ * before the wait's deadline, or the deadline can never fire. The aborted
+ * fetch then counts as not-ready, and the wait retries. */
+const UPDATE_PAGE_FETCH_TIMEOUT_MS = 30_000;
+
+/** One eagerly read page response: the part of a fetch result the wait reads. */
+type UpdatePageResult = { ok: boolean; status: number; text: string };
+
+/** Fetch one update page through `fetchText`, bounded so a stalled request
+ * ends before the wait's deadline. */
+export const fetchBoundedUpdatePage = async (
+  fetchText: (url: string, init: RequestInit) => Promise<UpdatePageResult>,
+  url: string,
+): Promise<UpdatePageResult> =>
+  fetchText(url, {
+    method: "GET",
+    signal: AbortSignal.timeout(UPDATE_PAGE_FETCH_TIMEOUT_MS),
+  });
+
 const waitTimedOut = (
   ms: number,
   lastError: string | null,
