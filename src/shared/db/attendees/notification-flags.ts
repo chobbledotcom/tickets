@@ -12,7 +12,6 @@
  */
 
 import { inPlaceholders, type SqlStatement } from "#db/client.ts";
-import type { Attendee } from "#types";
 
 /** The stored value of a pending-notification flag. */
 export type PendingNotificationFlag = 0 | 1 | 2;
@@ -64,10 +63,3 @@ export const emailOwedSql = (attendeeRef: string): string => `EXISTS (
     AND owed_line.quantity > 0
     AND instr(',' || REPLACE(REPLACE(owed_listing.fields, ' ', ''), CHAR(160), '') || ',', ',email,') > 0
 )`;
-
-/** Whether the email badge shows for one attendee row: the stored flag is up
- * and a booked listing still collects an email. The read that produced the
- * row resolved that rule into `email_owed`. */
-export const emailBadgeOwed = (
-  attendee: Pick<Attendee, "email_owed" | "email_pending">,
-): boolean => attendee.email_pending > 0 && attendee.email_owed === 1;
