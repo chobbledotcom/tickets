@@ -8,7 +8,6 @@ import {
 import { capturingConsole } from "#test-utils/captured-console.ts";
 
 const summary = (over: Partial<CompactTapSummary> = {}): CompactTapSummary => ({
-  containerPasses: 0,
   droppedLines: [],
   failed: 0,
   failures: [],

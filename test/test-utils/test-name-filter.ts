@@ -195,11 +195,14 @@ export const createTestNameFilter = (
   };
 
   /** Registers a kept suite's definition, or nothing for a nested suite; a
-   * suite whose subtree kept nothing was never registered. */
+   * suite whose subtree kept nothing was never registered. Every kept suite
+   * announces itself: a nested one still lands as a container pass in the
+   * stream, and the zero-execution decision must be able to discount it. */
   const registerKeptFrame = (frame: DescribeFrame): void => {
-    if (!frame.kept || frame.args === undefined) return;
-    keep([...frames.map((open) => open.name), frame.name]);
+    if (!frame.kept) return;
     announceSuite(frame.name);
+    if (frame.args === undefined) return;
+    keep([...frames.map((open) => open.name), frame.name]);
     const definition = frame.args[0] as Deno.TestDefinition;
     // A kept suite's own name did not match, so its run-time steps go through
     // the filtered context and its empty nested suites stay out of the report.

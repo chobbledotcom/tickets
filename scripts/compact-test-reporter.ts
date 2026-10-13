@@ -97,11 +97,6 @@ export class CompactTapReporter {
   #lastResultName?: string | undefined;
   #consumedResults = 0;
   #dropped: string[] = [];
-  /** Indents of results whose children may still be pending: a result deeper
-   * than the last one left them open, and the next result at or above their
-   * indent closes them. */
-  #openIndents: number[] = [];
-  #containerPasses = 0;
 
   constructor(options: CompactTapReporterOptions) {
     this.#cwd = options.cwd;
@@ -150,7 +145,7 @@ export class CompactTapReporter {
       return;
     }
 
-    this.#consumeResult(result, line);
+    this.#consumeResult(result);
   }
 
   /** A `---` marker under a failed result opens its diagnostic block, which
@@ -162,7 +157,7 @@ export class CompactTapReporter {
     return true;
   }
 
-  #consumeResult(result: RegExpMatchArray, line: string): void {
+  #consumeResult(result: RegExpMatchArray): void {
     this.#sawTap = true;
     this.#consumedResults++;
     this.#flushPendingFailure();
@@ -171,26 +166,12 @@ export class CompactTapReporter {
     const rawName = result[2] ?? "";
     const name = stripTapDirective(result[2] ?? "(unnamed test)");
     this.#lastResultName = name;
-    // Children indent under their parent and the parent's own result comes
-    // last, so a still-open deeper result marks this result a container: a
-    // BDD suite or a plain test parent. The runner tells them apart through
-    // the suite announcements the child wrote beside its marks.
-    const indent = line.length - line.trimStart().length;
-    let container = false;
-    let kept = 0;
-    for (const open of this.#openIndents) {
-      if (open > indent) container = true;
-      else this.#openIndents[kept++] = open;
-    }
-    this.#openIndents.length = kept;
-    this.#openIndents.push(indent);
     if (failed) {
       this.#pendingFailure = { name };
       return;
     }
 
     if (/#\s*SKIP\b/i.test(rawName)) this.#skipped++;
-    else if (container) this.#containerPasses++;
     this.#passed++;
     this.#stdout(this.#formatResultLine("ok  ", name));
   }
@@ -205,7 +186,6 @@ export class CompactTapReporter {
   finish(): CompactTapSummary {
     this.#flushPendingFailure();
     return {
-      containerPasses: this.#containerPasses,
       droppedLines: [...this.#dropped],
       failed: this.#failed,
       failures: [...this.#failures],
@@ -371,9 +351,9 @@ export const runCompactDenoTest = async (
     );
     // A filtered run that executed nothing did not select any test. A failed
     // run has its own cause to report, so only a clean exit names the filter.
-    // Container passes are a mix of BDD suites (which ran no test body) and
-    // plain test parents (whose body ran), so at most the suite count the
-    // child recorded leaves the execution count.
+    // On a clean exit every suite the child announced reported exactly one
+    // pass that ran no test body, so the announcement count leaves the
+    // execution count.
     const announcedSuites =
       announcePath === undefined
         ? 0
@@ -383,11 +363,7 @@ export const runCompactDenoTest = async (
     if (
       options.nameFilter !== undefined &&
       status.code === 0 &&
-      summary.passed -
-        summary.skipped -
-        Math.min(summary.containerPasses, announcedSuites) +
-        summary.failed ===
-        0
+      summary.passed - summary.skipped - announcedSuites + summary.failed === 0
     ) {
       console.error(`No test matched --filter ${options.nameFilter}.`);
       return 1;

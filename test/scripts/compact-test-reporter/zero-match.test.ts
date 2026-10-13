@@ -52,6 +52,10 @@ describe("the zero-match guard on the compact runner", () => {
     expect(await runFixture("ignored-only.ts", "all ignored group")).toBe(1);
   });
 
+  test("fails a filtered run whose match sits in a nested all-ignored suite", async () => {
+    expect(await runFixture("ignored-only.ts", "nested ignored leaf")).toBe(1);
+  });
+
   test("passes a filtered run that executed a leaf", async () => {
     expect(await runFixture("nested.ts", "leaf alpha")).toBe(0);
   });
