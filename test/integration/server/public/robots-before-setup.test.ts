@@ -19,13 +19,17 @@ describeWithEnv(
       using _stub = stub(settings, "loadKeys", () =>
         Promise.reject(new Error("database unreachable")),
       );
-      await expect(handleRobotsTxt()).rejects.toThrow("database unreachable");
+      await expect(handleRobotsTxt(mockRequest("/robots.txt"))).rejects.toThrow(
+        "database unreachable",
+      );
     });
 
     test("answers from the database until the settings table is gone", async () => {
       await enablePublicSite();
       const before = await handleRequest(mockRequest("/robots.txt"));
-      expect(await before.text()).toBe("User-agent: *\nAllow: /\n");
+      expect(await before.text()).toBe(
+        "User-agent: *\nAllow: /\nSitemap: https://localhost/sitemap.xml\n",
+      );
 
       // A site before setup has no settings table: the public site feature
       // cannot be on, so robots.txt answers the default text instead of an

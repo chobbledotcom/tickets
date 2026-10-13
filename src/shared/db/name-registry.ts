@@ -12,7 +12,7 @@ import { groups } from "#db/groups.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
-import type { SitePageItemType } from "#types";
+import type { Group, ListingWithCount, SitePageItemType } from "#types";
 
 /** The two entity kinds that share the catalog name namespace. Derived from
  *  {@link SitePageItemType} (the slug-owning union) by excluding `"page"` —
@@ -60,12 +60,14 @@ export type CatalogNameIndex = {
   group: NameIndex;
 };
 
+/** The decrypted catalog pair — every listing and every group — that name
+ *  resolution and the public URL lists share. */
+export const loadCatalogPair = (): Promise<[ListingWithCount[], Group[]]> =>
+  Promise.all([getAllListings(), groups.cache.getAll()]);
+
 /** Load the listing and group name indexes from the (cached) decrypted catalog. */
 export const loadCatalogNameIndex = async (): Promise<CatalogNameIndex> => {
-  const [listings, allGroups] = await Promise.all([
-    getAllListings(),
-    groups.cache.getAll(),
-  ]);
+  const [listings, allGroups] = await loadCatalogPair();
   return { group: buildIndex(allGroups), listing: buildIndex(listings) };
 };
 

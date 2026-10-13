@@ -82,7 +82,9 @@ describeWithEnv(
         await enablePublicSite();
         try {
           const response = await handleRequest(mockRequest("/robots.txt"));
-          expect(await response.text()).toBe("User-agent: *\nAllow: /\n");
+          expect(await response.text()).toBe(
+            "User-agent: *\nAllow: /\nSitemap: https://localhost/sitemap.xml\n",
+          );
         } finally {
           await disablePublicSite();
         }
@@ -96,7 +98,9 @@ describeWithEnv(
         settings.invalidateCache();
         try {
           const response = await handleRequest(mockRequest("/robots.txt"));
-          expect(await response.text()).toBe("User-agent: *\nAllow: /\n");
+          expect(await response.text()).toBe(
+            "User-agent: *\nAllow: /\nSitemap: https://localhost/sitemap.xml\n",
+          );
         } finally {
           await disablePublicSite();
           settings.invalidateCache();

@@ -16,7 +16,6 @@ import { getNewsPostSummaries } from "#db/news-posts.ts";
 import { settings } from "#db/settings.ts";
 import { userAgents } from "#db/user-agents.ts";
 import { identity, map, mapById, pipe } from "#fp";
-import { escapeHtml } from "#jsx/escape-html.ts";
 import type { CoreListingFields } from "#routes/api/public-listing.ts";
 import { withAuth } from "#routes/auth.ts";
 /* jscpd:ignore-start */
@@ -39,6 +38,7 @@ import {
   type ListingWithCount,
   loadSortedListings,
 } from "#shared/sort-listings.ts";
+import { escapeXml } from "#shared/xml.ts";
 import type { Attendee, NewsPostSummary } from "#types";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
@@ -48,10 +48,6 @@ export const escapeIcs = replacing(
   [/,/g, "\\,"],
   [/\n/g, "\\n"],
 );
-
-/** Escape text for XML (extends HTML escaping with apostrophe) */
-export const escapeXml = (text: string): string =>
-  escapeHtml(text).replace(/'/g, "&apos;");
 
 /** Format a date string as ICS UTC timestamp (YYYYMMDDTHHMMSSZ) */
 const formatIcsDate = (dateStr: string): string =>
