@@ -15,6 +15,13 @@ import {
 export const parseListingFields = (fields: ListingFields): ContactField[] =>
   commaParts(fields).filter(isContactField);
 
+/** The one stored form of a contact-fields setting: the parser's own read of
+ * the string, comma-joined back together. Every write to the listings table
+ * passes its fields through this. A stored token is then a whole trimmed
+ * token, and the badge SQL can compare tokens exactly. */
+export const storedListingFields = (fields: ListingFields): ListingFields =>
+  commaParts(fields).join(",");
+
 /** Ensure "email" is included in an listing fields setting */
 export const withRequiredEmail = (fields: ListingFields): ListingFields => {
   const parsed = parseListingFields(fields);

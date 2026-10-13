@@ -115,6 +115,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-10-05_listing_min_quantity",
         "2026-10-07_holiday_date_padding",
         "2026-10-11_custom_css_bunny_fonts",
+        "2026-10-12_listing_fields_trim",
       ],
       schemaHash: "1h8mi7d",
     });
@@ -131,7 +132,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Store whether the custom CSS uses Bunny's fonts, scanned from the saved CSS.",
+        "Store every listing's contact fields as trimmed, comma-joined tokens.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

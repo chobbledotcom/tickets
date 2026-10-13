@@ -1,7 +1,7 @@
 /** Schema version label and the migrations bookkeeping table name. */
 
 export const LATEST_UPDATE =
-  "Store whether the custom CSS uses Bunny's fonts, scanned from the saved CSS.";
+  "Store every listing's contact fields as trimmed, comma-joined tokens.";
 
 export const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
 export const LATEST_DB_UPDATE_KEY = "latest_db_update";
