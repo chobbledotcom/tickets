@@ -20,10 +20,7 @@
 import type { AdminApiTransport } from "#shared/admin-api-client.ts";
 import { loadConfig } from "./config.ts";
 import { curlTransport } from "./curl.ts";
-import {
-  CliError,
-  toErrorResult,
-} from "./errors.ts";
+import { CliError, toErrorResult } from "./errors.ts";
 import { runImport } from "./import-run.ts";
 import { writeErr } from "./io.ts";
 import { parseImportFlags } from "./product-plan.ts";

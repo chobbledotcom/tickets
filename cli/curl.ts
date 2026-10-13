@@ -104,5 +104,7 @@ export const curlJson = async (
 
 /** The transport one resolved config serves: curl carries the auth and the
  *  HTTP mechanics, and the client validates every answer. */
-export const curlTransport = (config: CliConfig): AdminApiTransport =>
-  (options) => curlJson(config, options);
+export const curlTransport =
+  (config: CliConfig): AdminApiTransport =>
+  (options) =>
+    curlJson(config, options);

@@ -230,6 +230,16 @@ const syncGroups = async (
  * the file so a rerun skips it. The text is the snapshot every decision read,
  * so a file an editor touches mid-run is stamped from the same content the
  * listing was written from. */
+/** The report line one saved listing produces. */
+const listingReportLine = (
+  plan: ImportPlan,
+  product: CatalogProduct,
+  saved: { listing: { id: number } },
+): string =>
+  `${
+    plan.action === "update" ? "updated" : "created"
+  } listing ${product.title} -> id ${saved.listing.id}`;
+
 const importProduct = async (
   transport: AdminApiTransport,
   product: CatalogProduct,
@@ -288,12 +298,7 @@ const importProduct = async (
   );
   if (plan.action === "update") report.updated += 1;
   else report.created.listings += 1;
-  line(
-    report,
-    `${
-      plan.action === "update" ? "updated" : "created"
-    } listing ${product.title} -> id ${saved.listing.id}`,
-  );
+  line(report, listingReportLine(plan, product, saved));
   refuseChangedFile(
     file,
     text,

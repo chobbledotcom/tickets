@@ -16,11 +16,7 @@ import {
 } from "./commands.ts";
 import type { CliConfig } from "./config.ts";
 import { describeEntries } from "./describe.ts";
-import {
-  CliError,
-  fieldProblems,
-  toErrorResult,
-} from "./errors.ts";
+import { CliError, fieldProblems, toErrorResult } from "./errors.ts";
 
 /** The seams the runner runs on: the table the commands read, the transport
  *  the client sends through, and the two IO sides the tests replace. */
