@@ -87,7 +87,10 @@ export const judgeSubmittedCart = ({
     )
     .map((pkg) =>
       ctx.listings
-        .filter((info) => pkg.memberListingIds.includes(info.listing.id))
+        .filter(
+          (info) =>
+            pkg.memberListingIds.includes(info.listing.id) && inCart(info),
+        )
         .map((info) => info),
     );
   for (const [parents, isPackage] of [

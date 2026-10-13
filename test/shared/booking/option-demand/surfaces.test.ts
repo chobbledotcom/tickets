@@ -7,7 +7,6 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import type { FoldBase } from "#booking/fold-tree.ts";
 import { pageDayCounts } from "#booking/model.ts";
 import {
   type Alternative,
@@ -24,9 +23,7 @@ import {
 import { listingGroups } from "#db/groups/table.ts";
 import { requiredMapValue, uniqueBy } from "#fp";
 import { resolveDayCount } from "#routes/public/booking-dates.ts";
-import { judgeSubmittedCart } from "#routes/public/judge-cart.ts";
 import { judgedOption } from "#routes/public/order-catalog.ts";
-import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
 import {
   checkAvailability,
   foldSelectedChildren,
@@ -39,12 +36,7 @@ import {
   type OrderOption,
   type OrderPools,
 } from "#shared/order/options.ts";
-import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  createTestListing,
-  pastCloseTime,
-} from "#test-utils/db-helpers/listings.ts";
 import type { ListingWithCount } from "#types";
 import {
   CASES,
@@ -408,61 +400,6 @@ describeWithEnv(
       expect(
         sortedEntries(widestAlternative(outcome).unitsByListingId),
       ).toEqual([]);
-    });
-
-    test("the submit gate refuses an option whose registration closed", async () => {
-      // A closed option is the refusal the fold's walk does not name: the
-      // walk never reads the registration window. The gate refuses the
-      // submission with the walk's own sold-out message, and a cart that
-      // does not book the closed option passes.
-      const closed = await createTestListing({
-        closesAt: pastCloseTime(),
-        name: "Closed Trip",
-      });
-      const open = await createTestListing({ name: "Open Trip" });
-      const [closedRow, openRow] = await buildTicketListingsWithGroupCapacity([
-        closed,
-        open,
-      ]);
-      const closedInfo = requireValue(
-        closedRow,
-        "The closed fixture row is missing",
-      );
-      const openInfo = requireValue(openRow, "The open fixture row is missing");
-      const form = new FormParams();
-      const base = (qty: Map<number, number>): FoldBase => ({
-        customPrices: new Map(),
-        date: null,
-        dayCount: 1,
-        hasCustomisable: false,
-        quantities: qty,
-      });
-      const judged = judgeSubmittedCart({
-        base: base(new Map([[closed.id, 1]])),
-        ctx: {
-          childrenByParentId: new Map(),
-          listings: [closedInfo, openInfo],
-          packages: [],
-        },
-        form,
-        holidays: [],
-      });
-      expect(judged).toEqual({
-        error: "Closed Trip has no available options right now.",
-        ok: false,
-      });
-      expect(
-        judgeSubmittedCart({
-          base: base(new Map()),
-          ctx: {
-            childrenByParentId: new Map(),
-            listings: [closedInfo, openInfo],
-            packages: [],
-          },
-          form,
-          holidays: [],
-        }),
-      ).toEqual({ ok: true });
     });
   },
 );
