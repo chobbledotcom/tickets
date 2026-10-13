@@ -40,15 +40,18 @@ const resend = (attendeeId: number, name: string) =>
     confirm_identifier: name,
   });
 
-/** Resend, then assert only one line was notified and the named pooled site
- * stayed unclaimed. Returns every site for further assertions. */
+/** Resend, then assert the given number of lines were notified and the named
+ * pooled site stayed unclaimed. Returns every site for further assertions.
+ * The re-send notifies every live line the attendee holds, so the caller
+ * states how many its booking holds. */
 const resendLeavesSiteUnclaimed = async (
   attendeeId: number,
   name: string,
   siteName: string,
+  notifiedLines = 1,
 ) => {
   await resend(attendeeId, name);
-  expect(await registeredEntries()).toBe(1);
+  expect(await registeredEntries()).toBe(notifiedLines);
   const { builtSites } = await import("#db/built-sites.ts");
   const sites = await builtSites.getAll();
   expect(
@@ -273,10 +276,13 @@ describeWithEnv(
       );
       await insertBuiltSite("Second Site", "second.test", "", "", true);
 
+      // Both live lines notify: the standalone purchase and the package
+      // member. Neither send claims the second site.
       await resendLeavesSiteUnclaimed(
         attendee.id,
         "Two Purchases",
         "Second Site",
+        2,
       );
     });
 
