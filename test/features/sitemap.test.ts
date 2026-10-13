@@ -6,9 +6,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { hmacHash } from "#crypto/hashing.ts";
 import { executeWithoutCacheInvalidation } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { invalidateListingsCache } from "#db/listings/records.ts";
+import {
+  invalidateListingsCache,
+  listingsTable,
+} from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { handleSitemapXml } from "#routes/sitemap.ts";
@@ -19,6 +23,7 @@ import {
   createTestNewsPost,
   createTestSitePage,
 } from "#test-utils/db-helpers/misc.ts";
+import { testListingInput } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
 
@@ -164,6 +169,53 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
     }
   });
 
+  test("names no listing or group whose slug the route rejects", async () => {
+    await enablePublicSite();
+    try {
+      // The edit form refuses an unroutable slug, so the listing write goes
+      // to the stored row: the malleable-data case the filter exists for.
+      const rejected = await createTestListing({ name: "Ampersand Deal" });
+      await listingsTable.update(rejected.id, {
+        ...testListingInput({ name: "Ampersand Deal" }),
+        slug: "plans&pricing",
+        slugIndex: await hmacHash("plans&pricing"),
+      });
+      // A group enters the document only when a member makes its page
+      // bookable, so each group under test carries one.
+      const odd = await createTestGroup({
+        name: "Odd Bundle",
+        slug: "plans&pricing",
+      });
+      await createTestListing({ groupIds: [odd.id], name: "Odd Member" });
+      const plain = await createTestListing({ name: "Plain Deal" });
+      const plainGroup = await createTestGroup({ name: "Plain Bundle" });
+      await createTestListing({
+        groupIds: [plainGroup.id],
+        name: "Plain Member",
+      });
+
+      const xml = await (
+        await handleRequest(mockRequest("/sitemap.xml"))
+      ).text();
+      // The route's slug pattern rejects the ampersand, so those /ticket
+      // pages answer 404 and stay out. A normal slug stays in.
+      expect(xml).not.toContain(
+        "<loc>https://localhost/ticket/plans&pricing</loc>",
+      );
+      expect(xml).not.toContain(
+        "<loc>https://localhost/ticket/plans&amp;pricing</loc>",
+      );
+      expect(xml).toContain(
+        `<loc>https://localhost/ticket/${plain.slug}</loc>`,
+      );
+      expect(xml).toContain(
+        `<loc>https://localhost/ticket/${plainGroup.slug}</loc>`,
+      );
+    } finally {
+      await disablePublicSite();
+    }
+  });
+
   test("a cold read applies the inherited hidden flag", async () => {
     await enablePublicSite();
     try {
@@ -199,15 +251,16 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
     }
   });
 
-  test("escapes the address it lists", async () => {
+  test("names no page whose slug the route rejects", async () => {
     await enablePublicSite();
     try {
       await createTestSitePage("plans&pricing");
       const response = await handleRequest(mockRequest("/sitemap.xml"));
       const xml = await response.text();
-      expect(xml).toContain(
-        "<loc>https://localhost/page/plans&amp;pricing</loc>",
-      );
+      // The public route's slug pattern rejects the ampersand, so the page
+      // answers 404 and the document names no URL for it.
+      expect(xml).not.toContain("plans&amp;pricing");
+      expect(xml).not.toContain("plans&pricing");
     } finally {
       await disablePublicSite();
     }

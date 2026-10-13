@@ -8,9 +8,21 @@ export type RouteParamNames<Path extends string> =
 const isNumericRouteParam = (name: string): boolean =>
   name.endsWith("Id") || name === "id";
 
+/** The segment shape a public `:slug` route serves: lowercase letters and
+ *  numbers with `-`, `_`, or `+` separators. One rule for the router and
+ *  every caller that names a public slug URL. */
+export const SLUG_PARAM_PATTERN = "[a-z0-9]+(?:[-_+][a-z0-9]+)*";
+
+const SLUG_PARAM_SERVES = new RegExp(`^(?:${SLUG_PARAM_PATTERN})$`);
+
+/** Whether a public route serves this slug: the route's own `:slug` pattern
+ *  decides, so a slug it rejects never reaches a caller that names URLs. */
+export const routeServesSlug = (slug: string): boolean =>
+  SLUG_PARAM_SERVES.test(slug);
+
 const routeParamPattern = (name: string): string => {
   if (isNumericRouteParam(name)) return "\\d+";
-  if (name === "slug") return "[a-z0-9]+(?:[-_+][a-z0-9]+)*";
+  if (name === "slug") return SLUG_PARAM_PATTERN;
   return "[^/]+";
 };
 

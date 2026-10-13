@@ -22,6 +22,7 @@ import {
   publicCacheResponse,
 } from "#routes/public-origin.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";
+import { routeServesSlug } from "#shared/route-pattern.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { escapeXml } from "#shared/xml.ts";
 
@@ -75,8 +76,9 @@ const sitemapNotFound = (): Response =>
  *  catalog entry passes the checks its own page applies. A listing is
  *  active, not hidden, and bookable on its own. A child that sells only
  *  through its parent has no /ticket page. A group is not hidden and keeps
- *  a page a buyer can book from. A listing or group with an empty slug
- *  names no working page, so it is out with the empty slugs. */
+ *  a page a buyer can book from. Every slug passes the public route's own
+ *  slug pattern, so a slug the router rejects — the empty slug with it —
+ *  stays out. */
 const publicPaths = async (): Promise<string[]> => {
   const [listings, posts, pages, groups] = await Promise.all([
     getAllListings(),
@@ -93,18 +95,22 @@ const publicPaths = async (): Promise<string[]> => {
   const { navFlags } = await import("#templates/public/shared.tsx");
   return [
     ...fixedPublicPaths(navFlags(), posts.length > 0),
-    ...pages.map((page) => `/page/${page.slug}`),
-    ...posts.map((post) => `/news/${post.slug}`),
+    ...pages
+      .filter((page) => routeServesSlug(page.slug))
+      .map((page) => `/page/${page.slug}`),
+    ...posts
+      .filter((post) => routeServesSlug(post.slug))
+      .map((post) => `/news/${post.slug}`),
     ...listings
       .filter(
         (listing) =>
           isPublicListing(listing) &&
-          listing.slug !== "" &&
+          routeServesSlug(listing.slug) &&
           !nonStandaloneChildIds.has(listing.id),
       )
       .map((listing) => `/ticket/${listing.slug}`),
     ...groups
-      .filter(({ group }) => group.slug !== "")
+      .filter(({ group }) => routeServesSlug(group.slug))
       .map(({ group }) => `/ticket/${group.slug}`),
   ];
 };
