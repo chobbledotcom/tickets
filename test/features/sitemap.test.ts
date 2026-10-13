@@ -266,6 +266,20 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
     }
   });
 
+  test("names no page whose stored slug ends in a line terminator", async () => {
+    await enablePublicSite();
+    try {
+      await createTestSitePage("latest\n");
+      const response = await handleRequest(mockRequest("/sitemap.xml"));
+      const xml = await response.text();
+      // URL parsing drops the trailing newline, so the served page and its
+      // stored slug no longer match: the document names no URL for it.
+      expect(xml).not.toContain("page/latest");
+    } finally {
+      await disablePublicSite();
+    }
+  });
+
   test("names the configured domain over the request's host", async () => {
     await enablePublicSite();
     try {
