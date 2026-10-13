@@ -2,9 +2,9 @@
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
-import { BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { isoToTag } from "#shared/build-tag.ts";
 import { getRenewalUrl, isUpdateInProgress } from "#shared/env.ts";
+import { getEffectiveBuildTimestamp } from "#shared/update.ts";
 import { updateBuildTagMeta, updatePageMeta } from "#shared/update-guard.ts";
 import {
   ProseHeading,
@@ -215,9 +215,10 @@ export const siteNotActivatedPage = (): string =>
 export const readOnlyPage = (): string => {
   const updating = isUpdateInProgress();
   const renewalUrl = updating ? null : getRenewalUrl();
-  // The tag names this build for a deploy's post-update wait. Dev builds
-  // bake no timestamp, so they report no tag.
-  const buildTag = BUILD_TIMESTAMP === "" ? null : isoToTag(BUILD_TIMESTAMP);
+  // The tag names this build for a deploy's post-update wait. A build with
+  // no timestamp (development) reports no tag.
+  const buildTimestamp = getEffectiveBuildTimestamp();
+  const buildTag = buildTimestamp === "" ? null : isoToTag(buildTimestamp);
   return String(
     <Layout
       family="public"
