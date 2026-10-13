@@ -237,14 +237,21 @@ export interface NotifyRegistrationOptions {
   source: WebhookBookingSource;
 }
 
+/** The shape both registration entry points share: the entries to notify and
+ * the caller's options. */
+type NotifyRegistration = (
+  entries: EmailEntry[],
+  options: NotifyRegistrationOptions,
+) => Promise<void>;
+
 /** Queue a registration's external sends: the confirmation email and the
  * registration webhooks, then built-site assignment and renewal processing.
  * The caller owns the registration's activity line, so a caller whose batch
  * already wrote it queues without a second copy. */
-export const queueRegistrationSends = async (
-  entries: EmailEntry[],
-  options: NotifyRegistrationOptions,
-): Promise<void> => {
+export const queueRegistrationSends: NotifyRegistration = async (
+  entries,
+  options,
+) => {
   const currency = settings.currency;
   addPendingWork(
     queueRegistrationNotifications(
@@ -272,10 +279,10 @@ export const queueRegistrationSends = async (
 };
 
 /** Record a registration and queue its external notifications. */
-export const logAndNotifyRegistration = async (
-  entries: EmailEntry[],
-  options: NotifyRegistrationOptions = {},
-): Promise<void> => {
+export const logAndNotifyRegistration: NotifyRegistration = async (
+  entries,
+  options,
+) => {
   await logActivities(
     entries.map(({ listing, attendee }) => ({
       attendeeId: attendee.id,
