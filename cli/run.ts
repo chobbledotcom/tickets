@@ -18,10 +18,8 @@ import type { CliConfig } from "./config.ts";
 import { describeEntries } from "./describe.ts";
 import {
   CliError,
-  cliErrorFromUnknown,
-  errorJson,
-  exitCodeFor,
   fieldProblems,
+  toErrorResult,
 } from "./errors.ts";
 
 /** The seams the runner runs on: the table the commands read, the transport
@@ -151,7 +149,6 @@ export const runApi = async (
     await deps.config();
     return { code: 0, out: jsonLine(await execute(command, deps)) };
   } catch (error) {
-    const cli = cliErrorFromUnknown(error);
-    return { code: exitCodeFor(cli), err: jsonLine(errorJson(cli)) };
+    return toErrorResult(error);
   }
 };

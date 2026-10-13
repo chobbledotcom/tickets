@@ -1,8 +1,7 @@
 #!/usr/bin/env -S deno run --allow-env --allow-read --allow-run
-import type { AdminApiTransport } from "#shared/admin-api-client.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { type CliConfig, loadConfig } from "./config.ts";
-import { curlJson } from "./curl.ts";
+import { curlTransport } from "./curl.ts";
 import { readStdin, writeErr, writeOut } from "./io.ts";
 import { runApi } from "./run.ts";
 
@@ -13,8 +12,7 @@ const main = async (): Promise<number> => {
   // key, and the transport reuses the same load.
   let cached: Promise<CliConfig> | undefined;
   const config = (): Promise<CliConfig> => (cached ??= loadConfig(Deno.cwd()));
-  const transport: AdminApiTransport = async (options) =>
-    curlJson(await config(), options);
+  const transport = curlTransport(await config());
   const result = await runApi(Deno.args, {
     config,
     readStdin,

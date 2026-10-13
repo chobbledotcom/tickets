@@ -62,6 +62,22 @@ const line = (report: Report, text: string): void => {
   report.lines.push(text.trim());
 };
 
+/** The one existing entity whose folded name matches `wanted`, or undefined
+ *  when none does. Two or more matches are the operator's to separate: the
+ *  importer never picks one by API order. */
+const uniqueByName = <T>(
+  items: readonly T[],
+  nameOf: (item: T) => string,
+  wanted: string,
+  message: (count: number) => string,
+): T | undefined => {
+  const matches = items.filter(
+    (item) => normalizeEntityName(nameOf(item)) === normalizeEntityName(wanted),
+  );
+  if (matches.length > 1) throw new Error(message(matches.length));
+  return matches[0];
+};
+
 /** One attribute's values: reuse the stored options, create the missing ones
  * (or, in plan mode, only say what would happen). */
 const syncAttributeOptions = async (
@@ -74,17 +90,16 @@ const syncAttributeOptions = async (
   optionIds: Map<string, number>,
 ): Promise<void> => {
   for (const value of values) {
-    // Two options with one text inside one attribute are indistinguishable:
-    // the importer never attaches listings to an arbitrary one by API order.
-    const matches = attribute?.options.filter(
-      (item) => normalizeEntityName(item.text) === normalizeEntityName(value),
-    );
-    if (matches && matches.length > 1) {
-      throw new Error(
-        `attribute '${name}' has ${matches.length} options named '${value}'; delete all but one on the site and rerun`,
-      );
-    }
-    const option = matches?.[0];
+    // Two options with one text inside one attribute are indistinguishable.
+    const option = attribute
+      ? uniqueByName(
+          attribute.options,
+          (item) => item.text,
+          value,
+          (count) =>
+            `attribute '${name}' has ${count} options named '${value}'; delete all but one on the site and rerun`,
+        )
+      : undefined;
     if (option) {
       optionIds.set(optionKey(name, value), option.id);
       continue;
@@ -125,17 +140,14 @@ const syncAttributes = async (
   const optionIds = new Map<string, number>();
   for (const { name, values } of planned) {
     // The server folds case and trims names: a same-named attribute under
-    // another spelling is the same attribute. Two under one name are the
-    // operator's to separate; the importer never picks one by API order.
-    const matches = existing.filter(
-      (item) => normalizeEntityName(item.name) === normalizeEntityName(name),
+    // another spelling is the same attribute.
+    let attribute = uniqueByName(
+      existing,
+      (item) => item.name,
+      name,
+      (count) =>
+        `attribute '${name}' matches ${count} existing attributes; rename all but one on the site and rerun`,
     );
-    if (matches.length > 1) {
-      throw new Error(
-        `attribute '${name}' matches ${matches.length} existing attributes; rename all but one on the site and rerun`,
-      );
-    }
-    let attribute = matches[0];
     if (!attribute && !plan) {
       const created = await adminApiWrite(
         transport,
@@ -175,15 +187,13 @@ const syncGroups = async (
   for (const { name, slug } of entries) {
     // The server folds case and trims names, so match the way it does: a
     // same-named group under another spelling is the same group.
-    const matches = existing.filter(
-      (item) => normalizeEntityName(item.name) === normalizeEntityName(name),
+    const group = uniqueByName(
+      existing,
+      (item) => item.name,
+      name,
+      (count) =>
+        `group '${name}' matches ${count} existing groups; rename all but one on the site and rerun`,
     );
-    if (matches.length > 1) {
-      throw new Error(
-        `group '${name}' matches ${matches.length} existing groups; rename all but one on the site and rerun`,
-      );
-    }
-    const group = matches[0];
     if (group) {
       // A package is a bookable bundle, not a category: attaching imported
       // products to it by name would change the package's contents.
@@ -269,22 +279,13 @@ const importProduct = async (
       ),
     ),
   );
-  const saved =
-    plan.action === "update"
-      ? await adminApiWrite(
-          transport,
-          ADMIN_API_RESOURCES.listings,
-          "update",
-          plan.listingId,
-          body,
-        )
-      : await adminApiWrite(
-          transport,
-          ADMIN_API_RESOURCES.listings,
-          "create",
-          undefined,
-          body,
-        );
+  const saved = await adminApiWrite(
+    transport,
+    ADMIN_API_RESOURCES.listings,
+    plan.action === "update" ? "update" : "create",
+    plan.action === "update" ? plan.listingId : undefined,
+    body,
+  );
   if (plan.action === "update") report.updated += 1;
   else report.created.listings += 1;
   line(

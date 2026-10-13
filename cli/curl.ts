@@ -1,6 +1,7 @@
 import type {
   AdminApiRequest,
   AdminApiResponse,
+  AdminApiTransport,
 } from "#shared/admin-api-client.ts";
 import type { CliConfig } from "./config.ts";
 import { CliError } from "./errors.ts";
@@ -100,3 +101,8 @@ export const curlJson = async (
   const status = Number(statusText);
   return { data: parseJson(body, status), status };
 };
+
+/** The transport one resolved config serves: curl carries the auth and the
+ *  HTTP mechanics, and the client validates every answer. */
+export const curlTransport = (config: CliConfig): AdminApiTransport =>
+  (options) => curlJson(config, options);
