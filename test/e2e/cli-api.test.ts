@@ -72,9 +72,13 @@ const runCliApiExpectingFailure = async (
   hostname: string,
   apiKey: string,
   args: string[],
-): Promise<{ code: number; stderr: string }> => {
+): Promise<{ code: number; stdout: string; stderr: string }> => {
   const output = await runCliApiRaw(hostname, apiKey, args);
-  return { code: output.code, stderr: decode(output.stderr) };
+  return {
+    code: output.code,
+    stderr: decode(output.stderr),
+    stdout: decode(output.stdout),
+  };
 };
 
 describeWithEnv("CLI API e2e", { db: true }, () => {
@@ -166,7 +170,7 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
       }
     });
 
-    test("prints usage for an unknown command", async () => {
+    test("answers exit 2 with a JSON usage error for an unknown command", async () => {
       const apiKey = await createTestApiKeyToken();
       const api = serveTestApi();
 
@@ -177,15 +181,18 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
         ]);
 
         expect(result.code).toBe(2);
-        expect(result.stderr).toContain(
-          "Usage: deno task cli:api <list|get|create|update|delete>",
-        );
+        expect(JSON.parse(result.stderr).error).toEqual({
+          fields: null,
+          kind: "usage",
+          message: expect.stringContaining("Unknown command 'publish'"),
+          status: null,
+        });
       } finally {
         await api.stop();
       }
     });
 
-    test("prints usage when arguments are missing", async () => {
+    test("answers exit 2 with a JSON usage error when arguments are missing", async () => {
       const apiKey = await createTestApiKeyToken();
       const api = serveTestApi();
 
@@ -197,15 +204,13 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
         );
 
         expect(result.code).toBe(2);
-        expect(result.stderr).toContain(
-          "Usage: deno task cli:api <list|get|create|update|delete>",
-        );
+        expect(JSON.parse(result.stderr).error.kind).toBe("usage");
       } finally {
         await api.stop();
       }
     });
 
-    test("surfaces API failures from create commands with omitted JSON bodies", async () => {
+    test("answers exit 3 when a create sends a body the server refuses", async () => {
       const apiKey = await createTestApiKeyToken();
       const api = serveTestApi();
 
@@ -213,15 +218,19 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
         const result = await runCliApiExpectingFailure(api.hostname, apiKey, [
           "create",
           "listings",
+          "{}",
         ]);
 
-        expect(result.code).toBe(1);
+        expect(result.code).toBe(3);
+        const answer = JSON.parse(result.stderr);
+        expect(answer.error.kind).toBe("validation");
+        expect(answer.error.status).toBe(400);
       } finally {
         await api.stop();
       }
     });
 
-    test("surfaces API failures from commands with omitted JSON bodies", async () => {
+    test("answers exit 3 when a delete carries no confirmation", async () => {
       const listing = await createTestListing({ name: "CLI Delete Guard" });
       const apiKey = await createTestApiKeyToken();
       const api = serveTestApi();
@@ -233,9 +242,60 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
           String(listing.id),
         ]);
 
-        expect(result.code).toBe(1);
+        expect(result.code).toBe(3);
+        expect(JSON.parse(result.stderr).error.kind).toBe("validation");
       } finally {
         await api.stop();
+      }
+    });
+
+    test("answers exit 5 for an unknown listing", async () => {
+      const apiKey = await createTestApiKeyToken();
+      const api = serveTestApi();
+
+      try {
+        const result = await runCliApiExpectingFailure(api.hostname, apiKey, [
+          "get",
+          "listings",
+          "999999",
+        ]);
+
+        expect(result.code).toBe(5);
+        expect(JSON.parse(result.stderr).error.kind).toBe("not_found");
+      } finally {
+        await api.stop();
+      }
+    });
+  });
+
+  describe("malformed server replies", () => {
+    test("keeps the served status when a 200 reply fails the envelope schema", async () => {
+      // The reply is valid JSON that the table's envelope does not describe,
+      // so the failure happens after curl: the served status must survive.
+      const server = Deno.serve(
+        { hostname: "127.0.0.1", port: 0 },
+        () =>
+          new Response("{}", {
+            headers: { "content-type": "application/json" },
+          }),
+      );
+      const { port } = server.addr;
+      try {
+        const result = await runCliApiExpectingFailure(
+          `http://127.0.0.1:${port}`,
+          "unused-key",
+          ["list", "listings"],
+        );
+
+        expect(result.code).toBe(6);
+        expect(result.stdout).toBe("");
+        const answer = JSON.parse(result.stderr);
+        expect(answer.error.kind).toBe("server");
+        expect(answer.error.status).toBe(200);
+        expect(answer.error.fields).toBeNull();
+        expect(answer.error.message).toContain("failed validation");
+      } finally {
+        await server.shutdown();
       }
     });
   });

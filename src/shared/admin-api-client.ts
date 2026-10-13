@@ -11,9 +11,13 @@
  */
 
 import * as v from "valibot";
-import type {
-  AdminApiChild,
-  AdminApiResource,
+import {
+  type AdminApiChild,
+  type AdminApiDeleteAnswer,
+  type AdminApiDeleteBody,
+  type AdminApiResource,
+  adminApiIdParam,
+  DeleteAnswerSchema,
 } from "#shared/admin-api-resources.ts";
 import { namedError } from "#shared/named-error.ts";
 
@@ -35,10 +39,16 @@ export type AdminApiTransport = (
 
 /** The server refused the request (a non-2xx status), or the transport
  *  failed before one existed. The message carries the status and the
- *  server's own error text. */
+ *  server's own error text. `status` and `data` keep the raw answer for
+ *  callers that map statuses or read error fields. */
 export class AdminApiError extends namedError("AdminApiError") {
+  readonly data: unknown;
+  readonly status: number | undefined;
+
   constructor(data: unknown, status: number | undefined) {
     super(AdminApiErrorMessage(data, status));
+    this.data = data;
+    this.status = status;
   }
 }
 
@@ -48,14 +58,26 @@ const AdminApiErrorMessage = (data: unknown, status: number | undefined) => {
   return `admin api request failed (status ${status})`;
 };
 
+/** The server answered a success status, but the body does not fit the
+ *  contract's envelope for the resource. `status` keeps the HTTP status the
+ *  transport saw, so callers can report which answer was malformed. */
+export class AdminApiSchemaError extends namedError("AdminApiSchemaError") {
+  readonly status: number | undefined;
+
+  constructor(message: string, status: number | undefined) {
+    super(message);
+    this.status = status;
+  }
+}
+
 /** Validate one success envelope, naming the resource and the rejected
  *  fields when the server answers something the contract does not describe. */
 const parseEnvelope = <T>(
   resource: string,
   schema: v.GenericSchema<T>,
-  data: unknown,
+  response: AdminApiResponse,
 ): T => {
-  const result = v.safeParse(schema, data);
+  const result = v.safeParse(schema, response.data);
   if (!result.success) {
     const issues = result.issues
       .map(
@@ -65,8 +87,9 @@ const parseEnvelope = <T>(
             .join(".")}: ${issue.message}`,
       )
       .join("; ");
-    throw new Error(
+    throw new AdminApiSchemaError(
       `admin api ${resource} response failed validation: ${issues}`,
+      response.status,
     );
   }
   return result.output;
@@ -95,7 +118,7 @@ const request = async <T>(
 ): Promise<T> => {
   const response = await transport(options);
   refuseErrorStatus(response);
-  return parseEnvelope(resource, schema, response.data);
+  return parseEnvelope(resource, schema, response);
 };
 
 /** The HTTP method each root verb answers with. */
@@ -127,6 +150,31 @@ const rootCall = async <T>(
     path,
   });
 };
+
+/** One row: GET /api/admin/{path}/:id. */
+export const adminApiGet = async <E extends AdminApiResource>(
+  transport: AdminApiTransport,
+  entry: E,
+  id: number,
+): Promise<Row<E>> =>
+  request(transport, entry.path, entry.singleSchema, {
+    method: "GET",
+    path: rootPath(entry, id),
+  });
+
+/** One confirmed delete: DELETE /api/admin/{path}/:id with the shared
+ *  confirmation body. The answer is the shared `{status}` envelope. */
+export const adminApiDelete = async (
+  transport: AdminApiTransport,
+  entry: AdminApiResource,
+  id: number,
+  body: AdminApiDeleteBody,
+): Promise<AdminApiDeleteAnswer> =>
+  request(transport, entry.path, DeleteAnswerSchema, {
+    body,
+    method: "DELETE",
+    path: rootPath(entry, id),
+  });
 
 /** The row shape a resource's single envelope carries. */
 type Row<E extends AdminApiResource> = v.InferOutput<E["singleSchema"]>;
@@ -180,7 +228,46 @@ const childPath = (
   entry: AdminApiResource,
   child: AdminApiChild,
   parentId: number,
-): string => `/api/admin/${entry.path}/${parentId}/${child.path}`;
+  childId?: number,
+): string =>
+  childId === undefined
+    ? `/api/admin/${entry.path}/${parentId}/${child.path}`
+    : `/api/admin/${entry.path}/${parentId}/${child.path}/${childId}`;
+
+/** The HTTP method each child verb answers with. */
+const CHILD_METHODS = {
+  create: "POST",
+  delete: "DELETE",
+  update: "PUT",
+} as const;
+
+type ChildVerb = keyof typeof CHILD_METHODS;
+
+/** One child call: the verb picks the method and the path's last segment.
+ *  A write answers with the parent envelope — an option write answers with
+ *  the whole attribute. The delete answers with the shared `{status}`
+ *  envelope. `childId` is absent for a create. */
+export const adminApiChildCall = async (
+  transport: AdminApiTransport,
+  entry: AdminApiResource,
+  verb: ChildVerb,
+  childKey: string,
+  parentId: number,
+  childId: number | undefined,
+  body: unknown,
+): Promise<unknown> => {
+  const child = childEntry(entry, childKey);
+  return request(
+    transport,
+    `${entry.label} ${childKey}`,
+    verb === "delete" ? DeleteAnswerSchema : child.responseSchema,
+    {
+      body,
+      method: CHILD_METHODS[verb],
+      path: childPath(entry, child, parentId, childId),
+    },
+  );
+};
 
 /** Create one child row: POST /api/admin/{path}/:parentId/{child}. The
  *  answer is the parent envelope — an option write answers with the whole
@@ -198,18 +285,35 @@ export const adminApiChildCreate = async <
   childKey: K,
   parentId: number,
   body: unknown,
-): Promise<v.InferOutput<E["children"][K]["responseSchema"]>> => {
-  const child = childEntry(entry, childKey);
-  return request<v.InferOutput<E["children"][K]["responseSchema"]>>(
+): Promise<v.InferOutput<E["children"][K]["responseSchema"]>> =>
+  adminApiChildCall(
     transport,
-    `${entry.label} ${childKey}`,
-    child.responseSchema as v.GenericSchema<
-      v.InferOutput<E["children"][K]["responseSchema"]>
-    >,
-    {
-      body,
-      method: "POST",
-      path: childPath(entry, child, parentId),
-    },
-  );
+    entry,
+    "create",
+    childKey,
+    parentId,
+    undefined,
+    body,
+  ) as Promise<v.InferOutput<E["children"][K]["responseSchema"]>>;
+
+/** One server-side custom route: the table's method and subpath, the id
+ *  substituted for the resource's id param. The table declares no response
+ *  schema for a custom route, so the answer passes through unvalidated. */
+export const adminApiCustomRoute = async <E extends AdminApiResource>(
+  transport: AdminApiTransport,
+  entry: E,
+  routeKey: string,
+  id: number,
+): Promise<unknown> => {
+  const route = entry.custom?.[routeKey];
+  if (!route) {
+    throw new Error(`admin api ${entry.path} has no ${routeKey} custom route`);
+  }
+  return request(transport, entry.path, v.unknown(), {
+    method: route.method,
+    path: `/api/admin/${entry.path}/${route.subpath.replace(
+      `:${adminApiIdParam(entry.label)}`,
+      String(id),
+    )}`,
+  });
 };

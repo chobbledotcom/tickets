@@ -1,9 +1,11 @@
 import { join } from "node:path";
+import { CliError } from "./errors.ts";
 
 export type CliConfig = Readonly<{ apiHostname: string; apiKey: string }>;
 
 const ENV_HOST = "API_HOSTNAME";
 const ENV_KEY = "API_KEY";
+const ENV_BASE_URL = "BASE_URL";
 
 const parseDotEnv = (text: string): Record<string, string> => {
   const values: Record<string, string> = {};
@@ -28,30 +30,34 @@ const readDotEnv = async (envDir: string): Promise<Record<string, string>> => {
   }
 };
 
-const cleanHost = (host: string): string => {
-  const trimmed = host.trim().replace(/\/+$/, "");
-  if (!trimmed) return "";
-  return /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
+// requiredValue answers a non-empty trimmed host, so cleanHost has no
+// blank-input branch to guard.
+const cleanHost = (host: string): string =>
+  (/^https?:\/\//.test(host) ? host : `https://${host}`).replace(/\/+$/, "");
+
+const requiredValue = (value: string | undefined, name: string): string => {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    throw new CliError(
+      "usage",
+      `The ${name} is missing. Set API_HOSTNAME and API_KEY in the environment or the repo .env file.`,
+    );
+  }
+  return trimmed;
 };
 
-const requiredPrompt = (label: string): string => {
-  const value = prompt(label)?.trim() ?? "";
-  if (!value) throw new Error(`${label} is required`);
-  return value;
-};
-
-const ENV_BASE_URL = "BASE_URL";
-
+/** Read the site the commands run against. There is no prompt: a missing
+ *  host or key is a usage error the caller reports as JSON. */
 export const loadConfig = async (envDir: string): Promise<CliConfig> => {
   const envFile = await readDotEnv(envDir);
   // The deployment .env names the site BASE_URL; accept it as the host.
-  const apiHostname = cleanHost(
-    Deno.env.get(ENV_HOST) ??
-      envFile[ENV_HOST] ??
-      envFile[ENV_BASE_URL] ??
-      requiredPrompt("API host"),
-  );
-  const apiKey =
-    Deno.env.get(ENV_KEY) ?? envFile[ENV_KEY] ?? requiredPrompt("API key");
-  return { apiHostname, apiKey };
+  return {
+    apiHostname: cleanHost(
+      requiredValue(
+        Deno.env.get(ENV_HOST) ?? envFile[ENV_HOST] ?? envFile[ENV_BASE_URL],
+        "API host",
+      ),
+    ),
+    apiKey: requiredValue(Deno.env.get(ENV_KEY) ?? envFile[ENV_KEY], "API key"),
+  };
 };

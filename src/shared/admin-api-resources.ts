@@ -97,6 +97,28 @@ export type AdminApiUpdateAttributeBody = v.InferOutput<
   typeof UpdateAttributeBodySchema
 >;
 
+/** One attribute option's write body. The server parses the same shape for
+ *  the option's create and its update. */
+export const AttributeOptionBodySchema = v.object({ text: v.string() });
+export type AdminApiAttributeOptionBody = v.InferOutput<
+  typeof AttributeOptionBodySchema
+>;
+
+/* ===========================================================================
+ * The delete contract — one shape for every confirmed delete, root or child.
+ * =========================================================================== */
+
+/** The body every confirmed delete carries: the resource's current display
+ *  name, so a delete cannot hit the wrong row. */
+export const DeleteBodySchema = v.object({
+  confirm_identifier: v.string(),
+});
+export type AdminApiDeleteBody = v.InferOutput<typeof DeleteBodySchema>;
+
+/** The answer every confirmed delete carries. */
+export const DeleteAnswerSchema = v.looseObject({ status: v.string() });
+export type AdminApiDeleteAnswer = v.InferOutput<typeof DeleteAnswerSchema>;
+
 /* ===========================================================================
  * The resource table.
  * =========================================================================== */
@@ -105,6 +127,9 @@ export type AdminApiUpdateAttributeBody = v.InferOutput<
  *  options. The parent envelope (`responseSchema`) is what the child's write
  *  answers with — an option write answers with the whole attribute. */
 export type AdminApiChild = {
+  /** The child's write body. The server parses the same shape for the
+   *  child's create and its update. Absent: the server is the validator. */
+  bodySchema?: v.GenericSchema;
   /** The child's own id param in its update and delete routes: "optionId". */
   idParam: string;
   /** The child's URL segment under the parent's id segment: "options". */
@@ -145,6 +170,7 @@ export const ADMIN_API_RESOURCES = {
   attributes: {
     children: {
       options: {
+        bodySchema: AttributeOptionBodySchema,
         idParam: "optionId",
         path: "options",
         responseSchema: attributeEnvelope,

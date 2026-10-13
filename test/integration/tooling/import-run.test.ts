@@ -198,6 +198,12 @@ describe("frontmatter import runner", () => {
       conflicts: 0,
       created: { attributes: 1, groups: 1, listings: 1, options: 1 },
       filesUpdated: 1,
+      lines: [
+        "created attribute Guest Capacity",
+        "created option Guest Capacity: 50 guests",
+        "created group Tarpaulins",
+        "created listing Tumble Tower Hire -> id 41",
+      ],
       skipped: 0,
       updated: 0,
     });
@@ -249,6 +255,11 @@ describe("frontmatter import runner", () => {
       conflicts: 0,
       created: { attributes: 0, groups: 0, listings: 0, options: 0 },
       filesUpdated: 0,
+      lines: [
+        "would create attribute Guest Capacity: 50 guests",
+        "would create group Tarpaulins",
+        "would create listing Tumble Tower Hire (1 rental options, 1 attributes)",
+      ],
       skipped: 0,
       updated: 0,
     });

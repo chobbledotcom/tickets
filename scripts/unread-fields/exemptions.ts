@@ -21,18 +21,18 @@ const adminApiResources = exemptFieldsAt<AdminApiResource>(
   [{ name: "AdminApiResource" }],
   {
     evidence:
-      "the client's CreateBody and UpdateBody conditionals read the declared body schemas at compile time; no runtime code needs them",
+      "the CLI's bodySchemaFor reads the declared body schemas at run time; the client's CreateBody and UpdateBody conditionals read them at compile time",
     kind: "schema-driven",
   },
 )({
   children: "check",
-  createBodySchema: "exempt",
+  createBodySchema: "check",
   custom: "check",
   label: "check",
   listSchema: "check",
   path: "check",
   singleSchema: "check",
-  updateBodySchema: "exempt",
+  updateBodySchema: "check",
 });
 
 const publicListings = exemptFieldsAt<PublicListing>(
