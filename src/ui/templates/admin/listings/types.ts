@@ -2,7 +2,7 @@ import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import type { PairBookings } from "#booking/ticket-moves.ts";
 import type { ListingAggregateRecalculation } from "#db/listings/aggregates.ts";
 import type { SystemNote } from "#db/notes/types.ts";
-import type { ListingPublicPageState } from "#routes/public/ticket-payment.ts";
+import type { ListingPublicPageState } from "#routes/public/page-listings.ts";
 import type {
   AttendeeListSetup,
   AttendeeListState,

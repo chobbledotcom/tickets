@@ -7,6 +7,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { FoldBase } from "#booking/fold-tree.ts";
+import { pageDayCounts } from "#booking/model.ts";
 import {
   type Alternative,
   judgeOptionDemand,
@@ -20,12 +22,16 @@ import {
   remainingFromSnapshot,
 } from "#db/attendees/capacity/snapshot.ts";
 import { listingGroups } from "#db/groups/table.ts";
-import { uniqueBy } from "#fp";
+import { requiredMapValue, uniqueBy } from "#fp";
+import { resolveDayCount } from "#routes/public/booking-dates.ts";
+import { judgeSubmittedCart } from "#routes/public/judge-cart.ts";
 import { judgedOption } from "#routes/public/order-catalog.ts";
+import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
 import {
   checkAvailability,
-  resolveDayCount,
+  foldSelectedChildren,
 } from "#routes/public/ticket-payment.ts";
+import type { TicketCtx } from "#routes/public/types.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { evaluateOrder } from "#shared/order/evaluate.ts";
 import {
@@ -33,19 +39,27 @@ import {
   type OrderOption,
   type OrderPools,
 } from "#shared/order/options.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createTestListing,
+  pastCloseTime,
+} from "#test-utils/db-helpers/listings.ts";
 import type { ListingWithCount } from "#types";
 import {
-  type BuiltCase,
   CASES,
   type DemandCase,
   foldFor,
+  renderPhaseCases,
+  submitFormFor,
+} from "./cases.ts";
+import {
+  type BuiltCase,
   formFold,
   nameOf,
   questionFor,
-  renderPhaseCases,
   sortedEntries,
-} from "./cases.ts";
+} from "./drivers.ts";
 
 /** The widest alternative the judge answered: the biggest span the buyer
  * can pick, and the committed preview. */
@@ -192,6 +206,47 @@ const expectGalleryAgreesWithCheckout = async (
   );
 };
 
+/** The one submitted booking per offered span, as prepare.ts's chain runs
+ * it: the day-count gate, then the gated fold, then the checkout's SQL.
+ * Returns whether the submission would go through. */
+const submitAtSpan = async (
+  testCase: DemandCase,
+  built: BuiltCase,
+  ctx: TicketCtx,
+  dayCount: number,
+): Promise<boolean> => {
+  const chosen = built.parents.map((info) => ({
+    listing: info.listing,
+    qty: requiredMapValue(
+      built.quantities,
+      info.listing.id,
+      `Case ${testCase.name} misses its parent quantity`,
+    ),
+  }));
+  const resolved = await resolveDayCount(
+    chosen,
+    new FormParams([["day_count", String(dayCount)]]),
+    built.date,
+  );
+  if ("error" in resolved) return false;
+  const fold = await foldSelectedChildren(ctx, submitFormFor(testCase, built), {
+    customPrices: new Map(),
+    date: built.date,
+    dayCount: resolved.dayCount,
+    hasCustomisable: built.parents.some(
+      (parent) => parent.listing.customisable_days,
+    ),
+    quantities: built.quantities,
+  });
+  if (!fold.ok) return false;
+  return checkAvailability(
+    fold.listings,
+    fold.quantities,
+    built.date,
+    fold.dayCount,
+  );
+};
+
 describeWithEnv(
   "booking > option demand — the one judge every surface asks",
   { db: true, triggers: true },
@@ -268,6 +323,51 @@ describeWithEnv(
           );
         });
       }
+
+      test(`backwards — the form refuses what the judge refuses: ${testCase.name}`, async () => {
+        const built = await testCase.build();
+        const ctx: TicketCtx = {
+          addOns: [],
+          cartDateItems: [],
+          childDatesById: new Map(),
+          childrenByParentId: new Map(
+            [...built.childrenByParentId].map(([parentId, children]) => [
+              parentId,
+              [...children],
+            ]),
+          ),
+          dates: [],
+          galleryImages: [],
+          galleryTarget: null,
+          listings: built.parents,
+          packageGroupRemainingByGroupId: new Map(),
+          packageMemberGroupIds: new Map(),
+          packages: [],
+          pageHidden: false,
+          questionListingMap: new Map(),
+          questions: [],
+          slugs: built.parents.map((parent) => parent.listing.slug),
+          terms: "",
+        };
+        // The spans the form's own page rules offer, as the submitted
+        // day_count can only be one of them. The submission's chain is
+        // resolveDayCount, then the gated fold, then the checkout's SQL.
+        const spans = built.parents.some(
+          (parent) => parent.listing.customisable_days,
+        )
+          ? pageDayCounts([...built.parents], built.childrenByParentId, false)
+          : [1];
+        for (const dayCount of spans) {
+          const fits =
+            expected.bookable &&
+            (testCase.capacityFitsAt?.includes(dayCount) ??
+              !testCase.capacityRefuses);
+          expect(
+            await submitAtSpan(testCase, built, ctx, dayCount),
+            `${testCase.name} at ${dayCount} day(s)`,
+          ).toBe(fits);
+        }
+      });
     }
 
     test("the render phase judges date-less, as the form does before a date", async () => {
@@ -308,6 +408,61 @@ describeWithEnv(
       expect(
         sortedEntries(widestAlternative(outcome).unitsByListingId),
       ).toEqual([]);
+    });
+
+    test("the submit gate refuses an option whose registration closed", async () => {
+      // A closed option is the refusal the fold's walk does not name: the
+      // walk never reads the registration window. The gate refuses the
+      // submission with the walk's own sold-out message, and a cart that
+      // does not book the closed option passes.
+      const closed = await createTestListing({
+        closesAt: pastCloseTime(),
+        name: "Closed Trip",
+      });
+      const open = await createTestListing({ name: "Open Trip" });
+      const [closedRow, openRow] = await buildTicketListingsWithGroupCapacity([
+        closed,
+        open,
+      ]);
+      const closedInfo = requireValue(
+        closedRow,
+        "The closed fixture row is missing",
+      );
+      const openInfo = requireValue(openRow, "The open fixture row is missing");
+      const form = new FormParams();
+      const base = (qty: Map<number, number>): FoldBase => ({
+        customPrices: new Map(),
+        date: null,
+        dayCount: 1,
+        hasCustomisable: false,
+        quantities: qty,
+      });
+      const judged = judgeSubmittedCart({
+        base: base(new Map([[closed.id, 1]])),
+        ctx: {
+          childrenByParentId: new Map(),
+          listings: [closedInfo, openInfo],
+          packages: [],
+        },
+        form,
+        holidays: [],
+      });
+      expect(judged).toEqual({
+        error: "Closed Trip has no available options right now.",
+        ok: false,
+      });
+      expect(
+        judgeSubmittedCart({
+          base: base(new Map()),
+          ctx: {
+            childrenByParentId: new Map(),
+            listings: [closedInfo, openInfo],
+            packages: [],
+          },
+          form,
+          holidays: [],
+        }),
+      ).toEqual({ ok: true });
     });
   },
 );

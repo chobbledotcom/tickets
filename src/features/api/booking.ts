@@ -17,7 +17,7 @@ import {
   withApiBody,
 } from "#routes/api/helpers.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
-import { parentRequiresChild } from "#routes/public/ticket-payment.ts";
+import { parentRequiresChild } from "#routes/public/page-listings.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { processBooking } from "#shared/booking.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";

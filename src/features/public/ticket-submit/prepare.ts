@@ -13,6 +13,7 @@ import type { ChildAllocation } from "#db/attendee-types.ts";
 import { answerModifierQuantities } from "#db/modifier-resolve.ts";
 import { parseQuestionAnswers } from "#db/questions/parsing.ts";
 import { sum } from "#fp";
+import { resolveDayCount } from "#routes/public/booking-dates.ts";
 import {
   type AnswerInfo,
   listingsWithQuantity,
@@ -22,7 +23,6 @@ import {
 import {
   ctxToBuildTreeInput,
   foldSelectedChildren,
-  resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";

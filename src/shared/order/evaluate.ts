@@ -173,15 +173,21 @@ const judgeOption = (
   if (bookings.some((booking) => firstShortPool(ledger, booking) === null)) {
     return { kind: "available" };
   }
-  // No alternative fits beside the cart. If the first one doesn't fit on a
-  // fresh ledger either, it never fitted today at all; otherwise some
-  // committed selection is holding the contested pool day — the day only
-  // shrank through commits, so a committed selection demanding it always
-  // exists. Every judged option carries at least one alternative.
-  const short = firstShortPool(ledger, bookings[0]!)!;
-  if (firstShortPool(openLedger(pools), bookings[0]!) !== null) {
-    return { kind: "unavailable" };
+  // No alternative fits beside the cart. Pick one that fits a fresh ledger —
+  // it is bookable today, so the cart must be blocking it — and name the
+  // committed selection that holds its exact short pool day. Only when NO
+  // alternative fits a fresh ledger does the option never fit today at all.
+  // Every judged option carries at least one alternative.
+  const fresh = openLedger(pools);
+  let chosen = 0;
+  while (
+    chosen < bookings.length &&
+    firstShortPool(fresh, bookings[chosen]!) !== null
+  ) {
+    chosen++;
   }
+  if (chosen === bookings.length) return { kind: "unavailable" };
+  const short = firstShortPool(ledger, bookings[chosen]!)!;
   const blocker = committed.find((selected) => {
     const held = demandOf(selected, pools);
     return (held.get(short.pool)?.get(short.day) ?? 0) > 0;

@@ -70,9 +70,12 @@ export type OptionVerdict = v.InferOutput<typeof OptionVerdictSchema>;
 /** One option's booking question: the parents one selection books, the
  * required children, and the units per parent. The date is null in the
  * form's render phase, before a date is chosen. Holidays are the active
- * ones. */
+ * ones. `choices` carries the buyer's explicit child selections when the
+ * submitted form names them. Without it the judge judges the form's own
+ * empty-form fold (auto-select or buyer-must-choose). */
 export type OptionDemandQuestion = {
   childrenByParentId: ChildrenByParent;
+  choices?: FormParams | undefined;
   date: string | null;
   holidays: Holiday[];
   isPackage: boolean;
@@ -132,10 +135,12 @@ const parentFoldsAtSpan = (
   state: ReturnType<typeof emptyFoldState>,
   parent: TicketListing,
   children: readonly TicketListing[],
+  candidates: readonly TicketListing[],
   parentQty: number,
   durationDays: number,
   date: string | null,
   holidays: Holiday[],
+  choices: FormParams,
 ): SpanFold => {
   // The parent's own booking must hold the span at the chosen date, exactly
   // as the form's submit validates the day count.
@@ -149,16 +154,11 @@ const parentFoldsAtSpan = (
   // A parent without children folds trivially: the form's walk never
   // reaches the child resolver for it.
   if (children.length === 0) return NOTHING_FOLDED;
-  const candidates = children.filter(
-    (child) =>
-      childSelectableForSpan(child, durationDays) &&
-      (date === null || childDateOk(date, holidays, durationDays)(child)),
-  );
   const resolved = resolveChildSelections(
     parent,
     candidates,
     parentQty,
-    new FormParams(),
+    choices,
   );
   if ("error" in resolved) {
     // An empty form submits no child choice. "Too few" then means several
@@ -198,6 +198,61 @@ const parentQuantityOf = (
     `Option quantities miss parent ${parent.listing.id}`,
   );
 
+/** One member's fold inputs at one span. Its candidates are the children the
+ * form can book at that span and date. The feasibility pre-pass and the fold
+ * read these beside the member's children, quantity, and resolved duration. */
+type SpanMember = {
+  candidates: TicketListing[];
+  children: TicketListing[];
+  durationDays: number;
+  parent: TicketListing;
+  parentQty: number;
+};
+
+const memberAtSpan = (
+  question: OptionDemandQuestion,
+  parent: TicketListing,
+  dayCount: number,
+): SpanMember => {
+  const durationDays = parentResolvedDuration(parent.listing, dayCount);
+  const children = [
+    ...(question.childrenByParentId.get(parent.listing.id) ?? []),
+  ];
+  const candidates = children.filter(
+    (child) =>
+      childSelectableForSpan(child, durationDays) &&
+      (question.date === null ||
+        childDateOk(question.date, question.holidays, durationDays)(child)),
+  );
+  return {
+    candidates,
+    children,
+    durationDays,
+    parent,
+    parentQty: parentQuantityOf(question, parent),
+  };
+};
+
+/** The durations the members' selections record at this span, before any
+ * fold runs. A parent whose every candidate is customisable records its
+ * resolved duration whichever child the buyer picks. Two members demanding
+ * different durations then refuse whatever order the walk visits them in.
+ * A parent with a non-customisable candidate lets the buyer dodge the
+ * duration, so it adds none. */
+const requiredDurations = (
+  seededDuration: number | null,
+  members: readonly SpanMember[],
+): Set<number> => {
+  const required = new Set<number>();
+  for (const { durationDays, candidates } of members) {
+    if (candidates.length === 0) continue;
+    if (candidates.some((child) => !child.listing.customisable_days)) continue;
+    if (seededDuration !== null) required.add(seededDuration);
+    required.add(durationDays);
+  }
+  return required;
+};
+
 /** One candidate span judged over every parent through the ONE order-wide
  * fold state the form walks with. The customisable duration records once,
  * so two members inheriting different durations refuse here as the form
@@ -214,19 +269,31 @@ const spanOutcome = (
     state.customisableDuration = dayCount;
   }
   const { spans, units } = newFoldAccumulators();
-  for (const parent of question.parents) {
-    const parentQty = parentQuantityOf(question, parent);
-    if (parentQty <= 0) continue;
-    const durationDays = parentResolvedDuration(parent.listing, dayCount);
-    const children = question.childrenByParentId.get(parent.listing.id) ?? [];
+  // Each member's candidates at this span, computed once: the feasibility
+  // pre-pass and the fold must read the same sets.
+  const members = question.parents.map((parent) =>
+    memberAtSpan(question, parent, dayCount),
+  );
+  if (requiredDurations(state.customisableDuration, members).size > 1) {
+    return { failure: "capacity", ok: false };
+  }
+  for (const {
+    parent,
+    parentQty,
+    durationDays,
+    children,
+    candidates,
+  } of members) {
     const fold = parentFoldsAtSpan(
       state,
       parent,
       children,
+      candidates,
       parentQty,
       durationDays,
       question.date,
       question.holidays,
+      question.choices ?? new FormParams(),
     );
     if (!fold.ok) return fold;
     mergeUnits(

@@ -9,12 +9,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { evaluateOrder, kindsOf, option, pools } from "./evaluate-helpers.ts";
 
 describe("evaluateOrder — day pools", () => {
-  test("names the selection holding the short day, not any pool sharer", () => {
-    // One shared listing pool with remaining [3, 1] over two days. A books
-    // its start day only; B and C each book both days. After A then B, the
-    // shortage is day two alone — and only B's removal frees it, so the
-    // blocker must name B, though A also draws from the same pool.
-    const twoDays = pools({
+  // One shared listing pool with remaining [3, 1] over two days: day two
+  // holds one unit, day one three.
+  const twoDayPool = () =>
+    pools({
       days: ["2026-03-02", "2026-03-03"],
       remainingByListingDay: new Map([
         [
@@ -26,6 +24,13 @@ describe("evaluateOrder — day pools", () => {
         ],
       ]),
     });
+
+  test("names the selection holding the short day, not any pool sharer", () => {
+    // One shared listing pool with remaining [3, 1] over two days. A books
+    // its start day only; B and C each book both days. After A then B, the
+    // shortage is day two alone — and only B's removal frees it, so the
+    // blocker must name B, though A also draws from the same pool.
+    const twoDays = twoDayPool();
     const inGroup = (key: string, name: string, span: number) =>
       option(key, [[7, 1]], {
         alternatives: [
@@ -63,6 +68,47 @@ describe("evaluateOrder — day pools", () => {
       true,
     );
     expect(withoutBlocker.get("listing:3")).toEqual({ kind: "available" });
+  });
+
+  test("names a cart blocker for an alternative a wider one never had", () => {
+    // R's two-day alternative needs three units on both days — more than
+    // the pool holds on the second day, fresh or otherwise. Its one-day
+    // alternative fits a fresh pool but not beside the cart, whose
+    // selection drained the first day. The state names that selection, and
+    // removing it frees R.
+    const twoDays = twoDayPool();
+    const rival = (key: string, name: string, span: number, units: number) =>
+      option(key, [[7, units]], {
+        alternatives: [
+          {
+            spanDaysByListingId: new Map([[7, span]]),
+            unitsByListingId: new Map([[7, units]]),
+          },
+        ],
+        name,
+        spanDaysByListingId: new Map([[7, span]]),
+      });
+    const states = evaluateOrder(
+      [
+        rival("listing:9", "Wide Rival", 2, 3),
+        rival("listing:8", "Day Rival", 1, 1),
+      ],
+      twoDays,
+      ["listing:9"],
+      true,
+    );
+    expect(states.get("listing:8")).toEqual({
+      byKey: "listing:9",
+      byName: "Wide Rival",
+      kind: "blocked",
+    });
+    const freed = evaluateOrder(
+      [rival("listing:8", "Day Rival", 1, 1)],
+      twoDays,
+      [],
+      true,
+    );
+    expect(freed.get("listing:8")).toEqual({ kind: "available" });
   });
 
   describe("spans", () => {

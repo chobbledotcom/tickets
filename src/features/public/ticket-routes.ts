@@ -17,8 +17,8 @@ import { successPage } from "#templates/payment.tsx";
 import { handleCartBySlugs } from "./cart.ts";
 import { getVisibleGroupMembers, groupBookable } from "./group-liveness.ts";
 import { handleGroupTicketBySlug } from "./groups.ts";
+import { standalonePageServes } from "./page-listings.ts";
 import { handleQrBookGet } from "./qr-book.ts";
-import { standalonePageServes } from "./ticket-payment.ts";
 import { handleBySlugs } from "./ticket-submit.ts";
 import { parseSlugs } from "./types.ts";
 

@@ -78,6 +78,47 @@ describeWithEnv(
         });
       });
 
+      test("a blocked alternative names its remover when a wider one never fits", async () => {
+        // The card's two-day span can never fit: its second day is already
+        // sold. The one-day span fits a fresh pool, but the cart's selection
+        // holds the shared group's first day — the card names that
+        // selection, and removing it frees the card.
+        const group = await createTestGroup({ maxAttendees: 1, name: "Tight" });
+        const blocker = await createDailyTestListing({
+          durationDays: 1,
+          groupId: group.id,
+          name: "Day Taker",
+        });
+        const card = await createDailyTestListing({
+          customisableDays: true,
+          dayPrices: { 1: 500, 2: 900 },
+          durationDays: 2,
+          groupId: group.id,
+          maxAttendees: 1,
+          name: "Two Span Card",
+        });
+        await bookAttendee(card, {
+          date: addDays(orderDate(), 1),
+          durationDays: 1,
+        });
+
+        const withCart = await fetchAvailability(
+          `start_date=${orderDate()}&select_${blocker.id}=1`,
+        );
+        expectState(withCart.states, card, {
+          label: "Remove Day Taker to add",
+          state: "blocked",
+        });
+
+        const withoutCart = await fetchAvailability(
+          `start_date=${orderDate()}`,
+        );
+        expectState(withoutCart.states, card, {
+          label: "",
+          state: "available",
+        });
+      });
+
       test("a child that is not the sole bookable one adds no demand", async () => {
         // Two bookable children: the form asks the buyer to choose, so no
         // child quantity is certain yet and the gallery must not charge one.

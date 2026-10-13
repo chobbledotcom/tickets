@@ -16,7 +16,7 @@ import {
   getVisibleGroupMembers,
   groupBookable,
 } from "#routes/public/group-liveness.ts";
-import { lacksStandalonePublicPage } from "#routes/public/ticket-payment.ts";
+import { lacksStandalonePublicPage } from "#routes/public/page-listings.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { hasNamedBookingPath } from "#shared/package-privacy.ts";

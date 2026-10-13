@@ -9,13 +9,13 @@ import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { map } from "#fp";
+import { keepParentDailyDatesChildrenCanServe } from "#routes/public/booking-dates.ts";
 import {
   dropChildListings,
-  keepParentDailyDatesChildrenCanServe,
   lacksStandalonePublicPage,
   listingPublicPageState,
   withActiveListings,
-} from "#routes/public/ticket-payment.ts";
+} from "#routes/public/page-listings.ts";
 import { addDays } from "#shared/dates.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { DateString } from "#shared/validation/date-string.ts";

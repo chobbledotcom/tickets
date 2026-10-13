@@ -4,9 +4,14 @@
  * span cases reuse.
  */
 
-import { buildTicketListing, type TicketListing } from "#booking/model.ts";
+import {
+  buildTicketListing,
+  type ChildrenByParent,
+  type TicketListing,
+} from "#booking/model.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { loadChildrenByParentId } from "#routes/public/child-listings.ts";
 import { addDays } from "#shared/dates.ts";
 import { orderDate } from "#test/features/public/order/helpers.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -15,6 +20,14 @@ import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 /** The availability-resolved listing row one fixture id stands for. */
 export const ticketInfo = async (id: number): Promise<TicketListing> =>
   buildTicketListing((await getListingWithCount(id))!, false, undefined);
+
+/** The children of one parent set, availability-resolved. */
+export const resolvedChildren = async (
+  parentIds: number[],
+): Promise<ChildrenByParent> => {
+  const infos = await Promise.all(parentIds.map(ticketInfo));
+  return loadChildrenByParentId(infos);
+};
 
 /** Books one unit of a listing for one day on the day after the order date,
  * the way the capacity fixtures drain one date's pool. */

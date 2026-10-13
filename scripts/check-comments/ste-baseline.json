@@ -253,8 +253,8 @@
     "semicolon": 1
   },
   "src/features/public/ticket-payment.ts": {
-    "long-sentence": 16,
-    "semicolon": 6
+    "long-sentence": 9,
+    "semicolon": 4
   },
   "src/features/public/ticket-routes.ts": {
     "long-sentence": 3,
@@ -1717,8 +1717,7 @@
   "src/shared/order/evaluate.ts": {
     "wordy": 1,
     "long-sentence": 4,
-    "contraction": 1,
-    "semicolon": 3,
+    "semicolon": 2,
     "present-perfect": 1,
     "participle": 1
   },

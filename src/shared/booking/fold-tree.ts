@@ -185,7 +185,7 @@ const hasUnavailableChildSelection = (
  * Exported for direct unit/property testing of the per-parent selection algebra. */
 export const resolveChildSelections = (
   parent: TicketListing,
-  bookable: TicketListing[],
+  bookable: readonly TicketListing[],
   parentQty: number,
   form: FormParams,
   name = parent.listing.name,
