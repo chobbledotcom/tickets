@@ -5,7 +5,10 @@ import { settings } from "#db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTestListing,
+  pastCloseTime,
+} from "#test-utils/db-helpers/listings.ts";
 import { apiGet } from "#test-utils/parents.ts";
 import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
 import {
@@ -97,6 +100,43 @@ describeWithEnv("API package booking", { db: true }, () => {
     expect(zero.response.status).toBe(400);
     const bad = await apiBookPackage(group.slug, {}, "not json");
     expect(bad.response.status).toBe(400);
+  });
+
+  test("POST refuses a package whose member's registration closed", async () => {
+    // A closed member caps the bundle at zero: the package load answers
+    // 404 before any fold or capacity math, and no booking row persists.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Closed Kit",
+      slug: "closed-kit",
+    });
+    const open = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+      maxQuantity: 10,
+      name: "Closed Kit Open",
+      unitPrice: 1000,
+    });
+    const closing = await createTestListing({
+      closesAt: pastCloseTime(),
+      groupId: group.id,
+      maxAttendees: 10,
+      maxQuantity: 10,
+      name: "Closed Kit Shut",
+      unitPrice: 800,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: open.id, price: null, quantity: 2 },
+      { listingId: closing.id, price: 500 },
+    ]);
+
+    const { response, body } = await apiBookPackage(group.slug, {
+      quantity: 1,
+    });
+    expect(response.status).toBe(404);
+    expect(body.error).toBe("Package not found");
+    expect((await bookingRows(closing.id)).length).toBe(0);
+    expect((await bookingRows(open.id)).length).toBe(0);
   });
 
   test("POST requires the quantity field", async () => {
