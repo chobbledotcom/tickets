@@ -6,7 +6,9 @@ import { queryOne } from "#db/client.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { siteDbApi } from "#shared/site-db.ts";
 import {
+  type DeployedRelease,
   deployAndReport,
+  hostedSiteUpdateGuardIo,
   loadBuiltSiteUpdateState,
 } from "#shared/site-update.ts";
 import {
@@ -16,9 +18,16 @@ import {
   setBuildCommitForTest,
   setBuildTimestampForTest,
 } from "#shared/update.ts";
+import {
+  type UpdateGuardIo,
+  updatePageMeta,
+  updatePageState,
+} from "#shared/update-guard.ts";
+import { recordingUpdateGuard } from "#test-utils/_shared-site-update.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 const LATEST_TAG = "v2099-01-01-120000";
 
@@ -33,18 +42,34 @@ const stubTaskLockBypass = (): Stub =>
     }),
   );
 
+/** Run deployAndReport with the test's standard response builders and the
+ * "self" subject. Returns the response the caller asserts on. */
+const runDeployAndReport = (
+  deploy: () => Promise<DeployedRelease>,
+  io: UpdateGuardIo,
+): Promise<Response> =>
+  deployAndReport({
+    deploy,
+    guard: io,
+    onError: (message) => new Response(message, { status: 500 }),
+    onSuccess: (message) => new Response(message),
+    subject: { kind: "self" },
+  });
+
 test("deployAndReport keeps the update task name and full failure context", async () => {
   const taskStub = stubTaskLockBypass();
+  const { calls, io } = recordingUpdateGuard();
   try {
-    const response = await deployAndReport({
-      deploy: () => Promise.reject(new Error("provider down")),
-      onError: (message) => new Response(message, { status: 500 }),
-      onSuccess: (message) => new Response(message),
-      subject: { kind: "self" },
-    });
+    const response = await runDeployAndReport(
+      () => Promise.reject(new Error("provider down")),
+      io,
+    );
     expect(taskStub.calls[0]?.args[0]).toBe("update");
     expect(response.status).toBe(500);
     expect(await response.text()).toBe("Update failed: provider down");
+    // The deploy failed after the flag was set, so the flag stays set by
+    // design and the caller's error carries the operator instruction.
+    expect(calls).toEqual(["set:1", "fetch"]);
   } finally {
     taskStub.restore();
   }
@@ -63,16 +88,15 @@ describeWithEnv("deployAndReport success", { db: true }, () => {
       // A public key that is not key material makes the log write's
       // encryption throw, so logActivity rejects.
       settings.setForTest({ public_key: "not valid key material" });
-      const response = await deployAndReport({
-        deploy: () =>
+      const { io } = recordingUpdateGuard();
+      const response = await runDeployAndReport(
+        () =>
           Promise.resolve({
             name: "2099-01-01 - Big Update",
             tagName: LATEST_TAG,
           }),
-        onError: (message) => new Response(message, { status: 500 }),
-        onSuccess: (message) => new Response(message),
-        subject: { kind: "self" },
-      });
+        io,
+      );
 
       expect(response.status).toBe(200);
       expect(await response.text()).toBe(
@@ -84,6 +108,58 @@ describeWithEnv("deployAndReport success", { db: true }, () => {
     }
   });
 });
+
+describeWithEnv(
+  "hostedSiteUpdateGuardIo",
+  { env: { BUNNY_API_KEY: "host-key" } },
+  () => {
+    test("fetchPage throws with the status when the page check fails", async () => {
+      using _fetch = stubFetch(() => new Response("busy", { status: 503 }));
+      const io = hostedSiteUpdateGuardIo({
+        hostingId: "8500",
+        hostingProvider: "bunny",
+        siteUrl: "https://site.example",
+      });
+      await expect(io.fetchPage()).rejects.toThrow(
+        /update page check failed \(HTTP 503\)/,
+      );
+    });
+
+    test("fetchPage returns the page body for a bare-hostname site URL", async () => {
+      using _fetch = stubFetch((url) =>
+        url === "https://site.example/read-only"
+          ? new Response(updatePageMeta("active"))
+          : new Response("missing", { status: 404 }),
+      );
+      const io = hostedSiteUpdateGuardIo({
+        hostingId: "8500",
+        hostingProvider: "bunny",
+        siteUrl: "site.example",
+      });
+      expect(updatePageState(await io.fetchPage())).toBe("active");
+    });
+
+    test("fetchPage bounds one update-page request with an abort timeout", async () => {
+      let pageInit: RequestInit | undefined;
+      using _fetch = stubFetch((url, init) => {
+        if (url === "https://site.example/read-only") {
+          pageInit = init;
+          return new Response(updatePageMeta("active"));
+        }
+        return new Response("missing", { status: 404 });
+      });
+      const io = hostedSiteUpdateGuardIo({
+        hostingId: "8500",
+        hostingProvider: "bunny",
+        siteUrl: "https://site.example",
+      });
+      expect(updatePageState(await io.fetchPage())).toBe("active");
+      // A stalled page request must end before the wait's deadline, or the
+      // deadline can never fire.
+      expect(pageInit?.signal).toBeInstanceOf(AbortSignal);
+    });
+  },
+);
 
 /** Seed an in-memory libsql client standing in for the remote site's DB. */
 const seedSiteDb = async (version: string | null): Promise<Client> => {

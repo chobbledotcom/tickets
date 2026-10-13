@@ -9,7 +9,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { isoToTag } from "#scripts/build-tag.ts";
+import { isoToTag } from "#shared/build-tag.ts";
 import {
   isNewerVersion,
   parseReleaseTag,

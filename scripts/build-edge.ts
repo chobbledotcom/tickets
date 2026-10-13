@@ -9,7 +9,7 @@
  * rename, and the `bunny-script.ts` + release-tag emission.
  */
 
-import { isoToTag } from "./build-tag.ts";
+import { isoToTag } from "#shared/build-tag.ts";
 import { buildEdgeBundle } from "./edge-bundle-lib.ts";
 import { bundleSizeGuard, renameSourceMapLink } from "./edge-bundle-modules.ts";
 import { loadStaticCdnConfig } from "./static-cdn.ts";

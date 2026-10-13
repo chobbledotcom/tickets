@@ -54,6 +54,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Build Bunny edge script
+        id: build
         uses: ./.github/actions/build-bunny-script
         with:
           build_commit: ${{ github.sha }}
@@ -71,6 +72,7 @@ jobs:
           MAIN_INSTANCE_KEY: ${{ inputs.main_instance_key }}
           TIER: ${{ inputs.tier }}
           BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
+          BUILD_TAG: ${{ steps.build.outputs.build_tag }}
           STORAGE_ZONE_NAME: ${{ secrets.STORAGE_ZONE_NAME }}
           STORAGE_ZONE_KEY: ${{ secrets.STORAGE_ZONE_KEY }}
         run: |
@@ -110,11 +112,19 @@ jobs:
             script_id=$(jq -r ".sites[$i].scriptId" <<<"$sites_json")
             db_url=$(jq -r ".sites[$i].dbUrl" <<<"$sites_json")
             db_token=$(jq -r ".sites[$i].dbToken" <<<"$sites_json")
+            site_url=$(jq -r ".sites[$i].siteUrl" <<<"$sites_json")
             # The returned tokens are credentials — keep them out of the logs.
             echo "::add-mask::$db_token"
 
             echo "Backing up Script ${script_id}.."
             DB_URL="$db_url" DB_TOKEN="$db_token" deno task backup
+
+            echo "Putting site ${script_id} into update mode.."
+            site_host="$(sed -E 's#^[a-z]+://([^/]+).*#\1#' <<<"$site_url")"
+            deno run \
+              --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY \
+              --allow-net="api.bunny.net,$site_host" \
+              scripts/update-mode.ts begin "$script_id" "$site_url"
 
             echo "Updating site ${script_id}.."
             code=$(curl -s -o /tmp/resp -w "%{http_code}" -X POST \
@@ -134,5 +144,11 @@ jobs:
               echo "  ✗ publish failed (HTTP $code): $(cat /tmp/resp)"
               exit 1
             fi
+
+            echo "Waking site ${script_id} and lifting update mode.."
+            deno run \
+              --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY \
+              --allow-net="api.bunny.net,$site_host" \
+              scripts/update-mode.ts end "$script_id" "$site_url" "$BUILD_TAG"
             echo "  ✓ ${script_id} updated"
           done

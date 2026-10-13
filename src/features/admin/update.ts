@@ -11,21 +11,39 @@ import { t } from "#i18n";
 import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
-import { isBunnyCdnEnabled } from "#shared/config.ts";
+import {
+  getBunnyScriptId,
+  getEffectiveDomain,
+  isBunnyCdnEnabled,
+} from "#shared/config.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { deployAndReport } from "#shared/site-update.ts";
+import {
+  deployAndReport,
+  hostedSiteUpdateGuardIo,
+} from "#shared/site-update.ts";
 import {
   deployLatestReleaseToScript,
   fetchLatestRelease,
   formatBuildDate,
   isNewerVersion,
 } from "#shared/update.ts";
+import type { UpdateGuardIo } from "#shared/update-guard.ts";
 import {
   adminUpdatePage,
   type UpdatePageState,
 } from "#templates/admin/update.tsx";
 
 const UPDATE_PATH = "/admin/update";
+
+/** The update-mode guard for this host's own script. The flag rides the
+ * host's own Bunny script. The wait polls the host's own read-only page
+ * through its public domain. */
+const selfUpdateGuardIo = (): UpdateGuardIo =>
+  hostedSiteUpdateGuardIo({
+    hostingId: getBunnyScriptId(),
+    hostingProvider: "bunny",
+    siteUrl: `https://${getEffectiveDomain()}`,
+  });
 
 /** Extract error message — all callers throw Error instances */
 const errorMsg = (e: unknown): string => (e as Error).message;
@@ -87,6 +105,7 @@ const deployUpdate = async (): Promise<Response> => {
 
   return deployAndReport({
     deploy: () => deployLatestReleaseToScript(),
+    guard: selfUpdateGuardIo(),
     onError: (message) => errorRedirect(UPDATE_PATH, message),
     onSuccess: (message) => redirect(UPDATE_PATH, message, true),
     subject: { kind: "self" },

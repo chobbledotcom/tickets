@@ -1,0 +1,64 @@
+name: Resolve one built site's credentials
+description: >-
+  Fetch one built site's record from the main instance (matched by Bunny
+  script id) and expose its public origin and database credentials as step
+  outputs. Fails unless exactly one site matches the script id. The deploy
+  workflows use site_url to point the update-mode wait at the deployed site
+  instead of the credential server.
+inputs:
+  main_instance:
+    description: Main instance base URL (serves POST /instance/site-credentials).
+    required: true
+  main_instance_key:
+    description: Shared secret authorizing the credentials endpoint (bearer token).
+    required: true
+  script_id:
+    description: Bunny script id of the site to resolve.
+    required: true
+outputs:
+  site_url:
+    description: The site's public origin (siteUrl).
+    value: ${{ steps.resolve.outputs.site_url }}
+  site_name:
+    description: The site's display name.
+    value: ${{ steps.resolve.outputs.site_name }}
+  db_url:
+    description: The site's database URL.
+    value: ${{ steps.resolve.outputs.db_url }}
+  db_token:
+    description: The site's own full-access database token.
+    value: ${{ steps.resolve.outputs.db_token }}
+runs:
+  using: composite
+  steps:
+    - name: Resolve the matching site
+      id: resolve
+      shell: devenv --profile ci shell bash -- -e {0}
+      env:
+        MAIN_INSTANCE: ${{ inputs.main_instance }}
+        MAIN_INSTANCE_KEY: ${{ inputs.main_instance_key }}
+        SCRIPT_ID: ${{ inputs.script_id }}
+      run: |
+        set -euo pipefail
+        # Keep the shared secret and the returned token out of the logs.
+        echo "::add-mask::$MAIN_INSTANCE_KEY"
+
+        sites_json=$(curl -fsS -X POST \
+          "${MAIN_INSTANCE%/}/instance/site-credentials" \
+          -H "Authorization: Bearer ${MAIN_INSTANCE_KEY}")
+
+        # Narrow the fleet to the one site with this script id.
+        match=$(jq -c --arg id "$SCRIPT_ID" \
+          '[.sites[] | select(.scriptId == $id)]' <<<"$sites_json")
+        count=$(jq 'length' <<<"$match")
+        if [ "$count" -ne 1 ]; then
+          echo "Expected exactly 1 site for script id $SCRIPT_ID, found $count" >&2
+          exit 1
+        fi
+
+        db_token=$(jq -r '.[0].dbToken' <<<"$match")
+        echo "::add-mask::$db_token"
+        echo "site_url=$(jq -r '.[0].siteUrl' <<<"$match")" >> "$GITHUB_OUTPUT"
+        echo "site_name=$(jq -r '.[0].name' <<<"$match")" >> "$GITHUB_OUTPUT"
+        echo "db_url=$(jq -r '.[0].dbUrl' <<<"$match")" >> "$GITHUB_OUTPUT"
+        echo "db_token=$db_token" >> "$GITHUB_OUTPUT"

@@ -6,7 +6,11 @@ import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { uploadRaw } from "#shared/storage.ts";
 import { setBuildTimestampForTest } from "#shared/update.ts";
-import { useLocalStoragePath } from "#test-utils/_shared-site-update.ts";
+import {
+  stubBunnyUpdateFlag,
+  stubUpdateFetch,
+  useLocalStoragePath,
+} from "#test-utils/_shared-site-update.ts";
 import {
   expectFlash,
   expectHtmlResponse,
@@ -16,6 +20,7 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   awaitTestRequest,
@@ -51,17 +56,20 @@ const setupForDeploy = async () => {
   await seedRecentBackup();
 };
 
-/** deployScriptCode + release-fetch stubs for an /admin/update deploy. */
+/** The stubs a guarded /admin/update deploy runs behind: the code upload
+ * answering `deployResult`, the flag store, and the page fetch. */
 const deployMocks = (
   opts: {
     deployResult?: Awaited<ReturnType<typeof bunnyCdnApi.deployScriptCode>>;
     download?: () => Response;
+    release?: Response;
   } = {},
 ) => ({
   deployStub: stub(bunnyCdnApi, "deployScriptCode", () =>
     Promise.resolve(opts.deployResult ?? { ok: true as const }),
   ),
-  fetchStub: stubReleaseFetch(opts.download),
+  fetchStub: stubUpdateFetch(opts),
+  flagStub: stubBunnyUpdateFlag(),
 });
 
 const stubSuccessfulDeploy = () => deployMocks();
@@ -238,17 +246,27 @@ describeWithEnv("server (admin update)", { db: true }, () => {
 
     test("redirects with error when release has no asset", async () => {
       await setupForDeploy();
-      using _fetch = stubFetch(
-        new Response(JSON.stringify(MOCK_RELEASE_NO_ASSET)),
+      using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
+      await withMocks(
+        () =>
+          deployMocks({
+            release: new Response(JSON.stringify(MOCK_RELEASE_NO_ASSET)),
+          }),
+        async () => {
+          const { response } = await adminFormPost("/admin/update");
+          expectRedirect(response, "/admin/update");
+          expectFlash(
+            response,
+            expect.stringContaining("Update failed"),
+            false,
+          );
+        },
       );
-
-      const { response } = await adminFormPost("/admin/update");
-      expectRedirect(response, "/admin/update");
-      expectFlash(response, expect.stringContaining("Update failed"), false);
     });
 
     test("deploys successfully and redirects with success flash", async () => {
       await setupForDeploy();
+      using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
       await withMocks(stubSuccessfulDeploy, async ({ deployStub }) => {
         const { response } = await adminFormPost("/admin/update");
         expectRedirect(response, "/admin/update");
@@ -259,6 +277,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
 
     test("redirects with error when asset download fails", async () => {
       await setupForDeploy();
+      using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
       await withMocks(
         () =>
           deployMocks({
@@ -277,6 +296,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
 
     test("redirects with error when Bunny deploy fails", async () => {
       await setupForDeploy();
+      using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
       await withMocks(
         () =>
           deployMocks({
@@ -300,6 +320,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
 
     test("redirects with error when another task is in progress", async () => {
       await setupForDeploy();
+      using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
       await settings.update.currentTask("other-task");
       settings.invalidateCache();
       await settings.loadKeys(ALL_SETTINGS_KEYS);

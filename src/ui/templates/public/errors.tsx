@@ -2,8 +2,10 @@
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
+import { isoToTag } from "#shared/build-tag.ts";
 import { getRenewalUrl, isUpdateInProgress } from "#shared/env.ts";
-import { updatePageMeta } from "#shared/update-guard.ts";
+import { getEffectiveBuildTimestamp } from "#shared/update.ts";
+import { updateBuildTagMeta, updatePageMeta } from "#shared/update-guard.ts";
 import {
   ProseHeading,
   RawParagraph,
@@ -213,10 +215,14 @@ export const siteNotActivatedPage = (): string =>
 export const readOnlyPage = (): string => {
   const updating = isUpdateInProgress();
   const renewalUrl = updating ? null : getRenewalUrl();
+  // The tag names this build for a deploy's post-update wait. A build with
+  // no timestamp (development) reports no tag.
+  const buildTimestamp = getEffectiveBuildTimestamp();
+  const buildTag = buildTimestamp === "" ? null : isoToTag(buildTimestamp);
   return String(
     <Layout
       family="public"
-      headExtra={updatePageMeta(updating ? "active" : "supported")}
+      headExtra={`${updatePageMeta(updating ? "active" : "supported")}${buildTag === null ? "" : updateBuildTagMeta(buildTag)}`}
       title={t(
         updating ? "public.update_in_progress.title" : "public.read_only.title",
       )}

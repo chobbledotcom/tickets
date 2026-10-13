@@ -29,12 +29,15 @@ const bearerToken = (request: Request): string => {
   return auth.startsWith("Bearer ") ? auth.slice(7) : "";
 };
 
-/** One built site's machine-readable upgrade credentials. */
+/** One built site's machine-readable upgrade credentials. `siteUrl` is the
+ * site's public origin. The update workflow polls the site's read-only page
+ * while the update runs. */
 type SiteCredentials = {
+  dbToken: string;
+  dbUrl: string;
   name: string;
   scriptId: string;
-  dbUrl: string;
-  dbToken: string;
+  siteUrl: string;
 };
 
 const handleSiteCredentials = async (request: Request): Promise<Response> => {
@@ -70,6 +73,7 @@ const handleSiteCredentials = async (request: Request): Promise<Response> => {
       dbUrl: site.dbUrl,
       name: site.name,
       scriptId: site.hostingId,
+      siteUrl: site.siteUrl,
     }));
 
   // Echo the applied tier so a caller can confirm the server actually filtered:

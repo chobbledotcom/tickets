@@ -25,35 +25,27 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Resolve the matching site
+      id: resolve
+      uses: ./.github/actions/resolve-site-credentials
+      with:
+        main_instance: ${{ inputs.main_instance }}
+        main_instance_key: ${{ inputs.main_instance_key }}
+        script_id: ${{ inputs.script_id }}
+
     - name: Back up the matching site
       shell: devenv --profile ci shell bash -- -e {0}
       env:
-        MAIN_INSTANCE: ${{ inputs.main_instance }}
-        MAIN_INSTANCE_KEY: ${{ inputs.main_instance_key }}
+        SITE_NAME: ${{ steps.resolve.outputs.site_name }}
+        DB_URL: ${{ steps.resolve.outputs.db_url }}
+        DB_TOKEN: ${{ steps.resolve.outputs.db_token }}
         SCRIPT_ID: ${{ inputs.script_id }}
         STORAGE_ZONE_NAME: ${{ inputs.storage_zone_name }}
         STORAGE_ZONE_KEY: ${{ inputs.storage_zone_key }}
       run: |
         set -euo pipefail
-        # Keep the shared secret and any returned token out of the logs.
-        echo "::add-mask::$MAIN_INSTANCE_KEY"
+        # Keep the returned token out of the logs.
+        echo "::add-mask::$DB_TOKEN"
 
-        sites_json=$(curl -fsS -X POST \
-          "${MAIN_INSTANCE%/}/instance/site-credentials" \
-          -H "Authorization: Bearer ${MAIN_INSTANCE_KEY}")
-
-        # Narrow the fleet to the one site with this script id.
-        match=$(jq -c --arg id "$SCRIPT_ID" \
-          '[.sites[] | select(.scriptId == $id)]' <<<"$sites_json")
-        count=$(jq 'length' <<<"$match")
-        if [ "$count" -ne 1 ]; then
-          echo "Expected exactly 1 site for script id $SCRIPT_ID, found $count" >&2
-          exit 1
-        fi
-
-        db_url=$(jq -r '.[0].dbUrl' <<<"$match")
-        db_token=$(jq -r '.[0].dbToken' <<<"$match")
-        echo "::add-mask::$db_token"
-
-        echo "Backing up $(jq -r '.[0].name' <<<"$match") ($SCRIPT_ID)"
-        DB_URL="$db_url" DB_TOKEN="$db_token" deno task backup
+        echo "Backing up $SITE_NAME ($SCRIPT_ID)"
+        deno task backup

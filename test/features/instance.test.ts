@@ -140,6 +140,7 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
           dbUrl: "libsql://acme.lite.bunnydb.net",
           name: "Acme",
           scriptId: "script-acme",
+          siteUrl: "acme.b-cdn.net",
         },
       ],
       tier: "release",

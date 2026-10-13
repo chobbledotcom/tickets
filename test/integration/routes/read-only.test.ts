@@ -2,6 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { allTransfers } from "#accounting/queries.ts";
 import { handleRequest } from "#routes";
+import { setBuildTimestampForTest } from "#shared/update.ts";
+import { updateBuildTagMeta } from "#shared/update-guard.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { jsonRequest, mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
@@ -38,6 +40,23 @@ describeWithEnv(
       expect(res.status).toBe(200);
       const html = await res.text();
       expect(html).toContain("This site is in read-only mode.");
+    });
+
+    test("the page names the running build for the post-update wait", async () => {
+      setBuildTimestampForTest("2026-03-28T14:30:22.000Z");
+      try {
+        const res = await handleRequest(mockRequest("/read-only"));
+        const html = await res.text();
+        expect(html).toContain(updateBuildTagMeta("v2026-03-28-143022"));
+      } finally {
+        setBuildTimestampForTest(null);
+      }
+    });
+
+    test("a build with no timestamp reports no build tag", async () => {
+      const res = await handleRequest(mockRequest("/read-only"));
+      const html = await res.text();
+      expect(html).not.toContain('name="update-build-tag"');
     });
 
     const api403Cases: ReadonlyArray<{
@@ -386,7 +405,6 @@ describeWithEnv(
         ),
       );
     });
-
     test("an admin mutation still redirects to /read-only", async () => {
       expectReadOnlyRedirect(await postForm("/admin/listing"));
     });

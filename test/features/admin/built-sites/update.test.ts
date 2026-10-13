@@ -1,13 +1,17 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import { backupKey, backupTimestamp, dbName } from "#db/backup-storage.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { uploadRaw } from "#shared/storage.ts";
-import { useLocalStoragePath } from "#test-utils/_shared-site-update.ts";
+import {
+  stubBunnyUpdateFlag,
+  stubUpdateFetch,
+  useLocalStoragePath,
+} from "#test-utils/_shared-site-update.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -37,6 +41,18 @@ const expectNoHostingIdError = async (siteId: number): Promise<void> => {
     false,
   )(response);
 };
+
+/** The stubs a guarded Bunny deploy runs behind: the code upload answering
+ * `deployResult`, the flag store, and the page fetch. */
+const stubBunnyDeploy = (
+  deployResult: Awaited<ReturnType<typeof bunnyCdnApi.deployScriptCode>>,
+): { deploy: Stub; fetch: Stub; flag: Stub } => ({
+  deploy: stub(bunnyCdnApi, "deployScriptCode", () =>
+    Promise.resolve(deployResult),
+  ),
+  fetch: stubUpdateFetch(),
+  flag: stubBunnyUpdateFlag(),
+});
 
 describeWithEnv(
   "POST /admin/built-sites/:id/update",
@@ -69,33 +85,27 @@ describeWithEnv(
         name: "Update Me",
       });
       await seedSiteBackup(SITE_DB_URL);
-      using _fetch = stubReleaseFetch();
-      const deployStub = stub(bunnyCdnApi, "deployScriptCode", () =>
-        Promise.resolve({ ok: true as const }),
+      const { deploy, fetch, flag } = stubBunnyDeploy({ ok: true as const });
+      using _deploy = deploy;
+      using _fetch = fetch;
+      using _flag = flag;
+      const { response } = await adminFormPost(
+        `/admin/built-sites/${site.id}/update`,
       );
-      try {
-        const { response } = await adminFormPost(
-          `/admin/built-sites/${site.id}/update`,
-        );
-        await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/update`,
-          expect.stringContaining(
-            "Updated 'Update Me' to 2099-01-01 - Big Update",
-          ),
-        )(response);
+      await expectFlashRedirect(
+        `/admin/built-sites/${site.id}/update`,
+        expect.stringContaining(
+          "Updated 'Update Me' to 2099-01-01 - Big Update",
+        ),
+      )(response);
 
-        // Deployed to the site's script id, not this host's.
-        expect(deployStub.calls[0]!.args[1]).toBe("8500");
+      // Deployed to the site's script id, not this host's.
+      expect(deploy.calls[0]!.args[1]).toBe("8500");
 
-        const logs = await getAllActivityLog();
-        expect(
-          logs.some((l) =>
-            l.message.includes("Updated built site 'Update Me'"),
-          ),
-        ).toBe(true);
-      } finally {
-        deployStub.restore();
-      }
+      const logs = await getAllActivityLog();
+      expect(
+        logs.some((l) => l.message.includes("Updated built site 'Update Me'")),
+      ).toBe(true);
     });
 
     test("errors when the site has no Bunny script ID", async () => {
@@ -110,22 +120,21 @@ describeWithEnv(
         name: "Deploy Fails",
       });
       await seedSiteBackup(SITE_DB_URL);
-      using _fetch = stubReleaseFetch();
-      const deployStub = stub(bunnyCdnApi, "deployScriptCode", () =>
-        Promise.resolve({ error: "upload failed (500)", ok: false as const }),
+      const { deploy, fetch, flag } = stubBunnyDeploy({
+        error: "upload failed (500)",
+        ok: false as const,
+      });
+      using _deploy = deploy;
+      using _fetch = fetch;
+      using _flag = flag;
+      const { response } = await adminFormPost(
+        `/admin/built-sites/${site.id}/update`,
       );
-      try {
-        const { response } = await adminFormPost(
-          `/admin/built-sites/${site.id}/update`,
-        );
-        await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/update`,
-          expect.stringContaining("Update failed"),
-          false,
-        )(response);
-      } finally {
-        deployStub.restore();
-      }
+      await expectFlashRedirect(
+        `/admin/built-sites/${site.id}/update`,
+        expect.stringContaining("Update failed"),
+        false,
+      )(response);
     });
 
     test("refuses to start when another task is in progress", async () => {
@@ -241,7 +250,10 @@ describeWithEnv(
         name: "Deno Deploy Site",
       });
       await seedSiteBackup(SITE_DB_URL);
-      using _fetch = stubReleaseFetch();
+      using _fetch = stubUpdateFetch();
+      using _flag = stub(denoDeployApi, "setEnvVars", () =>
+        Promise.resolve({ ok: true as const, value: undefined }),
+      );
       const deployStub = stub(denoDeployApi, "deployCode", () =>
         Promise.resolve({ ok: true as const, value: undefined }),
       );

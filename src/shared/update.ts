@@ -92,8 +92,9 @@ const effectiveValue =
     return override === null ? baked : override;
   };
 
-/** Get the effective build timestamp (override or real). */
-const getEffectiveBuildTimestamp = effectiveValue(
+/** Get the effective build timestamp (override or real). The read-only page
+ * names the build with it, so tests can drive a stamped build. */
+export const getEffectiveBuildTimestamp = effectiveValue(
   getBuildTimestampOverride,
   BUILD_TIMESTAMP,
 );

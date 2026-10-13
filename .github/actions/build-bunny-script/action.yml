@@ -22,6 +22,10 @@ inputs:
   bunny_access_key:
     description: Bunny account API key used to purge the configured static pull zone.
     required: false
+outputs:
+  build_tag:
+    description: The release-style tag of the built bundle (matches its baked-in BUILD_TIMESTAMP).
+    value: ${{ steps.build-tag.outputs.build_tag }}
 runs:
   using: composite
   steps:
@@ -31,8 +35,13 @@ runs:
         profile: ci
 
     - name: Build edge script
+      id: build-tag
       shell: devenv --profile ci shell bash -- -e {0}
-      run: deno task build:edge
+      run: |
+        deno task build:edge
+        # The build wrote .build-tag so the release workflow can tag the same
+        # timestamp the bundle bakes in; the update-mode end wait needs it too.
+        echo "build_tag=$(cat .build-tag)" >> "$GITHUB_OUTPUT"
       env:
         BUILD_COMMIT: ${{ inputs.build_commit }}
         CDN_URL: ${{ inputs.cdn_url }}
