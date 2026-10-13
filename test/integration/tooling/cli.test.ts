@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { loadConfig } from "#cli/config.ts";
-import { buildCurlArgs, curlFailureMessage, curlJson } from "#cli/curl.ts";
+import { buildCurlArgs, curlFailureMessage, curlJson, curlTransport } from "#cli/curl.ts";
 import { CliError } from "#cli/errors.ts";
 import { readStdin, type StdinLike, writeErr, writeOut } from "#cli/io.ts";
 import { runApi } from "#cli/run.ts";
@@ -149,6 +149,25 @@ describe("CLI curl", () => {
           { method: "GET", path: "/api/admin/listings" },
         ),
       ).resolves.toEqual({ data: { ok: true }, status: 200 });
+    } finally {
+      await server.shutdown();
+    }
+  });
+
+  test("binds one config into every request the transport sends", async () => {
+    const server = Deno.serve(
+      { hostname: "127.0.0.1", port: 0 },
+      (request) => jsonResponse({ path: new URL(request.url).pathname }),
+    );
+    const { port } = server.addr;
+    try {
+      const transport = curlTransport({
+        apiHostname: `http://127.0.0.1:${port}`,
+        apiKey: "key",
+      });
+      await expect(
+        transport({ method: "GET", path: "/api/admin/listings" }),
+      ).resolves.toEqual({ data: { path: "/api/admin/listings" }, status: 200 });
     } finally {
       await server.shutdown();
     }
