@@ -20,6 +20,7 @@ import {
   dropRejectingActivityTrigger,
   installRejectingActivityTrigger,
 } from "#test-utils/db-helpers/activity-trigger.ts";
+import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
@@ -56,9 +57,13 @@ describeWithEnv(
           listing.id,
         ],
       );
+      // A real answered question rides the batch, so the zero answer-row
+      // assertion proves the answers rolled back with the booking.
+      const choice = await createQuestionWithAnswer([listing.id]);
       const sessionId = "cs_activity_fault";
       const metadata = signMeta(
         webhookMeta({
+          answer_ids: JSON.stringify({ [listing.id]: [choice.answerId] }),
           email: "fault-buyer@example.com",
           items: singleItem(listing.id, 1, 1000),
           name: "Fault Buyer",

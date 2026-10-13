@@ -251,7 +251,7 @@ const processNewBookingSession = async (
   // Otherwise try to honour it at the charged price. Expected refusal keeps a
   // quantity-0 placeholder. An uncertain atomic result is checked on the
   // primary and answered from committed state. A rolled-back batch answers
-  // 500 so the provider redelivers and the whole booking is tried again.
+  // 503 so the provider redelivers and the whole booking is tried again.
   const ticketToken = generateTicketToken();
   const codeSpecs = modifierSpecs.filter((spec) => spec.trigger === "code");
   const honoured = await createAttendeeForSession(

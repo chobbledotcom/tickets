@@ -20,6 +20,7 @@ import {
   installRejectingActivityTrigger,
 } from "#test-utils/db-helpers/activity-trigger.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
 import { makeParent } from "#test-utils/parents.ts";
 import { setPublicReservation } from "#test-utils/reservation/helpers.ts";
@@ -70,16 +71,19 @@ describeWithEnv(
         name: "Fault kit",
         stock: 2,
       });
+      // A real answered question rides the batch, so the zero answer-row
+      // assertion proves the answers rolled back with the booking.
+      const choice = await createQuestionWithAnswer([listing.id]);
       await setPublicReservation("50%");
       await installRejectingActivityTrigger();
       try {
-        // The create failure propagates out of the route; the edge runtime
-        // answers it with a 500. Nothing may have committed either way.
+        // The create failure propagates out of the route; the runtime
+        // answers it with a 503. Nothing may have committed either way.
         await expect(
           submitTicketForm(listing.slug, {
             email,
             name: "Fault Buyer",
-            [`question_${kit.id}`]: "1",
+            [`question_${choice.questionId}`]: String(choice.answerId),
           }),
         ).rejects.toThrow("registration activity rejected");
       } finally {
