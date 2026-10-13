@@ -12,10 +12,7 @@ import {
   whyChildFails,
   whyNoChildServes,
 } from "#booking/option-refusal.ts";
-import {
-  nextWeekday,
-  orderDate,
-} from "#test/features/public/order/helpers.ts";
+import { nextWeekday, orderDate } from "#test/features/public/order/helpers.ts";
 import { resolved } from "#test-utils/booking-model-fixtures.ts";
 
 /** A daily-fixed listing whose calendar serves Tuesdays only. */

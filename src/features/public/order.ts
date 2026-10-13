@@ -11,10 +11,10 @@
 
 /* jscpd:ignore-start -- imports */
 import {
+  datelessRemainingFromSnapshot,
   judgedByDay,
   loadCapacitySnapshot,
   perDayRemainingFromSnapshot,
-  remainingFromSnapshot,
 } from "#db/attendees/capacity/snapshot.ts";
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
 import { listingGroups } from "#db/groups/table.ts";
@@ -63,10 +63,6 @@ const orderUnavailable = (): Response | null => {
   return null;
 };
 
-/** The span a date-less listing's remaining reads over: its cap is a
- * running total, so no span can ever change what full means for it. */
-const datelessSpanOf = (): number => 1;
-
 /** The capacity pools the evaluator draws from, resolved for the chosen date
  * (or datelessly when none is chosen): every involved listing's remaining and
  * every capped group's remaining — per day for the listings and groups judged
@@ -107,10 +103,9 @@ const loadOrderPools = async (
     remainingByGroupDay: snapshot.groupByDay,
     remainingByGroupId: snapshot.datelessGroupRemaining,
     remainingByListingDay: perDayRemainingFromSnapshot(snapshot, involved),
-    remainingByListingId: remainingFromSnapshot(
-      snapshot,
+    remainingByListingId: datelessRemainingFromSnapshot(
       dateless,
-      datelessSpanOf,
+      snapshot,
     ),
   };
 };
