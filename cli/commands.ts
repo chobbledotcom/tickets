@@ -66,6 +66,14 @@ const unknownResource = (raw: string, table: Table): CliError =>
 const ownEntry = <T>(record: Record<string, T>, key: string): T | undefined =>
   Object.hasOwn(record, key) ? record[key] : undefined;
 
+/** The table entry one resource name resolves to; an unknown name is a usage
+ *  error. */
+const requireEntry = (table: Table, raw: string): AdminApiResource => {
+  const entry = ownEntry(table, raw);
+  if (!entry) throw unknownResource(raw, table);
+  return entry;
+};
+
 /** One whole-number id segment. */
 const parseId = (raw: string, what: string): number => {
   if (!/^\d+$/.test(raw)) {
@@ -167,8 +175,7 @@ const resolveResource = (
       ).join(", ")}.`,
     );
   }
-  const entry = ownEntry(table, resourceRaw);
-  if (!entry) throw unknownResource(resourceRaw, table);
+  const entry = requireEntry(table, resourceRaw);
   return { entry, name: resourceRaw };
 };
 
@@ -303,8 +310,7 @@ const parseCustom = (
       `The '${routeKey}' command needs the resource and the id. Usage: ${routeKey} <resource> <id>.`,
     );
   }
-  const entry = ownEntry(table, resourceRaw);
-  if (!entry) throw unknownResource(resourceRaw, table);
+  const entry = requireEntry(table, resourceRaw);
   if (entry.custom === undefined || !Object.hasOwn(entry.custom, routeKey)) {
     const routeNames = Object.keys(entry.custom ?? {});
     const names = routeNames.length > 0 ? routeNames.join(", ") : "none";
@@ -332,8 +338,7 @@ const parseDescribe = (
   if (resourceRaw === undefined) {
     return { kind: "describe", resources: Object.entries(table) };
   }
-  const entry = ownEntry(table, resourceRaw);
-  if (!entry) throw unknownResource(resourceRaw, table);
+  const entry = requireEntry(table, resourceRaw);
   return { kind: "describe", resources: [[resourceRaw, entry]] };
 };
 

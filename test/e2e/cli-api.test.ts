@@ -81,6 +81,88 @@ const runCliApiExpectingFailure = async (
   };
 };
 
+/** Run the real entry with no site to talk to: a temp cwd with no .env, and
+ *  explicit empty host and key that defeat any inherited values. The entry
+ *  and the Deno config go in as absolute paths, because the temp cwd sits
+ *  outside the project. */
+const runCliApiWithoutConfig = async (
+  args: string[],
+): Promise<{ code: number; stderr: string; stdout: string }> => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const command = new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "--allow-env",
+        "--allow-read",
+        "--allow-run",
+        `--config=${join(projectRoot, "deno.json")}`,
+        join(projectRoot, "cli", "api.ts"),
+        ...args,
+      ],
+      cwd: dir,
+      env: { API_HOSTNAME: "", API_KEY: "" },
+      stderr: "piped",
+      stdout: "piped",
+    });
+    const output = await command.output();
+    return {
+      code: output.code,
+      stderr: decode(output.stderr),
+      stdout: decode(output.stdout),
+    };
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+};
+
+describe("CLI API without configuration", () => {
+  test("describes the table with no site configured", async () => {
+    const { code, stderr, stdout } = await runCliApiWithoutConfig([
+      "describe",
+      "listings",
+    ]);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    const described = JSON.parse(stdout) as {
+      resources: Record<string, unknown>;
+    };
+    expect(Object.keys(described.resources)).toContain("listings");
+  });
+
+  test("reports the missing site as the usage envelope", async () => {
+    const { code, stderr, stdout } = await runCliApiWithoutConfig([
+      "list",
+      "listings",
+    ]);
+    expect(code).toBe(2);
+    expect(stdout).toBe("");
+    const body = JSON.parse(stderr) as {
+      error: { fields: null; kind: string; message: string; status: null };
+    };
+    expect(body.error).toEqual({
+      fields: null,
+      kind: "usage",
+      message:
+        "The API host is missing. Set API_HOSTNAME and API_KEY in the environment or the repo .env file.",
+      status: null,
+    });
+  });
+
+  test("answers a missing command before any config read", async () => {
+    const { code, stderr, stdout } = await runCliApiWithoutConfig([]);
+    expect(code).toBe(2);
+    expect(stdout).toBe("");
+    const body = JSON.parse(stderr) as {
+      error: { kind: string; message: string };
+    };
+    expect(body.error.kind).toBe("usage");
+    expect(body.error.message.startsWith("The CLI needs a command.")).toBe(
+      true,
+    );
+  });
+});
+
 describeWithEnv("CLI API e2e", { db: true }, () => {
   describe("list listings", () => {
     test("reads listings from a served site API", async () => {

@@ -60,6 +60,17 @@ export const errorJson = (error: CliError): unknown => ({
 /** The exit code one mapped error answers with. */
 export const exitCodeFor = (error: CliError): number => EXIT_CODES[error.kind];
 
+/** The stderr line and exit code one failure reports: the contract's JSON
+ *  envelope with its trailing newline. `fallbackKind` reaches the failures
+ *  no other rule names. */
+export const toErrorResult = (
+  error: unknown,
+  fallbackKind: CliErrorKind = "server",
+): { code: number; err: string } => {
+  const cli = cliErrorFromUnknown(error, fallbackKind);
+  return { code: exitCodeFor(cli), err: `${JSON.stringify(errorJson(cli))}\n` };
+};
+
 /** Map one HTTP status to the CLI error kind the contract names. */
 const kindForStatus = (status: number | undefined): CliErrorKind => {
   if (status === 400) return "validation";
