@@ -24,8 +24,8 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { makeParent } from "#test-utils/parents.ts";
-import { ticketListingFor } from "./helpers.ts";
 import type { ListingWithCount } from "#types";
+import { ticketListingFor } from "./helpers.ts";
 
 /** Wrap a listing-with-count as a selected cart line. */
 const line = (listing: ListingWithCount, qty = 1) => ({ listing, qty });

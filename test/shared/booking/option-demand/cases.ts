@@ -416,6 +416,39 @@ export const CASES: DemandCase[] = [
     foldAccepts: true,
     name: "a package whose members share no day count refuses",
   },
+  {
+    async build() {
+      // Two members share one sole child with one spot. The first member's
+      // fold takes it, and the second member's fold exceeds the child's
+      // capacity, so the package refuses through the one fold state.
+      const child = await createTestListing({
+        maxAttendees: 1,
+        maxQuantity: 1,
+        name: "Single Spot Kit",
+      });
+      const memberA = await createTestListing({
+        maxAttendees: 5,
+        name: "Overdraft Member A",
+      });
+      await listingChildren.setIds(memberA.id, [child.id]);
+      const memberB = await createTestListing({
+        maxAttendees: 5,
+        name: "Overdraft Member B",
+      });
+      await listingChildren.setIds(memberB.id, [child.id]);
+      return {
+        childrenByParentId: await resolvedChildren([memberA.id, memberB.id]),
+        date: orderDate(),
+        parents: [await ticketInfo(memberA.id), await ticketInfo(memberB.id)],
+        quantities: new Map([
+          [memberA.id, 1],
+          [memberB.id, 1],
+        ]),
+      };
+    },
+    expected: { bookable: false, reason: "capacity" },
+    name: "a package whose members overdraw one sole child refuses",
+  },
 ];
 
 /** The cases whose date refusal disappears in the form's date-less render

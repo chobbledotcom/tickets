@@ -1,7 +1,4 @@
-import {
-  buildTicketListing,
-  type TicketListing,
-} from "#booking/model.ts";
+import { buildTicketListing, type TicketListing } from "#booking/model.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { requireValue } from "#shared/required-value.ts";
 
