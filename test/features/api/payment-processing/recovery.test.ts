@@ -11,6 +11,7 @@ import type { ValidatedItem } from "#routes/api/payment-processing/package-prici
 import { recoverOrRefundUnexpectedCreate } from "#routes/api/payment-processing/recovery.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
+import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -58,6 +59,7 @@ const oneListingIntent = (loaded: ListingWithCount): BookingIntent =>
  * booking, or the original error after the retry's reservation release. */
 const runRecovery = async (opts: {
   error: unknown;
+  freeTexts?: FreeTextAnswers | undefined;
   intent: BookingIntent;
   listingId: number;
   sessionId: string;
@@ -66,6 +68,7 @@ const runRecovery = async (opts: {
 }): Promise<PaymentResult> =>
   recoverOrRefundUnexpectedCreate({
     error: opts.error,
+    freeTexts: opts.freeTexts,
     intent: opts.intent,
     listingId: opts.listingId,
     session: paidSession(opts.sessionId),
