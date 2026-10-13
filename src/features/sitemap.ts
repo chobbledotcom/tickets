@@ -16,7 +16,7 @@ import { isMissingSettingsTableError } from "#db/migrations/errors.ts";
 import { getNewsPostSummaries } from "#db/news-posts.ts";
 import { settings } from "#db/settings.ts";
 import { sitePages } from "#db/site-pages.ts";
-import { loadPublicGroups } from "#routes/public/group-liveness.ts";
+import { loadServedGroups } from "#routes/public/group-liveness.ts";
 import {
   loadPublicDomain,
   publicCacheResponse,
@@ -75,16 +75,17 @@ const sitemapNotFound = (): Response =>
  *  sealed, so the reads go through the entity caches that decrypt them. Each
  *  catalog entry passes the checks its own page applies. A listing is
  *  active, not hidden, and bookable on its own. A child that sells only
- *  through its parent has no /ticket page. A group is not hidden and keeps
- *  a page a buyer can book from. Every slug passes the public route's own
- *  slug pattern, so a slug the router rejects — the empty slug with it —
- *  stays out. */
+ *  through its parent has no /ticket page. A group is not hidden and its
+ *  page serves. A package keeps its bookable bundle. A regular group keeps
+ *  one visible active member that is not a child. Every slug passes the
+ *  public route's own slug pattern, so a slug the router rejects — the
+ *  empty slug with it — stays out. */
 const publicPaths = async (): Promise<string[]> => {
   const [listings, posts, pages, groups] = await Promise.all([
     getAllListings(),
     getNewsPostSummaries(),
     sitePages.getAll(),
-    loadPublicGroups(),
+    loadServedGroups(),
   ]);
   const nonStandaloneChildIds = await getNonStandaloneChildIds(
     listings.map((listing) => listing.id),

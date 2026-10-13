@@ -25,6 +25,7 @@ import {
 } from "#test-utils/db-helpers/misc.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { soldOutParentInGroup } from "#test-utils/parents.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
 
 /* jscpd:ignore-end */
@@ -164,6 +165,26 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();
       expect(xml).not.toContain("members-only-club");
+    } finally {
+      await disablePublicSite();
+    }
+  });
+
+  test("names a regular group whose sole member is a sold-out parent", async () => {
+    await enablePublicSite();
+    try {
+      const { group } = await soldOutParentInGroup("Sold-out parent group");
+
+      // The regular group's page serves: it renders its sold-out member.
+      const page = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+      expect(page.status).toBe(200);
+
+      const xml = await (
+        await handleRequest(mockRequest("/sitemap.xml"))
+      ).text();
+      expect(xml).toContain(
+        `<loc>https://localhost/ticket/${group.slug}</loc>`,
+      );
     } finally {
       await disablePublicSite();
     }

@@ -204,8 +204,7 @@
     "semicolon": 2
   },
   "src/features/public/group-liveness.ts": {
-    "long-sentence": 1,
-    "semicolon": 1
+    "long-sentence": 1
   },
   "src/features/public/groups.ts": {
     "long-sentence": 5
