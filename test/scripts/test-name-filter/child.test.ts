@@ -39,6 +39,7 @@ const runFixture = async (
         "tap",
         `${FIXTURE_DIR}/${fixture}`,
       ],
+      clearEnv: true,
       cwd: projectRoot,
       env,
       stderr: "null",

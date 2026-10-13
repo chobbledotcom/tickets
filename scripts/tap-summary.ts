@@ -22,6 +22,9 @@ export type CompactTapSummary = {
   failed: number;
   /** Results deno reported as skipped (an ignored test), which ran nothing. */
   skipped: number;
+  /** Suite results that closed at the left edge after indented children: the
+   * container ran, but no test body under it reported. */
+  containerPasses: number;
   failures: CompactFailure[];
   sawTap: boolean;
   /** Parent results the reporter deliberately dropped because a child step

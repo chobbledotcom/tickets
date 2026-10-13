@@ -185,7 +185,7 @@ describe("running deno test with the compact reporter", () => {
     expect(logs).toContain("No test matched --filter no such leaf.");
   });
 
-  test("passes a filtered run whose only matches are skipped tests", async () => {
+  test("fails a filtered run whose only matches are skipped tests", async () => {
     const { code, logs } = await runOver(
       'Deno.test("ignored", { ignore: true }, () => {});',
       { nameFilter: "ignored" },
