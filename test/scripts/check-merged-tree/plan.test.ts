@@ -2,12 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   checkFailedLine,
+  cleanupFailedLine,
   fetchArgs,
   fetchFailedLine,
   labelFor,
   mergeArgs,
   notMergeableHeader,
   resolveBaseArgs,
+  resolveFailedLine,
   resolveHeadArgs,
   successLine,
   unmergedArgs,
@@ -26,27 +28,17 @@ describe("merged-tree check command plan", () => {
     ]);
   });
 
-  test("fetches only the base for a branch head", () => {
+  test("fetches the origin head and the base for a branch head", () => {
     expect(fetchArgs({ kind: "ref", name: "feature" }, "main")).toEqual([
       "fetch",
       "origin",
+      "refs/heads/feature",
       "main",
     ]);
   });
 
-  test("resolves a pull request head from FETCH_HEAD", () => {
-    expect(resolveHeadArgs({ kind: "pr", number: 2583 })).toEqual([
-      "rev-parse",
-      "FETCH_HEAD",
-    ]);
-  });
-
-  test("resolves a branch head in the checkout", () => {
-    expect(resolveHeadArgs({ kind: "ref", name: "feature" })).toEqual([
-      "rev-parse",
-      "--verify",
-      "feature^{commit}",
-    ]);
+  test("resolves the fetched head for either form", () => {
+    expect(resolveHeadArgs()).toEqual(["rev-parse", "FETCH_HEAD"]);
     expect(resolveBaseArgs("main")).toEqual(["rev-parse", "origin/main"]);
   });
 
@@ -97,8 +89,14 @@ describe("merged-tree check command plan", () => {
     expect(fetchFailedLine("PR #2583", "main")).toBe(
       "MERGED-TREE CHECK FAILED: cannot fetch PR #2583 or origin/main",
     );
+    expect(resolveFailedLine("feature", "main")).toBe(
+      "MERGED-TREE CHECK FAILED: cannot resolve feature against origin/main",
+    );
     expect(worktreeFailedLine("feature", "main")).toBe(
       "MERGED-TREE CHECK FAILED: cannot create the trial worktree for feature into main",
+    );
+    expect(cleanupFailedLine()).toBe(
+      "MERGED-TREE CHECK FAILED: the trial worktree could not be cleaned up",
     );
   });
 });

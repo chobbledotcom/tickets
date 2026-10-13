@@ -1,4 +1,6 @@
 /* jscpd:ignore-start -- imports */
+
+import { removeIfPresent } from "#scripts/cleanup.ts";
 import {
   captureOutput,
   denoCommand,
@@ -7,15 +9,18 @@ import {
 } from "#scripts/process.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 /* jscpd:ignore-end */
+import { errorMessage } from "#shared/error-message.ts";
 import type { ParsedArgs } from "./args.ts";
 import {
   checkFailedLine,
+  cleanupFailedLine,
   fetchArgs,
   fetchFailedLine,
   labelFor,
   mergeArgs,
   notMergeableHeader,
   resolveBaseArgs,
+  resolveFailedLine,
   resolveHeadArgs,
   successLine,
   unmergedArgs,
@@ -133,30 +138,81 @@ const runTreeTasks = async (
   return;
 };
 
-/** Remove the worktree and its throwaway directory. */
+/** A rejection as a failed command result, for catch paths. */
+const failedResult = (error: unknown): CommandResult => ({
+  stderr: errorMessage(error),
+  stdout: "",
+  success: false,
+});
+
+/** Remove the worktree and its throwaway directory. Both attempts run
+ *  independently and every failure is collected, so one attempt cannot hide
+ *  another. Returns false when any attempt left state behind. */
 const cleanup = async (
   deps: MergeTreeDeps,
   tempDir: string | undefined,
   added: boolean,
-): Promise<void> => {
-  if (tempDir === undefined) return;
+): Promise<boolean> => {
+  if (tempDir === undefined) return true;
+  const failures: string[] = [];
   if (added) {
-    const removed = await deps.command("git", worktreeRemoveArgs(tempDir));
+    const removed = await deps
+      .command("git", worktreeRemoveArgs(tempDir))
+      .catch(failedResult);
     if (!removed.success) {
-      deps.log(
-        `warning: could not remove the worktree at ${tempDir}. Run: git worktree prune`,
+      const detail = removed.stderr.trim();
+      failures.push(
+        `could not remove the worktree at ${tempDir}${detail.length > 0 ? `: ${detail}` : ""}. Run: git worktree prune`,
       );
     }
   }
   // worktree remove already deleted the directory, so a NotFound here is
   // the expected leftover of a successful removal.
-  await deps.removeTree(tempDir).catch(() => undefined);
+  await removeIfPresent(tempDir, deps.removeTree).catch((error: unknown) =>
+    failures.push(
+      `could not remove the throwaway directory at ${tempDir}: ${errorMessage(error)}`,
+    ),
+  );
+  for (const failure of failures) deps.log(`warning: ${failure}`);
+  return failures.length === 0;
+};
+
+/** Resolve one ref to its commit. Returns undefined, with the diagnostic
+ *  logged, when the ref does not name a commit on origin. */
+const resolveSha = async (
+  deps: MergeTreeDeps,
+  label: string,
+  base: string,
+  args: readonly string[],
+): Promise<string | undefined> => {
+  const resolved = await deps.command("git", args);
+  if (!resolved.success) {
+    deps.log(resolveFailedLine(label, base));
+    deps.log(resolved.stderr.trim());
+    return;
+  }
+  return resolved.stdout.trim();
+};
+
+/** Resolve the fetched head and the origin base. Returns undefined, with the
+ *  diagnostic logged, when either ref does not name a commit on origin. */
+const resolveShas = async (
+  deps: MergeTreeDeps,
+  label: string,
+  base: string,
+): Promise<{ baseSha: string; headSha: string } | undefined> => {
+  const headSha = await resolveSha(deps, label, base, resolveHeadArgs());
+  if (headSha === undefined) return;
+  const baseSha = await resolveSha(deps, label, base, resolveBaseArgs(base));
+  if (baseSha === undefined) return;
+  return { baseSha, headSha };
 };
 
 /** Run the check: fetch, trial-merge the head into a throwaway worktree at
  *  the base, run the tree tasks there, and clean the worktree up. Returns the
  *  process exit code: 0 pass, 1 the head does not merge cleanly, 2 a merged-
- *  tree task fails, 3 the inputs name no refs on origin. */
+ *  tree task fails or the cleanup left state behind, 3 the inputs name no
+ *  refs on origin. */
 export const runMergedTreeCheck = async (
   parsed: ParsedArgs,
   deps: MergeTreeDeps,
@@ -164,6 +220,17 @@ export const runMergedTreeCheck = async (
   const label = labelFor(parsed.head);
   let tempDir: string | undefined;
   let added = false;
+  /** Clean up, then hold back a pass while the cleanup left state behind. */
+  const finish = async (verdict: number): Promise<number> => {
+    const cleaned = await cleanup(deps, tempDir, added);
+    tempDir = undefined;
+    if (!cleaned) {
+      deps.log(cleanupFailedLine());
+      return 2;
+    }
+    if (verdict === 0) deps.log(successLine(label, parsed.base));
+    return verdict;
+  };
   try {
     const fetched = await deps.command(
       "git",
@@ -172,20 +239,20 @@ export const runMergedTreeCheck = async (
     if (!fetched.success) {
       deps.log(fetchFailedLine(label, parsed.base));
       deps.log(fetched.stderr.trim());
-      return 3;
+      // Awaited so the finally below sees the post-cleanup state.
+      return await finish(3);
     }
-    const headSha = (
-      await deps.command("git", resolveHeadArgs(parsed.head))
-    ).stdout.trim();
-    const baseSha = (
-      await deps.command("git", resolveBaseArgs(parsed.base))
-    ).stdout.trim();
+    const resolved = await resolveShas(deps, label, parsed.base);
+    if (resolved === undefined) return await finish(3);
     tempDir = await deps.makeTempDir();
-    const created = await deps.command("git", worktreeArgs(tempDir, baseSha));
+    const created = await deps.command(
+      "git",
+      worktreeArgs(tempDir, resolved.baseSha),
+    );
     if (!created.success) {
       deps.log(worktreeFailedLine(label, parsed.base));
       deps.log(created.stderr.trim());
-      return 3;
+      return await finish(3);
     }
     added = true;
     await deps.copyStripeMock(tempDir);
@@ -193,15 +260,16 @@ export const runMergedTreeCheck = async (
       deps,
       label,
       parsed.base,
-      headSha,
+      resolved.headSha,
       tempDir,
     );
-    if (mergeResult !== undefined) return mergeResult;
+    if (mergeResult !== undefined) return await finish(mergeResult);
     const taskResult = await runTreeTasks(deps, label, parsed.base, tempDir);
-    if (taskResult !== undefined) return taskResult;
-    deps.log(successLine(label, parsed.base));
-    return 0;
+    if (taskResult !== undefined) return await finish(taskResult);
+    return await finish(0);
   } finally {
-    await cleanup(deps, tempDir, added);
+    // The verdict paths clean up through finish; this catches a thrown
+    // error, and cleanup no longer throws, so it cannot mask the original.
+    if (tempDir !== undefined) await cleanup(deps, tempDir, added);
   }
 };

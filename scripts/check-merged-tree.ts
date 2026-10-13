@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-run=git,deno --allow-read --allow-write --allow-env
+#!/usr/bin/env -S deno run --allow-run --allow-read --allow-write --allow-env
 
 /**
  * Trial-merge a head into a base and run typecheck and the test suite on the
