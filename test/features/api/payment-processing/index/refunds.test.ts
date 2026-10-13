@@ -195,7 +195,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
 
     // The create batch carries the booking's whole completion, so a failure
     // in it leaves nothing committed: the reservation is released and the
-    // error escapes, which answers the provider 503 so it redelivers and the
+    // error escapes, which answers the provider 500 so it redelivers and the
     // whole booking is tried again. No money is refunded on a guess.
     await expect(
       processPaymentSession(
