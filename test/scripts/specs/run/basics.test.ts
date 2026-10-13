@@ -211,7 +211,23 @@ describe("Cucumber runner", () => {
       testArgs: [],
     });
     expect(shouldRunFocusedSpecs(targets)).toBe(true);
-    expect(shouldRunFocusedSpecs({ specPaths: [] })).toBe(false);
+    expect(shouldRunFocusedSpecs({ specPaths: [], testArgs: [] })).toBe(false);
+  });
+
+  test("skips the stories when the focused run carries a name filter", () => {
+    expect(
+      shouldRunFocusedSpecs(
+        focusedTargets([
+          "test/shared/example.test.ts",
+          "specs/example.feature",
+          "--filter",
+          "direct test",
+        ]),
+      ),
+    ).toBe(false);
+    expect(
+      shouldRunFocusedSpecs(focusedTargets(["--tags", "@risk:high"])),
+    ).toBe(true);
   });
 
   test("keeps a Feature-like filter value with the direct test arguments", () => {

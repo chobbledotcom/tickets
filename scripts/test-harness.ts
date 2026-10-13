@@ -11,6 +11,7 @@
  * for them.
  */
 
+import { TEST_NAME_FILTER_ENV } from "#test-utils/test-name-filter.ts";
 import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 import {
   failAfterCleanups,
@@ -23,6 +24,7 @@ import {
   removeOldCoverageOutput,
 } from "./coverage-output.ts";
 import { junitPathInArgs, junitReportForRun } from "./junit-report-path.ts";
+import { extractNameFilter, rejectReporterWithFilter } from "./name-filter.ts";
 import { rethrowUnlessNotFound } from "./not-found.ts";
 import { projectRoot } from "./project-root.ts";
 import { prepareStaticAssets } from "./static-assets/prepare.ts";
@@ -84,17 +86,20 @@ const buildDenoTestArgs = (
   return args;
 };
 
-/** The environment a test child runs in: this process's environment plus
- * the stripe mock endpoints. */
-const testChildEnv = (): Record<string, string> => ({
+/** The environment a test child runs in: this process's environment, the
+ * stripe mock endpoints, and the `--filter` value the child prunes by. */
+const testChildEnv = (nameFilter?: string): Record<string, string> => ({
   ...Deno.env.toObject(),
   ...stripeMockEnv(),
+  ...(nameFilter === undefined ? {} : { [TEST_NAME_FILTER_ENV]: nameFilter }),
 });
 
-/** What both run shapes need: the caller's test arguments, whether the run
- * feeds the coverage gate, and an optional JUnit report path. */
+/** What both run shapes need: the caller's test arguments (already stripped
+ * of `--filter`), the stripped `--filter` value, whether the run feeds the
+ * coverage gate, and an optional JUnit report path. */
 type TestRunRequest = {
   extraArgs: string[];
+  nameFilter?: string | undefined;
   useCoverage: boolean;
   junitPath?: string | undefined;
 };
@@ -104,7 +109,7 @@ type TestRunRequest = {
  * removed after the run; a report the caller forwarded keeps their
  * directory. */
 const runFocusedTest = async (
-  { extraArgs, useCoverage, junitPath }: TestRunRequest,
+  { extraArgs, nameFilter, useCoverage, junitPath }: TestRunRequest,
   estimateFrom?: string[],
 ): Promise<number> => {
   const forwardedJunitPath = junitPathInArgs(extraArgs);
@@ -113,9 +118,10 @@ const runFocusedTest = async (
   // A run that selects a subset or stops at the first failure will not
   // report every declaration, so the count would name tests the run never
   // meant to report.
-  const estimatedTotal = skipsDeclaredTests(extraArgs)
-    ? undefined
-    : await estimateTapEventCount(projectRoot, estimateFrom ?? extraArgs);
+  const estimatedTotal =
+    nameFilter !== undefined || skipsDeclaredTests(extraArgs)
+      ? undefined
+      : await estimateTapEventCount(projectRoot, estimateFrom ?? extraArgs);
   try {
     return await runCompactDenoTest(
       buildDenoTestArgs(
@@ -126,9 +132,10 @@ const runFocusedTest = async (
       ),
       {
         cwd: projectRoot,
-        env: testChildEnv(),
+        env: testChildEnv(nameFilter),
         ...(estimatedTotal === undefined ? {} : { estimatedTotal }),
         junitPath: runJunitPath,
+        ...(nameFilter === undefined ? {} : { nameFilter }),
       },
     );
   } finally {
@@ -141,9 +148,12 @@ const runFocusedTest = async (
 };
 
 /** The pass-through run: a caller that chose its own reporter keeps deno's
- * own output and exit code. */
+ * own output and exit code. The child still prunes by the filter; a run that
+ * matched nothing keeps deno's own silent zero-test exit, since this shape
+ * has no parsed TAP to check. */
 const runPlainTest = async ({
   extraArgs,
+  nameFilter,
   useCoverage,
   junitPath,
 }: TestRunRequest): Promise<number> => {
@@ -151,7 +161,7 @@ const runPlainTest = async ({
   const testCmd = new Deno.Command(Deno.execPath(), {
     args: buildDenoTestArgs(extraArgs, useCoverage, undefined, junitPath),
     cwd: projectRoot,
-    env: testChildEnv(),
+    env: testChildEnv(nameFilter),
     stderr: "inherit",
     stdin: "inherit",
     stdout: "inherit",
@@ -163,8 +173,11 @@ const runPlainTest = async ({
 /**
  * Run `deno test` with the standard permission flags. `extraArgs` are appended
  * verbatim — the full runner passes `["test/"]`, the focused runner passes the
- * requested files (and any flags such as `--filter`). `junitPath`, when set,
- * makes `deno test` write a JUnit XML file the caller can parse for per-test
+ * requested files (and any flags such as `--filter`). A `--filter` argument is
+ * stripped from the child's command line and set as `TICKETS_TEST_FILTER`
+ * instead, so the bdd wrappers in the child can prune by leaf name (deno's own
+ * `--filter` matches top-level names only). `junitPath`, when set, makes
+ * `deno test` write a JUnit XML file the caller can parse for per-test
  * timings. Returns the exit code.
  */
 export const runTests = async (
@@ -174,13 +187,20 @@ export const runTests = async (
   estimateFrom?: string[],
 ): Promise<number> => {
   if (useCoverage) await removeOldCoverageOutput();
-  if (!hasReporterArg(extraArgs)) {
+  const { args, nameFilter } = extractNameFilter(extraArgs);
+  rejectReporterWithFilter(args, nameFilter);
+  if (!hasReporterArg(args)) {
     return await runFocusedTest(
-      { extraArgs, junitPath, useCoverage },
+      { extraArgs: args, junitPath, nameFilter, useCoverage },
       estimateFrom,
     );
   }
-  return await runPlainTest({ extraArgs, junitPath, useCoverage });
+  return await runPlainTest({
+    extraArgs: args,
+    junitPath,
+    nameFilter,
+    useCoverage,
+  });
 };
 
 /**
@@ -277,6 +297,7 @@ export const withTestHarness = async <T>(
  */
 export const runSuiteWithHarness = async (
   useCoverage: boolean,
+  nameFilter?: string,
 ): Promise<number> => {
   // Only a missing file is expected here; a real removal failure (e.g.
   // permissions) must surface rather than leave a stale JUnit file behind.
@@ -294,15 +315,22 @@ export const runSuiteWithHarness = async (
     if (jobs !== undefined) Deno.env.set("DENO_JOBS", String(jobs));
   }
   return withTestHarness(async () => {
+    // The filter travels in the arguments and `runTests` — the single place
+    // that strips it and sets the child's env — picks it up there.
+    const filterArgs = nameFilter === undefined ? [] : ["--filter", nameFilter];
     let testCode: number;
     if (Deno.env.get("TICKETS_TEST_UNGROUPED") === "1") {
-      testCode = await runTests(["test/"], useCoverage, JUNIT_PATH);
+      testCode = await runTests(
+        ["test/", ...filterArgs],
+        useCoverage,
+        JUNIT_PATH,
+      );
     } else {
       const { writeTestGroups } = await import("./test-groups.ts");
       const groups = await writeTestGroups(projectRoot);
       try {
         testCode = await runTests(
-          groups.runArgs,
+          [...groups.runArgs, ...filterArgs],
           useCoverage,
           JUNIT_PATH,
           groups.testFiles,
@@ -312,6 +340,10 @@ export const runSuiteWithHarness = async (
       }
     }
     if (testCode !== 0) return testCode;
+    // A name filter selects direct Deno tests; the acceptance stories are
+    // Cucumber features with no test name to match, so a filtered run skips
+    // them instead of running the whole suite behind a one-test request.
+    if (nameFilter !== undefined) return 0;
 
     // Acceptance stories run in this harness process after direct Deno tests.
     // Their behavior is required, but their execution never fills a gap in the

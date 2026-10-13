@@ -33,7 +33,7 @@ const TEST_STEP_RE = /\.\s*step\s*\(/g;
 /** Whether args carry the flag in either Deno form: `--flag` or `--flag=value`. */
 const hasFlag =
   (flag: string) =>
-  (args: string[]): boolean =>
+  (args: readonly string[]): boolean =>
     args.some((arg) => arg === flag || arg.startsWith(`${flag}=`));
 
 export const hasReporterArg = hasFlag("--reporter");

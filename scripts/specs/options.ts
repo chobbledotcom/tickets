@@ -1,4 +1,5 @@
 import { splitFlagValues } from "#scripts/flag-values.ts";
+import { extractNameFilter } from "#scripts/name-filter.ts";
 import { isFeaturePath, isSpecPath } from "./paths.ts";
 
 export interface SpecCliOptions {
@@ -12,9 +13,11 @@ export interface FocusedTargets {
   testArgs: string[];
 }
 
-export const shouldRunFocusedSpecs = (
-  targets: Pick<FocusedTargets, "specPaths" | "tags">,
-): boolean => targets.specPaths.length > 0 || targets.tags !== undefined;
+/** A name filter selects direct Deno tests; a Feature has no test name to
+ * match, so a filtered focused run skips the stories. */
+export const shouldRunFocusedSpecs = (targets: FocusedTargets): boolean =>
+  (targets.specPaths.length > 0 || targets.tags !== undefined) &&
+  extractNameFilter(targets.testArgs).nameFilter === undefined;
 
 interface SpecSelection {
   paths?: readonly string[];

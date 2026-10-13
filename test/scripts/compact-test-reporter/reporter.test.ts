@@ -255,3 +255,21 @@ Deno.test("compact TAP reporter swallows a stray end marker without a failure", 
 
   expect(reporter.finish().droppedLines).toEqual([]);
 });
+
+Deno.test("compact TAP reporter counts skipped results apart from passes", () => {
+  const reporter = new CompactTapReporter({
+    cwd: Deno.cwd(),
+    stdout: () => {},
+  });
+
+  consume(reporter, [
+    "TAP version 14",
+    "    ok 1 - runs later # SKIP",
+    "ok 2 - wrapper",
+    "1..2",
+  ]);
+
+  const summary = reporter.finish();
+  expect(summary.passed).toBe(2);
+  expect(summary.skipped).toBe(1);
+});

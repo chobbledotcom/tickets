@@ -14,6 +14,7 @@ const summary = (over: Partial<CompactTapSummary> = {}): CompactTapSummary => ({
   fileEstimate: 0,
   passed: 3,
   sawTap: true,
+  skipped: 0,
   suppressedResults: 0,
   ...over,
 });

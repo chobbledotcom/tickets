@@ -32,6 +32,10 @@ export const GROUPS_DIR = ".test-groups";
 /** Marker a test file can carry to opt out of isolate sharing. */
 export const RUN_ALONE_MARKER = "test-groups: run-alone";
 
+/** Marker a helper file can carry when it is a spawned test child's entry,
+ * never an import of a grouped suite: its module-level hook is deliberate. */
+export const CHILD_FIXTURE_MARKER = "test-groups: child-fixture";
+
 // A hook call at column 0 is a *global* BDD hook (inside a describe it is
 // always indented — Biome enforces the formatting). A module-level
 // useSetting call hides the same bug behind an expression. The helper wraps
@@ -261,7 +265,9 @@ export const planTestGroups = (
 export const collectTestFiles = async (root: string): Promise<string[]> => {
   const sources = await collectFiles(join(root, "test"), isSourcePath);
   for (const helper of sources.filter((path) => !isTestPath(path))) {
-    if (registersGlobalHooks(await Deno.readTextFile(helper))) {
+    const source = await Deno.readTextFile(helper);
+    if (source.includes(CHILD_FIXTURE_MARKER)) continue;
+    if (registersGlobalHooks(source)) {
       throw new Error(
         `${helper} is a shared test helper but registers a global BDD hook — ` +
           "export a setup function and call it from each test file's own suite instead",

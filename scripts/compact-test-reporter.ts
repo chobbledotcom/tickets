@@ -89,6 +89,7 @@ export class CompactTapReporter {
   #stderr: (line: string) => void;
   #passed = 0;
   #failed = 0;
+  #skipped = 0;
   #pendingFailure?: PendingFailure | undefined;
   #diagnosticLines?: string[] | undefined;
   #failures: CompactFailure[] = [];
@@ -162,6 +163,7 @@ export class CompactTapReporter {
     this.#flushPendingFailure();
 
     const failed = Boolean(result[1]);
+    const rawName = result[2] ?? "";
     const name = stripTapDirective(result[2] ?? "(unnamed test)");
     this.#lastResultName = name;
     if (failed) {
@@ -169,6 +171,7 @@ export class CompactTapReporter {
       return;
     }
 
+    if (/#\s*SKIP\b/i.test(rawName)) this.#skipped++;
     this.#passed++;
     this.#stdout(this.#formatResultLine("ok  ", name));
   }
@@ -190,6 +193,7 @@ export class CompactTapReporter {
       lastResultName: this.#lastResultName,
       passed: this.#passed,
       sawTap: this.#sawTap,
+      skipped: this.#skipped,
       suppressedResults: this.#consumedResults - this.#passed - this.#failed,
     };
   }
@@ -290,6 +294,9 @@ export const runCompactDenoTest = async (
     env: Record<string, string>;
     estimatedTotal?: number;
     junitPath?: string;
+    /** The `--filter` value the run selects by; set when the caller passed
+     * one, so a run that matched nothing can fail loudly. */
+    nameFilter?: string;
   },
 ): Promise<number> => {
   console.log("Running tests...");
@@ -299,39 +306,72 @@ export const runCompactDenoTest = async (
   if (reportFile !== undefined) {
     await Deno.remove(reportFile).catch(rethrowUnlessNotFound);
   }
-  const command = new Deno.Command(Deno.execPath(), {
-    args,
-    cwd: options.cwd,
-    env: options.env,
-    stderr: "piped",
-    stdin: "inherit",
-    stdout: "piped",
-  });
+  // A filtered run's child records the suites it registered beside its marks,
+  // so the zero-execution decision can tell BDD suite containers from plain
+  // tests whose own body ran. The file is this runner's; the child appends.
+  const announcePath =
+    options.nameFilter === undefined ? undefined : await Deno.makeTempFile();
+  try {
+    const command = new Deno.Command(Deno.execPath(), {
+      args,
+      cwd: options.cwd,
+      env:
+        announcePath === undefined
+          ? options.env
+          : { ...options.env, TICKETS_TEST_FILTER_MARKS: announcePath },
+      stderr: "piped",
+      stdin: "inherit",
+      stdout: "piped",
+    });
 
-  const child = command.spawn();
-  const reporter = new CompactTapReporter({
-    cwd: options.cwd,
-    estimatedTotal: options.estimatedTotal,
-    hideProgress: Boolean(options.env.CI || options.env.GITHUB_ACTIONS),
-  });
+    const child = command.spawn();
+    const reporter = new CompactTapReporter({
+      cwd: options.cwd,
+      estimatedTotal: options.estimatedTotal,
+      hideProgress: Boolean(options.env.CI || options.env.GITHUB_ACTIONS),
+    });
 
-  const stdoutTask = readStream(child.stdout, (line) =>
-    reporter.consumeLine(line),
-  );
-  const stderrTask = readStream(child.stderr);
-  const status = await child.status;
-  await stdoutTask;
-  const stderrText = await stderrTask;
-  const summary = reporter.finish();
-  const junit =
-    reportFile === undefined
-      ? ""
-      : ((await nullIfNotFound(Deno.readTextFile(reportFile))) ?? "");
-  printCompactSummary(
-    summary,
-    { code: status.code, signal: status.signal },
-    stderrText,
-    junitErrorFiles(junit),
-  );
-  return status.code;
+    const stdoutTask = readStream(child.stdout, (line) =>
+      reporter.consumeLine(line),
+    );
+    const stderrTask = readStream(child.stderr);
+    const status = await child.status;
+    await stdoutTask;
+    const stderrText = await stderrTask;
+    const summary = reporter.finish();
+    const junit =
+      reportFile === undefined
+        ? ""
+        : ((await nullIfNotFound(Deno.readTextFile(reportFile))) ?? "");
+    printCompactSummary(
+      summary,
+      { code: status.code, signal: status.signal },
+      stderrText,
+      junitErrorFiles(junit),
+    );
+    // A filtered run that executed nothing did not select any test. A failed
+    // run has its own cause to report, so only a clean exit names the filter.
+    // On a clean exit every suite the child announced reported exactly one
+    // pass that ran no test body, so the announcement count leaves the
+    // execution count.
+    const announcedSuites =
+      announcePath === undefined
+        ? 0
+        : ((await nullIfNotFound(Deno.readTextFile(announcePath))) ?? "")
+            .split("\n")
+            .filter((line) => line.startsWith("kept-suite ")).length;
+    if (
+      options.nameFilter !== undefined &&
+      status.code === 0 &&
+      summary.passed - summary.skipped - announcedSuites + summary.failed === 0
+    ) {
+      console.error(`No test matched --filter ${options.nameFilter}.`);
+      return 1;
+    }
+    return status.code;
+  } finally {
+    if (announcePath !== undefined) {
+      await Deno.remove(announcePath).catch(rethrowUnlessNotFound);
+    }
+  }
 };
