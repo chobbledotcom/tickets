@@ -24,10 +24,7 @@ import { requiredMapValue, uniqueBy } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import type { Group, GroupWithMembers, ListingWithCount } from "#types";
 import { mappedChildrenByParentId } from "./child-listings.ts";
-import {
-  classifyForDiscovery,
-  type DiscoveryClassification,
-} from "./discovery.ts";
+import { classifyForDiscovery } from "./discovery.ts";
 
 /* jscpd:ignore-end */
 
