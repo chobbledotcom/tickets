@@ -25,13 +25,13 @@ src/features/api/payment-processing/snapshot/build.ts::modifierSpecs.listingIds~
 # equals the fallback, or whose mutated constant is normalized before use.
 src/features/public/ticket-payment.ts::checkAvailability~0dpsw9a  ?? → || audited:11sunzi # date is nullish or a non-empty ISO date; only the nullish values use the null fallback
 src/features/public/ticket-payment.ts::checkAvailability.dayCount~0fy6gm8  1 → 0 audited:11sunzi # bookingDateFields clamps either default day count to one, so the produced availability rows are identical
-src/features/public/ticket-payment.ts::resolveDayCount.shownName~037zc5x  ?? → || audited:11sunzi # a package stand-in is a non-empty group name or undefined, so only undefined reaches the listing-name fallback
+src/features/public/booking-dates.ts::resolveDayCount.shownName~037zc5x  ?? → || audited:11sunzi # a package stand-in is a non-empty group name or undefined, so only undefined reaches the listing-name fallback
 src/features/public/ticket-payment.ts::foldSelectedChildren.tree~12uyd8g  ?? → || audited:11sunzi # prebuiltTree is a BookingTree object when present, and objects are always truthy
 src/features/public/ticket-payment.ts::foldSelectedChildren.hasFoldableParent~08cbwkz  ?? → || audited:11sunzi # base.quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
 src/features/public/free-reservation.ts::EMPTY_PRICED_ORDER.fullSubtotal~16fny0e  0 → 1 audited:11r5csl # EMPTY_PRICED_ORDER.fullSubtotal is never read: bookingFactsFromOrder derives its facts from total, extras, lines, and modifierApplications
 src/features/public/free-reservation.ts::createFreeReservation.dayCount.dayCount~0fy6gm8  1 → 0 audited:11r5csl # bookingsForOrder normalizes either default day count to one, so the stored booking duration is identical
 src/features/public/free-reservation.ts::createFreeReservation.result.pricedOrder~1mtrtps  ?? → || audited:11r5csl # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
-src/features/public/ticket-payment.ts::singleDailyParent.children~1kv3u53  ?? → || audited:11sunzi # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
+src/features/public/booking-dates.ts::singleDailyParent.children~1kv3u53  ?? → || audited:11sunzi # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
 src/features/public/ticket-payment.ts::getTicketContext.packages~0m8qaqi  ?? → || audited:11sunzi # pagePackages is an array when present, and arrays are always truthy
 src/features/public/ticket-payment.ts::loadPagePackages~0vaeh8c  Missing package pricing → "" audited:11sunzi # loadPackageMemberPricingByGroupIds seeds an entry for every group id it is given, and only the page's own package ids are looked up, so requiredMapValue never raises this message
 
