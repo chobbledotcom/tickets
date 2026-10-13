@@ -3,26 +3,24 @@
  * `:has()`), so the page works with no JavaScript. A script only keeps
  * availability live on top of that.
  *
- * The page is advisory. An option's demand covers its direct listings, not the
- * folded children, so two selections sharing a child pool look fine here and
- * are refused at the form.
+ * The page is advisory: the booking form stays the authority. An option's
+ * demand covers its direct listings and the child units the form auto-folds.
+ * Two selections that contend for one child pool therefore show the conflict
+ * the form refuses.
  */
 
-import type { TicketListing } from "#booking/model.ts";
+/* jscpd:ignore-start -- imports */
 import {
-  groupRemainingFromSnapshot,
+  datelessRemainingFromSnapshot,
+  judgedByDay,
   loadCapacitySnapshot,
-  remainingFromSnapshot,
+  perDayRemainingFromSnapshot,
 } from "#db/attendees/capacity/snapshot.ts";
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
 import { listingGroups } from "#db/groups/table.ts";
-import {
-  getGroupPackagePricesByGroupIds,
-  packageMemberMaps,
-} from "#db/groups.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
 import { settings } from "#db/settings.ts";
-import { compact, requiredMapValue, uniqueBy } from "#fp";
+import { compact, uniqueBy } from "#fp";
 import { t } from "#i18n";
 import {
   htmlResponse,
@@ -31,35 +29,27 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { getBookableStartDates } from "#shared/dates.ts";
-import { isPublicListing } from "#shared/listing-visibility.ts";
 import { evaluateOrder } from "#shared/order/evaluate.ts";
-import {
-  listingOption,
-  type OrderOption,
-  type OrderOptionState,
-  type OrderPools,
-  packageOption,
+import type {
+  OrderOption,
+  OrderOptionState,
+  OrderPools,
 } from "#shared/order/options.ts";
 import {
   orderedSelectionKeys,
   selectedStartDate,
 } from "#shared/order-select.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-import { loadSortedListings } from "#shared/sort-listings.ts";
 import { orderGalleryPage } from "#templates/public/order-gallery.tsx";
-import type { Group, ListingWithCount } from "#types";
-/* jscpd:ignore-start */
-import { applyParentSoldOut, classifyForDiscovery } from "./discovery.ts";
-import { loadBookablePackages } from "./group-liveness.ts";
+import type { ListingWithCount } from "#types";
+import {
+  judgeOrderOptions,
+  loadOrderCatalog,
+  type OrderCatalog,
+} from "./order-catalog.ts";
 import { publicNavProps } from "./site-nav.ts";
-import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /* jscpd:ignore-end */
-
-/** Load the bookable listings for the order page, in the standard sorted order. */
-const loadOrderListings = async (): Promise<ListingWithCount[]> =>
-  (await loadSortedListings(isPublicListing)).listings;
 
 /**
  * Guard: the order page is available only when the public site is on and the
@@ -73,162 +63,56 @@ const orderUnavailable = (): Response | null => {
   return null;
 };
 
-/** One selectable package with everything its card and its option need. */
-export type OrderPackage = {
-  group: Group;
-  members: ListingWithCount[];
-  /** How many units of each member one package books. */
-  quantities: ReadonlyMap<number, number>;
-};
-
-/** Everything the order surfaces share: the listing cards, the packages, and
- * the option list (in gallery order) the evaluator judges. */
-type OrderCatalog = {
-  ticketListings: TicketListing[];
-  packages: OrderPackage[];
-  options: OrderOption[];
-};
-
-/** Load the order page's catalog: the selectable listing cards, bookable
- * packages with their members, and the evaluator options for both. */
-const loadOrderCatalog = async (): Promise<OrderCatalog> => {
-  const [listings, packageGroups] = await Promise.all([
-    loadOrderListings(),
-    loadBookablePackages(),
-  ]);
-  const [classification, priceRowsByGroupId] = await Promise.all([
-    classifyForDiscovery(listings),
-    getGroupPackagePricesByGroupIds(packageGroups.map(({ group }) => group.id)),
-  ]);
-  // Drop non-standalone children (not selectable), then build cards and project
-  // child-derived sold-out onto the surviving parents. A `bookable_alone` child
-  // keeps its card and joins the cart like any listing; when its parent lands
-  // on the same booking page (directly or inside a package) the form re-folds
-  // it, so its units are chosen through the parent's child selector there.
-  const offered = listings.filter(
-    (e) => !classification.nonStandaloneChildIds.has(e.id),
-  );
-  const ticketListings = applyParentSoldOut(
-    await buildTicketListingsWithGroupCapacity(offered),
-    classification,
-  );
-  // A bookable bundle always has membership price rows.
-  const packages = packageGroups.map(
-    ({ group, members }): OrderPackage => ({
-      group,
-      members,
-      quantities: packageMemberMaps(
-        requiredMapValue(
-          priceRowsByGroupId,
-          group.id,
-          `Package prices missing for group ${group.id}`,
-        ),
-      ).quantities,
-    }),
-  );
-  const options = [
-    // Bookable packages lead the gallery; the shared package gate already
-    // proved each whole bundle fits, so they are bookable alone.
-    ...packages.map((pkg) =>
-      packageOption(pkg.group, pkg.members, pkg.quantities, true),
-    ),
-    ...ticketListings.map((info) =>
-      listingOption(info.listing, !info.isSoldOut && !info.isClosed),
-    ),
-  ];
-  return { options, packages, ticketListings };
-};
-
-/** The span a listing's booking occupies from a chosen start date: a fixed
- * daily listing books its whole duration (capacity must hold on EVERY day); a
- * customisable one is judged at its shortest bookable span (the gallery can't
- * know the buyer's choice yet); everything else is dateless. */
-const bookingSpanDays = (listing: ListingWithCount): number =>
-  listing.listing_type === "daily" && !listing.customisable_days
-    ? Math.max(1, listing.duration_days)
-    : 1;
-
-/** The widest span any of a group's listings would occupy, so its cap is
- * judged over every day one of them could take up. */
-const widestSpanPerGroup = (
-  involved: ListingWithCount[],
-  groupIdsByListingId: Map<number, number[]>,
-  spanOf: (listing: ListingWithCount) => number,
-): Map<number, number> => {
-  const spanByGroupId = new Map<number, number>();
-  for (const listing of involved) {
-    for (const groupId of listingGroups.idsFor(
-      groupIdsByListingId,
-      listing.id,
-    )) {
-      spanByGroupId.set(
-        groupId,
-        Math.max(spanOf(listing), spanByGroupId.get(groupId) ?? 1),
-      );
-    }
-  }
-  return spanByGroupId;
-};
-
 /** The capacity pools the evaluator draws from, resolved for the chosen date
- * (or datelessly when none is chosen): each involved listing's remaining
- * (already clamped by its groups, across its whole booking span) and each
- * capped group's remaining, so demand two selections place on a shared pool
- * adds up. A daily listing whose calendar cannot serve the chosen date reads
- * as zero remaining. */
+ * (or datelessly when none is chosen): every involved listing's remaining and
+ * every capped group's remaining — per day for the listings and groups judged
+ * by day, as a running total otherwise — so demand two selections place on a
+ * shared pool adds up. One snapshot covers every span the options' judged
+ * demand occupies, and each option is judged over its own span. */
 const loadOrderPools = async (
   catalog: OrderCatalog,
+  options: readonly OrderOption[],
   date: string | null,
 ): Promise<OrderPools> => {
   const involved = uniqueBy((listing: ListingWithCount) => listing.id)([
     ...catalog.ticketListings.map((info) => info.listing),
     ...catalog.packages.flatMap((pkg) => pkg.members),
+    // The folded children join the pools: their remaining (and their groups'
+    // remaining) is what the folded demand draws from.
+    ...catalog.childListings,
   ]);
   const groupIdsByListingId = await listingGroups.getIdsByKeys(
     involved.map((listing) => listing.id),
   );
-  const spanOf = (listing: ListingWithCount): number =>
-    date === null ? 1 : bookingSpanDays(listing);
-  const spanByGroupId = widestSpanPerGroup(
+  const widestSpanDays = Math.max(
+    1,
+    ...options.flatMap((option) => [...option.spanDaysByListingId.values()]),
+  );
+  const snapshot = await loadCapacitySnapshot(
     involved,
+    date,
+    widestSpanDays,
     groupIdsByListingId,
-    spanOf,
   );
-  const [snapshot, holidays] = await Promise.all([
-    loadCapacitySnapshot(
-      involved,
-      date,
-      Math.max(1, ...involved.map(spanOf)),
-      groupIdsByListingId,
-    ),
-    date === null ? Promise.resolve([]) : getActiveHolidays(),
-  ]);
-  const remainingByListingId = remainingFromSnapshot(
-    snapshot,
-    involved,
-    spanOf,
+  const dateless = involved.filter(
+    (listing) => !judgedByDay(listing, snapshot),
   );
-  const remainingByGroupId = groupRemainingFromSnapshot(
-    snapshot,
-    spanByGroupId,
-  );
-  if (date !== null) {
-    for (const listing of involved) {
-      if (
-        listing.listing_type === "daily" &&
-        !getBookableStartDates(listing, holidays).includes(date)
-      ) {
-        remainingByListingId.set(listing.id, 0);
-      }
-    }
-  }
-  return { groupIdsByListingId, remainingByGroupId, remainingByListingId };
+  return {
+    days: snapshot.days,
+    groupIdsByListingId,
+    remainingByGroupDay: snapshot.groupByDay,
+    remainingByGroupId: snapshot.datelessGroupRemaining,
+    remainingByListingDay: perDayRemainingFromSnapshot(snapshot, involved),
+    remainingByListingId: datelessRemainingFromSnapshot(dateless, snapshot),
+  };
 };
 
 type OrderEvaluation = {
   states: Map<string, OrderOptionState>;
   selectedKeys: string[];
   date: string | null;
+  /** Whether any option can only be judged once a date is chosen. */
+  anyNeedsDate: boolean;
   dateNeeded: boolean;
 };
 
@@ -239,21 +123,25 @@ const evaluateRequest = async (
 ): Promise<OrderEvaluation> => {
   const date = selectedStartDate(params) || null;
   const selectedKeys = orderedSelectionKeys(params);
-  const pools = await loadOrderPools(catalog, date);
-  const states = evaluateOrder(
-    catalog.options,
-    pools,
-    selectedKeys,
-    date !== null,
-  );
-  const optionByKey = new Map(
-    catalog.options.map((option) => [option.key, option]),
-  );
+  // The judge reads holidays only when a date is chosen; without one it
+  // answers in the form's render phase, which is date-less.
+  const holidays = date === null ? [] : await getActiveHolidays();
+  const options = judgeOrderOptions(catalog, date, holidays);
+  const pools = await loadOrderPools(catalog, options, date);
+  const states = evaluateOrder(options, pools, selectedKeys, date !== null);
   // The date prompt fires when a chosen item can't be judged without one.
   const dateNeeded =
     date === null &&
-    selectedKeys.some((key) => optionByKey.get(key)?.needsDate === true);
-  return { date, dateNeeded, selectedKeys, states };
+    selectedKeys.some((key) =>
+      options.some((option) => option.key === key && option.needsDate),
+    );
+  return {
+    anyNeedsDate: options.some((option) => option.needsDate),
+    date,
+    dateNeeded,
+    selectedKeys,
+    states,
+  };
 };
 
 /** The user-facing label for a card's live state. Exhaustive over every state
@@ -361,7 +249,7 @@ const handleOrder = withEvaluatedOrder(async (catalog, evaluation) => {
       catalog.ticketListings,
       catalog.packages,
       {
-        anyNeedsDate: catalog.options.some((option) => option.needsDate),
+        anyNeedsDate: evaluation.anyNeedsDate,
         // The evaluator judges every option, and cards render only options.
         labelFor: (key) => stateLabel(evaluation.states.get(key)!),
       },

@@ -12,13 +12,13 @@ import {
 } from "#routes/api/public-listing.ts";
 /* jscpd:ignore-start */
 import { isRegistrationClosed } from "#routes/format.ts";
+/* jscpd:ignore-end */
+import { keepParentDailyDatesChildrenCanServe } from "#routes/public/booking-dates.ts";
 import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import {
   loadBookablePackages,
   publicGroupSummary,
 } from "#routes/public/group-liveness.ts";
-/* jscpd:ignore-end */
-import { keepParentDailyDatesChildrenCanServe } from "#routes/public/ticket-payment.ts";
 import { listingHasSpots } from "#shared/booking.ts";
 import { getAvailableDates, getBookableStartDates } from "#shared/dates.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";

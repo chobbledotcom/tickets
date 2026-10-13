@@ -15,7 +15,10 @@ import { quoteTicketHtml, submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTestListing,
+  pastCloseTime,
+} from "#test-utils/db-helpers/listings.ts";
 import {
   createFreeTextQuestion,
   createQuestionWithAnswer,
@@ -138,6 +141,31 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       expect(response.headers.get("location")).toBe(
         "https://example.com/thanks",
       );
+    });
+
+    test("refuses a standalone listing whose registration closed, paid or free", async () => {
+      // The submit validates the registration window before any fold or
+      // capacity math: neither the walk nor the SQL reads it. The refusal
+      // sits ahead of the paid/free branch, so one check covers both
+      // paths, and no booking row persists.
+      await selectProviderSquare();
+      const listing = await createTestListing({
+        closesAt: pastCloseTime(),
+        fields: "",
+        maxAttendees: 50,
+        name: "Closed Trip",
+      });
+
+      const response = await submitTicketForm(listing.slug, {
+        name: "John Doe",
+      });
+
+      expectFlash(
+        response,
+        expect.stringContaining("registration closed"),
+        false,
+      );
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 
     test("re-checks the email rule when repricing raises a one-penny total", async () => {

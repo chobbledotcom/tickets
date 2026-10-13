@@ -12,12 +12,9 @@ import { unique, uniqueBy } from "#fp";
 import { notFoundResponse } from "#routes/response.ts";
 import type { Group, ListingWithCount } from "#types";
 import { type GroupWithListings, loadCartPackagesBySlugs } from "./groups.ts";
+import { dropChildListings } from "./page-listings.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
-import {
-  dropChildListings,
-  getTicketContext,
-  loadPagePackages,
-} from "./ticket-payment.ts";
+import { getTicketContext, loadPagePackages } from "./ticket-payment.ts";
 import {
   type BySlugsHandler,
   handleTicket,

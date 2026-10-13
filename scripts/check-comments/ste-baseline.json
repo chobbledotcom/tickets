@@ -219,11 +219,10 @@
     "banned-modal": 1
   },
   "src/features/public/order.ts": {
-    "long-sentence": 6,
     "present-perfect": 1,
-    "semicolon": 4,
-    "contraction": 3,
-    "banned-modal": 2
+    "long-sentence": 3,
+    "semicolon": 1,
+    "contraction": 2
   },
   "src/features/public/pages.ts": {
     "semicolon": 3,
@@ -254,8 +253,8 @@
     "semicolon": 1
   },
   "src/features/public/ticket-payment.ts": {
-    "long-sentence": 16,
-    "semicolon": 6
+    "long-sentence": 9,
+    "semicolon": 4
   },
   "src/features/public/ticket-routes.ts": {
     "long-sentence": 3,
@@ -445,7 +444,7 @@
     "contraction": 1
   },
   "src/shared/booking-date-fields.ts": {
-    "long-sentence": 2
+    "long-sentence": 1
   },
   "src/shared/booking-fee.ts": {
     "long-sentence": 1
@@ -764,10 +763,9 @@
     "banned-modal": 5
   },
   "src/shared/db/attendees/capacity/snapshot.ts": {
-    "long-sentence": 4,
-    "present-perfect": 3,
-    "semicolon": 1,
-    "banned-modal": 1
+    "long-sentence": 3,
+    "present-perfect": 2,
+    "semicolon": 1
   },
   "src/shared/db/attendees/create.ts": {
     "long-sentence": 1
@@ -1719,13 +1717,12 @@
   "src/shared/order/evaluate.ts": {
     "wordy": 1,
     "long-sentence": 4,
-    "contraction": 2,
-    "semicolon": 3,
+    "semicolon": 2,
     "present-perfect": 1,
     "participle": 1
   },
   "src/shared/order/options.ts": {
-    "long-sentence": 3,
+    "long-sentence": 1,
     "semicolon": 1,
     "banned-modal": 1
   },

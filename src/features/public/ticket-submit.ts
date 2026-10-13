@@ -48,8 +48,10 @@ import type {
   TicketPrefill,
 } from "#templates/public/reservations/types.ts";
 import type { Group, ListingWithCount } from "#types";
+import { allChildListings } from "./child-listings.ts";
 import { childCapacityInfo } from "./discovery/combined-capacity.ts";
 import { applyBookingPageParentSoldOut } from "./discovery.ts";
+import { dropChildListings, withActiveListings } from "./page-listings.ts";
 import { publicNavProps } from "./site-nav.ts";
 /* jscpd:ignore-start */
 import {
@@ -59,13 +61,7 @@ import {
 } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import { ticketPageUrl } from "./ticket-page-url.ts";
-import {
-  allChildListings,
-  checkAvailability,
-  dropChildListings,
-  getTicketContext,
-  withActiveListings,
-} from "./ticket-payment.ts";
+import { checkAvailability, getTicketContext } from "./ticket-payment.ts";
 /* jscpd:ignore-end */
 import { validateTicketFields } from "./ticket-submit/parse.ts";
 import {

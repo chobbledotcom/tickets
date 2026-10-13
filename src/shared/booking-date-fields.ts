@@ -1,15 +1,16 @@
 /**
- * Shared booking date and duration rules — the single definition of how a
- * booking row's `date` and `durationDays` are derived from a listing's type
- * and the buyer's chosen span. Both the payment flows (paid webhook,
- * store-and-refund placeholder) and the public availability/free-booking
- * paths route through here so a listing's range policy can never drift between
- * them.
+ * Shared booking date and duration rules — the one row shape every booking
+ * surface writes. The payment flows (paid webhook, store-and-refund
+ * placeholder) and the public availability/free-booking paths route through
+ * here, and the duration cell is the declared span table's own
+ * {@link parentResolvedDuration}, so a listing's range policy can never
+ * drift between surfaces.
  *
  * This module is pure: callers pass the listing facts and the chosen date/day
  * count, it returns the two fields. No database, no settings.
  */
 
+import { parentResolvedDuration } from "#booking/model.ts";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { clampDurationDays, type ListingWithCount } from "#types";
 
@@ -39,9 +40,7 @@ export const bookingDateFields = (
   dayCount = 1,
 ): { date: string | null; durationDays: number } => ({
   date: capacityDateFor(listing.listing_type, date),
-  durationDays: listing.customisable_days
-    ? clampDurationDays(dayCount)
-    : listing.listing_type === "daily"
-      ? clampDurationDays(listing.duration_days)
-      : 1,
+  // A legacy signed session can carry any day count, so the row clamps it
+  // even though the buyer's own path has already priced it.
+  durationDays: clampDurationDays(parentResolvedDuration(listing, dayCount)),
 });

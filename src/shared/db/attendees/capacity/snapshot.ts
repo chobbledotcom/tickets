@@ -63,7 +63,7 @@ export type CapacitySnapshot = {
 };
 
 /** Whether this listing is judged day by day in this snapshot. */
-const judgedByDay = (
+export const judgedByDay = (
   listing: ListingCapacityRow,
   snapshot: Pick<CapacitySnapshot, "days">,
 ): boolean => countsPerDate(listing.listing_type) && snapshot.days.length > 0;
@@ -140,9 +140,34 @@ export const groupRemainingForSpan = (
     ]),
   );
 
-/** How many units each listing has left, each judged over its own booking span.
- * `spanOf` says how many days that listing occupies; a listing not judged day
- * by day reads its running total instead.
+/** One listing's booked units per day, from the snapshot's reading. */
+const bookedByDayOf = (
+  snapshot: CapacitySnapshot,
+  listingId: number,
+): ReadonlyMap<string, number> =>
+  requiredMapValue(
+    snapshot.bookedByDay,
+    listingId,
+    `Listing ${listingId} was not in the capacity reading`,
+  );
+
+/** How many units one date-less listing still holds: its running total,
+ * lowered by each capped group's remaining. A date-less listing's cap never
+ * changes with the date, so no span is involved. */
+const datelessRemainingOf = (
+  listing: ListingCapacityRow,
+  snapshot: CapacitySnapshot,
+): number => {
+  const groupCaps = listingGroups
+    .idsFor(snapshot.membership, listing.id)
+    .map((groupId) => snapshot.datelessGroupRemaining.get(groupId))
+    .filter((remaining): remaining is number => remaining !== undefined);
+  return Math.min(listing.max_attendees - listing.attendee_count, ...groupCaps);
+};
+
+/** How many units each listing has left, each judged over its own booking
+ * span. `spanOf` says how many days that listing occupies. A listing not
+ * judged day by day reads its running total instead.
  */
 export const remainingFromSnapshot = <Listing extends ListingCapacityRow>(
   snapshot: CapacitySnapshot,
@@ -162,23 +187,10 @@ export const remainingFromSnapshot = <Listing extends ListingCapacityRow>(
           .filter((byDay): byDay is ReadonlyMap<string, number> => !!byDay)
           .map((byDay) => lowestOverDays(byDay, days));
       if (!judgedByDay(listing, snapshot)) {
-        const groupCaps = groupsOf(listing)
-          .map((groupId) => snapshot.datelessGroupRemaining.get(groupId))
-          .filter((remaining): remaining is number => remaining !== undefined);
-        return [
-          listing.id,
-          Math.min(
-            listing.max_attendees - listing.attendee_count,
-            ...groupCaps,
-          ),
-        ];
+        return [listing.id, datelessRemainingOf(listing, snapshot)];
       }
       const days = daysOfSpan(snapshot, spanOf(listing));
-      const booked = requiredMapValue(
-        snapshot.bookedByDay,
-        listing.id,
-        `Listing ${listing.id} was not in the capacity reading`,
-      );
+      const booked = bookedByDayOf(snapshot, listing.id);
       const ownRemaining = Math.min(
         ...days.map(
           (day) =>
@@ -194,24 +206,41 @@ export const remainingFromSnapshot = <Listing extends ListingCapacityRow>(
   );
 };
 
-/**
- * How many units each capped group has left, each judged over the span given
- * for it — the widest any of its listings would occupy, since the cap has to
- * hold on every day any of them takes up.
- */
-export const groupRemainingFromSnapshot = (
+/** How many units each date-less listing still holds: the date-less reading
+ * of {@link remainingFromSnapshot}. No span is asked for, because a
+ * date-less listing's cap never changes with the date. */
+export const datelessRemainingFromSnapshot = (
+  listings: readonly ListingCapacityRow[],
   snapshot: CapacitySnapshot,
-  spanByGroupId: ReadonlyMap<number, number>,
 ): Map<number, number> => {
-  if (snapshot.days.length === 0) {
-    return new Map(snapshot.datelessGroupRemaining);
-  }
   const remaining = new Map<number, number>();
-  for (const [groupId, span] of spanByGroupId) {
-    const byDay = snapshot.groupByDay.get(groupId);
-    if (byDay) {
-      remaining.set(groupId, lowestOverDays(byDay, daysOfSpan(snapshot, span)));
-    }
+  for (const listing of listings) {
+    remaining.set(listing.id, datelessRemainingOf(listing, snapshot));
   }
   return remaining;
 };
+
+/** Each day-judged listing's remaining on every day of the snapshot's span:
+ * the pool figures a dated caller judges demand over. Listings judged
+ * datelessly are absent; their running totals answer instead. */
+export const perDayRemainingFromSnapshot = (
+  snapshot: CapacitySnapshot,
+  listings: readonly ListingCapacityRow[],
+): Map<number, Map<string, number>> =>
+  new Map(
+    listings
+      .filter((listing) => judgedByDay(listing, snapshot))
+      .map((listing) => {
+        const booked = bookedByDayOf(snapshot, listing.id);
+        return [
+          listing.id,
+          new Map(
+            snapshot.days.map((day) => [
+              day,
+              listing.max_attendees -
+                requiredMapValue(booked, day, `No booking total for ${day}`),
+            ]),
+          ),
+        ];
+      }),
+  );

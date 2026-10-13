@@ -1,36 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { evaluateOrder } from "#shared/order/evaluate.ts";
 import {
   listingOption,
   type OrderOption,
-  type OrderPools,
   packageOption,
 } from "#shared/order/options.ts";
-
-/** An order option with every field defaulted to the simplest bookable shape. */
-const option = (
-  key: string,
-  units: [number, number][],
-  over: Partial<OrderOption> = {},
-): OrderOption => ({
-  bookableAlone: true,
-  key,
-  name: key,
-  needsDate: false,
-  unitsByListingId: new Map(units),
-  ...over,
-});
-
-const pools = (over: Partial<OrderPools> = {}): OrderPools => ({
-  groupIdsByListingId: new Map(),
-  remainingByGroupId: new Map(),
-  remainingByListingId: new Map(),
-  ...over,
-});
-
-const kindsOf = (states: Map<string, { kind: string }>) =>
-  Object.fromEntries([...states].map(([key, state]) => [key, state.kind]));
+import { evaluateOrder, kindsOf, option, pools } from "./evaluate-helpers.ts";
 
 /** Evaluate the two-listing order (listings 1 and 2) with the given remaining
  *  stock for each listing and the given already-selected keys (no date). */

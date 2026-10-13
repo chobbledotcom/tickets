@@ -37,6 +37,7 @@ import {
   type ApiChildSelection,
   PackageChildrenSchema,
 } from "#routes/api/request-schemas.ts";
+import { resolveDayCount } from "#routes/public/booking-dates.ts";
 import { loadBookablePackageBySlug } from "#routes/public/groups.ts";
 import {
   listingsWithQuantity,
@@ -46,7 +47,6 @@ import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-list
 import {
   ctxToBuildTreeInput,
   getTicketContext,
-  resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
 import { getAvailableDates } from "#shared/dates.ts";

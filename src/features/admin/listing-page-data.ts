@@ -47,7 +47,7 @@ import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import {
   type ListingPublicPageState,
   listingPublicPageState,
-} from "#routes/public/ticket-payment.ts";
+} from "#routes/public/page-listings.ts";
 import { readAttendeeListState } from "#shared/attendee-list-controls.ts";
 import { resolveRecipientEmails } from "#shared/bulk-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
