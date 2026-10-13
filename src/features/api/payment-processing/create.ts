@@ -8,7 +8,12 @@
 
 /* jscpd:ignore-start */
 import { lineGroupId } from "#booking/signed-metadata.ts";
+import type {
+  AttendeeInput,
+  CreateAttendeeResult,
+} from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
+import type { BookingBatchPlan } from "#db/attendees/create-batch.ts";
 import {
   decryptSessionTokens,
   type ProcessedPayment,
@@ -144,7 +149,7 @@ export type HonourResult =
       freeTexts: FreeTextAnswers | undefined;
       ok: true;
     }
-  | { ok: null; error: unknown }
+  | { ok: null; error: unknown; freeTexts?: FreeTextAnswers | undefined }
   | {
       ok: false;
       reason: "sold_out" | "capacity_exceeded" | "unexpected_error";
@@ -199,8 +204,8 @@ export const createAttendeeForSession = async (
   codeSpecs: ModifierSpec[],
 ): Promise<HonourResult> => {
   let prepared: {
-    attendeeInput: Parameters<typeof attendeesApi.createBookingAtomic>[0];
-    plan: Parameters<typeof attendeesApi.createBookingAtomic>[1];
+    attendeeInput: AttendeeInput;
+    plan: BookingBatchPlan;
     completion: PaidBookingTail;
   };
   try {
@@ -281,7 +286,7 @@ export const createAttendeeForSession = async (
       reason: "unexpected_error",
     };
   }
-  let result: Awaited<ReturnType<typeof attendeesApi.createBookingAtomic>>;
+  let result: CreateAttendeeResult | "sold-out";
   try {
     result = await attendeesApi.createBookingAtomic(
       prepared.attendeeInput,
@@ -289,7 +294,9 @@ export const createAttendeeForSession = async (
       prepared.completion.ride,
     );
   } catch (error) {
-    return { error, ok: null };
+    // The batch's outcome is unknown, but the staged free texts were read
+    // before it opened. A recovery that queues the sends needs them.
+    return { error, freeTexts: prepared.completion.freeTexts, ok: null };
   }
   if (result === "sold-out") {
     return {

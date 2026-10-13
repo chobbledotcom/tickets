@@ -5,6 +5,7 @@ import {
   releaseReservation,
   UNRESOLVED_RESERVATION,
 } from "#db/processed-payments.ts";
+/* jscpd:ignore-start */
 import { sessionSuccess } from "#routes/api/payment-processing/create.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import { decideUnexpectedCreate } from "#routes/api/payment-processing/recovery-decision.ts";
@@ -13,12 +14,15 @@ import type {
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
+import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import { queueRegistrationSends } from "#shared/webhook/delivery.ts";
 import { committedEntries } from "./committed-entries.ts";
 
+/* jscpd:ignore-end */
+
 type UnexpectedCreateRecovery = {
   error: unknown;
+  freeTexts: FreeTextAnswers | undefined;
   intent: BookingIntent;
   listingId: number;
   session: ValidatedSession["session"];
@@ -64,20 +68,18 @@ const loadRecoveryFacts = async (
 /**
  * Resolve an uncertain atomic create from primary state.
  *
- * A create batch carries the booking's whole completion (its answers, its
- * activity lines, and its pending-notification flags). A proven-committed
- * booking owes its external sends exactly once. The batch committed them,
- * but the lost result means nothing queued them. The recovery then reads the
- * committed entries and queues the sends. This arm runs in the one request
- * that lost the result. A later redelivery finds the finalized session and
- * answers send-free. A batch that provably rolled back released nothing into
- * the world. Release the session's reservation so the redelivery starts
- * fresh. Answer 500 so the provider tries the whole booking again. Anything
- * else is too unclear to answer — rethrow, and the 500 keeps the provider
- * retrying while the state settles.
+ * A create batch carries the booking's whole completion, and a
+ * proven-committed booking owes its sends exactly once. The recovery reads
+ * the committed entries and queues them with the staged free texts and the
+ * renewal token. This arm runs in the one request that lost the result. A
+ * later redelivery finds the finalized session and answers send-free. A
+ * provable rollback released nothing, so the recovery releases the
+ * reservation and answers 503 for the provider's next try. Anything else
+ * rethrows while the state settles.
  */
 export const recoverOrRefundUnexpectedCreate = async ({
   error,
+  freeTexts,
   intent,
   listingId,
   session,
@@ -95,21 +97,11 @@ export const recoverOrRefundUnexpectedCreate = async ({
       intent,
       validatedItems,
     );
-    // The staged free-text rows went back inside the committed batch. The
-    // strings table seals the buyer's typed words, so no notification can
-    // spend them. The recovered sends render choice answers only. Say so
-    // loudly when the booking carried typed answers, then queue the sends —
-    // a booking with no queued confirmation is the louder wrong.
-    const carriedTextAnswers = Object.values(
-      intent.listingTextAnswerIds ?? {},
-    ).some((refs) => refs.length > 0);
-    if (carriedTextAnswers) {
-      await logError({
-        code: ErrorCode.DATA_INVALID,
-        detail: `A recovered paid checkout answers from committed state, so its emails show choice answers only (session index ${await hmacHash(session.id)})`,
-      });
-    }
-    await queueRegistrationSends(entries, { source: "public" });
+    await queueRegistrationSends(entries, {
+      freeTexts,
+      siteTokenIndex: intent.siteTokenIndex,
+      source: "public",
+    });
     return sessionSuccess(decision.attendeeId, listingId);
   }
   if (decision.kind === "retry") {

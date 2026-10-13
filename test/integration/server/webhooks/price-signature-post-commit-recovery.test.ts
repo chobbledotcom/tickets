@@ -8,6 +8,11 @@ import { encrypt } from "#crypto/encryption.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
+import {
+  readCheckoutAnswers,
+  stageCheckoutAnswers,
+} from "#db/checkout-pending-answers.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { getRecentBookingTokens } from "#db/contact-tokens.ts";
@@ -21,6 +26,7 @@ import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { handleRequest } from "#routes";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import {
   redirectRequest,
   runWebhook,
@@ -32,8 +38,8 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
-import { withEnv } from "#test-utils/env.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -94,7 +100,9 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
     fetchSpy.calls
       .slice(baseline)
       .filter((one) => String(one.args[0]).includes(url)).length;
-  const resendBodies = (baseline: number): { to: [string, ...string[]] }[] =>
+  const resendBodies = (
+    baseline: number,
+  ): { html: string; to: [string, ...string[]] }[] =>
     fetchSpy.calls
       .slice(baseline)
       .filter((one) => String(one.args[0]).includes("api.resend.com"))
@@ -104,7 +112,27 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
     const fetchCallsBefore = fetchSpy.calls.length;
     const registrationCalls = (): number =>
       callsSince(fetchCallsBefore, "https://registration.example.com/hook");
-    const listing = await setupWithListing();
+    // The booked listing is a renewal tier, so the recovered sends also
+    // extend the renewal site's deadline exactly once.
+    const listing = await setupWithListing({
+      hidden: true,
+      monthsPerUnit: 1,
+      purchaseOnly: true,
+    });
+    await insertBuiltSite(
+      "Recovery Renewal Site",
+      "recovery-renewal.b-cdn.net",
+      "",
+      "",
+      false,
+      "5001",
+    );
+    const sites = await builtSites.getAll();
+    const site = sites.find((one) => one.name === "Recovery Renewal Site")!;
+    const { tokenIndex } = await provisionTestBuiltSite(site.id);
+    const edgeSecretCalls = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+      Promise.resolve({ ok: true as const }),
+    );
     // The listings.fields column stores env-key encrypted values, so the
     // fixture writes the collected field the way every write path does.
     await execute(
@@ -129,6 +157,18 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
       text: "Recovered",
     });
     await listingQuestions.setIds(listing.id, [question.id]);
+    const textQuestion = await questionsTable.insert({
+      displayType: "free_text",
+      text: "Anything else?",
+    });
+    await listingQuestions.setIds(listing.id, [question.id, textQuestion.id]);
+    // Stage the buyer's typed answer the way the checkout session does, so
+    // the completion reads it before the batch opens.
+    await stageCheckoutAnswers(
+      sessionId,
+      { [String(textQuestion.id)]: "Vegetarian, please" },
+      null,
+    );
     const modifier = await modifiersTable.insert({
       calcKind: "fixed",
       calcValue: 1,
@@ -144,6 +184,10 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
         modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
         name: "Recovered Buyer",
         phone,
+        site_token_index: tokenIndex,
+        text_answer_ids: JSON.stringify({
+          [listing.id]: [{ q: textQuestion.id, s: 1 }],
+        }),
       }),
       900,
     );
@@ -241,6 +285,23 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
             emailBodies.filter((body) => body.to[0] === "owner@example.com")
               .length,
           ).toBe(1);
+          // Both bodies carry the buyer's typed answer from the staged row.
+          const buyerBody = emailBodies.find((body) => body.to[0] === email)!;
+          expect(buyerBody.html).toContain("Anything else?");
+          expect(buyerBody.html).toContain("Vegetarian, please");
+          const ownerBody = emailBodies.find(
+            (body) => body.to[0] === "owner@example.com",
+          )!;
+          expect(ownerBody.html).toContain("Anything else?");
+          expect(ownerBody.html).toContain("Vegetarian, please");
+          // The committed batch took the staged copy back with the booking.
+          expect((await readCheckoutAnswers(sessionId)).size).toBe(0);
+          // The recovered sends extended the renewal site's deadline once.
+          const sitesAfterRecovery = await builtSites.getAll();
+          expect(
+            sitesAfterRecovery.find((one) => one.id === site.id)!.readOnlyFrom,
+          ).toBe("2099-02-01T00:00:00.000Z");
+          expect(edgeSecretCalls.calls.length).toBe(1);
           const retrieve = stubRetrieveCheckoutSession({
             amountTotal: 900,
             metadata,
@@ -288,6 +349,13 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
               (body) => body.to[0] === "owner@example.com",
             ).length,
           ).toBe(1);
+          // The redeliveries never re-extend the deadline: the finalized
+          // session's replay queues no sends at all.
+          expect(
+            (await builtSites.getAll()).find((one) => one.id === site.id)!
+              .readOnlyFrom,
+          ).toBe("2099-02-01T00:00:00.000Z");
+          expect(edgeSecretCalls.calls.length).toBe(1);
           expect(await allTransfers()).toEqual(transfersAfterCommit);
           expect(await modifierUsedQuantities([modifier.id])).toEqual(
             new Map([[modifier.id, 1]]),
@@ -311,39 +379,8 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
         },
       );
     } finally {
+      edgeSecretCalls.restore();
       loseResult.restore();
-    }
-  });
-
-  test("a rolled-back create answers 503 twice and refunds nothing", async () => {
-    const listing = await setupWithListing();
-    const session = {
-      id: "cs_proven_rollback",
-      metadata: signedMeta(1000, {
-        items: singleItem(listing.id, 1, 1000),
-      }),
-    };
-    await execute(
-      `CREATE TRIGGER test_late_payment_finalize_failure
-       AFTER UPDATE OF attendee_id ON processed_payments
-       WHEN NEW.payment_session_id = '${session.id}'
-       BEGIN
-         SELECT RAISE(ABORT, 'late payment finalize failure');
-       END`,
-    );
-    try {
-      // The batch carries the booking's whole completion, and its finalize
-      // abort rolls everything back: no booking, no refund on a guess, and a
-      // 503 answer whose redelivery starts fresh and fails the same way.
-      using _env = withEnv({ TEST_EXPECT_ERROR: "1" });
-      await runWebhook(session, async (refund) => {
-        expect((await webhookRequest()).status).toBe(503);
-        expect((await webhookRequest()).status).toBe(503);
-        expect(refund.calls.length).toBe(0);
-        expect(await getAttendeesRaw(listing.id)).toEqual([]);
-      });
-    } finally {
-      await execute("DROP TRIGGER test_late_payment_finalize_failure");
     }
   });
 

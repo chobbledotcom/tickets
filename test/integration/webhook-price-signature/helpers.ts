@@ -8,7 +8,12 @@ import { stripeApi } from "#shared/stripe.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import {
+  signMeta,
+  singleItem,
+  type TestListingOverrides,
+  webhookMeta,
+} from "#test-utils/factories.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
@@ -93,9 +98,15 @@ export const stubRefundOk = (
 ): ReturnType<typeof stubRefundPayment> => stubRefundPayment("re_ok", amount);
 
 /** setupStripe + a 50-seat listing priced at 1000. */
-export const setupWithListing = async () => {
+export const setupWithListing = async (
+  overrides: TestListingOverrides = {},
+) => {
   await setupStripe();
-  return createTestListing({ maxAttendees: 50, unitPrice: 1000 });
+  return createTestListing({
+    maxAttendees: 50,
+    unitPrice: 1000,
+    ...overrides,
+  });
 };
 
 /** Drive a completed (paid) session through the webhook with a refund stub
