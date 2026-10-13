@@ -19,31 +19,24 @@ import {
 } from "#booking/fold-tree.ts";
 import {
   type ChildrenByParent,
-  childCanBeBooked,
   childDateOk,
-  childSupportsDays,
   pageDayCounts,
   parentResolvedDuration,
   type TicketListing,
 } from "#booking/model.ts";
+/* jscpd:ignore-end */
+import {
+  noSpanReason,
+  type OptionRefusal,
+  OptionRefusalSchema,
+  reasonOfFailures,
+  type SpanFailure,
+  whyNoChildServes,
+} from "#booking/option-refusal.ts";
 import type { Holiday } from "#db/holidays.ts";
 import { requiredMapValue } from "#fp";
 import { isBookingRangeValid } from "#shared/dates.ts";
 import { FormParams } from "#shared/form-data.ts";
-/* jscpd:ignore-end */
-
-/** Why the form refuses to book an option. The order is the declared
- * precedence: a structural refusal outranks a span refusal, which outranks a
- * date refusal. */
-export const OptionRefusalSchema = v.picklist([
-  "capacity",
-  "closed",
-  "date_unsupported",
-  "no_bookable_child",
-  "sold_out",
-  "span_unsupported",
-]);
-export type OptionRefusal = v.InferOutput<typeof OptionRefusalSchema>;
 
 /** The units one booking takes per listing, as the schema sees it. */
 const UnitsMapSchema = v.map(v.number(), v.number());
@@ -87,13 +80,6 @@ export type OptionDemandQuestion = {
   quantities: ReadonlyMap<number, number>;
 };
 
-/** Why one child cannot serve one span. */
-type ChildFailure = "date" | "span" | "structural";
-
-/** Why one parent cannot fold at one span. `parent_date` is the parent's own
- * range refusing the span at the chosen date. */
-type SpanFailure = ChildFailure | "capacity" | "parent_date";
-
 /** The fold accumulator `foldChild` writes into, shaped exactly as the
  * form's own walk shapes it. */
 const emptyFoldState = () => ({
@@ -103,46 +89,6 @@ const emptyFoldState = () => ({
   listings: [] as TicketListing[],
   quantities: new Map<number, number>(),
 });
-
-/** What one child must serve: the span, the chosen date, and the holidays. */
-type Serving = {
-  child: TicketListing;
-  date: string | null;
-  durationDays: number;
-  holidays: Holiday[];
-};
-
-/** Why one child cannot serve one span, or null when it can. */
-const whyChildFails = (serving: Serving): ChildFailure | null => {
-  if (!childCanBeBooked(serving.child)) return "structural";
-  if (!childSupportsDays(serving.child, serving.durationDays)) return "span";
-  if (serving.date === null) return null;
-  const dateOk = childDateOk(
-    serving.date,
-    serving.holidays,
-    serving.durationDays,
-  )(serving.child);
-  if (!dateOk) return "date";
-  return null;
-};
-
-/** Why no child of a parent can serve one span. The first declared failure
- * wins: a dead child outranks a span no child serves, which outranks a date
- * no child can start. */
-const whyNoChildServes = (
-  children: readonly TicketListing[],
-  date: string | null,
-  durationDays: number,
-  holidays: Holiday[],
-): ChildFailure => {
-  const failures = children.map((child) =>
-    whyChildFails({ child, date, durationDays, holidays }),
-  );
-  if (failures.every((failure) => failure === "structural"))
-    return "structural";
-  if (failures.includes("date")) return "date";
-  return "span";
-};
 
 /** The units one fold books and the span each charged child occupies. */
 type FoldedDemand = {
@@ -303,15 +249,6 @@ const refusedVerdict = (
   spanDaysByListingId: new Map(),
 });
 
-/** The declared refusal for a set of span failures. */
-const reasonOfFailures = (failures: readonly SpanFailure[]): OptionRefusal => {
-  if (failures.includes("structural")) return "no_bookable_child";
-  if (failures.includes("span")) return "span_unsupported";
-  if (failures.includes("date") || failures.includes("parent_date"))
-    return "date_unsupported";
-  return "capacity";
-};
-
 /** The option-level gate refusals, or null when no parent is gated. */
 const gateRefusal = (question: OptionDemandQuestion): OptionRefusal | null => {
   for (const parent of question.parents) {
@@ -334,15 +271,6 @@ const offeredSpans = (question: OptionDemandQuestion): number[] => {
     question.childrenByParentId,
     question.isPackage,
   );
-};
-
-/** Why the form's page rules offer no day count: the required children prune
- * every span, or no count is priced at all. */
-const noSpanReason = (question: OptionDemandQuestion): OptionRefusal => {
-  const children = [...question.childrenByParentId.values()].flat();
-  const allDead =
-    children.length > 0 && children.every((child) => !childCanBeBooked(child));
-  return allDead ? "no_bookable_child" : "span_unsupported";
 };
 
 /** One judged span the form can book. */
@@ -409,7 +337,10 @@ export const judgeOptionDemand = (
   if (gated !== null) return refusedVerdict(question, gated);
   const candidates = offeredSpans(question);
   if (candidates.length === 0) {
-    return refusedVerdict(question, noSpanReason(question));
+    return refusedVerdict(
+      question,
+      noSpanReason([...question.childrenByParentId.values()].flat()),
+    );
   }
   const judged = candidates.map((dayCount) => ({
     dayCount,

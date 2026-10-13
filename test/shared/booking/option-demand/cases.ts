@@ -7,10 +7,8 @@
 import { buildBookingTree } from "#booking/build-tree.ts";
 import { foldBookingTree, resolvedByNodeKey } from "#booking/fold-tree.ts";
 import type { ChildrenByParent, TicketListing } from "#booking/model.ts";
-import type {
-  OptionDemandQuestion,
-  OptionRefusal,
-} from "#booking/option-demand.ts";
+import type { OptionDemandQuestion } from "#booking/option-demand.ts";
+import type { OptionRefusal } from "#booking/option-refusal.ts";
 import { childQuantityFieldName } from "#booking/tree.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { requiredMapValue } from "#fp";
