@@ -1637,7 +1637,8 @@ input[type="submit"].danger:hover,
 .badge,
 .badge-ok,
 .badge-missing,
-.badge-alert {
+.badge-alert,
+.badge-warning {
   display: inline-block;
   font-size: 0.6rem;
   font-weight: bold;
