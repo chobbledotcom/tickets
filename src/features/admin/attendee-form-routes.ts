@@ -32,7 +32,7 @@ import {
 import { parseQuestionAnswers } from "#db/questions/parsing.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
-import { identity, mapById } from "#fp";
+import { identity, mapById, sumOf } from "#fp";
 import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
@@ -70,7 +70,9 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { createdBookingEntries } from "#shared/booking.ts";
 import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
+import { lineListPrice } from "#shared/checkout-pricing.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
   loadAfterDemoOverrides,
@@ -81,6 +83,7 @@ import {
   selectedStartDate,
 } from "#shared/order-select.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
+import { queueManualAddWebhooks } from "#shared/webhook/delivery.ts";
 import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
 import {
   AttendeeFormPanel,
@@ -245,7 +248,7 @@ const handleSubmitInner = async (
   // re-render the submitted form in place so entered data is never lost.
   let outcome: SaveOutcome;
   if (mode === "create") {
-    outcome = await applyCreate(parsed, logisticsPlan);
+    outcome = await applyCreate(parsed, logisticsPlan, listingsById);
   } else {
     const answers = parseQuestionAnswers({ optional: true })(form, questions);
     if (!answers.ok) return showErrors({ formError: answers.error });
@@ -325,26 +328,25 @@ const applyLogisticsPlan = (
 const applyCreate = async (
   parsed: ParsedAttendeeForm,
   logisticsPlan: LogisticsPlan,
+  listingsById: Map<number, ListingWithCount>,
 ): Promise<SaveOutcome> => {
   const input = toCreateInput(parsed);
   if (input.bookings.length === 0) {
     return { ok: false, saveError: t("attendee_form.error_no_lines") };
   }
   // Admin manual add can deliberately overbook (a warning shows, the system
-  // does not block). The booking is tagged as an "admin" booking so it counts
-  // separately from online checkouts in the contact's booking history. The
-  // ledger poster records the booking's gross `sale` legs in the SAME create
-  // transaction. The owed amount then projects from the ledger (rather than
-  // silently reading back as £0) and lands atomically with the rows. The
-  // attendee owes the full gross. An operator records any already-paid portion
-  // afterwards through the ledger.
+  // does not block). The ledger poster records the gross `sale` legs in the
+  // SAME create transaction. The input carries that gross as remainingBalance,
+  // so the webhook reports the amount the attendee owes.
+  const order = toLedgerOrder(parsed);
   const createResult = await attendeesApi.createAttendeeAtomic(
     {
       ...input,
       allowOverbook: true,
+      remainingBalance: sumOf(lineListPrice)(order.lines),
       source: "admin",
     },
-    manualAddLedgerPoster(toLedgerOrder(parsed)),
+    manualAddLedgerPoster(order),
   );
   if (!createResult.success) {
     return { ok: false, saveError: t("attendee_form.error_capacity") };
@@ -353,6 +355,11 @@ const applyCreate = async (
   const firstListingId = input.bookings[0]!.listingId;
   const newId = attendees[0]!.id;
   await applyLogisticsPlan(newId, logisticsPlan);
+  // An online booking tells the listings' webhooks, and so does a manual add.
+  // Webhooks only: the buyer email waits for the "Re-send notification"
+  // action, which sends the webhooks again too. The activity line below
+  // stays the only create line.
+  queueManualAddWebhooks(createdBookingEntries(attendees, listingsById));
   await logActivity(
     `Attendee '${parsed.name}' added manually`,
     firstListingId,

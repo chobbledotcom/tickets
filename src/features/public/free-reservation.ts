@@ -20,6 +20,7 @@ import {
 } from "#db/questions/attendee-answers/save.ts";
 import type { ListingAnswerMaps } from "#routes/public/ticket-form.ts";
 import { refusedOrderItem } from "#shared/attendee-failures.ts";
+import { createdBookingEntries } from "#shared/booking.ts";
 /* jscpd:ignore-start */
 import {
   bookingsForOrder,
@@ -187,11 +188,7 @@ export const createFreeReservation = async ({
     };
   }
   const { attendees } = result;
-
-  const entries: EmailEntry[] = attendees.map((attendee) => ({
-    attendee,
-    listing: listingById.get(attendee.listing_id)!,
-  }));
+  const entries = createdBookingEntries(attendees, listingById);
   return {
     entries,
     success: true,
