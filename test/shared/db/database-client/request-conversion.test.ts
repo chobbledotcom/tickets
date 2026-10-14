@@ -362,6 +362,7 @@ describe("database request conversion", () => {
       await expect(pending).rejects.toThrow("The database client is closed");
     } finally {
       fetched.restore();
+      releaseBody?.();
     }
     expect(guardRan).toBe(true);
     expect(boundary).toEqual([]);

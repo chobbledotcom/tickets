@@ -85,8 +85,10 @@ const openLoopback = (replyDelayMs = 0) => {
   const create = Deno.createHttpClient;
   const created = stub(Deno, "createHttpClient", (asked) => {
     // Deno fills in defaults on the options it receives, so keep a copy.
+    // The tests record what production asked and hand the real constructor
+    // the short timeout the window tests wait out.
     options.push({ ...asked });
-    return create(asked);
+    return create({ ...asked, poolIdleTimeout: REAL_POOL_IDLE_TIMEOUT_MS });
   });
   const server = Deno.serve(
     { hostname: "127.0.0.1", port: 0 },
@@ -111,11 +113,14 @@ const openLoopback = (replyDelayMs = 0) => {
   };
 };
 
-/** The pool retires an idle socket only on its own 20-second clock (the
- *  option the tests record), so the window tests wait out real time. No
- *  fake clock reaches Deno's socket pool, and a shorter wait cannot tell
- *  the 20-second pool from the 90-second default it replaced. */
-const PAST_THE_IDLE_WINDOW_MS = 21_000;
+/** The pool retires an idle socket only on its own clock, so the window
+ *  tests wait out real time. No fake clock reaches Deno's socket pool. The
+ *  production option (20 seconds, asserted in the first test) would make
+ *  each wait 21 seconds, so the fixture records what production asked and
+ *  passes the real constructor a one-second timeout instead; the past-the-
+ *  window wait sits just above it. */
+const REAL_POOL_IDLE_TIMEOUT_MS = 1_000;
+const PAST_THE_IDLE_WINDOW_MS = 1_100;
 const waitPastTheIdleWindow = () =>
   new Promise<void>((resolve) => setTimeout(resolve, PAST_THE_IDLE_WINDOW_MS));
 
