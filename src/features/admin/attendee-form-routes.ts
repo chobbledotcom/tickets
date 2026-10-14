@@ -36,8 +36,6 @@ import { identity, mapById, sumOf } from "#fp";
 import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
-  type AttendeeFormLine,
-  isNoQuantityLine,
   type ParsedAttendeeForm,
   parseAttendeeForm,
   resolveStatusId,
@@ -62,6 +60,7 @@ import {
 } from "#routes/admin/attendee-questions.ts";
 import {
   adminLineSend,
+  anyNoQuantityLineMatches,
   emailPendingForAdminLines,
 } from "#routes/admin/attendees-route-helpers.ts";
 import {
@@ -274,26 +273,6 @@ const handleSubmitInner = async (
 type SaveOutcome =
   | { ok: true; response: Response }
   | { ok: false; saveError: string };
-
-/**
- * True when any no-quantity line satisfies a check, judged from the live DB (not
- * the form's submitted key). Used by applyEdit to block marking a line
- * no-quantity while it still holds an assigned built site or a recorded payment.
- * With a built site, the assignment plus public /renew/ path survives behind a
- * hidden line. With a payment, a stale form key otherwise hides the booking from
- * the per-line model guard and lets the atomic edit drop the paid row.
- * One query over all the IDs.
- */
-const anyNoQuantityLineMatches = (
-  attendeeId: number,
-  lines: AttendeeFormLine[],
-  check: (attendeeId: number, listingIds: number[]) => Promise<boolean>,
-): Promise<boolean> => {
-  const listingIds = lines.filter(isNoQuantityLine).map((l) => l.listingId);
-  return listingIds.length > 0
-    ? check(attendeeId, listingIds)
-    : Promise.resolve(false);
-};
 
 /** The Edit tab for an attendee, carrying the return_url through. */
 const attendeeEditPath = (id: number, returnUrl: string): string => {

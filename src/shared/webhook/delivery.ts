@@ -163,7 +163,7 @@ const deliverManualAddWebhooks = async (
   } catch {
     // A dead webhook endpoint is normal operation. The report is the
     // documented behavior, and the save stands.
-    await reportRegistrationDeliveryError();
+    await reportRegistrationDeliveryError(true);
   }
 };
 
