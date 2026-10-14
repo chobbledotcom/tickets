@@ -222,6 +222,10 @@ const sendRegistrationNotifications = async (
     // its flag up for the admin. No failure activity line is written for a
     // booking whose sends own their flags. The error is still reported, so
     // an unexpected rejection reaches the log and the alert.
+    //
+    // A failed clear batch leaves the flags up. The admin already reads a
+    // raised flag as an owed send. Log the batch's failure, and do not
+    // mask the delivery errors' report and throw.
     await executeBatch([
       ...(webhooksAttempted && acceptedDelivery(webhookResult)
         ? [clearPendingFlagStatement("webhooks", send.clearPendingFlagsFor)]
@@ -229,7 +233,12 @@ const sendRegistrationNotifications = async (
       ...(emailAttempted && acceptedDelivery(emailResult)
         ? [clearPendingFlagStatement("email", send.clearPendingFlagsFor)]
         : []),
-    ]);
+    ]).catch(async (error) => {
+      await logError({
+        code: ErrorCode.DB_QUERY,
+        detail: `The pending-flag clear batch failed: ${String(error)}`,
+      });
+    });
     if (errors.length > 0) await reportRegistrationDeliveryError(false);
   } else if (errors.length > 0) {
     await reportRegistrationDeliveryError(true);
