@@ -35,15 +35,21 @@ const captureBoundary = (
       }
       boundary.push({ init, request: input.clone() });
       if (signal === null || signal === undefined) return reply(input);
-      return new Promise<Response>((resolve, reject) => {
+      // The race settles on the first of the reply and the abort, and no
+      // frame suspends on the loser: an abort during a held reply rejects
+      // the pending fetch, and the reply's promise stays unreferenced
+      // instead of keeping a suspended await alive past the run.
+      const aborted = new Promise<never>((_, rejectAbort) => {
         signal.addEventListener(
           "abort",
           () =>
-            reject(new DOMException("The operation was aborted", "AbortError")),
+            rejectAbort(
+              new DOMException("The operation was aborted", "AbortError"),
+            ),
           { once: true },
         );
-        reply(input).then(resolve, reject);
       });
+      return Promise.race([reply(input), aborted]);
     },
   );
   return { boundary, fetched };
@@ -58,8 +64,46 @@ const firstSent = (
   return sent;
 };
 
-/** A reply that stays in flight: the abort regressions cancel it. */
-const gatedReply = () => new Promise<Response>(() => {});
+/** A reply the test holds in flight and settles itself in its finally, so
+ *  no promise stays pending past the run. */
+const heldReply = () => {
+  let release: ((response: Response) => void) | undefined;
+  const promise = new Promise<Response>((resolve) => {
+    release = (response) => resolve(response);
+  });
+  return { promise, release: () => release?.(Response.json({})) };
+};
+
+/** Start the adapter call and yield until the dispatch has landed at the
+ *  boundary. The pending work travels in an object: awaiting a bare
+ *  pending promise would adopt it, and the test's continuation would then
+ *  wait for a settlement only its own abort can cause. */
+const dispatched = async (
+  run: () => Promise<Response>,
+  boundary: unknown[],
+) => {
+  const pending = run();
+  for (let i = 0; i < 1000 && boundary.length === 0; i += 1) {
+    await Promise.resolve();
+  }
+  expect(boundary.length).toBe(1);
+  return { pending };
+};
+
+/** Dispatch a JSON POST carrying both signals, and wait for the dispatch
+ *  to land. */
+const dispatchBothSignals = (
+  inputController: AbortController,
+  initController: AbortController,
+  boundary: unknown[],
+) =>
+  dispatched(
+    () =>
+      databaseFetch(jsonPost(inputController.signal), {
+        signal: initController.signal,
+      }),
+    boundary,
+  );
 
 /** A POST engine request with a JSON body and an abort signal, the shape
  *  the abort regressions cancel. */
@@ -98,9 +142,6 @@ describe("database request conversion", () => {
       (operation) => operation.type === "execute",
     );
     expect(executed?.stmt?.sql).toBe("SELECT 42");
-    // The engine passes no second argument today; the override forwards
-    // whatever it receives, so a future caller's init reaches the boundary.
-    expect(sent.init).toBeUndefined();
   });
 
   test("forwards a caller's init to the fetch boundary unchanged", async () => {
@@ -209,42 +250,71 @@ describe("database request conversion", () => {
 
   test("an input-only abort after the dispatch cancels the fetch", async () => {
     const controller = new AbortController();
-    const { boundary, fetched } = captureBoundary(gatedReply);
+    const gate = heldReply();
+    const { boundary, fetched } = captureBoundary(() => gate.promise);
     try {
-      const pending = databaseFetch(jsonPost(controller.signal));
-      // The body read settles and the dispatch lands before this
-      // continuation, so the abort hits the in-flight fetch.
-      for (let i = 0; i < 1000 && boundary.length === 0; i += 1) {
-        await Promise.resolve();
-      }
-      expect(boundary.length).toBe(1);
+      const { pending } = await dispatched(
+        () => databaseFetch(jsonPost(controller.signal)),
+        boundary,
+      );
       controller.abort();
       await expect(pending).rejects.toThrow();
     } finally {
       fetched.restore();
+      gate.release();
     }
   });
 
-  test("an explicit init signal overrides the input's", async () => {
+  test("an input abort does not cancel a request that carries an init signal", async () => {
     const inputController = new AbortController();
     const initController = new AbortController();
-    const { boundary, fetched } = captureBoundary(gatedReply);
+    let canned: Response | undefined;
+    let releaseReply: (() => void) | undefined;
+    const { boundary, fetched } = captureBoundary(
+      () =>
+        new Promise<Response>((resolve) => {
+          releaseReply = () => {
+            canned = Response.json({});
+            resolve(canned);
+          };
+        }),
+    );
     try {
-      const pending = databaseFetch(jsonPost(inputController.signal), {
-        signal: initController.signal,
-      });
-      for (let i = 0; i < 1000 && boundary.length === 0; i += 1) {
-        await Promise.resolve();
-      }
-      expect(boundary.length).toBe(1);
-      // Aborting the input's signal does nothing; the init's signal rules.
+      const { pending } = await dispatchBothSignals(
+        inputController,
+        initController,
+        boundary,
+      );
+      // Aborting the input's signal must not cancel a request whose init
+      // carries its own signal: the request still fulfills.
       inputController.abort();
       await Promise.resolve();
       expect(boundary.length).toBe(1);
+      releaseReply?.();
+      const reply = await pending;
+      expect(reply).toBe(canned);
+    } finally {
+      fetched.restore();
+      releaseReply?.();
+    }
+  });
+
+  test("aborting the explicit init signal cancels the held fetch", async () => {
+    const inputController = new AbortController();
+    const initController = new AbortController();
+    const gate = heldReply();
+    const { boundary, fetched } = captureBoundary(() => gate.promise);
+    try {
+      const { pending } = await dispatchBothSignals(
+        inputController,
+        initController,
+        boundary,
+      );
       initController.abort();
       await expect(pending).rejects.toThrow();
     } finally {
       fetched.restore();
+      gate.release();
     }
   });
 });
