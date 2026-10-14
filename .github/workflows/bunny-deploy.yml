@@ -107,15 +107,16 @@ jobs:
           fi
           url=$(printf '%s' "$STAGING_SITE_URL" | tr -d '[:space:]')
           url=${url%/}
-          case $url in
-            https://?*) ;;
-            *)
-              echo "STAGING_SITE_URL is not an https origin: '$STAGING_SITE_URL'." >&2
-              echo "Set it to the staging site's public origin, or paste a main" >&2
-              echo "instance key on a manual run." >&2
-              exit 1
-              ;;
-          esac
+          # An origin only: https, a host name, an optional port. No
+          # credentials, path, query or fragment can reach update-mode begin,
+          # which sets the update flag before it polls this URL.
+          if ! printf '%s' "$url" |
+            grep -Eqx 'https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?'; then
+            echo "STAGING_SITE_URL is not an https origin (https://host[:port]): '$STAGING_SITE_URL'." >&2
+            echo "Set it to the staging site's public origin, or paste a main" >&2
+            echo "instance key on a manual run." >&2
+            exit 1
+          fi
           echo "site_url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to staging
