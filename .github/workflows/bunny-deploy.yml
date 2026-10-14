@@ -117,10 +117,15 @@ jobs:
             [0-9]*) ;;
             *) port=443 ;;
           esac
+          host=${url#https://}
+          host=${host%:*}
           if ! printf '%s' "$url" |
             grep -Eqx 'https://[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*(:[0-9]{1,5})?' ||
-            ((10#$port < 1 || 10#$port > 65535)); then
+            ((10#$port < 1 || 10#$port > 65535)) ||
+            [ "${#host}" -gt 253 ] ||
+            printf '%s' "$host" | tr '.' '\n' | grep -Eq '.{64,}'; then
             echo "STAGING_SITE_URL is not an https origin (https://host[:port]): '$STAGING_SITE_URL'." >&2
+            echo "Host labels must be 1-63 characters and the host at most 253." >&2
             echo "Set it to the staging site's public origin, or paste a main" >&2
             echo "instance key on a manual run." >&2
             exit 1
