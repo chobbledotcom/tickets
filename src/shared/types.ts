@@ -353,6 +353,10 @@ export interface Attendee extends ContactInfo {
   checked_in: number;
   created: string;
   date: string | null;
+  /** 1 while a booked listing still collects an email (`emailOwedSql`). Echoes hold 0. */
+  email_owed: number;
+  /** 0 none, 1 online booking, 2 admin add — an owed confirmation email. */
+  email_pending: number;
   /** Exclusive end of the booked range (YYYY-MM-DD, the midnight after the
    * last booked day), from `listing_attendees.end_at`. Null for date-less
    * bookings. Renders each booking's true span, not the listing's default. */
@@ -757,6 +761,8 @@ export type DisplayAttendee = Pick<
   | "created"
   | "date"
   | "email"
+  | "email_owed"
+  | "email_pending"
   | "id"
   | "kind"
   | "listing_id"

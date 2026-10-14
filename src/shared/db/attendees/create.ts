@@ -80,6 +80,10 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   checked_in: 0,
   created: input.created,
   date: input.date,
+  // A just-created in-memory echo: the caller reads the badge rule from the
+  // stored row, not from this echo.
+  email_owed: 0,
+  email_pending: input.emailPending ?? PENDING_NOTIFICATION.none,
   end_date: input.date
     ? addDays(
         parseDateStringOrThrow(input.date, "a stored booking date"),
@@ -199,6 +203,7 @@ const finishAttendeeWrite = (
         ...contactInfo,
         created: enc.created,
         date: booking.date ?? null,
+        emailPending: input.emailPending,
         ...(booking.durationDays !== undefined
           ? { durationDays: booking.durationDays }
           : {}),
