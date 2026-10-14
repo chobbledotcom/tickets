@@ -317,4 +317,53 @@ describe("database request conversion", () => {
       gate.release();
     }
   });
+
+  test("runs the dispatch guard after every await, before the boundary", async () => {
+    // The engine request is a stand-in whose body read the test gates: the
+    // adapter only reads url, method, headers, body, and arrayBuffer
+    // through the object's own API, which is exactly what this shape
+    // provides.
+    let releaseBody: (() => void) | undefined;
+    const engineRequest = {
+      arrayBuffer: () =>
+        new Promise<ArrayBuffer>((resolve) => {
+          releaseBody = () => resolve(new ArrayBuffer(0));
+        }),
+      body: new Uint8Array(0),
+      headers: new Headers({ "content-type": "application/json" }),
+      method: "POST",
+      url: "https://pipeline.test/v2/pipeline",
+    } as unknown as Request; // the adapter's contract is the object's own API
+    const boundary: { init: RequestInit | undefined }[] = [];
+    let guardRan = false;
+    let poolMoved = false;
+    const fetched = stub(
+      globalThis,
+      "fetch",
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (!(input instanceof Request)) {
+          throw new Error("The adapter must hand the boundary a Request");
+        }
+        boundary.push({ init });
+        return Response.json({ base_url: null, baton: null, results: [] });
+      },
+    );
+    try {
+      const pending = databaseFetch(engineRequest, undefined, () => {
+        guardRan = true;
+        if (poolMoved) {
+          throw new Error("The database client is closed");
+        }
+      });
+      // The pool moves on while the adapter holds the gated body read; the
+      // guard must reject the request at the boundary, after every await.
+      poolMoved = true;
+      releaseBody?.();
+      await expect(pending).rejects.toThrow("The database client is closed");
+    } finally {
+      fetched.restore();
+    }
+    expect(guardRan).toBe(true);
+    expect(boundary).toEqual([]);
+  });
 });

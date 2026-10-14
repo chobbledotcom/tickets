@@ -1,3 +1,4 @@
+import type { Client } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type Spy, spy, stub } from "@std/testing/mock";
@@ -11,8 +12,9 @@ type WatchedPool = {
 };
 
 /** Record each pool the client opens, and answer its requests from a test
- * database. */
-const watchPools = () => {
+ * database. `onCreate` runs inside the adapter call, right after the pool is
+ * selected — the seam the body-read-gated tests close the client from. */
+const watchPools = (onCreate?: () => void) => {
   const create = Deno.createHttpClient;
   const pools: WatchedPool[] = [];
   const created = stub(Deno, "createHttpClient", (options) => {
@@ -20,6 +22,7 @@ const watchPools = () => {
     const asked = { ...options };
     const pool = create(options);
     pools.push({ close: spy(pool, "close"), options: asked, pool });
+    onCreate?.();
     return pool;
   });
   const remote = hranaTestFetch();
@@ -40,6 +43,35 @@ const watchPools = () => {
 
 const openClient = () =>
   createDatabaseClient({ url: "libsql://pipeline.test" });
+
+/** The close-during-read fixture: one close queues at the first pool
+ *  selection and runs inside the adapter's body-read suspension, before
+ *  the boundary call. */
+const openWithQueuedClose = () => {
+  const state = { closed: false };
+  let client: Client | undefined;
+  const watched = watchPools(() => {
+    if (!state.closed) {
+      queueMicrotask(() => {
+        client?.close();
+        state.closed = true;
+      });
+    }
+  });
+  client = openClient();
+  return { client, state, watched };
+};
+
+/** Yield microtasks until the queued close has run inside the body read.
+ *  Bounded, so a broken ordering fails instead of hanging the run. */
+const waitUntilClosed = async (state: { closed: boolean }) => {
+  for (let i = 0; i < 1000 && !state.closed; i += 1) {
+    await Promise.resolve();
+  }
+  if (!state.closed) {
+    throw new Error("The queued close never ran during the body read");
+  }
+};
 
 /** A real Hrana endpoint on the loopback. The client's requests cross real
  *  sockets; the fake's protocol replies answer them, and the server records
@@ -77,17 +109,6 @@ const openLoopback = (replyDelayMs = 0) => {
       await server.shutdown();
     },
   };
-};
-
-/** Yield microtasks until the override has selected the pool: its creation
- *  is the event the wait is for, and no wall clock is involved. */
-const untilPoolSelected = async (watched: {
-  pools: WatchedPool[];
-}): Promise<void> => {
-  for (let i = 0; i < 1000 && watched.pools.length === 0; i += 1) {
-    await Promise.resolve();
-  }
-  expect(watched.pools.length).toBe(1);
 };
 
 /** The pool retires an idle socket only on its own 20-second clock (the
@@ -177,25 +198,23 @@ describe("database connection pool", () => {
   });
 
   test("close during the body read rejects the request before it dispatches", async () => {
-    using watched = watchPools();
-    const client = openClient();
-    const pending = client.execute("SELECT 1");
-    await untilPoolSelected(watched);
-    client.close();
+    const opened = openWithQueuedClose();
+    using watched = opened.watched;
+    const pending = opened.client.execute("SELECT 1");
+    await waitUntilClosed(opened.state);
     await expect(pending).rejects.toThrow("The database client is closed");
     expect(watched.usedPools).toEqual([]);
     expect(watched.pools[0]?.close.calls.length).toBe(1);
   });
 
   test("work started after a reconnect dispatches on the fresh pool", async () => {
-    using watched = watchPools();
-    const client = openClient();
-    const stale = client.execute("SELECT 1");
-    await untilPoolSelected(watched);
-    client.close();
-    client.reconnect();
-    const fresh = await client.execute("SELECT 2");
-    client.close();
+    const opened = openWithQueuedClose();
+    using watched = opened.watched;
+    const stale = opened.client.execute("SELECT 1");
+    await waitUntilClosed(opened.state);
+    opened.client.reconnect();
+    const fresh = await opened.client.execute("SELECT 2");
+    opened.client.close();
     await expect(stale).rejects.toThrow("The database client is closed");
     expect(fresh.rows).toEqual([]);
     expect(watched.pools.length).toBe(2);

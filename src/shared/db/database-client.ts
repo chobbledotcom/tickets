@@ -127,10 +127,14 @@ const readPipeline = async (
  *  it the engine's own Request object, not a native one, and passes no second
  *  argument beyond what a caller supplies. Rebuild the native request from
  *  the wire facts the object carries, read through its own API, so Deno's
- *  fetch sees a request it understands. Forward the call arguments unchanged. */
+ *  fetch sees a request it understands. Forward the call arguments unchanged.
+ *  `onDispatch` runs after every await, immediately before the boundary call,
+ *  so a caller can reject work whose world moved on while the adapter
+ *  suspended. */
 export const databaseFetch = async (
   input: Request,
   init?: RequestInit,
+  onDispatch?: () => void,
 ): Promise<Response> => {
   // A protobuf body is bytes, not text. A text read decodes and re-encodes
   // it, and non-UTF-8 sequences change. A bodyless GET must send no body
@@ -148,6 +152,7 @@ export const databaseFetch = async (
   const native = new Request(input.url, nativeInit);
   // The explicit init.signal still wins: the boundary's fetch init carries
   // it, and a fetch init signal replaces the request's own.
+  onDispatch?.();
   return fetch(native, init);
 };
 
@@ -170,22 +175,21 @@ export const createDatabaseClient = (callerConfig: Config): Client => {
     });
     const requestPool = pool;
     // The gate reads the body to suspend this callback, and the adapter
-    // reads its own clone. One read never consumes the other's body. A
-    // close during the gate cleared the slot: the mutable slot then names
-    // no pool or a stranger's. The request is stale — the caller already
+    // reads its own clone. One read never consumes the other's body. The
+    // adapter suspends again on the clone's body, so the guard — not this
+    // wrapper — has the last word at the boundary. A close in any window
+    // cleared the slot, and the request is then stale — the caller already
     // saw the client close.
     const engineCopy = input.clone();
-    await input.text();
-    if (pool !== requestPool) {
-      throw new LibsqlError("The database client is closed", "CLIENT_CLOSED");
-    }
-    // The client UI files pull in lib.dom, whose fetch overload has no
-    // `client`, so a fresh literal fails the excess-property check.
     const init: RequestInit & { client: Deno.HttpClient } = {
       ...engineInit,
       client: requestPool,
     };
-    return databaseFetch(engineCopy, init);
+    return databaseFetch(engineCopy, init, () => {
+      if (pool !== requestPool) {
+        throw new LibsqlError("The database client is closed", "CLIENT_CLOSED");
+      }
+    });
   };
   // A caller's fetch: undefined must not erase the pool wrapper. The
   // library then falls back to global fetch with its own Request type,
