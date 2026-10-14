@@ -292,7 +292,7 @@ const normalizeInBlock = (source: ProseBlock): ProseBlock => {
   // separates the token from the quote.
   let eGPart = -1;
   for (const match of source.text.matchAll(
-    /"(?:[^"\\]|\\[\s\S])*"|\s+|\b[eE]\.g\.|[^\s]/g,
+    /"(?:[^"\\]|\\[\s\S])*"|\s+|\b[eE]\.[gG]\.|[^\s]/g,
   )) {
     const text = match[0];
     const at = match.index;
@@ -300,7 +300,7 @@ const normalizeInBlock = (source: ProseBlock): ProseBlock => {
       parts.push(...quotedPartsOf(source, text, at, parts, eGPart));
       continue;
     }
-    if (/^[eE]\.g\.$/.test(text)) eGPart = parts.length;
+    if (/^[eE]\.[gG]\.$/.test(text)) eGPart = parts.length;
     parts.push(partOf(source, text, at));
   }
   const joined = joinText(parts);

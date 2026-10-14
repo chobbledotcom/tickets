@@ -104,6 +104,18 @@ describe("check-ste rules", () => {
       expect(
         rulesOn('The ERROR sentence — E.g. "its secrets can\'t be read".'),
       ).toEqual([]);
+      expect(
+        rulesOn('The error sentence — E.G. "its secrets can\'t be read".'),
+      ).toEqual([]);
+    });
+
+    test("blanks the token that fired the link, not an earlier one", () => {
+      // The lowercase e.g. before the noun is ordinary prose; the E.G. that
+      // links the noun to the quotation is the machine-owned one.
+      const issues = findIssues(
+        'See e.g. the error sentence — E.G. "should retry".',
+      );
+      expect(issues.map(({ problem }) => problem)).toEqual(['"e.g."']);
     });
 
     test("judges a quotation that e.g. introduces without the noun", () => {
