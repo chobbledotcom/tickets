@@ -96,6 +96,36 @@ describe("check-ste rules", () => {
       expect(rulesOn('The message "row locked" repeats.')).toEqual([]);
     });
 
+    test("leaves a quoted span the noun links through e.g. alone", () => {
+      expect(
+        rulesOn('The error sentence — e.g. "its secrets can\'t be read".'),
+      ).toEqual([]);
+      // The em-dash and the token's case change nothing.
+      expect(
+        rulesOn('The ERROR sentence — E.g. "its secrets can\'t be read".'),
+      ).toEqual([]);
+    });
+
+    test("judges a quotation that e.g. introduces without the noun", () => {
+      expect(rulesOn('See e.g. "should retry" now.')).toEqual([
+        "wordy",
+        "banned-modal",
+      ]);
+    });
+
+    test("judges a quotation behind any other linking word", () => {
+      expect(rulesOn('The error is "should retry".')).toEqual(["banned-modal"]);
+      expect(rulesOn('The message reads "should retry".')).toEqual([
+        "banned-modal",
+      ]);
+    });
+
+    test("judges a quotation when a quote sits between noun and e.g.", () => {
+      expect(
+        rulesOn('The error note "row locked" and e.g. "should retry".'),
+      ).toEqual(["wordy", "banned-modal"]);
+    });
+
     test("leaves a quoted span inside a thrown error alone", () => {
       expect(
         rulesOn('The call throws new Error("it should not happen").'),

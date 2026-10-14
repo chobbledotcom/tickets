@@ -54,10 +54,19 @@ describe("comment language rules", () => {
     expect(() =>
       rulesOf('// Throws new Error("it should not happen").'),
     ).toThrow();
+    expect(() =>
+      rulesOf('// the error sentence — e.g. "its secrets can\'t be read".'),
+    ).toThrow();
   });
 
   test("judges quoted prose", () => {
     expect(rulesOf('// The path "should retry" after failure.')).toContain(
+      "banned-modal",
+    );
+    expect(rulesOf('// See e.g. "should retry" now.')).toContain(
+      "banned-modal",
+    );
+    expect(rulesOf('// The error is "should retry".')).toContain(
       "banned-modal",
     );
   });
