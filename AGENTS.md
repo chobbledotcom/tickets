@@ -511,6 +511,10 @@ automatic.
   slightly over it owes a splitting issue
 - `deno task check:ste` — mechanical STE rules over the Markdown, against
   baselines that only fall. Pass `--update` after a fix
+- `deno task check:merged-tree <pr-number | branch> [base]` — trial-merge the
+  head into the base in a throwaway worktree. It runs typecheck and the test
+  suite on the merged tree, then removes the worktree. The boss runs it
+  before a pull request is ready. The head CI and this check must both pass
 - `deno task grade:code [<file-or-dir>] [--csv <path>] [--no-jev]` — score
   source files against these rules. With no target, it grades every module under
   `src/`. `--no-jev` runs the mechanical checks only. A grade is advice, not a
