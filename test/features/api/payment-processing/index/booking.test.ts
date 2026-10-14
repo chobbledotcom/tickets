@@ -18,6 +18,7 @@ import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { readPendingNotificationFlags } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createFreeTextQuestion } from "#test-utils/db-helpers/questions.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
@@ -119,10 +120,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       expect((await processPaymentSession(id, data)).success).toBe(true);
     });
     const attendee = (await getAttendeesRaw(listing.id))[0]!;
-    return {
-      email: attendee.email_pending,
-      webhooks: attendee.webhooks_pending,
-    };
+    return readPendingNotificationFlags(attendee.id);
   };
 
   test("a booking on a listing that collects no email sets no flags", async () => {
@@ -147,8 +145,10 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       ).toBe(true);
     });
     const attendee = (await getAttendeesRaw(listing.id))[0]!;
-    expect(attendee.email_pending).toBe(0);
-    expect(attendee.webhooks_pending).toBe(0);
+    expect(await readPendingNotificationFlags(attendee.id)).toEqual({
+      email: 0,
+      webhooks: 0,
+    });
   });
 
   test("a paid booking's pending flags clear when its sends are accepted", async () => {
