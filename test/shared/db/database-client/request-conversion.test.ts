@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { createDatabaseClient } from "#db/database-client.ts";
+import { createDatabaseClient, databaseFetch } from "#db/database-client.ts";
 import { hranaTestFetch } from "#test-utils/hrana.ts";
 
 /** The engine hands the configured fetch its own Request object; the client
@@ -44,5 +44,45 @@ describe("database request conversion", () => {
     // The engine passes no second argument today; the override forwards
     // whatever it receives, so a future caller's init reaches the boundary.
     expect(sent.init).toBeUndefined();
+  });
+
+  test("forwards a caller's init to the fetch boundary unchanged", async () => {
+    const boundary: { init: RequestInit | undefined; request: Request }[] = [];
+    const engineInit: RequestInit = {
+      body: "override-body",
+      cache: "no-store",
+      headers: { "x-override": "yes" },
+      method: "PUT",
+    };
+    const fetched = stub(
+      globalThis,
+      "fetch",
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (!(input instanceof Request)) {
+          throw new Error("The adapter must hand the boundary a Request");
+        }
+        boundary.push({ init, request: input.clone() });
+        return Response.json({ base_url: null, baton: null, results: [] });
+      },
+    );
+    try {
+      const engineRequest = new Request("https://pipeline.test/v2/pipeline", {
+        body: '{"requests":[]}',
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      await databaseFetch(engineRequest, engineInit);
+    } finally {
+      fetched.restore();
+    }
+    expect(boundary.length).toBe(1);
+    const [sent] = boundary;
+    if (!sent) throw new Error("The adapter never reached the fetch boundary");
+    expect(sent.init).toBe(engineInit);
+    expect(sent.init?.method).toBe("PUT");
+    expect(sent.init?.body).toBe("override-body");
+    expect(sent.init?.headers).toEqual({ "x-override": "yes" });
+    expect(sent.init?.cache).toBe("no-store");
+    expect(sent.request.url).toBe("https://pipeline.test/v2/pipeline");
   });
 });

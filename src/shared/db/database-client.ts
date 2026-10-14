@@ -123,28 +123,33 @@ const readPipeline = async (
   });
 };
 
+/** The fetch the database client configures. The library's HTTP engine hands
+ *  it the engine's own Request object, not a native one, and passes no second
+ *  argument beyond what a caller supplies. Rebuild the native request from
+ *  the wire facts the object carries, read through its own API, so Deno's
+ *  fetch sees a request it understands. Forward the call arguments unchanged. */
+export const databaseFetch = async (
+  input: Request,
+  init?: RequestInit,
+): Promise<Response> => {
+  const body = await input.text();
+  const headers = new Headers();
+  for (const [name, value] of input.headers.entries()) {
+    headers.set(name, value);
+  }
+  const native = new Request(input.url, {
+    body,
+    headers,
+    method: input.method,
+  });
+  return fetch(native, init);
+};
+
 /** Keep native writes and local clients. HTTP primary reads share one pipeline.
  * Remote requests go through the configured fetch. */
 export const createDatabaseClient = (callerConfig: Config): Client => {
   const config: Config = {
-    fetch: async (input: Request, init?: RequestInit) => {
-      // The library's HTTP engine hands the configured fetch its own Request
-      // object, not a native one, and passes no second argument. Rebuild the
-      // native request from the wire facts the object carries, read through
-      // its own API, so Deno's fetch sees a request it understands. Forward
-      // the engine's call arguments unchanged.
-      const body = await input.text();
-      const headers = new Headers();
-      for (const [name, value] of input.headers.entries()) {
-        headers.set(name, value);
-      }
-      const native = new Request(input.url, {
-        body,
-        headers,
-        method: input.method,
-      });
-      return fetch(native, init);
-    },
+    fetch: databaseFetch,
     ...callerConfig,
   };
   const client = createClient(config);
