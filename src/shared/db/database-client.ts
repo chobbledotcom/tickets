@@ -164,15 +164,30 @@ const DATABASE_POOL_IDLE_TIMEOUT_MS = 20_000;
 /** Keep native writes and local clients. HTTP primary reads share one pipeline.
  * Remote requests use their own connection pool unless the caller passes a
  * `fetch`. */
+/** Deno's fetch honours the proxy environment variables. A custom
+ *  HttpClient knows no proxy. A deployment with a proxy keeps the default
+ *  fetch behavior, and the pool serves direct-egress deployments. */
+export const PROXY_ENV_NAMES = [
+  "HTTP_PROXY",
+  "http_proxy",
+  "HTTPS_PROXY",
+  "https_proxy",
+];
+
 export const createDatabaseClient = (callerConfig: Config): Client => {
+  const usesProxy = PROXY_ENV_NAMES.some(
+    (name) => process.env[name] !== undefined,
+  );
   let pool: Deno.HttpClient | undefined;
   const pooledFetch = async (
     input: Request,
     engineInit?: RequestInit,
   ): Promise<Response> => {
-    pool ??= Deno.createHttpClient({
-      poolIdleTimeout: DATABASE_POOL_IDLE_TIMEOUT_MS,
-    });
+    if (!usesProxy) {
+      pool ??= Deno.createHttpClient({
+        poolIdleTimeout: DATABASE_POOL_IDLE_TIMEOUT_MS,
+      });
+    }
     const requestPool = pool;
     // The gate reads the body to suspend this callback, and the adapter
     // reads its own clone. One read never consumes the other's body. The
@@ -181,10 +196,10 @@ export const createDatabaseClient = (callerConfig: Config): Client => {
     // cleared the slot, and the request is then stale — the caller already
     // saw the client close.
     const engineCopy = input.clone();
-    const init: RequestInit & { client: Deno.HttpClient } = {
-      ...engineInit,
-      client: requestPool,
-    };
+    const init: RequestInit & { client?: Deno.HttpClient } =
+      requestPool === undefined
+        ? { ...engineInit }
+        : { ...engineInit, client: requestPool };
     return databaseFetch(engineCopy, init, () => {
       if (pool !== requestPool) {
         throw new LibsqlError("The database client is closed", "CLIENT_CLOSED");
