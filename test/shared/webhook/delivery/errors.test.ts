@@ -46,6 +46,7 @@ const registrationLogs = (
   });
 
 
+
 describeWithEnv("registration delivery errors", { db: true }, () => {
   const fetchSpy = stubWebhookFetch();
 
@@ -77,6 +78,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       "private",
     );
   });
+
 
 
   test("reports one incident for unexpected failures in both delivery channels", async () => {
