@@ -139,9 +139,15 @@ export const databaseFetch = async (
   for (const [name, value] of input.headers.entries()) {
     headers.set(name, value);
   }
-  const nativeInit: RequestInit = { headers, method: input.method };
+  const nativeInit: RequestInit = {
+    headers,
+    method: input.method,
+    signal: input.signal,
+  };
   if (input.body !== null) nativeInit.body = await input.arrayBuffer();
   const native = new Request(input.url, nativeInit);
+  // The explicit init.signal still wins: the boundary's fetch init carries
+  // it, and a fetch init signal replaces the request's own.
   return fetch(native, init);
 };
 

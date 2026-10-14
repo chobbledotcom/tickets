@@ -11,7 +11,10 @@ import { hranaTestFetch } from "#test-utils/hrana.ts";
  *  protocol replies answer the request. */
 /** The stub records every native request that reaches the fetch boundary
  *  and answers with `reply`, or with an empty pipeline reply when the
- *  caller passes none. Restore the stub after the call. */
+ *  caller passes none. It honours the signal the way real fetch does: an
+ *  already-aborted signal rejects before the call is recorded, and an
+ *  abort during the call rejects the pending fetch. Restore the stub
+ *  after the call. */
 const captureBoundary = (
   reply: (request: Request) => Promise<Response> = () =>
     Promise.resolve(
@@ -26,8 +29,21 @@ const captureBoundary = (
       if (!(input instanceof Request)) {
         throw new Error("The adapter must hand the boundary a Request");
       }
+      const signal = init?.signal ?? input.signal;
+      if (signal?.aborted) {
+        throw new DOMException("The operation was aborted", "AbortError");
+      }
       boundary.push({ init, request: input.clone() });
-      return reply(input);
+      if (signal === null || signal === undefined) return reply(input);
+      return new Promise<Response>((resolve, reject) => {
+        signal.addEventListener(
+          "abort",
+          () =>
+            reject(new DOMException("The operation was aborted", "AbortError")),
+          { once: true },
+        );
+        reply(input).then(resolve, reject);
+      });
     },
   );
   return { boundary, fetched };
@@ -41,6 +57,19 @@ const firstSent = (
   if (!sent) throw new Error("The boundary captured no request");
   return sent;
 };
+
+/** A reply that stays in flight: the abort regressions cancel it. */
+const gatedReply = () => new Promise<Response>(() => {});
+
+/** A POST engine request with a JSON body and an abort signal, the shape
+ *  the abort regressions cancel. */
+const jsonPost = (signal: AbortSignal) =>
+  new Request("https://pipeline.test/v2/pipeline", {
+    body: '{"requests":[]}',
+    headers: { "content-type": "application/json" },
+    method: "POST",
+    signal,
+  });
 
 describe("database request conversion", () => {
   test("rebuilds the engine's request as a native request at the fetch boundary", async () => {
@@ -162,5 +191,60 @@ describe("database request conversion", () => {
     const sent = firstSent(boundary);
     expect(sent.request.method).toBe("GET");
     expect(sent.request.body).toBeNull();
+  });
+
+  test("rejects an already-aborted input before the dispatch", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const { boundary, fetched } = captureBoundary();
+    try {
+      await expect(
+        databaseFetch(jsonPost(controller.signal)),
+      ).rejects.toThrow();
+    } finally {
+      fetched.restore();
+    }
+    expect(boundary).toEqual([]);
+  });
+
+  test("an input-only abort after the dispatch cancels the fetch", async () => {
+    const controller = new AbortController();
+    const { boundary, fetched } = captureBoundary(gatedReply);
+    try {
+      const pending = databaseFetch(jsonPost(controller.signal));
+      // The body read settles and the dispatch lands before this
+      // continuation, so the abort hits the in-flight fetch.
+      for (let i = 0; i < 1000 && boundary.length === 0; i += 1) {
+        await Promise.resolve();
+      }
+      expect(boundary.length).toBe(1);
+      controller.abort();
+      await expect(pending).rejects.toThrow();
+    } finally {
+      fetched.restore();
+    }
+  });
+
+  test("an explicit init signal overrides the input's", async () => {
+    const inputController = new AbortController();
+    const initController = new AbortController();
+    const { boundary, fetched } = captureBoundary(gatedReply);
+    try {
+      const pending = databaseFetch(jsonPost(inputController.signal), {
+        signal: initController.signal,
+      });
+      for (let i = 0; i < 1000 && boundary.length === 0; i += 1) {
+        await Promise.resolve();
+      }
+      expect(boundary.length).toBe(1);
+      // Aborting the input's signal does nothing; the init's signal rules.
+      inputController.abort();
+      await Promise.resolve();
+      expect(boundary.length).toBe(1);
+      initController.abort();
+      await expect(pending).rejects.toThrow();
+    } finally {
+      fetched.restore();
+    }
   });
 });
