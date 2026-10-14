@@ -184,5 +184,38 @@ describeWithEnv(
         await completedEmailFlag("Refused Line", { providerStatus: 500 }),
       ).toBe(1);
     });
+
+    test("a failed flag-clear batch leaves the flag up and the send standing", async () => {
+      const { attendeeId, entry } = await bookedLine("Clear Fault Line");
+      await configureTestEmail({ businessEmail: "owner@example.com" });
+      await raiseFlag(attendeeId, "email_pending");
+      await execute(
+        `CREATE TRIGGER reject_flag_clear
+         BEFORE UPDATE OF email_pending ON attendees
+         WHEN NEW.email_pending = 0 AND OLD.email_pending > 0
+         BEGIN
+           SELECT RAISE(ABORT, 'flag clear rejected');
+         END`,
+        [],
+      );
+      try {
+        // The send was accepted, so its failure is the raised flag, not a
+        // delivery error: the clear batch's failure is logged and the
+        // completion stands.
+        const result = await withRequestContext(() =>
+          completePaidBooking(
+            [entry],
+            bareIntent(),
+            [],
+            noPackageFacts(),
+            undefined,
+          ),
+        );
+        expect(result.success).toBe(true);
+      } finally {
+        await execute("DROP TRIGGER IF EXISTS reject_flag_clear", []);
+      }
+      expect(await flagOf(attendeeId, "email_pending")).toBe(1);
+    });
   },
 );

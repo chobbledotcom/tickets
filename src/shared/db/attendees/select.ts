@@ -257,10 +257,6 @@ export type AttendeeWhere = {
    *  booking lines". It carries its own bound args. */
   attendeeIdsSubquery?: SqlStatement;
   listingIds?: number[];
-  /** Booking lines within one package group. */
-  packageGroupId?: number;
-  /** Only lines outside every package group (`package_group_id <= 0`). */
-  standaloneOnly?: boolean;
   /** Drop no-quantity sentinel lines (`quantity > 0`). */
   realLinesOnly?: boolean;
   /** Keep lines starting on/after this `YYYY-MM-DD`, or with no start date. */
@@ -296,15 +292,6 @@ const whereClauses = (where: AttendeeWhere): WhereClause[] => {
     parts.push(...inSubquery("attendee.id", where.attendeeIdsSubquery));
   }
   parts.push(...inList("listingAttendee.listing_id", where.listingIds));
-  if (where.packageGroupId !== undefined) {
-    parts.push({
-      args: [where.packageGroupId],
-      clause: "listingAttendee.package_group_id = ?",
-    });
-  }
-  if (where.standaloneOnly) {
-    parts.push({ args: [], clause: "listingAttendee.package_group_id <= 0" });
-  }
   if (where.realLinesOnly) {
     parts.push({ args: [], clause: "listingAttendee.quantity > 0" });
   }
