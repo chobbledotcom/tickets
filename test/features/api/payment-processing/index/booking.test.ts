@@ -152,8 +152,10 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
   });
 
   test("a paid booking's pending flags clear when its sends are accepted", async () => {
-    // Both sends were accepted, so both flags are down.
-    expect(await bookedFlags("cs_direct_flags")).toEqual({
+    // Both sends were accepted, so both flags are down. The webhook fixture
+    // puts a webhook on the listing, so the webhook flag is set by the
+    // booking and cleared by the accepted send, not merely never raised.
+    expect(await bookedFlags("cs_direct_flags_webhook", true)).toEqual({
       email: 0,
       webhooks: 0,
     });
