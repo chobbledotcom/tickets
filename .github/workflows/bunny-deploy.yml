@@ -87,25 +87,43 @@ jobs:
           main_instance_key: ${{ inputs.main_instance_key || secrets.MAIN_INSTANCE_KEY }}
           script_id: ${{ inputs.script_id || secrets.BUNNY_STAGING_SCRIPT_ID }}
 
-      # Fail before the update flag is set when a keyless run has no origin
-      # to poll, or when a script id override would poll the staging origin
-      # for a different site: a deploy that cannot name its site would otherwise set
-      # UPDATE_IN_PROGRESS and then wedge the wait.
-      - name: Require the staging URL when no key was supplied
-        if: ${{ env.HAS_MAIN_INSTANCE_KEY != 'true' && (vars.STAGING_SITE_URL == '' || inputs.script_id != '') }}
+      # A keyless run takes the staging origin from STAGING_SITE_URL. It fails
+      # before the update flag is set when the variable is not a usable https
+      # origin (blank or whitespace included), or when a script id override
+      # would poll the staging origin for a different site: a deploy that
+      # cannot name its site would otherwise set UPDATE_IN_PROGRESS and then
+      # wedge the wait.
+      - name: Take the staging URL from the variable when no key was supplied
+        id: staging-url
+        if: ${{ env.HAS_MAIN_INSTANCE_KEY != 'true' }}
+        env:
+          STAGING_SITE_URL: ${{ vars.STAGING_SITE_URL }}
+          SCRIPT_ID_OVERRIDE: ${{ inputs.script_id }}
         run: |
-          echo "No main instance key was supplied, and either no staging URL is" >&2
-          echo "configured or a script id override names a site the STAGING_SITE_URL" >&2
-          echo "variable may not match. Set STAGING_SITE_URL to the staging site's" >&2
-          echo "public origin, or paste a main instance key on a manual run." >&2
-          exit 1
+          if [ -n "$SCRIPT_ID_OVERRIDE" ]; then
+            echo "A script id override needs a main instance key, so its own site" >&2
+            echo "URL can be resolved. Paste the key on this manual run." >&2
+            exit 1
+          fi
+          url=$(printf '%s' "$STAGING_SITE_URL" | tr -d '[:space:]')
+          url=${url%/}
+          case $url in
+            https://?*) ;;
+            *)
+              echo "STAGING_SITE_URL is not an https origin: '$STAGING_SITE_URL'." >&2
+              echo "Set it to the staging site's public origin, or paste a main" >&2
+              echo "instance key on a manual run." >&2
+              exit 1
+              ;;
+          esac
+          echo "site_url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to staging
         uses: ./.github/actions/deploy-bunny-script
         with:
           script_id: ${{ inputs.script_id || secrets.BUNNY_STAGING_SCRIPT_ID }}
           api_key: ${{ secrets.BUNNY_ACCESS_KEY }}
-          site_url: ${{ steps.resolve-site.outputs.site_url || vars.STAGING_SITE_URL }}
+          site_url: ${{ steps.resolve-site.outputs.site_url || steps.staging-url.outputs.site_url }}
           build_tag: ${{ steps.build.outputs.build_tag }}
 
       # Upload source maps for this release after deploy (no-op without secrets).

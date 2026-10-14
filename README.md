@@ -662,8 +662,10 @@ before deploying to it (the staging push-to-`main` trigger is the one exception
   as a run input but fall back to the stored secret. **Only manual runs back
   up:** the staging push-to-`main` trigger (a merge) deploys without a backup,
   so it needs no `MAIN_INSTANCE_KEY` / `MAIN_INSTANCE` / `STORAGE_ZONE_*`
-  secrets — just `BUNNY_STAGING_SCRIPT_ID` and `BUNNY_ACCESS_KEY`, plus the
-  optional CDN secrets when CDN publishing is enabled. A manual run backs up by
+  secrets — just `BUNNY_STAGING_SCRIPT_ID` and `BUNNY_ACCESS_KEY`, the
+  `STAGING_SITE_URL` repository variable (the staging site's https origin,
+  which the update-mode wait polls), plus the optional CDN secrets when CDN
+  publishing is enabled. A manual run backs up by
   default (needing those backup secrets, or the key pasted in) and can untick
   **Back up the database before deploying** to skip it — the escape hatch for
   when the backup itself is broken.
