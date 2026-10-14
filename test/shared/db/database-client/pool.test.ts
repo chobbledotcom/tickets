@@ -146,6 +146,22 @@ const PAST_THE_IDLE_WINDOW_MS = 1_100;
 const waitPastTheIdleWindow = () =>
   new Promise<void>((resolve) => setTimeout(resolve, PAST_THE_IDLE_WINDOW_MS));
 
+/** Await the request's rejection, yield out any late dispatch the guard
+ *  failed to stop, and require the boundary untouched. The raw client's
+ *  own close or reconnect rejection may win the race, so the assertion
+ *  checks the rejection rather than one message. */
+const expectRejectedAndUndispatched = async (
+  pending: Promise<unknown>,
+  watched: { pools: WatchedPool[]; usedPools: (Deno.HttpClient | undefined)[] },
+) => {
+  await expect(pending).rejects.toThrow();
+  for (let i = 0; i < 1000 && watched.usedPools.length === 0; i += 1) {
+    await Promise.resolve();
+  }
+  expect(watched.usedPools).toEqual([]);
+  expect(watched.pools).toEqual([]);
+};
+
 describe("database connection pool", () => {
   test("requests within the idle window reuse one real connection", async () => {
     await using loopback = openLoopback();
@@ -220,25 +236,38 @@ describe("database connection pool", () => {
     const client = openClient();
     const pending = client.execute("SELECT 1");
     client.close();
-    // The raw client's own close rejection may win the race; the contract
-    // is that the request rejects and the boundary stays untouched.
-    await expect(pending).rejects.toThrow();
-    expect(watched.usedPools).toEqual([]);
-    expect(watched.pools).toEqual([]);
+    await expectRejectedAndUndispatched(pending, watched);
   });
 
   test("a reconnect on the proxy path rejects the suspended request", async () => {
     using watched = watchPools();
     process.env.HTTPS_PROXY = "http://proxy.test:8080";
     const client = openClient();
-    const pending = client.execute("SELECT 1");
-    client.reconnect();
-    // The raw client's own reconnect rejection may win the race; the
-    // contract is that the request rejects and the boundary stays
-    // untouched.
-    await expect(pending).rejects.toThrow();
-    expect(watched.usedPools).toEqual([]);
-    expect(watched.pools).toEqual([]);
+    // The reconnect must land while the wrapper's body read is suspended,
+    // so the first read holds until the test releases it: the lifecycle
+    // comparison is then exercised for certain, not raced.
+    const original = Request.prototype.arrayBuffer;
+    let heldOnce = false;
+    let releaseBody: (() => void) | undefined;
+    const held = new Promise<void>((resolve) => {
+      releaseBody = resolve;
+    });
+    Request.prototype.arrayBuffer = async function () {
+      const buffer = await Reflect.apply(original, this, []);
+      if (heldOnce) return buffer;
+      heldOnce = true;
+      await held;
+      return buffer;
+    };
+    try {
+      const pending = client.execute("SELECT 1");
+      client.reconnect();
+      releaseBody?.();
+      await expectRejectedAndUndispatched(pending, watched);
+    } finally {
+      Request.prototype.arrayBuffer = original;
+      releaseBody?.();
+    }
   });
 
   test("a caller's own fetch replaces the pool", async () => {
