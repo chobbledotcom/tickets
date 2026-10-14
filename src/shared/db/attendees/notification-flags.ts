@@ -47,19 +47,3 @@ export const clearPendingFlagStatement = (
         WHERE id IN (${inPlaceholders(attendeeIds)})
           AND ${FLAG_COLUMN[side]} > 0`,
 });
-
-/** SQL for "a listing this attendee booked currently collects an email".
- * The attendee row reads and the dashboard count share it, so the badge and
- * the count cannot disagree. `attendeeRef` names the alias the attendee
- * columns read through at the call site. Writes store the contact fields as
- * the parser's own trimmed tokens (`storedListingFields`). The read strips
- * spaces and non-breaking spaces before the match. A padded value an older
- * version wrote then reads exactly the tokens the parser reads.
- * Ghost lines (quantity 0) are not bookings. */
-export const emailOwedSql = (attendeeRef: string): string => `EXISTS (
-  SELECT 1 FROM listing_attendees AS owed_line
-  JOIN listings AS owed_listing ON owed_listing.id = owed_line.listing_id
-  WHERE owed_line.attendee_id = ${attendeeRef}.id
-    AND owed_line.quantity > 0
-    AND instr(',' || REPLACE(REPLACE(owed_listing.fields, ' ', ''), CHAR(160), '') || ',', ',email,') > 0
-)`;

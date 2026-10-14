@@ -33,6 +33,7 @@ import { withEnv } from "#test-utils/env.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { resetSentry } from "#test-utils/sentry.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const registrationLogs = (
   entries: ReturnType<typeof makeEntry>[],
@@ -82,6 +83,46 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
       "private",
+    );
+  });
+
+  test("logs a failed pending-flag clear batch locally", async () => {
+    // The buyer's confirmation is the run's only delivery and it is accepted,
+    // so the clear batch carries the email side alone and is the run's last
+    // database call. Starving the budget one call short makes the batch fail:
+    // the failure reaches the log, and the accepted send's report is not
+    // masked.
+    await configureTestEmail();
+    const { attendee } = await bookTestAttendeeWithFlags("Starved Buyer", 1, 1);
+    const entries = [
+      makeEntry(
+        { id: attendee.listing_id, webhook_url: "" },
+        {
+          email: attendee.email,
+          id: attendee.id,
+        },
+      ),
+    ];
+    const send = () =>
+      withRequestContext(() =>
+        logAndNotifyRegistration(entries, {
+          clearPendingFlagsFor: [attendee.id],
+          source: "public",
+        }),
+      );
+    const calls = await countDatabaseCalls(50, send);
+    const logs = await withErrorSpy(async (errorSpy) => {
+      await runWithSubrequestBudget(() =>
+        withSubrequestAllowance(
+          { database: calls - 1, external: 20, total: 40 },
+          send,
+        ),
+      );
+      return errorSpy.calls.map(({ args }) => String(args[0]));
+    });
+
+    expect(expectOneError(logs, "E_DB_QUERY")).toContain(
+      "The pending-flag clear batch failed",
     );
   });
 
