@@ -249,23 +249,11 @@ const processNewBookingSession = async (
   }
 
   // Otherwise try to honour it at the charged price. Expected refusal keeps a
-  // quantity-0 placeholder. An uncertain atomic result is checked on the primary
-  // and refunded only when committed state proves that the batch rolled back.
+  // quantity-0 placeholder. An uncertain atomic result is checked on the
+  // primary and answered from committed state. A rolled-back batch answers
+  // 503 so the provider redelivers and the whole booking is tried again.
   const ticketToken = generateTicketToken();
   const codeSpecs = modifierSpecs.filter((spec) => spec.trigger === "code");
-  const complete = (
-    entries: Parameters<typeof completePaidBooking>[0],
-    ticketTokens: string[],
-  ) =>
-    completePaidBooking(
-      entries,
-      intent,
-      codeSpecs,
-      pricedOrder.modifierApplications,
-      ticketTokens,
-      snapshot.notificationPackages,
-      session.id,
-    );
   const honoured = await createAttendeeForSession(
     session,
     intent,
@@ -275,14 +263,14 @@ const processNewBookingSession = async (
     ticketToken,
     snapshot.publicStatusId,
     snapshot.parentsByChildId,
+    codeSpecs,
   );
   if (honoured.ok === null) {
     return recoverOrRefundUnexpectedCreate({
-      complete,
       error: honoured.error,
+      freeTexts: honoured.freeTexts,
       intent,
-      placeholders,
-      publicStatusId: snapshot.publicStatusId,
+      listingId: signedListingId,
       session,
       ticketToken,
       validatedItems,
@@ -298,10 +286,18 @@ const processNewBookingSession = async (
     );
   }
 
-  // Success: a real ticket, finalized atomically in the creation transaction.
+  // Success: a real ticket, finalized atomically in the creation transaction
+  // together with its answers and activity lines. Only the external sends
+  // ride after the batch.
   const createdEntries = honoured.entries;
   const firstAttendee = createdEntries[0]!;
-  return complete(createdEntries, [firstAttendee.attendee.ticket_token]);
+  return completePaidBooking(
+    createdEntries,
+    intent,
+    [firstAttendee.attendee.ticket_token],
+    snapshot.notificationPackages,
+    honoured.freeTexts,
+  );
 };
 
 /**

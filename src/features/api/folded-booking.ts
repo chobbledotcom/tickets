@@ -39,7 +39,7 @@ import {
   getActivePaymentProvider,
 } from "#shared/payments.ts";
 import { parseOrNull } from "#shared/validation/parse.ts";
-import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
+import { queueRegistrationSends } from "#shared/webhook/delivery.ts";
 import {
   extractContact,
   type TicketFormValues,
@@ -291,7 +291,9 @@ const completeFoldedBooking = async (
   // `createFreeReservation`. Without this, the folded free/provider-less
   // parent booking silently skips the confirmation email, registration webhook,
   // and activity log every other booking path fires.
-  await logAndNotifyRegistration(reservation.entries, { source: "public" });
+  // The registration activity lines rode the batch itself, so this is a
+  // send-only queue: no second registration log write happens here.
+  await queueRegistrationSends(reservation.entries, { source: "public" });
   return bookingSuccessResponse(reservation.entries[0]!.attendee);
 };
 

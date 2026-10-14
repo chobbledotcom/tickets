@@ -1,31 +1,30 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { queryBatchPrimary, resultRows } from "#db/client.ts";
-import { UNRESOLVED_RESERVATION } from "#db/processed-payments.ts";
-import { placeholderRefund } from "#payment/placeholder-refund.ts";
-import { committedEntries } from "#routes/api/payment-processing/committed-entries.ts";
-import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
+import {
+  releaseReservation,
+  UNRESOLVED_RESERVATION,
+} from "#db/processed-payments.ts";
+/* jscpd:ignore-start */
+import { sessionSuccess } from "#routes/api/payment-processing/create.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import { decideUnexpectedCreate } from "#routes/api/payment-processing/recovery-decision.ts";
-import {
-  type placeholderBookings,
-  storeRefundedBooking,
-} from "#routes/api/payment-processing/store-refund.ts";
 import type {
   PaymentResult,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
+import type { FreeTextAnswers } from "#shared/email/answers.ts";
+import { queueRegistrationSends } from "#shared/webhook/delivery.ts";
+import { committedEntries } from "./committed-entries.ts";
+
+/* jscpd:ignore-end */
 
 type UnexpectedCreateRecovery = {
-  complete: (
-    entries: CreatedEntry[],
-    ticketTokens: string[],
-  ) => Promise<PaymentResult>;
   error: unknown;
+  freeTexts: FreeTextAnswers | undefined;
   intent: BookingIntent;
-  placeholders: ReturnType<typeof placeholderBookings>;
-  publicStatusId: number;
+  listingId: number;
   session: ValidatedSession["session"];
   ticketToken: string;
   validatedItems: ValidatedItem[];
@@ -66,14 +65,23 @@ const loadRecoveryFacts = async (
   };
 };
 
-/** Resolve an uncertain atomic create from primary state. Refund only when the
- * unresolved reservation and missing prepared token prove the batch rolled back. */
+/**
+ * Resolve an uncertain atomic create from primary state.
+ *
+ * A create batch carries the booking's whole completion, and a
+ * proven-committed booking owes its sends exactly once. The recovery reads
+ * the committed entries and queues them with the staged free texts and the
+ * renewal token. This arm runs in the one request that lost the result. A
+ * later redelivery finds the finalized session and answers send-free. A
+ * provable rollback released nothing, so the recovery releases the
+ * reservation and answers 503 for the provider's next try. Anything else
+ * rethrows while the state settles.
+ */
 export const recoverOrRefundUnexpectedCreate = async ({
-  complete,
   error,
+  freeTexts,
   intent,
-  placeholders,
-  publicStatusId,
+  listingId,
   session,
   ticketToken,
   validatedItems,
@@ -89,16 +97,15 @@ export const recoverOrRefundUnexpectedCreate = async ({
       intent,
       validatedItems,
     );
-    return complete(entries, [ticketToken]);
+    await queueRegistrationSends(entries, {
+      freeTexts,
+      siteTokenIndex: intent.siteTokenIndex,
+      source: "public",
+    });
+    return sessionSuccess(decision.attendeeId, listingId);
   }
-  if (decision.kind === "rethrow") throw error;
-  return storeRefundedBooking(
-    session,
-    intent,
-    placeholders,
-    placeholderRefund("unexpected_error")(
-      `Unexpected error completing session ${session.id}: ${String(error)}`,
-    ),
-    publicStatusId,
-  );
+  if (decision.kind === "retry") {
+    await releaseReservation(session.id);
+  }
+  throw error;
 };

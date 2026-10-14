@@ -23,6 +23,7 @@ import {
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -157,16 +158,18 @@ describeWithEnv(
       );
     });
 
-    test("an unexpected error after the charge keeps the booking at quantity 0 and refunds", async () => {
+    test("an unexpected error after the charge answers 503 for the provider to redeliver", async () => {
       const listing = await setupWithListing();
-      // Make the real-quantity happy-path create (the batch booking write) throw,
-      // while the quantity-0 placeholder store (createAttendeeAtomic) keeps working
-      // — so a signed payment that hits an unexpected error after the charge is kept
-      // at quantity 0 and refunded, not crash-looped over money already taken.
+      // Make the real-quantity happy-path create (the batch booking write) throw
+      // while nothing else breaks: the batch carries the booking's whole
+      // completion, so nothing is committed, the reservation is released, and
+      // the thrown error answers the provider 503 — it redelivers and the whole
+      // booking is tried again. No money is refunded on a guess.
       const { attendeesApi } = await import("#db/attendees/api.ts");
       const boom = stub(attendeesApi, "createBookingAtomic", () =>
         Promise.reject(new Error("synthetic create failure")),
       );
+      using _env = withEnv({ TEST_EXPECT_ERROR: "1" });
       try {
         await runWebhook(
           {
@@ -176,11 +179,13 @@ describeWithEnv(
             }),
           },
           async (refund) => {
-            await expectStoredRefund(listing.id);
-            expect(refund.calls.length).toBe(1);
+            // The 503 body is an error page, not JSON: check the status only.
+            expect((await webhookRequest()).status).toBe(503);
+            expect(await getAttendeesRaw(listing.id)).toEqual([]);
+            expect(refund.calls.length).toBe(0);
+            // The reservation was released, so the redelivery starts fresh.
             const record = await getProcessedPayment("cs_crash_store");
-            expect(record?.attendee_id).toBeNull();
-            expect(record?.failure_data).not.toBe("");
+            expect(record).toBeNull();
           },
         );
       } finally {

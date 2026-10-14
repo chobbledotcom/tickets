@@ -28,7 +28,7 @@ import type {
   TicketPaymentBreakdown,
 } from "#shared/checkout-pricing.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
-import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
+import { queueRegistrationSends } from "#shared/webhook/delivery.ts";
 import { computeListingTextAnswerIdMap } from "./parse.ts";
 
 export type PathParams = OrderSpan & {
@@ -151,7 +151,9 @@ export const handleFreePath = async (
   if (!result.success) return ticketFormErrorResponse(ctx)(result.error);
 
   // Notify only after stock is committed; a rolled-back order should not
-  // trigger a registration notification. The hash before passing on so the
+  // trigger a registration notification. The registration activity lines
+  // rode the batch itself, so this is a send-only queue: no second
+  // registration log write happens here. The hash before passing on so the
   // renewal lookup uses the same blind index the paid path would carry
   // through Stripe session metadata.
   const siteTokenIndex = ctx.siteToken
@@ -162,7 +164,7 @@ export const handleFreePath = async (
   const freeTexts = new Map(
     info.textAnswers.map(({ questionId, text }) => [questionId, text]),
   );
-  await logAndNotifyRegistration(result.entries, {
+  await queueRegistrationSends(result.entries, {
     freeTexts,
     siteTokenIndex,
     source: "public",

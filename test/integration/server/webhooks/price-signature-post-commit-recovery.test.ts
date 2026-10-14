@@ -4,34 +4,41 @@ import { stub } from "@std/testing/mock";
 import { bookingEventGroup } from "#accounting/mappers.ts";
 import { allTransfers } from "#accounting/queries.ts";
 import { legReference } from "#accounting/refs.ts";
+import { encrypt } from "#crypto/encryption.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
+import {
+  readCheckoutAnswers,
+  stageCheckoutAnswers,
+} from "#db/checkout-pending-answers.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { getRecentBookingTokens } from "#db/contact-tokens.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
 import { modifiersTable } from "#db/modifiers.ts";
-import {
-  decryptSessionTokens,
-  releaseReservation,
-} from "#db/processed-payments.ts";
+import { decryptSessionTokens } from "#db/processed-payments.ts";
+import { getBookedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
+import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { handleRequest } from "#routes";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import {
-  redirectRequest,
   runWebhook,
   setupWithListing,
-  signedMeta,
   webhookRequest,
 } from "#test/integration/webhook-price-signature/helpers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
+import { configureTestEmail } from "#test-utils/email.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   expectProcessedPaymentReference,
@@ -83,8 +90,57 @@ const expectContactActivity = async (
 };
 
 describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
+  const fetchSpy = stubFetchEachTest(() => new Response());
+  // The spy records the file's whole run; each test counts only the calls
+  // its own requests made.
+  const callsSince = (baseline: number, url: string): number =>
+    fetchSpy.calls
+      .slice(baseline)
+      .filter((one) => String(one.args[0]).includes(url)).length;
+  const resendBodies = (
+    baseline: number,
+  ): { html: string; to: [string, ...string[]] }[] =>
+    fetchSpy.calls
+      .slice(baseline)
+      .filter((one) => String(one.args[0]).includes("api.resend.com"))
+      .map((one) => JSON.parse(one.args[1].body as string));
+
   test("recovers a committed result across webhook, redirect, and ledger replay", async () => {
-    const listing = await setupWithListing();
+    const fetchCallsBefore = fetchSpy.calls.length;
+    const registrationCalls = (): number =>
+      callsSince(fetchCallsBefore, "https://registration.example.com/hook");
+    // The booked listing is a renewal tier, so the recovered sends also
+    // extend the renewal site's deadline exactly once.
+    const listing = await setupWithListing({
+      hidden: true,
+      monthsPerUnit: 1,
+      purchaseOnly: true,
+    });
+    await insertBuiltSite(
+      "Recovery Renewal Site",
+      "recovery-renewal.b-cdn.net",
+      "",
+      "",
+      false,
+      "5001",
+    );
+    const sites = await builtSites.getAll();
+    const site = sites.find((one) => one.name === "Recovery Renewal Site")!;
+    const { tokenIndex } = await provisionTestBuiltSite(site.id);
+    const edgeSecretCalls = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+      Promise.resolve({ ok: true as const }),
+    );
+    // The listings.fields column stores env-key encrypted values, so the
+    // fixture writes the collected field the way every write path does.
+    await execute(
+      "UPDATE listings SET fields = ?, webhook_url = ? WHERE id = ?",
+      [
+        await encrypt("email"),
+        await encrypt("https://registration.example.com/hook"),
+        listing.id,
+      ],
+    );
+    await configureTestEmail({ businessEmail: "owner@example.com" });
     const sessionId = "cs_lost_committed_result";
     const email = "recovered@example.com";
     const phone = "+447700900123";
@@ -98,6 +154,23 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
       text: "Recovered",
     });
     await listingQuestions.setIds(listing.id, [question.id]);
+    const textQuestion = await questionsTable.insert({
+      displayType: "free_text",
+      text: "Anything else?",
+    });
+    await listingQuestions.setIds(listing.id, [question.id, textQuestion.id]);
+    // Stage the buyer's typed answer the way the checkout session does, so
+    // the completion reads it before the batch opens, and intern the text
+    // the way the submit path does, so the answer ref points at the
+    // owner-sealed copy the persistent answer keeps.
+    const textStringId = (
+      await getOrCreateStringIds(["Vegetarian, please"])
+    ).get("Vegetarian, please")!;
+    await stageCheckoutAnswers(
+      sessionId,
+      { [String(textQuestion.id)]: "Vegetarian, please" },
+      null,
+    );
     const modifier = await modifiersTable.insert({
       calcKind: "fixed",
       calcValue: 1,
@@ -113,6 +186,10 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
         modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
         name: "Recovered Buyer",
         phone,
+        site_token_index: tokenIndex,
+        text_answer_ids: JSON.stringify({
+          [listing.id]: [{ q: textQuestion.id, s: textStringId }],
+        }),
       }),
       900,
     );
@@ -145,6 +222,32 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           });
           expect(answers.get(attendee!.id)).toEqual([answer.id]);
           const privateKey = await getTestPrivateKey();
+          // The owner-key reader resolves both the chosen answer and the
+          // typed answer's owner-sealed copy, in question order.
+          const booked = await getBookedAnswers(
+            attendee!.id,
+            getTestPrivateKey,
+          );
+          expect(booked).toEqual([
+            {
+              answer: "Recovered",
+              answerAtBooking: "Recovered",
+              askedAs: "Recovery answer?",
+              changed: false,
+              changesPrice: false,
+              question: "Recovery answer?",
+              questionId: question.id,
+            },
+            {
+              answer: "Vegetarian, please",
+              answerAtBooking: "Vegetarian, please",
+              askedAs: "Anything else?",
+              changed: false,
+              changesPrice: false,
+              question: "Anything else?",
+              questionId: textQuestion.id,
+            },
+          ]);
           const [decrypted] = await decryptAttendees([attendee!], privateKey);
           const ticketToken = decrypted!.ticket_token;
           expect({
@@ -198,6 +301,35 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           );
           await expectContactActivity(email, phone, privateKey, ticketToken);
 
+          // The lost result committed the booking without queueing its
+          // sends; this recovery queued exactly one buyer confirmation and
+          // one owner copy (two Resend calls) and one registration webhook.
+          expect(registrationCalls()).toBe(1);
+          const emailBodies = resendBodies(fetchCallsBefore);
+          expect(
+            emailBodies.filter((body) => body.to[0] === email).length,
+          ).toBe(1);
+          expect(
+            emailBodies.filter((body) => body.to[0] === "owner@example.com")
+              .length,
+          ).toBe(1);
+          // Both bodies carry the buyer's typed answer from the staged row.
+          const buyerBody = emailBodies.find((body) => body.to[0] === email)!;
+          expect(buyerBody.html).toContain("Anything else?");
+          expect(buyerBody.html).toContain("Vegetarian, please");
+          const ownerBody = emailBodies.find(
+            (body) => body.to[0] === "owner@example.com",
+          )!;
+          expect(ownerBody.html).toContain("Anything else?");
+          expect(ownerBody.html).toContain("Vegetarian, please");
+          // The committed batch took the staged copy back with the booking.
+          expect((await readCheckoutAnswers(sessionId)).size).toBe(0);
+          // The recovered sends extended the renewal site's deadline once.
+          const sitesAfterRecovery = await builtSites.getAll();
+          expect(
+            sitesAfterRecovery.find((one) => one.id === site.id)!.readOnlyFrom,
+          ).toBe("2099-02-01T00:00:00.000Z");
+          expect(edgeSecretCalls.calls.length).toBe(1);
           const retrieve = stubRetrieveCheckoutSession({
             amountTotal: 900,
             metadata,
@@ -233,6 +365,25 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           expect(await decryptSessionTokens(replayed!.ticket_tokens)).toBe("");
           expect(await getAttendeesRaw(listing.id)).toEqual([attendee]);
           await expectContactActivity(email, phone, privateKey, ticketToken);
+          // The finalized-session replay answers send-free: the recovery
+          // already queued the one send the booking owed.
+          expect(registrationCalls()).toBe(1);
+          const replayEmailBodies = resendBodies(fetchCallsBefore);
+          expect(
+            replayEmailBodies.filter((body) => body.to[0] === email).length,
+          ).toBe(1);
+          expect(
+            replayEmailBodies.filter(
+              (body) => body.to[0] === "owner@example.com",
+            ).length,
+          ).toBe(1);
+          // The redeliveries never re-extend the deadline: the finalized
+          // session's replay queues no sends at all.
+          expect(
+            (await builtSites.getAll()).find((one) => one.id === site.id)!
+              .readOnlyFrom,
+          ).toBe("2099-02-01T00:00:00.000Z");
+          expect(edgeSecretCalls.calls.length).toBe(1);
           expect(await allTransfers()).toEqual(transfersAfterCommit);
           expect(await modifierUsedQuantities([modifier.id])).toEqual(
             new Map([[modifier.id, 1]]),
@@ -242,6 +393,11 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
               await getAttendeeAnswersBatch([attendee!.id], { texts: false })
             ).get(attendee!.id),
           ).toEqual([answer.id]);
+          // The replays re-read the same persisted answers: the typed copy
+          // still resolves through the owner key, unchanged.
+          expect(
+            await getBookedAnswers(attendee!.id, getTestPrivateKey),
+          ).toEqual(booked);
           await expectProcessedPaymentReference(
             attendee!.id,
             sessionId,
@@ -256,149 +412,8 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
         },
       );
     } finally {
+      edgeSecretCalls.restore();
       loseResult.restore();
-    }
-  });
-
-  test("refunds one placeholder when the atomic create rolled back", async () => {
-    const listing = await setupWithListing();
-    const session = {
-      id: "cs_proven_rollback",
-      metadata: signedMeta(1000, {
-        items: singleItem(listing.id, 1, 1000),
-      }),
-    };
-    await execute(
-      `CREATE TRIGGER test_late_payment_finalize_failure
-       AFTER UPDATE OF attendee_id ON processed_payments
-       WHEN NEW.payment_session_id = '${session.id}'
-       BEGIN
-         SELECT RAISE(ABORT, 'late payment finalize failure');
-       END`,
-    );
-    try {
-      await runWebhook(session, async (refund) => {
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-        });
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-        });
-        expect(refund.calls.length).toBe(1);
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees).toHaveLength(1);
-        expect(attendees[0]!.quantity).toBe(0);
-      });
-    } finally {
-      await execute("DROP TRIGGER test_late_payment_finalize_failure");
-    }
-  });
-
-  test("a concurrent redirect and webhook converge on one stable ticket without refund", async () => {
-    const listing = await setupWithListing();
-    const sessionId = "cs_redirect_webhook_race";
-    const metadata = signedMeta(1000, {
-      items: singleItem(listing.id, 1, 1000),
-    });
-
-    await runWebhook({ id: sessionId, metadata }, async (refund) => {
-      const createBooking = attendeesApi.createBookingAtomic;
-      const committedBooking = Promise.withResolvers<{
-        attendeeId: number;
-        ticketToken: string;
-      }>();
-      const releaseBooking = Promise.withResolvers<void>();
-      const pauseBooking = stub(
-        attendeesApi,
-        "createBookingAtomic",
-        async (...args) => {
-          const result = await createBooking(...args);
-          if (result === "sold-out" || !result.success) {
-            throw new Error("Expected booking to commit");
-          }
-          const attendee = result.attendees[0]!;
-          committedBooking.resolve({
-            attendeeId: attendee.id,
-            ticketToken: attendee.ticket_token,
-          });
-          await releaseBooking.promise;
-          return result;
-        },
-      );
-      const retrieve = stubRetrieveCheckoutSession({
-        amountTotal: 1000,
-        metadata,
-        paymentIntent: `pi_${sessionId}`,
-        sessionId,
-      });
-      try {
-        const firstWebhook = webhookRequest();
-        const committed = await committedBooking.promise;
-        const competingRedirect = await redirectRequest(sessionId);
-        expect(competingRedirect.status).toBe(302);
-        expect(competingRedirect.headers.get("location")).toBe(
-          `/payment/success?tokens=${encodeURIComponent(
-            committed.ticketToken,
-          )}`,
-        );
-        releaseBooking.resolve();
-        await assertJson(firstWebhook, 200, (json) => {
-          expect(json.processed).toBe(true);
-        });
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(true);
-        });
-        const redirect = await redirectRequest(sessionId);
-        expect(redirect.status).toBe(200);
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees).toHaveLength(1);
-        const attendee = attendees[0]!;
-        const [decrypted] = await decryptAttendees(
-          [attendee],
-          await getTestPrivateKey(),
-        );
-        expect(decrypted!.id).toBe(committed.attendeeId);
-        expect(decrypted!.ticket_token).toBe(committed.ticketToken);
-        const processed = await getProcessedPayment(sessionId);
-        expect(processed!.attendee_id).toBe(committed.attendeeId);
-        expect(await decryptSessionTokens(processed!.ticket_tokens)).toBe("");
-        const replayedRedirect = await redirectRequest(sessionId);
-        expect(replayedRedirect.status).toBe(200);
-        expect(await getAttendeesRaw(listing.id)).toEqual(attendees);
-        expect(refund.calls.length).toBe(0);
-      } finally {
-        releaseBooking.resolve();
-        pauseBooking.restore();
-        retrieve.restore();
-      }
-    });
-  });
-
-  test("rethrows an ambiguous create without refunding", async () => {
-    const listing = await setupWithListing();
-    const sessionId = "cs_ambiguous_create";
-    const ambiguous = stub(attendeesApi, "createBookingAtomic", async () => {
-      await releaseReservation(sessionId);
-      throw new Error("synthetic ambiguous result");
-    });
-    try {
-      await runWebhook(
-        {
-          id: sessionId,
-          metadata: signedMeta(1000, {
-            items: singleItem(listing.id, 1, 1000),
-          }),
-        },
-        async (refund) => {
-          await expect(webhookRequest()).rejects.toThrow(
-            "synthetic ambiguous result",
-          );
-          expect(refund.calls.length).toBe(0);
-          expect(await getAttendeesRaw(listing.id)).toEqual([]);
-        },
-      );
-    } finally {
-      ambiguous.restore();
     }
   });
 });

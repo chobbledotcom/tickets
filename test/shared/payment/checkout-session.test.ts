@@ -6,7 +6,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
-import { takeCheckoutAnswers } from "#db/checkout-pending-answers.ts";
+import { readCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import { execute } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
@@ -56,7 +56,7 @@ describeWithEnv(
       );
 
       expect(calls).toBe(1);
-      expect(await takeCheckoutAnswers("cs_staging")).toEqual(
+      expect(await readCheckoutAnswers("cs_staging")).toEqual(
         new Map([[7, "Coming by bus"]]),
       );
     });
@@ -109,7 +109,7 @@ describeWithEnv(
     test("keeps a Square checkout's answers past the payments clock while its link can still take payment", async () => {
       await squareCheckoutAgedDays("sq_day_150", 150);
 
-      expect(await takeCheckoutAnswers("sq_day_150")).toEqual(
+      expect(await readCheckoutAnswers("sq_day_150")).toEqual(
         new Map([[7, "Coming by bus"]]),
       );
     });
@@ -119,7 +119,7 @@ describeWithEnv(
       // still reach us through the provider's webhook retries.
       await squareCheckoutAgedDays("sq_day_181", 181);
 
-      expect(await takeCheckoutAnswers("sq_day_181")).toEqual(
+      expect(await readCheckoutAnswers("sq_day_181")).toEqual(
         new Map([[7, "Coming by bus"]]),
       );
     });
@@ -130,7 +130,7 @@ describeWithEnv(
         180 + WEBHOOK_RETRY_WINDOW_DAYS + 1,
       );
 
-      expect(await takeCheckoutAnswers("sq_day_184")).toEqual(new Map());
+      expect(await readCheckoutAnswers("sq_day_184")).toEqual(new Map());
     });
   },
 );

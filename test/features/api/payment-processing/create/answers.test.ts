@@ -1,13 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#db/client.ts";
+import { execute, getDb } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { questionsTable } from "#db/questions/tables.ts";
-import {
-  type CreatedEntry,
-  saveSessionAnswers,
-} from "#routes/api/payment-processing/create.ts";
+import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
+import { paidBookingTail } from "#routes/api/payment-processing/tail.ts";
 import { bookingIntent } from "#test/features/api/payment-processing/index/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -27,14 +25,22 @@ const bookedEntry = async (): Promise<CreatedEntry> => {
   return { attendee, listing: loaded };
 };
 
-const saveAndReadAnswers = async (
+/** Run the tail statements the way the create batch does, resolving the
+ * booking's one attendee from its own ticket token. */
+const rideTail = async (
   entry: CreatedEntry,
   answers: Parameters<typeof bookingIntent>[1],
 ) => {
-  await saveSessionAnswers(
-    [entry],
-    bookingIntent([{ e: entry.listing.id, p: 0, q: 1 }], answers),
-  );
+  const tail = await paidBookingTail({
+    codeSpecs: [],
+    intent: bookingIntent([{ e: entry.listing.id, p: 0, q: 1 }], answers),
+    listings: [entry.listing],
+    modifierApplications: [],
+    sessionId: `cs_${entry.attendee.id}`,
+  });
+  for (const statement of tail.ride(entry.attendee.ticket_token_index)) {
+    await execute(statement.sql, statement.args);
+  }
   return (
     await getDb().execute({
       args: [entry.attendee.id],
@@ -47,7 +53,7 @@ describeWithEnv("paid booking answer saves", { db: true }, () => {
   test("saves a choice answer missing from the paid-order snapshot", async () => {
     const entry = await bookedEntry();
     const { answerId, questionId } = await createQuestionWithAnswer();
-    const saved = await saveAndReadAnswers(entry, {
+    const saved = await rideTail(entry, {
       listingAnswerIds: { [entry.listing.id]: [answerId] },
     });
     expect(saved).toEqual([
@@ -65,7 +71,7 @@ describeWithEnv("paid booking answer saves", { db: true }, () => {
       "The saved detail",
     );
     if (stringId === undefined) throw new Error("Text answer was not interned");
-    const saved = await saveAndReadAnswers(entry, {
+    const saved = await rideTail(entry, {
       listingTextAnswerIds: {
         [entry.listing.id]: [{ q: question.id, s: stringId }],
       },
@@ -90,7 +96,7 @@ describeWithEnv("paid booking answers at booking", { db: true }, () => {
     const { answerId, questionId } = await createQuestionWithAnswer([
       entry.listing.id,
     ]);
-    await saveAndReadAnswers(entry, {
+    await rideTail(entry, {
       listingAnswerIds: { [entry.listing.id]: [answerId] },
     });
     expect(await recorded(entry)).toEqual([
@@ -101,7 +107,7 @@ describeWithEnv("paid booking answers at booking", { db: true }, () => {
   test("records the asked questions of an order that answered none", async () => {
     const entry = await bookedEntry();
     const { questionId } = await createQuestionWithAnswer([entry.listing.id]);
-    await saveAndReadAnswers(entry, {});
+    await rideTail(entry, {});
     expect(await recorded(entry)).toEqual([
       { answer_id: null, question_id: questionId },
     ]);
