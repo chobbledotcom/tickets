@@ -1,4 +1,5 @@
 import type { BlindIndex } from "#crypto/sealed.ts";
+import { emailOwedSql } from "#db/attendees/notification-flags.ts";
 import { contactFields } from "#db/attendees/pii.ts";
 import {
   pricePaidFromLedger,
@@ -25,6 +26,9 @@ type CommittedBookingRow = {
   remaining_balance: number;
   status_id: number | null;
   ticket_token_index: BlindIndex;
+  email_owed: number;
+  email_pending: number;
+  webhooks_pending: number;
 };
 
 /** Rebuild completion entries from committed primary rows and signed contact
@@ -53,7 +57,12 @@ export const committedEntries = async (
                    listingAttendee.quantity,
                    ${remainingBalanceFromLedger("attendee.id")},
                    attendee.status_id,
-                   attendee.ticket_token_index
+                   attendee.ticket_token_index,
+                   attendee.email_pending,
+                   attendee.webhooks_pending,
+                   (CASE WHEN attendee.email_pending > 0
+                         THEN ${emailOwedSql("attendee")}
+                         ELSE 0 END) AS email_owed
             FROM attendees AS attendee
             JOIN listing_attendees AS listingAttendee
               ON listingAttendee.attendee_id = attendee.id
@@ -66,6 +75,8 @@ export const committedEntries = async (
     checked_in: 0,
     created: row.created,
     date: row.date,
+    email_owed: row.email_owed,
+    email_pending: row.email_pending,
     end_date: row.end_date,
     id: attendeeId,
     kind: row.kind,
@@ -83,6 +94,7 @@ export const committedEntries = async (
     status_id: row.status_id,
     ticket_token: ticketToken,
     ticket_token_index: row.ticket_token_index,
+    webhooks_pending: row.webhooks_pending,
   }));
   return pairEntriesByListing(attendees, validatedItems);
 };
