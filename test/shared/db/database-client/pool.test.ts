@@ -227,6 +227,20 @@ describe("database connection pool", () => {
     expect(watched.pools).toEqual([]);
   });
 
+  test("a reconnect on the proxy path rejects the suspended request", async () => {
+    using watched = watchPools();
+    process.env.HTTPS_PROXY = "http://proxy.test:8080";
+    const client = openClient();
+    const pending = client.execute("SELECT 1");
+    client.reconnect();
+    // The raw client's own reconnect rejection may win the race; the
+    // contract is that the request rejects and the boundary stays
+    // untouched.
+    await expect(pending).rejects.toThrow();
+    expect(watched.usedPools).toEqual([]);
+    expect(watched.pools).toEqual([]);
+  });
+
   test("a caller's own fetch replaces the pool", async () => {
     using watched = watchPools();
     const remote = hranaTestFetch();

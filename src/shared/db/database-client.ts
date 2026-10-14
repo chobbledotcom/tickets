@@ -179,6 +179,11 @@ export const createDatabaseClient = (callerConfig: Config): Client => {
     (name) => process.env[name] !== undefined,
   );
   let pool: Deno.HttpClient | undefined;
+  // Close and reconnect are the only transitions that invalidate work
+  // already in flight. The token moves on each of them, so a suspended
+  // request that resumes after one rejects at the boundary. This holds
+  // with or without a pool.
+  let lifecycle = 0;
   const pooledFetch = async (
     input: Request,
     engineInit?: RequestInit,
@@ -189,6 +194,7 @@ export const createDatabaseClient = (callerConfig: Config): Client => {
       });
     }
     const requestPool = pool;
+    const requestLifecycle = lifecycle;
     // The gate reads the body to suspend this callback, and the adapter
     // reads its own clone. One read never consumes the other's body. The
     // adapter suspends again on the clone's body, so the guard — not this
@@ -201,7 +207,7 @@ export const createDatabaseClient = (callerConfig: Config): Client => {
         ? { ...engineInit }
         : { ...engineInit, client: requestPool };
     return databaseFetch(engineCopy, init, () => {
-      if (client.closed || pool !== requestPool) {
+      if (lifecycle !== requestLifecycle) {
         throw new LibsqlError("The database client is closed", "CLIENT_CLOSED");
       }
     });
@@ -252,6 +258,7 @@ export const createDatabaseClient = (callerConfig: Config): Client => {
           : client.batch(statements, mode),
       ),
     close: () => {
+      lifecycle += 1;
       resetPipeline();
       client.close();
       pool?.close();
@@ -261,6 +268,7 @@ export const createDatabaseClient = (callerConfig: Config): Client => {
     executeMultiple: limited(client.executeMultiple.bind(client)),
     migrate: limited(client.migrate.bind(client)),
     reconnect: () => {
+      lifecycle += 1;
       resetPipeline();
       return client.reconnect();
     },
