@@ -49,7 +49,6 @@ export type BuildAttendeeInput = ContactInfo & {
   insertId: number | bigint | undefined;
   listingId: number;
   created: string;
-  emailPending?: PendingNotificationFlag | undefined;
   webhooksPending?: PendingNotificationFlag | undefined;
   kind: string;
   paymentId: string;
@@ -173,10 +172,7 @@ export type AttendeeWithBookings = {
   remaining_balance: number;
   /** Owner-defined status id (plaintext); null for legacy/default. */
   status_id: number | null;
-  /** The pending-notification flags and the email badge's read-time rule,
-   * resolved the same way every other attendee read resolves them. */
-  email_pending: number;
-  email_owed: number;
+  /** The registration webhooks still owed, so a failed send stays visible. */
   webhooks_pending: number;
   /** Per-listing bookings, sorted by start_at then listing_id */
   bookings: ListingAttendeeRow[];
