@@ -123,8 +123,42 @@ const readPipeline = async (
   });
 };
 
-/** Keep native writes and local clients. HTTP primary reads share one pipeline. */
-export const createDatabaseClient = (config: Config): Client => {
+/** The fetch the database client configures. The library's HTTP engine hands
+ *  it the engine's own Request object, not a native one, and passes no second
+ *  argument beyond what a caller supplies. Rebuild the native request from
+ *  the wire facts the object carries, read through its own API, so Deno's
+ *  fetch sees a request it understands. Forward the call arguments unchanged. */
+export const databaseFetch = async (
+  input: Request,
+  init?: RequestInit,
+): Promise<Response> => {
+  // A protobuf body is bytes, not text. A text read decodes and re-encodes
+  // it, and non-UTF-8 sequences change. A bodyless GET must send no body
+  // at all: fetch rejects a GET that carries one.
+  const headers = new Headers();
+  for (const [name, value] of input.headers.entries()) {
+    headers.set(name, value);
+  }
+  const nativeInit: RequestInit = {
+    headers,
+    method: input.method,
+    signal: input.signal,
+  };
+  if (input.body !== null) nativeInit.body = await input.arrayBuffer();
+  const native = new Request(input.url, nativeInit);
+  // The explicit init.signal still wins: the boundary's fetch init carries
+  // it, and a fetch init signal replaces the request's own.
+  return fetch(native, init);
+};
+
+/** Keep native writes and local clients. HTTP primary reads share one pipeline.
+ * Remote requests go through the configured fetch. */
+export const createDatabaseClient = (callerConfig: Config): Client => {
+  // A caller's fetch: undefined must not erase the adapter. The library
+  // then falls back to global fetch with its own Request type, and the
+  // boundary fails on it.
+  const { fetch: callerFetch = databaseFetch, ...rest } = callerConfig;
+  const config: Config = { ...rest, fetch: callerFetch };
   const client = createClient(config);
   if (client.protocol !== "http") return client;
   const expanded = expandConfig(config, true);
