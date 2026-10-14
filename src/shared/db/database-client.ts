@@ -151,13 +151,46 @@ export const databaseFetch = async (
   return fetch(native, init);
 };
 
+/** Turso's load balancer closes idle keep-alive sockets before Deno's 90-second
+ * pool does. A request on such a socket fails with "connection closed before
+ * message completed", so the database pool drops idle sockets first. */
+const DATABASE_POOL_IDLE_TIMEOUT_MS = 20_000;
+
 /** Keep native writes and local clients. HTTP primary reads share one pipeline.
- * Remote requests go through the configured fetch. */
+ * Remote requests use their own connection pool unless the caller passes a
+ * `fetch`. */
 export const createDatabaseClient = (callerConfig: Config): Client => {
-  // A caller's fetch: undefined must not erase the adapter. The library
-  // then falls back to global fetch with its own Request type, and the
-  // boundary fails on it.
-  const { fetch: callerFetch = databaseFetch, ...rest } = callerConfig;
+  let pool: Deno.HttpClient | undefined;
+  const pooledFetch = async (
+    input: Request,
+    engineInit?: RequestInit,
+  ): Promise<Response> => {
+    pool ??= Deno.createHttpClient({
+      poolIdleTimeout: DATABASE_POOL_IDLE_TIMEOUT_MS,
+    });
+    const requestPool = pool;
+    // The gate reads the body to suspend this callback, and the adapter
+    // reads its own clone. One read never consumes the other's body. A
+    // close during the gate cleared the slot: the mutable slot then names
+    // no pool or a stranger's. The request is stale — the caller already
+    // saw the client close.
+    const engineCopy = input.clone();
+    await input.text();
+    if (pool !== requestPool) {
+      throw new LibsqlError("The database client is closed", "CLIENT_CLOSED");
+    }
+    // The client UI files pull in lib.dom, whose fetch overload has no
+    // `client`, so a fresh literal fails the excess-property check.
+    const init: RequestInit & { client: Deno.HttpClient } = {
+      ...engineInit,
+      client: requestPool,
+    };
+    return databaseFetch(engineCopy, init);
+  };
+  // A caller's fetch: undefined must not erase the pool wrapper. The
+  // library then falls back to global fetch with its own Request type,
+  // and the boundary fails on it.
+  const { fetch: callerFetch = pooledFetch, ...rest } = callerConfig;
   const config: Config = { ...rest, fetch: callerFetch };
   const client = createClient(config);
   if (client.protocol !== "http") return client;
@@ -202,6 +235,8 @@ export const createDatabaseClient = (callerConfig: Config): Client => {
     close: () => {
       resetPipeline();
       client.close();
+      pool?.close();
+      pool = undefined;
     },
     execute: wrapExecute(client, (_statement, run) => limit(run)),
     executeMultiple: limited(client.executeMultiple.bind(client)),
