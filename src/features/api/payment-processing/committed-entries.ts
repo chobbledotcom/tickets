@@ -1,6 +1,6 @@
 import type { BlindIndex } from "#crypto/sealed.ts";
-import { contactFields } from "#db/attendees/pii.ts";
 import { emailOwedSql } from "#db/attendees/notification-flags.ts";
+import { contactFields } from "#db/attendees/pii.ts";
 import {
   pricePaidFromLedger,
   remainingBalanceFromLedger,
@@ -17,8 +17,6 @@ import type { BookingIntent } from "#shared/booking-intent.ts";
 type CommittedBookingRow = {
   created: string;
   date: string | null;
-  email_owed: number;
-  email_pending: number;
   end_date: string | null;
   kind: string;
   listing_id: number;
@@ -28,6 +26,8 @@ type CommittedBookingRow = {
   remaining_balance: number;
   status_id: number | null;
   ticket_token_index: BlindIndex;
+  email_owed: number;
+  email_pending: number;
   webhooks_pending: number;
 };
 
