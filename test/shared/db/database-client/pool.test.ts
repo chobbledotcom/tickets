@@ -15,7 +15,7 @@ type WatchedPool = {
  * database. `onCreate` runs inside the adapter call, right after the pool is
  * selected — the seam the body-read-gated tests close the client from. */
 const watchPools = (onCreate?: () => void) => {
-  clearProxyEnvs();
+  const restoreProxy = clearProxyEnvs();
   const create = Deno.createHttpClient;
   const pools: WatchedPool[] = [];
   const created = stub(Deno, "createHttpClient", (options) => {
@@ -38,6 +38,7 @@ const watchPools = (onCreate?: () => void) => {
     [Symbol.dispose]: () => {
       created.restore();
       fetched.restore();
+      restoreProxy();
     },
   };
 };
@@ -46,11 +47,21 @@ const openClient = () =>
   createDatabaseClient({ url: "libsql://pipeline.test" });
 
 /** The proxy environment decides whether the client builds a pool, so the
- *  fixtures clear the proxy variables the runner's environment may carry. */
+ *  fixtures clear the proxy variables the runner's environment may carry
+ *  and restore them when the fixture ends. */
 const clearProxyEnvs = () => {
+  const saved = PROXY_ENV_NAMES.map(
+    (name) => [name, process.env[name]] as const,
+  );
   for (const name of PROXY_ENV_NAMES) {
     delete process.env[name];
   }
+  return () => {
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  };
 };
 
 /** The close-during-read fixture: one close queues at the first pool
@@ -88,7 +99,7 @@ const waitUntilClosed = async (state: { closed: boolean }) => {
  *  connection from another. Fetch runs un-stubbed, and the pool wrapper only
  *  records, so what the tests see is the runtime's own socket retirement. */
 const openLoopback = (replyDelayMs = 0) => {
-  clearProxyEnvs();
+  const restoreProxy = clearProxyEnvs();
   const remote = hranaTestFetch();
   const connections: string[] = [];
   const options: Deno.CreateHttpClientOptions[] = [];
@@ -118,6 +129,7 @@ const openLoopback = (replyDelayMs = 0) => {
     url: `http://127.0.0.1:${server.addr.port}`,
     [Symbol.asyncDispose]: async () => {
       created.restore();
+      restoreProxy();
       await server.shutdown();
     },
   };
@@ -191,22 +203,28 @@ describe("database connection pool", () => {
   });
 
   test("a proxy deployment skips the custom pool", async () => {
-    const prior = process.env.HTTPS_PROXY;
+    using watched = watchPools();
     process.env.HTTPS_PROXY = "http://proxy.test:8080";
-    try {
-      using watched = watchPools();
-      process.env.HTTPS_PROXY = "http://proxy.test:8080";
-      const client = openClient();
-      await client.execute("SELECT 1");
-      client.close();
-      // The custom client knows no proxy: the requests go through the
-      // default fetch, whose proxy support the runtime applies.
-      expect(watched.usedPools).toEqual([undefined]);
-      expect(watched.pools).toEqual([]);
-    } finally {
-      if (prior === undefined) delete process.env.HTTPS_PROXY;
-      else process.env.HTTPS_PROXY = prior;
-    }
+    const client = openClient();
+    await client.execute("SELECT 1");
+    client.close();
+    // The custom client knows no proxy: the requests go through the
+    // default fetch, whose proxy support the runtime applies.
+    expect(watched.usedPools).toEqual([undefined]);
+    expect(watched.pools).toEqual([]);
+  });
+
+  test("a close on the proxy path rejects the request before it dispatches", async () => {
+    using watched = watchPools();
+    process.env.HTTPS_PROXY = "http://proxy.test:8080";
+    const client = openClient();
+    const pending = client.execute("SELECT 1");
+    client.close();
+    // The raw client's own close rejection may win the race; the contract
+    // is that the request rejects and the boundary stays untouched.
+    await expect(pending).rejects.toThrow();
+    expect(watched.usedPools).toEqual([]);
+    expect(watched.pools).toEqual([]);
   });
 
   test("a caller's own fetch replaces the pool", async () => {

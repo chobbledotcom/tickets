@@ -201,7 +201,7 @@ export const createDatabaseClient = (callerConfig: Config): Client => {
         ? { ...engineInit }
         : { ...engineInit, client: requestPool };
     return databaseFetch(engineCopy, init, () => {
-      if (pool !== requestPool) {
+      if (client.closed || pool !== requestPool) {
         throw new LibsqlError("The database client is closed", "CLIENT_CLOSED");
       }
     });
