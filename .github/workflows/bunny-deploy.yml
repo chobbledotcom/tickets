@@ -107,11 +107,17 @@ jobs:
           fi
           url=$(printf '%s' "$STAGING_SITE_URL" | tr -d '[:space:]')
           url=${url%/}
-          # An origin only: https, a host name, an optional port. No
+          # An origin only: https, a host name, an optional port in 1-65535. No
           # credentials, path, query or fragment can reach update-mode begin,
           # which sets the update flag before it polls this URL.
+          port=${url##*:}
+          case $port in
+            [0-9]*) ;;
+            *) port=443 ;;
+          esac
           if ! printf '%s' "$url" |
-            grep -Eqx 'https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?'; then
+            grep -Eqx 'https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?' ||
+            ((10#$port < 1 || 10#$port > 65535)); then
             echo "STAGING_SITE_URL is not an https origin (https://host[:port]): '$STAGING_SITE_URL'." >&2
             echo "Set it to the staging site's public origin, or paste a main" >&2
             echo "instance key on a manual run." >&2
