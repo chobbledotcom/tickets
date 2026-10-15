@@ -233,6 +233,14 @@ export type LedgerTotals = {
   refunded: number;
   /** Net booking-fee income (`fee` credits − `refund_fee` debits). */
   fees: number;
+  /** The revenue accounts' balance over all listings: every refund, external
+   * cost, and adjustment is inside. The all-scope twin of
+   * `listingMoneyTotals`' `netBalance`, so profit reads the same way on both
+   * tables: `netBalance − servicingCosts`. */
+  netBalance: number;
+  /** Net service-event costs (Σ cost-account debits − credits for
+   * `service_cost` legs). */
+  servicingCosts: number;
 };
 
 type LedgerTotalsRow = {
@@ -240,6 +248,8 @@ type LedgerTotalsRow = {
   due: number | bigint;
   refunded: number | bigint;
   fees: number | bigint;
+  net_balance: number | bigint;
+  servicing_costs: number | bigint;
 };
 
 /**
@@ -272,7 +282,11 @@ export const ledgerTotals = async (
        ${signedSumCase(
          `dest_type = '${FEE_INCOME}'`,
          `source_type = '${FEE_INCOME}'`,
-       )} AS fees
+       )} AS fees,
+       COALESCE(SUM(CASE WHEN dest_type = '${REVENUE}' THEN amount ELSE 0 END
+                  - CASE WHEN source_type = '${REVENUE}' THEN amount ELSE 0 END), 0) AS net_balance,
+       COALESCE(SUM(CASE WHEN kind = '${KIND.serviceCost}' AND source_type = '${COST}' THEN amount ELSE 0 END
+                  - CASE WHEN kind = '${KIND.serviceCost}' AND dest_type = '${COST}' THEN amount ELSE 0 END), 0) AS servicing_costs
      FROM transfers${whereSql(parts)}`,
     clauseArgs(parts),
   );
@@ -280,7 +294,9 @@ export const ledgerTotals = async (
     due: Number(row.due),
     fees: Number(row.fees),
     income: Number(row.income),
+    netBalance: Number(row.net_balance),
     refunded: Number(row.refunded),
+    servicingCosts: Number(row.servicing_costs),
   };
 };
 
