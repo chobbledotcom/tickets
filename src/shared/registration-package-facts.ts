@@ -46,6 +46,7 @@ export const waitForRegistrationDeliveries = async <
   Delivery extends { delivered: boolean },
 >(
   deliveries: Promise<Delivery>[],
+  enrichError?: (error: RegistrationDeliveryError) => RegistrationDeliveryError,
 ): Promise<RegistrationDeliveryResult> => {
   const results = await Promise.allSettled(deliveries);
   const delivery = registrationDeliveryResult(
@@ -57,7 +58,8 @@ export const waitForRegistrationDeliveries = async <
     .filter((result) => result.status === "rejected")
     .map((result) => result.reason);
   if (reasons.length > 0) {
-    throw new RegistrationDeliveryError(delivery.failed, reasons);
+    const error = new RegistrationDeliveryError(delivery.failed, reasons);
+    throw enrichError ? enrichError(error) : error;
   }
   return delivery;
 };

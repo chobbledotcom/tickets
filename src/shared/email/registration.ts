@@ -211,27 +211,24 @@ export const sendRegistrationEmails = async (
       );
   const buyerFailed = sideFailed(true);
   const ownerFailed = sideFailed(false);
-  try {
-    return {
-      ...(await waitForRegistrationDeliveries([
+  return {
+    ...(await waitForRegistrationDeliveries(
+      [
         ...attempts.map((one) => one.promise),
         ...templateErrors.map((error) => Promise.reject(error)),
-      ])),
-      buyerFailed,
-      ownerFailed,
-    };
-  } catch (error) {
-    // The combined throw carries the per-message outcomes with it. The flag
-    // reconciliation then reads a template error's send as accepted or
-    // refused per side.
-    if (error instanceof RegistrationDeliveryError) {
-      throw new RegistrationDeliveryError(
-        error.failed,
-        error.reasons,
-        buyerFailed,
-        ownerFailed,
-      );
-    }
-    throw error;
-  }
+      ],
+      // The combined throw carries the per-message outcomes with it. The
+      // flag reconciliation then reads a template error's send as accepted
+      // or refused per side.
+      (error) =>
+        new RegistrationDeliveryError(
+          error.failed,
+          error.reasons,
+          buyerFailed,
+          ownerFailed,
+        ),
+    )),
+    buyerFailed,
+    ownerFailed,
+  };
 };

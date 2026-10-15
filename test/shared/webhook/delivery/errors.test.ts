@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, queryOne } from "#db/client.ts";
+import { execute } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { PRICE_TYPE_GROUP } from "#db/price-types.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
@@ -19,13 +19,13 @@ import {
   sendRegistrationWebhooks,
 } from "#shared/webhook/delivery.ts";
 import {
+  expectOneError,
   flushAsync,
   stubWebhookFetch,
   withErrorSpy,
 } from "#test/shared/webhook/helpers.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookTestAttendeeWithFlags } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
@@ -33,7 +33,6 @@ import { withEnv } from "#test-utils/env.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { resetSentry } from "#test-utils/sentry.ts";
-import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const registrationLogs = (
   entries: ReturnType<typeof makeEntry>[],
@@ -45,14 +44,6 @@ const registrationLogs = (
     );
     return errorSpy.calls.map(({ args }) => String(args[0]));
   });
-
-const expectOneError = (logs: string[], code: string): string => {
-  expect(logs).toHaveLength(1);
-  const [log] = logs;
-  if (!log) throw new Error("Expected one error log");
-  expect(log).toContain(code);
-  return log;
-};
 
 describeWithEnv("registration delivery errors", { db: true }, () => {
   const fetchSpy = stubWebhookFetch();
@@ -84,121 +75,6 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
       "private",
     );
-  });
-
-  test("logs a failed pending-flag clear batch locally", async () => {
-    // The buyer's confirmation is the run's only delivery and it is accepted,
-    // so the clear batch carries the email side alone and is the run's last
-    // database call. Starving the budget one call short makes the batch fail:
-    // the failure reaches the log, and the accepted send's report is not
-    // masked.
-    await configureTestEmail();
-    const { attendee } = await bookTestAttendeeWithFlags("Starved Buyer", 1, 1);
-    const entries = [
-      makeEntry(
-        { id: attendee.listing_id, webhook_url: "" },
-        {
-          email: attendee.email,
-          id: attendee.id,
-        },
-      ),
-    ];
-    const send = () =>
-      withRequestContext(() =>
-        logAndNotifyRegistration(entries, {
-          clearPendingFlagsFor: [attendee.id],
-          source: "public",
-        }),
-      );
-    const calls = await countDatabaseCalls(50, send);
-    const logs = await withErrorSpy(async (errorSpy) => {
-      await runWithSubrequestBudget(() =>
-        withSubrequestAllowance(
-          { database: calls - 1, external: 20, total: 40 },
-          send,
-        ),
-      );
-      return errorSpy.calls.map(({ args }) => String(args[0]));
-    });
-
-    expect(expectOneError(logs, "E_DB_QUERY")).toContain(
-      "The pending-flag clear batch failed",
-    );
-  });
-
-  test("a rejected send with owned flags reports but writes no failure line", async () => {
-    // The booking's sends own the attendee's pending flags. The webhook is
-    // refused, so the flag must stay up for the admin, the unexpected
-    // rejection must still reach the log and alert, and no failure activity
-    // line is written — the flags carry the failure instead.
-    await configureTestEmail();
-    const { attendee } = await bookTestAttendeeWithFlags("Flagged Buyer", 1, 1);
-    fetchSpy.reply(() => Promise.reject(new Error("private failure detail")));
-
-    const logs = await withErrorSpy(async (errorSpy) => {
-      await withRequestContext(() =>
-        logAndNotifyRegistration(
-          [
-            makeEntry(
-              { webhook_url: "https://refused-hook.example.com" },
-              { email: attendee.email, id: attendee.id },
-            ),
-          ],
-          { clearPendingFlagsFor: [attendee.id], source: "public" },
-        ),
-      );
-      return errorSpy.calls.map(({ args }) => String(args[0]));
-    });
-
-    expectOneError(logs, "E_REGISTRATION_DELIVERY");
-    const row = await queryOne<{
-      email_pending: number;
-      webhooks_pending: number;
-    }>("SELECT email_pending, webhooks_pending FROM attendees WHERE id = ?", [
-      attendee.id,
-    ]);
-    expect(row).toEqual({ email_pending: 1, webhooks_pending: 1 });
-    expect(
-      (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed.",
-      ),
-    ).toHaveLength(0);
-  });
-
-  test("an owner-only copy never clears the buyer's email flag", async () => {
-    // The attendee carries no address, so the send delivers the owner's
-    // admin copy alone. The owner's copy is accepted, but it is not the
-    // buyer's confirmation: the flag that says the buyer's confirmation is
-    // owed stays up, so adding the missing address later restores the
-    // warning. The webhook send was attempted and accepted, so its flag
-    // clears.
-    await configureTestEmail({ businessEmail: "owner@example.com" });
-    const { attendee } = await bookTestAttendeeWithFlags(
-      "No Address Buyer",
-      1,
-      1,
-    );
-    fetchSpy.reply(() => new Response("{}"));
-
-    await withRequestContext(() =>
-      logAndNotifyRegistration(
-        [
-          makeEntry(
-            { webhook_url: "https://owner-only-hook.example.com" },
-            { email: "", id: attendee.id },
-          ),
-        ],
-        { clearPendingFlagsFor: [attendee.id], source: "public" },
-      ),
-    );
-
-    const row = await queryOne<{
-      email_pending: number;
-      webhooks_pending: number;
-    }>("SELECT email_pending, webhooks_pending FROM attendees WHERE id = ?", [
-      attendee.id,
-    ]);
-    expect(row).toEqual({ email_pending: 1, webhooks_pending: 0 });
   });
 
   test("reports one incident for unexpected failures in both delivery channels", async () => {

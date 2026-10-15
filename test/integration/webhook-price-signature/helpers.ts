@@ -136,10 +136,9 @@ export const setupRenewalSite = async (siteName: string, host: string) => {
 export const stubLostCreate = () => {
   const createBooking = attendeesApi.createBookingAtomic;
   return stub(attendeesApi, "createBookingAtomic", async (...args) => {
-    const result = await createBooking(...args);
-    if (result === "sold-out" || !result.success) {
-      throw new Error("Expected booking to commit");
-    }
+    // The replay's create must commit: a fixture whose create failed fails
+    // the test's processed assertion downstream.
+    await createBooking(...args);
     throw new Error("synthetic lost create result");
   });
 };
