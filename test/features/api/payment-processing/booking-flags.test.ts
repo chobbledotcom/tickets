@@ -168,7 +168,8 @@ describeWithEnv("payment processing pending flags", { db: true }, () => {
   test("the buyer flag clears when a template error rides the send", async () => {
     // The stored confirmation template fails to render: the fallback still
     // delivers the buyer's message. The buyer flag clears on that
-    // acceptance, and the template incident keeps its error report.
+    // acceptance, the template incident keeps its error report, and no
+    // failure activity is written for an owner copy that was never sent.
     const { data, listing } = await singleListingPaymentWithWebhook(
       "cs_template_fallback_flags",
       1000,
@@ -196,6 +197,7 @@ describeWithEnv("payment processing pending flags", { db: true }, () => {
     });
     expect(logs).toHaveLength(1);
     expect(logs[0]).toContain("E_REGISTRATION_DELIVERY");
+    expect(await deliveryFailureLines()).toBe(0);
   });
 
   test("a refused owner copy keeps its activity when a template error rides the send", async () => {

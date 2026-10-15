@@ -196,16 +196,10 @@ export const sendRegistrationEmails = async (
   // The template errors are not deliveries: a render can carry errors while
   // the message still goes out. They ride the combined result and throw
   // path, and never speak for either side's flag.
-  const attempts = [
-    ...messages.map((message) => ({
-      buyerCopy: message.buyerCopy,
-      promise: deliverRegistrationEmail(config, message),
-    })),
-    ...templateErrors.map((error) => ({
-      buyerCopy: false,
-      promise: Promise.reject(error),
-    })),
-  ];
+  const attempts = messages.map((message) => ({
+    buyerCopy: message.buyerCopy,
+    promise: deliverRegistrationEmail(config, message),
+  }));
   const settled = await Promise.allSettled(attempts.map((one) => one.promise));
   const sideFailed = (buyerCopy: boolean): boolean =>
     settled
@@ -219,9 +213,10 @@ export const sendRegistrationEmails = async (
   const ownerFailed = sideFailed(false);
   try {
     return {
-      ...(await waitForRegistrationDeliveries(
-        attempts.map((one) => one.promise),
-      )),
+      ...(await waitForRegistrationDeliveries([
+        ...attempts.map((one) => one.promise),
+        ...templateErrors.map((error) => Promise.reject(error)),
+      ])),
       buyerFailed,
       ownerFailed,
     };
