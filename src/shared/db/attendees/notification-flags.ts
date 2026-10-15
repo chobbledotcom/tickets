@@ -54,16 +54,18 @@ export const clearPendingFlagStatement = (
  * The attendee row reads and the dashboard count share it, so the badge and
  * the count cannot disagree. `attendeeRef` names the alias the attendee
  * columns read through at the call site. Writes store the contact fields as
- * the parser's own trimmed tokens (`storedListingFields`). The read strips
- * spaces and non-breaking spaces before the match. A padded value an older
- * version wrote then reads exactly the tokens the parser reads.
+ * the parser's own trimmed tokens (`storedListingFields`). The read folds
+ * spaces and non-breaking spaces into commas only at token boundaries. A
+ * padded value an older version wrote then still reads as its tokens. A
+ * token with an inner space never matches.
  * Ghost lines (quantity 0) are not bookings. */
 export const emailOwedSql = (attendeeRef: string): string => `EXISTS (
   SELECT 1 FROM listing_attendees AS owed_line
   JOIN listings AS owed_listing ON owed_listing.id = owed_line.listing_id
   WHERE owed_line.attendee_id = ${attendeeRef}.id
     AND owed_line.quantity > 0
-    AND instr(',' || REPLACE(REPLACE(owed_listing.fields, ' ', ''), CHAR(160), '') || ',', ',email,') > 0
+    AND instr(',' || REPLACE(REPLACE(REPLACE(REPLACE(owed_listing.fields,
+        ', ', ','), ' ,', ','), CHAR(160) || ',', ','), ',' || CHAR(160), ',') || ',', ',email,') > 0
 )`;
 
 /** Whether the email badge shows for one attendee row: the stored flag is up

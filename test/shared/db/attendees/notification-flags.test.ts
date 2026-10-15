@@ -38,5 +38,14 @@ describeWithEnv("the pending-notification count", { db: true }, () => {
     // The lookalike listing never collects an email, so only the padded one
     // still counts.
     expect(await countAttendeesWithPendingFlags()).toBe(1);
+
+    const spaced = await bookTestAttendeeWithFlags("Spaced Buyer", 1, 0);
+    await execute("UPDATE listings SET fields = 'e mail' WHERE id = ?", [
+      spaced.listing.id,
+    ]);
+    // An inner space is part of the token: the parser reads no email field
+    // here, so the count must not fold 'e mail' into 'email' and stays at
+    // the padded buyer's one.
+    expect(await countAttendeesWithPendingFlags()).toBe(1);
   });
 });
