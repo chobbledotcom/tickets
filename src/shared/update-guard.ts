@@ -62,6 +62,15 @@ export const updatePageBuildTag = (html: string): string | null =>
 export const UPDATE_WAIT_INTERVAL_MS = 5_000;
 export const UPDATE_WAIT_TIMEOUT_MS = 180_000;
 
+/** The begin wait's own deadline. Setting UPDATE_IN_PROGRESS writes the
+ * script's environment on the Bunny API, and the serving edge nodes pick
+ * that write up asynchronously. The first staging deploy after #2588 polled
+ * for 180 seconds of pages that reported content="supported", and the wait
+ * timed out before the flag reached them. The begin wait is pre-deploy, so
+ * a longer window only delays. The end wait keeps the short deadline
+ * because it verifies the build the deploy just published. */
+export const UPDATE_BEGIN_WAIT_TIMEOUT_MS = 600_000;
+
 /** The longest one update-page fetch can take. A stalled connection must end
  * before the wait's deadline, or the deadline can never fire. The aborted
  * fetch then counts as not-ready, and the wait retries. */
@@ -133,6 +142,11 @@ export type UpdateWaitOptions = UpdatePollIo & {
    * only when the served update page names this build, so an active page
    * from the build the deploy replaces never passes. */
   expectedBuildTag?: string | undefined;
+  /** The wait's deadline in milliseconds. Defaults to
+   * UPDATE_WAIT_TIMEOUT_MS. The pre-deploy begin wait passes a longer
+   * deadline because the flag's propagation to edge nodes lags the API
+   * write that set it. */
+  timeoutMs?: number | undefined;
 };
 
 /** One poll: resolve the page state, or report the failure that stood in for
@@ -161,6 +175,36 @@ const pollOnce = async (
   }
 };
 
+/** A progress line once a minute while the page is missing, so a long
+ * propagation window is visible in the deploy log. */
+const progressLogger = (
+  log: ((message: string) => void) | undefined,
+  now: () => number,
+  startedAt: number,
+  timeoutMs: number,
+): (() => void) => {
+  let lastLoggedAt = startedAt;
+  return () => {
+    if (log === undefined || now() - lastLoggedAt < 60_000) return;
+    lastLoggedAt = now();
+    log(
+      `The site still does not show its update page after ${Math.round(
+        (now() - startedAt) / 1000,
+      )} seconds of the ${Math.round(timeoutMs / 1000)}-second wait.`,
+    );
+  };
+};
+
+/** Whether one poll satisfied the wait: the update page shows, and it names
+ * the expected build when the caller pinned one. */
+const pollIsReady = (
+  options: UpdateWaitOptions,
+  poll: { buildTag: string | null; state: UpdatePageState },
+): boolean =>
+  poll.state === "active" &&
+  (options.expectedBuildTag === undefined ||
+    poll.buildTag === options.expectedBuildTag);
+
 /** Poll the site's read-only page until the update page shows. A failed
  * page fetch says nothing about the site's state, so the wait retries it
  * until the deadline. With `expectedBuildTag`, the page must also name that
@@ -172,22 +216,20 @@ export const waitForUpdatePage = async (
 ): Promise<void> => {
   const sleep = options.sleep ?? delay;
   const now = options.now ?? Date.now;
-  const deadline = now() + UPDATE_WAIT_TIMEOUT_MS;
+  const timeoutMs = options.timeoutMs ?? UPDATE_WAIT_TIMEOUT_MS;
+  const deadline = now() + timeoutMs;
+  const logProgress = progressLogger(options.log, now, now(), timeoutMs);
   for (;;) {
-    const { buildTag, lastError, state } = await pollOnce(options);
-    if (
-      state === "active" &&
-      (options.expectedBuildTag === undefined ||
-        buildTag === options.expectedBuildTag)
-    ) {
+    const poll = await pollOnce(options);
+    if (pollIsReady(options, poll)) {
       return;
     }
     // A fetch failure must not read as "the build predates update mode". The
     // skip therefore fires only on a real unsupported page.
     if (
-      lastError === null &&
+      poll.lastError === null &&
       options.skipWhenUnsupported &&
-      state === "unsupported"
+      poll.state === "unsupported"
     ) {
       options.log?.(
         "The site's running build does not understand update mode yet, so the " +
@@ -195,12 +237,17 @@ export const waitForUpdatePage = async (
       );
       return;
     }
+    logProgress();
     if (now() >= deadline) {
       throw new Error(
         waitTimedOut(
-          UPDATE_WAIT_TIMEOUT_MS,
-          lastError,
-          buildMismatchNote(options.expectedBuildTag, state, buildTag),
+          timeoutMs,
+          poll.lastError,
+          buildMismatchNote(
+            options.expectedBuildTag,
+            poll.state,
+            poll.buildTag,
+          ),
         ),
       );
     }
@@ -247,7 +294,12 @@ export const runUnderUpdateGuard = async <T>(
   expectedBuildTag: (result: T) => string,
 ): Promise<T> => {
   await io.setFlag(UPDATE_FLAG_VALUE);
-  await waitForUpdatePage(waitOptionsFrom(io, true));
+  // The begin wait is pre-deploy and runs on its own longer deadline: the
+  // flag's propagation to edge nodes lags the write that set it.
+  await waitForUpdatePage({
+    ...waitOptionsFrom(io, true),
+    timeoutMs: UPDATE_BEGIN_WAIT_TIMEOUT_MS,
+  });
   const result = await run();
   await waitForUpdatePage(waitOptionsFrom(io, false, expectedBuildTag(result)));
   await io.clearFlag();

@@ -24,6 +24,7 @@ import type { FetchText, FetchTextResult } from "#scripts/fetch-text.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import {
   fetchBoundedUpdatePage,
+  UPDATE_BEGIN_WAIT_TIMEOUT_MS,
   UPDATE_FLAG_VALUE,
   UPDATE_IN_PROGRESS_VAR,
   type UpdateIoOptions,
@@ -153,7 +154,12 @@ export const runUpdateMode = async (
   if (command === "begin") {
     io.log(`Setting ${UPDATE_IN_PROGRESS_VAR} on script ${scriptId}..`);
     await upsertUpdateSecret(scopedIo, UPDATE_FLAG_VALUE);
-    await waitForUpdatePage(waitOptionsFrom(scopedIo, true));
+    // The flag's propagation to edge nodes lags the API write, so the begin
+    // wait runs on its own longer deadline.
+    await waitForUpdatePage({
+      ...waitOptionsFrom(scopedIo, true),
+      timeoutMs: UPDATE_BEGIN_WAIT_TIMEOUT_MS,
+    });
     return 0;
   }
 

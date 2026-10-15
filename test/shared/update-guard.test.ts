@@ -1,3 +1,4 @@
+import { assertEquals } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -105,6 +106,36 @@ describe("waitForUpdatePage", () => {
         sleep: clock.sleep,
       }),
     ).rejects.toThrow(/UPDATE_IN_PROGRESS is still set/);
+  });
+
+  test("honours an injected shorter deadline", async () => {
+    const clock = fakeClock();
+    await expect(
+      waitForUpdatePage({
+        fetchPage: () => Promise.resolve(page("supported")),
+        now: clock.now,
+        sleep: clock.sleep,
+        timeoutMs: 10_000,
+      }),
+    ).rejects.toThrow(/within 10 seconds/);
+  });
+
+  test("logs progress once a minute while the page is missing", async () => {
+    const seen: string[] = [];
+    const clock = fakeClock();
+    await expect(
+      waitForUpdatePage({
+        expectedBuildTag: "v2099-01-01-120000",
+        fetchPage: () => Promise.resolve(page("active")),
+        log: (message) => seen.push(message),
+        now: clock.now,
+        sleep: clock.sleep,
+        timeoutMs: 70_000,
+      }),
+    ).rejects.toThrow(/the deploy expected/);
+    // One line at 60 seconds, none before; the count pins "no noise".
+    assertEquals(seen.length, 1);
+    expect(seen[0]).toMatch(/after 60 seconds of the 70-second wait/);
   });
 
   test("a failed page fetch keeps the wait polling", async () => {

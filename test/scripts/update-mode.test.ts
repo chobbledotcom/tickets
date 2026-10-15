@@ -142,17 +142,19 @@ describe("runUpdateMode", () => {
   test("begin throws and leaves the flag set when the site never goes read-only", async () => {
     const { fetchText } = stubFetch([response(true, 204, "")], [supportedPage]);
     let time = 0;
-    await expect(
-      runUpdateMode(["begin", "42", "https://site.example"], {
-        accessKey: "key",
-        fetchText,
-        log: () => {},
-        now: () => time,
-        sleep: async (ms) => {
-          time += ms;
-        },
-      }),
-    ).rejects.toThrow(/UPDATE_IN_PROGRESS is still set/);
+    const error = await runUpdateMode(["begin", "42", "https://site.example"], {
+      accessKey: "key",
+      fetchText,
+      log: () => {},
+      now: () => time,
+      sleep: async (ms) => {
+        time += ms;
+      },
+    }).catch((caught: unknown) => caught);
+    // The begin window is the begin's own 600 seconds, not the end wait's
+    // 180: the flag's propagation lags the API write.
+    expect((error as Error).message).toMatch(/within 600 seconds/);
+    expect(time).toBe(600_000);
   });
 
   test("end waits for the new build, then deletes the flag by id", async () => {
@@ -233,8 +235,9 @@ describe("runUpdateMode", () => {
   test("end never clears the flag while only the old build answers", async () => {
     let time = 0;
     const { calls, fetchText } = stubFetch([], [oldBuildActivePage]);
-    await expect(
-      runUpdateMode(["end", "42", "https://site.example", END_BUILD_TAG], {
+    const error = await runUpdateMode(
+      ["end", "42", "https://site.example", END_BUILD_TAG],
+      {
         accessKey: "key",
         fetchText,
         log: () => {},
@@ -242,10 +245,14 @@ describe("runUpdateMode", () => {
         sleep: async (ms) => {
           time += ms;
         },
-      }),
-    ).rejects.toThrow(
+      },
+    ).catch((caught: unknown) => caught);
+    // The end wait keeps the short deadline: it verifies the build the
+    // deploy just published, which serves promptly after publish.
+    expect((error as Error).message).toMatch(
       /a build that reports no build tag, but the deploy expected v2099-01-01-120000/,
     );
+    expect(time).toBe(180_000);
     // Only page polls: no secret list, no delete.
     expect(calls.every((call) => call.url === READ_ONLY_URL)).toBe(true);
   });
