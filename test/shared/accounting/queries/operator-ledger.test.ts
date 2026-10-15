@@ -78,6 +78,7 @@ describe("db > accounting > operator ledger stats and visible list", () => {
       fees: 200,
       income: 5300,
       refunded: 1000,
+      servicingCosts: 0,
     });
   });
 
@@ -103,6 +104,7 @@ describe("db > accounting > operator ledger stats and visible list", () => {
       fees: 0,
       income: 700,
       refunded: 0,
+      servicingCosts: 0,
     });
   });
 
@@ -112,6 +114,7 @@ describe("db > accounting > operator ledger stats and visible list", () => {
       fees: 0,
       income: 0,
       refunded: 0,
+      servicingCosts: 0,
     });
   });
 
@@ -241,6 +244,7 @@ describe("db > accounting > operator ledger stats and visible list", () => {
       fees: 0,
       income: 3000,
       refunded: 0,
+      servicingCosts: 0,
     });
     const rows = await visibleTransfers(range, null, 100);
     expect(rows.map((r) => r.reference)).toEqual(["inside", "at-start"]);

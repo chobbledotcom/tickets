@@ -20,6 +20,7 @@
   "admin.ledger.stats.servicing_costs": "Service event costs",
   "admin.ledger.stats.external_costs": "Costs paid outside checkout",
   "admin.ledger.stats.net_after_costs": "Net after refunds and costs",
+  "admin.ledger.stats.net_after_service_costs": "Net after service costs",
   "admin.ledger.balance": "Balance: {amount}",
   "admin.ledger.amount_owed": "Amount still owed: {amount}",
   "admin.ledger.total_costs": "Total service event costs: {amount}",

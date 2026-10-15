@@ -233,6 +233,9 @@ export type LedgerTotals = {
   refunded: number;
   /** Net booking-fee income (`fee` credits − `refund_fee` debits). */
   fees: number;
+  /** Net service-event costs (Σ cost-account debits − credits for
+   * `service_cost` legs). Profit reads as `income − servicingCosts`. */
+  servicingCosts: number;
 };
 
 type LedgerTotalsRow = {
@@ -240,6 +243,7 @@ type LedgerTotalsRow = {
   due: number | bigint;
   refunded: number | bigint;
   fees: number | bigint;
+  servicing_costs: number | bigint;
 };
 
 /**
@@ -272,7 +276,9 @@ export const ledgerTotals = async (
        ${signedSumCase(
          `dest_type = '${FEE_INCOME}'`,
          `source_type = '${FEE_INCOME}'`,
-       )} AS fees
+       )} AS fees,
+       COALESCE(SUM(CASE WHEN kind = '${KIND.serviceCost}' AND source_type = '${COST}' THEN amount ELSE 0 END
+                  - CASE WHEN kind = '${KIND.serviceCost}' AND dest_type = '${COST}' THEN amount ELSE 0 END), 0) AS servicing_costs
      FROM transfers${whereSql(parts)}`,
     clauseArgs(parts),
   );
@@ -281,6 +287,7 @@ export const ledgerTotals = async (
     fees: Number(row.fees),
     income: Number(row.income),
     refunded: Number(row.refunded),
+    servicingCosts: Number(row.servicing_costs),
   };
 };
 

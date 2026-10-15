@@ -124,6 +124,15 @@ const buildStats = async (
         heading: null,
         rows: [
           moneyRow("admin.ledger.stats.income", totals.income, true),
+          moneyRow(
+            "admin.ledger.stats.servicing_costs",
+            -totals.servicingCosts,
+            true,
+          ),
+          moneyRow(
+            "admin.ledger.stats.net_after_service_costs",
+            totals.income - totals.servicingCosts,
+          ),
           moneyRow("admin.ledger.stats.due", totals.due),
           moneyRow("admin.ledger.stats.refunded", -totals.refunded, true),
           moneyRow("admin.ledger.stats.fees", totals.fees, true),

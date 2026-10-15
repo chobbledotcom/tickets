@@ -14,6 +14,7 @@ import { postTransfers } from "#accounting/store.ts";
 import { account } from "#shared/ledger/account.ts";
 import { legMatches, sumLegs } from "#shared/ledger/legs.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
+import type { Transfer } from "#shared/ledger/types.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 
 // jscpd:ignore-end
@@ -115,6 +116,32 @@ const seedMixedLedger = async (): Promise<void> => {
       source: revenue2,
     }),
   ]);
+  await postTransfers([
+    tx({
+      amount: 400,
+      destination: world,
+      eventGroup: "evt-cost",
+      kind: KIND.serviceCost,
+      reference: "b-cost",
+      source: account("cost", 1),
+    }),
+    tx({
+      amount: 50,
+      destination: account("cost", 1),
+      eventGroup: "evt-cost",
+      kind: KIND.serviceCost,
+      reference: "cost-reduction",
+      source: world,
+    }),
+    tx({
+      amount: 700,
+      destination: world,
+      eventGroup: "evt-cost",
+      kind: KIND.serviceCost,
+      reference: "third-cost",
+      source: account("cost", 3),
+    }),
+  ]);
 };
 
 describe("db > accounting > SQL figures agree with pure projections", () => {
@@ -141,9 +168,21 @@ describe("db > accounting > SQL figures agree with pure projections", () => {
         WRITE_UP -
         WRITE_DOWN,
     );
+    // The all-scope service costs are the cost-account legs' net: the fold
+    // is pure, and it reconciles with the per-listing sums below.
+    const serviceCostLegs = (leg: Transfer) => leg.kind === KIND.serviceCost;
+    expect(totals.servicingCosts).toBe(
+      sumLegs((leg) => serviceCostLegs(leg) && leg.source.type === "cost")(
+        all,
+      ) -
+        sumLegs(
+          (leg) => serviceCostLegs(leg) && leg.destination.type === "cost",
+        )(all),
+    );
     // And none of the figures are accidentally zero-on-zero matches.
     expect(totals.refunded).toBeGreaterThan(0);
     expect(totals.due).toBeGreaterThan(0);
+    expect(totals.servicingCosts).toBeGreaterThan(0);
   });
 
   test("listingMoneyTotals equals the pure folds over selected listing legs", async () => {
@@ -174,5 +213,16 @@ describe("db > accounting > SQL figures agree with pure projections", () => {
       listingMoneyTotals(emptyRange, [2]),
     ]);
     expect(one.recognisedIncome + two.recognisedIncome).toBe(totals.income);
+  });
+
+  test("the all-scope service costs are the per-listing costs summed", async () => {
+    await seedMixedLedger();
+    const totals = await ledgerTotals(emptyRange);
+    const breakdowns = await Promise.all(
+      [1, 2, 3].map((listingId) => listingMoneyTotals(emptyRange, [listingId])),
+    );
+    expect(totals.servicingCosts).toBe(
+      breakdowns.reduce((sum, one) => sum + one.servicingCosts, 0),
+    );
   });
 });
