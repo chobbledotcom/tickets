@@ -77,6 +77,19 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
     ]);
   };
 
+  /** The exact text of the top table's net cell: the assertion reads that
+   * cell alone, so another row's similar amount or a missing row cannot
+   * pass. */
+  const netCellValue = (body: string): string => {
+    const labelAt = body.indexOf("Net after service costs");
+    expect(labelAt).toBeGreaterThan(-1);
+    const cellStart = body.indexOf("<td>", labelAt);
+    expect(cellStart).toBeGreaterThan(-1);
+    const cellEnd = body.indexOf("</td>", cellStart);
+    expect(cellEnd).toBeGreaterThan(-1);
+    return body.slice(cellStart + 4, cellEnd);
+  };
+
   test("shows servicing costs and the net beside the total income", async () => {
     await seedLedger(true);
     const body = await renderAdminPage(SEED_RANGE);
@@ -88,8 +101,7 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
     expect(body).toContain(formatSignedCurrency(25000, true));
     expect(body).toContain("Service event costs");
     expect(body).toContain(formatSignedCurrency(-9000, true));
-    expect(body).toContain("Net after service costs");
-    expect(body).toContain(formatSignedCurrency(16000, false));
+    expect(netCellValue(body)).toBe(formatSignedCurrency(16000, false));
     // The costs and the net sit between the income and the rows that were
     // already there.
     const incomeAt = body.indexOf("Total income earned");
@@ -108,10 +120,7 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
     expect(body).toContain(formatSignedCurrency(25000, true));
     expect(body).toContain(formatSignedCurrency(0, true));
     // The income row already contains the net's unsigned string, so the net
-    // assertion reads the net row's own cell.
-    const netRowStart = body.indexOf("Net after service costs");
-    const dueRowStart = body.indexOf("Customer balances due");
-    const netRow = body.slice(netRowStart, dueRowStart);
-    expect(netRow).toContain(formatSignedCurrency(25000, false));
+    // assertion compares the net row's own cell exactly, sign included.
+    expect(netCellValue(body)).toBe(formatSignedCurrency(25000, false));
   });
 });
