@@ -1,20 +1,48 @@
+/** The ledger page module: the scope options its loaders bring in, and the
+ * top stats table's figures. The full list views have their own suite; the
+ * scope tests pin the group-name and group-linked-listing options the page
+ * module assembles itself, and the stats tests pin the figures the all-scope
+ * table reports. */
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { KIND } from "#accounting/kinds.ts";
 import { postTransfers } from "#accounting/store.ts";
+import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { formatSignedCurrency } from "#shared/currency.ts";
 import { account } from "#shared/ledger/account.ts";
+import { ledgerPageHtml } from "#test/integration/server/ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { tx } from "#test-utils/ledger.ts";
 import { renderAdminPage } from "#test-utils/servicing.ts";
 
-/** The ledger rows this suite seeds sit on their own day, and the render
- *  filters to it: the top table's totals are global, so the assertions must
- *  not read whatever legs another test file left in the shared isolate. */
-const SEED_DATE = "2030-04-05T00:00:00.000Z";
-const SEED_RANGE = "/admin/ledger?from=2030-04-05&to=2030-04-06";
+describeWithEnv("the admin ledger page", { db: true }, () => {
+  test("offers every group's name as a scope option", async () => {
+    await createTestGroup({ name: "Weekend runs" });
 
-describeWithEnv("the ledger's top stats table", { db: true }, () => {
+    const html = await ledgerPageHtml("/admin/ledger");
+
+    expect(html).toContain("Weekend runs");
+  });
+
+  test("offers a group-linked listing by name in the listing scope", async () => {
+    const group = await createTestGroup({ name: "Sprint week" });
+    const listing = await createTestListing({ name: "Sprint night" });
+    await assignListingsToGroup([listing.id], group.id);
+
+    const html = await ledgerPageHtml("/admin/ledger?scope=listing");
+
+    expect(html).toContain("Sprint night");
+  });
+
+  /** The ledger rows this suite seeds sit on their own day, and the render
+   *  filters to it: the top table's totals are global, so the assertions must
+   *  not read whatever legs another test file left in the shared isolate. */
+  const SEED_DATE = "2030-04-05T00:00:00.000Z";
+  const SEED_RANGE = "/admin/ledger?from=2030-04-05&to=2030-04-06";
+
   /** Seeds a £250 sale on listing 1 with a £30 refund, plus a £90 service
    * cost unless the ledger is meant to hold none. */
   const seedLedger = async (withCosts: boolean): Promise<void> => {
@@ -53,9 +81,9 @@ describeWithEnv("the ledger's top stats table", { db: true }, () => {
     await seedLedger(true);
     const body = await renderAdminPage(SEED_RANGE);
 
-    // The three figures the page owes the operator: the income, the costs
-    // taken away, and the net after refunds and costs. The expected strings
-    // come from the same formatter the page renders with.
+    // The three figures the page owes the operator: the total income, the
+    // service costs taken away, and the total income minus those costs. The
+    // expected strings come from the same formatter the page renders with.
     expect(body).toContain("Total income earned");
     expect(body).toContain(formatSignedCurrency(25000, true));
     expect(body).toContain("Service event costs");
