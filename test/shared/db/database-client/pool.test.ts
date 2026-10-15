@@ -1,3 +1,5 @@
+import { Request as CrossFetchRequest } from "npm:cross-fetch@4.1.0";
+import { Request as NodeFetchRequest } from "npm:node-fetch@3.3.2";
 import type { Client } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -243,29 +245,48 @@ describe("database connection pool", () => {
     using watched = watchPools();
     process.env.HTTPS_PROXY = "http://proxy.test:8080";
     const client = openClient();
-    // The reconnect must land while the wrapper's body read is suspended,
-    // so the first read holds until the test releases it: the lifecycle
-    // comparison is then exercised for certain, not raced.
-    const original = Request.prototype.arrayBuffer;
+    // The reconnect must land while the wrapper's body read is suspended.
+    // The library's requests are node-fetch Requests — a different realm
+    // from the test's global Request — so the hold gates that class's
+    // read: it signals entry after the original read succeeds, the test
+    // awaits the signal before reconnecting, and releases the hold
+    // afterward.
     let heldOnce = false;
+    let signalEntry: (() => void) | undefined;
     let releaseBody: (() => void) | undefined;
+    const entered = new Promise<void>((resolve) => {
+      signalEntry = resolve;
+    });
     const held = new Promise<void>((resolve) => {
       releaseBody = resolve;
     });
-    Request.prototype.arrayBuffer = async function () {
-      const buffer = await Reflect.apply(original, this, []);
-      if (heldOnce) return buffer;
-      heldOnce = true;
-      await held;
-      return buffer;
+    const holdRead = (klass: {
+      prototype: { arrayBuffer: () => Promise<ArrayBuffer> };
+    }) => {
+      const original = klass.prototype.arrayBuffer;
+      klass.prototype.arrayBuffer = async function () {
+        const buffer = await Reflect.apply(original, this, []);
+        if (heldOnce) return buffer;
+        heldOnce = true;
+        signalEntry?.();
+        await held;
+        return buffer;
+      };
+      return () => {
+        klass.prototype.arrayBuffer = original;
+      };
     };
+    const restoreNode = holdRead(NodeFetchRequest);
+    const restoreCross = holdRead(CrossFetchRequest);
     try {
       const pending = client.execute("SELECT 1");
+      await entered;
       client.reconnect();
       releaseBody?.();
       await expectRejectedAndUndispatched(pending, watched);
     } finally {
-      Request.prototype.arrayBuffer = original;
+      restoreNode();
+      restoreCross();
       releaseBody?.();
     }
   });
