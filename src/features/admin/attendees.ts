@@ -2,6 +2,7 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
+import { claimOutstandingNotificationFlags } from "#db/attendees/notification-flags.ts";
 import { getAttendeeBookingRowsRaw } from "#db/attendees/queries.ts";
 import { storedBookingSource } from "#db/contact-tokens.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -293,6 +294,21 @@ const resendNotification = async (
     )
   ).get(attendeeId);
 
+  // The flags are the record of what never went out, so a recovery re-sends
+  // only the sides they say are owed. The claim flips those flags down in
+  // one atomic batch. That batch also admits exactly one recovery per
+  // attendee: a second concurrent press finds nothing outstanding and is
+  // refused.
+  const recoveredSides = await claimOutstandingNotificationFlags(attendeeId);
+  if (recoveredSides.length === 0) {
+    return redirect(
+      actionsTab,
+      t("attendees.resend_refused_nothing_owed"),
+      false,
+      { form },
+    );
+  }
+
   await Promise.all([
     logAndNotifyRegistration(notify, {
       // This resend carries every live booking line the attendee holds, so
@@ -302,6 +318,7 @@ const resendNotification = async (
       // flag up, so the badge keeps saying what never went out.
       clearPendingFlagsFor: [attendeeId],
       freeTexts,
+      recoverSides: recoveredSides,
       // One site serves the whole buyer, so the assignment reads every line
       // they hold, refunded ones too. A claim recorded on another purchase's
       // plan keeps the buyer served. So does a claim on a line refunded

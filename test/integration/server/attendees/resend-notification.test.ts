@@ -5,7 +5,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { AttendeeInput } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
-import { execute, queryOne } from "#db/client.ts";
+import { queryOne } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import { addMonthsIso } from "#shared/dates.ts";
 import { nowIso } from "#shared/now.ts";
@@ -24,6 +24,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { markNotificationSendsOwed } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
@@ -68,6 +69,7 @@ describeWithEnv(
         email: string,
       ): Promise<{ listing_name: string; quantity: number }[]> => {
         const attendee = await firstBookedAttendee(bookings, name, email);
+        await markNotificationSendsOwed(attendee.id);
         using webhookFetch = stubFetch(new Response());
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}/resend-notification`,
@@ -151,9 +153,9 @@ describeWithEnv(
         using webhookFetch = stubFetch(new Response());
         const { response, attendee } = await resendNotificationAction({
           confirm_identifier: "John Doe",
-        })({
-          webhookUrl: "https://example.com/webhook",
-        });
+        })({ webhookUrl: "https://example.com/webhook" }, (ctx) =>
+          markNotificationSendsOwed(ctx.attendee.id),
+        );
         expect(response.status).toBe(302);
         await expectFlashRedirect(
           `/admin/attendees/${attendee.id}/actions`,
@@ -174,10 +176,7 @@ describeWithEnv(
           fields: "email",
           webhookUrl: "https://example.com/webhook",
         });
-        await execute(
-          "UPDATE attendees SET email_pending = 1, webhooks_pending = 1 WHERE id = ?",
-          [attendee.id],
-        );
+        await markNotificationSendsOwed(attendee.id);
         using _fetch = stubFetch(() => new Response("", { status }));
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}/resend-notification`,
@@ -217,10 +216,7 @@ describeWithEnv(
           "Whole Resend",
           "whole-resend@example.com",
         );
-        await execute(
-          "UPDATE attendees SET email_pending = 1, webhooks_pending = 1 WHERE id = ?",
-          [attendee.id],
-        );
+        await markNotificationSendsOwed(attendee.id);
 
         using webhookFetch = stubFetch(new Response());
         const { response } = await adminFormPost(
@@ -272,9 +268,9 @@ describeWithEnv(
         using _fetch = stubFetch(new Response());
         const { response, listing } = await resendNotificationAction({
           confirm_identifier: "John Doe",
-        })({
-          webhookUrl: "https://example.com/webhook",
-        });
+        })({ webhookUrl: "https://example.com/webhook" }, (ctx) =>
+          markNotificationSendsOwed(ctx.attendee.id),
+        );
         expect(response.status).toBe(302);
 
         // Verify activity was logged
@@ -421,6 +417,7 @@ describeWithEnv(
           "Later Buyer",
           "later@example.com",
         );
+        await markNotificationSendsOwed(attendee.id);
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}/resend-notification`,
           { confirm_identifier: "Later Buyer" },

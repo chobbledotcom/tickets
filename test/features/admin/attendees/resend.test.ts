@@ -21,6 +21,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttendee,
+  markNotificationSendsOwed,
   submitAttendeeEdit,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -35,10 +36,12 @@ import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { postListingSale, refundBookedOrder } from "#test-utils/ledger.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
-const resend = (attendeeId: number, name: string) =>
-  adminFormPost(`/admin/attendees/${attendeeId}/resend-notification`, {
+const resend = async (attendeeId: number, name: string) => {
+  await markNotificationSendsOwed(attendeeId);
+  return adminFormPost(`/admin/attendees/${attendeeId}/resend-notification`, {
     confirm_identifier: name,
   });
+};
 
 /** Resend, then assert the given number of lines were notified and the named
  * pooled site stayed unclaimed. Returns every site for further assertions.

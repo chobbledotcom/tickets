@@ -12,15 +12,20 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { execute } from "#db/client.ts";
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { submitAttendeeEdit } from "#test-utils/db-helpers/attendees.ts";
+import {
+  markNotificationSendsOwed,
+  submitAttendeeEdit,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
-const resend = (attendeeId: number, name: string) =>
-  adminFormPost(`/admin/attendees/${attendeeId}/resend-notification`, {
+const resend = async (attendeeId: number, name: string) => {
+  await markNotificationSendsOwed(attendeeId);
+  return adminFormPost(`/admin/attendees/${attendeeId}/resend-notification`, {
     confirm_identifier: name,
   });
+};
 
 describeWithEnv("the booking source a re-send reports", { db: true }, () => {
   const WEBHOOK_URL = "https://example.com/registration";

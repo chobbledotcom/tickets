@@ -11,7 +11,12 @@
  * by hand shows orange.
  */
 
-import { inPlaceholders, queryOne, type SqlStatement } from "#db/client.ts";
+import {
+  executeBatchWithResults,
+  inPlaceholders,
+  queryOne,
+  type SqlStatement,
+} from "#db/client.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { Attendee } from "#types";
 
@@ -37,18 +42,36 @@ const FLAG_COLUMN: Record<PendingNotificationSide, string> = {
   webhooks: "webhooks_pending",
 };
 
-/** Clear one side's flag for the given attendees. Rows whose flag is already
- * down stay untouched. A send runs this only after its far side accepted the
- * message. */
-export const clearPendingFlagStatement = (
+/** Write one side's flag for the given attendees. "clear" touches rows whose
+ * flag is up and is what a send runs after its far side accepted. "raise"
+ * touches rows whose flag is down and is what a recovery runs when a side
+ * was refused. */
+export const pendingFlagStatement = (
   side: PendingNotificationSide,
   attendeeIds: readonly number[],
+  direction: "clear" | "raise",
 ): SqlStatement => ({
   args: [...attendeeIds],
-  sql: `UPDATE attendees SET ${FLAG_COLUMN[side]} = 0
+  sql: `UPDATE attendees SET ${FLAG_COLUMN[side]} = ${direction === "clear" ? 0 : 1}
         WHERE id IN (${inPlaceholders(attendeeIds)})
-          AND ${FLAG_COLUMN[side]} > 0`,
+          AND ${FLAG_COLUMN[side]} ${direction === "clear" ? ">" : "="} 0`,
 });
+
+/** Claim an attendee's outstanding pending-notification flags for one
+ * recovery. Each outstanding side's flag flips down in one atomic batch, and
+ * the sides that flipped are the sides this recovery owns. A recovery that
+ * races another for the same attendee finds nothing outstanding and claims
+ * nothing, so only one of the two queues external sends. */
+export const claimOutstandingNotificationFlags = async (
+  attendeeId: number,
+): Promise<PendingNotificationSide[]> => {
+  const results = await executeBatchWithResults([
+    pendingFlagStatement("email", [attendeeId], "clear"),
+    pendingFlagStatement("webhooks", [attendeeId], "clear"),
+  ]);
+  const sides: PendingNotificationSide[] = ["email", "webhooks"];
+  return sides.filter((_side, index) => results[index]!.rowsAffected > 0);
+};
 
 /** SQL for "a listing this attendee booked currently collects an email".
  * The attendee row reads and the dashboard count share it, so the badge and

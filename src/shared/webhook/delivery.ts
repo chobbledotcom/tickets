@@ -1,5 +1,8 @@
 import { logActivities } from "#db/activity-log.ts";
-import { clearPendingFlagStatement } from "#db/attendees/notification-flags.ts";
+import {
+  type PendingNotificationSide,
+  pendingFlagStatement,
+} from "#db/attendees/notification-flags.ts";
 import { executeBatch } from "#db/client.ts";
 import type { WebhookBookingSource } from "#db/contact-tokens.ts";
 import { settings } from "#db/settings.ts";
@@ -188,16 +191,28 @@ type RegistrationSend = {
   packageFacts?: RegistrationPackageFacts | undefined;
   freeTexts?: FreeTextAnswers | undefined;
   clearPendingFlagsFor?: readonly number[] | undefined;
+  recoverSides?: readonly PendingNotificationSide[] | undefined;
 };
 
-/** Clears the pending flags a flag-owning send's sides earned, and reports
- * what no raised flag represents. */
+/** Which sides a send queues. A recovery queues only the sides it claimed.
+ * Every other path queues both. */
+const selectedSides = (
+  recoverSides: readonly PendingNotificationSide[] | undefined,
+): Record<PendingNotificationSide, boolean> => ({
+  email: recoverSides === undefined || recoverSides.includes("email"),
+  webhooks: recoverSides === undefined || recoverSides.includes("webhooks"),
+});
+
+/** Clears the pending flags a flag-owning send's sides earned, raises a
+ * recovery's unearned sides back up, and reports what no raised flag
+ * represents. */
 const settleFlagOwningSend = async (
   clearPendingFlagsFor: readonly number[],
   attempted: { email: boolean; webhooks: boolean },
   webhookResult: PromiseSettledResult<RegistrationDeliveryResult>,
   emailResult: PromiseSettledResult<RegistrationEmailResult>,
   errors: unknown[],
+  recoverSides?: readonly PendingNotificationSide[] | undefined,
 ): Promise<void> => {
   // The flags carry the failure: each side clears its own flag only when its
   // send was attempted and its far side accepted. A failed send leaves its
@@ -223,19 +238,29 @@ const settleFlagOwningSend = async (
         : undefined;
   const buyerFlagClears =
     attempted.email && emailSide !== undefined && !emailSide.buyerFailed;
-  const clears = [
-    ...(attempted.webhooks && acceptedDelivery(webhookResult)
-      ? [clearPendingFlagStatement("webhooks", clearPendingFlagsFor)]
+  const webhooksFlagClears =
+    attempted.webhooks && acceptedDelivery(webhookResult);
+  // A recovery's side that did not clear raises back up: the claim flipped
+  // it down, and the flag must keep saying a send is owed.
+  const statements = [
+    ...(webhooksFlagClears
+      ? [pendingFlagStatement("webhooks", clearPendingFlagsFor, "clear")]
       : []),
     ...(buyerFlagClears
-      ? [clearPendingFlagStatement("email", clearPendingFlagsFor)]
+      ? [pendingFlagStatement("email", clearPendingFlagsFor, "clear")]
+      : []),
+    ...(recoverSides?.includes("webhooks") && !webhooksFlagClears
+      ? [pendingFlagStatement("webhooks", clearPendingFlagsFor, "raise")]
+      : []),
+    ...(recoverSides?.includes("email") && !buyerFlagClears
+      ? [pendingFlagStatement("email", clearPendingFlagsFor, "raise")]
       : []),
   ];
-  if (clears.length > 0) {
-    await executeBatch(clears).catch(async (error) => {
+  if (statements.length > 0) {
+    await executeBatch(statements).catch(async (error) => {
       await logError({
         code: ErrorCode.DB_QUERY,
-        detail: `The pending-flag clear batch failed: ${String(error)}`,
+        detail: `The pending-flag settle batch failed: ${String(error)}`,
       });
     });
   }
@@ -250,21 +275,40 @@ const sendRegistrationNotifications = async (
   send: RegistrationSend,
 ): Promise<void> => {
   const { entries, currency } = send;
+  const sides = selectedSides(send.recoverSides);
   // A send that had nothing to attempt — no email config or buyer address,
   // no webhook URL — reports `failed: false`. That is not an acceptance: the
   // far side saw nothing, so it must not clear the flag that says a send is
   // owed. The email flag is the buyer's confirmation. The owner's admin copy
   // alone is a different message and never clears it.
-  const webhooksAttempted = registrationWebhookUrls(entries).length > 0;
-  const emailAttempted = buyerConfirmationAttempted(entries);
+  const webhooksAttempted =
+    sides.webhooks && registrationWebhookUrls(entries).length > 0;
+  const emailAttempted = sides.email && buyerConfirmationAttempted(entries);
+  const skippedDelivery = (): RegistrationDeliveryResult => ({ failed: false });
+  // A skipped email side is a hard non-attempt: a recovery that did not
+  // claim the buyer's confirmation must never queue it.
+  const skippedEmailDelivery = (): RegistrationEmailResult => ({
+    buyerFailed: false,
+    failed: false,
+    ownerFailed: false,
+  });
   const [webhookResult, emailResult] = await Promise.allSettled([
-    sendRegistrationWebhooks(entries, currency, send.source, send.packageFacts),
-    sendRegistrationEmails(
-      entries,
-      currency,
-      send.packageFacts,
-      send.freeTexts,
-    ),
+    sides.webhooks
+      ? sendRegistrationWebhooks(
+          entries,
+          currency,
+          send.source,
+          send.packageFacts,
+        )
+      : Promise.resolve(skippedDelivery()),
+    sides.email
+      ? sendRegistrationEmails(
+          entries,
+          currency,
+          send.packageFacts,
+          send.freeTexts,
+        )
+      : Promise.resolve(skippedEmailDelivery()),
   ]);
   const deliveries = [
     completedRegistrationDelivery(webhookResult),
@@ -275,11 +319,12 @@ const sendRegistrationNotifications = async (
   ])(deliveries);
   if (send.clearPendingFlagsFor !== undefined) {
     await settleFlagOwningSend(
-      send.clearPendingFlagsFor,
+      send.clearPendingFlagsFor!,
       { email: emailAttempted, webhooks: webhooksAttempted },
       webhookResult,
       emailResult,
       errors,
+      send.recoverSides,
     );
   } else if (errors.length > 0) {
     await reportRegistrationDeliveryError(true);
@@ -296,6 +341,7 @@ const queueRegistrationNotifications = async (
   suppliedPackageFacts?: RegistrationPackageFacts,
   freeTexts?: FreeTextAnswers,
   clearPendingFlagsFor?: readonly number[] | undefined,
+  recoverSides?: readonly PendingNotificationSide[] | undefined,
 ): Promise<void> => {
   let packageFacts: RegistrationPackageFacts | undefined;
   try {
@@ -316,6 +362,7 @@ const queueRegistrationNotifications = async (
       entries,
       freeTexts,
       packageFacts,
+      recoverSides,
       source,
     }),
   );
@@ -326,7 +373,7 @@ export const registeredActivityMessage = (listingName: string): string =>
   `Attendee registered for '${listingName}'`;
 
 /** Report background work that died after a booking was already paid for.
- * addPendingWork settles rejections silently, so without this the buyer keeps
+ * addPendingWork settles rejections silently. Without this, the buyer keeps
  * the ticket and the operator never learns the site or its credit was lost. */
 const reportAfterBookingFailure =
   (detail: string) =>
@@ -354,6 +401,11 @@ export interface NotifyRegistrationOptions {
   /** Package facts the caller already loaded, so the queue does not re-read
    * them. */
   packageFacts?: RegistrationPackageFacts | undefined;
+  /** The outstanding sides a recovery claimed for its attendee. Only these
+   * sides queue, and a selected side whose send was refused or never ran has
+   * its flag raised back up: the claim flipped it down, and the flag must
+   * keep saying a send is owed. Leave this unset outside a recovery. */
+  recoverSides?: readonly PendingNotificationSide[] | undefined;
   /** Entries only the site assignment sees, in place of `entries`. The resend
    * passes its refunded plan rows here, so a claim recorded on a line refunded
    * later still serves the buyer. Defaults to `entries`. */
@@ -390,6 +442,7 @@ export const queueRegistrationSends: NotifyRegistration = async (
       options.packageFacts,
       options.freeTexts,
       options.clearPendingFlagsFor,
+      options.recoverSides,
     ),
   );
   addPendingWork(

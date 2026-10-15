@@ -48,17 +48,26 @@ export const adminAttendeeAction =
     formData: Record<string, string> = {},
   ): ((
     listingOverrides?: TestListingOverrides,
+    prepare?: (ctx: AdminTestContext) => Promise<void>,
   ) => Promise<AdminFixtureResult>) =>
-    onAdminFixture(async (ctx) => {
-      const url =
-        scope === "listing"
-          ? `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`
-          : `/admin/attendees/${ctx.attendee.id}/${action}`;
-      return awaitTestRequest(url, {
+  async (
+    listingOverrides: TestListingOverrides = {},
+    prepare?: (ctx: AdminTestContext) => Promise<void>,
+  ) => {
+    const ctx = await setupAdminTest(listingOverrides);
+    await prepare?.(ctx);
+    const url =
+      scope === "listing"
+        ? `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`
+        : `/admin/attendees/${ctx.attendee.id}/${action}`;
+    return {
+      ...ctx,
+      response: await awaitTestRequest(url, {
         cookie: ctx.cookie,
         data: { csrf_token: ctx.csrfToken, ...formData },
-      });
-    });
+      }),
+    };
+  };
 
 export const adminListingPage = (
   pathFn: (ctx: AdminTestContext) => string,

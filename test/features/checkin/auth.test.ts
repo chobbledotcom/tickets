@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
 import { settings } from "#db/settings.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
@@ -176,6 +177,58 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       expect(body).not.toContain("perry@test.com");
       expect(body).not.toContain("<th>Email</th>");
       expect(body).not.toContain("<th>Phone</th>");
+    });
+
+    test("a scanner's ticket page says nothing about owed sends", async () => {
+      const { attendee, token } = await createTestAttendeeWithToken(
+        "Flagged Door",
+        "flagged@test.com",
+      );
+      // Raise both flags on the booked row so the staff page would show both
+      // badges; the scanner's session must see neither label.
+      await execute(
+        "UPDATE attendees SET email_pending = 1, webhooks_pending = 1 WHERE id = ?",
+        [attendee.id],
+      );
+      const scanner = await createTestScannerSession();
+
+      const body = await readTicketPage(token, scanner.cookie);
+      expect(body).toContain("Flagged Door");
+      expect(body).not.toContain("Email not sent");
+      expect(body).not.toContain("Webhooks not sent");
+    });
+
+    test("an assigned agent's run sheet says nothing about owed sends", async () => {
+      const assignedAgent = (
+        await logisticsAgents.table.insert({ name: "Flagged van" })
+      ).id;
+      const { cookie } = await createTestAgentSession({
+        agentIds: [assignedAgent],
+        token: "checkin-flagged",
+        username: "checkin-flagged",
+      });
+      const { attendee, listing, token } = await createTestAttendeeWithToken(
+        "Flagged Haul",
+        "flagged-haul@test.com",
+        { usesLogistics: true },
+      );
+      await assignBookingToAgent(
+        attendee.id,
+        listing.id,
+        assignedAgent,
+        testDate(todayInTz(settings.timezone)),
+      );
+      // Raise both flags on the booked row so a staff view would show both
+      // badges; the agent's run sheet must see the row without either label.
+      await execute(
+        "UPDATE attendees SET email_pending = 1, webhooks_pending = 1 WHERE id = ?",
+        [attendee.id],
+      );
+
+      const body = await readTicketPage(token, cookie);
+      expect(body).toContain("Flagged Haul");
+      expect(body).not.toContain("Email not sent");
+      expect(body).not.toContain("Webhooks not sent");
     });
 
     test("delivery agents see only the row whose leg is on their run sheet when one attendee has two rows on the same listing on different dates", async () => {
