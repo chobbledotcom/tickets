@@ -54,9 +54,13 @@ describe("comment language rules", () => {
     expect(() =>
       rulesOf('// Throws new Error("it should not happen").'),
     ).toThrow();
-    expect(() =>
-      rulesOf('// the error sentence — e.g. "its secrets can\'t be read".'),
-    ).toThrow();
+    // The exemption is asserted on the returned list, so a crash while
+    // reading the comment cannot pass for an empty one.
+    expect(
+      findCommentSteIssues(
+        '// the error sentence — e.g. "its secrets can\'t be read".',
+      ),
+    ).toEqual([]);
   });
 
   test("judges quoted prose", () => {
