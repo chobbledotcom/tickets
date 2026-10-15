@@ -280,7 +280,22 @@ describe("database connection pool", () => {
     const restoreCross = holdRead(CrossFetchRequest);
     try {
       const pending = client.execute("SELECT 1");
-      await entered;
+      // The hold must gate the read. If the request settles first, the
+      // entry signal never came from a suspended read: fail the test so
+      // the finally restores the patched prototypes.
+      const settled = pending.then(
+        () => "settled",
+        () => "settled",
+      ) as Promise<"entered" | "settled">;
+      const outcome = await Promise.race([
+        entered.then(() => "entered" as const),
+        settled,
+      ]);
+      if (outcome === "settled") {
+        throw new Error(
+          "The request settled before the body read signalled entry",
+        );
+      }
       client.reconnect();
       releaseBody?.();
       await expectRejectedAndUndispatched(pending, watched);
