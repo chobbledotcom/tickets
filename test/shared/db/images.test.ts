@@ -83,11 +83,7 @@ describeWithEnv("db > images", { db: true }, () => {
       expect(raw?.filename.startsWith("enc:")).toBe(true);
       expect(raw?.filename_thumb.startsWith("enc:")).toBe(true);
       expect(raw?.alt_text.startsWith("enc:")).toBe(true);
-      saysNot(
-        raw?.name,
-        "Hero",
-        "the value should not contain the searched item",
-      );
+      saysNot(raw?.name, "Hero");
 
       expect(await getImageById(image.id)).toEqual(image);
       expect(await getAllImages()).toEqual([image]);

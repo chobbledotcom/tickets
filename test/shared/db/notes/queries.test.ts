@@ -128,22 +128,14 @@ describeWithEnv("db > notes", { db: true }, () => {
     // The symmetric encryption format is the enc:1: envelope, not the plaintext.
     const stored = await rawNote(attendeeId);
     expect(stored?.note.startsWith("enc:")).toBe(true);
-    saysNot(
-      stored?.note,
-      "system secret",
-      "the value should not contain the searched item",
-    );
+    saysNot(stored?.note, "system secret");
 
     const ownerAttendee = await makeAttendee("Owner Target");
     await createOwnerNote(attendeeNotes(ownerAttendee), "owner secret");
     const ownerStored = await rawNote(ownerAttendee);
     // The owner hybrid-RSA envelope is hyb:1:, again never the plaintext.
     expect(ownerStored?.note.startsWith("hyb:")).toBe(true);
-    saysNot(
-      ownerStored?.note,
-      "owner secret",
-      "the value should not contain the searched item",
-    );
+    saysNot(ownerStored?.note, "owner secret");
   });
 
   test("keeps only the first app-written note for one indexed name", async () => {

@@ -112,11 +112,7 @@ describe("sumup testSumupConnection", () => {
         says(err, "Public API key");
         says(err, "secret API key");
         says(err, "same SumUp account");
-        saysNot(
-          err,
-          "detail",
-          "the value should not contain the searched item",
-        );
+        saysNot(err, "detail");
       },
     );
   });

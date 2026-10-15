@@ -7,7 +7,6 @@
  * these own the branch cover, and the requests only a crafted POST can make.
  */
 
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -23,7 +22,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { expectLoginRedirectWithReturn } from "#test-utils/login-redirect.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
-import { says } from "#test-utils/says.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import {
   adminGet,
   requestAsSession,
@@ -560,10 +559,9 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       const actionsBody = await actions.text();
       const occurrences = actionsBody.split(scannerHref).length - 1;
       expect(occurrences).toBe(1);
-      assert(
-        !actionsBody.includes(
-          `<div class="entity-action"><a class="btn secondary" href="${scannerHref}"`,
-        ),
+      saysNot(
+        actionsBody,
+        `<div class="entity-action"><a class="btn secondary" href="${scannerHref}"`,
       );
     });
 
@@ -574,7 +572,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       });
       const response = await adminGet(`/admin/listing/${listing.id}`);
       const body = await response.text();
-      assert(!body.includes(`/admin/listing/${listing.id}/scanner`));
+      saysNot(body, `/admin/listing/${listing.id}/scanner`);
     });
   });
 

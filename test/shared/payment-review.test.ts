@@ -33,11 +33,7 @@ describe("reporting a withheld refund", () => {
     // The classified fan-out is what puts this in the activity log, the ntfy
     // ping and Sentry. Before this it was a debug line, which reaches nobody.
     expect(errors.calls).toHaveLength(1);
-    saysNot(
-      errors.lastMessage(),
-      PRIVATE_REFERENCE,
-      "the value should not contain the searched item",
-    );
+    saysNot(errors.lastMessage(), PRIVATE_REFERENCE);
     says(errors.lastMessage(), "partial_refund");
     says(errors.lastMessage(), "an owner needs to look at it");
   });

@@ -44,16 +44,8 @@ describe("error fan-out", () => {
   } as const;
   const firstErrorLine = (): string => String(errorSpy.calls[0]?.args[0]);
   const expectOperatorDetailHidden = (line: string): void => {
-    saysNot(
-      line,
-      "Suppressed",
-      "the value should not contain the searched item",
-    );
-    saysNot(
-      line,
-      "boss@example.com",
-      "the value should not contain the searched item",
-    );
+    saysNot(line, "Suppressed");
+    saysNot(line, "boss@example.com");
   };
 
   test("writes the console line for every error", () => {
@@ -77,11 +69,7 @@ describe("error fan-out", () => {
 
     const line = firstErrorLine();
     says(line, 'detail="provider=postmark status=422"');
-    saysNot(
-      line,
-      "operatorDetail",
-      "the value should not contain the searched item",
-    );
+    saysNot(line, "operatorDetail");
     expectOperatorDetailHidden(line);
   });
 

@@ -33,11 +33,7 @@ describe("childAddOnError", () => {
     const message = childAddOnError("Face Paint", "Bouncy Castle");
     says(message, "Face Paint");
     says(message, "Bouncy Castle");
-    saysNot(
-      message,
-      "children_err",
-      "the value should not contain the searched item",
-    );
+    saysNot(message, "children_err");
   });
 });
 
@@ -259,11 +255,7 @@ describe("edgeFieldError", () => {
     test(`the ${rule} error resolves to real copy naming '${blamed}', not a raw i18n key`, () => {
       const message = edgeFieldError(parent, child);
       says(message, `'${blamed}'`);
-      saysNot(
-        message,
-        "children_err",
-        "the value should not contain the searched item",
-      );
+      saysNot(message, "children_err");
     });
   }
 

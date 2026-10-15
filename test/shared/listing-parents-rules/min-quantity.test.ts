@@ -23,11 +23,7 @@ describe("edgeFieldError minimum quantity", () => {
       listing({ min_quantity: 2, name: "Bundled" }),
     );
     says(message, "'Bundled'");
-    saysNot(
-      message,
-      "children_err",
-      "the value should not contain the searched item",
-    );
+    saysNot(message, "children_err");
   });
 
   test("refuses a child whose minimum is above one", () => {

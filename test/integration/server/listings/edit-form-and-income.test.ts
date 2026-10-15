@@ -137,11 +137,7 @@ describeWithEnv("server listings > edit form and income", { db: true }, () => {
       const entry = log.find((e) => e.message.includes("income adjusted"));
       expect(entry?.message).toBe("Listing 'Gala' income adjusted");
       // The raw corrected figure is not logged verbatim.
-      saysNot(
-        entry?.message,
-        "12.34",
-        "the value should not contain the searched item",
-      );
+      saysNot(entry?.message, "12.34");
     });
 
     test("rejects a blank amount with an error flash", async () => {

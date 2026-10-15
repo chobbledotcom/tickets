@@ -51,11 +51,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       ]);
       // At rest, everything is ciphertext (enc:… envelope), not plaintext.
       expectEncryptedAtRest(raw[0]?.name, raw[0]?.slug, raw[0]?.content);
-      saysNot(
-        raw[0]?.name,
-        "Name about",
-        "the value should not contain the searched item",
-      );
+      saysNot(raw[0]?.name, "Name about");
 
       const back = await getSitePageById(created.id);
       expect(back?.name).toBe("Name about");

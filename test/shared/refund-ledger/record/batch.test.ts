@@ -280,11 +280,7 @@ describeWithEnv(
         errors.lastMessage(),
         "Bulk refund ledger preparation failed for 1 attendee records",
       );
-      saysNot(
-        errors.lastMessage(),
-        "ledger read failed",
-        "the value should not contain the searched item",
-      );
+      saysNot(errors.lastMessage(), "ledger read failed");
     });
 
     test("keeps every returned reference unrecorded when the shared write fails", async () => {
@@ -300,11 +296,7 @@ describeWithEnv(
         errors.lastMessage(),
         "Bulk refund ledger post failed for 1 attendee records",
       );
-      saysNot(
-        errors.lastMessage(),
-        "ledger write failed",
-        "the value should not contain the searched item",
-      );
+      saysNot(errors.lastMessage(), "ledger write failed");
     });
   },
 );

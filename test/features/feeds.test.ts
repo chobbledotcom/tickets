@@ -83,11 +83,7 @@ describeWithEnv("listing feed contracts", { db: true }, () => {
       .find((entry) => entry.includes(`UID:package-${bundle.id}@`));
     expect(packageEntry).toBeDefined();
     says(packageEntry!.split("\r\nEND:VLISTING")[0], "SUMMARY:Weekend bundle");
-    saysNot(
-      packageEntry!.split("\r\nEND:VLISTING")[0],
-      "LOCATION:",
-      "the value should not contain the searched item",
-    );
+    saysNot(packageEntry!.split("\r\nEND:VLISTING")[0], "LOCATION:");
     says(packageEntry, "\r\nEND:VLISTING");
   });
 

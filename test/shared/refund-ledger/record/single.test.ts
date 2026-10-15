@@ -39,10 +39,6 @@ describeWithEnv("refund ledger > record one attendee", { db: true }, () => {
     ).toEqual(refundLedgerResult([], [reference]));
     says(errors.lastMessage(), "Refund ledger preparation failed");
     says(errors.lastMessage(), "attendee=3");
-    saysNot(
-      errors.lastMessage(),
-      "ledger read failed",
-      "the value should not contain the searched item",
-    );
+    saysNot(errors.lastMessage(), "ledger read failed");
   });
 });

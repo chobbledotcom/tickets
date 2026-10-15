@@ -13,11 +13,10 @@
  * relationship it needs instead of assembling it line by line.
  */
 
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { listingChildren } from "#db/listing-parents.ts";
 import { handleRequest } from "#routes";
-import { awaitTestRequest, testPageHtml } from "#test-utils/mocks.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import type { Group, Listing, ListingWithCount } from "#types";
 import { expectAttendeeCounts, expectFlash } from "./assertions.ts";
 import { createTestAttendee } from "./db-helpers/attendees.ts";
@@ -522,16 +521,4 @@ export const soldOutParentInGroup = async (
   await createTestAttendee(child.id, child.slug, "Buyer", "b@x.com");
   await listingChildren.setIds(parent.id, [child.id]);
   return { child, group, parent };
-};
-
-/**
- * Enable the public site and assert `/listings` does NOT advertise a Book CTA
- * pointing at `groupSlug` — i.e. the dead-group link the page must not render.
- * The shared shape behind the two `/listings` CTA-suppression tests: turn the
- * site on, GET `/listings`, assert the `href="/ticket/<group>"` link is absent.
- */
-export const expectNoListingsCta = async (groupSlug: string): Promise<void> => {
-  await enablePublicSite();
-  const body = await testPageHtml("/listings");
-  assert(!body.includes(`href="/ticket/${groupSlug}"`));
 };

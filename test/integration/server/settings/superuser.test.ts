@@ -1,4 +1,3 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -12,7 +11,6 @@ import {
   getUserByUsername,
   verifyUserPassword,
 } from "#db/users.ts";
-import { lazyRef } from "#fp";
 import { handleRequest } from "#routes";
 import { buildSessionCookie } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -24,7 +22,6 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
-import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import {
@@ -33,12 +30,17 @@ import {
   withMocks,
 } from "#test-utils/mocks.ts";
 import { statementSql } from "#test-utils/record-queries.ts";
-import { says } from "#test-utils/says.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import {
   adminFormPost,
   createTestManagerSession,
   testCookie,
 } from "#test-utils/session.ts";
+import {
+  clearAdminEmailEnv,
+  restoreAdminEmail,
+  setupForEnable,
+} from "./superuser-email-fixtures.ts";
 
 const SUPERUSER_ROUTE = "/admin/settings/superuser";
 
@@ -213,10 +215,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
       withEnableSuperuser(async () => {
         const user = await getUserByUsername("admin");
         expect(user!.password_hash).not.toBe("");
-        assert(
-          !user!.password_hash.includes("pass1234"),
-          "the value should not contain the searched item",
-        );
+        saysNot(user!.password_hash, "pass1234");
       }));
 
     test("created user has wrapped_data_key set", () =>
@@ -482,30 +481,3 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
     });
   });
 });
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-const [getAdminEmailEnv, setAdminEmailEnv] = lazyRef<EnvScope | null>(
-  () => null,
-);
-
-const clearAdminEmailEnv = (): void => {
-  getAdminEmailEnv()?.dispose();
-  setAdminEmailEnv(null);
-};
-
-function restoreAdminEmail(value: string | undefined): void {
-  clearAdminEmailEnv();
-  setAdminEmailEnv(withEnv({ ADMIN_EMAIL_ADDRESS: value }));
-}
-
-function setupForEnable(email: string): void {
-  restoreAdminEmail(email);
-  hostEmail.setOverride({
-    apiKey: "k",
-    fromAddress: validEmail("f@e.com"),
-    provider: "resend",
-  });
-}

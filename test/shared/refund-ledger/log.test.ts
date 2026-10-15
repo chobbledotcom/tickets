@@ -36,11 +36,7 @@ describe("refund ledger diagnostics", () => {
 
     says(errors.lastMessage(), "Refund ledger post failed");
     says(errors.lastMessage(), "attendee=17");
-    saysNot(
-      errors.lastMessage(),
-      failure.message,
-      "the value should not contain the searched item",
-    );
+    saysNot(errors.lastMessage(), failure.message);
 
     const body = sentryRequestBody(fetchStub.calls);
     says(body, '"value":"ledger backend failed"');

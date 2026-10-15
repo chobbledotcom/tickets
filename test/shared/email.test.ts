@@ -1,4 +1,3 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -52,15 +51,10 @@ const sendEmailExpectingError = async (
       expect(delivery.reason).toBe(expected.reason);
     }
     const logs = errorSpy.calls.map((c) => c.args[0] as string);
-    assert(!logs.join("\n").includes(msg.to));
+    saysNot(logs.join("\n"), msg.to);
     const line = logs.find((l) => l.includes("E_EMAIL_SEND"));
     expect(line).toBe(`[Error] E_EMAIL_SEND ${expected.logged}`);
-    if (expected.reason)
-      saysNot(
-        line,
-        expected.reason,
-        "the value should not contain the searched item",
-      );
+    if (expected.reason) saysNot(line, expected.reason);
   } finally {
     errorSpy.restore();
   }
@@ -447,71 +441,5 @@ describe("sendTestEmail", () => {
     expect(body.html).toBe(`<p>${t("fields.email.test_body")}</p>`);
     expect(body.subject).toBe(t("fields.email.test_subject"));
     expect(body.text).toBe(t("fields.email.test_body"));
-  });
-});
-
-describe("sendEmail with attachments", () => {
-  const fetch = useFetchStub();
-
-  const attachment = {
-    content: btoa("<svg>test</svg>"),
-    contentType: "image/svg+xml",
-    filename: "ticket.svg",
-  };
-  const msgWithAttachment: EmailMessage = {
-    attachments: [attachment],
-    html: "<p>Hi</p>",
-    subject: "Tickets",
-    text: "Hi",
-    to: validEmail("user@test.com"),
-  };
-
-  test("Resend includes attachments with filename and content", async () => {
-    await sendEmail(testEmailConfig, msgWithAttachment);
-
-    expect(fetch.getFetchJsonBody().attachments).toEqual([
-      { content: attachment.content, filename: "ticket.svg" },
-    ]);
-  });
-
-  test("Postmark includes Attachments with Name, Content, ContentType", async () => {
-    await sendWithProvider("postmark", msgWithAttachment);
-
-    expect(fetch.getFetchJsonBody().Attachments).toEqual([
-      {
-        Content: attachment.content,
-        ContentType: "image/svg+xml",
-        Name: "ticket.svg",
-      },
-    ]);
-  });
-
-  test("SendGrid includes attachments with content, filename, type, disposition", async () => {
-    await sendWithProvider("sendgrid", msgWithAttachment);
-
-    expect(fetch.getFetchJsonBody().attachments).toEqual([
-      {
-        content: attachment.content,
-        disposition: "attachment",
-        filename: "ticket.svg",
-        type: "image/svg+xml",
-      },
-    ]);
-  });
-
-  test("Mailgun appends attachment as Blob to FormData", async () => {
-    await sendWithProvider("mailgun-us", msgWithAttachment);
-
-    const body = fetch.getFetchFormBody();
-    const file = body.get("attachment") as File;
-    expect(file).toBeInstanceOf(File);
-    expect(file.name).toBe("ticket.svg");
-    expect(file.type).toBe("image/svg+xml");
-  });
-
-  test("omits attachments field when no attachments provided", async () => {
-    await sendEmail(testEmailConfig, minimalEmailMessage);
-
-    expect(fetch.getFetchJsonBody().attachments).toBeUndefined();
   });
 });

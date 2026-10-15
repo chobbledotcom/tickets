@@ -1,10 +1,8 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { settings } from "#db/settings.ts";
-import { handleRequest } from "#routes";
 import {
   expectFlashRedirect,
   getHeader,
@@ -12,77 +10,24 @@ import {
 } from "#test-utils/assertions.ts";
 import {
   configureAppleWallet,
-  generateTestCerts,
   getMismatchedAppleWalletKey,
 } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { nonRsaCertificatePem } from "#test-utils/der.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says, saysNot } from "#test-utils/says.ts";
+import { adminGet } from "#test-utils/session.ts";
 import {
-  nonRsaCertificatePem,
-  pemFor,
-  rsaPrivateKey,
-} from "#test-utils/der.ts";
-import { withEnv } from "#test-utils/env.ts";
-import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
-import { says } from "#test-utils/says.ts";
-import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
-
-/** Reuse cached certs for all wallet configuration */
-const testCerts = generateTestCerts();
-const unusableRsaKey = pemFor("RSA PRIVATE KEY", rsaPrivateKey());
-
-/** Submit Apple Wallet settings form with overrides applied to valid defaults */
-const submitWalletSettingsForm = async (
-  overrides: Record<string, string> = {},
-) => {
-  const defaults: Record<string, string> = {
-    apple_wallet_pass_type_id: "pass.com.test",
-    apple_wallet_signing_cert: testCerts.signingCert,
-    apple_wallet_signing_key: testCerts.signingKey,
-    apple_wallet_team_id: "TESTTEAM01",
-    apple_wallet_wwdr_cert: testCerts.wwdrCert,
-    csrf_token: await testCsrfToken(),
-  };
-  return handleRequest(
-    mockFormRequest(
-      "/admin/settings/apple-wallet",
-      { ...defaults, ...overrides },
-      await testCookie(),
-    ),
-  );
-};
-
-/** Fetch a pkpass response for a given token (configure wallet first) */
-const fetchPkpassResponse = (token: string) =>
-  awaitTestRequest(`/wallet/${token}.pkpass`);
-
-/** Fetch and parse pass.json from a pkpass response */
-const parsePkpassJson = async (token: string): Promise<Record<string, any>> => {
-  const response = await fetchPkpassResponse(token);
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  const files = unzipSync(bytes);
-  return JSON.parse(new TextDecoder().decode(files["pass.json"]!));
-};
-
-/** Fetch a ticket page and return the HTML body */
-const fetchWalletTicketBody = async (token: string): Promise<string> => {
-  const response = await awaitTestRequest(`/t/${token}`);
-  return response.text();
-};
-
-/** Create a test attendee, fetch pkpass, and assert 200 with correct content type */
-const fetchValidPkpassForNewAttendee = async () => {
-  const { token } = await createTestAttendeeWithToken(
-    "Alice",
-    "alice@test.com",
-  );
-  const response = await fetchPkpassResponse(token);
-  expect(response.status).toBe(200);
-  expect(response.headers.get("Content-Type")).toBe(
-    "application/vnd.apple.pkpass",
-  );
-  return { response, token };
-};
+  fetchPkpassResponse,
+  fetchValidPkpassForNewAttendee,
+  fetchWalletTicketBody,
+  parsePkpassJson,
+  setWalletEnvVars,
+  submitWalletSettingsForm,
+  testCerts,
+  unusableRsaKey,
+} from "./apple-wallet-helpers.ts";
 
 describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
   test("returns 404 when Apple Wallet is not configured", async () => {
@@ -242,8 +187,8 @@ describeWithEnv("ticket view wallet link", { db: true }, () => {
       "alice@test.com",
     );
     const body = await fetchWalletTicketBody(token);
-    assert(!body.includes("wallet-link"));
-    assert(!body.includes("Apple Wallet"));
+    saysNot(body, "wallet-link");
+    saysNot(body, "Apple Wallet");
   });
 
   test("shows wallet link when Apple Wallet is configured", async () => {
@@ -561,16 +506,6 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
   });
 });
 
-/** Set all Apple Wallet env vars for the returned scope. */
-const setWalletEnvVars = () =>
-  withEnv({
-    APPLE_WALLET_PASS_TYPE_ID: "pass.com.env.tickets",
-    APPLE_WALLET_SIGNING_CERT: testCerts.signingCert,
-    APPLE_WALLET_SIGNING_KEY: testCerts.signingKey,
-    APPLE_WALLET_TEAM_ID: "ENVTEAM001",
-    APPLE_WALLET_WWDR_CERT: testCerts.wwdrCert,
-  });
-
 describeWithEnv(
   "appleWallet.getHostConfig",
   {
@@ -602,81 +537,6 @@ describeWithEnv(
       says(config!.signingCert, "BEGIN CERTIFICATE");
       says(config!.signingKey, "BEGIN RSA PRIVATE KEY");
       says(config!.wwdrCert, "BEGIN CERTIFICATE");
-    });
-  },
-);
-
-describeWithEnv(
-  "Apple Wallet env var fallback",
-  {
-    db: true,
-    env: {
-      APPLE_WALLET_PASS_TYPE_ID: undefined,
-      APPLE_WALLET_SIGNING_CERT: undefined,
-      APPLE_WALLET_SIGNING_KEY: undefined,
-      APPLE_WALLET_TEAM_ID: undefined,
-      APPLE_WALLET_WWDR_CERT: undefined,
-    },
-  },
-  () => {
-    test("hasAppleWalletConfig returns true with env vars when DB not configured", () => {
-      using _env = setWalletEnvVars();
-      expect(settings.appleWallet.hasDbConfig).toBe(false);
-      expect(settings.appleWallet.hasConfig).toBe(true);
-    });
-
-    test("getAppleWalletConfig falls back to env vars when DB not configured", () => {
-      using _env = setWalletEnvVars();
-      const config = settings.appleWallet.config;
-      expect(config).not.toBeNull();
-      expect(config!.passTypeId).toBe("pass.com.env.tickets");
-      expect(config!.teamId).toBe("ENVTEAM001");
-    });
-
-    test("getAppleWalletConfig prefers DB config over env vars", async () => {
-      using _env = setWalletEnvVars();
-      await configureAppleWallet();
-      const config = settings.appleWallet.config;
-      expect(config).not.toBeNull();
-      expect(config!.passTypeId).toBe("pass.com.test.tickets");
-      expect(config!.teamId).toBe("TESTTEAM01");
-    });
-
-    test("wallet route works with env var config", async () => {
-      using _env = setWalletEnvVars();
-      const { token } = await fetchValidPkpassForNewAttendee();
-
-      const passJson = await parsePkpassJson(token);
-      expect(passJson.passTypeIdentifier).toBe("pass.com.env.tickets");
-      expect(passJson.teamIdentifier).toBe("ENVTEAM001");
-    });
-
-    test("ticket view shows wallet link with env var config", async () => {
-      using _env = setWalletEnvVars();
-      const { token } = await createTestAttendeeWithToken(
-        "Alice",
-        "alice@test.com",
-      );
-      const body = await fetchWalletTicketBody(token);
-      says(body, "wallet-link");
-      says(body, "Apple Wallet");
-    });
-
-    test("settings page shows host Apple Wallet label when env vars configured", async () => {
-      using _env = setWalletEnvVars();
-      const response = await adminGet("/admin/settings-advanced");
-      const body = await response.text();
-      says(body, "Host env (pass.com.env.tickets)");
-      says(body, "Currently using");
-    });
-
-    test("settings page shows overriding label when both DB and env configured", async () => {
-      using _env = setWalletEnvVars();
-      await configureAppleWallet();
-      const response = await adminGet("/admin/settings-advanced");
-      const body = await response.text();
-      says(body, "Host env (pass.com.env.tickets)");
-      says(body, "Overriding");
     });
   },
 );

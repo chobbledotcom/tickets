@@ -83,11 +83,7 @@ describeWithEnv("custom.css handler", { db: true, triggers: true }, () => {
     await enablePublicSite();
     await settings.update.customCss("body { color: red; }");
     const before = await handleRequest(mockRequest("/"));
-    saysNot(
-      before.headers.get("content-security-policy"),
-      "fonts.bunny.net",
-      "the value should not contain the searched item",
-    );
+    saysNot(before.headers.get("content-security-policy"), "fonts.bunny.net");
 
     await settings.update.customCss(
       "@import url(https://fonts.bunny.net/css?family=aleo);",

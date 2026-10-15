@@ -157,7 +157,7 @@ describe("CSV with custom questions", () => {
     );
     // The unknown answer must not leak into the column or appear as "undefined"
     expect(row!.endsWith(",Small")).toBe(true);
-    saysNot(row, "undefined", "the value should not contain the searched item");
+    saysNot(row, "undefined");
   });
 
   test("leaves a free-text cell empty when the attendee wrote nothing", () => {

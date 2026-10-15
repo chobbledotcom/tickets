@@ -202,11 +202,7 @@ describeWithEnv(
         // The listing already in Group A is offered as an add candidate…
         says(addForm?.body, `value="${inOtherGroup.id}"`);
         // …while the target's own member is not (no add-form checkbox for it).
-        saysNot(
-          addForm?.body,
-          `value="${ownMember.id}"`,
-          "the value should not contain the searched item",
-        );
+        saysNot(addForm?.body, `value="${ownMember.id}"`);
       });
 
       test("group revenue comes from the ledger and survives attendee deletion", async () => {

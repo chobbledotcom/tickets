@@ -159,16 +159,8 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
       query.includes("FROM payment_charges AS charge"),
     );
     says(queueQuery, "LIMIT ?");
-    saysNot(
-      queueQuery,
-      "provider_reference",
-      "the value should not contain the searched item",
-    );
-    saysNot(
-      queueQuery,
-      "refund_state,",
-      "the value should not contain the searched item",
-    );
+    saysNot(queueQuery, "provider_reference");
+    saysNot(queueQuery, "refund_state,");
     const plan = await getDb().execute({
       args: [21],
       sql: `EXPLAIN QUERY PLAN ${queueQuery}`,

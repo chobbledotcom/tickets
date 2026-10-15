@@ -88,11 +88,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const log = await getAllActivityLog(10);
       const entry = log.find((e) => e.message.includes("revenue adjusted"));
       expect(entry?.message).toBe("Modifier 'Promo' revenue adjusted");
-      saysNot(
-        entry?.message,
-        "12.34",
-        "the value should not contain the searched item",
-      );
+      saysNot(entry?.message, "12.34");
     });
 
     test("rejects a blank amount with an error flash", async () => {

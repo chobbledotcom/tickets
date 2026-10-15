@@ -65,16 +65,8 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
       entry.message.includes("Payment marked as refunded"),
     );
     expect(confirmations).toHaveLength(1);
-    saysNot(
-      confirmations[0]?.message,
-      refund.attendeeName,
-      "the value should not contain the searched item",
-    );
-    saysNot(
-      confirmations[0]?.message,
-      refund.reference.reference,
-      "the value should not contain the searched item",
-    );
+    saysNot(confirmations[0]?.message, refund.attendeeName);
+    saysNot(confirmations[0]?.message, refund.reference.reference);
     const notes = await getNotesFor(target, refund.privateKey);
     expect(
       notes.filter((note) => note.note.includes("Refund confirmed")),

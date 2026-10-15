@@ -140,11 +140,7 @@ describeWithEnv("route responses", { db: true }, () => {
       withRequestContext(() => {
         const response = redirect("/admin/settings", "Saved", true);
         expectRedirectWithFlash("/admin/settings", "Saved")(response);
-        saysNot(
-          response.headers.get("location"),
-          "success=",
-          "the value should not contain the searched item",
-        );
+        saysNot(response.headers.get("location"), "success=");
       }));
 
     test("replaces the existing anchor with the target form", () =>

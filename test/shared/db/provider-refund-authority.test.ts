@@ -282,11 +282,7 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
     });
     expect(queries.sql).toHaveLength(1);
     says(queries.sql[0], "UPDATE payment_charges");
-    saysNot(
-      queries.sql[0],
-      "SELECT",
-      "the value should not contain the searched item",
-    );
+    saysNot(queries.sql[0], "SELECT");
     expect(
       await transitionRefundAuthority(row, 31, gbp(0), (state) =>
         armRefundSend(state, 31, 50),

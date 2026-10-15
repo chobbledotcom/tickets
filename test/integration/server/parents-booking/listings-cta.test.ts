@@ -1,11 +1,22 @@
+import { assert } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import {
-  expectNoListingsCta,
-  makeParent,
-  soldOutParentInGroup,
-} from "#test-utils/parents.ts";
+import { testPageHtml } from "#test-utils/mocks.ts";
+import { makeParent, soldOutParentInGroup } from "#test-utils/parents.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
+
+/**
+ * Enable the public site and assert `/listings` does NOT advertise a Book CTA
+ * pointing at `groupSlug` — i.e. the dead-group link the page must not render.
+ * The shared shape behind the two `/listings` CTA-suppression tests: turn the
+ * site on, GET `/listings`, assert the `href="/ticket/<group>"` link is absent.
+ */
+const expectNoListingsCta = async (groupSlug: string): Promise<void> => {
+  await enablePublicSite();
+  const body = await testPageHtml("/listings");
+  assert(!body.includes(`href="/ticket/${groupSlug}"`));
+};
 
 describeWithEnv(
   "server > parents booking — /listings CTA suppression",

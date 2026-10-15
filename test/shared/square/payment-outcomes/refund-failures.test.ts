@@ -113,11 +113,7 @@ describeSquare(() => {
 
         says(errors.lastMessage(), "outcome=uncertain");
         says(errors.lastMessage(), "reason=provider_error");
-        saysNot(
-          errors.lastMessage(),
-          PRIVATE_REFERENCE,
-          "the value should not contain the searched item",
-        );
+        saysNot(errors.lastMessage(), PRIVATE_REFERENCE);
 
         const body = sentryRequestBody(fetchStub.calls);
         assert(!body.includes(PRIVATE_REFERENCE));

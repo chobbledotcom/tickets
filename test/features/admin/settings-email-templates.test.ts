@@ -113,7 +113,6 @@ describeWithEnv("admin email templates", { db: true }, () => {
     saysNot(
       settings.getCachedRaw(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT),
       "listing_names",
-      "the value should not contain the searched item",
     );
 
     // And it reads back as what the owner wrote.

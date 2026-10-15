@@ -182,11 +182,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       );
       expect(queueQueries).toHaveLength(1);
       says(queueQueries[0], "LIMIT ?");
-      saysNot(
-        queueQueries[0],
-        "pii_blob",
-        "the value should not contain the searched item",
-      );
+      saysNot(queueQueries[0], "pii_blob");
 
       const second = await adminGet(
         `/admin/privacy?work_after=${attendeeIds[19]}`,

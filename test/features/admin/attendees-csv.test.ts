@@ -42,11 +42,7 @@ describe("generateAttendeesCsv", () => {
     // Real row carries a live /t URL; the ghost row's URL column is empty.
     says(lines[1], "/t/real-tok");
     says(lines[2], "ghost-tok");
-    saysNot(
-      lines[2],
-      "/t/ghost-tok",
-      "the value should not contain the searched item",
-    );
+    saysNot(lines[2], "/t/ghost-tok");
     expect(lines[2]!.endsWith("ghost-tok,")).toBe(true);
   });
 

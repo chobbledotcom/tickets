@@ -1,5 +1,4 @@
 import type { InStatement } from "@libsql/client";
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -38,31 +37,9 @@ import {
 import { says, saysNot } from "#test-utils/says.ts";
 import { reloginAsAdmin } from "#test-utils/session.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
+import { submitSetupFormWithDefaults } from "./setup-form-fixtures.ts";
 
 describeWithEnv("server (setup)", { db: true }, () => {
-  /** Get CSRF token from setup page and submit setup form with given fields */
-  async function submitSetupForm(
-    fields: Record<string, string>,
-  ): Promise<Response> {
-    const getResponse = await handleRequest(mockRequest("/setup/"));
-    const csrfToken = extractCsrfToken(await getResponse.text());
-    expect(csrfToken).not.toBeNull();
-    return handleRequest(mockSetupFormRequest(fields, csrfToken as string));
-  }
-
-  /** Get CSRF token from setup page and submit with standard valid credentials + overrides */
-  function submitSetupFormWithDefaults(
-    overrides: Record<string, string> = {},
-  ): Promise<Response> {
-    return submitSetupForm({
-      admin_password: "mypassword123",
-      admin_password_confirm: "mypassword123",
-      admin_username: TEST_ADMIN_USERNAME,
-      country: "GB",
-      ...overrides,
-    });
-  }
-
   /** Simulate a real browser completing setup through the given URL: GET the
    *  page, read its CSRF token, then POST the standard valid credentials.
    *  Asserts the GET returns 200, a token is present, and the POST redirects to
@@ -203,7 +180,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
           503,
           "This site has not been activated yet",
         );
-        assert(!html.includes('http-equiv="refresh"'));
+        saysNot(html, 'http-equiv="refresh"');
 
         expect(await settingsTableExists()).toBe(false);
       });
@@ -263,11 +240,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const response = await handleRequest(mockRequest("/custom.css"));
 
         says(response.headers.get("content-type"), "text/css");
-        saysNot(
-          response.headers.get("content-type"),
-          "text/html",
-          "the value should not contain the searched item",
-        );
+        saysNot(response.headers.get("content-type"), "text/html");
         expect(await response.text()).toBe("");
       });
 

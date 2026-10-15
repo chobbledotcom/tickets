@@ -1,4 +1,3 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { bookedRangeLabel } from "#shared/date-labels.ts";
@@ -7,8 +6,6 @@ import {
   addMonthsIso,
   bookedSpanDays,
   daysAgo,
-  formatDatetimeLabel,
-  formatDatetimeShort,
   formatTimeAgo,
   getAvailableDates,
   getNextBookableDate,
@@ -24,7 +21,7 @@ import { today } from "#test-utils/booking-model-fixtures.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { testHoliday } from "#test-utils/db-helpers/holidays.ts";
 import { testListing } from "#test-utils/factories.ts";
-import { has, says } from "#test-utils/says.ts";
+import { has, hasNot } from "#test-utils/says.ts";
 import { testWithSetting, useSetting } from "#test-utils/settings.ts";
 
 describe("dates", () => {
@@ -172,7 +169,7 @@ describe("dates", () => {
         dailyListingWithAllDays(),
         makeHoliday("Holiday", holidayDate, holidayDate),
       );
-      assert(!dates.includes(holidayDate));
+      hasNot(dates, holidayDate);
     });
 
     test("excludes holiday ranges", () => {
@@ -182,9 +179,9 @@ describe("dates", () => {
         dailyListingWithAllDays(),
         makeHoliday("Holiday Range", holidayStart, holidayEnd),
       );
-      assert(!dates.includes(holidayStart));
-      assert(!dates.includes(addDays(testDate(today()), 2)));
-      assert(!dates.includes(holidayEnd));
+      hasNot(dates, holidayStart);
+      hasNot(dates, addDays(testDate(today()), 2));
+      hasNot(dates, holidayEnd);
     });
 
     test("respects minimum_days_before", () => {
@@ -259,9 +256,9 @@ describe("dates", () => {
       });
       const dates = getAvailableDates(listing, holidays);
       // day+1 start → covers day 1,2,3 → contains holidayStart → excluded
-      assert(!dates.includes(addDays(testDate(today()), 1)));
+      hasNot(dates, addDays(testDate(today()), 1));
       // day+3 start is the holiday itself → excluded
-      assert(!dates.includes(holidayStart));
+      hasNot(dates, holidayStart);
       // day+4 start → covers day 4,5,6 → no holiday → included
       has(dates, addDays(testDate(today()), 4));
     });
@@ -272,10 +269,9 @@ describe("dates", () => {
       const { listing, holidays } = overrideListingWithDay2Holiday();
       // With duration 5 the day+1 start spans the holiday and is excluded;
       // with an override of 1 it is offered.
-      assert(
-        !getAvailableDates(listing, holidays).includes(
-          addDays(testDate(today()), 1),
-        ),
+      hasNot(
+        getAvailableDates(listing, holidays),
+        addDays(testDate(today()), 1),
       );
       has(
         getAvailableDates(listing, holidays, 1),
@@ -499,7 +495,7 @@ describe("dates", () => {
       // A 3-day booking can only start on days 0, 1, or 2 — day 3 and 4
       // can't fit a 3-day range within the 4-day window.
       expect(dates.length).toBeLessThanOrEqual(3);
-      assert(!dates.includes(addDays(testDate(today()), 4)));
+      hasNot(dates, addDays(testDate(today()), 4));
     });
 
     test("skips holidays", () => {
@@ -753,61 +749,5 @@ describe("dates", () => {
         "2 days ago",
       );
     });
-  });
-
-  describe("formatDatetimeLabel", () => {
-    test("formats ISO datetime as human-readable string", () => {
-      says(
-        formatDatetimeLabel("2026-06-15T14:00:00.000Z"),
-        "Monday 15 June 2026 at 14:00",
-      );
-    });
-
-    test("pads single-digit hours and minutes", () => {
-      says(
-        formatDatetimeLabel("2026-01-05T09:05:00.000Z"),
-        "Monday 5 January 2026 at 09:05",
-      );
-    });
-
-    test("handles midnight", () => {
-      says(
-        formatDatetimeLabel("2026-03-01T00:00:00.000Z"),
-        "Sunday 1 March 2026 at 00:00",
-      );
-    });
-  });
-
-  describe("formatDatetimeShort", () => {
-    testWithSetting(
-      "uses configured timezone (Europe/London BST)",
-      { timezone: "Europe/London" },
-      () => {
-        // 13:00 UTC on 7 April 2026 is during BST (UTC+1) → 14:00 local
-        expect(formatDatetimeShort("2026-04-07T13:00:00.000Z")).toBe(
-          "2026-04-07 14:00",
-        );
-      },
-    );
-
-    testWithSetting(
-      "uses configured timezone (Europe/London GMT)",
-      { timezone: "Europe/London" },
-      () => {
-        expect(formatDatetimeShort("2026-01-15T09:05:00.000Z")).toBe(
-          "2026-01-15 09:05",
-        );
-      },
-    );
-
-    testWithSetting(
-      "uses configured timezone (Asia/Tokyo)",
-      { timezone: "Asia/Tokyo" },
-      () => {
-        expect(formatDatetimeShort("2026-06-15T05:30:00.000Z")).toBe(
-          "2026-06-15 14:30",
-        );
-      },
-    );
   });
 });

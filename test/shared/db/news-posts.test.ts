@@ -51,11 +51,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
         raw[0]?.snippet,
         raw[0]?.content,
       );
-      saysNot(
-        raw[0]?.name,
-        "Launch day",
-        "the value should not contain the searched item",
-      );
+      saysNot(raw[0]?.name, "Launch day");
       // `created` stays plaintext ISO so SQL can order newest-first.
       expect(raw[0]?.created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
@@ -206,11 +202,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       expectEncryptedAtRest(raw[0]?.slug);
       // The index is the plaintext HMAC of the slug, not the slug itself.
       expect(raw[0]?.slug_index).not.toBe("");
-      saysNot(
-        raw[0]?.slug_index,
-        "2026-07-06-indexed",
-        "the value should not contain the searched item",
-      );
+      saysNot(raw[0]?.slug_index, "2026-07-06-indexed");
     });
 
     test("getNewsPostBySlugIndex round-trips the post; null for an unknown slug", async () => {
