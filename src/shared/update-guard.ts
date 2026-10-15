@@ -8,10 +8,10 @@
  * A failure after the flag is set leaves the flag set and rethrows. A site
  * stuck read-only is safer than a half-migrated one. The begin schedule is
  * the exception: before any update runs, a run-out reverts the flag and
- * raises the error. The operator lifts the flag by hand in the hosting
- * dashboard, or re-runs the same update, whose successful finish lifts it.
+ * raises the error.
  */
 
+import { errorMessage } from "#shared/error-message.ts";
 import { delay } from "#shared/now.ts";
 
 /** The hosting-provider secret that puts a site into update mode. */
@@ -217,17 +217,17 @@ const waitClockFrom = (
   sleep: options.sleep ?? delay,
 });
 
-/** The plan one wait follows: the quiet gap before each check, and the
- * run-out it raises after a check that still finds the page unchanged. A
- * run-out of null keeps the wait going. */
+/** The plan one wait follows: the quiet gap before each check, and what
+ * happens after a check that still finds the page unchanged. Keep waiting,
+ * or raise the run-out. */
 type UpdateWaitPlan = {
   gap: (checked: number) => number;
-  giveUp: (checked: number, poll: UpdatePoll) => Promise<Error | null>;
+  giveUp: (checked: number, poll: UpdatePoll) => Promise<void>;
 };
 
 /** The check loop both waits share: sleep the plan's gap, poll, and end
- * the wait on a ready page or a pre-update-mode build. The run-out comes
- * from the plan. */
+ * the wait on a ready page or a pre-update-mode build. The plan's giveUp
+ * keeps the wait going or raises its run-out. */
 const loopChecks = async (
   options: UpdateWaitOptions,
   plan: UpdateWaitPlan,
@@ -242,8 +242,7 @@ const loopChecks = async (
       options.log?.(UNSUPPORTED_SKIP_MESSAGE);
       return;
     }
-    const error = await plan.giveUp(checked, poll);
-    if (error !== null) throw error;
+    await plan.giveUp(checked, poll);
   }
 };
 
@@ -260,22 +259,20 @@ export const waitForUpdatePage = async (
   const deadline = now() + UPDATE_WAIT_TIMEOUT_MS;
   await loopChecks(options, {
     gap: (checked) => (checked === 1 ? 0 : UPDATE_WAIT_INTERVAL_MS),
-    giveUp: (_checked, poll) =>
-      Promise.resolve(
-        now() >= deadline
-          ? new Error(
-              waitTimedOut(
-                UPDATE_WAIT_TIMEOUT_MS,
-                poll.lastError,
-                buildMismatchNote(
-                  options.expectedBuildTag,
-                  poll.state,
-                  poll.buildTag,
-                ),
-              ),
-            )
-          : null,
-      ),
+    giveUp: async (_checked, poll) => {
+      if (now() < deadline) return;
+      throw new Error(
+        waitTimedOut(
+          UPDATE_WAIT_TIMEOUT_MS,
+          poll.lastError,
+          buildMismatchNote(
+            options.expectedBuildTag,
+            poll.state,
+            poll.buildTag,
+          ),
+        ),
+      );
+    },
   });
 };
 
@@ -305,21 +302,13 @@ const beginTimedOutError = async (
   } catch (revertIssue) {
     return new Error(
       beginTimedOutBase(totalMs) +
-        `Removing the flag failed: ${
-          revertIssue instanceof Error
-            ? revertIssue.message
-            : String(revertIssue)
-        }, so UPDATE_IN_PROGRESS may still be set and the site may still ` +
-        "refuse writes. Fix the removal failure, then re-run the same " +
-        "update, or remove UPDATE_IN_PROGRESS from the script's environment " +
-        "in the hosting dashboard." +
+        `Removing the flag failed: ${errorMessage(revertIssue)}, so UPDATE_IN_PROGRESS may still be set and the site may still refuse writes. Fix the removal failure, then re-run the same update, or remove UPDATE_IN_PROGRESS from the script's environment in the hosting dashboard.` +
         detail,
     );
   }
   return new Error(
     beginTimedOutBase(totalMs) +
-      "The flag was removed, so the site accepts writes again. " +
-      "Re-run the deploy to retry." +
+      "The flag was removed, so the site accepts writes again. Re-run the deploy to retry." +
       detail,
   );
 };
@@ -339,21 +328,23 @@ export const waitForBeginPropagation = async (
     UPDATE_BEGIN_THIRD_WAIT_MS,
   ];
   await loopChecks(options, {
-    gap: (checked) => segments[checked - 1] ?? 0,
+    gap: (checked) =>
+      checked === 1
+        ? UPDATE_BEGIN_FIRST_WAIT_MS
+        : checked === 2
+          ? UPDATE_BEGIN_SECOND_WAIT_MS
+          : UPDATE_BEGIN_THIRD_WAIT_MS,
     giveUp: async (checked, poll) => {
-      // One line per check, naming the elapsed segment: a long
-      // propagation window stays visible without noise.
+      // One line per check, naming the elapsed segment: a long propagation
+      // window stays visible without noise.
       const elapsed = segments
         .slice(0, checked)
         .reduce((sum, segment) => sum + segment, 0);
       options.log?.(
-        `The site still does not show its update page ${Math.round(
-          elapsed / 1000,
-        )} seconds after the flag was set.`,
+        `The site still does not show its update page ${Math.round(elapsed / 1000)} seconds after the flag was set.`,
       );
-      return checked < segments.length
-        ? null
-        : beginTimedOutError(revert, poll);
+      if (checked < segments.length) return;
+      throw await beginTimedOutError(revert, poll);
     },
   });
 };

@@ -306,6 +306,31 @@ describe("waitForBeginPropagation", () => {
     );
   });
 
+  test("names the failed page check in the run-out detail", async () => {
+    const clock = fakeClock();
+    let fetches = 0;
+    const error = await waitForBeginPropagation(
+      {
+        fetchPage: () => {
+          fetches += 1;
+          // The last mark's check itself fails: its failure rides in the
+          // run-out's detail instead of vanishing.
+          return fetches === 3
+            ? Promise.reject(new Error("the read timed out"))
+            : Promise.resolve(page("supported"));
+        },
+        now: clock.now,
+        skipWhenUnsupported: true,
+        sleep: clock.sleep,
+      },
+      () => Promise.resolve(),
+    ).catch((caught: unknown) => caught);
+    expect((error as Error).message).toMatch(/within 60 seconds/);
+    expect((error as Error).message).toMatch(
+      /The last page check failed: the read timed out/,
+    );
+  });
+
   test("skips a build that predates update mode", async () => {
     const clock = fakeClock();
     let reverts = 0;
