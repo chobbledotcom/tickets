@@ -185,7 +185,7 @@ describeWithEnv(
       ).toBe(1);
     });
 
-    test("a failed flag-clear batch leaves the flag up and the send standing", async () => {
+    test("a failed flag-settle batch leaves the flag up and the send standing", async () => {
       const { attendeeId, entry } = await bookedLine("Clear Fault Line");
       await configureTestEmail({ businessEmail: "owner@example.com" });
       await raiseFlag(attendeeId, "email_pending");
@@ -200,7 +200,7 @@ describeWithEnv(
       );
       try {
         // The send was accepted, so its failure is the raised flag, not a
-        // delivery error: the clear batch's failure is logged and the
+        // delivery error: the settle batch's failure is logged and the
         // completion stands.
         const result = await withRequestContext(() =>
           completePaidBooking(

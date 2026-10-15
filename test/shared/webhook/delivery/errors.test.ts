@@ -45,7 +45,14 @@ const registrationLogs = (
     return errorSpy.calls.map(({ args }) => String(args[0]));
   });
 
-
+/** Expect exactly one delivery-failure activity line from this run. */
+const expectOneFailureActivity = async (): Promise<void> => {
+  expect(
+    (await activityMessages()).filter(
+      (message) => message === "Registration notification delivery failed.",
+    ),
+  ).toHaveLength(1);
+};
 
 describeWithEnv("registration delivery errors", { db: true }, () => {
   const fetchSpy = stubWebhookFetch();
@@ -78,8 +85,6 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       "private",
     );
   });
-
-7: @ours
 
   test("reports one incident for unexpected failures in both delivery channels", async () => {
     await configureTestEmail();
@@ -114,11 +119,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     expectOneError(logs, "E_REGISTRATION_DELIVERY");
     expect(fetchSpy.calls).toHaveLength(1);
-    expect(
-      (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed.",
-      ),
-    ).toHaveLength(1);
+    await expectOneFailureActivity();
   });
 
   test("rejects an unknown stored email provider before sending", async () => {
@@ -134,11 +135,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     expectOneError(logs, "E_REGISTRATION_DELIVERY");
     expect(fetchSpy.calls).toEqual([]);
-    expect(
-      (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed.",
-      ),
-    ).toHaveLength(1);
+    await expectOneFailureActivity();
   });
 
   test("reports an error while a notification channel is prepared", async () => {
@@ -157,11 +154,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
       privateValue,
     );
-    expect(
-      (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed.",
-      ),
-    ).toHaveLength(1);
+    await expectOneFailureActivity();
   });
 
   test("records an email refusal when the webhook throws", async () => {
@@ -205,11 +198,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       ),
     );
 
-    expect(
-      (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed.",
-      ),
-    ).toHaveLength(1);
+    await expectOneFailureActivity();
   });
 
   test("keeps raw delivery errors out of the incident fan-out", async () => {
@@ -313,11 +302,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     expect(fetchSpy.calls).toHaveLength(3);
     expect(logs).toEqual([]);
-    expect(
-      (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed.",
-      ),
-    ).toHaveLength(1);
+    await expectOneFailureActivity();
   });
 
   test("reports a failure-activity write error locally", async () => {

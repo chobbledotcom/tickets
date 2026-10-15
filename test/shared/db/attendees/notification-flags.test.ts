@@ -58,19 +58,22 @@ describeWithEnv("the pending-notification count", { db: true }, () => {
 
 describeWithEnv("restoring a recovery's claimed flags", { db: true }, () => {
   test("raises only the claimed sides and leaves the others alone", async () => {
-    const { attendee } = await bookTestAttendeeWithFlags("Leased Buyer", 1, 1);
-    // The claim flipped both sides down; the restore releases the lease for
-    // the webhook side alone, so the email side keeps saying its send ran.
+    const { attendee } = await bookTestAttendeeWithFlags("Leased Buyer", 2, 1);
+    // The claim flipped both sides down; the release restores the captured
+    // admin value for the webhook side alone, so the email side keeps
+    // saying its send ran and the webhook side keeps its orange badge.
     await execute(
       "UPDATE attendees SET email_pending = 0, webhooks_pending = 0 WHERE id = ?",
       [attendee.id],
     );
 
-    await restoreClaimedNotificationFlags(attendee.id, ["webhooks"]);
+    await restoreClaimedNotificationFlags(attendee.id, [
+      { previous: 2, side: "webhooks" },
+    ]);
 
     expect(await readPendingNotificationFlags(attendee.id)).toEqual({
       email: 0,
-      webhooks: 1,
+      webhooks: 2,
     });
   });
 });

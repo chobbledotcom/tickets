@@ -13,10 +13,11 @@
 
 import {
   executeBatch,
-  executeBatchWithResults,
   inPlaceholders,
   queryOne,
+  resultRows,
   type SqlStatement,
+  withTransaction,
 } from "#db/client.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { Attendee } from "#types";
@@ -43,46 +44,86 @@ const FLAG_COLUMN: Record<PendingNotificationSide, string> = {
   webhooks: "webhooks_pending",
 };
 
-/** Write one side's flag for the given attendees. "clear" touches rows whose
- * flag is up and is what a send runs after its far side accepted. "raise"
- * touches rows whose flag is down and is what a recovery runs when a side
- * was refused. */
-export const pendingFlagStatement = (
+/** Zero one side's flag for the given attendees. Touches rows whose flag is
+ * up, and is what a send runs after its far side accepted. */
+export const clearPendingFlagStatement = (
   side: PendingNotificationSide,
   attendeeIds: readonly number[],
-  direction: "clear" | "raise",
 ): SqlStatement => ({
   args: [...attendeeIds],
-  sql: `UPDATE attendees SET ${FLAG_COLUMN[side]} = ${direction === "clear" ? 0 : 1}
+  sql: `UPDATE attendees SET ${FLAG_COLUMN[side]} = 0
         WHERE id IN (${inPlaceholders(attendeeIds)})
-          AND ${FLAG_COLUMN[side]} ${direction === "clear" ? ">" : "="} 0`,
+          AND ${FLAG_COLUMN[side]} > 0`,
 });
 
-/** Claim an attendee's outstanding pending-notification flags for one
- * recovery. Each outstanding side's flag flips down in one atomic batch, and
- * the sides that flipped are the sides this recovery owns. A recovery that
- * races another for the same attendee finds nothing outstanding and claims
- * nothing, so only one of the two queues external sends. */
-export const claimOutstandingNotificationFlags = async (
-  attendeeId: number,
-): Promise<PendingNotificationSide[]> => {
-  const results = await executeBatchWithResults([
-    pendingFlagStatement("email", [attendeeId], "clear"),
-    pendingFlagStatement("webhooks", [attendeeId], "clear"),
-  ]);
-  const sides: PendingNotificationSide[] = ["email", "webhooks"];
-  return sides.filter((_side, index) => results[index]!.rowsAffected > 0);
+/** Write one side's flag back to the value the claim found. Touches rows
+ * whose flag is down, and is what releases a recovery's claim. The captured
+ * value keeps an admin-added line's orange badge from turning red. */
+export const restorePendingFlagStatement = (
+  side: PendingNotificationSide,
+  attendeeIds: readonly number[],
+  value: PendingNotificationFlag,
+): SqlStatement => ({
+  args: [value, ...attendeeIds],
+  sql: `UPDATE attendees SET ${FLAG_COLUMN[side]} = ?
+        WHERE id IN (${inPlaceholders(attendeeIds)})
+          AND ${FLAG_COLUMN[side]} = 0`,
+});
+
+/** One side a recovery claimed, with the flag value the claim found. The
+ * restore writes this value back, so a refused or failed send keeps the
+ * badge's who-owes-this colour. */
+export type ClaimedNotificationSide = {
+  side: PendingNotificationSide;
+  previous: PendingNotificationFlag;
 };
 
-/** Put one recovery's claimed sides back up. The claim flipped them down as
- * a lease for sends that never ran, so the flags must keep saying a send is
- * owed. Unclaimed sides stay untouched. */
+/** Claim an attendee's outstanding pending-notification flags for one
+ * recovery. The read and the write share one transaction, so the captured
+ * values are the values the claim zeroed. A recovery that races another
+ * finds nothing outstanding and claims nothing, so only one of the two
+ * queues external sends. */
+export const claimOutstandingNotificationFlags = async (
+  attendeeId: number,
+): Promise<ClaimedNotificationSide[]> =>
+  withTransaction(async (tx) => {
+    const read = await tx.execute({
+      args: [attendeeId],
+      sql: "SELECT email_pending AS email, webhooks_pending AS webhooks FROM attendees WHERE id = ?",
+    });
+    const row = resultRows<{
+      email: PendingNotificationFlag;
+      webhooks: PendingNotificationFlag;
+    }>(read)[0];
+    if (row === undefined) return [];
+    const sides: readonly [PendingNotificationSide, PendingNotificationFlag][] =
+      [
+        ["email", row.email],
+        ["webhooks", row.webhooks],
+      ];
+    const claimed = sides
+      .filter(([, value]) => value > 0)
+      .map(([side, previous]) => ({ previous, side }));
+    if (claimed.length > 0) {
+      await tx.execute({
+        args: [attendeeId],
+        sql: "UPDATE attendees SET email_pending = 0, webhooks_pending = 0 WHERE id = ?",
+      });
+    }
+    return claimed;
+  });
+
+/** Put one recovery's claimed sides back to the values the claim found. The
+ * claim flipped them down as a lease for sends that never ran, so the flags
+ * must keep saying a send is owed. Unclaimed sides stay untouched. */
 export const restoreClaimedNotificationFlags = (
   attendeeId: number,
-  sides: readonly PendingNotificationSide[],
+  claimed: readonly ClaimedNotificationSide[],
 ): Promise<unknown> =>
   executeBatch(
-    sides.map((side) => pendingFlagStatement(side, [attendeeId], "raise")),
+    claimed.map(({ previous, side }) =>
+      restorePendingFlagStatement(side, [attendeeId], previous),
+    ),
   );
 
 /** SQL for "a listing this attendee booked currently collects an email".

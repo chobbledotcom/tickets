@@ -1,10 +1,8 @@
 import { logActivities } from "#db/activity-log.ts";
 import {
-  type PendingNotificationSide,
-  pendingFlagStatement,
+  type ClaimedNotificationSide,
   restoreClaimedNotificationFlags,
 } from "#db/attendees/notification-flags.ts";
-import { executeBatch, type SqlStatement } from "#db/client.ts";
 import type { WebhookBookingSource } from "#db/contact-tokens.ts";
 import { settings } from "#db/settings.ts";
 import { flatMap, mapNotNullish, unique } from "#fp";
@@ -32,6 +30,10 @@ import {
 import { captureServerError } from "#shared/sentry.ts";
 import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { isSafeServerFetchUrl } from "#shared/url-safety.ts";
+import {
+  selectedSides,
+  settleFlagOwningSend,
+} from "#shared/webhook/flag-settlement.ts";
 import {
   applyRenewalsForEntries,
   buildWebhookPayload,
@@ -178,17 +180,11 @@ export const queueManualAddWebhooks = (entries: EmailEntry[]): void => {
   addPendingWork(deliverManualAddWebhooks(entries));
 };
 
-/** Whether a send's far side accepted everything it was given: the send
- * settled, and none of its deliveries was refused. */
-const acceptedDelivery = (
-  result: PromiseSettledResult<RegistrationDeliveryResult>,
-): boolean => result.status === "fulfilled" && !result.value.failed;
-
 /** The attendees whose pending flags a send owns. */
 type FlagOwningAttendees = readonly number[] | undefined;
 
 /** The outstanding sides a recovery claimed. */
-type RecoveredSides = readonly PendingNotificationSide[] | undefined;
+type RecoveredSides = readonly ClaimedNotificationSide[] | undefined;
 
 /** One registration send the queue carries, and the flags its sends own. */
 type RegistrationSend = {
@@ -199,89 +195,6 @@ type RegistrationSend = {
   freeTexts?: FreeTextAnswers | undefined;
   clearPendingFlagsFor?: FlagOwningAttendees;
   recoverSides?: RecoveredSides;
-};
-
-/** Which sides a send queues. A recovery queues only the sides it claimed.
- * Every other path queues both. */
-const selectedSides = (
-  recoverSides: RecoveredSides | undefined,
-): Record<PendingNotificationSide, boolean> => ({
-  email: recoverSides === undefined || recoverSides.includes("email"),
-  webhooks: recoverSides === undefined || recoverSides.includes("webhooks"),
-});
-
-/** The flag writes one settled send earned. A side whose send cleared writes
- * a clear; a recovery side whose send did not clear writes a raise, so the
- * claim's lease releases back to an owed send. */
-const earnedFlagStatements = (
-  clearPendingFlagsFor: readonly number[],
-  cleared: Record<PendingNotificationSide, boolean>,
-  recoverSides: RecoveredSides | undefined,
-): SqlStatement[] =>
-  (["email", "webhooks"] as const).flatMap((side) => {
-    if (cleared[side]) {
-      return [pendingFlagStatement(side, clearPendingFlagsFor, "clear")];
-    }
-    return recoverSides?.includes(side)
-      ? [pendingFlagStatement(side, clearPendingFlagsFor, "raise")]
-      : [];
-  });
-
-/** Clears the pending flags a flag-owning send's sides earned, raises a
- * recovery's unearned sides back up, and reports what no raised flag
- * represents. */
-const settleFlagOwningSend = async (
-  clearPendingFlagsFor: readonly number[],
-  attempted: { email: boolean; webhooks: boolean },
-  webhookResult: PromiseSettledResult<RegistrationDeliveryResult>,
-  emailResult: PromiseSettledResult<RegistrationEmailResult>,
-  errors: unknown[],
-  recoverSides?: RecoveredSides,
-): Promise<void> => {
-  // The flags carry the failure: each side clears its own flag only when its
-  // send was attempted and its far side accepted. A failed send leaves its
-  // flag up for the admin. No failure activity line is written for a failure
-  // a raised flag represents. The buyer confirmation's refusal is the email
-  // flag's subject, and a webhook refusal is the webhooks flag's. The
-  // owner's admin copy is no flag's subject, so its refusal keeps its
-  // failure activity. The error is still reported, so an unexpected
-  // rejection reaches the log and the alert.
-  //
-  // A failed clear batch leaves the flags up. The admin already reads a
-  // raised flag as an owed send. Log the batch's failure, and do not mask
-  // the delivery errors' report and throw.
-  // The email side's per-message outcomes ride both settled states: the
-  // fulfilled value, and a template error's enriched RegistrationDeliveryError.
-  // Any other rejection threw before a delivery was attempted, so no side
-  // speaks.
-  const emailSide =
-    emailResult.status === "fulfilled"
-      ? emailResult.value
-      : emailResult.reason instanceof RegistrationDeliveryError
-        ? emailResult.reason
-        : undefined;
-  const buyerFlagClears =
-    attempted.email && emailSide !== undefined && !emailSide.buyerFailed;
-  const webhooksFlagClears =
-    attempted.webhooks && acceptedDelivery(webhookResult);
-  const statements = earnedFlagStatements(
-    clearPendingFlagsFor,
-    { email: buyerFlagClears, webhooks: webhooksFlagClears },
-    recoverSides,
-  );
-  if (statements.length > 0) {
-    await executeBatch(statements).catch(async (error) => {
-      await logError({
-        code: ErrorCode.DB_QUERY,
-        detail: `The pending-flag settle batch failed: ${String(error)}`,
-      });
-    });
-  }
-  const ownerFailureUnrepresented =
-    emailSide !== undefined ? emailSide.ownerFailed : false;
-  if (errors.length > 0 || ownerFailureUnrepresented) {
-    await reportRegistrationDeliveryError(ownerFailureUnrepresented);
-  }
 };
 
 const sendRegistrationNotifications = async (
@@ -331,14 +244,16 @@ const sendRegistrationNotifications = async (
     ...delivery.errors,
   ])(deliveries);
   if (send.clearPendingFlagsFor !== undefined) {
-    await settleFlagOwningSend(
+    const ownerFailureUnrepresented = await settleFlagOwningSend(
       send.clearPendingFlagsFor!,
       { email: emailAttempted, webhooks: webhooksAttempted },
       webhookResult,
       emailResult,
-      errors,
       send.recoverSides,
     );
+    if (errors.length > 0 || ownerFailureUnrepresented) {
+      await reportRegistrationDeliveryError(ownerFailureUnrepresented);
+    }
   } else if (errors.length > 0) {
     await reportRegistrationDeliveryError(true);
   } else if (deliveries.some(({ failed }) => failed)) {

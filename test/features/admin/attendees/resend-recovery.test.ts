@@ -118,6 +118,29 @@ describeWithEnv("re-sending only what a recovery owes", { db: true }, () => {
     )(response);
     expect(fetch.calls).toHaveLength(0);
   });
+
+  test("a refused send keeps an admin-added badge's value", async () => {
+    // An admin-added attendee's owed flag stores 2 (orange badge). The
+    // refused webhook's release must put 2 back, not the online value 1.
+    await configureTestEmail();
+    const { attendee, listing } = await bookTestAttendeeWithFlags(
+      "Admin Owed",
+      0,
+      2,
+    );
+    await addWebhook(listing.id);
+    fetch.reply(new Response("no", { status: 500 }));
+
+    const { response } = await resend(attendee.id, "Admin Owed");
+    expectRedirectWithFlash(
+      `/admin/attendees/${attendee.id}/actions`,
+      t("success.notification_resent"),
+    )(response);
+    expect(await readPendingNotificationFlags(attendee.id)).toEqual({
+      email: 0,
+      webhooks: 2,
+    });
+  });
 });
 
 describeWithEnv("admitting one recovery per attendee", { db: true }, () => {
