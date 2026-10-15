@@ -127,10 +127,14 @@ const readPipeline = async (
  *  it the engine's own Request object, not a native one, and passes no second
  *  argument beyond what a caller supplies. Rebuild the native request from
  *  the wire facts the object carries, read through its own API, so Deno's
- *  fetch sees a request it understands. Forward the call arguments unchanged. */
+ *  fetch sees a request it understands. Forward the call arguments unchanged.
+ *  `onDispatch` runs after every await, immediately before the boundary call,
+ *  so a caller can reject work whose world moved on while the adapter
+ *  suspended. */
 export const databaseFetch = async (
   input: Request,
   init?: RequestInit,
+  onDispatch?: () => void,
 ): Promise<Response> => {
   // A protobuf body is bytes, not text. A text read decodes and re-encodes
   // it, and non-UTF-8 sequences change. A bodyless GET must send no body
@@ -148,16 +152,70 @@ export const databaseFetch = async (
   const native = new Request(input.url, nativeInit);
   // The explicit init.signal still wins: the boundary's fetch init carries
   // it, and a fetch init signal replaces the request's own.
+  onDispatch?.();
   return fetch(native, init);
 };
 
+/** Turso's load balancer closes idle keep-alive sockets before Deno's 90-second
+ * pool does. A request on such a socket fails with "connection closed before
+ * message completed", so the database pool drops idle sockets first. */
+const DATABASE_POOL_IDLE_TIMEOUT_MS = 20_000;
+
 /** Keep native writes and local clients. HTTP primary reads share one pipeline.
- * Remote requests go through the configured fetch. */
+ * Remote requests use their own connection pool unless the caller passes a
+ * `fetch`. */
+/** Deno's fetch honours the proxy environment variables. A custom
+ *  HttpClient knows no proxy. A deployment with a proxy keeps the default
+ *  fetch behavior, and the pool serves direct-egress deployments. */
+export const PROXY_ENV_NAMES = [
+  "HTTP_PROXY",
+  "http_proxy",
+  "HTTPS_PROXY",
+  "https_proxy",
+];
+
 export const createDatabaseClient = (callerConfig: Config): Client => {
-  // A caller's fetch: undefined must not erase the adapter. The library
-  // then falls back to global fetch with its own Request type, and the
-  // boundary fails on it.
-  const { fetch: callerFetch = databaseFetch, ...rest } = callerConfig;
+  const usesProxy = PROXY_ENV_NAMES.some(
+    (name) => process.env[name] !== undefined,
+  );
+  let pool: Deno.HttpClient | undefined;
+  // Close and reconnect are the only transitions that invalidate work
+  // already in flight. The token moves on each of them, so a suspended
+  // request that resumes after one rejects at the boundary. This holds
+  // with or without a pool.
+  let lifecycle = 0;
+  const pooledFetch = async (
+    input: Request,
+    engineInit?: RequestInit,
+  ): Promise<Response> => {
+    if (!usesProxy) {
+      pool ??= Deno.createHttpClient({
+        poolIdleTimeout: DATABASE_POOL_IDLE_TIMEOUT_MS,
+      });
+    }
+    const requestPool = pool;
+    const requestLifecycle = lifecycle;
+    // The gate reads the body to suspend this callback, and the adapter
+    // reads its own clone. One read never consumes the other's body. The
+    // adapter suspends again on the clone's body, so the guard — not this
+    // wrapper — has the last word at the boundary. A close in any window
+    // cleared the slot, and the request is then stale — the caller already
+    // saw the client close.
+    const engineCopy = input.clone();
+    const init: RequestInit & { client?: Deno.HttpClient } =
+      requestPool === undefined
+        ? { ...engineInit }
+        : { ...engineInit, client: requestPool };
+    return databaseFetch(engineCopy, init, () => {
+      if (lifecycle !== requestLifecycle) {
+        throw new LibsqlError("The database client is closed", "CLIENT_CLOSED");
+      }
+    });
+  };
+  // A caller's fetch: undefined must not erase the pool wrapper. The
+  // library then falls back to global fetch with its own Request type,
+  // and the boundary fails on it.
+  const { fetch: callerFetch = pooledFetch, ...rest } = callerConfig;
   const config: Config = { ...rest, fetch: callerFetch };
   const client = createClient(config);
   if (client.protocol !== "http") return client;
@@ -200,13 +258,17 @@ export const createDatabaseClient = (callerConfig: Config): Client => {
           : client.batch(statements, mode),
       ),
     close: () => {
+      lifecycle += 1;
       resetPipeline();
       client.close();
+      pool?.close();
+      pool = undefined;
     },
     execute: wrapExecute(client, (_statement, run) => limit(run)),
     executeMultiple: limited(client.executeMultiple.bind(client)),
     migrate: limited(client.migrate.bind(client)),
     reconnect: () => {
+      lifecycle += 1;
       resetPipeline();
       return client.reconnect();
     },
