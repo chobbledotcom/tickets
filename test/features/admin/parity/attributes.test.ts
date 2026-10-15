@@ -1,6 +1,7 @@
 // Behaviour pins for the attribute resource: what each surface answers
 // today, one test per fact. The page posts to /admin/attributes; the JSON API
 // posts to /api/admin/attributes (OWNER_API). Both surfaces are owner-only.
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAllAttributesWithOptions } from "#db/attributes.ts";

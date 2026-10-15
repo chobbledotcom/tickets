@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
@@ -75,29 +76,39 @@ describe("ListingEditor", () => {
       }),
     );
 
-    expect(html).toContain('class="listing-editor show-all-listings"');
-    expect(html).not.toContain('class="show-all-toggle"');
-    expect(html).toContain(
+    assertStringIncludes(html, 'class="listing-editor show-all-listings"');
+    assert(
+      !html.includes('class="show-all-toggle"'),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(
+      html,
       '<label class="show-all"><input class="package-paths-toggle" type="checkbox">',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<span class="muted small booking-path"> via Weekend pass</span>',
     );
-    expect(html).toContain("via Day pass");
-    expect(html).toContain("via deleted package #11");
-    expect(html).toContain("add-on under Main tour");
-    expect(html).toContain("add-on under 1");
-    expect(html).toContain(
+    assertStringIncludes(html, "via Day pass");
+    assertStringIncludes(html, "via deleted package #11");
+    assertStringIncludes(html, "add-on under Main tour");
+    assertStringIncludes(html, "add-on under 1");
+    assertStringIncludes(
+      html,
       '<tr class="attendee-line attendee-line-package-blank">',
     );
-    expect(html).toContain('<tr class="attendee-line attendee-line-empty">');
-    expect(html).toContain('<span class="muted small">Fixed date</span>');
-    expect(html).toContain('name="line_package_1"');
+    assertStringIncludes(
+      html,
+      '<tr class="attendee-line attendee-line-empty">',
+    );
+    assertStringIncludes(html, '<span class="muted small">Fixed date</span>');
+    assertStringIncludes(html, 'name="line_package_1"');
     expect(html.match(/name="line_package_\d+"/g)).toHaveLength(3);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'class="line-qty" max="5" min="0" name="qty_0" type="number" value="0"',
     );
-    expect(html).toContain("Fixed date");
+    assertStringIncludes(html, "Fixed date");
   });
 
   test("carries one lowest-value package path on its own", () => {
@@ -113,12 +124,14 @@ describe("ListingEditor", () => {
       }),
     );
 
-    expect(html).toContain('class="package-paths-toggle"');
-    expect(html).toContain("via Day pass");
-    expect(html).toContain(
+    assertStringIncludes(html, 'class="package-paths-toggle"');
+    assertStringIncludes(html, "via Day pass");
+    assertStringIncludes(
+      html,
       '<tr class="attendee-line attendee-line-package-blank">',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="line_package_0" type="hidden" value="1">',
     );
   });
@@ -132,12 +145,18 @@ describe("ListingEditor", () => {
       }),
     );
 
-    expect(html).toContain('class="listing-editor"');
-    expect(html).toContain('class="show-all-toggle"');
-    expect(html).toContain('<label class="show-all">');
-    expect(html).toContain('<tr class="attendee-line">');
-    expect(html).not.toContain("attendee-line-empty");
-    expect(html).not.toContain("attendee-line-package-blank");
+    assertStringIncludes(html, 'class="listing-editor"');
+    assertStringIncludes(html, 'class="show-all-toggle"');
+    assertStringIncludes(html, '<label class="show-all">');
+    assertStringIncludes(html, '<tr class="attendee-line">');
+    assert(
+      !html.includes("attendee-line-empty"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("attendee-line-package-blank"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("keeps a paid daily booking visible with its notices", () => {
@@ -182,43 +201,57 @@ describe("ListingEditor", () => {
       }),
     );
 
-    expect(html).toContain('class="listing-editor"');
-    expect(html).toContain(
+    assertStringIncludes(html, 'class="listing-editor"');
+    assertStringIncludes(
+      html,
       '<label class="show-all"><input class="show-all-toggle" type="checkbox">',
     );
     expect(html.match(/class="attendee-line"/g)).toHaveLength(3);
-    expect(html).not.toContain("attendee-line-empty");
-    expect(html).not.toContain("package-paths-toggle");
-    expect(html).toContain('<table class="line-editor">');
-    expect(html).toContain(
+    assert(
+      !html.includes("attendee-line-empty"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("package-paths-toggle"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, '<table class="line-editor">');
+    assertStringIncludes(
+      html,
       'class="line-qty" max="3" min="0" name="qty_0" type="number" value="2"',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'class="line-qty" max="5" min="0" name="qty_1" type="number" value="1"',
     );
-    expect(html).toContain('<span class="muted small">Shared dates</span>');
-    expect(html).toContain(
+    assertStringIncludes(html, '<span class="muted small">Shared dates</span>');
+    assertStringIncludes(
+      html,
       `<div class="muted small">${formatDateRangeLabel("2026-07-01T00:00:00Z", "2026-07-03T00:00:00Z")}</div>`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div class="warning small" role="alert">This booking is over capacity.</div>',
     );
-    expect(html).toContain('<td class="attendee-line-qty">');
-    expect(html).toContain("<th></th>");
-    expect(html).toContain('<label class="small">');
-    expect(html).toContain("Choose a smaller quantity.");
-    expect(html).toContain("Checked in");
-    expect(html).toContain("Refunded");
-    expect(html).toContain("Inactive");
-    expect(html).toContain(
+    assertStringIncludes(html, '<td class="attendee-line-qty">');
+    assertStringIncludes(html, "<th></th>");
+    assertStringIncludes(html, '<label class="small">');
+    assertStringIncludes(html, "Choose a smaller quantity.");
+    assertStringIncludes(html, "Checked in");
+    assertStringIncludes(html, "Refunded");
+    assertStringIncludes(html, "Inactive");
+    assertStringIncludes(
+      html,
       'class="no-quantity-toggle" disabled name="noqty_0"',
     );
-    expect(html).toContain('name="noqty_0" title="Refund this line');
-    expect(html).toContain('type="checkbox" value="1"');
-    expect(html).toContain(
+    assertStringIncludes(html, 'name="noqty_0" title="Refund this line');
+    assertStringIncludes(html, 'type="checkbox" value="1"');
+    assertStringIncludes(
+      html,
       '<input name="line_listing_0" type="hidden" value="1">',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="line_key_0" type="hidden" value="1|2026-07-01">',
     );
   });

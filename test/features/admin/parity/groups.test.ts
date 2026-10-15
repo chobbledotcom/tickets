@@ -1,6 +1,7 @@
 // Behaviour pins for the group resource: what each surface answers today,
 // one test per fact. The page posts to /admin/groups; the JSON API posts to
 // /api/admin/groups (CONTENT_API: owner, manager, editor).
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";

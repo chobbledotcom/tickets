@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -8,13 +9,13 @@ import {
 describe("attribute editor forms", () => {
   test("the name form asks for an attribute name", () => {
     expect(attributeNameForm.fields[0]!.name).toBe("name");
-    expect(attributeNameForm.render()).toContain("Attribute name");
-    expect(attributeNameForm.render()).toContain("e.g. Difficulty");
+    assertStringIncludes(attributeNameForm.render(), "Attribute name");
+    assertStringIncludes(attributeNameForm.render(), "e.g. Difficulty");
   });
 
   test("the option form asks for option text", () => {
     expect(attributeOptionForm.fields[0]!.name).toBe("text");
-    expect(attributeOptionForm.render()).toContain("Option text");
-    expect(attributeOptionForm.render()).toContain("e.g. Beginner");
+    assertStringIncludes(attributeOptionForm.render(), "Option text");
+    assertStringIncludes(attributeOptionForm.render(), "e.g. Beginner");
   });
 });

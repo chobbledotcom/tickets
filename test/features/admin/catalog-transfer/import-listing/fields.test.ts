@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { requireListingWithCount } from "#db/listings/records.ts";
@@ -14,7 +15,7 @@ const expectListingImportError = async (
   const result = await importCatalog({ kind: "listing", listing, version: 1 });
   expect(result.ok).toBe(false);
   if (result.ok) throw new Error("unreachable");
-  expect(result.error).toContain(contains);
+  assertStringIncludes(result.error, contains);
 };
 
 // The listing form validates field VALUES (datetime, duration cap, contact

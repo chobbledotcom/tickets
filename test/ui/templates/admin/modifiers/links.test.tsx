@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -37,9 +38,9 @@ describe("ScopeLinksForm", () => {
       options: [{ active: true, id: 7, name: "VIP Pass" }],
       selected: [7],
     });
-    expect(html).toContain('action="/admin/modifiers/1/links"');
-    expect(html).toContain("/icons.svg#save");
-    expect(html).toContain("Save scope");
+    assertStringIncludes(html, 'action="/admin/modifiers/1/links"');
+    assertStringIncludes(html, "/icons.svg#save");
+    assertStringIncludes(html, "Save scope");
   });
 
   test("renders listing checkboxes under the listings field, current links checked", () => {
@@ -51,14 +52,16 @@ describe("ScopeLinksForm", () => {
       ],
       selected: [7],
     });
-    expect(html).toContain("<strong>Linked listings (1):</strong>");
-    expect(html).toContain(
+    assertStringIncludes(html, "<strong>Linked listings (1):</strong>");
+    assertStringIncludes(
+      html,
       'checked name="listing_ids" type="checkbox" value="7"',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<label><input name="listing_ids" type="checkbox" value="8"',
     );
-    expect(html).toContain("VIP Pass");
+    assertStringIncludes(html, "VIP Pass");
   });
 
   test("renders group checkboxes under the groups field", () => {
@@ -67,10 +70,13 @@ describe("ScopeLinksForm", () => {
       options: [{ active: true, id: 3, name: "Weekend" }],
       selected: [],
     });
-    expect(html).toContain("<strong>Linked groups (0):</strong>");
-    expect(html).toContain('name="group_ids" type="checkbox" value="3"');
-    expect(html).toContain("Weekend");
-    expect(html).not.toContain('name="listing_ids"');
+    assertStringIncludes(html, "<strong>Linked groups (0):</strong>");
+    assertStringIncludes(html, 'name="group_ids" type="checkbox" value="3"');
+    assertStringIncludes(html, "Weekend");
+    assert(
+      !html.includes('name="listing_ids"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("sorts a deactivated listing last and renders it muted", () => {
@@ -92,9 +98,15 @@ describe("ScopeLinksForm", () => {
 
   test("shows the empty note (and no checkboxes) when nothing is linkable", () => {
     const html = render({ kind: "listings", options: [], selected: [] });
-    expect(html).toContain("Nothing available to link yet");
-    expect(html).not.toContain('type="checkbox"');
-    expect(html).not.toContain("Linked listings");
+    assertStringIncludes(html, "Nothing available to link yet");
+    assert(
+      !html.includes('type="checkbox"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("Linked listings"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -109,10 +121,13 @@ describe("AnswerLinksForm", () => {
       options: [{ id: 10, name: "Size — Large" }],
       selected: [10],
     });
-    expect(html).toContain('action="/admin/modifiers/1/answers"');
-    expect(html).toContain("when a buyer selects any of the ticked answers");
-    expect(html).toContain("/icons.svg#save");
-    expect(html).toContain("Save answers");
+    assertStringIncludes(html, 'action="/admin/modifiers/1/answers"');
+    assertStringIncludes(
+      html,
+      "when a buyer selects any of the ticked answers",
+    );
+    assertStringIncludes(html, "/icons.svg#save");
+    assertStringIncludes(html, "Save answers");
   });
 
   test("checks linked answers and leaves unlinked ones unchecked", () => {
@@ -123,11 +138,13 @@ describe("AnswerLinksForm", () => {
       ],
       selected: [10],
     });
-    expect(html).toContain("<strong>Linked answers (1):</strong>");
-    expect(html).toContain(
+    assertStringIncludes(html, "<strong>Linked answers (1):</strong>");
+    assertStringIncludes(
+      html,
       'checked name="answer_ids" type="checkbox" value="10"',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<label><input name="answer_ids" type="checkbox" value="11"',
     );
   });
@@ -137,12 +154,18 @@ describe("AnswerLinksForm", () => {
       options: [{ id: 10, name: "Size — Large" }],
       selected: [],
     });
-    expect(html).not.toContain('<label class="muted"><input name="answer_ids"');
+    assert(
+      !html.includes('<label class="muted"><input name="answer_ids"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("shows the empty note when there are no answers to link", () => {
     const html = render({ options: [], selected: [] });
-    expect(html).toContain("No question answers to link yet");
-    expect(html).not.toContain('type="checkbox"');
+    assertStringIncludes(html, "No question answers to link yet");
+    assert(
+      !html.includes('type="checkbox"'),
+      "the value should not contain the searched item",
+    );
   });
 });

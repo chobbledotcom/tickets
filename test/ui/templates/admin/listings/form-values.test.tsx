@@ -2,6 +2,7 @@
  * boxes, a stored listing's field values, the defaults page's values, and the
  * templated form's class markers. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -22,9 +23,12 @@ describe("renderDayPricesFieldset", () => {
     const html = renderDayPricesFieldset(
       testListingWithCount({ duration_days: 2 }),
     );
-    expect(html).toContain('name="day_price_1"');
-    expect(html).toContain('name="day_price_2"');
-    expect(html).not.toContain('name="day_price_3"');
+    assertStringIncludes(html, 'name="day_price_1"');
+    assertStringIncludes(html, 'name="day_price_2"');
+    assert(
+      !html.includes('name="day_price_3"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("draws a stored override and leaves an unset day to its placeholder", () => {
@@ -41,19 +45,23 @@ describe("renderDayPricesFieldset", () => {
     const html = renderDayPricesFieldset(
       testListingWithCount({ duration_days: 2 }),
     );
-    expect(html).toContain("</fieldset>");
+    assertStringIncludes(html, "</fieldset>");
     // Every day's row is one label with its box inside it, labeled by the
     // day it prices and closed before the next day's row starts.
-    expect(html).toContain("</label><label>");
-    expect(html).toContain(
+    assertStringIncludes(html, "</label><label>");
+    assertStringIncludes(
+      html,
       `${t("listings_table.day_price_row_label", { n: 1 })}<input`,
     );
   });
 
   test("a fresh form offers a single day", () => {
     const html = renderDayPricesFieldset();
-    expect(html).toContain('name="day_price_1"');
-    expect(html).not.toContain('name="day_price_2"');
+    assertStringIncludes(html, 'name="day_price_1"');
+    assert(
+      !html.includes('name="day_price_2"'),
+      "the value should not contain the searched item",
+    );
   });
 });
 

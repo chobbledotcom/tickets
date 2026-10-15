@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
@@ -78,7 +79,7 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
     const result = await importListingOverride("Custom Joiner", "Host Pkg", 5);
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    expect(result.error).toContain("5-day");
+    assertStringIncludes(result.error, "5-day");
   });
 
   test("accepts a listing-import package day-override for an offered span", async () => {

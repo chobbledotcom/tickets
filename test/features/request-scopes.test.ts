@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -95,7 +96,8 @@ describe("request scopes", () => {
       },
     );
 
-    expect(blocked).toContain(
+    assertStringIncludes(
+      blocked,
       `Subrequest allowance exceeded: 0 database + ${
         BUNNY_SUBREQUEST_LIMIT + 1
       } external calls`,

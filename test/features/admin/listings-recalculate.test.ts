@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -28,12 +29,12 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
 
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Current");
-      expect(html).toContain("From attendee data");
+      assertStringIncludes(html, "Current");
+      assertStringIncludes(html, "From attendee data");
       // Stored 9 and 5 beside the one booking's 1 and 1, or the operator
       // cannot see what they are about to change.
-      expect(html).toContain("<td>9</td><td>1</td>");
-      expect(html).toContain("<td>5</td><td>1</td>");
+      assertStringIncludes(html, "<td>9</td><td>1</td>");
+      assertStringIncludes(html, "<td>5</td><td>1</td>");
     });
 
     test("is a 404 for a listing id that does not exist", async () => {
@@ -67,7 +68,8 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
       expect(response.headers.get("location")).toMatch(
         new RegExp(`^/admin/listing/${listing.id}/edit(\\?|$)`),
       );
-      expect(response.headers.get("set-cookie")).toContain(
+      assertStringIncludes(
+        response.headers.get("set-cookie") ?? "",
         encodeURIComponent("Listing totals recalculated"),
       );
 
@@ -94,8 +96,9 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
       );
 
       const entries = await getAllActivityLog();
-      expect(entries.map((entry) => entry.message)).toContain(
-        `Listing '${listing.name}' totals recalculated`,
+      assertArrayIncludes(
+        entries.map((entry) => entry.message),
+        [`Listing '${listing.name}' totals recalculated`],
       );
     });
 
@@ -115,7 +118,8 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
       // The page comes back as a client error, not a success, because the
       // operator still has to choose.
       expect(response.status).toBe(400);
-      expect(await response.text()).toContain(
+      assertStringIncludes(
+        await response.text(),
         "Choose at least one total to recalculate",
       );
       const untouched = await getListingWithCount(listing.id);

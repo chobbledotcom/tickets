@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
@@ -172,8 +173,11 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         modifierUsages: [],
       });
       if (result.success) throw new Error("expected a capacity failure");
-      expect(result.error).toContain("Sellout Kit");
-      expect(result.error).not.toContain("Secret Widget");
+      assertStringIncludes(result.error, "Sellout Kit");
+      assert(
+        !result.error.includes("Secret Widget"),
+        "the value should not contain the searched item",
+      );
     });
   });
 

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, it as test } from "@std/testing/bdd";
 import {
@@ -18,11 +19,11 @@ describeWithEnv("site editor pages", { db: true }, () => {
 
   test("the home page shows both boxes carrying the stored values", () => {
     const html = adminSiteHomePage(OWNER_SESSION, "My site", "Welcome!");
-    expect(html).toContain('value="My site"');
-    expect(html).toContain("Welcome!");
-    expect(html).toContain('name="website_title"');
-    expect(html).toContain('name="homepage_text"');
-    expect(html).toContain('action="/admin/site"');
+    assertStringIncludes(html, 'value="My site"');
+    assertStringIncludes(html, "Welcome!");
+    assertStringIncludes(html, 'name="website_title"');
+    assertStringIncludes(html, 'name="homepage_text"');
+    assertStringIncludes(html, 'action="/admin/site"');
   });
 
   test("every site editor page links its guide chapter", () => {
@@ -39,7 +40,7 @@ describeWithEnv("site editor pages", { db: true }, () => {
       }),
     ];
     for (const html of pages) {
-      expect(html).toContain('href="/admin/guide#public-site"');
+      assertStringIncludes(html, 'href="/admin/guide#public-site"');
     }
   });
 
@@ -49,23 +50,26 @@ describeWithEnv("site editor pages", { db: true }, () => {
       enabled: false,
       hasBusinessEmail: true,
     });
-    expect(html).toContain("Email us");
-    expect(html).toContain('name="contact_page_text"');
-    expect(html).toContain('action="/admin/site/contact"');
+    assertStringIncludes(html, "Email us");
+    assertStringIncludes(html, 'name="contact_page_text"');
+    assertStringIncludes(html, 'action="/admin/site/contact"');
     // The toggle posts to its own route with a checkbox the route reads.
-    expect(html).toContain('action="/admin/site/contact/form"');
+    assertStringIncludes(html, 'action="/admin/site/contact/form"');
     const toggle = inputNamed(html, "contact_form_enabled");
-    expect(toggle).toContain('type="checkbox"');
-    expect(toggle).toContain('value="true"');
+    assertStringIncludes(toggle, 'type="checkbox"');
+    assertStringIncludes(toggle, 'value="true"');
     // The box and its label stay one space apart, not glued.
     expect(html).toMatch(
       /name="contact_form_enabled"[^>]*>\s+Enable contact form/,
     );
-    expect(html).toContain("submissions are accepted without a spam check");
-    expect(html).not.toContain("to receive contact form messages");
+    assertStringIncludes(html, "submissions are accepted without a spam check");
+    assert(
+      !html.includes("to receive contact form messages"),
+      "the value should not contain the searched item",
+    );
     // The env-key names sit one space apart, not glued.
-    expect(html).toContain("and <code>BOTPOISON_SECRET_KEY</code>");
-    expect(html).toContain('class="prose"');
+    assertStringIncludes(html, "and <code>BOTPOISON_SECRET_KEY</code>");
+    assertStringIncludes(html, 'class="prose"');
   });
 
   test("the contact page names Botpoison when it is active", () => {
@@ -74,8 +78,11 @@ describeWithEnv("site editor pages", { db: true }, () => {
       enabled: false,
       hasBusinessEmail: true,
     });
-    expect(html).toContain("Botpoison is active.");
-    expect(html).not.toContain("without a spam check");
+    assertStringIncludes(html, "Botpoison is active.");
+    assert(
+      !html.includes("without a spam check"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("the contact page asks for a business email when none is set", () => {
@@ -84,7 +91,7 @@ describeWithEnv("site editor pages", { db: true }, () => {
       enabled: false,
       hasBusinessEmail: false,
     });
-    expect(html).toContain("to receive contact form messages");
+    assertStringIncludes(html, "to receive contact form messages");
   });
 
   test("the order page shows the intro box and the enable toggle", () => {
@@ -92,16 +99,16 @@ describeWithEnv("site editor pages", { db: true }, () => {
       enabled: false,
       listingCount: 2,
     });
-    expect(html).toContain("Before you book, note:");
-    expect(html).toContain('name="order_intro_text"');
-    expect(html).toContain('action="/admin/site/order"');
-    expect(html).toContain('action="/admin/site/order/toggle"');
+    assertStringIncludes(html, "Before you book, note:");
+    assertStringIncludes(html, 'name="order_intro_text"');
+    assertStringIncludes(html, 'action="/admin/site/order"');
+    assertStringIncludes(html, 'action="/admin/site/order/toggle"');
     const toggle = inputNamed(html, "order_enabled");
-    expect(toggle).toContain('type="checkbox"');
-    expect(toggle).toContain('value="true"');
+    assertStringIncludes(toggle, 'type="checkbox"');
+    assertStringIncludes(toggle, 'value="true"');
     // The box and its label stay one space apart, not glued.
     expect(html).toMatch(/name="order_enabled"[^>]*>\s+Enable order page/);
-    expect(html).toContain('class="prose"');
+    assertStringIncludes(html, 'class="prose"');
   });
 
   test("the order page counts the listings it will show", () => {
@@ -109,12 +116,12 @@ describeWithEnv("site editor pages", { db: true }, () => {
       enabled: false,
       listingCount: 2,
     });
-    expect(two).toContain("2 listings will be shown on the order page.");
+    assertStringIncludes(two, "2 listings will be shown on the order page.");
     const one = adminSiteOrderPage(OWNER_SESSION, "", {
       enabled: false,
       listingCount: 1,
     });
-    expect(one).toContain("1 listing will be shown on the order page.");
+    assertStringIncludes(one, "1 listing will be shown on the order page.");
   });
 
   test("the order page warns when no listing can appear yet", () => {
@@ -122,10 +129,13 @@ describeWithEnv("site editor pages", { db: true }, () => {
       enabled: false,
       listingCount: 0,
     });
-    expect(html).toContain("You have no bookable listings yet.");
+    assertStringIncludes(html, "You have no bookable listings yet.");
     // The warning's own link, with its words one space apart.
-    expect(html).toContain('href="/admin/">Create a listing</a> for it');
-    expect(html).not.toContain("will be shown on the order page");
+    assertStringIncludes(html, 'href="/admin/">Create a listing</a> for it');
+    assert(
+      !html.includes("will be shown on the order page"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("each editor opens the Site nav section with its landing link lit", async () => {
@@ -142,7 +152,7 @@ describeWithEnv("site editor pages", { db: true }, () => {
         listingCount: 1,
       }),
     ]) {
-      expect(html).toContain('<a class="active" href="/admin/site">');
+      assertStringIncludes(html, '<a class="active" href="/admin/site">');
     }
   });
 });

@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -72,8 +73,14 @@ describeWithEnv(
             "File storage is not configured.",
           );
           const html = await (await adminGet("/admin/images")).text();
-          expect(html).not.toContain("Hidden while disabled");
-          expect(html).not.toContain("Add Image");
+          assert(
+            !html.includes("Hidden while disabled"),
+            "the value should not contain the searched item",
+          );
+          assert(
+            !html.includes("Add Image"),
+            "the value should not contain the searched item",
+          );
         });
       });
     });
@@ -234,7 +241,7 @@ describeWithEnv(
         const messages = (await getAllActivityLog()).map(
           (entry) => entry.message,
         );
-        expect(messages).toContain("Image 'New library image' uploaded");
+        assertArrayIncludes(messages, ["Image 'New library image' uploaded"]);
       });
     });
   },

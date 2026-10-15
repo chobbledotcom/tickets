@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
@@ -18,17 +18,24 @@ describe("EmailNotificationsForm", () => {
       }),
     );
 
-    expect(html).toContain("Email Provider");
-    expect(html).toContain('<select name="email_provider">');
-    expect(html).toContain('<option selected value="resend">Resend</option>');
-    expect(html).toContain('<option value="">Host email</option>');
-    expect(html).toContain('<option value="mailgun-eu">Mailgun (EU)</option>');
+    assertStringIncludes(html, "Email Provider");
+    assertStringIncludes(html, '<select name="email_provider">');
+    assertStringIncludes(
+      html,
+      '<option selected value="resend">Resend</option>',
+    );
+    assertStringIncludes(html, '<option value="">Host email</option>');
+    assertStringIncludes(
+      html,
+      '<option value="mailgun-eu">Mailgun (EU)</option>',
+    );
   });
 
   test("falls back to the none option when no host email exists", () => {
     const html = String(EmailNotificationsForm(advancedDefaultState));
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<option selected value="">None (disabled)</option>',
     );
   });
@@ -43,30 +50,37 @@ describe("EmailNotificationsForm", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email_api_key" placeholder="Enter API key" type="password" value="${MASK_SENTINEL}">`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email_from_address" placeholder="owner@site.example" type="email" value="tickets@site.example">`,
     );
-    expect(html).toContain("API Key");
-    expect(html).toContain("From Address");
+    assertStringIncludes(html, "API Key");
+    assertStringIncludes(html, "From Address");
   });
 
   test("leaves the API key blank and hints the from address fallback", () => {
     const html = String(EmailNotificationsForm(advancedDefaultState));
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email_api_key" placeholder="Enter API key" type="password">`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `name="email_from_address" placeholder="tickets@yourdomain.com" type="email" value=""`,
     );
   });
 
   test("offers the send-test form only once a provider is chosen", () => {
     const off = String(EmailNotificationsForm(advancedDefaultState));
-    expect(off).not.toContain('action="/admin/settings/email/test"');
+    assert(
+      !off.includes('action="/admin/settings/email/test"'),
+      "the value should not contain the searched item",
+    );
 
     const on = String(
       EmailNotificationsForm({
@@ -74,18 +88,18 @@ describe("EmailNotificationsForm", () => {
         emailProvider: "postmark",
       }),
     );
-    expect(on).toContain('action="/admin/settings/email/test"');
-    expect(on).toContain('id="settings-email-test"');
-    expect(on).toContain("Send Test Email");
+    assertStringIncludes(on, 'action="/admin/settings/email/test"');
+    assertStringIncludes(on, 'id="settings-email-test"');
+    assertStringIncludes(on, "Send Test Email");
   });
 
   test("posts to the email settings route with its save button", () => {
     const html = String(EmailNotificationsForm(advancedDefaultState));
 
-    expect(html).toContain("Email Notifications");
-    expect(html).toContain('action="/admin/settings/email"');
-    expect(html).toContain('id="settings-email"');
-    expect(html).toContain("Save Email Settings");
-    expect(html).toContain('href="/admin/guide#email"');
+    assertStringIncludes(html, "Email Notifications");
+    assertStringIncludes(html, 'action="/admin/settings/email"');
+    assertStringIncludes(html, 'id="settings-email"');
+    assertStringIncludes(html, "Save Email Settings");
+    assertStringIncludes(html, 'href="/admin/guide#email"');
   });
 });

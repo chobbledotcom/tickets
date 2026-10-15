@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -109,8 +110,11 @@ describeWithEnv(
         const body = await response.text();
         // The live row's admission stays on offer; a refunded checked row
         // is out of the eligibility set, so it cannot flip the action.
-        expect(body).toContain("Check In All");
-        expect(body).not.toContain("Check Out All");
+        assertStringIncludes(body, "Check In All");
+        assert(
+          !body.includes("Check Out All"),
+          "the value should not contain the searched item",
+        );
       });
     });
   },

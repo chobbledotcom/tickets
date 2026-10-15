@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
@@ -22,15 +22,18 @@ describe("column order settings forms", () => {
       }),
     );
 
-    expect(html).toContain('action="/admin/settings/listing-column-order"');
-    expect(html).toContain("<h2>Listing table columns</h2>");
-    expect(html).toContain('name="column_order"');
-    expect(html).toContain(`placeholder="${definition.defaultTemplate}"`);
-    expect(html).toContain(`value="${definition.defaultTemplate}"`);
-    expect(html).not.toContain('value="{{phone}}"');
-    expect(html).toContain(availableTags(definition.keys));
-    expect(html).toContain('href="/admin/guide#column-order"');
-    expect(html).toContain("Save listing columns");
+    assertStringIncludes(html, 'action="/admin/settings/listing-column-order"');
+    assertStringIncludes(html, "<h2>Listing table columns</h2>");
+    assertStringIncludes(html, 'name="column_order"');
+    assertStringIncludes(html, `placeholder="${definition.defaultTemplate}"`);
+    assertStringIncludes(html, `value="${definition.defaultTemplate}"`);
+    assert(
+      !html.includes('value="{{phone}}"'),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, availableTags(definition.keys));
+    assertStringIncludes(html, 'href="/admin/guide#column-order"');
+    assertStringIncludes(html, "Save listing columns");
   });
 
   test("shows the saved attendee template without replacing its placeholder", () => {
@@ -45,13 +48,19 @@ describe("column order settings forms", () => {
       }),
     );
 
-    expect(html).toContain('action="/admin/settings/attendee-column-order"');
-    expect(html).toContain("<h2>Attendee table columns</h2>");
-    expect(html).toContain(`placeholder="${definition.defaultTemplate}"`);
-    expect(html).toContain(`value="${saved}"`);
-    expect(html).not.toContain('value="{{profit}}"');
-    expect(html).toContain(availableTags(definition.keys));
-    expect(html).toContain("A column is hidden when no attendee has data");
-    expect(html).toContain("Save attendee columns");
+    assertStringIncludes(
+      html,
+      'action="/admin/settings/attendee-column-order"',
+    );
+    assertStringIncludes(html, "<h2>Attendee table columns</h2>");
+    assertStringIncludes(html, `placeholder="${definition.defaultTemplate}"`);
+    assertStringIncludes(html, `value="${saved}"`);
+    assert(
+      !html.includes('value="{{profit}}"'),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, availableTags(definition.keys));
+    assertStringIncludes(html, "A column is hidden when no attendee has data");
+    assertStringIncludes(html, "Save attendee columns");
   });
 });

@@ -2,6 +2,7 @@
 // page (groups.ts). Kept in the mutation gate's changed set so groups.ts's
 // whole-file mutants meet their real covering tests.
 // jscpd:ignore-start -- imports
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";

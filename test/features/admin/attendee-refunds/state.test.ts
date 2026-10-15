@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
@@ -154,7 +155,10 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
       });
 
       const html = await expectHtmlResponse(response, 400, "still settling");
-      expect(html).not.toContain("Refund Attendee</button>");
+      assert(
+        !html.includes("Refund Attendee</button>"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("admits one canonical charge, records it, and refuses a second send", async () => {

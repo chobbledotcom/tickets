@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -39,12 +40,14 @@ describe("admin feature templates", () => {
     const html = String(FeaturesTable({ enabledFeatures }));
 
     for (const feature of ADMIN_FEATURES) {
-      expect(html).toContain(`href="/admin/features/${feature.slug}"`);
+      assertStringIncludes(html, `href="/admin/features/${feature.slug}"`);
     }
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<td><a href="/admin/features/attributes">Attributes</a></td><td>Enabled</td>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<td><a href="/admin/features/site">Site</a></td><td>Disabled</td>',
     );
   });
@@ -53,34 +56,56 @@ describe("admin feature templates", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = renderFeature({ enabled: true });
 
-    expect(html).toContain('action="/admin/features/attributes"');
-    expect(html).toContain(
+    assertStringIncludes(html, 'action="/admin/features/attributes"');
+    assertStringIncludes(
+      html,
       '<input checked name="enabled" type="radio" value="true">',
     );
-    expect(html).toContain('<input name="enabled" type="radio" value="false">');
-    expect(html).toContain("Save feature");
-    expect(html).not.toContain("This feature is in use.");
+    assertStringIncludes(
+      html,
+      '<input name="enabled" type="radio" value="false">',
+    );
+    assertStringIncludes(html, "Save feature");
+    assert(
+      !html.includes("This feature is in use."),
+      "the value should not contain the searched item",
+    );
   });
 
   test("shows an in-use feature status without a form", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = renderFeature({ enabled: true, inUse: true });
 
-    expect(html).toContain("<strong>Status:</strong> Enabled");
-    expect(html).toContain("This feature is in use.");
-    expect(html).toContain("Remove its saved items before you disable it.");
-    expect(html).not.toContain('action="/admin/features/attributes"');
-    expect(html).not.toContain('name="enabled"');
+    assertStringIncludes(html, "<strong>Status:</strong> Enabled");
+    assertStringIncludes(html, "This feature is in use.");
+    assertStringIncludes(html, "Remove its saved items before you disable it.");
+    assert(
+      !html.includes('action="/admin/features/attributes"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('name="enabled"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("shows a disabled read-only status without in-use help or controls", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = renderFeature();
 
-    expect(html).toContain("<strong>Status:</strong> Disabled");
-    expect(html).not.toContain("This feature is in use.");
-    expect(html).not.toContain('action="/admin/features/attributes"');
-    expect(html).not.toContain('name="enabled"');
+    assertStringIncludes(html, "<strong>Status:</strong> Disabled");
+    assert(
+      !html.includes("This feature is in use."),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('action="/admin/features/attributes"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('name="enabled"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders submitted error and success notices", () => {
@@ -90,11 +115,11 @@ describe("admin feature templates", () => {
       success: "Attributes enabled.",
     });
 
-    expect(html).toContain('<div class="success" role="alert">');
-    expect(html).toContain("Attributes enabled.");
+    assertStringIncludes(html, '<div class="success" role="alert">');
+    assertStringIncludes(html, "Attributes enabled.");
     expect(html).toMatch(
       /<div(?=[^>]*class="error")(?=[^>]*role="alert")[^>]*>/,
     );
-    expect(html).toContain("Choose a value.");
+    assertStringIncludes(html, "Choose a value.");
   });
 });

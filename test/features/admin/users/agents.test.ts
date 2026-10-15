@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { logisticsAgents } from "#db/logistics-agents.ts";
@@ -86,12 +87,18 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
 
   test("the manage page hides agent assignment for a non-agent user", async () => {
     const html = await (await adminGet("/admin/users/1")).text();
-    expect(html).not.toContain("/admin/users/1/agents");
+    assert(
+      !html.includes("/admin/users/1/agents"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("the manage page hides deleting the current user", async () => {
     const html = await (await adminGet("/admin/users/1")).text();
-    expect(html).not.toContain("/admin/users/1/actions");
+    assert(
+      !html.includes("/admin/users/1/actions"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("the manage page hides write routes in read-only mode", async () => {
@@ -102,8 +109,14 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
 
     const html = await (await adminGet(`/admin/users/${userId}`)).text();
-    expect(html).not.toContain(`/admin/users/${userId}/agents`);
-    expect(html).not.toContain(`/admin/users/${userId}/actions`);
+    assert(
+      !html.includes(`/admin/users/${userId}/agents`),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes(`/admin/users/${userId}/actions`),
+      "the value should not contain the searched item",
+    );
   });
 
   test("the agent assignment page is unavailable in read-only mode", async () => {
@@ -164,8 +177,8 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     const response = await adminGet("/admin/users");
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("listedagent");
-    expect(html).toContain("Van 1");
+    assertStringIncludes(html, "listedagent");
+    assertStringIncludes(html, "Van 1");
   });
 
   test("posting agents for a non-agent user is rejected", async () => {

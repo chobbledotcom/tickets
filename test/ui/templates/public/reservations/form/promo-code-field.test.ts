@@ -2,7 +2,7 @@
  * all, and which value it holds — a submitted value (including an explicitly
  * cleared one) always wins over the `?promo=` URL pre-fill. */
 
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms/saved-data.ts";
@@ -19,15 +19,19 @@ describe("the promo-code field", () => {
 
   test("omits the field when promo codes are disabled", () => {
     const html = singleListingPageHtml();
-    expect(html).not.toContain('name="promo_code"');
+    assert(
+      !html.includes('name="promo_code"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("restores the submitted promo code", async () => {
     await withRequestContext(() => {
       setSavedFormData(new FormParams({ promo_code: "SAVE20" }));
       const html = singleListingPageHtml({ promoCodesEnabled: true });
-      expect(html).toContain('<div class="promo-code"><label>Promo code');
-      expect(html).toContain(
+      assertStringIncludes(html, '<div class="promo-code"><label>Promo code');
+      assertStringIncludes(
+        html,
         'name="promo_code" placeholder="Optional" type="text" value="SAVE20"',
       );
     });
@@ -38,7 +42,8 @@ describe("the promo-code field", () => {
       prefill: { listings: new Map(), promo: "summer25" },
       promoCodesEnabled: true,
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'name="promo_code" placeholder="Optional" type="text" value="summer25"',
     );
   });
@@ -50,10 +55,14 @@ describe("the promo-code field", () => {
         prefill: { listings: new Map(), promo: "summer25" },
         promoCodesEnabled: true,
       });
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         'name="promo_code" placeholder="Optional" type="text" value="TYPED99"',
       );
-      expect(html).not.toContain('value="summer25"');
+      assert(
+        !html.includes('value="summer25"'),
+        "the value should not contain the searched item",
+      );
     });
   });
 
@@ -66,16 +75,21 @@ describe("the promo-code field", () => {
         prefill: { listings: new Map(), promo: "summer25" },
         promoCodesEnabled: true,
       });
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         'name="promo_code" placeholder="Optional" type="text" value=""',
       );
-      expect(html).not.toContain('value="summer25"');
+      assert(
+        !html.includes('value="summer25"'),
+        "the value should not contain the searched item",
+      );
     });
   });
 
   test("leaves the box empty with no ?promo= prefill", () => {
     const html = singleListingPageHtml({ promoCodesEnabled: true });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'name="promo_code" placeholder="Optional" type="text" value=""',
     );
   });

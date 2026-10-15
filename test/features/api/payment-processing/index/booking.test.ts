@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -181,7 +182,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     // The staged row went with the booking's create batch.
     expect(await readCheckoutAnswers(id)).toEqual(new Map());
     const body = fetch.getFetchJsonBody();
-    expect(body.text).toContain("Anything else?: Arriving late");
+    assertStringIncludes(body.text, "Anything else?: Arriving late");
   });
 
   test("a failed create batch writes nothing and keeps the staged answers", async () => {
@@ -239,7 +240,10 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       ),
     ).toBe(true);
     const body = fetch.getFetchJsonBody();
-    expect(body.text).not.toContain("Arriving late");
+    assert(
+      !body.text.includes("Arriving late"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("heals a missing reservation from the durable booking ledger", async () => {

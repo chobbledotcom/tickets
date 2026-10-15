@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { loginResponse } from "#routes/admin/dashboard.ts";
@@ -25,9 +26,13 @@ describeWithEnv("admin listings route", { db: true }, () => {
     const html = await (
       await adminGet(`/admin/listings?group=${group.id}`)
     ).text();
-    expect(html).toContain("Fair Listing");
-    expect(html).not.toContain("Outside Listing");
-    expect(html).toContain(
+    assertStringIncludes(html, "Fair Listing");
+    assert(
+      !html.includes("Outside Listing"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(
+      html,
       'Group: <a href="/admin/listings">All groups</a> / <strong><u>Autumn fair</u></strong>',
     );
   });
@@ -36,9 +41,9 @@ describeWithEnv("admin listings route", { db: true }, () => {
     await createGroupWithListings("Autumn fair", ["Fair Listing"]);
     await createTestListing({ name: "Outside Listing" });
     const html = await (await adminGet("/admin/listings?group=999999")).text();
-    expect(html).toContain("Fair Listing");
-    expect(html).toContain("Outside Listing");
-    expect(html).toContain("Group: <strong><u>All groups</u></strong>");
+    assertStringIncludes(html, "Fair Listing");
+    assertStringIncludes(html, "Outside Listing");
+    assertStringIncludes(html, "Group: <strong><u>All groups</u></strong>");
   });
 
   test("editor listings ignore an invalid owner column layout", async () => {
@@ -48,7 +53,7 @@ describeWithEnv("admin listings route", { db: true }, () => {
       () => awaitTestRequest("/admin/listings", { cookie }),
     );
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("Listings");
+    assertStringIncludes(await response.text(), "Listings");
   });
 
   test("owner listings use the saved column layout", async () => {
@@ -58,8 +63,11 @@ describeWithEnv("admin listings route", { db: true }, () => {
       async () =>
         (await awaitTestRequest("/admin/listings", { cookie })).text(),
     );
-    expect(html).toContain("<th>Listing name</th>");
-    expect(html).not.toContain("<th>Status</th>");
+    assertStringIncludes(html, "<th>Listing name</th>");
+    assert(
+      !html.includes("<th>Status</th>"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("dashboard redirects non-dashboard roles to their own landing pages", async () => {

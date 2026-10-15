@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttributeOption, AttributeWithOptions } from "#db/attributes.ts";
@@ -78,25 +79,27 @@ describe("adminAttributesPage (writable list)", () => {
     adminAttributesPage([ATTRIBUTE, ATTRIBUTE_B], OWNER_SESSION);
 
   test("marks the attributes nav link active", () => {
-    expect(html()).toContain('class="active" href="/admin/attributes"');
+    assertStringIncludes(html(), 'class="active" href="/admin/attributes"');
   });
 
   test("renders the add-attribute form with its action and id", () => {
-    expect(html()).toContain(
+    assertStringIncludes(
+      html(),
       '<form action="/admin/attributes" autocomplete="off" method="POST" id="new-attribute">',
     );
-    expect(html()).toContain('id="new-attribute">');
+    assertStringIncludes(html(), 'id="new-attribute">');
   });
 
   test("renders the reorder column and move controls when writable", () => {
     // The reorder flag is on: the Order header and the move arrows both show.
-    expect(html()).toContain('<th class="col-reorder">Order</th>');
-    expect(html()).toContain("/admin/attributes/1/move-down");
-    expect(html()).toContain("/admin/attributes/2/move-up");
+    assertStringIncludes(html(), '<th class="col-reorder">Order</th>');
+    assertStringIncludes(html(), "/admin/attributes/1/move-down");
+    assertStringIncludes(html(), "/admin/attributes/2/move-up");
   });
 
   test("links to the listings guide section", () => {
-    expect(html()).toContain(
+    assertStringIncludes(
+      html(),
       '<a class="guide-link" href="/admin/guide#listings">',
     );
   });
@@ -119,38 +122,50 @@ describe("adminAttributePage (detail)", () => {
   });
 
   test("renders the add-option form with its id", () => {
-    expect(withListings([])).toContain('id="new-attribute-option">');
+    assertStringIncludes(withListings([]), 'id="new-attribute-option">');
   });
 
   test("shows the options reorder column when writable", () => {
-    expect(withListings([])).toContain('<th class="col-reorder">Order</th>');
+    assertStringIncludes(
+      withListings([]),
+      '<th class="col-reorder">Order</th>',
+    );
   });
 
   test("falls back to a zero count for an option no listing uses", () => {
     // Option 11 (Blue) is absent from the counts map, so its cell shows 0.
-    expect(withListings([])).toContain(
+    assertStringIncludes(
+      withListings([]),
       '<a href="/admin/attributes/1/options/11/edit">Blue</a></td><td class="col-quantity">0</td>',
     );
     // Option 10 (Red) has a real count of 3.
-    expect(withListings([])).toContain(
+    assertStringIncludes(
+      withListings([]),
       '<a href="/admin/attributes/1/options/10/edit">Red</a></td><td class="col-quantity">3</td>',
     );
   });
 
   test("shows the empty state when no listing uses the attribute", () => {
     const html = withListings([]);
-    expect(html).toContain(NO_LISTINGS_TEXT);
-    expect(html).not.toContain('href="/admin/listing/');
+    assertStringIncludes(html, NO_LISTINGS_TEXT);
+    assert(
+      !html.includes('href="/admin/listing/'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("shows the listings table (not the empty state) for one listing", () => {
     const html = withListings([ACTIVE_LISTING]);
-    expect(html).toContain('<a href="/admin/listing/5">Active Show</a>');
-    expect(html).not.toContain(NO_LISTINGS_TEXT);
+    assertStringIncludes(html, '<a href="/admin/listing/5">Active Show</a>');
+    assert(
+      !html.includes(NO_LISTINGS_TEXT),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders the listing and options column headers", () => {
-    expect(withListings([ACTIVE_LISTING])).toContain(
+    assertStringIncludes(
+      withListings([ACTIVE_LISTING]),
       "<th>Listing</th><th>Options</th>",
     );
   });
@@ -158,21 +173,24 @@ describe("adminAttributePage (detail)", () => {
   test("renders each listing's joined option texts", () => {
     // showOptions is true here, so the option-texts column appears and the
     // texts are joined with ", ".
-    expect(withListings([ACTIVE_LISTING])).toContain("<td>Red, Blue</td>");
+    assertStringIncludes(withListings([ACTIVE_LISTING]), "<td>Red, Blue</td>");
   });
 
   test("mutes deactivated listings and leaves active ones unstyled", () => {
     const html = withListings([ACTIVE_LISTING, DEACTIVATED_LISTING]);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<td><a href="/admin/listing/5">Active Show</a></td>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<a class="muted" href="/admin/listing/6">Old Show</a>',
     );
   });
 
   test("links to the attribute delete page", () => {
-    expect(withListings([])).toContain(
+    assertStringIncludes(
+      withListings([]),
       '<a class="danger" href="/admin/attributes/1/delete">Delete attribute</a>',
     );
   });
@@ -188,26 +206,32 @@ describe("adminAttributeOptionEditPage", () => {
     ]);
 
   test("marks the attributes nav link active", () => {
-    expect(html()).toContain('class="active" href="/admin/attributes"');
+    assertStringIncludes(html(), 'class="active" href="/admin/attributes"');
   });
 
   test("links back to the parent attribute", () => {
-    expect(html()).toContain(
+    assertStringIncludes(
+      html(),
       '<a class="btn small" href="/admin/attributes/1">',
     );
   });
 
   test("omits the options column and texts (showOptions is false)", () => {
     // Only the Listing header, no Options column and no joined-texts cell.
-    expect(html()).toContain("<thead><tr><th>Listing</th></tr></thead>");
-    expect(html()).toContain(
+    assertStringIncludes(html(), "<thead><tr><th>Listing</th></tr></thead>");
+    assertStringIncludes(
+      html(),
       '<tr><td><a href="/admin/listing/5">Active Show</a></td></tr>',
     );
-    expect(html()).not.toContain("<td>Red, Blue</td>");
+    assert(
+      !html().includes("<td>Red, Blue</td>"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("links to the option delete page with danger styling", () => {
-    expect(html()).toContain(
+    assertStringIncludes(
+      html(),
       '<a class="danger" href="/admin/attributes/1/options/10/delete">Delete option</a>',
     );
   });
@@ -219,9 +243,10 @@ describe("attribute delete pages", () => {
 
   test("attribute delete page marks the nav active and posts to delete", () => {
     const html = adminAttributeDeletePage(ATTRIBUTE, OWNER_SESSION);
-    expect(html).toContain('class="active" href="/admin/attributes"');
-    expect(html).toContain('action="/admin/attributes/1/delete"');
-    expect(html).toContain(
+    assertStringIncludes(html, 'class="active" href="/admin/attributes"');
+    assertStringIncludes(html, 'action="/admin/attributes/1/delete"');
+    assertStringIncludes(
+      html,
       "To delete this attribute, type its name &quot;Colour&quot;",
     );
   });
@@ -232,9 +257,12 @@ describe("attribute delete pages", () => {
       OPTION,
       OWNER_SESSION,
     );
-    expect(html).toContain('class="active" href="/admin/attributes"');
-    expect(html).toContain('action="/admin/attributes/1/options/10/delete"');
-    expect(html).toContain("This will remove &quot;Red&quot; from Colour");
+    assertStringIncludes(html, 'class="active" href="/admin/attributes"');
+    assertStringIncludes(
+      html,
+      'action="/admin/attributes/1/options/10/delete"',
+    );
+    assertStringIncludes(html, "This will remove &quot;Red&quot; from Colour");
   });
 });
 
@@ -252,8 +280,12 @@ describe("ListingAttributesPanel", () => {
         selectedOptionIds: new Set([10]),
       }),
     );
-    expect(html).toContain('<a class="btn small" href="/admin/attributes">');
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
+      '<a class="btn small" href="/admin/attributes">',
+    );
+    assertStringIncludes(
+      html,
       '<input checked name="option_ids" type="checkbox" value="10">',
     );
   });
@@ -268,10 +300,14 @@ describe("ListingAttributesPanel", () => {
     );
     // The prompt keeps a space before the create link, and the manage link is
     // still shown in the footer.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'No attributes created yet. <a href="/admin/attributes">Create attributes</a>.',
     );
-    expect(html).toContain('<a class="btn small" href="/admin/attributes">');
+    assertStringIncludes(
+      html,
+      '<a class="btn small" href="/admin/attributes">',
+    );
   });
 
   test("says an attribute has no options yet rather than showing none", () => {
@@ -283,8 +319,11 @@ describe("ListingAttributesPanel", () => {
       }),
     );
 
-    expect(html).toContain("<em>No options for this attribute yet.</em>");
-    expect(html).not.toContain('name="option_ids"');
+    assertStringIncludes(html, "<em>No options for this attribute yet.</em>");
+    assert(
+      !html.includes('name="option_ids"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("offers the one option an attribute has", () => {
@@ -301,10 +340,14 @@ describe("ListingAttributesPanel", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="option_ids" type="checkbox" value="10">',
     );
-    expect(html).not.toContain("No options for this attribute yet.");
+    assert(
+      !html.includes("No options for this attribute yet."),
+      "the value should not contain the searched item",
+    );
   });
 
   test("flows each attribute's options as a wrapping row", () => {
@@ -316,7 +359,7 @@ describe("ListingAttributesPanel", () => {
       }),
     );
 
-    expect(html).toContain('class="checkboxes listing-section"');
+    assertStringIncludes(html, 'class="checkboxes listing-section"');
   });
 });
 
@@ -327,11 +370,20 @@ describe("attribute pages in read-only mode", () => {
   test("keeps the list readable without create or reorder controls", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = adminAttributesPage([ATTRIBUTE], OWNER_SESSION);
-    expect(html).toContain("Colour");
-    expect(html).toContain('href="/admin/attributes/1"');
-    expect(html).not.toContain('id="new-attribute"');
-    expect(html).not.toContain('<th class="col-reorder">Order</th>');
-    expect(html).not.toContain("/admin/attributes/1/move-");
+    assertStringIncludes(html, "Colour");
+    assertStringIncludes(html, 'href="/admin/attributes/1"');
+    assert(
+      !html.includes('id="new-attribute"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('<th class="col-reorder">Order</th>'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("/admin/attributes/1/move-"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("keeps details readable without edit or delete controls", () => {
@@ -340,13 +392,28 @@ describe("attribute pages in read-only mode", () => {
       listingCounts: new Map([[10, 2]]),
       listings: [],
     });
-    expect(html).toContain("Red");
-    expect(html).toContain('<td class="col-quantity">2</td>');
-    expect(html).not.toContain('action="/admin/attributes/1/edit"');
-    expect(html).not.toContain("/admin/attributes/1/options/10/edit");
-    expect(html).not.toContain("/admin/attributes/1/delete");
-    expect(html).not.toContain("/options/10/move-");
-    expect(html).not.toContain('<th class="col-reorder">Order</th>');
+    assertStringIncludes(html, "Red");
+    assertStringIncludes(html, '<td class="col-quantity">2</td>');
+    assert(
+      !html.includes('action="/admin/attributes/1/edit"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("/admin/attributes/1/options/10/edit"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("/admin/attributes/1/delete"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("/options/10/move-"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('<th class="col-reorder">Order</th>'),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -359,9 +426,15 @@ describe("attribute option arrows", () => {
       listingCounts: new Map(),
       listings: [],
     });
-    expect(html).not.toContain("/options/10/move-up");
-    expect(html).toContain("/options/10/move-down");
-    expect(html).toContain("/options/11/move-up");
-    expect(html).not.toContain("/options/11/move-down");
+    assert(
+      !html.includes("/options/10/move-up"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "/options/10/move-down");
+    assertStringIncludes(html, "/options/11/move-up");
+    assert(
+      !html.includes("/options/11/move-down"),
+      "the value should not contain the searched item",
+    );
   });
 });

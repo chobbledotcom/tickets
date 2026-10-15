@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { imagesTable } from "#db/images.ts";
@@ -227,15 +228,18 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
     test("does not show reset link when demo mode is off", async () => {
       const response = await handleRequest(mockRequest("/admin/login"));
       const html = await response.text();
-      expect(html).not.toContain("/demo/reset");
+      assert(
+        !html.includes("/demo/reset"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("shows reset link when demo mode is on", async () => {
       setDemoModeForTest(true);
       const response = await handleRequest(mockRequest("/admin/login"));
       const html = await response.text();
-      expect(html).toContain('href="/demo/reset"');
-      expect(html).toContain("Reset database");
+      assertStringIncludes(html, 'href="/demo/reset"');
+      assertStringIncludes(html, "Reset database");
     });
   });
 
@@ -243,8 +247,8 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
     test("admin settings page uses shared reset form", async () => {
       const response = await adminGet("/admin/settings-advanced");
       const html = await expectHtmlResponse(response, 200, "Reset Database");
-      expect(html).toContain(RESET_DATABASE_PHRASE);
-      expect(html).toContain("confirm_phrase");
+      assertStringIncludes(html, RESET_DATABASE_PHRASE);
+      assertStringIncludes(html, "confirm_phrase");
     });
 
     test("demo reset page uses shared reset form", async () => {

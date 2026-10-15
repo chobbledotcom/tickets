@@ -2,7 +2,6 @@
  *  the declarative parent scenarios and the /listings card-state asserts that
  *  more than one discovery suite reads. */
 
-import { expect } from "@std/expect";
 import { listingChildren } from "#db/listing-parents.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -73,19 +72,25 @@ export const makeDefaultParentChild = () =>
 /** Assert the parent's Book link is absent and Sold Out is shown. */
 export const assertSoldOut = async (parentSlug: string) => {
   const body = await publicBody("/listings");
-  expect(body).not.toContain(`href="/ticket/${parentSlug}"`);
-  expect(body).toContain("Sold Out");
+  assert(
+    !body.includes(`href="/ticket/${parentSlug}"`),
+    "the value should not contain the searched item",
+  );
+  assertStringIncludes(body, "Sold Out");
 };
 
 /** Assert the parent's Book link is present. */
 export const assertBookable = async (parentSlug: string) => {
   const body = await publicBody("/listings");
-  expect(body).toContain(`href="/ticket/${parentSlug}"`);
+  assertStringIncludes(body, `href="/ticket/${parentSlug}"`);
 };
 
 /** Assert the add-on note is shown and the child has no standalone link. */
 export const assertAddOnNote = async (childSlug: string) => {
   const body = await publicBody("/listings");
-  expect(body).toContain("Available as an add-on to another booking");
-  expect(body).not.toContain(`href="/ticket/${childSlug}"`);
+  assertStringIncludes(body, "Available as an add-on to another booking");
+  assert(
+    !body.includes(`href="/ticket/${childSlug}"`),
+    "the value should not contain the searched item",
+  );
 };

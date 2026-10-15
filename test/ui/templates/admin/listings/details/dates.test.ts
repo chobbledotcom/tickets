@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -42,19 +43,25 @@ describe("listing details table date rows", () => {
         date: "",
       }),
     });
-    expect(deadline).toContain("Registration Closes");
+    assertStringIncludes(deadline, "Registration Closes");
     expect(deadline).toMatch(
       new RegExp(`Monday 4 March 2030 at 05:06 GMT${countdown().source}`),
     );
     // The deadline carries no calendar link.
-    expect(deadline).not.toContain("/admin/calendar?date=");
+    assert(
+      !deadline.includes("/admin/calendar?date="),
+      "the value should not contain the searched item",
+    );
 
     const none = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing: testListingWithCount({ closes_at: null, date: "" }),
     });
-    expect(none).toContain("No deadline");
-    expect(none).not.toContain("from now)");
+    assertStringIncludes(none, "No deadline");
+    assert(
+      !none.includes("from now)"),
+      "the value should not contain the searched item",
+    );
   });
 });

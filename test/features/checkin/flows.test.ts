@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -38,12 +39,12 @@ describeWithEnv(
           },
         );
         const body = await viewResponse.text();
-        expect(body).toContain("Check out");
-        expect(body).toContain('class="success"');
-        expect(body).toContain("Checked in 1 ticket");
-        expect(body).toContain('class="bulk-checkout"');
-        expect(body).toContain("Check Out All");
-        expect(body).toContain('value="false"');
+        assertStringIncludes(body, "Check out");
+        assertStringIncludes(body, 'class="success"');
+        assertStringIncludes(body, "Checked in 1 ticket");
+        assertStringIncludes(body, 'class="bulk-checkout"');
+        assertStringIncludes(body, "Check Out All");
+        assertStringIncludes(body, 'value="false"');
       });
 
       test("checks out attendee with check_in=false and shows success", async () => {
@@ -70,8 +71,8 @@ describeWithEnv(
           },
         );
         const body = await viewResponse.text();
-        expect(body).toContain("Check in");
-        expect(body).toContain("Checked out");
+        assertStringIncludes(body, "Check in");
+        assertStringIncludes(body, "Checked out");
       });
 
       test("duplicate check-in shows already checked in message", async () => {
@@ -94,8 +95,8 @@ describeWithEnv(
           { cookie: session.cookie },
         );
         const body = await viewResponse.text();
-        expect(body).toContain("Check out");
-        expect(body).toContain("Already checked in 1 ticket");
+        assertStringIncludes(body, "Check out");
+        assertStringIncludes(body, "Already checked in 1 ticket");
       });
 
       test("check-in with quantity > 1 shows plural ticket count", async () => {

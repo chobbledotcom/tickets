@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -155,7 +157,10 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         response,
         `/admin/listing/${listing.id}/attendees`,
       );
-      expect(location).not.toContain("filter=");
+      assert(
+        !location.includes("filter="),
+        "the value should not contain the searched item",
+      );
     });
 
     test("redirects to return_url when provided", async () => {
@@ -221,10 +226,14 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const response = await adminGet(`/admin/listing/${listing.id}/attendees`);
       const html = await expectHtmlResponse(response, 200, "Cara Pair");
 
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `href="/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
       );
-      expect(html).not.toContain('name="check_in"');
+      assert(
+        !html.includes('name="check_in"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a date's line of a two-date booking opens the quantity page", async () => {
@@ -249,10 +258,14 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         200,
         "Dana Days",
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `href="/admin/listing/${listing.id}/attendee/${made.attendees[0]!.id}/checkin`,
       );
-      expect(html).not.toContain('name="check_in"');
+      assert(
+        !html.includes('name="check_in"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a checked-in line beside a hidden part line opens the quantity page", async () => {
@@ -282,10 +295,14 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         200,
         "Hal Half",
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `href="/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
       );
-      expect(html).not.toContain('name="check_in"');
+      assert(
+        !html.includes('name="check_in"'),
+        "the value should not contain the searched item",
+      );
     });
   });
 

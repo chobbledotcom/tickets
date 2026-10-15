@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { t } from "#i18n";
@@ -31,11 +31,11 @@ describe("settingsForm", () => {
   test("renders a text setting from the schema", () => {
     const html = htmlFor("businessEmail");
 
-    expect(html).toContain('action="/admin/settings/business-email"');
-    expect(html).toContain('id="settings-business-email"');
-    expect(html).toContain('name="business_email"');
-    expect(html).toContain('type="email"');
-    expect(html).toContain('value="ops@example.com"');
+    assertStringIncludes(html, 'action="/admin/settings/business-email"');
+    assertStringIncludes(html, 'id="settings-business-email"');
+    assertStringIncludes(html, 'name="business_email"');
+    assertStringIncludes(html, 'type="email"');
+    assertStringIncludes(html, 'value="ops@example.com"');
   });
 
   test("renders an empty text value when the state has no value", () => {
@@ -43,9 +43,9 @@ describe("settingsForm", () => {
       settingsForm(SETTINGS_FORMS.businessEmail, { businessEmail: undefined }),
     );
 
-    expect(html).toContain('name="business_email"');
+    assertStringIncludes(html, 'name="business_email"');
     // The input itself must carry the empty value, not the empty csrf field.
-    expect(html).toContain('type="email" value=""');
+    assertStringIncludes(html, 'type="email" value=""');
   });
 
   test("keeps a number written in the state as it was written", () => {
@@ -53,8 +53,8 @@ describe("settingsForm", () => {
       settingsForm(SETTINGS_FORMS.bookingFee, { bookingFee: 0 }),
     );
 
-    expect(html).toContain('name="booking_fee"');
-    expect(html).toContain('type="number" value="0"');
+    assertStringIncludes(html, 'name="booking_fee"');
+    assertStringIncludes(html, 'type="number" value="0"');
   });
 
   test("uses the definition's declared formId as the form id", () => {
@@ -67,39 +67,40 @@ describe("settingsForm", () => {
     } as unknown as typeof SETTINGS_FORMS.businessEmail;
     const html = String(settingsForm(probe, state));
 
-    expect(html).toContain('id="settings-probe"');
+    assertStringIncludes(html, 'id="settings-probe"');
   });
 
   test("renders schema footer copy for text settings", () => {
     const html = htmlFor("embedHosts");
 
-    expect(html).toContain('name="embed_hosts"');
-    expect(html).toContain("Use *.example.com to allow all subdomains");
+    assertStringIncludes(html, 'name="embed_hosts"');
+    assertStringIncludes(html, "Use *.example.com to allow all subdomains");
   });
 
   test("renders a textarea setting with its schema options", () => {
     const html = htmlFor("terms");
 
-    expect(html).toContain('action="/admin/settings/terms"');
-    expect(html).toContain('name="terms_and_conditions"');
-    expect(html).toContain("data-markdown-preview");
-    expect(html).toContain("Be kind.");
-    expect(html).toContain("Formatting");
+    assertStringIncludes(html, 'action="/admin/settings/terms"');
+    assertStringIncludes(html, 'name="terms_and_conditions"');
+    assertStringIncludes(html, "data-markdown-preview");
+    assertStringIncludes(html, "Be kind.");
+    assertStringIncludes(html, "Formatting");
   });
 
   test("renders trusted html description copy from the schema", () => {
     const html = htmlFor("showPublicApi");
 
-    expect(html).toContain('href="/admin/guide#api"');
-    expect(html).toContain("API guide");
+    assertStringIncludes(html, 'href="/admin/guide#api"');
+    assertStringIncludes(html, "API guide");
   });
 
   test("renders a boolean setting from the schema", () => {
     const html = htmlFor("externalOrder");
 
-    expect(html).toContain('action="/admin/settings/external-order"');
-    expect(html).toContain('name="external_order_enabled"');
-    expect(html).toContain(
+    assertStringIncludes(html, 'action="/admin/settings/external-order"');
+    assertStringIncludes(html, 'name="external_order_enabled"');
+    assertStringIncludes(
+      html,
       '<input checked name="external_order_enabled" type="radio" value="true">',
     );
   });
@@ -111,21 +112,27 @@ describe("settingsForm multi-field forms", () => {
   test("checks exactly the radio matching the saved value", () => {
     const html = String(settingsForm(SETTINGS_FORMS.theme, themeState));
 
-    expect(html).toContain('<fieldset class="radios">');
-    expect(html).toContain(
+    assertStringIncludes(html, '<fieldset class="radios">');
+    assertStringIncludes(
+      html,
       '<input checked name="theme" type="radio" value="dark">',
     );
-    expect(html).toContain('<input name="theme" type="radio" value="light">');
+    assertStringIncludes(
+      html,
+      '<input name="theme" type="radio" value="light">',
+    );
   });
 
   test("renders the checkbox with its class and hint, unchecked", () => {
     const html = String(settingsForm(SETTINGS_FORMS.theme, themeState));
 
-    expect(html).toContain('<label class="checkbox">');
-    expect(html).toContain(
+    assertStringIncludes(html, '<label class="checkbox">');
+    assertStringIncludes(
+      html,
       '<input name="underline_links" type="checkbox" value="true">',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<small>Underline links everywhere, including the navigation.",
     );
   });
@@ -138,7 +145,8 @@ describe("settingsForm multi-field forms", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input checked name="underline_links" type="checkbox" value="true">',
     );
   });
@@ -151,17 +159,21 @@ describe("settingsForm multi-field forms", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<label for="calendar_feeds_group_by">Group feed entries by</label>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<select id="calendar_feeds_group_by" name="calendar_feeds_group_by">',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<option selected value="listings">Listings</option>',
     );
-    expect(html).toContain('<option value="attendees">Attendees</option>');
-    expect(html).toContain(
+    assertStringIncludes(html, '<option value="attendees">Attendees</option>');
+    assertStringIncludes(
+      html,
       '<input checked name="calendar_feeds_enabled" type="checkbox" value="true">',
     );
   });
@@ -175,18 +187,20 @@ describe("settingsForm multi-field forms", () => {
     );
 
     // No labelFor: the label wraps the select, and the select has no id.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<label>Provider<select name="address_lookup_provider">',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<option value="none">None (type addresses manually)</option>',
     );
-    expect(html).toContain('<option selected value="easypostcodes">');
+    assertStringIncludes(html, '<option selected value="easypostcodes">');
     const secret = html.match(
       /<input[^>]*name="address_lookup_api_key"[^>]*>/,
     )?.[0];
-    expect(secret).toContain('type="password"');
-    expect(secret).toContain(`value="${MASK_SENTINEL}"`);
+    assertStringIncludes(secret ?? "", 'type="password"');
+    assertStringIncludes(secret ?? "", `value="${MASK_SENTINEL}"`);
   });
 
   test("leaves the secret input empty when nothing is stored", () => {
@@ -197,8 +211,11 @@ describe("settingsForm multi-field forms", () => {
       }),
     );
 
-    expect(html).not.toContain(MASK_SENTINEL);
-    expect(html).toContain('<option selected value="none">');
+    assert(
+      !html.includes(MASK_SENTINEL),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, '<option selected value="none">');
   });
 });
 
@@ -230,8 +247,11 @@ describe("settingsForm schema options", () => {
       ),
     );
 
-    expect(html).toContain('name="business_email"');
-    expect(html).not.toContain("placeholder");
+    assertStringIncludes(html, 'name="business_email"');
+    assert(
+      !html.includes("placeholder"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("builds placeholder and footer text at render time", () => {
@@ -250,8 +270,8 @@ describe("settingsForm schema options", () => {
       ),
     );
 
-    expect(html).toContain('placeholder="Built placeholder"');
-    expect(html).toContain("<p><small>Built footer note</small></p>");
+    assertStringIncludes(html, 'placeholder="Built placeholder"');
+    assertStringIncludes(html, "<p><small>Built footer note</small></p>");
   });
 
   test("forwards number input constraints to the field", () => {
@@ -270,12 +290,12 @@ describe("settingsForm schema options", () => {
     );
 
     const input = html.match(/<input[^>]*name="business_email"[^>]*>/)?.[0];
-    expect(input).toContain('type="number"');
-    expect(input).toContain('max="10"');
-    expect(input).toContain('min="0"');
-    expect(input).toContain('minlength="2"');
-    expect(input).toContain('step="0.1"');
-    expect(input).toContain("required");
+    assertStringIncludes(input ?? "", 'type="number"');
+    assertStringIncludes(input ?? "", 'max="10"');
+    assertStringIncludes(input ?? "", 'min="0"');
+    assertStringIncludes(input ?? "", 'minlength="2"');
+    assertStringIncludes(input ?? "", 'step="0.1"');
+    assertStringIncludes(input ?? "", "required");
   });
 
   test("renders a block html description without the paragraph wrapper", () => {
@@ -293,8 +313,11 @@ describe("settingsForm schema options", () => {
     );
 
     const description = t("settings.advanced.public_api_hint");
-    expect(html).toContain(`</h2>${description}</div>`);
-    expect(html).not.toContain(`<p>${description}</p>`);
+    assertStringIncludes(html, `</h2>${description}</div>`);
+    assert(
+      !html.includes(`<p>${description}</p>`),
+      "the value should not contain the searched item",
+    );
   });
 
   test("shows the placeholder as the value when nothing is saved yet", () => {
@@ -302,7 +325,7 @@ describe("settingsForm schema options", () => {
     const empty = String(settingsForm(probe, { businessEmail: "" }));
     const saved = String(settingsForm(probe, state));
 
-    expect(empty).toContain('value="contact@example.com"');
-    expect(saved).toContain('value="ops@example.com"');
+    assertStringIncludes(empty, 'value="contact@example.com"');
+    assertStringIncludes(saved, 'value="ops@example.com"');
   });
 });

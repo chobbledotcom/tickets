@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   adminBuilderPage,
@@ -9,18 +9,18 @@ import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 describe("adminBuilderPage", () => {
   test("renders form fields", () => {
     const html = adminBuilderPage(OWNER_SESSION, []);
-    expect(html).toContain("Site name");
-    expect(html).toContain("Database URL");
-    expect(html).toContain("Database token");
-    expect(html).toContain('name="site_name"');
-    expect(html).toContain('name="db_url"');
-    expect(html).toContain('name="db_token"');
-    expect(html).toContain("Build site");
+    assertStringIncludes(html, "Site name");
+    assertStringIncludes(html, "Database URL");
+    assertStringIncludes(html, "Database token");
+    assertStringIncludes(html, 'name="site_name"');
+    assertStringIncludes(html, 'name="db_url"');
+    assertStringIncludes(html, 'name="db_token"');
+    assertStringIncludes(html, "Build site");
   });
 
   test("renders empty state when no sites", () => {
     const html = adminBuilderPage(OWNER_SESSION, []);
-    expect(html).toContain("No sites have been built yet");
+    assertStringIncludes(html, "No sites have been built yet");
   });
 
   test("renders sites table with data", () => {
@@ -29,12 +29,15 @@ describe("adminBuilderPage", () => {
       { created: "2 Jan 2026", name: "Beta", siteUrl: "beta.b-cdn.net" },
     ];
     const html = adminBuilderPage(OWNER_SESSION, sites);
-    expect(html).toContain("Alpha");
-    expect(html).toContain("alpha.b-cdn.net");
-    expect(html).toContain("Beta");
-    expect(html).toContain("beta.b-cdn.net");
-    expect(html).toContain("1 Jan 2026");
-    expect(html).not.toContain("No sites have been built yet");
+    assertStringIncludes(html, "Alpha");
+    assertStringIncludes(html, "alpha.b-cdn.net");
+    assertStringIncludes(html, "Beta");
+    assertStringIncludes(html, "beta.b-cdn.net");
+    assertStringIncludes(html, "1 Jan 2026");
+    assert(
+      !html.includes("No sites have been built yet"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders sites as clickable links", () => {
@@ -46,8 +49,8 @@ describe("adminBuilderPage", () => {
       },
     ];
     const html = adminBuilderPage(OWNER_SESSION, sites);
-    expect(html).toContain('href="https://test.b-cdn.net"');
-    expect(html).toContain('target="_blank"');
+    assertStringIncludes(html, 'href="https://test.b-cdn.net"');
+    assertStringIncludes(html, 'target="_blank"');
   });
 
   test("links a bare bunny.run address as a working b-cdn.net link", () => {
@@ -58,14 +61,17 @@ describe("adminBuilderPage", () => {
         siteUrl: "childsite.bunny.run",
       },
     ]);
-    expect(html).toContain('href="https://childsite.b-cdn.net"');
-    expect(html).not.toContain("bunny.run");
+    assertStringIncludes(html, 'href="https://childsite.b-cdn.net"');
+    assert(
+      !html.includes("bunny.run"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders error message", () => {
     const html = adminBuilderPage(OWNER_SESSION, [], "Something went wrong");
-    expect(html).toContain("Something went wrong");
-    expect(html).toContain('class="error"');
+    assertStringIncludes(html, "Something went wrong");
+    assertStringIncludes(html, 'class="error"');
   });
 
   test("renders success message", () => {
@@ -75,34 +81,34 @@ describe("adminBuilderPage", () => {
       undefined,
       "Site created!",
     );
-    expect(html).toContain("Site created!");
-    expect(html).toContain('class="success"');
+    assertStringIncludes(html, "Site created!");
+    assertStringIncludes(html, 'class="success"');
   });
 
   test("renders page title", () => {
     const html = adminBuilderPage(OWNER_SESSION, []);
-    expect(html).toContain("Site builder");
+    assertStringIncludes(html, "Site builder");
   });
 
   test("posts the create form to the builder route with its footer toggle", () => {
     const html = adminBuilderPage(OWNER_SESSION, []);
-    expect(html).toContain('action="/admin/builder"');
-    expect(html).toContain('id="builder-form"');
+    assertStringIncludes(html, 'action="/admin/builder"');
+    assertStringIncludes(html, 'id="builder-form"');
     // The assignment toggle posts 1, the value the route reads.
     const toggle = html.slice(
       html.indexOf('name="assignable"') - 80,
       html.indexOf('name="assignable"') + 80,
     );
-    expect(toggle).toContain('type="checkbox"');
-    expect(toggle).toContain('value="1"');
+    assertStringIncludes(toggle, 'type="checkbox"');
+    assertStringIncludes(toggle, 'value="1"');
   });
 
   test("heads the sites table with one column per fact", () => {
     const html = adminBuilderPage(OWNER_SESSION, [
       { created: "1 Jan 2026", name: "Alpha", siteUrl: "alpha.b-cdn.net" },
     ]);
-    expect(html).toContain("Name");
-    expect(html).toContain("URL");
-    expect(html).toContain("Built");
+    assertStringIncludes(html, "Name");
+    assertStringIncludes(html, "URL");
+    assertStringIncludes(html, "Built");
   });
 });

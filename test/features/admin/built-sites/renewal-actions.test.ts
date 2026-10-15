@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { updateBuiltSiteRenewalState } from "#db/built-sites.ts";
@@ -98,8 +99,11 @@ describeWithEnv(
 
         // Rotate only re-pushes RENEWAL_URL, not READ_ONLY_FROM.
         const secretNames = secretNamesOf(suite.secretStub);
-        expect(secretNames).toContain("RENEWAL_URL");
-        expect(secretNames).not.toContain("READ_ONLY_FROM");
+        assertStringIncludes(secretNames, "RENEWAL_URL");
+        assert(
+          !secretNames.includes("READ_ONLY_FROM"),
+          "the value should not contain the searched item",
+        );
 
         const logs = await getAllActivityLog();
         expect(
@@ -160,10 +164,9 @@ describeWithEnv(
 
         const updated = await findSite(site.id);
         expect(updated.readOnlyFrom).toBe("2027-06-15T23:59:59Z");
-        expect(
+        assertArrayIncludes(
           (await getAllActivityLog()).map(({ message }) => message),
-        ).toContain(
-          "Admin overrode 'Override Site' deadline to 2027-06-15T23:59:59Z",
+          ["Admin overrode 'Override Site' deadline to 2027-06-15T23:59:59Z"],
         );
       });
 
@@ -180,7 +183,10 @@ describeWithEnv(
         expect(response.status).toBe(302);
 
         const secretNames = secretNamesOf(suite.secretStub);
-        expect(secretNames).not.toContain("RENEWAL_URL");
+        assert(
+          !secretNames.includes("RENEWAL_URL"),
+          "the value should not contain the searched item",
+        );
       });
 
       test("redirects when date is missing", async () => {
@@ -242,11 +248,23 @@ describeWithEnv(
         // control — no rotate, no deadline edits, no unconfirmed URL.
         suite.resetSecretStub();
         const panel = String(renewalPanelFor(await findSite(site.id)));
-        expect(panel).toContain("The last provisioning did not reach the site");
-        expect(panel).toContain('/provision-renewal"');
-        expect(panel).not.toContain('/rotate-renewal-token"');
-        expect(panel).not.toContain('/bump-deadline"');
-        expect(panel).not.toContain('/override-deadline"');
+        assertStringIncludes(
+          panel,
+          "The last provisioning did not reach the site",
+        );
+        assertStringIncludes(panel, '/provision-renewal"');
+        assert(
+          !panel.includes('/rotate-renewal-token"'),
+          "the value should not contain the searched item",
+        );
+        assert(
+          !panel.includes('/bump-deadline"'),
+          "the value should not contain the searched item",
+        );
+        assert(
+          !panel.includes('/override-deadline"'),
+          "the value should not contain the searched item",
+        );
 
         // A direct deadline bump cannot store a cutoff over the retry.
         const { response: bumpResponse } = await siteAction(

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -172,7 +173,8 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     );
     expect(result.success).toBe(false);
     if (result.success) throw new Error("Expected a capacity failure");
-    expect(result.detail).toContain(
+    assertStringIncludes(
+      result.detail,
       "sold out while you were completing payment",
     );
     expect(

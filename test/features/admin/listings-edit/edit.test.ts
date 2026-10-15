@@ -3,6 +3,7 @@
  * the bookings already taken, and what the operator is told afterwards.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeUpdate } from "#db/client.ts";
@@ -123,7 +124,10 @@ describeWithEnv("what a saved edit says afterwards", { db: true }, () => {
       buildUpdateListingForm({ name: "After Log" }, listing),
     );
 
-    expect(await activityMessages()).toContain("Listing 'After Log' updated");
+    assertStringIncludes(
+      await activityMessages(),
+      "Listing 'After Log' updated",
+    );
   });
 
   test("says only that the listing was updated when nothing else changed", async () => {
@@ -148,10 +152,11 @@ describeWithEnv("what a saved edit says afterwards", { db: true }, () => {
 
     expect(response.status).toBe(400);
     const html = await response.text();
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<a aria-current="page" class="active" href="/admin/listing/${listing.id}/edit">Edit</a>`,
     );
-    expect(html).toContain("Listing name is required");
+    assertStringIncludes(html, "Listing name is required");
   });
 
   test("refuses inside the write an edit that orphans a child-scoped add-on", async () => {
@@ -169,7 +174,8 @@ describeWithEnv("what a saved edit says afterwards", { db: true }, () => {
     );
 
     expect(response.status).toBe(400);
-    expect(await response.text()).toContain(
+    assertStringIncludes(
+      await response.text(),
       t("modifiers.err_child_only_addon", { name: "Group extra" }),
     );
     expect(await listingGroupIdsOf(rescuer.id)).toEqual([group.id]);
@@ -197,7 +203,8 @@ describeWithEnv("changing how long a daily stay runs", { db: true }, () => {
     );
 
     expect(flashOf(response)).toBe("Listing updated");
-    expect(await activityMessages()).toContain(
+    assertStringIncludes(
+      await activityMessages(),
       "Listing 'Retreat' duration changed to 4 day(s)",
     );
   });
@@ -211,8 +218,11 @@ describeWithEnv("changing how long a daily stay runs", { db: true }, () => {
     );
 
     expect(flashOf(response)).toBe("Listing updated");
-    expect(await activityMessages()).not.toContain(
-      "Listing 'Same Length' duration changed to 2 day(s)",
+    assert(
+      !(await activityMessages()).includes(
+        "Listing 'Same Length' duration changed to 2 day(s)",
+      ),
+      "the value should not contain the searched item",
     );
   });
 
@@ -229,8 +239,11 @@ describeWithEnv("changing how long a daily stay runs", { db: true }, () => {
     );
 
     expect(flashOf(response)).toBe("Listing updated");
-    expect(await activityMessages()).not.toContain(
-      "Listing 'Chosen Length' duration changed to 5 day(s)",
+    assert(
+      !(await activityMessages()).includes(
+        "Listing 'Chosen Length' duration changed to 5 day(s)",
+      ),
+      "the value should not contain the searched item",
     );
   });
 
@@ -266,7 +279,8 @@ describeWithEnv("changing how long a daily stay runs", { db: true }, () => {
     expect(flashOf(response)).toBe(
       "Listing updated Warning: group capacity exceeded on 2026-09-02",
     );
-    expect(await activityMessages()).toContain(
+    assertStringIncludes(
+      await activityMessages(),
       "Duration change caused group capacity overflow on 2026-09-02",
     );
   });

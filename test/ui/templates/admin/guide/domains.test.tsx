@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { formatBytes } from "#shared/format-units.ts";
@@ -89,45 +90,52 @@ describe("guide domains sections", () => {
 test("the sections keep the anchors the settings page links to", () => {
   const html = String(renderGuideSections(domainsSections()));
   // The advanced-settings intro deep-links these two anchors.
-  expect(html).toContain('<h3 id="host-subdomain">');
-  expect(html).toContain('<h3 id="custom-domain">');
+  assertStringIncludes(html, '<h3 id="host-subdomain">');
+  assertStringIncludes(html, '<h3 id="custom-domain">');
   // The settings-overview section carries its own anchor too.
-  expect(html).toContain('<h3 id="settings">');
+  assertStringIncludes(html, '<h3 id="settings">');
 });
 
 test("states the header image size limit the site actually uses", () => {
   const html = String(renderGuideSections(domainsSections()));
-  expect(html).toContain(`up to ${formatBytes(MAX_IMAGE_SIZE)} in size`);
+  assertStringIncludes(html, `up to ${formatBytes(MAX_IMAGE_SIZE)} in size`);
 });
 
 test("the host subdomain answer does not promise the ending", () => {
   const html = String(renderGuideSections(domainsSections()));
   // The host sets the DNS zone, so only the check can name the full address.
-  expect(html).toContain("You pick the first part of the name");
-  expect(html).toContain("sets the ending");
-  expect(html).toContain("only when your host offers subdomains");
-  expect(html).not.toContain("site answers at");
+  assertStringIncludes(html, "You pick the first part of the name");
+  assertStringIncludes(html, "sets the ending");
+  assertStringIncludes(html, "only when your host offers subdomains");
+  assert(
+    !html.includes("site answers at"),
+    "the value should not contain the searched item",
+  );
 });
 
 test("the custom-domain answer notes when its section is absent", () => {
   const html = String(renderGuideSections(domainsSections()));
-  expect(html).toContain(
+  assertStringIncludes(
+    html,
     "ask the company that runs this site for you to turn it on",
   );
 });
 
 test("the out-of-stock answer gates its promises on an email provider", () => {
   const html = String(renderGuideSections(domainsSections(hostConfig())));
-  expect(html).toContain("When email is set up");
+  assertStringIncludes(html, "When email is set up");
   // The Built Sites page is owner-only, so the answer must not link it.
-  expect(html).not.toContain('href="/admin/built-sites"');
-  expect(html).toContain("Built Sites");
+  assert(
+    !html.includes('href="/admin/built-sites"'),
+    "the value should not contain the searched item",
+  );
+  assertStringIncludes(html, "Built Sites");
 });
 
 test("the answers name the request-hostname fallback", () => {
   const html = String(renderGuideSections(domainsSections()));
   // The system keeps the raw request hostname — a bunny.run request keeps
   // bunny.run links — so the copy must not claim a fixed b-cdn.net address.
-  expect(html).toContain("the address the visitor used to open the site");
-  expect(html).toContain("b-cdn.net</code> or <code>bunny.run</code>");
+  assertStringIncludes(html, "the address the visitor used to open the site");
+  assertStringIncludes(html, "b-cdn.net</code> or <code>bunny.run</code>");
 });

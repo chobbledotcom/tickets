@@ -1,6 +1,6 @@
 /** Attendee Actions-tab links and the payment states that make them safe. */
 
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { deleteListing } from "#db/listings/delete.ts";
 import { attendeePage } from "#routes/admin/attendee-page.ts";
@@ -60,7 +60,8 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       const html = await tabHtml(id, "actions");
       // The return URL is threaded through as a query value, so the confirm
       // page can come back to this exact tab.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `/admin/attendees/${id}/resend-notification?return_url=${encodeURIComponent(
           `/admin/attendees/${id}/actions`,
         )}`,
@@ -77,7 +78,8 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       );
       const html = await tabHtml(attendee.id, "actions");
       // The separator is escaped in the rendered attribute.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `/admin/sms?listing=${listing.id}&amp;attendee=${attendee.id}`,
       );
     });
@@ -85,19 +87,22 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
     test("offers deleting without a return URL, since there is nothing to come back to", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "actions");
-      expect(html).toContain(`/admin/attendees/${id}/delete"`);
+      assertStringIncludes(html, `/admin/attendees/${id}/delete"`);
     });
 
     test("still offers managers an ordinary attendee delete they may perform", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "actions", MANAGER);
-      expect(html).toContain(`/admin/attendees/${id}/delete"`);
+      assertStringIncludes(html, `/admin/attendees/${id}/delete"`);
     });
 
     test("does not offer a refund for an attendee who never paid", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "actions");
-      expect(html).not.toContain(`/admin/attendees/${id}/refund`);
+      assert(
+        !html.includes(`/admin/attendees/${id}/refund`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("marks deleting as the dangerous action it is", async () => {
@@ -107,7 +112,7 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
         0,
         html.indexOf(`/admin/attendees/${id}/delete`),
       );
-      expect(deleteLink.slice(-120)).toContain("danger");
+      assertStringIncludes(deleteLink.slice(-120), "danger");
     });
   });
 
@@ -115,9 +120,9 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
     test("offers a refund for an attendee who paid", async () => {
       const { attendeeId } = await paidPagePayment("refund");
       const html = await tabHtml(attendeeId, "actions");
-      expect(html).toContain(`/admin/attendees/${attendeeId}/refund`);
+      assertStringIncludes(html, `/admin/attendees/${attendeeId}/refund`);
       // Named, not just linked — the label is what the operator reads.
-      expect(html).toContain("Refund");
+      assertStringIncludes(html, "Refund");
     });
 
     test("shows only owners the review action instead of refund", async () => {
@@ -131,18 +136,32 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       );
 
       const ownerHtml = await tabHtml(attendeeId, "actions");
-      expect(ownerHtml).toContain(
+      assertStringIncludes(
+        ownerHtml,
         `/admin/attendees/${attendeeId}/payment-review`,
       );
-      expect(ownerHtml).toContain("Mark payment reviewed");
-      expect(ownerHtml).not.toContain(`/admin/attendees/${attendeeId}/refund`);
-      expect(ownerHtml).not.toContain(`/admin/attendees/${attendeeId}/delete`);
+      assertStringIncludes(ownerHtml, "Mark payment reviewed");
+      assert(
+        !ownerHtml.includes(`/admin/attendees/${attendeeId}/refund`),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !ownerHtml.includes(`/admin/attendees/${attendeeId}/delete`),
+        "the value should not contain the searched item",
+      );
 
       const managerHtml = await tabHtml(attendeeId, "actions", MANAGER);
-      expect(managerHtml).not.toContain("payment-review");
-      expect(managerHtml).not.toContain("Mark payment reviewed");
-      expect(managerHtml).not.toContain(
-        `/admin/attendees/${attendeeId}/delete`,
+      assert(
+        !managerHtml.includes("payment-review"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !managerHtml.includes("Mark payment reviewed"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !managerHtml.includes(`/admin/attendees/${attendeeId}/delete`),
+        "the value should not contain the searched item",
       );
     });
 
@@ -159,13 +178,26 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       await deleteListing(listingId);
 
       const html = await tabHtml(attendeeId, "actions");
-      expect(html).toContain(`/admin/attendees/${attendeeId}/payment-review`);
-      expect(html).not.toContain(`/admin/attendees/${attendeeId}/delete`);
-      expect(html).not.toContain(`/admin/attendees/${attendeeId}/refund`);
-      expect(html).not.toContain(
-        `/admin/attendees/${attendeeId}/resend-notification`,
+      assertStringIncludes(
+        html,
+        `/admin/attendees/${attendeeId}/payment-review`,
       );
-      expect(html).not.toContain("/admin/sms?listing=");
+      assert(
+        !html.includes(`/admin/attendees/${attendeeId}/delete`),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes(`/admin/attendees/${attendeeId}/refund`),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes(`/admin/attendees/${attendeeId}/resend-notification`),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("/admin/sms?listing="),
+        "the value should not contain the searched item",
+      );
     });
 
     test("offers no refund while Money still has to record a returned payment", async () => {
@@ -179,11 +211,18 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       );
 
       const html = await tabHtml(attendeeId, "actions");
-      expect(html).not.toContain(`/admin/attendees/${attendeeId}/refund`);
-      expect(html).not.toContain(
-        `/admin/attendees/${attendeeId}/payment-review`,
+      assert(
+        !html.includes(`/admin/attendees/${attendeeId}/refund`),
+        "the value should not contain the searched item",
       );
-      expect(html).not.toContain(`/admin/attendees/${attendeeId}/delete`);
+      assert(
+        !html.includes(`/admin/attendees/${attendeeId}/payment-review`),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes(`/admin/attendees/${attendeeId}/delete`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("offers only owners the canonical provider recovery queue", async () => {
@@ -195,19 +234,33 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       await addProviderRefundTestCase(paymentId);
 
       const ownerHtml = await tabHtml(attendeeId, "actions");
-      expect(ownerHtml).toContain('href="/admin/privacy#refund-recovery"');
-      expect(ownerHtml).toContain("Open Refund recovery");
-      expect(ownerHtml).not.toContain(`/admin/attendees/${attendeeId}/refund`);
-      expect(ownerHtml).not.toContain(
-        `/admin/attendees/${attendeeId}/payment-review`,
+      assertStringIncludes(ownerHtml, 'href="/admin/privacy#refund-recovery"');
+      assertStringIncludes(ownerHtml, "Open Refund recovery");
+      assert(
+        !ownerHtml.includes(`/admin/attendees/${attendeeId}/refund`),
+        "the value should not contain the searched item",
       );
-      expect(ownerHtml).not.toContain(`/admin/attendees/${attendeeId}/delete`);
+      assert(
+        !ownerHtml.includes(`/admin/attendees/${attendeeId}/payment-review`),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !ownerHtml.includes(`/admin/attendees/${attendeeId}/delete`),
+        "the value should not contain the searched item",
+      );
 
       const managerHtml = await tabHtml(attendeeId, "actions", MANAGER);
-      expect(managerHtml).not.toContain("/admin/privacy#refund-recovery");
-      expect(managerHtml).not.toContain("Open Refund recovery");
-      expect(managerHtml).not.toContain(
-        `/admin/attendees/${attendeeId}/delete`,
+      assert(
+        !managerHtml.includes("/admin/privacy#refund-recovery"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !managerHtml.includes("Open Refund recovery"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !managerHtml.includes(`/admin/attendees/${attendeeId}/delete`),
+        "the value should not contain the searched item",
       );
     });
 
@@ -218,9 +271,12 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       const deleteUrl = `/admin/attendees/${attendeeId}/delete`;
 
       const ordinary = await tabHtml(attendeeId, "actions");
-      expect(ordinary).toContain(refundUrl);
-      expect(ordinary).not.toContain(reviewUrl);
-      expect(ordinary).toContain(deleteUrl);
+      assertStringIncludes(ordinary, refundUrl);
+      assert(
+        !ordinary.includes(reviewUrl),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(ordinary, deleteUrl);
 
       await putRowState(
         sessionId,
@@ -228,9 +284,18 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
         CLAIM_MIRROR,
       );
       const stale = await tabHtml(attendeeId, "actions");
-      expect(stale).not.toContain(refundUrl);
-      expect(stale).not.toContain(reviewUrl);
-      expect(stale).not.toContain(deleteUrl);
+      assert(
+        !stale.includes(refundUrl),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !stale.includes(reviewUrl),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !stale.includes(deleteUrl),
+        "the value should not contain the searched item",
+      );
 
       await putRowState(
         sessionId,
@@ -238,9 +303,18 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
         CLAIM_MIRROR,
       );
       const inProgress = await tabHtml(attendeeId, "actions");
-      expect(inProgress).not.toContain(refundUrl);
-      expect(inProgress).not.toContain(reviewUrl);
-      expect(inProgress).not.toContain(deleteUrl);
+      assert(
+        !inProgress.includes(refundUrl),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !inProgress.includes(reviewUrl),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !inProgress.includes(deleteUrl),
+        "the value should not contain the searched item",
+      );
     });
   });
 
@@ -264,9 +338,18 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       );
       const html = await response.text();
 
-      expect(html).toContain("A refund for this person is still in progress");
-      expect(html).not.toContain("Merge and delete source attendee");
-      expect(html).not.toContain(`/admin/attendees/${attendeeId}/merge`);
+      assertStringIncludes(
+        html,
+        "A refund for this person is still in progress",
+      );
+      assert(
+        !html.includes("Merge and delete source attendee"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes(`/admin/attendees/${attendeeId}/merge`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("keeps movable review, ledger, and provider work in the merge form", async () => {
@@ -293,7 +376,7 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
         }),
         REVIEW_MIRROR,
       );
-      expect(await preview()).toContain("Merge and delete source attendee");
+      assertStringIncludes(await preview(), "Merge and delete source attendee");
 
       await putRowState(
         sessionId,
@@ -302,11 +385,11 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
         }),
         UNRECORDED_MIRROR,
       );
-      expect(await preview()).toContain("Merge and delete source attendee");
+      assertStringIncludes(await preview(), "Merge and delete source attendee");
 
       await putRowState(sessionId, await rowStateSlot({}), "");
       await addProviderRefundTestCase(paymentId);
-      expect(await preview()).toContain("Merge and delete source attendee");
+      assertStringIncludes(await preview(), "Merge and delete source attendee");
     });
 
     test("looks up the ticket the caller named, and says when there is none", async () => {
@@ -316,13 +399,16 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
           query: new URLSearchParams({ token: "no-such-ticket" }),
         }),
       );
-      expect(await response.text()).toContain("Ticket token not found");
+      assertStringIncludes(await response.text(), "Ticket token not found");
     });
 
     test("looks nothing up when the caller named no ticket", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "actions");
-      expect(html).not.toContain("Ticket token not found");
+      assert(
+        !html.includes("Ticket token not found"),
+        "the value should not contain the searched item",
+      );
     });
   });
 });

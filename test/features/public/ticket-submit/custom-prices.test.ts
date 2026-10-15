@@ -3,6 +3,7 @@
  * its posted price, and fixed-price or unchosen listings stay out of the map.
  */
 
+import { assertStringIncludes } from "@std/assert";
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -51,7 +52,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
         500,
       );
       expect(typeof result).toBe("string");
-      expect(result).toContain("Supporter ticket");
+      assertStringIncludes(result, "Supporter ticket");
     });
 
     test("ignores a pay-more listing the buyer chose none of", async () => {

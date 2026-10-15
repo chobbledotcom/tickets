@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   adminAnswerEditPage,
@@ -38,12 +38,13 @@ describe("adminAnswerEditPage", () => {
   afterAll(resetFeaturePageTest);
 
   test("renders the editable text pre-filled and the form action", () => {
-    expect(html).toContain('action="/admin/questions/1/answers/11/edit"');
-    expect(html).toContain('value="Large"');
-    expect(html).toContain('class="active" href="/admin/questions"');
+    assertStringIncludes(html, 'action="/admin/questions/1/answers/11/edit"');
+    assertStringIncludes(html, 'value="Large"');
+    assertStringIncludes(html, 'class="active" href="/admin/questions"');
     // An active answer renders the box checked, as a checkbox valued "on", with
     // one space between the input and its "Active" label.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input checked name="active" type="checkbox" value="on"> Active',
     );
   });
@@ -58,26 +59,35 @@ describe("adminAnswerEditPage", () => {
       modifiers,
       null,
     );
-    expect(html).toContain('name="active"');
-    expect(html).not.toContain("checked");
+    assertStringIncludes(html, 'name="active"');
+    assert(
+      !html.includes("checked"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders the editable selection total field with the stored value", () => {
-    expect(html).toContain('name="times_selected"');
-    expect(html).toContain('value="7"');
+    assertStringIncludes(html, 'name="times_selected"');
+    assertStringIncludes(html, 'value="7"');
   });
 
   test("links back to the question", () => {
-    expect(html).toContain('href="/admin/questions/1"');
-    expect(html).toContain("Back to question");
+    assertStringIncludes(html, 'href="/admin/questions/1"');
+    assertStringIncludes(html, "Back to question");
   });
 
   test("links to the recalculate flow", () => {
-    expect(html).toContain('href="/admin/questions/1/answers/11/recalculate"');
+    assertStringIncludes(
+      html,
+      'href="/admin/questions/1/answers/11/recalculate"',
+    );
   });
 
   test("shows no drift warning when the total matches attendee answers", () => {
-    expect(html).not.toContain("expected-actual-notice");
+    assert(
+      !html.includes("expected-actual-notice"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("warns and shows expected/actual when the total has drifted", () => {
@@ -90,10 +100,10 @@ describe("adminAnswerEditPage", () => {
       modifiers,
       null,
     );
-    expect(html).toContain("expected-actual-notice");
+    assertStringIncludes(html, "expected-actual-notice");
     // Expected (rebuilt from attendee answers) then got (stored).
-    expect(html).toContain("<strong>5</strong>");
-    expect(html).toContain("<strong>7</strong>");
+    assertStringIncludes(html, "<strong>5</strong>");
+    assertStringIncludes(html, "<strong>7</strong>");
   });
 
   test("lists modifier options and marks the linked one selected", () => {
@@ -106,25 +116,26 @@ describe("adminAnswerEditPage", () => {
       modifiers,
       5,
     );
-    expect(html).toContain('<select id="modifier_id" name="modifier_id">');
-    expect(html).toContain("Large surcharge");
-    expect(html).toContain("Tiny discount");
-    expect(html).toContain('<option selected value="5">');
+    assertStringIncludes(html, '<select id="modifier_id" name="modifier_id">');
+    assertStringIncludes(html, "Large surcharge");
+    assertStringIncludes(html, "Tiny discount");
+    assertStringIncludes(html, '<option selected value="5">');
   });
 
   test("says beside the selector that only answer-triggered modifiers appear here", () => {
     // The selector omits Automatic and add-on modifiers; the hint is the
     // affordance that stops an operator reading that as a bug. The rendered
     // page escapes the copy's quotes, so match the quoteless sentence tail.
-    expect(html).toContain("Create one on the Modifiers page first.");
+    assertStringIncludes(html, "Create one on the Modifiers page first.");
   });
 
   test("selects the none option when no modifier is linked", () => {
-    expect(html).toContain('<option selected value="">');
+    assertStringIncludes(html, '<option selected value="">');
   });
 
   test("moves the delete action onto the edit page", () => {
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<a class="danger" href="/admin/questions/1/answers/11/delete">',
     );
   });
@@ -139,7 +150,7 @@ describe("adminAnswerEditPage", () => {
       modifiers,
       null,
     );
-    expect(html).toContain("Invalid modifier");
+    assertStringIncludes(html, "Invalid modifier");
   });
 });
 
@@ -162,19 +173,20 @@ describe("adminAnswerRecalculatePage", () => {
       snapshot,
       OWNER_SESSION,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'action="/admin/questions/1/answers/11/recalculate"',
     );
-    expect(html).toContain('class="active" href="/admin/questions"');
-    expect(html).toContain('<div class="table-scroll">');
+    assertStringIncludes(html, 'class="active" href="/admin/questions"');
+    assertStringIncludes(html, '<div class="table-scroll">');
     // Current (stored) and recalculated (from attendee answers) columns.
-    expect(html).toContain("<td>7</td>");
-    expect(html).toContain("<td>5</td>");
-    expect(html).toContain('name="recalculate_fields"');
+    assertStringIncludes(html, "<td>7</td>");
+    assertStringIncludes(html, "<td>5</td>");
+    assertStringIncludes(html, 'name="recalculate_fields"');
   });
 
   test("renders an error flash", () => {
-    expect(
+    assertStringIncludes(
       adminAnswerRecalculatePage(
         question,
         answer,
@@ -182,11 +194,12 @@ describe("adminAnswerRecalculatePage", () => {
         OWNER_SESSION,
         "Choose at least one total to recalculate",
       ),
-    ).toContain("Choose at least one total to recalculate");
+      "Choose at least one total to recalculate",
+    );
   });
 
   test("renders a success flash", () => {
-    expect(
+    assertStringIncludes(
       adminAnswerRecalculatePage(
         question,
         answer,
@@ -195,6 +208,7 @@ describe("adminAnswerRecalculatePage", () => {
         undefined,
         "Selection total recalculated",
       ),
-    ).toContain("Selection total recalculated");
+      "Selection total recalculated",
+    );
   });
 });

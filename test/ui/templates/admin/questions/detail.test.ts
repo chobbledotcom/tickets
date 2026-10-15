@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { adminQuestionPage } from "#templates/admin/questions.tsx";
@@ -23,40 +24,45 @@ describe("adminQuestionPage", () => {
 
   test("renders question text and edit form", () => {
     const html = adminQuestionPage(question, OWNER_SESSION);
-    expect(html).toContain("T-shirt size?");
-    expect(html).toContain('action="/admin/questions/1/edit"');
-    expect(html).toContain('class="active" href="/admin/questions"');
+    assertStringIncludes(html, "T-shirt size?");
+    assertStringIncludes(html, 'action="/admin/questions/1/edit"');
+    assertStringIncludes(html, 'class="active" href="/admin/questions"');
     // The choice-type selector offers radio vs select, with the question's
     // current type (radio) pre-selected.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<select name="display_type"><option selected value="radio">Radio buttons</option><option value="select">Select box</option></select>',
     );
   });
 
   test("renders answer list linking to each answer's edit page", () => {
     const html = adminQuestionPage(question, OWNER_SESSION);
-    expect(html).toContain("Small");
-    expect(html).toContain("Large");
-    expect(html).toContain('href="/admin/questions/1/answers/10/edit"');
-    expect(html).toContain('href="/admin/questions/1/answers/11/edit"');
-    expect(html).toContain(
+    assertStringIncludes(html, "Small");
+    assertStringIncludes(html, "Large");
+    assertStringIncludes(html, 'href="/admin/questions/1/answers/10/edit"');
+    assertStringIncludes(html, 'href="/admin/questions/1/answers/11/edit"');
+    assertStringIncludes(
+      html,
       '<form action="/admin/questions/1/answers" autocomplete="off" method="POST" id="add-answer">',
     );
   });
 
   test("no longer links to answer deletion from the question page", () => {
     const html = adminQuestionPage(question, OWNER_SESSION);
-    expect(html).not.toContain("/admin/questions/1/answers/10/delete");
+    assert(
+      !html.includes("/admin/questions/1/answers/10/delete"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders delete question link", () => {
     const html = adminQuestionPage(question, OWNER_SESSION);
-    expect(html).toContain('href="/admin/questions/1/delete"');
+    assertStringIncludes(html, 'href="/admin/questions/1/delete"');
   });
 
   test("renders error message when provided", () => {
     const html = adminQuestionPage(question, OWNER_SESSION, "Error!");
-    expect(html).toContain("Error!");
+    assertStringIncludes(html, "Error!");
   });
 
   test("renders empty answers state", () => {
@@ -64,7 +70,7 @@ describe("adminQuestionPage", () => {
       testQuestion({ id: 1, text: "Q?" }),
       OWNER_SESSION,
     );
-    expect(html).toContain("No answers yet");
+    assertStringIncludes(html, "No answers yet");
   });
 
   test("locks the type on a free-text question's edit form", () => {
@@ -78,10 +84,14 @@ describe("adminQuestionPage", () => {
     );
     // No selector — a hidden field keeps it free-text and the choice options
     // are not offered.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="display_type" type="hidden" value="free_text"',
     );
-    expect(html).not.toContain("Radio buttons");
+    assert(
+      !html.includes("Radio buttons"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("hides answer management for a free-text question", () => {
@@ -95,10 +105,13 @@ describe("adminQuestionPage", () => {
     );
     // No add-answer form or answer heading — just an explanatory note that also
     // tells the operator a free-text question can't drive a price, and why.
-    expect(html).not.toContain("/admin/questions/1/answers");
-    expect(html).toContain("they have no answer options");
-    expect(html).toContain("can't change the price");
-    expect(html).toContain("a price modifier attaches to a chosen answer");
+    assert(
+      !html.includes("/admin/questions/1/answers"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "they have no answer options");
+    assertStringIncludes(html, "can't change the price");
+    assertStringIncludes(html, "a price modifier attaches to a chosen answer");
   });
 
   test("renders answers in a table with their selection totals", () => {
@@ -107,9 +120,9 @@ describe("adminQuestionPage", () => {
       [11, 3],
     ]);
     const html = adminQuestionPage(question, OWNER_SESSION, undefined, counts);
-    expect(html).toContain("<table");
-    expect(html).toContain('<td class="col-quantity">5</td>');
-    expect(html).toContain('<td class="col-quantity">3</td>');
+    assertStringIncludes(html, "<table");
+    assertStringIncludes(html, '<td class="col-quantity">5</td>');
+    assertStringIncludes(html, '<td class="col-quantity">3</td>');
   });
 
   test("shows zero selections for answers with no stored total", () => {
@@ -119,17 +132,23 @@ describe("adminQuestionPage", () => {
       undefined,
       new Map(),
     );
-    expect(html).toContain('<td class="col-quantity">0</td>');
+    assertStringIncludes(html, '<td class="col-quantity">0</td>');
   });
 
   test("renders move-up and move-down buttons", () => {
     const html = adminQuestionPage(question, OWNER_SESSION);
-    expect(html).toContain("/answers/10/move-down");
-    expect(html).not.toContain("/answers/10/move-up");
-    expect(html).toContain("/answers/11/move-up");
-    expect(html).not.toContain("/answers/11/move-down");
+    assertStringIncludes(html, "/answers/10/move-down");
+    assert(
+      !html.includes("/answers/10/move-up"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "/answers/11/move-up");
+    assert(
+      !html.includes("/answers/11/move-down"),
+      "the value should not contain the searched item",
+    );
     // The answers table carries the reorder Order column header when writable.
-    expect(html).toContain('<th class="col-reorder">Order</th>');
+    assertStringIncludes(html, '<th class="col-reorder">Order</th>');
   });
 
   test("renders both move buttons for middle answer", () => {
@@ -143,8 +162,8 @@ describe("adminQuestionPage", () => {
       text: "Q?",
     });
     const html = adminQuestionPage(q, OWNER_SESSION);
-    expect(html).toContain("/answers/11/move-up");
-    expect(html).toContain("/answers/11/move-down");
+    assertStringIncludes(html, "/answers/11/move-up");
+    assertStringIncludes(html, "/answers/11/move-down");
   });
 
   test("keeps question details readable without write controls in read-only mode", () => {
@@ -157,16 +176,37 @@ describe("adminQuestionPage", () => {
       TEST_LISTINGS,
       new Set([1]),
     );
-    expect(html).toContain("T-shirt size?");
-    expect(html).toContain("<p>Spring Gig</p>");
-    expect(html).not.toContain("<p>Summer Gig</p>");
-    expect(html).not.toContain('action="/admin/questions/1/listings"');
-    expect(html).not.toContain('action="/admin/questions/1/edit"');
-    expect(html).not.toContain("/admin/questions/1/answers/10/edit");
-    expect(html).not.toContain("/admin/questions/1/delete");
-    expect(html).not.toContain("/answers/10/move-");
+    assertStringIncludes(html, "T-shirt size?");
+    assertStringIncludes(html, "<p>Spring Gig</p>");
+    assert(
+      !html.includes("<p>Summer Gig</p>"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('action="/admin/questions/1/listings"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('action="/admin/questions/1/edit"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("/admin/questions/1/answers/10/edit"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("/admin/questions/1/delete"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("/answers/10/move-"),
+      "the value should not contain the searched item",
+    );
     // No reorder Order column on the answers table in read-only mode.
-    expect(html).not.toContain('<th class="col-reorder">');
+    assert(
+      !html.includes('<th class="col-reorder">'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("joins multiple assigned listing names with a comma in read-only mode", () => {
@@ -181,13 +221,13 @@ describe("adminQuestionPage", () => {
       TEST_LISTINGS,
       new Set([1, 2]),
     );
-    expect(html).toContain("<p>Spring Gig, Summer Gig</p>");
+    assertStringIncludes(html, "<p>Spring Gig, Summer Gig</p>");
   });
 
   test("renders empty state when no listings exist", () => {
     const html = adminQuestionPage(question, OWNER_SESSION);
-    expect(html).toContain("Assign to Listings");
-    expect(html).toContain("No listings yet");
+    assertStringIncludes(html, "Assign to Listings");
+    assertStringIncludes(html, "No listings yet");
   });
 
   test("renders an listing checkbox for each listing", () => {
@@ -198,15 +238,16 @@ describe("adminQuestionPage", () => {
       undefined,
       TEST_LISTINGS,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<form action="/admin/questions/1/listings" autocomplete="off" method="POST" id="question-listings">',
     );
-    expect(html).toContain("<strong>Linked listings (0):</strong>");
-    expect(html).toContain('name="listing_ids"');
-    expect(html).toContain('value="1"');
-    expect(html).toContain('value="2"');
-    expect(html).toContain("Spring Gig");
-    expect(html).toContain("Summer Gig");
+    assertStringIncludes(html, "<strong>Linked listings (0):</strong>");
+    assertStringIncludes(html, 'name="listing_ids"');
+    assertStringIncludes(html, 'value="1"');
+    assertStringIncludes(html, 'value="2"');
+    assertStringIncludes(html, "Spring Gig");
+    assertStringIncludes(html, "Summer Gig");
   });
 
   test("renders the assign-to-all toggle before the listing checkboxes", () => {
@@ -221,7 +262,7 @@ describe("adminQuestionPage", () => {
     const firstListing = html.indexOf('name="listing_ids"');
     expect(toggle).toBeGreaterThan(-1);
     expect(firstListing).toBeGreaterThan(toggle);
-    expect(html).toContain("Assign to all listings");
+    assertStringIncludes(html, "Assign to all listings");
   });
 
   test("shows an '(all)' heading, not a stored-id count, when assign-all is set", () => {
@@ -235,8 +276,11 @@ describe("adminQuestionPage", () => {
       TEST_LISTINGS,
       new Set(),
     );
-    expect(html).toContain("<strong>Linked listings (all):</strong>");
-    expect(html).not.toContain("Linked listings (0):");
+    assertStringIncludes(html, "<strong>Linked listings (all):</strong>");
+    assert(
+      !html.includes("Linked listings (0):"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("sorts a deactivated listing last and renders it muted", () => {
@@ -267,11 +311,13 @@ describe("adminQuestionPage", () => {
       TEST_LISTINGS,
       new Set([1]),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'checked name="listing_ids" type="checkbox" value="1"',
     );
-    expect(html).not.toContain(
-      'checked name="listing_ids" type="checkbox" value="2"',
+    assert(
+      !html.includes('checked name="listing_ids" type="checkbox" value="2"'),
+      "the value should not contain the searched item",
     );
   });
 });

@@ -34,8 +34,9 @@ describeWithEnv("payment processing modifiers", { db: true }, () => {
       totalUses: 1,
       usageCount: 1,
     });
-    expect((await getAllActivityLog()).map((entry) => entry.message)).toContain(
-      "Promo code 'DIRECT' used: \u00a31 off",
+    assertArrayIncludes(
+      (await getAllActivityLog()).map((entry) => entry.message),
+      ["Promo code 'DIRECT' used: \u00a31 off"],
     );
   });
 });

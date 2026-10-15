@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -56,14 +57,26 @@ describe("listing form schema", () => {
       webhook: false,
     });
 
-    expect(visible.section("basics")).toContain('name="attachment"');
-    expect(visible.section("options")).toContain('name="uses_logistics"');
-    expect(visible.section("advanced")).toContain('name="months_per_unit"');
-    expect(visible.section("advanced")).toContain('name="webhook_url"');
-    expect(hidden.section("basics")).not.toContain('name="attachment"');
-    expect(hidden.section("options")).not.toContain('name="uses_logistics"');
-    expect(hidden.section("advanced")).not.toContain('name="months_per_unit"');
-    expect(hidden.section("advanced")).not.toContain('name="webhook_url"');
+    assertStringIncludes(visible.section("basics"), 'name="attachment"');
+    assertStringIncludes(visible.section("options"), 'name="uses_logistics"');
+    assertStringIncludes(visible.section("advanced"), 'name="months_per_unit"');
+    assertStringIncludes(visible.section("advanced"), 'name="webhook_url"');
+    assert(
+      !hidden.section("basics").includes('name="attachment"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !hidden.section("options").includes('name="uses_logistics"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !hidden.section("advanced").includes('name="months_per_unit"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !hidden.section("advanced").includes('name="webhook_url"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("pairs customisable days with pay more so only one can hold", () => {
@@ -74,12 +87,12 @@ describe("listing form schema", () => {
     expect(html).toMatch(
       /name="customisable_days"[^>]*data-exclusive-with="can_pay_more"/,
     );
-    expect(html).toContain(why);
+    assertStringIncludes(html, why);
 
     const payMore = getListingEditForm().section("tickets");
     expect(payMore).toMatch(
       /name="can_pay_more"[^>]*data-exclusive-with="customisable_days"/,
     );
-    expect(payMore).toContain(why);
+    assertStringIncludes(payMore, why);
   });
 });

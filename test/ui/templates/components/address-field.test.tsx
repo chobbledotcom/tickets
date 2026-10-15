@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { AddressFieldWithLookup } from "#templates/components/address-field.tsx";
@@ -12,7 +12,8 @@ describe("AddressFieldWithLookup", () => {
 
     // The textarea body opens with one spare newline for HTML parsing,
     // which eats the first newline after a `<textarea>` start tag.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<label for="address">Address<textarea autocomplete="off" id="address" maxlength="${MAX_INPUT_LENGTH}" name="address" rows="3">\n${address}</textarea></label>`,
     );
   });
@@ -20,8 +21,12 @@ describe("AddressFieldWithLookup", () => {
   test("keeps the postcode search panel off when no provider is set", () => {
     const html = String(AddressFieldWithLookup({ address: "" }));
 
-    expect(html).not.toContain("address-lookup");
-    expect(html).toContain(
+    assert(
+      !html.includes("address-lookup"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(
+      html,
       `maxlength="${MAX_INPUT_LENGTH}" name="address" rows="3">\n</textarea>`,
     );
   });
@@ -30,14 +35,16 @@ describe("AddressFieldWithLookup", () => {
     await withSetting({ address_lookup_provider: "easypostcodes" }, () => {
       const html = String(AddressFieldWithLookup({ address }));
 
-      expect(html).toContain('class="address-lookup"');
+      assertStringIncludes(html, 'class="address-lookup"');
       // The saved address ends with its postcode, so the search box starts
       // pre-filled with it, normalised.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         '<input autocomplete="off" data-address-search type="text" value="LS1 1AA">',
       );
       // The textarea stays editable and shows the saved address.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `maxlength="${MAX_INPUT_LENGTH}" name="address" rows="3">\n${address}</textarea>`,
       );
     });
@@ -48,7 +55,8 @@ describe("AddressFieldWithLookup", () => {
       // No comma, so there is no trailing part to offer as a search.
       const html = String(AddressFieldWithLookup({ address: "Flat 2" }));
 
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         '<input autocomplete="off" data-address-search type="text">',
       );
 
@@ -57,7 +65,8 @@ describe("AddressFieldWithLookup", () => {
         AddressFieldWithLookup({ address: "12 Main Road, NOTAPEST" }),
       );
 
-      expect(html2).toContain(
+      assertStringIncludes(
+        html2,
         '<input autocomplete="off" data-address-search type="text">',
       );
     });

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -45,15 +46,21 @@ describe("adminUsersPage", () => {
       inviteLink: "",
       success: "",
     });
-    expect(html).toContain("Active");
-    expect(html).toContain("Invited");
+    assertStringIncludes(html, "Active");
+    assertStringIncludes(html, "Invited");
     // The username links to the per-user manage page; the delete action lives
     // there now, not inline in the table. There is no activate action — invited
     // users self-activate at /join.
-    expect(html).toContain('<a href="/admin/users/2">pending</a>');
-    expect(html).toContain('<a href="/admin/users/3">invited</a>');
-    expect(html).not.toContain("/activate");
-    expect(html).not.toContain("/delete");
+    assertStringIncludes(html, '<a href="/admin/users/2">pending</a>');
+    assertStringIncludes(html, '<a href="/admin/users/3">invited</a>');
+    assert(
+      !html.includes("/activate"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("/delete"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders Invite Expired status for expired invite", () => {
@@ -73,7 +80,7 @@ describe("adminUsersPage", () => {
       inviteLink: "",
       success: "",
     });
-    expect(html).toContain("Invite Expired");
+    assertStringIncludes(html, "Invite Expired");
   });
 
   test("renders invite, success, and error messages when provided", () => {
@@ -92,14 +99,14 @@ describe("adminUsersPage", () => {
       inviteLink: "https://example.com/join/abc123",
       success: "Invite created",
     });
-    expect(html).toContain("Invite link (share this with the new user)");
+    assertStringIncludes(html, "Invite link (share this with the new user)");
     // The invite alert is its own banner, not the page frame's flash copy.
     expect(html).toMatch(
       /class="success" role="alert">\s*<p>Invite link \(share this with the new user\)/,
     );
-    expect(html).toContain("https://example.com/join/abc123");
-    expect(html).toContain("Invite created");
-    expect(html).toContain("Something went wrong");
+    assertStringIncludes(html, "https://example.com/join/abc123");
+    assertStringIncludes(html, "Invite created");
+    assertStringIncludes(html, "Something went wrong");
   });
 
   test("marks the Users nav link active and links to the roles guide", () => {
@@ -107,8 +114,8 @@ describe("adminUsersPage", () => {
       currentUserId: 1,
       inviteLink: "",
     });
-    expect(html).toContain('<a class="active" href="/admin/users">');
-    expect(html).toContain('href="/admin/guide#user-classes"');
+    assertStringIncludes(html, '<a class="active" href="/admin/users">');
+    assertStringIncludes(html, 'href="/admin/guide#user-classes"');
   });
 
   test("shows an agent user's single assigned agent name", () => {
@@ -124,8 +131,11 @@ describe("adminUsersPage", () => {
       OWNER_SESSION,
       { currentUserId: 1, inviteLink: "" },
     );
-    expect(html).toContain("Solo Van");
-    expect(html).not.toContain("No agents assigned");
+    assertStringIncludes(html, "Solo Van");
+    assert(
+      !html.includes("No agents assigned"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -141,12 +151,12 @@ describe("adminUserDeletePage", () => {
       username: "targetuser",
     };
     const html = adminUserDeletePage(user, OWNER_SESSION);
-    expect(html).toContain("Delete User");
-    expect(html).toContain("targetuser");
-    expect(html).toContain('<a class="active" href="/admin/users">');
-    expect(html).toContain('name="confirm_identifier"');
-    expect(html).toContain('action="/admin/users/5/delete"');
-    expect(html).toContain("permanently delete");
+    assertStringIncludes(html, "Delete User");
+    assertStringIncludes(html, "targetuser");
+    assertStringIncludes(html, '<a class="active" href="/admin/users">');
+    assertStringIncludes(html, 'name="confirm_identifier"');
+    assertStringIncludes(html, 'action="/admin/users/5/delete"');
+    assertStringIncludes(html, "permanently delete");
   });
 
   test("renders error message when provided", () => {
@@ -162,6 +172,6 @@ describe("adminUserDeletePage", () => {
       OWNER_SESSION,
       "Username does not match",
     );
-    expect(html).toContain("Username does not match");
+    assertStringIncludes(html, "Username does not match");
   });
 });

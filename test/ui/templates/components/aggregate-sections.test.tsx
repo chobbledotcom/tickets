@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -40,7 +41,10 @@ describe("IdCheckboxLabel", () => {
     expect(html).toBe(
       '<label><input name="choices" type="checkbox" value="8">Leave me</label>',
     );
-    expect(html).not.toContain("checked");
+    assert(
+      !html.includes("checked"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -112,9 +116,9 @@ describe("CheckboxForm", () => {
     const html = String(
       CheckboxForm({ action: "/x", children: "kids", submitLabel: "Save it" }),
     );
-    expect(html).toContain('<fieldset class="checkboxes">kids</fieldset>');
-    expect(html).toContain("/icons.svg#save");
-    expect(html).toContain("<span>Save it</span>");
+    assertStringIncludes(html, '<fieldset class="checkboxes">kids</fieldset>');
+    assertStringIncludes(html, "/icons.svg#save");
+    assertStringIncludes(html, "<span>Save it</span>");
   });
 });
 
@@ -164,8 +168,9 @@ describe("RunningTotalsFieldset", () => {
 
   test("offers the recalculate step as a link while the site is writable", () => {
     const html = String(RunningTotalsFieldset({ config }));
-    expect(html).toContain("<legend>Running totals</legend>");
-    expect(html).toContain(
+    assertStringIncludes(html, "<legend>Running totals</legend>");
+    assertStringIncludes(
+      html,
       '<a href="/admin/listing/1/recalculate">Recalculate</a>',
     );
   });
@@ -173,8 +178,11 @@ describe("RunningTotalsFieldset", () => {
   test("shows the recalculate label as plain text once the site is read-only", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = String(RunningTotalsFieldset({ config }));
-    expect(html).toContain("Recalculate");
-    expect(html).not.toContain("<a href=");
+    assertStringIncludes(html, "Recalculate");
+    assert(
+      !html.includes("<a href="),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -203,11 +211,13 @@ describe("CheckboxesFieldset", () => {
         selected: [2],
       }),
     );
-    expect(html).toContain('<fieldset class="checkboxes">');
-    expect(html).toContain(
+    assertStringIncludes(html, '<fieldset class="checkboxes">');
+    assertStringIncludes(
+      html,
       '<input name="listing_ids" type="checkbox" value="1"> First',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input checked name="listing_ids" type="checkbox" value="2"> Second',
     );
   });

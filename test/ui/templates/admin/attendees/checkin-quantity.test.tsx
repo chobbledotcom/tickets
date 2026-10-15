@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { attendeeCheckinQuantityPage } from "#templates/admin/attendees/checkin-quantity.tsx";
 import {
@@ -23,36 +23,42 @@ describe("attendee check-in quantity page", () => {
   test("offers every count up to the line's quantity, none selected but the whole", () => {
     const html = renderPage({ checked_in: 0, id: 7, quantity: 3 });
 
-    expect(html).toContain("Tickets to check in");
-    expect(html).toContain('<option selected value="3">3 tickets</option>');
+    assertStringIncludes(html, "Tickets to check in");
+    assertStringIncludes(html, '<option selected value="3">3 tickets</option>');
     for (const option of ["1 ticket", "2 tickets", "3 tickets"]) {
-      expect(html).toContain(`>${option}</option>`);
+      assertStringIncludes(html, `>${option}</option>`);
     }
-    expect(html).not.toContain("Tickets to check out");
+    assert(
+      !html.includes("Tickets to check out"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a partly admitted line offers both directions", () => {
     const html = renderPage({ checked_in: 1, id: 8, quantity: 3 });
 
-    expect(html).toContain("1 of 3 tickets checked in");
-    expect(html).toContain('<option selected value="2">2 tickets</option>');
-    expect(html).toContain("Tickets to check out");
-    expect(html).toContain('<option selected value="1">1 ticket</option>');
+    assertStringIncludes(html, "1 of 3 tickets checked in");
+    assertStringIncludes(html, '<option selected value="2">2 tickets</option>');
+    assertStringIncludes(html, "Tickets to check out");
+    assertStringIncludes(html, '<option selected value="1">1 ticket</option>');
   });
 
   test("a fully admitted line offers only the way out", () => {
     const html = renderPage({ checked_in: 3, id: 9, quantity: 3 });
 
-    expect(html).toContain("3 of 3 tickets checked in");
-    expect(html).not.toContain("Tickets to check in");
-    expect(html).toContain("Tickets to check out");
+    assertStringIncludes(html, "3 of 3 tickets checked in");
+    assert(
+      !html.includes("Tickets to check in"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "Tickets to check out");
   });
 
   test("both forms post the check-in route with their direction", () => {
     const html = renderPage({ checked_in: 1, id: 10, quantity: 3 });
 
-    expect(html).toContain('action="/admin/listing/5/attendee/10/checkin"');
-    expect(html).toContain('name="check_in" type="hidden" value="true"');
-    expect(html).toContain('name="check_in" type="hidden" value="false"');
+    assertStringIncludes(html, 'action="/admin/listing/5/attendee/10/checkin"');
+    assertStringIncludes(html, 'name="check_in" type="hidden" value="true"');
+    assertStringIncludes(html, 'name="check_in" type="hidden" value="false"');
   });
 });

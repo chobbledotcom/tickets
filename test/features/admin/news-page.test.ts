@@ -4,6 +4,7 @@
  * shows and who it shows it to.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -18,9 +19,9 @@ describeWithEnv("the news post page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain(`action="/admin/site/news/${post.id}/edit"`);
-    expect(html).toContain("Summer opening");
-    expect(html).toContain('href="/admin/guide#public-site"');
+    assertStringIncludes(html, `action="/admin/site/news/${post.id}/edit"`);
+    assertStringIncludes(html, "Summer opening");
+    assertStringIncludes(html, 'href="/admin/guide#public-site"');
   });
 
   test("titles the page with the post's own name", async () => {
@@ -28,7 +29,7 @@ describeWithEnv("the news post page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/site/news/${post.id}`)).text();
 
-    expect(html).toContain("<h1>Winter hours</h1>");
+    assertStringIncludes(html, "<h1>Winter hours</h1>");
   });
 
   test("opens the edit tab and leaves out pictures with no storage", async () => {
@@ -38,11 +39,15 @@ describeWithEnv("the news post page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/site/news/${post.id}`)).text();
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<a aria-current="page" class="active" href="/admin/site/news/${post.id}/edit">Edit</a>`,
     );
-    expect(html).toContain(`href="/admin/site/news/${post.id}/actions"`);
-    expect(html).not.toContain(`href="/admin/site/news/${post.id}/images"`);
+    assertStringIncludes(html, `href="/admin/site/news/${post.id}/actions"`);
+    assert(
+      !html.includes(`href="/admin/site/news/${post.id}/images"`),
+      "the value should not contain the searched item",
+    );
   });
 
   test("offers deleting the post on its actions tab", async () => {
@@ -52,7 +57,7 @@ describeWithEnv("the news post page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain(`href="/admin/site/news/${post.id}/delete"`);
+    assertStringIncludes(html, `href="/admin/site/news/${post.id}/delete"`);
   });
 
   test("answers 404 for a post that is not there", async () => {

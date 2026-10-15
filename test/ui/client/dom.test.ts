@@ -1,4 +1,5 @@
 // test-groups: run-alone
+
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { createButton, forEachMatch } from "#src/ui/client/dom.ts";

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe } from "@std/testing/bdd";
 import {
@@ -67,13 +68,13 @@ describe("PriceInput", () => {
       const html = String(
         PriceInput({ min: "0", name: "amount", value: "1.005" }),
       );
-      expect(html).toContain('name="amount"');
-      expect(html).toContain('type="number"');
-      expect(html).toContain('inputmode="decimal"');
+      assertStringIncludes(html, 'name="amount"');
+      assertStringIncludes(html, 'type="number"');
+      assertStringIncludes(html, 'inputmode="decimal"');
       // step tracks the 3-decimal currency, so 1.005 is typeable.
-      expect(html).toContain('step="0.001"');
-      expect(html).toContain('min="0"');
-      expect(html).toContain('value="1.005"');
+      assertStringIncludes(html, 'step="0.001"');
+      assertStringIncludes(html, 'min="0"');
+      assertStringIncludes(html, 'value="1.005"');
     },
   );
 
@@ -82,10 +83,16 @@ describe("PriceInput", () => {
     { currency: "GBP" },
     () => {
       const html = String(PriceInput({ name: "amount", required: true }));
-      expect(html).toContain('step="0.01"');
-      expect(html).toContain(" required");
-      expect(html).not.toContain("min=");
-      expect(html).not.toContain("value=");
+      assertStringIncludes(html, 'step="0.01"');
+      assertStringIncludes(html, " required");
+      assert(
+        !html.includes("min="),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("value="),
+        "the value should not contain the searched item",
+      );
     },
   );
 });

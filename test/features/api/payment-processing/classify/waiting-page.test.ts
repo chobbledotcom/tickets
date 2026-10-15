@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { validatePaidSession } from "#routes/api/payment-processing/classify.ts";
@@ -67,13 +68,20 @@ describeWithEnv(
       );
 
       const page = await waitingPageOf(result);
-      expect(page).toContain("We have not received your payment yet");
-      expect(page).toContain(
+      assertStringIncludes(page, "We have not received your payment yet");
+      assertStringIncludes(
+        page,
         "If you have paid, your ticket will be sent to you by email.",
       );
-      expect(page).toContain('href="/payment/success?session_id=cs_unpaid"');
-      expect(page).toContain("Check again");
-      expect(page).not.toContain("Payment verification failed");
+      assertStringIncludes(
+        page,
+        'href="/payment/success?session_id=cs_unpaid"',
+      );
+      assertStringIncludes(page, "Check again");
+      assert(
+        !page.includes("Payment verification failed"),
+        "the value should not contain the searched item",
+      );
       // A normal provider state is not an outage: a debug line, not an error.
       expect(logLogged(debugSpy, "not confirmed yet")).toBe(true);
       expect(errors.contains("E_PAYMENT_SESSION")).toBe(false);
@@ -100,15 +108,22 @@ describeWithEnv(
 
       // Each reload carries one count up, so a tab left open stops itself.
       // The URL lives in an HTML attribute, so its & reads as &amp;.
-      expect(await waitingPageOf(bare)).toContain(
+      assertStringIncludes(
+        await waitingPageOf(bare),
         "url=/payment/success?session_id=cs_unpaid&amp;wait=1",
       );
-      expect(await waitingPageOf(eighth)).toContain("&amp;wait=9");
-      expect(await waitingPageOf(ninth)).toContain("&amp;wait=10");
+      assertStringIncludes(await waitingPageOf(eighth), "&amp;wait=9");
+      assertStringIncludes(await waitingPageOf(ninth), "&amp;wait=10");
       const page = await waitingPageOf(atTheLimit);
-      expect(page).not.toContain("http-equiv=");
-      expect(page).not.toContain("This page will keep checking for you.");
-      expect(page).toContain("Check again");
+      assert(
+        !page.includes("http-equiv="),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !page.includes("This page will keep checking for you."),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(page, "Check again");
     });
 
     test("keeps a forged reload count inside the window", async () => {
@@ -127,9 +142,12 @@ describeWithEnv(
 
       // Every unreadable value, including a negative one, opens a fresh
       // window of one reload.
-      expect(await waitingPageOf(forged)).toContain("&amp;wait=1");
-      expect(await waitingPageOf(negative)).toContain("&amp;wait=1");
-      expect(await waitingPageOf(huge)).not.toContain("http-equiv=");
+      assertStringIncludes(await waitingPageOf(forged), "&amp;wait=1");
+      assertStringIncludes(await waitingPageOf(negative), "&amp;wait=1");
+      assert(
+        !(await waitingPageOf(huge)).includes("http-equiv="),
+        "the value should not contain the searched item",
+      );
     });
 
     test("hands an owner the diagnostics beside the waiting page", async () => {
@@ -145,12 +163,12 @@ describeWithEnv(
       );
 
       const page = await waitingPageOf(result);
-      expect(page).toContain("Staff diagnostics");
-      expect(page).toContain("cs_unpaid");
+      assertStringIncludes(page, "Staff diagnostics");
+      assertStringIncludes(page, "cs_unpaid");
       // The row markup (label, then value) cannot pass because the session id
       // carries the word, so this reads the status itself, not the id.
-      expect(page).toContain("Payment status</strong> unpaid");
-      expect(page).toContain("3-D Secure");
+      assertStringIncludes(page, "Payment status</strong> unpaid");
+      assertStringIncludes(page, "3-D Secure");
     });
 
     test("keeps the buyer's page free of staff detail", async () => {

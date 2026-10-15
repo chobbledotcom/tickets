@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -55,20 +56,26 @@ describe("orderGalleryPage packages", () => {
       emptyNav,
       "",
     );
-    expect(html).toContain("Packages");
+    assertStringIncludes(html, "Packages");
     // A package joins the cart as a checkbox card, never a direct book link.
-    expect(html).toContain('name="select_package_1"');
-    expect(html).toContain('name="select_package_2"');
-    expect(html).toContain('data-order-key="package:1"');
-    expect(html).toContain('class="order-select"');
-    expect(html).toContain('class="order-gallery"');
+    assertStringIncludes(html, 'name="select_package_1"');
+    assertStringIncludes(html, 'name="select_package_2"');
+    assertStringIncludes(html, 'data-order-key="package:1"');
+    assertStringIncludes(html, 'class="order-select"');
+    assertStringIncludes(html, 'class="order-gallery"');
     // Order cards build on the shared Card markup (also used by /news).
-    expect(html).toContain('class="card order-card"');
-    expect(html).toContain('class="card-body"');
-    expect(html).toContain('class="card-name"');
-    expect(html).toContain('class="card-grid order-grid"');
-    expect(html).not.toContain('href="/ticket/alpha"');
-    expect(html).not.toContain('href="/ticket/zeta"');
+    assertStringIncludes(html, 'class="card order-card"');
+    assertStringIncludes(html, 'class="card-body"');
+    assertStringIncludes(html, 'class="card-name"');
+    assertStringIncludes(html, 'class="card-grid order-grid"');
+    assert(
+      !html.includes('href="/ticket/alpha"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('href="/ticket/zeta"'),
+      "the value should not contain the searched item",
+    );
     // Sorted by decrypted name: Alpha precedes Zeta.
     expect(html.indexOf("Alpha Bundle")).toBeLessThan(
       html.indexOf("Zeta Bundle"),
@@ -95,13 +102,22 @@ describe("orderGalleryPage packages", () => {
       emptyNav,
       "",
     );
-    expect(html).toContain("Frozen Bundle");
-    expect(html).toContain('class="card order-card order-card--unavailable"');
-    expect(html).toContain("Registration Closed");
+    assertStringIncludes(html, "Frozen Bundle");
+    assertStringIncludes(
+      html,
+      'class="card order-card order-card--unavailable"',
+    );
+    assertStringIncludes(html, "Registration Closed");
     // No live booking affordance while the site is read-only: neither a
     // link nor a selectable checkbox.
-    expect(html).not.toContain('href="/ticket/frozen"');
-    expect(html).not.toContain('class="order-select"');
+    assert(
+      !html.includes('href="/ticket/frozen"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('class="order-select"'),
+      "the value should not contain the searched item",
+    );
     // The cutoff must stay in this worker's env overlay: a write to the real
     // process env is visible to every parallel test worker and flips the
     // whole app read-only under them mid-test.

@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { LedgerFilterState } from "#templates/admin/ledger/filter.tsx";
 import {
@@ -46,29 +46,34 @@ describe("adminLedgerPage", () => {
 
   test("renders the money heading, nav, stats, filters, and simple list", () => {
     const html = adminLedgerPage(pageData(), OWNER_SESSION);
-    expect(html).toContain("Money");
-    expect(html).not.toContain("Money history");
-    expect(html).toContain('href="/admin/ledger"');
-    expect(html).toContain("<th>Activity</th>");
-    expect(html).toContain("Simple view");
-    expect(html).toContain("Detailed view");
-    expect(html).toContain("Money moved from");
+    assertStringIncludes(html, "Money");
+    assert(
+      !html.includes("Money history"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, 'href="/admin/ledger"');
+    assertStringIncludes(html, "<th>Activity</th>");
+    assertStringIncludes(html, "Simple view");
+    assertStringIncludes(html, "Detailed view");
+    assertStringIncludes(html, "Money moved from");
     // The whole-business scope is selected and keeps an unscoped URL.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<option selected value="/admin/ledger">Everything</option>',
     );
-    expect(html).toContain("Total income");
-    expect(html).toContain("£25.00");
+    assertStringIncludes(html, "Total income");
+    assertStringIncludes(html, "£25.00");
     // Both range pickers render with unique anchor ids.
-    expect(html).toContain('id="ledger-from"');
-    expect(html).toContain('id="ledger-to"');
+    assertStringIncludes(html, 'id="ledger-from"');
+    assertStringIncludes(html, 'id="ledger-to"');
     // The by-listing select lists every listing plus the "all" option.
-    expect(html).toContain("Everything");
-    expect(html).toContain("Summer Concert");
-    expect(html).toContain(
+    assertStringIncludes(html, "Everything");
+    assertStringIncludes(html, "Summer Concert");
+    assertStringIncludes(
+      html,
       '<option selected value="/admin/ledger">Everything</option>',
     );
-    expect(html).toContain("Festival package");
+    assertStringIncludes(html, "Festival package");
   });
 
   test("heads the stats with the listing name when scoped to one listing", () => {
@@ -76,7 +81,7 @@ describe("adminLedgerPage", () => {
       pageData({ statsHeading: "Summer Concert" }),
       OWNER_SESSION,
     );
-    expect(html).toContain("<h2>Summer Concert</h2>");
+    assertStringIncludes(html, "<h2>Summer Concert</h2>");
   });
 
   test("can switch to the detailed money-change list", () => {
@@ -84,9 +89,9 @@ describe("adminLedgerPage", () => {
       pageData({ filters: { ...NO_FILTERS, view: "dual" } }),
       OWNER_SESSION,
     );
-    expect(html).toContain("<th>Money moved</th>");
-    expect(html).toContain('href="/admin/ledger">Simple view</a>');
-    expect(html).toContain("<strong>Detailed view</strong>");
+    assertStringIncludes(html, "<th>Money moved</th>");
+    assertStringIncludes(html, 'href="/admin/ledger">Simple view</a>');
+    assertStringIncludes(html, "<strong>Detailed view</strong>");
   });
 
   test("preselects the chosen listing in the by-listing select", () => {
@@ -100,7 +105,8 @@ describe("adminLedgerPage", () => {
       OWNER_SESSION,
     );
     // The listing option carries `selected`; its value scopes the URL to it.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<option selected value="/admin/ledger?listing=1">Summer Concert</option>',
     );
   });
@@ -116,10 +122,11 @@ describe("adminLedgerPage", () => {
       }),
       OWNER_SESSION,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<option selected value="/admin/ledger?group=2">Festival package</option>',
     );
-    expect(html).toContain("<h2>Festival package</h2>");
+    assertStringIncludes(html, "<h2>Festival package</h2>");
   });
 
   test("day links carry the from/to filters and the other side's state", () => {
@@ -134,9 +141,9 @@ describe("adminLedgerPage", () => {
       OWNER_SESSION,
     );
     // A "to" day link keeps the existing from + listing scope.
-    expect(html).toContain("to=2026-06-20");
-    expect(html).toContain("from=2026-06-20");
-    expect(html).toContain("listing=1");
+    assertStringIncludes(html, "to=2026-06-20");
+    assertStringIncludes(html, "from=2026-06-20");
+    assertStringIncludes(html, "listing=1");
   });
 
   test("filter links preserve dual view and paged calendar state", () => {
@@ -154,17 +161,21 @@ describe("adminLedgerPage", () => {
       }),
       OWNER_SESSION,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'value="/admin/ledger?from=2026-06-20&amp;to=2026-06-22&amp;view=dual&amp;fromCal=2026-05&amp;toCal=2026-07"',
     );
-    expect(html).toContain("view=dual");
-    expect(html).toContain("toCal=2026-07");
+    assertStringIncludes(html, "view=dual");
+    assertStringIncludes(html, "toCal=2026-07");
   });
 
   test("surfaces the 'showing recent' note only when truncated", () => {
     const shown = adminLedgerPage(pageData({ truncated: true }), OWNER_SESSION);
-    expect(shown).toContain("Showing the 500 most recent money changes.");
+    assertStringIncludes(shown, "Showing the 500 most recent money changes.");
     const all = adminLedgerPage(pageData({ truncated: false }), OWNER_SESSION);
-    expect(all).not.toContain("Showing the 500 most recent money changes.");
+    assert(
+      !all.includes("Showing the 500 most recent money changes."),
+      "the value should not contain the searched item",
+    );
   });
 });

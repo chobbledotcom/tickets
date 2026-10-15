@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
@@ -119,8 +120,8 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
       const html = await (
         await adminGet("/admin/emails?audience=active")
       ).text();
-      expect(html).toContain("Load a template");
-      expect(html).toContain("My Newsletter");
+      assertStringIncludes(html, "Load a template");
+      assertStringIncludes(html, "My Newsletter");
     });
 
     test("?template=N pre-fills subject and body from the template", async () => {
@@ -128,13 +129,19 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/emails?audience=active&template=${id}`)
       ).text();
-      expect(html).toContain("Pre-fill Subject");
-      expect(html).toContain("Pre-fill body");
+      assertStringIncludes(html, "Pre-fill Subject");
+      assertStringIncludes(html, "Pre-fill body");
       // A template carries no marketing flag, so the box starts unticked
       // and the owner opts in deliberately.
-      expect(html).toContain('name="marketing"');
-      expect(html).not.toContain('name="marketing" checked');
-      expect(html).not.toContain('checked name="marketing"');
+      assertStringIncludes(html, 'name="marketing"');
+      assert(
+        !html.includes('name="marketing" checked'),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes('checked name="marketing"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("?template=N for an unknown id still renders the compose page", async () => {
@@ -156,10 +163,11 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
         await adminGet(`/admin/emails?audience=active&template=${id}`)
       ).text();
       // The template's content replaces the draft's…
-      expect(html).toContain("Template Subject");
-      expect(html).toContain("Template body");
+      assertStringIncludes(html, "Template Subject");
+      assertStringIncludes(html, "Template body");
       // …but the marketing flag is carried over from the saved draft.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         'checked name="marketing" type="checkbox" value="1"',
       );
     });
@@ -193,7 +201,7 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
         subject: "Template subject",
       });
       const redirectUrl = expectRedirect(response);
-      expect(redirectUrl).toContain("template=");
+      assertStringIncludes(redirectUrl, "template=");
       expectFlash(response, "Template saved.");
     });
 
@@ -216,7 +224,7 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
         update_existing: "1",
       });
       const redirectUrl = expectRedirect(response);
-      expect(redirectUrl).toContain(`template=${id}`);
+      assertStringIncludes(redirectUrl, `template=${id}`);
       expectFlash(response, "Template updated.");
     });
 
@@ -235,11 +243,14 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
       const id = await seedTemplate("To delete", "Body");
       const response = await adminGet(`/admin/emails/templates/${id}/delete`);
       const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain("Delete template");
+      assertStringIncludes(html, "Delete template");
       // The subject (encrypted at rest) is decrypted to confirm against.
-      expect(html).toContain("To delete");
-      expect(html).toContain('name="confirm_identifier"');
-      expect(html).toContain(`action="/admin/emails/templates/${id}/delete"`);
+      assertStringIncludes(html, "To delete");
+      assertStringIncludes(html, 'name="confirm_identifier"');
+      assertStringIncludes(
+        html,
+        `action="/admin/emails/templates/${id}/delete"`,
+      );
     });
 
     test("GET /admin/emails/templates/:id/delete 404s for unknown template", async () => {
@@ -271,7 +282,8 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
         false,
       );
       // The owner lands back on the confirmation page to try again.
-      expect(response.headers.get("location")).toContain(
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
         `/admin/emails/templates/${id}/delete?`,
       );
     });

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
@@ -23,26 +24,31 @@ describe("settings payment provider forms", () => {
         paymentProvider: null,
         paymentProviderRecoveryChoices: ["stripe", "square"],
       });
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         'action="/admin/settings/payment-provider-recovery"',
       );
-      expect(html).toContain('id="settings-payment-provider-recovery"');
-      expect(html).toContain('<div class="prose">');
-      expect(html).toContain('<fieldset class="radios">');
+      assertStringIncludes(html, 'id="settings-payment-provider-recovery"');
+      assertStringIncludes(html, '<div class="prose">');
+      assertStringIncludes(html, '<fieldset class="radios">');
       for (const provider of ["stripe", "square"]) {
         const input = inputTagWithValue(html, provider);
-        expect(input).toContain('name="existing_payment_provider"');
-        expect(input).toContain("required");
-        expect(input).not.toContain("checked");
+        assertStringIncludes(input, 'name="existing_payment_provider"');
+        assertStringIncludes(input, "required");
+        assert(
+          !input.includes("checked"),
+          "the value should not contain the searched item",
+        );
       }
-      expect(html).toContain("New sales will stay off.");
+      assertStringIncludes(html, "New sales will stay off.");
     });
 
     test("shows the recovery form for one configured provider", () => {
       const html = render(ExistingPaymentProviderForm, {
         paymentProviderRecoveryChoices: ["sumup"],
       });
-      expect(inputTagWithValue(html, "sumup")).toContain(
+      assertStringIncludes(
+        inputTagWithValue(html, "sumup"),
         'name="existing_payment_provider"',
       );
     });

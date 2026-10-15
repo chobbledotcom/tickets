@@ -5,6 +5,7 @@
  * "one form, then delete" page.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -104,10 +105,10 @@ describeWithEnv("an edit entity page", { db: true }, () => {
 
     const html = await (await editPage.renderPage(session, 7, "")).text();
 
-    expect(html).toContain("<p>Widget|clean</p>");
-    expect(html).toContain('href="/admin/holidays/7/edit"');
-    expect(html).toContain('href="/admin/holidays/7/notes"');
-    expect(html).toContain('href="/admin/holidays/7/actions"');
+    assertStringIncludes(html, "<p>Widget|clean</p>");
+    assertStringIncludes(html, 'href="/admin/holidays/7/edit"');
+    assertStringIncludes(html, 'href="/admin/holidays/7/notes"');
+    assertStringIncludes(html, 'href="/admin/holidays/7/actions"');
   });
 
   test("offers deleting the record on the actions tab", async () => {
@@ -117,7 +118,7 @@ describeWithEnv("an edit entity page", { db: true }, () => {
       await editPage.renderPage(session, 7, "actions")
     ).text();
 
-    expect(html).toContain('href="/admin/holidays/7/delete"');
+    assertStringIncludes(html, 'href="/admin/holidays/7/delete"');
   });
 
   test("re-renders the edit tab at 400 with what was typed", async () => {
@@ -131,7 +132,7 @@ describeWithEnv("an edit entity page", { db: true }, () => {
     );
 
     expect(response.status).toBe(400);
-    expect(await response.text()).toContain("<p>Widget|Half typed</p>");
+    assertStringIncludes(await response.text(), "<p>Widget|Half typed</p>");
   });
 
   test("hides the writing tabs in read-only mode", async () => {
@@ -144,9 +145,15 @@ describeWithEnv("an edit entity page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain("<p>Notes</p>");
-    expect(html).not.toContain('href="/admin/holidays/7/actions"');
-    expect(html).not.toContain("<p>Widget|clean</p>");
+    assertStringIncludes(html, "<p>Notes</p>");
+    assert(
+      !html.includes('href="/admin/holidays/7/actions"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("<p>Widget|clean</p>"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("answers 404 for a record that is not there", async () => {

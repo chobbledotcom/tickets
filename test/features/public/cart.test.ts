@@ -4,6 +4,7 @@
  * plain multi-listing path.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleCartBySlugs } from "#routes/public/cart.ts";
@@ -50,10 +51,10 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
     });
 
     const html = await cartHtml([group.slug, solo.slug]);
-    expect(html).toContain(`name="package_quantity_${group.id}"`);
-    expect(html).toContain(`name="quantity_${solo.id}"`);
-    expect(html).toContain("Kit tent");
-    expect(html).toContain("Lantern");
+    assertStringIncludes(html, `name="package_quantity_${group.id}"`);
+    assertStringIncludes(html, `name="quantity_${solo.id}"`);
+    assertStringIncludes(html, "Kit tent");
+    assertStringIncludes(html, "Lantern");
   });
 
   test("keeps one row for a listing named twice", async () => {
@@ -87,15 +88,18 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
     await deactivateTestListing(gone.id);
 
     const html = await cartHtml([group.slug, gone.slug]);
-    expect(html).not.toContain(`name="quantity_${gone.id}"`);
-    expect(html).toContain("Live tent");
+    assert(
+      !html.includes(`name="quantity_${gone.id}"`),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "Live tent");
   });
 
   test("shows a package on its own", async () => {
     const { group } = await createFreePackage("Lone kit", "Lone tent");
 
     const html = await cartHtml([group.slug]);
-    expect(html).toContain(`name="package_quantity_${group.id}"`);
-    expect(html).toContain("Lone tent");
+    assertStringIncludes(html, `name="package_quantity_${group.id}"`);
+    assertStringIncludes(html, "Lone tent");
   });
 });

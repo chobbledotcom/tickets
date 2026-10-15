@@ -3,6 +3,7 @@
  * This mirror is what the mutation gate runs against.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { resetI18nForTest, t } from "#i18n";
@@ -40,7 +41,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
 
       const result = verifyOrRedirect(form, "Test Listing", "/admin/test")!;
       expect(result.status).toBe(302);
-      expect(result.headers.get("location")).toContain("/admin/test");
+      assertStringIncludes(result.headers.get("location") ?? "", "/admin/test");
       expectFlash(
         result,
         "Name does not match. Please type the exact name to confirm.",
@@ -109,9 +110,10 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
     });
 
     test("treats a value that is not a string as a mismatch", () => {
-      expect(
+      assertStringIncludes(
         verifyIdentifierOrJsonError("Test", { not: "a string" }),
-      ).toContain("does not match");
+        "does not match",
+      );
     });
   });
 });

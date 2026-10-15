@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { ConfirmForm } from "#templates/components/save-form.tsx";
 
@@ -12,10 +12,13 @@ describe("ConfirmForm", () => {
         name: "n",
       }),
     );
-    expect(html).toContain('class="danger"');
+    assertStringIncludes(html, 'class="danger"');
     // A danger confirm carries the bin icon; a safe confirm the check icon.
-    expect(html).toContain("#trash-2");
-    expect(html).not.toContain("#check");
+    assertStringIncludes(html, "#trash-2");
+    assert(
+      !html.includes("#check"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("gives a non-danger confirm the check icon", () => {
@@ -27,9 +30,15 @@ describe("ConfirmForm", () => {
         danger: false,
       }),
     );
-    expect(html).toContain("#check");
-    expect(html).not.toContain("#trash-2");
-    expect(html).not.toContain('class="danger"');
+    assertStringIncludes(html, "#check");
+    assert(
+      !html.includes("#trash-2"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('class="danger"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders the confirm_identifier input by default", () => {
@@ -41,19 +50,23 @@ describe("ConfirmForm", () => {
         name: "n",
       }),
     );
-    expect(html).toContain('name="confirm_identifier"');
+    assertStringIncludes(html, 'name="confirm_identifier"');
     // The typed-name box must not offer or remember completions.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input autocomplete="off" name="confirm_identifier"',
     );
-    expect(html).toContain('type="text"');
+    assertStringIncludes(html, 'type="text"');
   });
 
   test("omits the confirm input when confirmName is false", () => {
     const html = String(
       ConfirmForm({ action: "/x", buttonText: "OK", confirmName: false }),
     );
-    expect(html).not.toContain('name="confirm_identifier"');
+    assert(
+      !html.includes('name="confirm_identifier"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("wraps children in a prose div", () => {
@@ -65,8 +78,8 @@ describe("ConfirmForm", () => {
         confirmName: false,
       }),
     );
-    expect(html).toContain('class="prose"');
-    expect(html).toContain("Warning text");
+    assertStringIncludes(html, 'class="prose"');
+    assertStringIncludes(html, "Warning text");
   });
 
   test("renders a hidden return_url input when returnUrl is given", () => {
@@ -78,8 +91,8 @@ describe("ConfirmForm", () => {
         returnUrl: "/back",
       }),
     );
-    expect(html).toContain('name="return_url"');
-    expect(html).toContain('value="/back"');
+    assertStringIncludes(html, 'name="return_url"');
+    assertStringIncludes(html, 'value="/back"');
   });
 
   test("renders the form with the given id", () => {
@@ -91,7 +104,7 @@ describe("ConfirmForm", () => {
         id: "restore-confirm",
       }),
     );
-    expect(html).toContain('id="restore-confirm"');
+    assertStringIncludes(html, 'id="restore-confirm"');
   });
 
   test("renders hidden inputs for each hiddenFields entry", () => {
@@ -103,7 +116,7 @@ describe("ConfirmForm", () => {
         hiddenFields: { foo: "bar" },
       }),
     );
-    expect(html).toContain('name="foo"');
-    expect(html).toContain('value="bar"');
+    assertStringIncludes(html, 'name="foo"');
+    assertStringIncludes(html, 'value="bar"');
   });
 });

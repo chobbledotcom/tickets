@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { loadGroupOverviewPanel } from "#routes/admin/group-page-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -24,7 +24,10 @@ describeWithEnv("the group Overview tab's ledger link", { db: true }, () => {
         loadGroupOverviewPanel(group, true),
       ]),
     );
-    expect(String(withDefault)).not.toContain(ledgerHref);
-    expect(String(forOwner)).toContain(ledgerHref);
+    assert(
+      !String(withDefault).includes(ledgerHref),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(String(forOwner), ledgerHref);
   });
 });

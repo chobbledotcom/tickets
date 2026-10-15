@@ -3,6 +3,8 @@
 // cookie); the JSON API posts to /api/admin/listings (CONTENT_API). The role
 // parity, editor field locks, and money redaction are pinned in
 // listing-write-roles.test.ts and the api-*.test.ts suites.
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
@@ -151,7 +153,7 @@ describeWithEnv("Listing parity pins", { db: true }, () => {
 
     const apiRepeat = await deactivateViaApi(apiListing.id);
     expect(apiRepeat.status).toBe(400);
-    expect((await apiRepeat.json()).error).toContain("already deactivated");
+    assertStringIncludes((await apiRepeat.json()).error, "already deactivated");
   });
 
   test("api round trip keeps an undated listing's empty date", async () => {

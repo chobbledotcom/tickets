@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { imagesTable } from "#db/images.ts";
@@ -174,17 +175,21 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const homeResponse = await handleRequest(mockRequest("/"));
       const html = await homeResponse.text();
       expect(homeResponse.status).toBe(503);
-      expect(html).toContain("Not Activated");
-      expect(html).not.toContain("refresh");
+      assertStringIncludes(html, "Not Activated");
+      assert(
+        !html.includes("refresh"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("advanced settings page shows reset database section", async () => {
       const response = await adminGet("/admin/settings-advanced");
       const html = await expectHtmlResponse(response, 200, "Reset Database");
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         "The site will be fully reset and all data will be lost.",
       );
-      expect(html).toContain("confirm_phrase");
+      assertStringIncludes(html, "confirm_phrase");
     });
   });
 

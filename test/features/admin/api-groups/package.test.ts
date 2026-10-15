@@ -1,6 +1,8 @@
 // JSON CRUD coverage for the group resource's package fields — is_package,
 // hide_package_listings, package_members, and day_prices. Split from
 // api-groups.test.ts so each file stays under the ~400-line target.
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";
@@ -61,7 +63,10 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
             quantity: 1,
           },
         ]);
-        expect(Object.keys(body.group)).not.toContain("slug_index");
+        assert(
+          !Object.keys(body.group).includes("slug_index"),
+          "the value should not contain the searched item",
+        );
       },
     );
   });
@@ -78,7 +83,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
         putGroup(group.id, { is_package: true, package_members: [member] }),
         400,
         (body) => {
-          expect(body.error).toContain(errorSubstring);
+          assertStringIncludes(body.error, errorSubstring);
         },
       );
     }
@@ -98,7 +103,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
       }),
       400,
       (body) => {
-        expect(body.error).toContain("cannot be set on create");
+        assertStringIncludes(body.error, "cannot be set on create");
       },
     );
   });
@@ -348,7 +353,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
       }),
       400,
       (body) => {
-        expect(body.error).toContain("package_members");
+        assertStringIncludes(body.error, "package_members");
       },
     );
     // The existing override survives the rejected request.
@@ -367,7 +372,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
       }),
       400,
       (body) => {
-        expect(body.error).toContain("Packages cannot contain");
+        assertStringIncludes(body.error, "Packages cannot contain");
       },
     );
   });

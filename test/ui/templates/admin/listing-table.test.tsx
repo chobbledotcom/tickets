@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
@@ -125,9 +126,12 @@ describe("listingTable", () => {
       }),
     );
 
-    expect(html).toContain("<th>Location</th>");
-    expect(html).toContain("<td>Town Hall</td>");
-    expect(html).not.toContain("Listing name");
+    assertStringIncludes(html, "<th>Location</th>");
+    assertStringIncludes(html, "<td>Town Hall</td>");
+    assert(
+      !html.includes("Listing name"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders a supported editor column", () => {
@@ -140,8 +144,11 @@ describe("listingTable", () => {
       }),
     );
 
-    expect(html).toContain('<a href="/admin/listing/7/edit">Gala</a>');
-    expect(html).not.toContain("Revenue");
+    assertStringIncludes(html, '<a href="/admin/listing/7/edit">Gala</a>');
+    assert(
+      !html.includes("Revenue"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("marks inactive listing rows", () => {
@@ -152,7 +159,7 @@ describe("listingTable", () => {
       }),
     );
 
-    expect(html).toContain('<tr class="inactive-row">');
+    assertStringIncludes(html, '<tr class="inactive-row">');
   });
 
   test("keeps the linked thumbnail when a name filter is present", () => {
@@ -171,9 +178,12 @@ describe("listingTable", () => {
       }),
     );
 
-    expect(html).toContain("listing-thumbnail");
-    expect(html).toContain('<a href="/admin/listing/7">Gala</a>');
-    expect(html).not.toContain(">GALA<");
+    assertStringIncludes(html, "listing-thumbnail");
+    assertStringIncludes(html, '<a href="/admin/listing/7">Gala</a>');
+    assert(
+      !html.includes(">GALA<"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("uses the requested CSV export path", () => {
@@ -185,13 +195,16 @@ describe("listingTable", () => {
       }),
     );
 
-    expect(html).toContain('href="/custom.csv"');
-    expect(html).not.toContain('href="/admin/listings/csv"');
+    assertStringIncludes(html, 'href="/custom.csv"');
+    assert(
+      !html.includes('href="/admin/listings/csv"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("uses the default CSV export path", () => {
     const html = String(ListingsTableBlock({ csvExport: true, listings: [] }));
 
-    expect(html).toContain('href="/admin/listings/csv"');
+    assertStringIncludes(html, 'href="/admin/listings/csv"');
   });
 });

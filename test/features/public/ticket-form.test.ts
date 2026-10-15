@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { TicketListing } from "#booking/model.ts";
@@ -363,7 +364,7 @@ describeWithEnv("ticket responses", { db: true }, () => {
 
     const response = ticketResponse(ctx)();
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain(listing.name);
+    assertStringIncludes(await response.text(), listing.name);
   });
 
   test("carries the error and status it is given", async () => {
@@ -372,7 +373,7 @@ describeWithEnv("ticket responses", { db: true }, () => {
 
     const response = ticketResponse(ctx)("No room", 400);
     expect(response.status).toBe(400);
-    expect(await response.text()).toContain("No room");
+    assertStringIncludes(await response.text(), "No room");
   });
 
   test("redirects a form error back to the page the form lives on", async () => {
@@ -380,7 +381,8 @@ describeWithEnv("ticket responses", { db: true }, () => {
 
     const response = ticketFormErrorResponse(ctx)("Pick one");
     // Two listings share one page address, joined by a plus.
-    expect(response.headers.get("Location")).toContain(
+    assertStringIncludes(
+      response.headers.get("Location") ?? "",
       `/ticket/${first.slug}+${second.slug}`,
     );
   });

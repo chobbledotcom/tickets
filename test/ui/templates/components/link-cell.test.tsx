@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { linkCell } from "#templates/components/link-cell.tsx";
@@ -20,7 +21,10 @@ describe("linkCell", () => {
       (r: Row) => `/x/${r.id}`,
       (r) => r.name,
     );
-    expect(String(cell(row))).not.toContain("class");
+    assert(
+      !String(cell(row)).includes("class"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("dims a row its class rule turns down", () => {
@@ -29,8 +33,14 @@ describe("linkCell", () => {
       (r) => r.name,
       (r) => (r.active ? undefined : "muted"),
     );
-    expect(String(cell({ ...row, active: false }))).toContain('class="muted"');
-    expect(String(cell(row))).not.toContain("class");
+    assertStringIncludes(
+      String(cell({ ...row, active: false })),
+      'class="muted"',
+    );
+    assert(
+      !String(cell(row)).includes("class"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("escapes a name that carries markup characters", () => {
@@ -38,6 +48,6 @@ describe("linkCell", () => {
       (r: Row) => `/x/${r.id}`,
       (r) => r.name,
     );
-    expect(String(cell({ ...row, name: "A & B" }))).toContain("A &amp; B");
+    assertStringIncludes(String(cell({ ...row, name: "A & B" })), "A &amp; B");
   });
 });

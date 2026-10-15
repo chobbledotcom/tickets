@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -81,8 +82,8 @@ describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
 
     const response = await awaitTestRequest(`/gwallet/${token}`);
     const cacheControl = response.headers.get("Cache-Control");
-    expect(cacheControl).toContain("public");
-    expect(cacheControl).toContain("s-maxage=3600");
+    assertStringIncludes(cacheControl, "public");
+    assertStringIncludes(cacheControl, "s-maxage=3600");
   });
 
   test("returns null for non-GET methods", async () => {
@@ -106,7 +107,10 @@ describeWithEnv("ticket view google wallet link", { db: true }, () => {
 
   test("does not show google wallet link when not configured", async () => {
     const { body } = await fetchAliceTicketPageBody();
-    expect(body).not.toContain("Google Wallet");
+    assert(
+      !body.includes("Google Wallet"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("shows google wallet link when configured", async () => {
@@ -149,7 +153,7 @@ describeWithEnv(
       expect(config!.serviceAccountEmail).toBe(
         "env@env-project.iam.gserviceaccount.com",
       );
-      expect(config!.serviceAccountKey).toContain("BEGIN PRIVATE KEY");
+      assertStringIncludes(config!.serviceAccountKey, "BEGIN PRIVATE KEY");
     });
   },
 );

@@ -1,5 +1,6 @@
 // jscpd:ignore-start -- fixtures mirror the sibling editor tests
-import { expect } from "@std/expect";
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
@@ -85,13 +86,19 @@ describe("attendee form panel", () => {
 
   test("renders the create form with its action, title, and section legends", () => {
     const html = render();
-    expect(html).toContain('id="attendee-form"');
-    expect(html).toContain('<form action="/admin/attendees/new"');
-    expect(html).toContain("<h1>Add new attendee</h1>");
-    expect(html).toContain("<legend>Attendee Details</legend>");
-    expect(html).toContain("<legend>Listing Registrations</legend>");
-    expect(html).not.toContain("<legend>Dates</legend>");
-    expect(html).not.toContain("<legend>Custom Questions</legend>");
+    assertStringIncludes(html, 'id="attendee-form"');
+    assertStringIncludes(html, '<form action="/admin/attendees/new"');
+    assertStringIncludes(html, "<h1>Add new attendee</h1>");
+    assertStringIncludes(html, "<legend>Attendee Details</legend>");
+    assertStringIncludes(html, "<legend>Listing Registrations</legend>");
+    assert(
+      !html.includes("<legend>Dates</legend>"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("<legend>Custom Questions</legend>"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("pins the contact inputs with their ids, limits, and types", () => {
@@ -104,37 +111,50 @@ describe("attendee form panel", () => {
         special_instructions: "Leave at the desk",
       }),
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<label for="name">Name<input autocomplete="off" autofocus id="name" maxlength="250" name="name" required type="text" value="Ada Byron"></label>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<label for="email">Email<input autocomplete="off" id="email" maxlength="250" name="email" type="email" value="ada@example.com"></label>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<label for="phone">Phone<input autocomplete="off" id="phone" maxlength="32" name="phone" pattern="[+\\d][\\d\\s\\-\\(\\)]{5,}" title="Phone number (digits, spaces, hyphens, parentheses, optional leading +)" type="text" value="07946 123456"></label>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<label for="special_instructions">Special Instructions<textarea autocomplete="off" id="special_instructions" maxlength="250" name="special_instructions" rows="3">',
     );
-    expect(html).toContain("1 Road</textarea>");
-    expect(html).toContain("Leave at the desk</textarea>");
+    assertStringIncludes(html, "1 Road</textarea>");
+    assertStringIncludes(html, "Leave at the desk</textarea>");
   });
 
   test("keeps an empty contact field from picking up placeholder text", () => {
     const html = render();
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'id="email" maxlength="250" name="email" type="email" value="">',
     );
-    expect(html).toContain('id="phone" maxlength="32" name="phone" pattern="');
-    expect(html).not.toContain("mutated");
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
+      'id="phone" maxlength="32" name="phone" pattern="',
+    );
+    assert(
+      !html.includes("mutated"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(
+      html,
       'id="address" maxlength="250" name="address" rows="3">',
     );
   });
 
   test("gives the name field autofocus only when the form has no error", () => {
     const clean = render();
-    expect(clean).toContain(
+    assertStringIncludes(
+      clean,
       '<input autocomplete="off" autofocus id="name" maxlength="250" name="name" required type="text" value="Test">',
     );
 
@@ -155,31 +175,36 @@ describe("attendee form panel", () => {
     ] as Partial<AttendeeFormTemplateData>[];
     for (const single of singleErrors) {
       const withError = render(single);
-      expect(withError).toContain(
+      assertStringIncludes(
+        withError,
         'id="name" maxlength="250" name="name" required',
       );
-      expect(withError).not.toContain('autofocus id="name"');
+      assert(
+        !withError.includes('autofocus id="name"'),
+        "the value should not contain the searched item",
+      );
     }
   });
 
   test("labels the contact fields, the date fields, and their hints", () => {
     const html = render({ hasDailyListings: true });
-    expect(html).toContain("<legend>Attendee Details</legend>");
-    expect(html).toContain("<legend>Dates</legend>");
-    expect(html).toContain("Start date");
-    expect(html).toContain("Length");
-    expect(html).toContain("Phone");
-    expect(html).toContain("Special Instructions");
-    expect(html).toContain(
+    assertStringIncludes(html, "<legend>Attendee Details</legend>");
+    assertStringIncludes(html, "<legend>Dates</legend>");
+    assertStringIncludes(html, "Start date");
+    assertStringIncludes(html, "Length");
+    assertStringIncludes(html, "Phone");
+    assertStringIncludes(html, "Special Instructions");
+    assertStringIncludes(
+      html,
       "Optional — the date only affects daily listings. A start date is required once you book a daily listing below.",
     );
   });
 
   test("renders the status select with the public default selected", () => {
     const html = render({ statuses: statuses() });
-    expect(html).toContain("<legend>Attendee Details</legend>");
-    expect(html).toContain('<option selected value="4">Confirmed</option>');
-    expect(html).toContain('<option value="9">Cancelled</option>');
+    assertStringIncludes(html, "<legend>Attendee Details</legend>");
+    assertStringIncludes(html, '<option selected value="4">Confirmed</option>');
+    assertStringIncludes(html, '<option value="9">Cancelled</option>');
   });
 
   test("renders a hidden status input when one status or none is known", () => {
@@ -187,16 +212,23 @@ describe("attendee form panel", () => {
       parsed: parsed({ statusId: 4 }),
       statuses: [],
     });
-    expect(html).toContain('<input name="status_id" type="hidden" value="4">');
+    assertStringIncludes(
+      html,
+      '<input name="status_id" type="hidden" value="4">',
+    );
 
     const oneStatus = render({
       parsed: parsed({ statusId: 4 }),
       statuses: [statuses()[0]!],
     });
-    expect(oneStatus).toContain(
+    assertStringIncludes(
+      oneStatus,
       '<input name="status_id" type="hidden" value="4">',
     );
-    expect(oneStatus).not.toContain('id="status_id"');
+    assert(
+      !oneStatus.includes('id="status_id"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("shows the balance notice with its tone", () => {
@@ -206,34 +238,39 @@ describe("attendee form panel", () => {
         tone: "warning",
       },
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<output class="warning">This attendee is in a paid status but still owes £5.00.</output>',
     );
   });
 
   test("hides the availability notice once a start date is known", () => {
     const bare = render({ hasDailyListings: true });
-    expect(bare).toContain(
+    assertStringIncludes(
+      bare,
       "Availability is inaccurate until dates have been saved.",
     );
-    expect(bare).not.toContain(
-      '<output class="warning" data-availability-notice hidden',
+    assert(
+      !bare.includes('<output class="warning" data-availability-notice hidden'),
+      "the value should not contain the searched item",
     );
 
     const dated = render({
       hasDailyListings: true,
       parsed: parsed({ startDate: "2026-06-05" }),
     });
-    expect(dated).toContain(
+    assertStringIncludes(
+      dated,
       '<output class="warning" data-availability-notice hidden>',
     );
   });
 
   test("shows the dates section only for daily listings, with its hint", () => {
     const html = render({ hasDailyListings: true });
-    expect(html).toContain("<legend>Dates</legend>");
-    expect(html).toContain('id="start_date"');
-    expect(html).toContain(
+    assertStringIncludes(html, "<legend>Dates</legend>");
+    assertStringIncludes(html, 'id="start_date"');
+    assertStringIncludes(
+      html,
       '<input id="start_date" name="start_date" type="date" value="">',
     );
 
@@ -241,7 +278,8 @@ describe("attendee form panel", () => {
       hasDailyListings: true,
       parsed: parsed({ startDate: "2026-06-05" }),
     });
-    expect(dated).toContain(
+    assertStringIncludes(
+      dated,
       '<input id="start_date" name="start_date" type="date" value="2026-06-05">',
     );
   });
@@ -251,25 +289,32 @@ describe("attendee form panel", () => {
       hasDailyListings: true,
       parsed: parsed({ startDate: "2026-06-05" }),
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<option selected value="1">1 day: Friday 5 June 2026</option>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<option value="2">2 days: Saturday 6 June 2026</option>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<option value="90">90 days: Wednesday 2 September 2026</option>',
     );
   });
 
   test("labels day-count options as bare day counts without a start date", () => {
     const html = render({ hasDailyListings: true });
-    expect(html).toContain('<option selected value="1">1 day</option>');
-    expect(html).toContain('<option value="2">2 days</option>');
-    expect(html).toContain('<option value="90">90 days</option>');
+    assertStringIncludes(html, '<option selected value="1">1 day</option>');
+    assertStringIncludes(html, '<option value="2">2 days</option>');
+    assertStringIncludes(html, '<option value="90">90 days</option>');
     // The count is never 0: the select starts at one booked day.
-    expect(html).not.toContain('<option value="0">');
-    expect(html).toContain(
+    assert(
+      !html.includes('<option value="0">'),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(
+      html,
       '<p class="small">Optional — the date only affects daily listings.',
     );
   });
@@ -279,12 +324,13 @@ describe("attendee form panel", () => {
       hasDailyListings: true,
       parsed: parsed({ dayCount: 2 }),
     });
-    expect(html).toContain('<option selected value="2">2 days</option>');
+    assertStringIncludes(html, '<option selected value="2">2 days</option>');
   });
 
   test("warns when daily timings disagree", () => {
     const html = render({ hasMixedTimings: true });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<output class="warning">This attendee\'s existing daily listings have different start dates or lengths. Saving will put them all on the one date range above.</output>',
     );
   });
@@ -294,12 +340,14 @@ describe("attendee form panel", () => {
       questions: [question()],
       selectedAnswerIds: [61],
     });
-    expect(html).toContain("<legend>Custom Questions</legend>");
-    expect(html).toContain("<legend>Meal preference</legend>");
-    expect(html).toContain(
+    assertStringIncludes(html, "<legend>Custom Questions</legend>");
+    assertStringIncludes(html, "<legend>Meal preference</legend>");
+    assertStringIncludes(
+      html,
       '<input checked name="question_6" type="radio" value="61"> Vegan',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="question_6" type="radio" value="62"> Standard',
     );
   });
@@ -308,7 +356,8 @@ describe("attendee form panel", () => {
     const html = render({
       topWarnings: ["Daily listings have no start date."],
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<output class="warning" role="alert"><strong>Please double-check:</strong><ul><li>Daily listings have no start date.</li></ul></output>',
     );
   });
@@ -319,13 +368,16 @@ describe("attendee form panel", () => {
       formError: "Some answers were missing.",
       saveError: "The server refused the save.",
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div autofocus class="error" role="alert" tabindex="-1">The server refused the save.</div>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div autofocus class="error" role="alert" tabindex="-1">Some answers were missing.</div>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div autofocus class="error" role="alert" tabindex="-1">The attendee no longer exists.</div>',
     );
   });
@@ -335,20 +387,25 @@ describe("attendee form panel", () => {
       dateError: "Start date is in the past.",
       hasDailyListings: true,
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div autofocus class="error" role="alert" tabindex="-1">Start date is in the past.</div>',
     );
   });
 
   test("renders no error alerts when the form is clean", () => {
-    expect(render({ hasDailyListings: true })).not.toContain(
-      '<div autofocus class="error" role="alert" tabindex="-1"></div>',
+    assert(
+      !render({ hasDailyListings: true }).includes(
+        '<div autofocus class="error" role="alert" tabindex="-1"></div>',
+      ),
+      "the value should not contain the searched item",
     );
   });
 
   test("carries the return URL as a hidden field", () => {
     const html = render({ returnUrl: "/admin/attendees" });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="return_url" type="hidden" value="/admin/attendees">',
     );
   });
@@ -359,10 +416,16 @@ describe("attendee form panel", () => {
       mode: "edit",
       statuses: statuses(),
     });
-    expect(html).toContain('<form action="/admin/attendees/42"');
-    expect(html).not.toContain("<h1>Add new attendee</h1>");
-    expect(html).toContain("Save Attendee");
-    expect(html).not.toContain("Create Attendee");
+    assertStringIncludes(html, '<form action="/admin/attendees/42"');
+    assert(
+      !html.includes("<h1>Add new attendee</h1>"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "Save Attendee");
+    assert(
+      !html.includes("Create Attendee"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -375,14 +438,17 @@ describe("attendee form page shells", () => {
       session: OWNER_SESSION,
       title: "Attendees",
     });
-    expect(html).toContain('<a class="active" href="/admin/attendees">');
-    expect(html).toContain("<h1>Attendees</h1>");
+    assertStringIncludes(html, '<a class="active" href="/admin/attendees">');
+    assertStringIncludes(html, "<h1>Attendees</h1>");
   });
 
   test("the create page carries the new-attendee section and tab title", () => {
     const html = attendeeFormPage(data(), OWNER_SESSION);
-    expect(html).toContain('<a class="active" href="/admin/attendees/new">');
-    expect(html).toContain("<title>Add new attendee</title>");
-    expect(html).toContain("<h1>Add new attendee</h1>");
+    assertStringIncludes(
+      html,
+      '<a class="active" href="/admin/attendees/new">',
+    );
+    assertStringIncludes(html, "<title>Add new attendee</title>");
+    assertStringIncludes(html, "<h1>Add new attendee</h1>");
   });
 });

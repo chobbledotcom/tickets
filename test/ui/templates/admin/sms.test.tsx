@@ -9,6 +9,7 @@
  * reads the markup rather than the words.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { formatDatetimeShort } from "#shared/dates.ts";
@@ -60,26 +61,35 @@ describe("admin sms page", () => {
       queueCount: 2,
     });
 
-    expect(html).toContain("<title>Text messages</title>");
-    expect(html).toContain("Messages awaiting delivery: 2");
-    expect(html).toContain('href="/admin/guide#sms"');
-    expect(html).not.toContain(COMPOSE_FORM);
+    assertStringIncludes(html, "<title>Text messages</title>");
+    assertStringIncludes(html, "Messages awaiting delivery: 2");
+    assertStringIncludes(html, 'href="/admin/guide#sms"');
+    assert(
+      !html.includes(COMPOSE_FORM),
+      "the value should not contain the searched item",
+    );
     // Nobody is chosen, so there is no history to show. One shown here would
     // be somebody's messages on a page that never says whose.
-    expect(html).not.toContain("Message history");
-    expect(html).not.toContain("Ignored");
+    assert(
+      !html.includes("Message history"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("Ignored"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("offers the compose form for somebody with a number", () => {
     const html = render();
 
-    expect(html).toContain("<title>Contact: Nina</title>");
-    expect(html).toContain("Contact Nina");
-    expect(html).toContain(`<strong>Phone:</strong> ${PHONE}`);
+    assertStringIncludes(html, "<title>Contact: Nina</title>");
+    assertStringIncludes(html, "Contact Nina");
+    assertStringIncludes(html, `<strong>Phone:</strong> ${PHONE}`);
     // The way back to the person this page is about.
-    expect(html).toContain('href="/admin/attendees/3"');
-    expect(html).toContain(COMPOSE_FORM);
-    expect(html).toContain("Send a text message");
+    assertStringIncludes(html, 'href="/admin/attendees/3"');
+    assertStringIncludes(html, COMPOSE_FORM);
+    assertStringIncludes(html, "Send a text message");
     // The box's own limit: the route refuses the same count, so a send past
     // it fails even from a crafted POST.
     expect(html).toMatch(
@@ -110,19 +120,25 @@ describe("admin sms page", () => {
       ],
     });
 
-    expect(html).not.toContain("<script>alert(1)</script>");
-    expect(html).toContain("&lt;script&gt;");
+    assert(
+      !html.includes("<script>alert(1)</script>"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "&lt;script&gt;");
   });
 
   test("warns and offers no form when the gateway is not configured", () => {
     const html = render({ configured: false });
 
-    expect(html).toContain('class="warning"');
-    expect(html).toContain("The SMS gateway is not configured.");
+    assertStringIncludes(html, 'class="warning"');
+    assertStringIncludes(html, "The SMS gateway is not configured.");
     // The warning says what to put right, so it has to carry the way to do
     // it. A warning with no route out leaves the owner told and stuck.
-    expect(html).toContain(GATEWAY_SETTINGS);
-    expect(html).not.toContain(COMPOSE_FORM);
+    assertStringIncludes(html, GATEWAY_SETTINGS);
+    assert(
+      !html.includes(COMPOSE_FORM),
+      "the value should not contain the searched item",
+    );
   });
 
   test("says the number is not on file and offers no form without one", () => {
@@ -130,19 +146,28 @@ describe("admin sms page", () => {
       target: { attendee: attendeeWith(""), listing: LISTING },
     });
 
-    expect(html).toContain("<strong>Phone:</strong> (none on file)");
-    expect(html).not.toContain(COMPOSE_FORM);
+    assertStringIncludes(html, "<strong>Phone:</strong> (none on file)");
+    assert(
+      !html.includes(COMPOSE_FORM),
+      "the value should not contain the searched item",
+    );
     // A missing number is not a missing gateway. Warning about the gateway
     // here would send the owner to settings that are already right.
-    expect(html).not.toContain('class="warning"');
-    expect(html).not.toContain(GATEWAY_SETTINGS);
+    assert(
+      !html.includes('class="warning"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes(GATEWAY_SETTINGS),
+      "the value should not contain the searched item",
+    );
   });
 
   test("says so plainly when nothing has been sent yet", () => {
     const html = render();
 
-    expect(html).toContain("<h3>Message history</h3>");
-    expect(html).toContain("No text messages yet.");
+    assertStringIncludes(html, "<h3>Message history</h3>");
+    assertStringIncludes(html, "No text messages yet.");
   });
 
   test("lists what was sent, newest first, with when it went", () => {
@@ -155,16 +180,22 @@ describe("admin sms page", () => {
       ],
     });
 
-    expect(html).not.toContain("No text messages yet.");
-    expect(html).toContain("Later");
-    expect(html).toContain("Earlier");
+    assert(
+      !html.includes("No text messages yet."),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "Later");
+    assertStringIncludes(html, "Earlier");
     expect(html.indexOf("Later")).toBeLessThan(html.indexOf("Earlier"));
     // When each one went, under its own heading. The message alone leaves the
     // organiser unable to tell a text sent this morning from one sent a year
     // ago, and the site's own short format is what the other tables use.
-    expect(html).toContain("<th>When</th><th>Message</th>");
-    expect(html).toContain(formatDatetimeShort(later));
-    expect(html).toContain(formatDatetimeShort(earlier));
-    expect(html).not.toContain(later);
+    assertStringIncludes(html, "<th>When</th><th>Message</th>");
+    assertStringIncludes(html, formatDatetimeShort(later));
+    assertStringIncludes(html, formatDatetimeShort(earlier));
+    assert(
+      !html.includes(later),
+      "the value should not contain the searched item",
+    );
   });
 });

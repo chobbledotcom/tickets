@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -16,7 +17,10 @@ describe("AttendeeTableBlock", () => {
     );
 
     expect(html.match(/class="table-scroll"/g)).toHaveLength(1);
-    expect(html).not.toContain("table-actions");
+    assert(
+      !html.includes("table-actions"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders supplied actions after the table", () => {
@@ -27,7 +31,8 @@ describe("AttendeeTableBlock", () => {
       />,
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '</table></div><div class="table-actions"><a href="/export">Export attendees</a></div>',
     );
   });

@@ -1,6 +1,7 @@
 // Behaviour pins for the holiday resource: what each surface answers today,
 // one test per fact. The page posts to /admin/holidays (owner-only form
 // routes); the JSON API posts to /api/admin/holidays (OWNER_API).
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";

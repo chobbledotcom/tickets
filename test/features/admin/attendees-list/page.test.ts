@@ -3,6 +3,7 @@
  * and the sort order of the table.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createSystemNote } from "#db/notes/queries.ts";
@@ -28,15 +29,21 @@ describeWithEnv("the attendees browser page", { db: true }, () => {
     test("offers the export at its own address", async () => {
       await seedRegistrationPair();
       const html = await (await adminGet("/admin/attendees")).text();
-      expect(html).toContain("/admin/attendees/csv");
+      assertStringIncludes(html, "/admin/attendees/csv");
     });
 
     test("offers no check-in filter, which this page does not do", async () => {
       await seedRegistrationPair();
       const html = await (await adminGet("/admin/attendees")).text();
       // The check-in bar links carry filter=in / filter=out when offered.
-      expect(html).not.toContain("filter=in");
-      expect(html).not.toContain("filter=out");
+      assert(
+        !html.includes("filter=in"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("filter=out"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("drops a date from the address, which this page does not use", async () => {
@@ -46,8 +53,11 @@ describeWithEnv("the attendees browser page", { db: true }, () => {
       ).text();
       // A page that took dates would carry the chosen one through its own
       // links and form fields; this one has no date control, so it forgets it.
-      expect(html).toContain("Alice");
-      expect(html).not.toContain("2026-01-01");
+      assertStringIncludes(html, "Alice");
+      assert(
+        !html.includes("2026-01-01"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("renders the attendees page with the registration", async () => {
@@ -62,7 +72,10 @@ describeWithEnv("the attendees browser page", { db: true }, () => {
       );
       const response = await adminGet("/admin/attendees");
       const html = await response.text();
-      expect(html).not.toContain("<h1>Attendees</h1>");
+      assert(
+        !html.includes("<h1>Attendees</h1>"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("shows an empty state when no attendees exist", async () => {
@@ -86,9 +99,12 @@ describeWithEnv("the attendees browser page", { db: true }, () => {
 
       const html = await (await adminGet("/admin/attendees?filter=in")).text();
 
-      expect(html).not.toContain("filter=in");
+      assert(
+        !html.includes("filter=in"),
+        "the value should not contain the searched item",
+      );
       // Alice is not checked in, so a filter that took hold would drop her.
-      expect(html).toContain("Alice");
+      assertStringIncludes(html, "Alice");
     });
 
     test("ignores a date asked for in the address", async () => {
@@ -100,9 +116,12 @@ describeWithEnv("the attendees browser page", { db: true }, () => {
         await adminGet("/admin/attendees?date=2026-01-01")
       ).text();
 
-      expect(html).not.toContain("date=2026-01-01");
+      assert(
+        !html.includes("date=2026-01-01"),
+        "the value should not contain the searched item",
+      );
       // Alice booked no day in 2026, so a date that took hold would drop her.
-      expect(html).toContain("Alice");
+      assertStringIncludes(html, "Alice");
     });
 
     test("flags a deactivated listing in the filter dropdown", async () => {
@@ -157,9 +176,9 @@ describeWithEnv("the attendees browser page", { db: true }, () => {
       // The decrypted system-note text renders inside the summary, and the
       // attendee's name links to their edit page — proving the notes-loading
       // path (which derives the owner private key only once notes exist) ran.
-      expect(html).toContain("1 attendee has notes");
-      expect(html).toContain("Refunded — follow up tomorrow.");
-      expect(html).toContain('href="/admin/attendees/');
+      assertStringIncludes(html, "1 attendee has notes");
+      assertStringIncludes(html, "Refunded — follow up tomorrow.");
+      assertStringIncludes(html, 'href="/admin/attendees/');
     });
   });
 });

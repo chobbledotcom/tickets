@@ -1,5 +1,6 @@
 /** Adding listings to a group from the admin page. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingsByGroupId } from "#db/groups.ts";
@@ -126,7 +127,7 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
       (listing) => listing.id,
     );
     expect(memberIds).toHaveLength(1);
-    expect([standard.id, daily.id]).toContain(memberIds[0]);
+    assertStringIncludes([standard.id, daily.id], memberIds[0]);
   });
 
   test("refuses a listing whose customisable-days setting differs from the group's", async () => {

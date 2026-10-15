@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -19,12 +20,12 @@ describe("admin group form templates", () => {
   test("renders the create form with empty group fields and no editable slug", () => {
     const html = adminGroupNewPage(OWNER_SESSION, "Fix the group.");
 
-    expect(html).toContain("Fix the group.");
-    expect(html).toContain('action="/admin/groups"');
-    expect(html).toContain('name="name"');
-    expect(html).toContain('name="description"');
-    expect(html).toContain('name="max_attendees"');
-    expect(html).toContain('name="terms_and_conditions"');
+    assertStringIncludes(html, "Fix the group.");
+    assertStringIncludes(html, 'action="/admin/groups"');
+    assertStringIncludes(html, 'name="name"');
+    assertStringIncludes(html, 'name="description"');
+    assertStringIncludes(html, 'name="max_attendees"');
+    assertStringIncludes(html, 'name="terms_and_conditions"');
     for (const name of ["hidden", "is_package", "hide_package_listings"]) {
       expect(html).toMatch(
         new RegExp(
@@ -41,9 +42,12 @@ describe("admin group form templates", () => {
       /<input(?=[^>]*name="hidden")(?=[^>]*value="1")(?![^>]*checked)[^>]*>/,
     );
     // The page's own address marks the Add entry as where you are.
-    expect(html).toContain('<a class="active" href="/admin/groups/new">');
-    expect(html).not.toContain('name="slug"');
-    expect(html).toContain("Create Group");
+    assertStringIncludes(html, '<a class="active" href="/admin/groups/new">');
+    assert(
+      !html.includes('name="slug"'),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "Create Group");
   });
 
   test("renders saved group values and boolean choices in the edit form", () => {
@@ -63,14 +67,14 @@ describe("admin group form templates", () => {
       GroupEditPanel({ group, listings: [], members: new Map() }),
     );
 
-    expect(html).toContain('action="/admin/groups/21/edit"');
-    expect(html).toContain('value="Family &quot;Bundle&quot;"');
-    expect(html).toContain('value="family-bundle"');
-    expect(html).toContain("A &lt;strong&gt;group&lt;/strong&gt;");
-    expect(html).toContain('name="max_attendees" type="number" value="25"');
-    expect(html).toContain("Be kind.");
+    assertStringIncludes(html, 'action="/admin/groups/21/edit"');
+    assertStringIncludes(html, 'value="Family &quot;Bundle&quot;"');
+    assertStringIncludes(html, 'value="family-bundle"');
+    assertStringIncludes(html, "A &lt;strong&gt;group&lt;/strong&gt;");
+    assertStringIncludes(html, 'name="max_attendees" type="number" value="25"');
+    assertStringIncludes(html, "Be kind.");
     for (const name of ["hidden", "is_package", "hide_package_listings"]) {
-      expect(html).toContain(`name="${name}" value="1" checked`);
+      assertStringIncludes(html, `name="${name}" value="1" checked`);
     }
     // The group opted out of hidden listings, so its box holds no tick.
     expect(html).toMatch(
@@ -99,7 +103,7 @@ describe("admin group form templates", () => {
     ]);
     const html = String(GroupEditPanel({ group, listings, members }));
 
-    expect(html).toContain('<div class="package-prices">');
+    assertStringIncludes(html, '<div class="package-prices">');
     expect(html).toMatch(
       /<input(?=[^>]*name="package_price_8")(?=[^>]*placeholder="12.50")(?=[^>]*value="0.00")[^>]*>/,
     );
@@ -166,7 +170,7 @@ describe("admin group form templates", () => {
       GroupEditPanel({ group, listings: [listing], members }),
     );
 
-    expect(html).toContain('<div class="package-day-prices">');
+    assertStringIncludes(html, '<div class="package-day-prices">');
     expect(html).toMatch(
       /<input(?=[^>]*name="package_day_price_6_1")(?=[^>]*placeholder="12.00")(?=[^>]*value="0.00")[^>]*>/,
     );
@@ -176,7 +180,10 @@ describe("admin group form templates", () => {
     expect(html).toMatch(
       /<input(?=[^>]*name="package_day_price_6_3")(?=[^>]*placeholder="30.00")(?=[^>]*value="")[^>]*>/,
     );
-    expect(html).not.toContain("package_day_price_6_7");
+    assert(
+      !html.includes("package_day_price_6_7"),
+      "the value should not contain the searched item",
+    );
     expect(html.indexOf("1-day price")).toBeLessThan(
       html.indexOf("3-day price"),
     );
@@ -191,13 +198,20 @@ describe("admin group form templates", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "Add listings to this group to set their package prices.",
     );
     expect(html).toMatch(
       /<input(?=[^>]*name="max_attendees")(?![^>]*value=)[^>]*>/,
     );
-    expect(html).not.toContain("<table");
-    expect(html).not.toContain('name="package_price_');
+    assert(
+      !html.includes("<table"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('name="package_price_'),
+      "the value should not contain the searched item",
+    );
   });
 });

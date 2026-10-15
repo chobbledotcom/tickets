@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -59,11 +60,12 @@ describe("listing attribute filter template helpers", () => {
           : `/admin/?attribute_${attributeId}=${optionId}`,
     );
 
-    expect(html).toContain("A &amp; B:");
-    expect(html).toContain(
+    assertStringIncludes(html, "A &amp; B:");
+    assertStringIncludes(
+      html,
       'href="/admin/?attribute_1=11">Easy &lt;Hard&gt;</a>',
     );
-    expect(html).toContain("<strong><u>Hard</u></strong>");
-    expect(html).toContain('href="/admin/?clear=1">All</a>');
+    assertStringIncludes(html, "<strong><u>Hard</u></strong>");
+    assertStringIncludes(html, 'href="/admin/?clear=1">All</a>');
   });
 });

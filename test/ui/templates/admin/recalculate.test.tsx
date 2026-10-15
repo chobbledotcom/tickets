@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
@@ -46,40 +47,51 @@ describe("admin recalculate page", () => {
   test("renders each selectable row in order with current and counted values", () => {
     const html = renderPage();
 
-    expect(html).toContain('action="/admin/synthetic/recalculate"');
-    expect(html).toContain("<p>Choose totals &amp; save.</p>");
-    expect(html).toContain(
+    assertStringIncludes(html, 'action="/admin/synthetic/recalculate"');
+    assertStringIncludes(html, "<p>Choose totals &amp; save.</p>");
+    assertStringIncludes(
+      html,
       "<th></th><th>Stored value</th><th>Counted value</th>",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<th scope="row"><label><input name="${RECALCULATE_FIELD_NAME}" type="checkbox" value="booked_quantity"> Booked places</label></th>`,
     );
-    expect(html).toContain("<td>3 stored</td><td>5 counted</td>");
-    expect(html).toContain(
+    assertStringIncludes(html, "<td>3 stored</td><td>5 counted</td>");
+    assertStringIncludes(
+      html,
       `<th scope="row"><label><input name="${RECALCULATE_FIELD_NAME}" type="checkbox" value="tickets_count"> Tickets sold</label></th>`,
     );
-    expect(html).toContain("<td>7 stored</td><td>8 counted</td>");
+    assertStringIncludes(html, "<td>7 stored</td><td>8 counted</td>");
     expect(html.indexOf('value="booked_quantity"')).toBeLessThan(
       html.indexOf('value="tickets_count"'),
     );
-    expect(html).toContain("Apply selected totals");
+    assertStringIncludes(html, "Apply selected totals");
   });
 
   test("renders a recalculation error", () => {
     const html = renderPage("Choose at least one total.");
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div autofocus class="error" role="alert" tabindex="-1">Choose at least one total.</div>',
     );
-    expect(html).not.toContain('class="success"');
+    assert(
+      !html.includes('class="success"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders a recalculation success notice", () => {
     const html = renderPage(undefined, "Totals recalculated.");
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div class="success" role="alert">Totals recalculated.</div>',
     );
-    expect(html).not.toContain('class="error"');
+    assert(
+      !html.includes('class="error"'),
+      "the value should not contain the searched item",
+    );
   });
 });

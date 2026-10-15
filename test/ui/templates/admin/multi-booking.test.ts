@@ -3,6 +3,7 @@
  * where it sits, and what it leaves out.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { adminListingsPage } from "#templates/admin/dashboard.tsx";
@@ -21,12 +22,15 @@ describe("adminListingsPage multi-booking link", () => {
     ...expectations: string[]
   ): string => {
     const html = adminListingsPage(listings, OWNER_SESSION);
-    for (const expected of expectations) expect(html).toContain(expected);
+    for (const expected of expectations) assertStringIncludes(html, expected);
     return html;
   };
 
   const expectNoMultiBookingLink = (listings: ListingWithCount[]) => {
-    expect(renderListingsPage(listings)).not.toContain("Multi-booking link");
+    assert(
+      !renderListingsPage(listings).includes("Multi-booking link"),
+      "the value should not contain the searched item",
+    );
   };
 
   const twoListings = [
@@ -105,7 +109,10 @@ describe("adminListingsPage multi-booking link", () => {
       "Active One",
       "Active Two",
     );
-    expect(html).not.toContain('data-multi-booking-slug="cd34e"');
+    assert(
+      !html.includes('data-multi-booking-slug="cd34e"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("excludes listings without standalone pages from checkboxes", () => {
@@ -135,9 +142,12 @@ describe("adminListingsPage multi-booking link", () => {
       undefined,
       new Set<number>([2]),
     );
-    expect(html).toContain('data-multi-booking-slug="ab12c"');
-    expect(html).toContain('data-multi-booking-slug="ef56g"');
-    expect(html).not.toContain('data-multi-booking-slug="cd34e"');
+    assertStringIncludes(html, 'data-multi-booking-slug="ab12c"');
+    assertStringIncludes(html, 'data-multi-booking-slug="ef56g"');
+    assert(
+      !html.includes('data-multi-booking-slug="cd34e"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders checkboxes with slug data attributes", () => {
@@ -229,9 +239,12 @@ describe("adminListingsPage multi-booking link", () => {
       },
     );
     // The venue filter narrows the table to the Hall listing...
-    expect(html).not.toContain('href="/admin/listing/2"');
+    assert(
+      !html.includes('href="/admin/listing/2"'),
+      "the value should not contain the searched item",
+    );
     // ...but the builder still offers every active listing.
-    expect(html).toContain('data-multi-booking-slug="ab12c"');
-    expect(html).toContain('data-multi-booking-slug="cd34e"');
+    assertStringIncludes(html, 'data-multi-booking-slug="ab12c"');
+    assertStringIncludes(html, 'data-multi-booking-slug="cd34e"');
   });
 });

@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -111,8 +112,9 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         'name="group_ids"',
       );
       // Groups have no deactivated state, so a group option is never muted.
-      expect(html).not.toContain(
-        '<label class="muted"><input name="group_ids"',
+      assert(
+        !html.includes('<label class="muted"><input name="group_ids"'),
+        "the value should not contain the searched item",
       );
     });
 
@@ -239,7 +241,10 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
-      expect(html).not.toContain("Linked answers");
+      assert(
+        !html.includes("Linked answers"),
+        "the value should not contain the searched item",
+      );
     });
   });
 

@@ -3,7 +3,7 @@
  * listing type, and to one group's member listings.
  */
 
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { setListingGroups } from "#db/groups.ts";
 import { expectHtml } from "#test-utils/assertions.ts";
@@ -73,10 +73,13 @@ describeWithEnv("the attendees browser filters", { db: true }, () => {
 
       const response = await adminGet(`/admin/attendees?listing=${booked.id}`);
       const html = await response.text();
-      expect(html).toContain("DoubleBooker");
+      assertStringIncludes(html, "DoubleBooker");
       // The matched attendee's full listing list renders, filter or not.
-      expect(html).toContain('title="Also Booked, Booked Show"');
-      expect(html).not.toContain("OtherPerson");
+      assertStringIncludes(html, 'title="Also Booked, Booked Show"');
+      assert(
+        !html.includes("OtherPerson"),
+        "the value should not contain the searched item",
+      );
     });
   });
 
@@ -112,11 +115,17 @@ describeWithEnv("the attendees browser filters", { db: true }, () => {
       await seedTypes();
       const response = await adminGet("/admin/attendees?type=standard");
       const html = await response.text();
-      expect(html).toContain("StdGoer");
-      expect(html).not.toContain("DailyGoer");
-      expect(html).not.toContain("MerchBuyer");
-      expect(html).toContain("Showing 1 attendee for");
-      expect(html).toContain("<strong>Standard</strong>");
+      assertStringIncludes(html, "StdGoer");
+      assert(
+        !html.includes("DailyGoer"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("MerchBuyer"),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(html, "Showing 1 attendee for");
+      assertStringIncludes(html, "<strong>Standard</strong>");
     });
 
     test("filters to daily listings (plural heading)", async () => {
@@ -124,29 +133,35 @@ describeWithEnv("the attendees browser filters", { db: true }, () => {
       await createTestAttendeeDirect(daily.id, "DailyTwo", "d2@example.com");
       const response = await adminGet("/admin/attendees?type=daily");
       const html = await response.text();
-      expect(html).toContain("DailyGoer");
-      expect(html).toContain("DailyTwo");
-      expect(html).not.toContain("StdGoer");
-      expect(html).toContain("Showing 2 attendees for");
-      expect(html).toContain("<strong>Daily</strong>");
+      assertStringIncludes(html, "DailyGoer");
+      assertStringIncludes(html, "DailyTwo");
+      assert(
+        !html.includes("StdGoer"),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(html, "Showing 2 attendees for");
+      assertStringIncludes(html, "<strong>Daily</strong>");
     });
 
     test("filters to purchase-only listings", async () => {
       await seedTypes();
       const response = await adminGet("/admin/attendees?type=purchase-only");
       const html = await response.text();
-      expect(html).toContain("MerchBuyer");
-      expect(html).not.toContain("StdGoer");
-      expect(html).toContain("<strong>No check-in</strong>");
+      assertStringIncludes(html, "MerchBuyer");
+      assert(
+        !html.includes("StdGoer"),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(html, "<strong>No check-in</strong>");
     });
 
     test("shows the type filter bar when several types exist", async () => {
       await seedTypes();
       const response = await adminGet("/admin/attendees");
       const html = await response.text();
-      expect(html).toContain("Showing:");
-      expect(html).toContain('href="/admin/attendees?type=daily"');
-      expect(html).toContain('href="/admin/attendees?type=purchase-only"');
+      assertStringIncludes(html, "Showing:");
+      assertStringIncludes(html, 'href="/admin/attendees?type=daily"');
+      assertStringIncludes(html, 'href="/admin/attendees?type=purchase-only"');
     });
 
     test("hides the type filter bar when only one type exists", async () => {
@@ -154,16 +169,19 @@ describeWithEnv("the attendees browser filters", { db: true }, () => {
       await createTestAttendeeDirect(listing.id, "Solo", "solo@example.com");
       const response = await adminGet("/admin/attendees");
       const html = await response.text();
-      expect(html).not.toContain("Showing:");
+      assert(
+        !html.includes("Showing:"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("treats an unknown type as 'all'", async () => {
       await seedTypes();
       const response = await adminGet("/admin/attendees?type=bogus");
       const html = await response.text();
-      expect(html).toContain("StdGoer");
-      expect(html).toContain("DailyGoer");
-      expect(html).toContain("MerchBuyer");
+      assertStringIncludes(html, "StdGoer");
+      assertStringIncludes(html, "DailyGoer");
+      assertStringIncludes(html, "MerchBuyer");
     });
 
     test("a specific listing filter overrides the type filter", async () => {
@@ -172,8 +190,11 @@ describeWithEnv("the attendees browser filters", { db: true }, () => {
         `/admin/attendees?type=daily&listing=${standard.id}`,
       );
       const html = await response.text();
-      expect(html).toContain("StdGoer"); // the listing wins over the type
-      expect(html).not.toContain("DailyGoer");
+      assertStringIncludes(html, "StdGoer"); // the listing wins over the type
+      assert(
+        !html.includes("DailyGoer"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("shows nothing for a type with no listings", async () => {
@@ -181,8 +202,11 @@ describeWithEnv("the attendees browser filters", { db: true }, () => {
       await createTestAttendeeDirect(listing.id, "Lonely", "l@example.com");
       const response = await adminGet("/admin/attendees?type=daily");
       const html = await response.text();
-      expect(html).toContain("No attendees yet");
-      expect(html).not.toContain("Lonely");
+      assertStringIncludes(html, "No attendees yet");
+      assert(
+        !html.includes("Lonely"),
+        "the value should not contain the searched item",
+      );
     });
   });
 
@@ -193,16 +217,19 @@ describeWithEnv("the attendees browser filters", { db: true }, () => {
       await seedGroupRoster();
       const response = await adminGet("/admin/attendees");
       const html = await response.text();
-      expect(html).toContain('name="group"');
-      expect(html).toContain("All groups");
-      expect(html).toContain("Autumn fair");
+      assertStringIncludes(html, 'name="group"');
+      assertStringIncludes(html, "All groups");
+      assertStringIncludes(html, "Autumn fair");
     });
 
     test("hides the group dropdown when the site stores no groups", async () => {
       await seedListingFilterPair();
       const response = await adminGet("/admin/attendees");
       const html = await response.text();
-      expect(html).not.toContain('name="group"');
+      assert(
+        !html.includes('name="group"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("narrows the table to the group's member listings", async () => {
@@ -229,8 +256,8 @@ describeWithEnv("the attendees browser filters", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/attendees?group=${group.id}`)
       ).text();
-      expect(html).toContain(`group=${group.id}&sort=oldest`);
-      expect(html).toContain(`csv?group=${group.id}`);
+      assertStringIncludes(html, `group=${group.id}&sort=oldest`);
+      assertStringIncludes(html, `csv?group=${group.id}`);
     });
 
     test("falls back to all listings for an unknown group", async () => {

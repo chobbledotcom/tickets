@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
@@ -56,9 +57,15 @@ describeWithEnv("the paid success balance page", { db: true }, () => {
 
     expect(response.status).toBe(200);
     const page = await response.text();
-    expect(page).toContain('data-payment-result="success"');
-    expect(page).not.toContain("secret-member");
-    expect(page).not.toContain('http-equiv="refresh"');
+    assertStringIncludes(page, 'data-payment-result="success"');
+    assert(
+      !page.includes("secret-member"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !page.includes('http-equiv="refresh"'),
+      "the value should not contain the searched item",
+    );
     expect((await getAttendeeBalanceState(attendee.id))?.remainingBalance).toBe(
       0,
     );
@@ -83,9 +90,15 @@ describeWithEnv("the paid success balance page", { db: true }, () => {
 
     expect(response.status).toBe(200);
     const page = await response.text();
-    expect(page).toContain('data-payment-result="success"');
-    expect(page).not.toContain("example.com");
-    expect(page).not.toContain('http-equiv="refresh"');
+    assertStringIncludes(page, 'data-payment-result="success"');
+    assert(
+      !page.includes("example.com"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !page.includes('http-equiv="refresh"'),
+      "the value should not contain the searched item",
+    );
     expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
       0,
     );
@@ -100,8 +113,11 @@ describeWithEnv("the paid success balance page", { db: true }, () => {
     );
     const html = await getPayPage(attendeeId);
 
-    expect(html).not.toContain("Secret Contents");
-    expect(html).toContain("Mystery Box");
-    expect(html).toContain("Workshop Ticket");
+    assert(
+      !html.includes("Secret Contents"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "Mystery Box");
+    assertStringIncludes(html, "Workshop Ticket");
   });
 });

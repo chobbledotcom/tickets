@@ -12,6 +12,7 @@
  * because a Cucumber run does not count towards coverage.
  */
 
+import { assert } from "@std/assert";
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
@@ -110,9 +111,12 @@ describeWithEnv("admin email templates", { db: true }, () => {
       expect(raw?.startsWith("enc:1:")).toBe(true);
     }
     // Not merely prefixed: the plaintext must not be sitting there beside it.
-    expect(
-      settings.getCachedRaw(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT),
-    ).not.toContain("listing_names");
+    assert(
+      !settings
+        .getCachedRaw(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT)
+        .includes("listing_names"),
+      "the value should not contain the searched item",
+    );
 
     // And it reads back as what the owner wrote.
     expect(await storedTemplate()).toEqual({

@@ -4,6 +4,7 @@
  * link that renders is always one the viewer can follow.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
@@ -30,8 +31,8 @@ describeWithEnv("the listing page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain("<h1>Listing: Castle Hire</h1>");
-    expect(tabsOf(html, listing.id)).toContain("attendees");
+    assertStringIncludes(html, "<h1>Listing: Castle Hire</h1>");
+    assertStringIncludes(tabsOf(html, listing.id), "attendees");
   });
 
   test("marks the listings list as the section it belongs to", async () => {
@@ -39,7 +40,7 @@ describeWithEnv("the listing page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/listing/${listing.id}`)).text();
 
-    expect(html).toContain(`<a class="active" href="/admin/listings">`);
+    assertStringIncludes(html, `<a class="active" href="/admin/listings">`);
   });
 
   test("opens an editor on edit and keeps the attendee tabs shut", async () => {
@@ -55,7 +56,8 @@ describeWithEnv("the listing page", { db: true }, () => {
     );
 
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain(
+    assertStringIncludes(
+      await page.text(),
       `<a aria-current="page" class="active" href="/admin/listing/${listing.id}/edit">Edit</a>`,
     );
     expect(attendees.status).toBe(404);
@@ -73,17 +75,25 @@ describeWithEnv("the listing page", { db: true }, () => {
     });
     const dead = await actions();
 
-    expect(live).toContain(`href="/admin/listing/${listing.id}/deactivate"`);
-    expect(live).not.toContain(
-      `href="/admin/listing/${listing.id}/reactivate"`,
+    assertStringIncludes(
+      live,
+      `href="/admin/listing/${listing.id}/deactivate"`,
+    );
+    assert(
+      !live.includes(`href="/admin/listing/${listing.id}/reactivate"`),
+      "the value should not contain the searched item",
     );
     expect(
       (await listingsTable.read.pick(["active"]).one({ id: listing.id }))!
         .active,
     ).toBe(false);
-    expect(dead).toContain(`href="/admin/listing/${listing.id}/reactivate"`);
-    expect(dead).not.toContain(
-      `href="/admin/listing/${listing.id}/deactivate"`,
+    assertStringIncludes(
+      dead,
+      `href="/admin/listing/${listing.id}/reactivate"`,
+    );
+    assert(
+      !dead.includes(`href="/admin/listing/${listing.id}/deactivate"`),
+      "the value should not contain the searched item",
     );
   });
 
@@ -95,11 +105,18 @@ describeWithEnv("the listing page", { db: true }, () => {
       await awaitTestRequest(`/admin/listing/${listing.id}/actions`, { cookie })
     ).text();
 
-    expect(html).toContain(`href="/admin/listing/${listing.id}/export.json"`);
-    expect(html).toContain(`href="/admin/listing/${listing.id}/duplicate"`);
-    expect(html).not.toContain(`href="/admin/listing/${listing.id}/delete"`);
-    expect(html).not.toContain(
-      `href="/admin/listing/${listing.id}/refund-all"`,
+    assertStringIncludes(
+      html,
+      `href="/admin/listing/${listing.id}/export.json"`,
+    );
+    assertStringIncludes(html, `href="/admin/listing/${listing.id}/duplicate"`);
+    assert(
+      !html.includes(`href="/admin/listing/${listing.id}/delete"`),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes(`href="/admin/listing/${listing.id}/refund-all"`),
+      "the value should not contain the searched item",
     );
   });
 
@@ -113,11 +130,15 @@ describeWithEnv("the listing page", { db: true }, () => {
       await awaitTestRequest(`/admin/listing/${listing.id}/actions`, { cookie })
     ).text();
 
-    expect(html).toContain(`href="/admin/listing/${listing.id}/delete"`);
-    expect(html).not.toContain(
-      `href="/admin/listing/${listing.id}/refund-all"`,
+    assertStringIncludes(html, `href="/admin/listing/${listing.id}/delete"`);
+    assert(
+      !html.includes(`href="/admin/listing/${listing.id}/refund-all"`),
+      "the value should not contain the searched item",
     );
-    expect(html).not.toContain("/admin/emails?");
+    assert(
+      !html.includes("/admin/emails?"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("answers 404 for a listing that is not there", async () => {

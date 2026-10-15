@@ -3,6 +3,7 @@
  * optional flash and action row it can carry, and the staff/agent variant.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { Flash } from "#shared/forms/flash.tsx";
@@ -37,42 +38,51 @@ describe("the admin page shell", () => {
   test("titles the page and puts the body inside it", () => {
     const html = page();
 
-    expect(html).toContain("<title>Page title</title>");
-    expect(html).toContain("<p>Body</p>");
+    assertStringIncludes(html, "<title>Page title</title>");
+    assertStringIncludes(html, "<p>Body</p>");
   });
 
   test("names the content admin-page unless the caller names it", () => {
-    expect(page()).toContain('class="page-regions admin-page"');
-    expect(page({ contentClassName: "wide-page" })).toContain(
+    assertStringIncludes(page(), 'class="page-regions admin-page"');
+    assertStringIncludes(
+      page({ contentClassName: "wide-page" }),
       'class="page-regions wide-page"',
     );
   });
 
   test("leaves the body class alone unless a class is given", () => {
-    expect(page()).toContain('<body data-page-family="admin">');
-    expect(page({ bodyClass: "ticket-body" })).toContain(
+    assertStringIncludes(page(), '<body data-page-family="admin">');
+    assertStringIncludes(
+      page({ bodyClass: "ticket-body" }),
       '<body class="ticket-body" data-page-family="admin">',
     );
   });
 
   test("previews the theme it is given", () => {
-    expect(page()).not.toContain('data-theme="dark"');
-    expect(page({ theme: "dark" })).toContain('data-theme="dark"');
+    assert(
+      !page().includes('data-theme="dark"'),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(page({ theme: "dark" }), 'data-theme="dark"');
   });
 
   test("shows the flash between the nav and the body", () => {
     const html = page({ flash: <Flash success="Saved" /> });
 
-    expect(html).toContain("Saved");
+    assertStringIncludes(html, "Saved");
     expect(html.indexOf("Saved")).toBeLessThan(html.indexOf("<p>Body</p>"));
     expect(html.indexOf("</nav>")).toBeLessThan(html.indexOf("Saved"));
   });
 
   test("wraps an action row, and renders none when there is none", () => {
-    expect(page({ actions: <a href="/admin/new">Add</a> })).toContain(
+    assertStringIncludes(
+      page({ actions: <a href="/admin/new">Add</a> }),
       '<p class="actions"><a href="/admin/new">Add</a></p>',
     );
-    expect(page()).not.toContain('<p class="actions">');
+    assert(
+      !page().includes('<p class="actions">'),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -97,9 +107,9 @@ describe("rendering an admin page to a string", () => {
       <p>Plain body</p>,
     );
 
-    expect(html).toContain("<title>Plain page</title>");
-    expect(html).toContain('<a class="active" href="/admin/settings">');
-    expect(html).toContain("<p>Plain body</p>");
+    assertStringIncludes(html, "<title>Plain page</title>");
+    assertStringIncludes(html, '<a class="active" href="/admin/settings">');
+    assertStringIncludes(html, "<p>Plain body</p>");
   });
 });
 
@@ -118,15 +128,18 @@ describe("the page staff and agents share", () => {
   test("gives staff the heading the caller passed", () => {
     const html = staffPage(OWNER_SESSION);
 
-    expect(html).toContain("<h1>For staff</h1>");
-    expect(html).toContain("<p>Run sheet</p>");
+    assertStringIncludes(html, "<h1>For staff</h1>");
+    assertStringIncludes(html, "<p>Run sheet</p>");
   });
 
   test("gives an agent the bare agent header instead", () => {
     const html = staffPage(AGENT_SESSION);
 
-    expect(html).not.toContain("<h1>For staff</h1>");
-    expect(html).toContain("Deliveries");
-    expect(html).toContain("<p>Run sheet</p>");
+    assert(
+      !html.includes("<h1>For staff</h1>"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "Deliveries");
+    assertStringIncludes(html, "<p>Run sheet</p>");
   });
 });

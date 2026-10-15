@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -28,22 +29,26 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         200,
       );
       // The page's own name is the heading; the form carries the editable slug.
-      expect(html).toContain(`<h1>${page.name}</h1>`);
-      expect(html).toContain('name="slug"');
-      expect(html).toContain(`value="${page.slug}"`);
+      assertStringIncludes(html, `<h1>${page.name}</h1>`);
+      assertStringIncludes(html, 'name="slug"');
+      assertStringIncludes(html, `value="${page.slug}"`);
       // The public link sits under the slug field, opening in a new tab.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `Public link: <a href="/page/${page.slug}" rel="noopener" target="_blank">/page/${page.slug}</a>`,
       );
       // A guide footer sits at the bottom of the body.
-      expect(html).toContain('class="guide-footer"');
-      expect(html).toContain('href="/admin/guide#public-site"');
+      assertStringIncludes(html, 'class="guide-footer"');
+      assertStringIncludes(html, 'href="/admin/guide#public-site"');
       // The tabbed strip carries Edit, Items and Actions (Images hidden while
       // storage is off). The item manager lives on the Items tab, not here.
-      expect(html).toContain('class="entity-tabs"');
-      expect(html).toContain(`href="${BASE}/${page.id}/items"`);
-      expect(html).toContain(`href="${BASE}/${page.id}/actions"`);
-      expect(html).not.toContain("Add to this page");
+      assertStringIncludes(html, 'class="entity-tabs"');
+      assertStringIncludes(html, `href="${BASE}/${page.id}/items"`);
+      assertStringIncludes(html, `href="${BASE}/${page.id}/actions"`);
+      assert(
+        !html.includes("Add to this page"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("the items tab renders the add-item manager when something can be added", async () => {
@@ -54,8 +59,8 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
-      expect(html).toContain("Add to this page");
-      expect(html).toContain(">Addable<");
+      assertStringIncludes(html, "Add to this page");
+      assertStringIncludes(html, ">Addable<");
     });
 
     test("the items tab hides the add section (and any 'nothing available') when nothing can be added", async () => {
@@ -67,10 +72,17 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       );
       // No listings/groups/sub-pages to offer, so the whole add section — and
       // the old confusing "nothing available" line — is gone.
-      expect(html).not.toContain("Add to this page");
-      expect(html).not.toContain("nothing available");
+      assert(
+        !html.includes("Add to this page"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("nothing available"),
+        "the value should not contain the searched item",
+      );
       // The page still shows its empty-contents message.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         "This page has no listings, groups, or sub-pages yet.",
       );
     });
@@ -82,8 +94,8 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}`),
         200,
       );
-      expect(html).toContain(`<h1>${page.name}</h1>`);
-      expect(html).toContain('name="slug"');
+      assertStringIncludes(html, `<h1>${page.name}</h1>`);
+      assertStringIncludes(html, 'name="slug"');
     });
 
     test("an image POST with storage disabled bounces to the edit tab, not the hidden images tab", async () => {

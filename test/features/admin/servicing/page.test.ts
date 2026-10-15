@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -64,24 +66,32 @@ describeWithEnv("servicing cost page", { db: true }, () => {
 
     const body = await renderAdminPage(`/admin/servicing/${event.id}`);
 
-    expect(body).toContain(listing.name);
-    expect(body).toContain(
+    assertStringIncludes(body, listing.name);
+    assertStringIncludes(
+      body,
       `href="/admin/ledger?listing=${listing.id}">${listing.name}</a>`,
     );
     // An event page lives within the Servicing section: the section's own
     // link lights up, and its "Add" sub-item does not.
-    expect(body).toContain('<a class="active" href="/admin/servicing">');
-    expect(body).not.toContain(
-      '<a class="active" href="/admin/servicing/new">',
+    assertStringIncludes(body, '<a class="active" href="/admin/servicing">');
+    assert(
+      !body.includes('<a class="active" href="/admin/servicing/new">'),
+      "the value should not contain the searched item",
     );
 
     // The list page is the section's landing route, so it lights up too.
     const listPage = await renderAdminPage("/admin/servicing");
-    expect(listPage).toContain('<a class="active" href="/admin/servicing">');
+    assertStringIncludes(
+      listPage,
+      '<a class="active" href="/admin/servicing">',
+    );
 
     // The new-event page is the "Add" sub-item's own route.
     const newPage = await renderAdminPage("/admin/servicing/new");
-    expect(newPage).toContain('<a class="active" href="/admin/servicing/new">');
+    assertStringIncludes(
+      newPage,
+      '<a class="active" href="/admin/servicing/new">',
+    );
   });
 
   test("hides cost controls when no listing can receive the cost", () => {
@@ -97,8 +107,14 @@ describeWithEnv("servicing cost page", { db: true }, () => {
       session: testSession(),
     });
 
-    expect(body).not.toContain('name="target_listing_id"');
-    expect(body).not.toContain("Record service event cost");
+    assert(
+      !body.includes('name="target_listing_id"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !body.includes("Record service event cost"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("keeps only held inactive listings and reports deleted holds", () => {
@@ -144,24 +160,33 @@ describeWithEnv("servicing cost page", { db: true }, () => {
       session: testSession(),
     });
 
-    expect(body).toContain("<h1>New service event</h1>");
-    expect(body).toContain('action="/admin/servicing/new"');
-    expect(body).toContain('id="servicing-form"');
-    expect(body).toContain("Create service event");
-    expect(body).toContain(
+    assertStringIncludes(body, "<h1>New service event</h1>");
+    assertStringIncludes(body, 'action="/admin/servicing/new"');
+    assertStringIncludes(body, 'id="servicing-form"');
+    assertStringIncludes(body, "Create service event");
+    assertStringIncludes(
+      body,
       '<input autocomplete="off" maxlength="250" name="name" required type="text">',
     );
-    expect(body).toContain('<input name="start_date" type="date">');
-    expect(body).toContain(
+    assertStringIncludes(body, '<input name="start_date" type="date">');
+    assertStringIncludes(
+      body,
       '<input min="1" name="day_count" type="number" value="1">',
     );
-    expect(body).toContain('<use href="/icons.svg#plus">');
-    expect(body).toContain(
+    assertStringIncludes(body, '<use href="/icons.svg#plus">');
+    assertStringIncludes(
+      body,
       '<input min="0" name="quantity_3" type="number" value="0">',
     );
     // No stored event yet, so none of the event-only sections render.
-    expect(body).not.toContain('class="warning"');
-    expect(body).not.toContain("Annual service");
+    assert(
+      !body.includes('class="warning"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !body.includes("Annual service"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders an event page with every editing section", () => {
@@ -198,32 +223,41 @@ describeWithEnv("servicing cost page", { db: true }, () => {
       session: testSession(),
     });
 
-    expect(body).toContain("<h1>Annual service</h1>");
-    expect(body).toContain('action="/admin/servicing/7"');
-    expect(body).toContain(
+    assertStringIncludes(body, "<h1>Annual service</h1>");
+    assertStringIncludes(body, 'action="/admin/servicing/7"');
+    assertStringIncludes(
+      body,
       '<p class="warning">1 held listing no longer exists.',
     );
-    expect(body).toContain(
+    assertStringIncludes(
+      body,
       'name="name" required type="text" value="Annual service"',
     );
-    expect(body).toContain('name="start_date" type="date" value="2026-07-01"');
-    expect(body).toContain('<use href="/icons.svg#save">');
-    expect(body).toContain("<td>Main hall</td>");
-    expect(body).toContain("<td>Storage room<em> (inactive)</em></td>");
-    expect(body).toContain(
+    assertStringIncludes(
+      body,
+      'name="start_date" type="date" value="2026-07-01"',
+    );
+    assertStringIncludes(body, '<use href="/icons.svg#save">');
+    assertStringIncludes(body, "<td>Main hall</td>");
+    assertStringIncludes(body, "<td>Storage room<em> (inactive)</em></td>");
+    assertStringIncludes(
+      body,
       '<input min="0" name="quantity_3" type="number" value="2">',
     );
-    expect(body).toContain("Save service event");
-    expect(body).not.toContain("Create service event");
-    expect(body).toContain('action="/admin/servicing/7/duplicate"');
-    expect(body).toContain('action="/admin/servicing/7/delete"');
-    expect(body).toContain("Record service event cost");
-    expect(body).toContain('name="cost_idempotency_key" type="hidden"');
-    expect(body).toContain('name="amount"');
-    expect(body).toContain('name="memo"');
-    expect(body).toContain('name="target_listing_id"');
-    expect(body).toContain("Service event costs");
-    expect(body).toContain("Boiler part");
+    assertStringIncludes(body, "Save service event");
+    assert(
+      !body.includes("Create service event"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(body, 'action="/admin/servicing/7/duplicate"');
+    assertStringIncludes(body, 'action="/admin/servicing/7/delete"');
+    assertStringIncludes(body, "Record service event cost");
+    assertStringIncludes(body, 'name="cost_idempotency_key" type="hidden"');
+    assertStringIncludes(body, 'name="amount"');
+    assertStringIncludes(body, 'name="memo"');
+    assertStringIncludes(body, 'name="target_listing_id"');
+    assertStringIncludes(body, "Service event costs");
+    assertStringIncludes(body, "Boiler part");
   });
 
   const renderCostsPage = (adminLevel: "owner" | "editor"): string =>
@@ -259,19 +293,30 @@ describeWithEnv("servicing cost page", { db: true }, () => {
   test("renders the costs table with its date, note, and money links", () => {
     const ownerBody = renderCostsPage("owner");
 
-    expect(ownerBody).toContain('href="/admin/ledger?listing=3">Main hall</a>');
-    expect(ownerBody).toContain("Deleted listing");
-    expect(ownerBody).toContain(`<td>${formatDateLabel("2026-07-01")}</td>`);
-    expect(ownerBody).toContain(`<td>${formatDateLabel("2026-07-02")}</td>`);
-    expect(ownerBody).toContain(
+    assertStringIncludes(
+      ownerBody,
+      'href="/admin/ledger?listing=3">Main hall</a>',
+    );
+    assertStringIncludes(ownerBody, "Deleted listing");
+    assertStringIncludes(
+      ownerBody,
+      `<td>${formatDateLabel("2026-07-01")}</td>`,
+    );
+    assertStringIncludes(
+      ownerBody,
+      `<td>${formatDateLabel("2026-07-02")}</td>`,
+    );
+    assertStringIncludes(
+      ownerBody,
       `<td class="col-amount">${formatCurrency(9000)}</td>`,
     );
-    expect(ownerBody).toContain(
+    assertStringIncludes(
+      ownerBody,
       `<td class="col-amount">${formatCurrency(250)}</td>`,
     );
-    expect(ownerBody).toContain('id="servicing-costs"');
-    expect(ownerBody).toContain('class="listing-section"');
-    expect(ownerBody).toContain('class="danger"');
+    assertStringIncludes(ownerBody, 'id="servicing-costs"');
+    assertStringIncludes(ownerBody, 'class="listing-section"');
+    assertStringIncludes(ownerBody, 'class="danger"');
     // One amount input in the record-cost form, one in each cost row editor.
     expect(ownerBody.match(/name="amount"/g)).toHaveLength(3);
   });
@@ -281,8 +326,11 @@ describeWithEnv("servicing cost page", { db: true }, () => {
 
     // The editor still sees the listing name, but the owner-only money link
     // stays off their table.
-    expect(editorBody).toContain("Main hall");
-    expect(editorBody).not.toContain("/admin/ledger?listing=");
+    assertStringIncludes(editorBody, "Main hall");
+    assert(
+      !editorBody.includes("/admin/ledger?listing="),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders the servicing list's rows, deleted listings, and empty state", () => {
@@ -307,21 +355,29 @@ describeWithEnv("servicing cost page", { db: true }, () => {
       ],
     );
 
-    expect(list).toContain(
+    assertStringIncludes(
+      list,
       '<tr class="servicing-event" data-servicing="true">',
     );
-    expect(list).toContain("Annual service");
-    expect(list).toContain('href="/admin/servicing/7"');
-    expect(list).toContain(`<td>${servicingEventDateLabel("2026-07-01")}</td>`);
-    expect(list).toContain("<td>Main hall, Storage room, Deleted listing</td>");
-    expect(list).toContain(
+    assertStringIncludes(list, "Annual service");
+    assertStringIncludes(list, 'href="/admin/servicing/7"');
+    assertStringIncludes(
+      list,
+      `<td>${servicingEventDateLabel("2026-07-01")}</td>`,
+    );
+    assertStringIncludes(
+      list,
+      "<td>Main hall, Storage room, Deleted listing</td>",
+    );
+    assertStringIncludes(
+      list,
       "<th>Name</th><th>Date</th><th>Listings</th><th>Quantity</th>",
     );
-    expect(list).toContain("<td>4</td>");
-    expect(list).toContain('href="/admin/guide#servicing"');
-    expect(list).toContain("Servicing guide");
+    assertStringIncludes(list, "<td>4</td>");
+    assertStringIncludes(list, 'href="/admin/guide#servicing"');
+    assertStringIncludes(list, "Servicing guide");
 
     const emptyList = renderServicingList(testSession(), [], []);
-    expect(emptyList).toContain("No service events yet.");
+    assertStringIncludes(emptyList, "No service events yet.");
   });
 });

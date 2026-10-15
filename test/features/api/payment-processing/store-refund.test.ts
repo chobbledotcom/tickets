@@ -1,5 +1,6 @@
 /** Durable placeholder and recovery work after a paid booking cannot be kept. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decrypt } from "#crypto/encryption.ts";
@@ -147,7 +148,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
            FROM system_notes WHERE entity_type = 'attendee'`,
       );
       expect(note?.total).toBe(1);
-      expect(note?.system_name).toContain("refund_unreturned");
+      assertStringIncludes(note?.system_name, "refund_unreturned");
 
       // With the claim free, the next delivery replays the stored words and
       // writes nothing new.
@@ -200,9 +201,15 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       }
       // The note's name is the once-only latch a resumed delivery checks; it
       // carries only the blind reference index, never the real reference.
-      expect(row.system_name).toContain("refund_unreturned");
-      expect(row.system_name).not.toContain("pi_cs_plain_explanation");
-      expect(await decrypt(row.note)).not.toContain("pi_cs_plain_explanation");
+      assertStringIncludes(row.system_name, "refund_unreturned");
+      assert(
+        !row.system_name.includes("pi_cs_plain_explanation"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !(await decrypt(row.note)).includes("pi_cs_plain_explanation"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("keeps the unresolved refund from being deleted", async () => {
@@ -309,7 +316,8 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       const attendeePage = await (
         await adminGet(`/admin/attendees/${attendee.id}`)
       ).text();
-      expect(attendeePage).toContain(
+      assertStringIncludes(
+        attendeePage,
         `action="/admin/attendees/${attendee.id}/refresh-payment"`,
       );
     });

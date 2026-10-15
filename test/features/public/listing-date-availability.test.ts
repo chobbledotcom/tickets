@@ -4,6 +4,7 @@
  * round trips, and a fully booked member makes only its own package sold out.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
@@ -355,9 +356,12 @@ describeWithEnv(
         await handleRequest(mockRequest(`/listings?date=${date}`))
       ).text();
 
-      expect(html).toContain("Sold Out");
-      expect(html).not.toContain(`/ticket/${member.slug}`);
-      expect(html).toContain(`/ticket/${otherMember.slug}`);
+      assertStringIncludes(html, "Sold Out");
+      assert(
+        !html.includes(`/ticket/${member.slug}`),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(html, `/ticket/${otherMember.slug}`);
     });
   },
 );

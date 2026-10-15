@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -12,16 +13,17 @@ import { testCookie } from "#test-utils/session.ts";
 
 describeCustomDomain("custom domain settings page", (enable) => {
   test("hides the custom domain form when Bunny CDN is not configured", async () => {
-    expect(await advancedPageHtml()).not.toContain(
-      'id="settings-custom-domain"',
+    assert(
+      !(await advancedPageHtml()).includes('id="settings-custom-domain"'),
+      "the value should not contain the searched item",
     );
   });
 
   test("shows the custom domain form when Bunny CDN is configured", async () => {
     enable();
     const html = await advancedPageHtml();
-    expect(html).toContain('id="settings-custom-domain"');
-    expect(html).toContain("Custom domain");
+    assertStringIncludes(html, 'id="settings-custom-domain"');
+    assertStringIncludes(html, "Custom domain");
   });
 
   test("leads with the host subdomain section, above the custom domain section", async () => {
@@ -31,7 +33,7 @@ describeCustomDomain("custom domain settings page", (enable) => {
       BUNNY_DNS_ZONE_ID: "zone-id",
     });
     const html = await advancedPageHtml();
-    expect(html).toContain('id="settings-host-subdomain"');
+    assertStringIncludes(html, 'id="settings-host-subdomain"');
     expect(html.indexOf('id="settings-host-subdomain"')).toBeLessThan(
       html.indexOf('id="settings-custom-domain"'),
     );
@@ -39,8 +41,11 @@ describeCustomDomain("custom domain settings page", (enable) => {
 
   test("hides validation when no custom domain is saved", async () => {
     enable();
-    expect(await advancedPageHtml()).not.toContain(
-      'id="settings-custom-domain-validate"',
+    assert(
+      !(await advancedPageHtml()).includes(
+        'id="settings-custom-domain-validate"',
+      ),
+      "the value should not contain the searched item",
     );
   });
 
@@ -48,16 +53,17 @@ describeCustomDomain("custom domain settings page", (enable) => {
     enable();
     await settings.update.customDomain("tickets.example.com");
     const html = await advancedPageHtml();
-    expect(html).toContain('id="settings-custom-domain-validate"');
-    expect(html).toContain("Make one CNAME record like this:");
-    expect(html).toContain(
+    assertStringIncludes(html, 'id="settings-custom-domain-validate"');
+    assertStringIncludes(html, "Make one CNAME record like this:");
+    assertStringIncludes(
+      html,
       "Open the DNS settings for your domain. These are often with the company you bought it from.",
     );
-    expect(html).toContain("CNAME");
-    expect(html).toContain("tickets.example.com");
-    expect(html).toContain("mysite.b-cdn.net");
-    expect(html).toContain("not yet validated");
-    expect(html).toContain("will not work until validation is complete");
+    assertStringIncludes(html, "CNAME");
+    assertStringIncludes(html, "tickets.example.com");
+    assertStringIncludes(html, "mysite.b-cdn.net");
+    assertStringIncludes(html, "not yet validated");
+    assertStringIncludes(html, "will not work until validation is complete");
   });
 
   test("shows the last validation time without the warning", async () => {
@@ -72,7 +78,10 @@ describeCustomDomain("custom domain settings page", (enable) => {
       }),
     );
     const html = await response.text();
-    expect(html).toContain("Last validated:");
-    expect(html).not.toContain("not yet validated");
+    assertStringIncludes(html, "Last validated:");
+    assert(
+      !html.includes("not yet validated"),
+      "the value should not contain the searched item",
+    );
   });
 });

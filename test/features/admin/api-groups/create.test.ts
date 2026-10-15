@@ -1,6 +1,7 @@
 // JSON CRUD coverage for the group resource behind the migrated group entity
 // page (groups.ts). Kept in the mutation gate's changed set so groups.ts's
 // whole-file mutants meet their real covering tests.
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";

@@ -4,6 +4,7 @@
  * user who can drive may be assigned, so that filter is checked directly.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { loadAgentUserOptions } from "#routes/admin/logistics-agent-page.tsx";
@@ -24,8 +25,8 @@ describeWithEnv("the logistics agent page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain(`action="/admin/logistics/${id}/edit"`);
-    expect(html).toContain("Blue Van");
+    assertStringIncludes(html, `action="/admin/logistics/${id}/edit"`);
+    assertStringIncludes(html, "Blue Van");
   });
 
   test("opens on the edit tab and highlights the section it sits in", async () => {
@@ -35,8 +36,9 @@ describeWithEnv("the logistics agent page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/logistics/${id}`)).text();
 
-    expect(html).toContain(`<a class="active" href="/admin/settings">`);
-    expect(html).toContain(
+    assertStringIncludes(html, `<a class="active" href="/admin/settings">`);
+    assertStringIncludes(
+      html,
       `<a aria-current="page" class="active" href="/admin/logistics/${id}">Edit</a>`,
     );
   });
@@ -48,7 +50,7 @@ describeWithEnv("the logistics agent page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain(`href="/admin/logistics/${id}/delete"`);
+    assertStringIncludes(html, `href="/admin/logistics/${id}/delete"`);
   });
 
   test("keeps the drivers that were ticked when the edit is refused", async () => {
@@ -62,8 +64,8 @@ describeWithEnv("the logistics agent page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(400);
-    expect(html).toContain(`checked name="user_ids"`);
-    expect(html).toContain(`value="${userId}"`);
+    assertStringIncludes(html, `checked name="user_ids"`);
+    assertStringIncludes(html, `value="${userId}"`);
   });
 
   test("answers 404 for an agent that is not there", async () => {
@@ -76,7 +78,10 @@ describeWithEnv("the logistics agent page", { db: true }, () => {
 
     const options = await loadAgentUserOptions();
 
-    expect(options.map((option) => option.username)).toContain("driver");
+    assertArrayIncludes(
+      options.map((option) => option.username),
+      ["driver"],
+    );
     expect(options.every((option) => option.adminLevel !== "editor")).toBe(
       true,
     );

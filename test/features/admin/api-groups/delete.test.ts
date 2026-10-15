@@ -1,6 +1,8 @@
 // JSON CRUD coverage for the group resource behind the migrated group entity
 // page (groups.ts). Kept in the mutation gate's changed set so groups.ts's
 // whole-file mutants meet their real covering tests.
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
@@ -62,7 +64,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toContain("does not match");
+          assertStringIncludes(body.error, "does not match");
         },
       );
 

@@ -5,6 +5,7 @@
  * affordances and routes stay parent-only.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -36,10 +37,16 @@ describeWithEnv(
         ).text();
         // Child is inactive (not in feed regardless) and the parent has no
         // bookable child, so the parent is omitted; the plain listing remains.
-        expect(rss).not.toContain("FeedParent");
-        expect(rss).not.toContain("FeedChild");
-        expect(rss).toContain("FeedPlain");
-        expect(rss).toContain(`/ticket/${plain.slug}`);
+        assert(
+          !rss.includes("FeedParent"),
+          "the value should not contain the searched item",
+        );
+        assert(
+          !rss.includes("FeedChild"),
+          "the value should not contain the searched item",
+        );
+        assertStringIncludes(rss, "FeedPlain");
+        assertStringIncludes(rss, `/ticket/${plain.slug}`);
       });
 
       test("omits a visible child item from the feed", async () => {
@@ -53,8 +60,11 @@ describeWithEnv(
         ).text();
         // Parent is bookable (one available child) so it stays; the child's own
         // standalone item is omitted.
-        expect(ics).toContain("VisParent");
-        expect(ics).not.toContain(`/ticket/${child.slug}`);
+        assertStringIncludes(ics, "VisParent");
+        assert(
+          !ics.includes(`/ticket/${child.slug}`),
+          "the value should not contain the searched item",
+        );
       });
     });
 
@@ -66,9 +76,12 @@ describeWithEnv(
         });
         const plain = await createTestListing({ name: "MbPlain" });
         const body = await (await adminGet("/admin/listings")).text();
-        expect(body).toContain(`data-multi-booking-slug="${parent.slug}"`);
-        expect(body).toContain(`data-multi-booking-slug="${plain.slug}"`);
-        expect(body).not.toContain(`data-multi-booking-slug="${child.slug}"`);
+        assertStringIncludes(body, `data-multi-booking-slug="${parent.slug}"`);
+        assertStringIncludes(body, `data-multi-booking-slug="${plain.slug}"`);
+        assert(
+          !body.includes(`data-multi-booking-slug="${child.slug}"`),
+          "the value should not contain the searched item",
+        );
       });
     });
 
@@ -81,17 +94,36 @@ describeWithEnv(
         const body = await (
           await adminGet(`/admin/listing/${child.id}`)
         ).text();
-        expect(body).not.toContain(`/admin/listing/${child.id}/qr`);
-        expect(body).not.toContain(`/ticket/${child.slug}/qr`);
-        expect(body).toContain(
+        assert(
+          !body.includes(`/admin/listing/${child.id}/qr`),
+          "the value should not contain the searched item",
+        );
+        assert(
+          !body.includes(`/ticket/${child.slug}/qr`),
+          "the value should not contain the searched item",
+        );
+        assertStringIncludes(
+          body,
           "it has no standalone booking link, embed, or QR code",
         );
         // The public booking URL and both embed snippets are suppressed too — a
         // child has no standalone entry point to share or embed.
-        expect(body).not.toContain(`/ticket/${child.slug}`);
-        expect(body).not.toContain(`embed-toggle-${child.id}`);
-        expect(body).not.toContain(`embed-script-${child.id}`);
-        expect(body).not.toContain(`embed-iframe-${child.id}`);
+        assert(
+          !body.includes(`/ticket/${child.slug}`),
+          "the value should not contain the searched item",
+        );
+        assert(
+          !body.includes(`embed-toggle-${child.id}`),
+          "the value should not contain the searched item",
+        );
+        assert(
+          !body.includes(`embed-script-${child.id}`),
+          "the value should not contain the searched item",
+        );
+        assert(
+          !body.includes(`embed-iframe-${child.id}`),
+          "the value should not contain the searched item",
+        );
       });
 
       test("a parent detail page keeps its share/QR affordances", async () => {
@@ -102,12 +134,12 @@ describeWithEnv(
         const body = await (
           await adminGet(`/admin/listing/${parent.id}`)
         ).text();
-        expect(body).toContain(`/admin/listing/${parent.id}/qr`);
+        assertStringIncludes(body, `/admin/listing/${parent.id}/qr`);
         // A non-child parent keeps its public URL and both embed snippets, so the
         // suppression is genuinely conditional on being a child.
-        expect(body).toContain(`/ticket/${parent.slug}`);
-        expect(body).toContain(`embed-script-${parent.id}`);
-        expect(body).toContain(`embed-iframe-${parent.id}`);
+        assertStringIncludes(body, `/ticket/${parent.slug}`);
+        assertStringIncludes(body, `embed-script-${parent.id}`);
+        assertStringIncludes(body, `embed-iframe-${parent.id}`);
       });
 
       test("the child QR generator route 404s", async () => {

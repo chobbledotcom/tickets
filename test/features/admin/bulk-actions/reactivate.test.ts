@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
@@ -82,7 +83,8 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
       // The success flash and the activity row both name the action, and every
       // member comes back.
       expectFlash(response, "Group reactivated (x2 listings)");
-      expect(await activityMessages()).toContain(
+      assertStringIncludes(
+        await activityMessages(),
         "Group 'Bring Back' reactivated (x2 listings)",
       );
       expect((await getListingWithCount(a.id))?.active).toBe(true);
@@ -108,7 +110,8 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
         `/admin/groups/${group.id}/bulk-actions/reactivate`,
       );
       // The mismatch error names the field to type.

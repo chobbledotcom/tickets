@@ -1,5 +1,7 @@
 // test-groups: run-alone - grouped route imports can mask the cold module
 // evaluation this suite verifies.
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -100,7 +102,7 @@ describeWithEnv("route message loading", { db: true }, () => {
       const response = await handleRequest(mockRequest(`/t/${token}`));
 
       expect(response.status).toBe(200);
-      expect(await response.text()).toContain('alt="QR code"');
+      assertStringIncludes(await response.text(), 'alt="QR code"');
     });
   });
 

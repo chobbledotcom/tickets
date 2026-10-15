@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import {
   BuiltSitesGuideFooter,
@@ -16,8 +16,8 @@ test("renders the empty list with its renewal summary", () => {
       sort: "name",
     }),
   );
-  expect(html).toContain("No built sites recorded.");
-  expect(html).toContain("Renewal tiers");
+  assertStringIncludes(html, "No built sites recorded.");
+  assertStringIncludes(html, "Renewal tiers");
 });
 
 test("renders a site's link, URL, status, channel, and host id", () => {
@@ -39,11 +39,11 @@ test("renders a site's link, URL, status, channel, and host id", () => {
       sort: "name",
     }),
   );
-  expect(html).toContain('href="/admin/built-sites/42">Child site</a>');
-  expect(html).toContain("https://child.example");
-  expect(html).toContain("Assigned (attendee #17)");
-  expect(html).toContain("beta");
-  expect(html).toContain("host-42");
+  assertStringIncludes(html, 'href="/admin/built-sites/42">Child site</a>');
+  assertStringIncludes(html, "https://child.example");
+  assertStringIncludes(html, "Assigned (attendee #17)");
+  assertStringIncludes(html, "beta");
+  assertStringIncludes(html, "host-42");
 });
 
 test("labels an unassigned site that others can book as Available", () => {
@@ -55,9 +55,12 @@ test("labels an unassigned site that others can book as Available", () => {
       sort: "name",
     }),
   );
-  expect(html).toContain('<a href="/admin/built-sites/1">Alpha</a>');
-  expect(html).toContain("Available</td>");
-  expect(html).not.toContain("Not assignable");
+  assertStringIncludes(html, '<a href="/admin/built-sites/1">Alpha</a>');
+  assertStringIncludes(html, "Available</td>");
+  assert(
+    !html.includes("Not assignable"),
+    "the value should not contain the searched item",
+  );
 });
 
 test("labels an unassigned site nobody can book as Not assignable", () => {
@@ -69,9 +72,12 @@ test("labels an unassigned site nobody can book as Not assignable", () => {
       sort: "name",
     }),
   );
-  expect(html).toContain('<a href="/admin/built-sites/2">Beta</a>');
-  expect(html).toContain("Not assignable</td>");
-  expect(html).not.toContain("Available</td>");
+  assertStringIncludes(html, '<a href="/admin/built-sites/2">Beta</a>');
+  assertStringIncludes(html, "Not assignable</td>");
+  assert(
+    !html.includes("Available</td>"),
+    "the value should not contain the searched item",
+  );
 });
 
 test("links a bare bunny.run address as a working b-cdn.net link", () => {
@@ -89,15 +95,19 @@ test("links a bare bunny.run address as a working b-cdn.net link", () => {
       sort: "name",
     }),
   );
-  expect(html).toContain('href="https://childsite.b-cdn.net"');
-  expect(html).not.toContain("bunny.run");
+  assertStringIncludes(html, 'href="https://childsite.b-cdn.net"');
+  assert(
+    !html.includes("bunny.run"),
+    "the value should not contain the searched item",
+  );
 });
 
 test("renders the list actions and guide destination", () => {
   const actions = String(BuiltSitesListActions());
-  expect(actions).toContain('href="/admin/built-sites/new"');
-  expect(actions).toContain('href="/admin/builder"');
-  expect(String(BuiltSitesGuideFooter())).toContain(
+  assertStringIncludes(actions, 'href="/admin/built-sites/new"');
+  assertStringIncludes(actions, 'href="/admin/builder"');
+  assertStringIncludes(
+    String(BuiltSitesGuideFooter()),
     'href="/admin/guide#built-sites"',
   );
 });

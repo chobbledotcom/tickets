@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -62,10 +63,13 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         200,
       );
       // The un-added listing is still offered; the added one is not.
-      expect(html).toContain(`value="${kept.id}"`);
-      expect(html).not.toContain(`value="${added.id}"`);
+      assertStringIncludes(html, `value="${kept.id}"`);
+      assert(
+        !html.includes(`value="${added.id}"`),
+        "the value should not contain the searched item",
+      );
       // The un-added group is offered too.
-      expect(html).toContain(">KeptG<");
+      assertStringIncludes(html, ">KeptG<");
     });
 
     test("rejects re-adding an item already on the page", async () => {
@@ -116,13 +120,13 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
-      expect(html).toContain("Real Listing");
-      expect(html).toContain("Real Group");
-      expect(html).toContain("Name kidlabel");
+      assertStringIncludes(html, "Real Listing");
+      assertStringIncludes(html, "Real Group");
+      assertStringIncludes(html, "Name kidlabel");
       // Only the dangling edge (not the empty-named listing) is "(missing)".
       expect((html.match(/\(missing\)/g) ?? []).length).toBe(1);
       // The spare page is offered in the sub-page picker.
-      expect(html).toContain("Name spare");
+      assertStringIncludes(html, "Name spare");
     });
 
     test("offers only active listings; labels keep inactive ones named", async () => {
@@ -138,11 +142,14 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         200,
       );
       // The already-added inactive listing still labels its row...
-      expect(html).toContain("Retired Listing");
+      assertStringIncludes(html, "Retired Listing");
       // ...but an inactive listing is never offered as a new option, and
       // neither is a renewal tier (a normal public link would take payment
       // without extending the site).
-      expect(html).not.toContain(`value="${inactive.id}"`);
+      assert(
+        !html.includes(`value="${inactive.id}"`),
+        "the value should not contain the searched item",
+      );
       const tier = await createTestListing({
         hidden: true,
         monthsPerUnit: 1,
@@ -153,7 +160,10 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
-      expect(html2).not.toContain(`value="${tier.id}"`);
+      assert(
+        !html2.includes(`value="${tier.id}"`),
+        "the value should not contain the searched item",
+      );
       // A child listing's public page 404s by construction (a booking can
       // never start from a child, I3), so it is never offered either — while
       // its parent still is.
@@ -164,8 +174,11 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
-      expect(html3).toContain(">Parent Listing<");
-      expect(html3).not.toContain(">Child Listing<");
+      assertStringIncludes(html3, ">Parent Listing<");
+      assert(
+        !html3.includes(">Child Listing<"),
+        "the value should not contain the searched item",
+      );
       // And the server revalidation rejects all three.
       const other = await seedPage("actives-2");
       for (const id of [inactive.id, tier.id, child.id]) {

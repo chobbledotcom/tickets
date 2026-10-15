@@ -4,7 +4,7 @@
  * redirect never carries a child slug or a pre-fill its availability refuses.
  */
 
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { settings } from "#db/settings.ts";
@@ -45,9 +45,15 @@ describeWithEnv(
           parent: { name: "GalParent" },
         });
         const body = await galleryBody();
-        expect(body).toContain(`name="select_${parent.id}"`);
-        expect(body).not.toContain(`name="select_${child.id}"`);
-        expect(body).not.toContain("GalChild");
+        assertStringIncludes(body, `name="select_${parent.id}"`);
+        assert(
+          !body.includes(`name="select_${child.id}"`),
+          "the value should not contain the searched item",
+        );
+        assert(
+          !body.includes("GalChild"),
+          "the value should not contain the searched item",
+        );
       });
 
       test("a selection redirect never contains a child slug", async () => {
@@ -57,8 +63,11 @@ describeWithEnv(
         });
         // Even if a child id is injected into the query, it is not selectable.
         const location = await orderRedirect([parent.id, child.id]);
-        expect(location).toContain(`/ticket/${parent.slug}`);
-        expect(location).not.toContain(child.slug);
+        assertStringIncludes(location, `/ticket/${parent.slug}`);
+        assert(
+          !location.includes(child.slug),
+          "the value should not contain the searched item",
+        );
       });
 
       test("a parent with no bookable child is dimmed, not pre-filled", async () => {
@@ -71,9 +80,15 @@ describeWithEnv(
         await listingChildren.setIds(parent.id, [child.id]);
         const body = await galleryBody();
         // Sold-out parents are rendered as a non-selectable, dimmed card.
-        expect(body).not.toContain(`name="select_${parent.id}"`);
+        assert(
+          !body.includes(`name="select_${parent.id}"`),
+          "the value should not contain the searched item",
+        );
         const location = await orderRedirect([parent.id]);
-        expect(location).not.toContain(`q_${parent.id}=1`);
+        assert(
+          !location.includes(`q_${parent.id}=1`),
+          "the value should not contain the searched item",
+        );
       });
 
       test("a registration-closed listing is carried as a slug but never pre-filled", async () => {
@@ -89,8 +104,11 @@ describeWithEnv(
           name: "ClosedListing",
         });
         const location = await orderRedirect([closed.id]);
-        expect(location).toContain(`/ticket/${closed.slug}`);
-        expect(location).not.toContain(`q_${closed.id}=1`);
+        assertStringIncludes(location, `/ticket/${closed.slug}`);
+        assert(
+          !location.includes(`q_${closed.id}=1`),
+          "the value should not contain the searched item",
+        );
       });
     });
   },

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ServicingEventSummary } from "#db/attendees/servicing.ts";
@@ -32,16 +33,16 @@ describe("ServicingEventEditLink", () => {
     const html = String(
       ServicingEventEditLink({ event: { id: 12, name: "Summer service" } }),
     );
-    expect(html).toContain('href="/admin/servicing/12"');
-    expect(html).toContain("Summer service");
+    assertStringIncludes(html, 'href="/admin/servicing/12"');
+    assertStringIncludes(html, "Summer service");
   });
 });
 
 describe("upcomingServicingSection", () => {
   test("opens with the upcoming-events heading", () => {
     const html = upcomingServicingSection([]);
-    expect(html).toContain("<details open>");
-    expect(html).toContain("<summary>Upcoming service events</summary>");
+    assertStringIncludes(html, "<details open>");
+    assertStringIncludes(html, "<summary>Upcoming service events</summary>");
   });
 
   test("shows one line per event, not one per booking line", () => {
@@ -58,18 +59,21 @@ describe("upcomingServicingSection", () => {
 
   test("shows the date, the listing count and the total quantity", () => {
     const html = upcomingServicingSection([event()]);
-    expect(html).toContain("Saturday 4 July 2026");
-    expect(html).toContain("1 listing");
-    expect(html).toContain("3");
+    assertStringIncludes(html, "Saturday 4 July 2026");
+    assertStringIncludes(html, "1 listing");
+    assertStringIncludes(html, "3");
   });
 
   test("leaves the date out of the details when none is booked", () => {
     const html = upcomingServicingSection([event({ date: null })]);
-    expect(html).not.toContain("· 1 listing");
-    expect(html).toContain("1 listing");
+    assert(
+      !html.includes("· 1 listing"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "1 listing");
   });
 
   test("shows an empty list when there is nothing upcoming", () => {
-    expect(upcomingServicingSection([])).toContain("<ul></ul>");
+    assertStringIncludes(upcomingServicingSection([]), "<ul></ul>");
   });
 });

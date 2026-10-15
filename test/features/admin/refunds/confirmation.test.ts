@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryAll, queryOne } from "#db/client.ts";
@@ -63,8 +64,14 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
       entry.message.includes("Payment marked as refunded"),
     );
     expect(confirmations).toHaveLength(1);
-    expect(confirmations[0]?.message).not.toContain(refund.attendeeName);
-    expect(confirmations[0]?.message).not.toContain(refund.reference.reference);
+    assert(
+      !(confirmations[0]?.message).includes(refund.attendeeName),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !(confirmations[0]?.message).includes(refund.reference.reference),
+      "the value should not contain the searched item",
+    );
     const notes = await getNotesFor(target, refund.privateKey);
     expect(
       notes.filter((note) => note.note.includes("Refund confirmed")),
@@ -80,7 +87,10 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
       [refund.attendee.id],
     );
     if (stored === null) throw new Error("the confirmation was not stored");
-    expect(stored.identity).not.toContain(refund.reference.reference);
+    assert(
+      !stored.identity.includes(refund.reference.reference),
+      "the value should not contain the searched item",
+    );
   });
 
   test("serialises concurrent replay and canonicalises duplicate references", async () => {

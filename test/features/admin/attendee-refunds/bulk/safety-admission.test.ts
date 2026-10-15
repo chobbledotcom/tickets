@@ -1,4 +1,6 @@
 // jscpd:ignore-start -- imports
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { execute, getDb, type SqlStatement, setDb } from "#db/client.ts";
@@ -209,13 +211,18 @@ describeWithEnv(
       });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         "This payment needs an owner review before another refund can be attempted.",
       );
-      expect(html).not.toContain(
-        `action="/admin/listing/${listing.id}/refund-all"`,
+      assert(
+        !html.includes(`action="/admin/listing/${listing.id}/refund-all"`),
+        "the value should not contain the searched item",
       );
-      expect(html).not.toContain("Refund All Attendees");
+      assert(
+        !html.includes("Refund All Attendees"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a review after the first refund batch stops every provider send", async () => {

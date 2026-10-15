@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
@@ -24,7 +25,8 @@ const expectDuplicateRejected = async (
     body,
   );
   expect(response.status).toBe(302);
-  expect(response.headers.get("location")).toContain(
+  assertStringIncludes(
+    response.headers.get("location") ?? "",
     `/admin/groups/${groupId}/bulk-actions/duplicate`,
   );
   expectErrorFlash(response, refusal);
@@ -128,7 +130,8 @@ describeWithEnv(
 
       expect(response.status).toBe(302);
       // Redirect back to the form, not on to a new group page
-      expect(response.headers.get("location")).toContain(
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
         `/admin/groups/${group.id}/bulk-actions/duplicate`,
       );
       // The refusal names the missing field.

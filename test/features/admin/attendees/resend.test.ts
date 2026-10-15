@@ -7,6 +7,7 @@
  * whole bundle.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
@@ -409,8 +410,11 @@ describeWithEnv(
         t("success.notification_resent"),
       )(response);
       const resent = buyerEmailTexts("wording@example.com").at(-1);
-      expect(resent).toContain("Anything else?: Coming by train");
-      expect(resent).not.toContain("Coming by bus");
+      assertStringIncludes(resent, "Anything else?: Coming by train");
+      assert(
+        !resent.includes("Coming by bus"),
+        "the value should not contain the searched item",
+      );
     });
   },
 );

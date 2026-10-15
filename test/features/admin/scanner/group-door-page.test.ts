@@ -7,6 +7,7 @@
  * every-listing warning, and the guards.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -39,9 +40,15 @@ describeWithEnv("group scanner page", { db: true }, () => {
     const { group, members } = await groupDoor();
     const body = await doorPage(group.id);
 
-    expect(body).toContain(`Scanner: ${group.name}`);
-    expect(body).toContain(`data-scan-path="/admin/groups/${group.id}/scan"`);
-    expect(body).not.toContain(`/admin/listing/${members[0]!.id}/scan`);
+    assertStringIncludes(body, `Scanner: ${group.name}`);
+    assertStringIncludes(
+      body,
+      `data-scan-path="/admin/groups/${group.id}/scan"`,
+    );
+    assert(
+      !body.includes(`/admin/listing/${members[0]!.id}/scan`),
+      "the value should not contain the searched item",
+    );
   });
 
   test("offers one option per person, with their places summed", async () => {
@@ -53,7 +60,7 @@ describeWithEnv("group scanner page", { db: true }, () => {
 
     const body = await doorPage(group.id);
 
-    expect(body).toContain("Sam (3 tickets)");
+    assertStringIncludes(body, "Sam (3 tickets)");
     expect(body.match(/role="option"/g)?.length).toBe(1);
   });
 
@@ -75,22 +82,32 @@ describeWithEnv("group scanner page", { db: true }, () => {
 
     const body = await doorPage(group.id);
 
-    expect(body).not.toContain(rosterOption("Rob"));
-    expect(body).not.toContain(rosterOption("Mel"));
+    assert(
+      !body.includes(rosterOption("Rob")),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !body.includes(rosterOption("Mel")),
+      "the value should not contain the searched item",
+    );
   });
 
   test("warns that one scan checks in every listing only once that rule is on", async () => {
     const door = await groupDoor(2);
     // The rule off its default: every door walks one listing per scan, so
     // the page says nothing about spanning listings.
-    expect(await doorPage(door.group.id)).not.toContain(
-      "Scanning a ticket in this group",
+    assert(
+      !(await doorPage(door.group.id)).includes(
+        "Scanning a ticket in this group",
+      ),
+      "the value should not contain the searched item",
     );
 
     await updateTestGroup(door.group.id, { scanChecksInAllListings: true });
     const warned = await doorPage(door.group.id);
-    expect(warned).toContain('role="alert"');
-    expect(warned).toContain(
+    assertStringIncludes(warned, 'role="alert"');
+    assertStringIncludes(
+      warned,
       "Scanning a ticket in this group will check in ALL of the attendee's booked listings in that group",
     );
 
@@ -105,8 +122,9 @@ describeWithEnv("group scanner page", { db: true }, () => {
       maxAttendees: 10,
       name: "Solo",
     });
-    expect(await doorPage(single.id)).not.toContain(
-      "Scanning a ticket in this group",
+    assert(
+      !(await doorPage(single.id)).includes("Scanning a ticket in this group"),
+      "the value should not contain the searched item",
     );
   });
 
@@ -146,9 +164,15 @@ describeWithEnv("group scanner page", { db: true }, () => {
     await updateTestGroup(group.id, { scanChecksInAllListings: true });
     const body = await doorPage(group.id);
 
-    expect(body).not.toContain("Scanning a ticket in this group");
-    expect(body).not.toContain(rosterOption("Ola"));
-    expect(body).toContain("No tickets to check in");
+    assert(
+      !body.includes("Scanning a ticket in this group"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !body.includes(rosterOption("Ola")),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(body, "No tickets to check in");
   });
 
   test("redirects to the login flow with the door page when not authenticated", async () => {
@@ -194,8 +218,8 @@ describeWithEnv("group scanner page", { db: true }, () => {
 
     const body = await doorPage(door.group.id);
 
-    expect(body).toContain(rosterOption("Sam"));
-    expect(body).toContain('data-detail=""');
+    assertStringIncludes(body, rosterOption("Sam"));
+    assertStringIncludes(body, 'data-detail=""');
   });
 
   test("answers the scan of a missing group with not_found", async () => {

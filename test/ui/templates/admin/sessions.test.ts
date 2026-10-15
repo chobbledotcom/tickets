@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { TokenHash } from "#crypto/sealed.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
@@ -45,26 +45,29 @@ describe("adminSessionsPage", () => {
       OWNER_SESSION,
       "",
     );
-    expect(html).toContain("abcdefgh...");
-    expect(html).toContain("qrstuvwx...");
-    expect(html).toContain("Current");
+    assertStringIncludes(html, "abcdefgh...");
+    assertStringIncludes(html, "qrstuvwx...");
+    assertStringIncludes(html, "Current");
   });
 
   test("renders empty state when no sessions", () => {
     const html = adminSessionsPage([], "some-token", OWNER_SESSION, "");
-    expect(html).toContain("No sessions");
+    assertStringIncludes(html, "No sessions");
   });
 
   test("marks the row that matches the current token as current", () => {
     const s = mkSession("abcdefghijklmnop");
     const html = adminSessionsPage([s], s.token, OWNER_SESSION, "");
-    expect(html).toContain("Current");
+    assertStringIncludes(html, "Current");
   });
 
   test("does not mark a row whose token is not the current one", () => {
     const s = mkSession("abcdefghijklmnop");
     const html = adminSessionsPage([s], "a-different-token", OWNER_SESSION, "");
-    expect(html).not.toContain("Current");
+    assert(
+      !html.includes("Current"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("shows the logout-others control with the count of other sessions", () => {
@@ -76,12 +79,15 @@ describe("adminSessionsPage", () => {
       "",
     );
     // Two sessions other than the current one.
-    expect(html).toContain("Log out of all other sessions (2)");
+    assertStringIncludes(html, "Log out of all other sessions (2)");
   });
 
   test("hides the logout-others control when there are no other sessions", () => {
     const s = mkSession("aaaaaaaaaaaaaaaa");
     const html = adminSessionsPage([s], s.token, OWNER_SESSION, "");
-    expect(html).not.toContain("Log out of all other sessions");
+    assert(
+      !html.includes("Log out of all other sessions"),
+      "the value should not contain the searched item",
+    );
   });
 });

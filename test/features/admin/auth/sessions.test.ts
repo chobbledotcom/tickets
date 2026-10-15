@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createSession, getSession } from "#db/sessions.ts";
@@ -38,7 +39,7 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
 
       const response = await awaitTestRequest("/admin/sessions", { cookie });
       const html = await response.text();
-      expect(html).toContain("<mark>Current</mark>");
+      assertStringIncludes(html, "<mark>Current</mark>");
     });
 
     test("shows logout button when other sessions exist", async () => {
@@ -55,7 +56,7 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
 
       const response = await awaitTestRequest("/admin/sessions", { cookie });
       const html = await response.text();
-      expect(html).toContain("Log out of all other sessions");
+      assertStringIncludes(html, "Log out of all other sessions");
     });
 
     test("does not show logout button when no other sessions", async () => {
@@ -63,7 +64,10 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
 
       const response = await awaitTestRequest("/admin/sessions", { cookie });
       const html = await response.text();
-      expect(html).not.toContain("Log out of all other sessions");
+      assert(
+        !html.includes("Log out of all other sessions"),
+        "the value should not contain the searched item",
+      );
     });
   });
 
@@ -191,11 +195,17 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
       const html = await response.text();
 
       // Verify we get login page, not blank screen or dashboard
-      expect(html).toContain("Login");
-      expect(html).toContain("<form");
+      assertStringIncludes(html, "Login");
+      assertStringIncludes(html, "<form");
       expect(html.length).toBeGreaterThan(100); // Not blank
-      expect(html).not.toContain("Listings"); // Should not show dashboard
-      expect(html).not.toContain("No listings yet"); // Should not show listings table
+      assert(
+        !html.includes("Listings"),
+        "the value should not contain the searched item",
+      ); // Should not show dashboard
+      assert(
+        !html.includes("No listings yet"),
+        "the value should not contain the searched item",
+      ); // Should not show listings table
 
       // Verify session was deleted from database after expiration check
       const deletedSession = await getSession(expiredToken);
@@ -220,10 +230,16 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
         const html = await response.text();
 
         // Each request should consistently show login page, not blank or dashboard
-        expect(html).toContain("Login");
+        assertStringIncludes(html, "Login");
         expect(html.length).toBeGreaterThan(100);
-        expect(html).not.toContain("Listings");
-        expect(html).not.toContain("No listings yet");
+        assert(
+          !html.includes("Listings"),
+          "the value should not contain the searched item",
+        );
+        assert(
+          !html.includes("No listings yet"),
+          "the value should not contain the searched item",
+        );
       }
 
       // Verify session was deleted after first access
@@ -239,9 +255,9 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
       const html = await response.text();
 
       // Verify key content elements that should never be blank
-      expect(html).toContain("Listings"); // Page title
-      expect(html).toContain("<table"); // Table structure
-      expect(html).toContain("Listing name"); // Table header
+      assertStringIncludes(html, "Listings"); // Page title
+      assertStringIncludes(html, "<table"); // Table structure
+      assertStringIncludes(html, "Listing name"); // Table header
       expect(html.length).toBeGreaterThan(500); // Substantial content
     });
 
@@ -251,10 +267,10 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
       const html = await response.text();
 
       // Verify key content elements of login page
-      expect(html).toContain("Login");
-      expect(html).toContain("<form");
-      expect(html).toContain("username");
-      expect(html).toContain("password");
+      assertStringIncludes(html, "Login");
+      assertStringIncludes(html, "<form");
+      assertStringIncludes(html, "username");
+      assertStringIncludes(html, "password");
       expect(html.length).toBeGreaterThan(200); // Substantial content
     });
   });

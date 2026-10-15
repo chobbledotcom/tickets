@@ -1,4 +1,6 @@
 /* jscpd:ignore-start -- imports */
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { reserveSession } from "#db/processed-payments.ts";
@@ -80,7 +82,10 @@ describeWithEnv("settlePaymentCallback", { db: true }, () => {
     );
 
     expect(outcome.kind).toBe("unpaid");
-    expect("detail" in outcome && outcome.detail).toContain("status=unpaid");
+    assertStringIncludes(
+      "detail" in outcome && outcome.detail,
+      "status=unpaid",
+    );
   });
 
   test("names the caller in what it records, so an operator can tell them apart", async () => {
@@ -91,7 +96,10 @@ describeWithEnv("settlePaymentCallback", { db: true }, () => {
       "Recovery check",
     );
 
-    expect("detail" in outcome && outcome.detail).toContain("Recovery check");
+    assertStringIncludes(
+      "detail" in outcome && outcome.detail,
+      "Recovery check",
+    );
   });
 
   test("will not touch money for a paid session nothing proves is ours", async () => {
@@ -114,7 +122,8 @@ describeWithEnv("settlePaymentCallback", { db: true }, () => {
     const outcome = await settleStaged("co_held", reference);
 
     expect(outcome.kind).toBe("held");
-    expect("detail" in outcome && outcome.detail).toContain(
+    assertStringIncludes(
+      "detail" in outcome && outcome.detail,
       "Payment is being processed",
     );
   });

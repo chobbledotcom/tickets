@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
@@ -43,14 +44,14 @@ describe("renderQuestions", () => {
   test("renders radio buttons for each answer", () => {
     const html = renderQuestions(colourQuestion()).toString();
 
-    expect(html).toContain("Favourite colour?");
-    expect(html).toContain('name="question_1"');
-    expect(html).toContain('value="10"');
-    expect(html).toContain("Red");
-    expect(html).toContain('value="11"');
-    expect(html).toContain("Blue");
-    expect(html).toContain("required");
-    expect(html).toContain("<fieldset");
+    assertStringIncludes(html, "Favourite colour?");
+    assertStringIncludes(html, 'name="question_1"');
+    assertStringIncludes(html, 'value="10"');
+    assertStringIncludes(html, "Red");
+    assertStringIncludes(html, 'value="11"');
+    assertStringIncludes(html, "Blue");
+    assertStringIncludes(html, "required");
+    assertStringIncludes(html, "<fieldset");
   });
 
   test("omits a choice question whose answers are all deactivated", () => {
@@ -89,9 +90,15 @@ describe("renderQuestions", () => {
 
     const html = renderQuestions(questions).toString();
 
-    expect(html).toContain("Red");
-    expect(html).not.toContain("Blue</label>");
-    expect(html).not.toContain('value="11"');
+    assertStringIncludes(html, "Red");
+    assert(
+      !html.includes("Blue</label>"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('value="11"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders select boxes when configured", () => {
@@ -99,13 +106,17 @@ describe("renderQuestions", () => {
 
     // The question text labels the <select> via a wrapping <label>, so the
     // control has an accessible name without a separate screen-reader element.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<label class="custom-question">Favourite colour?<select',
     );
-    expect(html).toContain('<select name="question_1" required>');
-    expect(html).toContain('<option value="">Select an answer</option>');
-    expect(html).toContain('<option value="10">Red</option>');
-    expect(html).not.toContain('type="radio"');
+    assertStringIncludes(html, '<select name="question_1" required>');
+    assertStringIncludes(html, '<option value="">Select an answer</option>');
+    assertStringIncludes(html, '<option value="10">Red</option>');
+    assert(
+      !html.includes('type="radio"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders a free-text input when configured", () => {
@@ -122,12 +133,21 @@ describe("renderQuestions", () => {
 
     // The question text labels the text input via a wrapping <label>, matching
     // the select case, so the control has an accessible name on its own.
-    expect(html).toContain('<label class="custom-question">Your name?<input');
-    expect(html).toContain('name="question_1"');
-    expect(html).toContain('type="text"');
-    expect(html).toContain("required");
-    expect(html).not.toContain("<select");
-    expect(html).not.toContain('type="radio"');
+    assertStringIncludes(
+      html,
+      '<label class="custom-question">Your name?<input',
+    );
+    assertStringIncludes(html, 'name="question_1"');
+    assertStringIncludes(html, 'type="text"');
+    assertStringIncludes(html, "required");
+    assert(
+      !html.includes("<select"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('type="radio"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("restores a saved free-text answer from saved form data", async () => {
@@ -143,7 +163,7 @@ describe("renderQuestions", () => {
       ]).toString();
     });
 
-    expect(html).toContain('value="Ada Lovelace"');
+    assertStringIncludes(html, 'value="Ada Lovelace"');
   });
 
   test("restores selected select answers from saved form data", async () => {
@@ -152,15 +172,18 @@ describe("renderQuestions", () => {
       return renderQuestions(colourQuestion("select")).toString();
     });
 
-    expect(html).toContain('<option selected value="11">Blue</option>');
-    expect(html).not.toContain('<option selected value="10">Red</option>');
+    assertStringIncludes(html, '<option selected value="11">Blue</option>');
+    assert(
+      !html.includes('<option selected value="10">Red</option>'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders multiple questions", () => {
     const html = renderQuestions(twoRadioQuestions()).toString();
 
-    expect(html).toContain('name="question_1"');
-    expect(html).toContain('name="question_2"');
+    assertStringIncludes(html, 'name="question_1"');
+    assertStringIncludes(html, 'name="question_2"');
   });
 
   test("escapes HTML in question and answer text", () => {
@@ -177,9 +200,12 @@ describe("renderQuestions", () => {
 
     const html = renderQuestions(questions).toString();
 
-    expect(html).toContain("&lt;b&gt;");
-    expect(html).toContain("S&amp;M");
-    expect(html).not.toContain("<b>size</b>");
+    assertStringIncludes(html, "&lt;b&gt;");
+    assertStringIncludes(html, "S&amp;M");
+    assert(
+      !html.includes("<b>size</b>"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("adds data-listing-ids when questionListingMap is provided", () => {
@@ -190,8 +216,8 @@ describe("renderQuestions", () => {
 
     const html = renderQuestions(twoRadioQuestions(), listingMap).toString();
 
-    expect(html).toContain('data-listing-ids="100 200"');
-    expect(html).toContain('data-listing-ids="200"');
+    assertStringIncludes(html, 'data-listing-ids="100 200"');
+    assertStringIncludes(html, 'data-listing-ids="200"');
   });
 
   test("omits data-listing-ids when no map provided", () => {
@@ -208,7 +234,10 @@ describe("renderQuestions", () => {
 
     const html = renderQuestions(questions).toString();
 
-    expect(html).not.toContain("data-listing-ids");
+    assert(
+      !html.includes("data-listing-ids"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("wraps simple question text in a label for free-text questions", () => {
@@ -221,9 +250,12 @@ describe("renderQuestions", () => {
       },
     ]).toString();
 
-    expect(html).toContain('<label class="custom-question">');
-    expect(html).toContain("Your name?");
-    expect(html).not.toContain('<div class="prose">');
+    assertStringIncludes(html, '<label class="custom-question">');
+    assertStringIncludes(html, "Your name?");
+    assert(
+      !html.includes('<div class="prose">'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders complex markdown as a prose div for free-text questions", () => {
@@ -236,18 +268,24 @@ describe("renderQuestions", () => {
       },
     ]).toString();
 
-    expect(html).toContain('<div class="custom-question">');
-    expect(html).toContain('<div class="prose" id="question-1-prose">');
-    expect(html).toContain('aria-labelledby="question-1-prose"');
-    expect(html).toContain("<strong>more</strong>");
-    expect(html).not.toContain("**more**");
+    assertStringIncludes(html, '<div class="custom-question">');
+    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
+    assertStringIncludes(html, 'aria-labelledby="question-1-prose"');
+    assertStringIncludes(html, "<strong>more</strong>");
+    assert(
+      !html.includes("**more**"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("wraps simple question text in a label for select questions", () => {
     const html = renderQuestions(colourQuestion("select")).toString();
 
-    expect(html).toContain('<label class="custom-question">');
-    expect(html).not.toContain('<div class="prose">');
+    assertStringIncludes(html, '<label class="custom-question">');
+    assert(
+      !html.includes('<div class="prose">'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders complex markdown as a prose div for select questions", () => {
@@ -262,17 +300,20 @@ describe("renderQuestions", () => {
       },
     ]).toString();
 
-    expect(html).toContain('<div class="custom-question">');
-    expect(html).toContain('<div class="prose" id="question-1-prose">');
-    expect(html).toContain('aria-labelledby="question-1-prose"');
-    expect(html).toContain('<a href="https://example.com">a colour</a>');
+    assertStringIncludes(html, '<div class="custom-question">');
+    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
+    assertStringIncludes(html, 'aria-labelledby="question-1-prose"');
+    assertStringIncludes(html, '<a href="https://example.com">a colour</a>');
   });
 
   test("wraps simple question text in a legend for radio questions", () => {
     const html = renderQuestions(colourQuestion()).toString();
 
-    expect(html).toContain("<legend>Favourite colour?</legend>");
-    expect(html).not.toContain('<div class="prose">');
+    assertStringIncludes(html, "<legend>Favourite colour?</legend>");
+    assert(
+      !html.includes('<div class="prose">'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders complex markdown as a prose div for radio questions", () => {
@@ -287,11 +328,15 @@ describe("renderQuestions", () => {
       },
     ]).toString();
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<fieldset aria-labelledby="question-1-prose" class="custom-question">',
     );
-    expect(html).toContain('<div class="prose" id="question-1-prose">');
-    expect(html).toContain("<h1>Heading</h1>");
-    expect(html).not.toContain("<legend>");
+    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
+    assertStringIncludes(html, "<h1>Heading</h1>");
+    assert(
+      !html.includes("<legend>"),
+      "the value should not contain the searched item",
+    );
   });
 });

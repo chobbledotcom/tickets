@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -169,14 +170,20 @@ describeWithEnv("free reservation construction", { db: true }, () => {
 
     test("names the listing the refusal says is out of room", async () => {
       const result = await refusedTwoListingOrder([10]);
-      expect(result.error).toContain("Second choice");
-      expect(result.error).not.toContain("First choice");
+      assertStringIncludes(result.error, "Second choice");
+      assert(
+        !result.error.includes("First choice"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("falls back to the first listing when the refusal names none", async () => {
       const result = await refusedTwoListingOrder([]);
-      expect(result.error).toContain("First choice");
-      expect(result.error).not.toContain("Second choice");
+      assertStringIncludes(result.error, "First choice");
+      assert(
+        !result.error.includes("Second choice"),
+        "the value should not contain the searched item",
+      );
     });
   });
 });

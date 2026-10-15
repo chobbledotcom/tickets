@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
@@ -35,8 +36,8 @@ const EDITOR_SESSION: AdminSession = { adminLevel: "editor" };
 const expectRenewalLink = async (): Promise<void> => {
   using _env = withEnv({ RENEWAL_URL: "https://example.com/renew" });
   const html = String(AdminNav({ active: "/admin/", session: OWNER_SESSION }));
-  expect(html).toContain("Renew now");
-  expect(html).toContain("https://example.com/renew");
+  assertStringIncludes(html, "Renew now");
+  assertStringIncludes(html, "https://example.com/renew");
 };
 
 const setupLayoutTest = async (): Promise<void> => {
@@ -55,19 +56,19 @@ describe("asset-paths", () => {
 
   test("pages include CSS_PATH in stylesheet link", () => {
     const html = adminLoginPage();
-    expect(html).toContain(`href="${CSS_PATH}"`);
-    expect(html).toContain('rel="stylesheet"');
+    assertStringIncludes(html, `href="${CSS_PATH}"`);
+    assertStringIncludes(html, 'rel="stylesheet"');
   });
 
   test("pages include JS_PATH in deferred script tag", () => {
     const html = adminLoginPage();
-    expect(html).toContain(`src="${JS_PATH}"`);
-    expect(html).toContain("defer");
+    assertStringIncludes(html, `src="${JS_PATH}"`);
+    assertStringIncludes(html, "defer");
   });
 
   test("pages link /custom.css cache-busted by the settings version", () => {
     const html = adminLoginPage();
-    expect(html).toContain(`href="/custom.css?v=${settings.version}"`);
+    assertStringIncludes(html, `href="/custom.css?v=${settings.version}"`);
   });
 });
 
@@ -79,11 +80,11 @@ describe("Layout skip navigation", () => {
     const html = String(
       Layout({ children: "", family: "public", title: "Test" }),
     );
-    expect(html).toContain('class="skip-nav"');
-    expect(html).toContain('href="#main-content"');
-    expect(html).toContain("Skip to content");
-    expect(html).toContain('id="main-content"');
-    expect(html).toContain('tabindex="-1"');
+    assertStringIncludes(html, 'class="skip-nav"');
+    assertStringIncludes(html, 'href="#main-content"');
+    assertStringIncludes(html, "Skip to content");
+    assertStringIncludes(html, 'id="main-content"');
+    assertStringIncludes(html, 'tabindex="-1"');
   });
 
   test("keeps global chrome direct while grouping page regions", () => {
@@ -97,7 +98,8 @@ describe("Layout skip navigation", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<main id="main-content" tabindex="-1"><nav class="example-nav">Menu</nav><div class="page-regions example-page"><h1>Heading</h1><p>Body</p></div></main>',
     );
   });
@@ -113,11 +115,13 @@ describe("Layout document shell", () => {
     );
 
     expect(html.slice(0, "<!DOCTYPE html>".length)).toBe("<!DOCTYPE html>");
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<meta charset="UTF-8"><meta content="width=device-width, initial-scale=1.0" name="viewport">',
     );
-    expect(html).toContain(`<link href="${CSS_PATH}" rel="stylesheet">`);
-    expect(html).toContain(
+    assertStringIncludes(html, `<link href="${CSS_PATH}" rel="stylesheet">`);
+    assertStringIncludes(
+      html,
       `<link href="/custom.css?v=${settings.version}" rel="stylesheet">`,
     );
   });
@@ -133,8 +137,11 @@ describe("Layout document shell", () => {
       }),
     );
 
-    expect(html).toContain(extra);
-    expect(html).not.toContain("&lt;meta");
+    assertStringIncludes(html, extra);
+    assert(
+      !html.includes("&lt;meta"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("applies an explicit body class without adding the iframe script", () => {
@@ -147,10 +154,14 @@ describe("Layout document shell", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<body class="example-page" data-page-family="public">',
     );
-    expect(html).not.toContain(IFRAME_RESIZER_CHILD_JS_PATH);
+    assert(
+      !html.includes(IFRAME_RESIZER_CHILD_JS_PATH),
+      "the value should not contain the searched item",
+    );
   });
 
   test("adds the iframe script only for an iframe body class", () => {
@@ -163,10 +174,12 @@ describe("Layout document shell", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<body class="example iframe" data-page-family="public">',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<script src="${IFRAME_RESIZER_CHILD_JS_PATH}"></script>`,
     );
   });
@@ -177,7 +190,8 @@ describe("Layout document shell", () => {
       Layout({ children: "", family: "public", title: "Test" }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<img alt="" class="header-image" src="${getImageProxyUrl(
         "header.jpg",
       )}">`,
@@ -191,8 +205,14 @@ describe("Layout document shell", () => {
       return String(Layout({ children: "", family: "public", title: "Test" }));
     });
 
-    expect(html).not.toContain("header-image");
-    expect(html).not.toContain(getImageProxyUrl("header.jpg"));
+    assert(
+      !html.includes("header-image"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes(getImageProxyUrl("header.jpg")),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders the demo banner only in demo mode", () => {
@@ -204,8 +224,11 @@ describe("Layout document shell", () => {
       Layout({ children: "", family: "public", title: "Test" }),
     );
 
-    expect(normalHtml).not.toContain('class="demo-banner"');
-    expect(demoHtml).toContain('class="demo-banner"');
+    assert(
+      !normalHtml.includes('class="demo-banner"'),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(demoHtml, 'class="demo-banner"');
   });
 
   test("renders an unconsumed request flash before the page content", async () => {
@@ -216,7 +239,8 @@ describe("Layout document shell", () => {
       );
     });
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div class="success" role="alert">Saved from context</div><div class="page-regions">Page body</div>',
     );
   });
@@ -230,8 +254,11 @@ describe("Layout document shell", () => {
       );
     });
 
-    expect(html).not.toContain("Already shown");
-    expect(html).toContain('<div class="page-regions">Page body</div>');
+    assert(
+      !html.includes("Already shown"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, '<div class="page-regions">Page body</div>');
   });
 });
 
@@ -241,21 +268,21 @@ describe("adminLoginPage", () => {
 
   test("renders login form", () => {
     const html = adminLoginPage();
-    expect(html).toContain("Login");
-    expect(html).toContain('action="/admin/login"');
-    expect(html).toContain('type="password"');
-    expect(html).toContain('name="csrf_token"');
+    assertStringIncludes(html, "Login");
+    assertStringIncludes(html, 'action="/admin/login"');
+    assertStringIncludes(html, 'type="password"');
+    assertStringIncludes(html, 'name="csrf_token"');
   });
 
   test("shows error when provided", () => {
     const html = adminLoginPage("Invalid password");
-    expect(html).toContain("Invalid password");
-    expect(html).toContain('class="error"');
+    assertStringIncludes(html, "Invalid password");
+    assertStringIncludes(html, 'class="error"');
   });
 
   test("escapes error message", () => {
     const html = adminLoginPage("<script>evil()</script>");
-    expect(html).toContain("&lt;script&gt;");
+    assertStringIncludes(html, "&lt;script&gt;");
   });
 });
 
@@ -291,8 +318,8 @@ describeWithEnv(
       const html = String(
         AdminNav({ active: "/admin/", session: OWNER_SESSION }),
       );
-      expect(html).toContain("read-only-banner");
-      expect(html).toContain("This site is in read-only mode");
+      assertStringIncludes(html, "read-only-banner");
+      assertStringIncludes(html, "This site is in read-only mode");
     });
 
     test("AdminNav read-only banner includes renewal link when RENEWAL_URL is set", async () => {
@@ -306,8 +333,11 @@ describeWithEnv(
         listings: [buildTicketListing(listing, false, undefined)],
         slugs: [listing.slug],
       });
-      expect(html).toContain("Registration closed.");
-      expect(html).not.toContain("Continue");
+      assertStringIncludes(html, "Registration closed.");
+      assert(
+        !html.includes("Continue"),
+        "the value should not contain the searched item",
+      );
     });
   },
 );
@@ -327,8 +357,8 @@ describeWithEnv(
       const html = String(
         AdminNav({ active: "/admin/", session: OWNER_SESSION }),
       );
-      expect(html).toContain("read-only-banner-warning");
-      expect(html).toContain("expires on");
+      assertStringIncludes(html, "read-only-banner-warning");
+      assertStringIncludes(html, "expires on");
     });
 
     test("AdminNav warning banner includes renewal link when RENEWAL_URL is set", async () => {
@@ -342,9 +372,12 @@ describeWithEnv(
         const html = String(
           AdminNav({ active: "/admin/", session: OWNER_SESSION }),
         );
-        expect(html).toContain("read-only-banner-warning");
-        expect(html).toContain("Your site is approaching its expiry");
-        expect(html).not.toContain("expires on");
+        assertStringIncludes(html, "read-only-banner-warning");
+        assertStringIncludes(html, "Your site is approaching its expiry");
+        assert(
+          !html.includes("expires on"),
+          "the value should not contain the searched item",
+        );
       } finally {
         Date.prototype.toLocaleDateString = original;
       }

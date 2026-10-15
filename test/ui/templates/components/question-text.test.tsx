@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
@@ -44,8 +45,8 @@ describe("questionTextContent", () => {
     const content = String(
       questionTextContent(radioQuestion("What **size**?")),
     );
-    expect(content).toContain('<div class="prose" id="question-1-prose">');
-    expect(content).toContain("<strong>size</strong>");
+    assertStringIncludes(content, '<div class="prose" id="question-1-prose">');
+    assertStringIncludes(content, "<strong>size</strong>");
   });
 });
 
@@ -56,10 +57,10 @@ describe("questionWrapper", () => {
         <input name="q1" type="text" />
       )),
     );
-    expect(html).toContain('<label class="custom-question">');
-    expect(html).toContain("What size?");
-    expect(html).toContain('name="q1"');
-    expect(html).toContain('type="text"');
+    assertStringIncludes(html, '<label class="custom-question">');
+    assertStringIncludes(html, "What size?");
+    assertStringIncludes(html, 'name="q1"');
+    assertStringIncludes(html, 'type="text"');
   });
 
   test("does not pass a labelledBy id when the control is inside a label", () => {
@@ -70,7 +71,10 @@ describe("questionWrapper", () => {
         <input aria-labelledby={labelledBy} name="q1" type="text" />
       )),
     );
-    expect(html).not.toContain("aria-labelledby");
+    assert(
+      !html.includes("aria-labelledby"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("wraps a control in a div with prose for complex markdown", () => {
@@ -79,12 +83,16 @@ describe("questionWrapper", () => {
         <input name="q1" type="text" />
       )),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div class="custom-question" data-listing-ids="100 200">',
     );
-    expect(html).toContain('<div class="prose" id="question-1-prose">');
-    expect(html).toContain("<strong>size</strong>");
-    expect(html).not.toContain('<label class="custom-question">');
+    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
+    assertStringIncludes(html, "<strong>size</strong>");
+    assert(
+      !html.includes('<label class="custom-question">'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("names the control via aria-labelledby for complex markdown", () => {
@@ -99,8 +107,8 @@ describe("questionWrapper", () => {
         ),
       ),
     );
-    expect(html).toContain('aria-labelledby="question-1-prose"');
-    expect(html).toContain('<div class="prose" id="question-1-prose">');
+    assertStringIncludes(html, 'aria-labelledby="question-1-prose"');
+    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
   });
 });
 
@@ -114,11 +122,17 @@ describe("questionFieldset", () => {
       ]),
     );
 
-    expect(html).toContain('<fieldset class="custom-question">');
-    expect(html).toContain("<legend>What size?</legend>");
-    expect(html).toContain('type="radio"');
-    expect(html).not.toContain('<div class="prose">');
-    expect(html).not.toContain("aria-labelledby");
+    assertStringIncludes(html, '<fieldset class="custom-question">');
+    assertStringIncludes(html, "<legend>What size?</legend>");
+    assertStringIncludes(html, 'type="radio"');
+    assert(
+      !html.includes('<div class="prose">'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("aria-labelledby"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders complex fieldset text as prose and names the group by it", () => {
@@ -130,11 +144,15 @@ describe("questionFieldset", () => {
       ]),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<fieldset aria-labelledby="question-1-prose" class="custom-question" data-listing-ids="100 200">',
     );
-    expect(html).toContain('<div class="prose" id="question-1-prose">');
-    expect(html).toContain("<strong>size</strong>");
-    expect(html).not.toContain("<legend>");
+    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
+    assertStringIncludes(html, "<strong>size</strong>");
+    assert(
+      !html.includes("<legend>"),
+      "the value should not contain the searched item",
+    );
   });
 });

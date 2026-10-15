@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -96,7 +97,10 @@ describeAdminSettings(() => {
     test("settings page hides booking fee form when no payment provider", async () => {
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      expect(html).not.toContain('id="settings-booking-fee"');
+      assert(
+        !html.includes('id="settings-booking-fee"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("rejects missing booking_fee field", async () => {

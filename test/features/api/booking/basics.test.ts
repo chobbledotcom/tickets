@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -75,7 +76,7 @@ describePublicApi(() => {
         name: "Alice",
       });
       expect(response.status).toBe(400);
-      expect(body.error).toContain("website");
+      assertStringIncludes(body.error, "website");
     });
 
     test("returns 400 when required name is missing", async () => {

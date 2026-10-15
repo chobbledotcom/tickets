@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -53,8 +54,11 @@ describeWithEnv("QR booking parent gate", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(404);
-    expect(html).toContain("QR code expired or invalid");
-    expect(html).not.toContain(`href="/ticket/${child.slug}"`);
+    assertStringIncludes(html, "QR code expired or invalid");
+    assert(
+      !html.includes(`href="/ticket/${child.slug}"`),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a childless listing still skips to checkout", async () => {

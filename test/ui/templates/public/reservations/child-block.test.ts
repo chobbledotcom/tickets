@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -51,9 +53,12 @@ const renderHidingChildName = async (
   child: Listing,
 ): Promise<string> => {
   const html = await bookingPageHtml(parent.slug);
-  expect(html).toContain(`data-sole-child="${child.id}"`);
-  expect(html).toContain(`name="child_price_${parent.id}_${child.id}"`);
-  expect(html).not.toContain("Hidden add-on");
+  assertStringIncludes(html, `data-sole-child="${child.id}"`);
+  assertStringIncludes(html, `name="child_price_${parent.id}_${child.id}"`);
+  assert(
+    !html.includes("Hidden add-on"),
+    "the value should not contain the searched item",
+  );
   return html;
 };
 
@@ -101,12 +106,12 @@ describeWithEnv(
         html,
         `child_qty_${parent.id}_${childB.id}`,
       );
-      expect(optionsB).toContain('value="1" selected');
+      assertStringIncludes(optionsB, 'value="1" selected');
       const optionsA = selectOptionsFromHtml(
         html,
         `child_qty_${parent.id}_${childA.id}`,
       );
-      expect(optionsA).toContain('value="0" selected');
+      assertStringIncludes(optionsA, 'value="0" selected');
     });
 
     test("pay-more children render non-required price inputs", async () => {
@@ -124,16 +129,28 @@ describeWithEnv(
       ];
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<fieldset class="child-selector" data-parent-id="${parent.id}">`,
       );
-      expect(html).toContain(`name="child_price_${parent.id}_${childA.id}"`);
-      expect(html).toContain(`name="child_price_${parent.id}_${childB.id}"`);
-      expect(html).toContain(`name="child_qty_${parent.id}_${fixedChild.id}"`);
-      expect(html).not.toContain(
-        `name="child_price_${parent.id}_${fixedChild.id}"`,
+      assertStringIncludes(
+        html,
+        `name="child_price_${parent.id}_${childA.id}"`,
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
+        `name="child_price_${parent.id}_${childB.id}"`,
+      );
+      assertStringIncludes(
+        html,
+        `name="child_qty_${parent.id}_${fixedChild.id}"`,
+      );
+      assert(
+        !html.includes(`name="child_price_${parent.id}_${fixedChild.id}"`),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(
+        html,
         `data-child-qty="${fixedChild.id}"><option value="0" selected>0</option><option value="1">1</option></select> Child 3 (£10)</label></fieldset>`,
       );
       expect(html).not.toMatch(
@@ -156,19 +173,22 @@ describeWithEnv(
       await deactivateTestListing(deadChild.id);
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).not.toContain(
-        `name="child_qty_${parent.id}_${liveChild.id}"`,
+      assert(
+        !html.includes(`name="child_qty_${parent.id}_${liveChild.id}"`),
+        "the value should not contain the searched item",
       );
-      expect(html).toContain(`data-sole-child="${liveChild.id}"`);
+      assertStringIncludes(html, `data-sole-child="${liveChild.id}"`);
       expect(html).toMatch(
         new RegExp(
           `<select name="child_qty_${parent.id}_${deadChild.id}"[^>]*\\sdisabled`,
         ),
       );
-      expect(html).not.toContain(
-        `name="child_price_${parent.id}_${deadChild.id}"`,
+      assert(
+        !html.includes(`name="child_price_${parent.id}_${deadChild.id}"`),
+        "the value should not contain the searched item",
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<select name="child_qty_${parent.id}_${deadChild.id}" disabled><option value="0" selected>0</option></select> Child 2 (unavailable)</label></fieldset>`,
       );
     });
@@ -181,24 +201,39 @@ describeWithEnv(
       const [childA, childB] = [children[0]!, children[1]!];
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<select name="child_qty_${parent.id}_${childA.id}"`,
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<select name="child_qty_${parent.id}_${childB.id}"`,
       );
       const optionsA = await selectOptionsHtml(
         parent.slug,
         `child_qty_${parent.id}_${childA.id}`,
       );
-      expect(optionsA).toContain('value="2"');
-      expect(optionsA).not.toContain('value="3"');
-      expect(html).toContain("Choose add-ons to match your ticket quantity");
-      expect(html).not.toContain("Choose 2 add-ons in total");
-      expect(html).toContain(
+      assertStringIncludes(optionsA, 'value="2"');
+      assert(
+        !optionsA.includes('value="3"'),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(
+        html,
+        "Choose add-ons to match your ticket quantity",
+      );
+      assert(
+        !html.includes("Choose 2 add-ons in total"),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(
+        html,
         `<p class="child-total-note" data-child-total="${parent.id}">Choose add-ons to match your ticket quantity. <span class="child-total-hint" data-child-hint="${parent.id}"></span></p>`,
       );
-      expect(html).toContain("<legend>Choose an option for Parent</legend>");
+      assertStringIncludes(
+        html,
+        "<legend>Choose an option for Parent</legend>",
+      );
     });
 
     test("a sole pay-more child renders its price input", async () => {
@@ -207,8 +242,11 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).not.toContain(`name="child_qty_${parent.id}_${child.id}"`);
-      expect(html).toContain(`name="child_price_${parent.id}_${child.id}"`);
+      assert(
+        !html.includes(`name="child_qty_${parent.id}_${child.id}"`),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(html, `name="child_price_${parent.id}_${child.id}"`);
     });
 
     test("a sole free child is informational", async () => {
@@ -218,23 +256,41 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).not.toContain(`name="child_qty_${parent.id}_${child.id}"`);
-      expect(html).toContain(`data-sole-child="${child.id}"`);
+      assert(
+        !html.includes(`name="child_qty_${parent.id}_${child.id}"`),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(html, `data-sole-child="${child.id}"`);
       // An ordinary sole child shows its name alone — no plan term.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<p class="child-option child-sole" data-sole-parent="${parent.id}" data-sole-child="${child.id}">Add-on</p>`,
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<fieldset class="child-selector" data-parent-id="${parent.id}"><p class="child-option child-sole"`,
       );
-      expect(html).toContain("Add-on");
-      expect(html).not.toContain("Includes");
-      expect(html).not.toContain("one per booking");
-      expect(html).not.toContain("Choose an option for");
-      expect(html).not.toContain(
-        "Choose add-ons to match your ticket quantity",
+      assertStringIncludes(html, "Add-on");
+      assert(
+        !html.includes("Includes"),
+        "the value should not contain the searched item",
       );
-      expect(html).not.toContain("(£0");
+      assert(
+        !html.includes("one per booking"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("Choose an option for"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("Choose add-ons to match your ticket quantity"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("(£0"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a sole paid child shows its name and price", async () => {
@@ -243,24 +299,40 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).toContain(`data-sole-child="${child.id}"`);
-      expect(html).toContain("Paid add-on");
-      expect(html).toContain("(£10");
-      expect(html).not.toContain("Includes");
-      expect(html).not.toContain("one per booking");
-      expect(html).not.toContain("Choose an option for");
+      assertStringIncludes(html, `data-sole-child="${child.id}"`);
+      assertStringIncludes(html, "Paid add-on");
+      assertStringIncludes(html, "(£10");
+      assert(
+        !html.includes("Includes"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("one per booking"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("Choose an option for"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a sole hidden child keeps its markers without showing its name", async () => {
       const { parent, child } = await makeHiddenSoleChild();
 
       const html = await renderHidingChildName(parent, child);
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<p class="child-option child-sole" data-sole-parent="${parent.id}" data-sole-child="${child.id}"></p><label>Price per ticket`,
       );
-      expect(html).toContain("</label></fieldset>");
-      expect(html).not.toContain("Includes");
-      expect(html).not.toContain("Choose an option for");
+      assertStringIncludes(html, "</label></fieldset>");
+      assert(
+        !html.includes("Includes"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("Choose an option for"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a visible sole child shows its selected attributes", async () => {
@@ -270,10 +342,10 @@ describeWithEnv(
       await giveAdultsAudience(child.id);
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).toContain(`data-sole-child="${child.id}"`);
-      expect(html).toContain("listing-attributes");
-      expect(html).toContain("Audience");
-      expect(html).toContain("Adults");
+      assertStringIncludes(html, `data-sole-child="${child.id}"`);
+      assertStringIncludes(html, "listing-attributes");
+      assertStringIncludes(html, "Audience");
+      assertStringIncludes(html, "Adults");
     });
 
     test("a hidden sole child does not show its attributes", async () => {
@@ -281,8 +353,14 @@ describeWithEnv(
       await giveAdultsAudience(child.id);
 
       const html = await renderHidingChildName(parent, child);
-      expect(html).not.toContain("Audience");
-      expect(html).not.toContain("Adults");
+      assert(
+        !html.includes("Audience"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("Adults"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("an all-free multi-child selector hides every price", async () => {
@@ -295,15 +373,19 @@ describeWithEnv(
       const [childA, childB] = [children[0]!, children[1]!];
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).toContain("Choose an option for Parent");
-      expect(html).toContain("Free A");
-      expect(html).toContain("Free B");
-      expect(html).toContain(`name="child_qty_${parent.id}_${childA.id}"`);
-      expect(html).toContain(`name="child_qty_${parent.id}_${childB.id}"`);
-      expect(html).toContain(
+      assertStringIncludes(html, "Choose an option for Parent");
+      assertStringIncludes(html, "Free A");
+      assertStringIncludes(html, "Free B");
+      assertStringIncludes(html, `name="child_qty_${parent.id}_${childA.id}"`);
+      assertStringIncludes(html, `name="child_qty_${parent.id}_${childB.id}"`);
+      assertStringIncludes(
+        html,
         `Free A</label><label class="child-option"><select name="child_qty_${parent.id}_${childB.id}"`,
       );
-      expect(html).not.toContain("(£0");
+      assert(
+        !html.includes("(£0"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a mixed-price selector shows every price", async () => {
@@ -315,11 +397,11 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).toContain("Choose an option for Parent");
-      expect(html).toContain("Free A");
-      expect(html).toContain("Paid B");
-      expect(html).toContain("(£0");
-      expect(html).toContain("(£10");
+      assertStringIncludes(html, "Choose an option for Parent");
+      assertStringIncludes(html, "Free A");
+      assertStringIncludes(html, "Paid B");
+      assertStringIncludes(html, "(£0");
+      assertStringIncludes(html, "(£10");
     });
   },
 );

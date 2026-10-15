@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
@@ -44,12 +45,15 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
       for (const action of ["deactivate", "reactivate"] as const) {
         const href = `/admin/groups/${group.id}/bulk-actions/${action}`;
         if (visible.includes(action)) {
-          expect(html).toContain(href);
+          assertStringIncludes(html, href);
         } else {
-          expect(html).not.toContain(href);
+          assert(
+            !html.includes(href),
+            "the value should not contain the searched item",
+          );
         }
       }
-      expect(html).toContain(countPhrase);
+      assertStringIncludes(html, countPhrase);
       return html;
     };
 
@@ -68,7 +72,8 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
         "all 2 listings",
       );
       // The copy action is offered unconditionally on the success render.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `/admin/groups/${group.id}/bulk-actions/duplicate`,
       );
     });
@@ -87,7 +92,10 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
         "all 1 listing",
       );
       // Guard against the plural-suffix "listings" slipping through for 1.
-      expect(html).not.toContain("1 listings");
+      assert(
+        !html.includes("1 listings"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("an empty group renders neither the deactivate nor the reactivate link", async () => {

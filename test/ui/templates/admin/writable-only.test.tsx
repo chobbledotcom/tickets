@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -37,7 +38,10 @@ test("WritableOnly renders nothing (not literal 'null') in read-only mode", () =
     </WritableOnly>,
   );
   expect(html).toBe("");
-  expect(html).not.toContain("null");
+  assert(
+    !html.includes("null"),
+    "the value should not contain the searched item",
+  );
 });
 
 // Regression (same root cause): WritableDangerLink wraps content in
@@ -48,5 +52,8 @@ test("WritableDangerLink renders nothing in read-only mode", () => {
     <WritableDangerLink href="/delete">Delete</WritableDangerLink>,
   );
   expect(html).toBe("");
-  expect(html).not.toContain("null");
+  assert(
+    !html.includes("null"),
+    "the value should not contain the searched item",
+  );
 });

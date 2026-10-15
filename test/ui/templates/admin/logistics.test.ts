@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -32,27 +33,28 @@ describe("LogisticsAgentEditPanel", () => {
 
   test("groups the form into agent-details and assigned-users fieldsets", () => {
     const html = renderPanel();
-    expect(html).toContain("<legend>Agent details</legend>");
-    expect(html).toContain("<legend>Assigned users</legend>");
-    expect(html).toContain("Van 1");
+    assertStringIncludes(html, "<legend>Agent details</legend>");
+    assertStringIncludes(html, "<legend>Assigned users</legend>");
+    assertStringIncludes(html, "Van 1");
     // The agent-details fieldset and the assigned-users fieldset carry their
     // exact classes.
-    expect(html).toContain('<fieldset class="listing-section">');
-    expect(html).toContain('class="checkboxes listing-section"');
+    assertStringIncludes(html, '<fieldset class="listing-section">');
+    assertStringIncludes(html, 'class="checkboxes listing-section"');
   });
 
   test("explains that agent-class users only see the deliveries page", () => {
     const html = renderPanel();
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "Agent-class users can only see the deliveries page",
     );
   });
 
   test("lists every user class as an assignable checkbox", () => {
     const html = renderPanel();
-    expect(html).toContain('name="user_ids"');
-    expect(html).toContain("driver (agent)");
-    expect(html).toContain("boss (manager)");
+    assertStringIncludes(html, 'name="user_ids"');
+    assertStringIncludes(html, "driver (agent)");
+    assertStringIncludes(html, "boss (manager)");
   });
 
   test("pre-checks the users already assigned to the agent", () => {
@@ -70,7 +72,7 @@ describe("LogisticsAgentEditPanel", () => {
         users: [],
       }),
     );
-    expect(html).toContain("No users to assign yet.");
+    assertStringIncludes(html, "No users to assign yet.");
   });
 
   test("renders submitted values and an error", () => {
@@ -83,8 +85,8 @@ describe("LogisticsAgentEditPanel", () => {
         values: { name: "Submitted van" },
       }),
     );
-    expect(html).toContain('value="Submitted van"');
-    expect(html).toContain("Agent name is required");
+    assertStringIncludes(html, 'value="Submitted van"');
+    assertStringIncludes(html, "Agent name is required");
     expect(html).toMatch(/value="1"[^>]*checked|checked[^>]*value="1"/);
   });
 });
@@ -94,18 +96,25 @@ describe("logisticsAgentPages delete page", () => {
 
   test("confirms the agent by name and posts to its delete path", () => {
     const html = logisticsAgentPages.deletePage(agent, OWNER_SESSION);
-    expect(html).toContain('action="/admin/logistics/7/delete"');
-    expect(html).toContain(
+    assertStringIncludes(html, 'action="/admin/logistics/7/delete"');
+    assertStringIncludes(
+      html,
       "delete the logistics agent <strong>Van 1</strong>?",
     );
-    expect(html).toContain("Type the agent name &quot;Van 1&quot; to confirm:");
+    assertStringIncludes(
+      html,
+      "Type the agent name &quot;Van 1&quot; to confirm:",
+    );
   });
 
   test("renders the delete as a non-danger confirmation", () => {
     const html = logisticsAgentPages.deletePage(agent, OWNER_SESSION);
     // delete.danger is false, so the submit is the plain (check) button, not
     // the red danger one.
-    expect(html).not.toContain('<button class="danger"');
+    assert(
+      !html.includes('<button class="danger"'),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -114,12 +123,15 @@ describe("logisticsAgentPages new page", () => {
 
   test("renders the add-agent form posting to the logistics base path", () => {
     const html = logisticsAgentPages.newPage(OWNER_SESSION);
-    expect(html).toContain("Add logistics agent");
-    expect(html).toContain("Create agent");
-    expect(html).toContain('action="/admin/logistics"');
+    assertStringIncludes(html, "Add logistics agent");
+    assertStringIncludes(html, "Create agent");
+    assertStringIncludes(html, 'action="/admin/logistics"');
     // A direct URL stays usable while the feature is hidden, without restoring
     // its navigation link.
-    expect(html).not.toContain('<a class="active" href="/admin/logistics">');
+    assert(
+      !html.includes('<a class="active" href="/admin/logistics">'),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -131,39 +143,51 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
   test("renders agent management and the guide without the old toggle", () => {
     const html = adminLogisticsPage([agent], OWNER_SESSION);
 
-    expect(html).not.toContain('action="/admin/logistics/has-logistics"');
-    expect(html).not.toContain('name="has_logistics"');
-    expect(html).toContain('href="/admin/guide#logistics"');
-    expect(html).toContain("Logistics guide");
-    expect(html).toContain("Logistics agents");
-    expect(html).toContain('href="/admin/logistics/7"');
+    assert(
+      !html.includes('action="/admin/logistics/has-logistics"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('name="has_logistics"'),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, 'href="/admin/guide#logistics"');
+    assertStringIncludes(html, "Logistics guide");
+    assertStringIncludes(html, "Logistics agents");
+    assertStringIncludes(html, 'href="/admin/logistics/7"');
   });
 
   test("renders a row per agent and marks enabled logistics active", async () => {
     await enableFeature("logistics");
     const html = adminLogisticsPage([agent], OWNER_SESSION);
 
-    expect(html).toContain("Logistics agents");
-    expect(html).toContain("Agents (e.g. vans, drivers, or crew)");
-    expect(html).toContain('href="/admin/logistics/7"');
-    expect(html).toContain("Van 1");
+    assertStringIncludes(html, "Logistics agents");
+    assertStringIncludes(html, "Agents (e.g. vans, drivers, or crew)");
+    assertStringIncludes(html, 'href="/admin/logistics/7"');
+    assertStringIncludes(html, "Van 1");
     // The inline add form, its section fieldset and the add (plus) button.
-    expect(html).toContain('action="/admin/logistics"');
-    expect(html).toContain('class="listing-section"');
-    expect(html).toContain('href="/icons.svg#plus"');
-    expect(html).toContain("Add agent");
+    assertStringIncludes(html, 'action="/admin/logistics"');
+    assertStringIncludes(html, 'class="listing-section"');
+    assertStringIncludes(html, 'href="/icons.svg#plus"');
+    assertStringIncludes(html, "Add agent");
     // The page marks the logistics nav entry active.
-    expect(html).toContain('<a class="active" href="/admin/logistics">');
+    assertStringIncludes(html, '<a class="active" href="/admin/logistics">');
     // A populated list shows the table, not the empty-state placeholder.
-    expect(html).not.toContain("No logistics agents yet.");
+    assert(
+      !html.includes("No logistics agents yet."),
+      "the value should not contain the searched item",
+    );
   });
 
   test("shows the empty-state placeholder with no agents", () => {
     const html = adminLogisticsPage([], OWNER_SESSION);
 
-    expect(html).toContain("Logistics agents");
-    expect(html).toContain("No logistics agents yet.");
+    assertStringIncludes(html, "Logistics agents");
+    assertStringIncludes(html, "No logistics agents yet.");
     // No agent rows are rendered.
-    expect(html).not.toContain('href="/admin/logistics/7"');
+    assert(
+      !html.includes('href="/admin/logistics/7"'),
+      "the value should not contain the searched item",
+    );
   });
 });

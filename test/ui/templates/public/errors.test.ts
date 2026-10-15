@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   databaseBusyPage,
@@ -21,7 +21,7 @@ describe("notFoundPage", () => {
 
   test("renders not found message", () => {
     const html = notFoundPage();
-    expect(html).toContain("<h1>Not Found</h1>");
+    assertStringIncludes(html, "<h1>Not Found</h1>");
   });
 });
 
@@ -31,28 +31,39 @@ describe("temporaryErrorPage", () => {
 
   test("renders error message with auto-refresh", () => {
     const html = temporaryErrorPage(true);
-    expect(html).toContain("<h1>Temporary error</h1>");
-    expect(html).toContain("Retrying automatically");
-    expect(html).toContain('http-equiv="refresh"');
-    expect(html).toContain('content="2"');
-    expect(html).toContain("<style>");
-    expect(html).toContain("font-family:system-ui");
+    assertStringIncludes(html, "<h1>Temporary error</h1>");
+    assertStringIncludes(html, "Retrying automatically");
+    assertStringIncludes(html, 'http-equiv="refresh"');
+    assertStringIncludes(html, 'content="2"');
+    assertStringIncludes(html, "<style>");
+    assertStringIncludes(html, "font-family:system-ui");
     // Points at Bunny's status page, with the space before the link kept.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'Check <strong><a href="https://status.bunny.net/">status.bunny.net</a>',
     );
   });
   test("preserves uncertainty about the submission", () => {
     const html = temporaryErrorPage(false);
-    expect(html).not.toContain('http-equiv="refresh"');
-    expect(html).not.toContain("Retrying automatically");
-    expect(html).not.toContain("your submission was not saved");
-    expect(html).toContain("Your changes may already be saved.");
-    expect(html).toContain(
+    assert(
+      !html.includes('http-equiv="refresh"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("Retrying automatically"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("your submission was not saved"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "Your changes may already be saved.");
+    assertStringIncludes(
+      html,
       "Check the existing records or your booking before you submit again.",
     );
-    expect(html).toContain("font-family:system-ui");
-    expect(html).toContain('href="https://status.bunny.net/"');
+    assertStringIncludes(html, "font-family:system-ui");
+    assertStringIncludes(html, 'href="https://status.bunny.net/"');
   });
 });
 
@@ -62,26 +73,33 @@ describe("qrBookErrorPage", () => {
 
   test("identifies a checkout failure and escapes the provider message", () => {
     const html = qrBookCheckoutErrorPage("summer-fete", "Failed <payment>");
-    expect(html).toContain("<title>Could not start payment</title>");
-    expect(html).toContain("<h1>Could not start your payment</h1>");
-    expect(html).toContain("<p>Failed &lt;payment&gt;</p>");
-    expect(html).toContain('href="/ticket/summer-fete"');
+    assertStringIncludes(html, "<title>Could not start payment</title>");
+    assertStringIncludes(html, "<h1>Could not start your payment</h1>");
+    assertStringIncludes(html, "<p>Failed &lt;payment&gt;</p>");
+    assertStringIncludes(html, 'href="/ticket/summer-fete"');
   });
 
   test("offers the normal booking page when the listing has a slug", () => {
     const html = qrBookErrorPage("summer-fete");
-    expect(html).toContain("<h1>QR code expired or invalid</h1>");
-    expect(html).toContain("This QR code has expired");
-    expect(html).toContain(
+    assertStringIncludes(html, "<h1>QR code expired or invalid</h1>");
+    assertStringIncludes(html, "This QR code has expired");
+    assertStringIncludes(
+      html,
       '<a href="/ticket/summer-fete">Go to booking page</a>',
     );
   });
 
   test("omits the booking link when there is no standalone page", () => {
     const html = qrBookErrorPage(null);
-    expect(html).toContain("This QR code has expired");
-    expect(html).not.toContain("Go to booking page");
-    expect(html).not.toContain('href="/ticket/');
+    assertStringIncludes(html, "This QR code has expired");
+    assert(
+      !html.includes("Go to booking page"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('href="/ticket/'),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -91,8 +109,8 @@ describe("rateLimitedPage", () => {
 
   test("renders the too-many-requests message", () => {
     const html = rateLimitedPage();
-    expect(html).toContain("<h1>Too Many Requests</h1>");
-    expect(html).toContain("You've hit too many invalid ticket links.");
+    assertStringIncludes(html, "<h1>Too Many Requests</h1>");
+    assertStringIncludes(html, "You've hit too many invalid ticket links.");
   });
 });
 
@@ -102,20 +120,30 @@ describe("databaseBusyPage", () => {
 
   test("auto-refreshes and reassures when the method is idempotent", () => {
     const html = databaseBusyPage(true);
-    expect(html).toContain("<h1>The database is too busy.</h1>");
-    expect(html).toContain('http-equiv="refresh"');
-    expect(html).toContain("Reloading so you can try again.");
-    expect(html).not.toContain("your submission was not saved");
+    assertStringIncludes(html, "<h1>The database is too busy.</h1>");
+    assertStringIncludes(html, 'http-equiv="refresh"');
+    assertStringIncludes(html, "Reloading so you can try again.");
+    assert(
+      !html.includes("your submission was not saved"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("skips the refresh and asks to resubmit for non-idempotent methods", () => {
     const html = databaseBusyPage(false);
-    expect(html).toContain("<h1>The database is too busy.</h1>");
-    expect(html).not.toContain('http-equiv="refresh"');
-    expect(html).toContain(
+    assertStringIncludes(html, "<h1>The database is too busy.</h1>");
+    assert(
+      !html.includes('http-equiv="refresh"'),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(
+      html,
       "Please go back and try again — your submission was not saved.",
     );
-    expect(html).not.toContain("Reloading so you can try again.");
+    assert(
+      !html.includes("Reloading so you can try again."),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -133,8 +161,9 @@ describe("readOnlyPage", () => {
   test("includes the renewal link when RENEWAL_URL is set", () => {
     withRenewalUrl("https://example.com/renew", () => {
       const html = readOnlyPage();
-      expect(html).toContain("This site is in read-only mode.");
-      expect(html).toContain(
+      assertStringIncludes(html, "This site is in read-only mode.");
+      assertStringIncludes(
+        html,
         '<a href="https://example.com/renew">Renew now</a>',
       );
     });
@@ -143,8 +172,11 @@ describe("readOnlyPage", () => {
   test("omits the renewal link when RENEWAL_URL is unset", () => {
     withRenewalUrl(undefined, () => {
       const html = readOnlyPage();
-      expect(html).toContain("This site is in read-only mode.");
-      expect(html).not.toContain("Renew now");
+      assertStringIncludes(html, "This site is in read-only mode.");
+      assert(
+        !html.includes("Renew now"),
+        "the value should not contain the searched item",
+      );
     });
   });
 });
@@ -155,18 +187,24 @@ describe("migrationInProgressPage", () => {
 
   test("renders update message with auto-refresh", () => {
     const html = migrationInProgressPage();
-    expect(html).toContain("<h1>Update In Progress</h1>");
-    expect(html).toContain("backing up and updating the database");
-    expect(html).toContain('http-equiv="refresh"');
-    expect(html).toContain('content="5"');
-    expect(html).toContain("<style>");
-    expect(html).toContain("font-family:system-ui");
+    assertStringIncludes(html, "<h1>Update In Progress</h1>");
+    assertStringIncludes(html, "backing up and updating the database");
+    assertStringIncludes(html, 'http-equiv="refresh"');
+    assertStringIncludes(html, 'content="5"');
+    assertStringIncludes(html, "<style>");
+    assertStringIncludes(html, "font-family:system-ui");
   });
 
   test("does not present itself as an error", () => {
     const html = migrationInProgressPage();
-    expect(html).not.toContain("<title>Error");
-    expect(html).not.toContain("<h1>Error");
+    assert(
+      !html.includes("<title>Error"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("<h1>Error"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -176,15 +214,19 @@ describe("siteNotActivatedPage", () => {
 
   test("renders not-activated message in the error dialog style", () => {
     const html = siteNotActivatedPage();
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div class="prose"><h1>Not Activated</h1><p>This site has not been activated yet.</p></div>',
     );
-    expect(html).toContain("<style>");
-    expect(html).toContain("font-family:system-ui");
+    assertStringIncludes(html, "<style>");
+    assertStringIncludes(html, "font-family:system-ui");
   });
 
   test("does not auto-refresh", () => {
     const html = siteNotActivatedPage();
-    expect(html).not.toContain('http-equiv="refresh"');
+    assert(
+      !html.includes('http-equiv="refresh"'),
+      "the value should not contain the searched item",
+    );
   });
 });

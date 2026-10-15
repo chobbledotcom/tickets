@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -19,31 +20,31 @@ describe("adminDashboardPage", () => {
 
   test("renders empty state when no listings", () => {
     const html = adminDashboardPage([], OWNER_SESSION);
-    expect(html).toContain("Listings");
-    expect(html).toContain("No listings yet");
+    assertStringIncludes(html, "Listings");
+    assertStringIncludes(html, "No listings yet");
   });
 
   test("renders listings table", () => {
     const listings = [testListingWithCount({ attendee_count: 25 })];
     const html = adminDashboardPage(listings, OWNER_SESSION);
-    expect(html).toContain("Test Listing");
-    expect(html).toContain("25 / 100");
-    expect(html).toContain("/admin/listing/1");
+    assertStringIncludes(html, "Test Listing");
+    assertStringIncludes(html, "25 / 100");
+    assertStringIncludes(html, "/admin/listing/1");
   });
 
   test("displays listing name", () => {
     const listings = [testListingWithCount({ name: "My Test Listing" })];
     const html = adminDashboardPage(listings, OWNER_SESSION);
-    expect(html).toContain("My Test Listing");
-    expect(html).toContain("Listing name");
+    assertStringIncludes(html, "My Test Listing");
+    assertStringIncludes(html, "Listing name");
   });
 
   test("renders the add-listing and add-attendee quick actions", () => {
     const html = adminDashboardPage([], OWNER_SESSION);
-    expect(html).toContain('href="/admin/listing/new"');
-    expect(html).toContain("Add Listing");
-    expect(html).toContain('href="/admin/attendees/new"');
-    expect(html).toContain("Add Attendee");
+    assertStringIncludes(html, 'href="/admin/listing/new"');
+    assertStringIncludes(html, "Add Listing");
+    assertStringIncludes(html, 'href="/admin/attendees/new"');
+    assertStringIncludes(html, "Add Attendee");
   });
 
   test("does not render the multi-booking link builder", () => {
@@ -52,14 +53,20 @@ describe("adminDashboardPage", () => {
       testListingWithCount({ active: true, id: 2, slug: "cd34e" }),
     ];
     const html = adminDashboardPage(listings, OWNER_SESSION);
-    expect(html).not.toContain("Multi-booking link");
-    expect(html).not.toContain("data-multi-booking-slug");
+    assert(
+      !html.includes("Multi-booking link"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("data-multi-booking-slug"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("includes logout link", async () => {
     await withRequestContext(() => {
       const html = adminDashboardPage([], OWNER_SESSION);
-      expect(html).toContain("/admin/logout");
+      assertStringIncludes(html, "/admin/logout");
     });
   });
 
@@ -75,14 +82,20 @@ describe("adminDashboardPage", () => {
       undefined,
       attendees,
     );
-    expect(html).toContain("<details open");
-    expect(html).toContain("Newest 2 Attendees");
+    assertStringIncludes(html, "<details open");
+    assertStringIncludes(html, "Newest 2 Attendees");
   });
 
   test("newest attendees section not shown when no attendees", () => {
     const html = adminDashboardPage([], OWNER_SESSION, undefined, []);
-    expect(html).not.toContain("Newest");
-    expect(html).not.toContain("<details open");
+    assert(
+      !html.includes("Newest"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("<details open"),
+      "the value should not contain the searched item",
+    );
   });
   test("renders upcoming holidays in a constrained scrollable table", () => {
     const html = adminDashboardPage(
@@ -104,12 +117,15 @@ describe("adminDashboardPage", () => {
       ],
     );
 
-    expect(html).toContain("Upcoming holidays</summary>");
-    expect(html).toContain('class="table-scroll dashboard-holidays-scroll"');
-    expect(html).toContain('href="/admin/holidays/1"');
-    expect(html).toContain("Winter Break");
-    expect(html).toContain("2026-12-24");
-    expect(html).toContain("2026-12-26");
+    assertStringIncludes(html, "Upcoming holidays</summary>");
+    assertStringIncludes(
+      html,
+      'class="table-scroll dashboard-holidays-scroll"',
+    );
+    assertStringIncludes(html, 'href="/admin/holidays/1"');
+    assertStringIncludes(html, "Winter Break");
+    assertStringIncludes(html, "2026-12-24");
+    assertStringIncludes(html, "2026-12-26");
   });
 
   test("renders upcoming service events with listing details and edit links", () => {
@@ -141,13 +157,13 @@ describe("adminDashboardPage", () => {
         },
       ],
     );
-    expect(html).toContain("Upcoming service events</summary>");
-    expect(html).toContain('href="/admin/servicing/42"');
-    expect(html).toContain("Boiler Service");
-    expect(html).toContain("2099");
-    expect(html).toContain("1 listing · 2");
-    expect(html).toContain('href="/admin/servicing/43"');
-    expect(html).toContain("Unassigned Service");
+    assertStringIncludes(html, "Upcoming service events</summary>");
+    assertStringIncludes(html, 'href="/admin/servicing/42"');
+    assertStringIncludes(html, "Boiler Service");
+    assertStringIncludes(html, "2099");
+    assertStringIncludes(html, "1 listing · 2");
+    assertStringIncludes(html, 'href="/admin/servicing/43"');
+    assertStringIncludes(html, "Unassigned Service");
   });
 
   test("newest attendees shows singular for single attendee", () => {
@@ -159,7 +175,7 @@ describe("adminDashboardPage", () => {
       undefined,
       attendees,
     );
-    expect(html).toContain("Newest 1 Attendee</summary>");
+    assertStringIncludes(html, "Newest 1 Attendee</summary>");
   });
 
   test("newest attendees shows the Listings column", () => {
@@ -171,8 +187,8 @@ describe("adminDashboardPage", () => {
       undefined,
       attendees,
     );
-    expect(html).toContain("<th>Listings</th>");
-    expect(html).toContain("Workshop");
+    assertStringIncludes(html, "<th>Listings</th>");
+    assertStringIncludes(html, "Workshop");
   });
 
   test("newest attendees groups an attendee's bookings into one row, listings in display order", () => {
@@ -192,8 +208,9 @@ describe("adminDashboardPage", () => {
       undefined,
       attendees,
     );
-    expect(html).toContain("Newest 1 Attendee</summary>");
-    expect(html).toContain(
+    assertStringIncludes(html, "Newest 1 Attendee</summary>");
+    assertStringIncludes(
+      html,
       '<span class="listings-cell" title="Gala, Workshop">' +
         '<a href="/admin/listing/1">Gala</a>, ' +
         '<a href="/admin/listing/2">Workshop</a></span>',
@@ -209,8 +226,14 @@ describe("adminDashboardPage", () => {
       undefined,
       attendees,
     );
-    expect(html).not.toContain("Newest");
-    expect(html).not.toContain("<details open");
+    assert(
+      !html.includes("Newest"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("<details open"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("newest attendees skips attendees with unknown listing_id", () => {
@@ -225,9 +248,12 @@ describe("adminDashboardPage", () => {
       undefined,
       attendees,
     );
-    expect(html).toContain("Valid");
-    expect(html).not.toContain("Orphan");
-    expect(html).toContain("Newest 1 Attendee</summary>");
+    assertStringIncludes(html, "Valid");
+    assert(
+      !html.includes("Orphan"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "Newest 1 Attendee</summary>");
   });
 });
 
@@ -243,9 +269,15 @@ describe("adminDashboardPage inactive listings", () => {
       }),
     ];
     const html = adminDashboardPage(listings, OWNER_SESSION);
-    expect(html).not.toContain("inactive-row");
-    expect(html).not.toContain('href="/admin/listing/1"');
-    expect(html).toContain("No listings yet");
+    assert(
+      !html.includes("inactive-row"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('href="/admin/listing/1"'),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "No listings yet");
   });
 });
 
@@ -265,7 +297,7 @@ describe("adminDashboardPage with column template filters", () => {
       null,
       listingTable.layout.parse('{{name}}, {{created | date: "%B %Y"}}'),
     );
-    expect(html).toContain("April 2026");
+    assertStringIncludes(html, "April 2026");
   });
 
   test("renders default cell format when no filter applied", () => {
@@ -281,7 +313,7 @@ describe("adminDashboardPage with column template filters", () => {
       null,
       listingTable.layout.parse("{{name}}, {{created}}"),
     );
-    expect(html).toContain("Friday 10 April 2026");
+    assertStringIncludes(html, "Friday 10 April 2026");
   });
 });
 
@@ -292,12 +324,12 @@ describe("activeListingStatsSection", () => {
       income: 5000,
       tickets: 30,
     });
-    expect(html).toContain("Active Listing Statistics");
-    expect(html).toContain("<strong>Income:</strong>");
-    expect(html).toContain("<strong>Tickets:</strong>");
-    expect(html).toContain("<strong>Attendees:</strong>");
-    expect(html).toContain("30");
-    expect(html).toContain("52");
+    assertStringIncludes(html, "Active Listing Statistics");
+    assertStringIncludes(html, "<strong>Income:</strong>");
+    assertStringIncludes(html, "<strong>Tickets:</strong>");
+    assertStringIncludes(html, "<strong>Attendees:</strong>");
+    assertStringIncludes(html, "30");
+    assertStringIncludes(html, "52");
   });
 
   test("renders zero values", () => {
@@ -306,8 +338,8 @@ describe("activeListingStatsSection", () => {
       income: 0,
       tickets: 0,
     });
-    expect(html).toContain("<strong>Tickets:</strong> 0");
-    expect(html).toContain("<strong>Attendees:</strong> 0");
+    assertStringIncludes(html, "<strong>Tickets:</strong> 0");
+    assertStringIncludes(html, "<strong>Attendees:</strong> 0");
   });
 
   test("renders as closed details element", () => {
@@ -316,8 +348,11 @@ describe("activeListingStatsSection", () => {
       income: 0,
       tickets: 0,
     });
-    expect(html).toContain("<details>");
-    expect(html).not.toContain("<details open");
+    assertStringIncludes(html, "<details>");
+    assert(
+      !html.includes("<details open"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -337,7 +372,7 @@ describe("adminDashboardPage active listing statistics", () => {
         tickets: 5,
       },
     );
-    expect(html).toContain("Active Listing Statistics");
+    assertStringIncludes(html, "Active Listing Statistics");
   });
 
   test("does not show stats section when stats is null", () => {
@@ -349,12 +384,18 @@ describe("adminDashboardPage active listing statistics", () => {
       undefined,
       null,
     );
-    expect(html).not.toContain("Active Listing Statistics");
+    assert(
+      !html.includes("Active Listing Statistics"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("does not show stats section when stats not provided", () => {
     const html = adminDashboardPage([], OWNER_SESSION);
-    expect(html).not.toContain("Active Listing Statistics");
+    assert(
+      !html.includes("Active Listing Statistics"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -376,9 +417,9 @@ describe("adminDashboardPage type filter", () => {
 
   test("shows the filter bar when more than one type is present", () => {
     const html = adminDashboardPage([standard, daily], OWNER_SESSION);
-    expect(html).toContain("Showing:");
-    expect(html).toContain('href="/admin/?type=standard"');
-    expect(html).toContain('href="/admin/?type=daily"');
+    assertStringIncludes(html, "Showing:");
+    assertStringIncludes(html, 'href="/admin/?type=standard"');
+    assertStringIncludes(html, 'href="/admin/?type=daily"');
   });
 
   test("hides the filter bar when only one type is present", () => {
@@ -388,14 +429,17 @@ describe("adminDashboardPage type filter", () => {
       slug: "std02",
     });
     const html = adminDashboardPage([standard, onlyStandard], OWNER_SESSION);
-    expect(html).not.toContain("Showing:");
+    assert(
+      !html.includes("Showing:"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("shows every type and marks 'All' active on the default view", () => {
     const html = adminDashboardPage([standard, daily], OWNER_SESSION);
-    expect(html).toContain("Standard Listing");
-    expect(html).toContain("Daily Listing");
-    expect(html).toContain("<strong><u>All</u></strong>");
+    assertStringIncludes(html, "Standard Listing");
+    assertStringIncludes(html, "Daily Listing");
+    assertStringIncludes(html, "<strong><u>All</u></strong>");
   });
 
   test("filters the listing table to the active type", () => {
@@ -417,16 +461,22 @@ describe("adminDashboardPage type filter", () => {
       undefined,
       "daily",
     );
-    expect(html).toContain("Daily Listing");
-    expect(html).not.toContain("Standard Listing");
-    expect(html).toContain("<strong><u>Daily</u></strong>");
+    assertStringIncludes(html, "Daily Listing");
+    assert(
+      !html.includes("Standard Listing"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "<strong><u>Daily</u></strong>");
     // The "All" option links back to the unfiltered dashboard.
-    expect(html).toContain('<a href="/admin/">All</a>');
+    assertStringIncludes(html, '<a href="/admin/">All</a>');
   });
 
   test("does not show a CSV export footer (the dashboard table is active-only)", () => {
     const html = adminDashboardPage([standard, daily], OWNER_SESSION);
-    expect(html).not.toContain("/admin/listings/csv");
+    assert(
+      !html.includes("/admin/listings/csv"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -440,14 +490,17 @@ describeWithEnv(
       test("shows thumbnail when listing has image_url", () => {
         const listings = [testListingWithCount({ image_url: "thumb.jpg" })];
         const html = adminDashboardPage(listings, OWNER_SESSION);
-        expect(html).toContain("/image/thumb.jpg");
-        expect(html).toContain('class="listing-thumbnail"');
+        assertStringIncludes(html, "/image/thumb.jpg");
+        assertStringIncludes(html, 'class="listing-thumbnail"');
       });
 
       test("does not show thumbnail when listing has no image_url", () => {
         const listings = [testListingWithCount({ image_url: "" })];
         const html = adminDashboardPage(listings, OWNER_SESSION);
-        expect(html).not.toContain('src="/image/');
+        assert(
+          !html.includes('src="/image/'),
+          "the value should not contain the searched item",
+        );
       });
     });
   },
@@ -468,13 +521,13 @@ describe("adminListingsPage", () => {
       name: "Old Show",
     });
     const html = adminListingsPage([active, inactive], OWNER_SESSION);
-    expect(html).toContain('class="active" href="/admin/listings"');
-    expect(html).toContain("Active Show");
-    expect(html).toContain("Deactivated");
-    expect(html).toContain("Old Show");
+    assertStringIncludes(html, 'class="active" href="/admin/listings"');
+    assertStringIncludes(html, "Active Show");
+    assertStringIncludes(html, "Deactivated");
+    assertStringIncludes(html, "Old Show");
     expect(html.indexOf("Active Show")).toBeLessThan(html.indexOf("Old Show"));
     // The Listings section sub-nav offers the catalog import entry point.
-    expect(html).toContain('href="/admin/catalog/import"');
+    assertStringIncludes(html, 'href="/admin/catalog/import"');
   });
 
   test("omits the deactivated heading when every listing is active", () => {
@@ -482,7 +535,10 @@ describe("adminListingsPage", () => {
       [testListingWithCount({ active: true, name: "Active Show" })],
       OWNER_SESSION,
     );
-    expect(html).not.toContain("Deactivated");
+    assert(
+      !html.includes("Deactivated"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("links to the listings CSV export", () => {
@@ -490,8 +546,8 @@ describe("adminListingsPage", () => {
       [testListingWithCount({ name: "Active Show" })],
       OWNER_SESSION,
     );
-    expect(html).toContain('class="table-actions"');
-    expect(html).toContain('href="/admin/listings/csv"');
-    expect(html).toContain("Export CSV");
+    assertStringIncludes(html, 'class="table-actions"');
+    assertStringIncludes(html, 'href="/admin/listings/csv"');
+    assertStringIncludes(html, "Export CSV");
   });
 });

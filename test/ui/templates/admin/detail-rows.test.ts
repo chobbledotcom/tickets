@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -178,7 +179,8 @@ describe("detail-rows", () => {
         ],
       });
 
-      expect(String(DetailTable({ rows }))).toContain(
+      assertStringIncludes(
+        String(DetailTable({ rows })),
         "<th>&lt;strong&gt;Question?&lt;/strong&gt;</th><td>&lt;img src=&quot;x&quot;&gt; (1)</td>",
       );
     });
@@ -206,8 +208,8 @@ describe("detail-rows", () => {
 
     test("includes attendees row with count, capacity, and remain", () => {
       const value = attendeesRowValue(5, 20);
-      expect(value).toContain("5 / 20");
-      expect(value).toContain("15 remain");
+      assertStringIncludes(value, "5 / 20");
+      assertStringIncludes(value, "15 remain");
     });
 
     test("uses a capacity of one", () => {
@@ -217,15 +219,21 @@ describe("detail-rows", () => {
     });
 
     test("shows danger-text when near capacity", () => {
-      expect(attendeesRowValue(19, 20)).toContain("danger-text");
+      assertStringIncludes(attendeesRowValue(19, 20), "danger-text");
     });
 
     test("does not show danger-text when well below capacity", () => {
-      expect(attendeesRowValue(5, 20)).not.toContain("danger-text");
+      assert(
+        !attendeesRowValue(5, 20).includes("danger-text"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("does not show danger-text when no capacity set", () => {
-      expect(attendeesRowValue(100, 0)).not.toContain("danger-text");
+      assert(
+        !attendeesRowValue(100, 0).includes("danger-text"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("shows single checked-in row when no multi-quantity", () => {
@@ -241,8 +249,16 @@ describe("detail-rows", () => {
       });
       const checkedIn = rows.find((r) => r.key === "Checked In");
       expect(checkedIn).toBeDefined();
-      expect(checkedIn!.value).toContain("1 / 2");
-      expect(checkedIn!.value).toContain("1 remain");
+      assert(
+        typeof checkedIn!.value === "string" &&
+          checkedIn!.value.includes("1 / 2"),
+        "the value should contain the searched item",
+      );
+      assert(
+        typeof checkedIn!.value === "string" &&
+          checkedIn!.value.includes("1 remain"),
+        "the value should contain the searched item",
+      );
     });
 
     test("excludes no-quantity rows from the check-in stats", () => {
@@ -260,7 +276,11 @@ describe("detail-rows", () => {
       });
       // Single "Checked In" row (no split), counting only the real line.
       const checkedIn = rows.find((r) => r.key === "Checked In");
-      expect(checkedIn!.value).toContain("1 / 1");
+      assert(
+        typeof checkedIn!.value === "string" &&
+          checkedIn!.value.includes("1 / 1"),
+        "the value should contain the searched item",
+      );
       expect(rows.find((r) => r.key === "Tickets Checked In")).toBeUndefined();
     });
 
@@ -291,8 +311,14 @@ describe("detail-rows", () => {
       });
       const people = rows.find((r) => r.key === "Attendees Checked In");
       const lines = rows.find((r) => r.key === "Tickets Checked In");
-      expect(people!.value).toContain("2 / 3");
-      expect(lines!.value).toContain("0 / 1");
+      assert(
+        typeof people!.value === "string" && people!.value.includes("2 / 3"),
+        "the value should contain the searched item",
+      );
+      assert(
+        typeof lines!.value === "string" && lines!.value.includes("0 / 1"),
+        "the value should contain the searched item",
+      );
     });
 
     test("includes revenue row when hasPaidListing is true", () => {

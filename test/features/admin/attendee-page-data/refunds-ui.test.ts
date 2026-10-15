@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ExistingLine } from "#db/attendees/atomic-update.ts";
@@ -197,7 +198,7 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
         null,
       );
 
-      expect(dailyData.topWarnings[0]).toContain(daily.name);
+      assertStringIncludes(dailyData.topWarnings[0] ?? "", daily.name);
       expect(standardData.topWarnings).toEqual([]);
     });
 
@@ -261,7 +262,7 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
 
       expect(nextDateData.topWarnings).toEqual([]);
       expect(noDateData.topWarnings).toEqual([]);
-      expect(spanData.topWarnings[0]).toContain(spanDaily.name);
+      assertStringIncludes(spanData.topWarnings[0] ?? "", spanDaily.name);
     });
 
     test("renders active listings plus inactive listings the attendee already books", async () => {
@@ -280,9 +281,12 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
         (listing) => listing.name,
       );
 
-      expect(names).toContain(active.name);
-      expect(names).toContain(inactiveBooked.name);
-      expect(names).not.toContain(inactiveUnbooked.name);
+      assertStringIncludes(names, active.name);
+      assertStringIncludes(names, inactiveBooked.name);
+      assert(
+        !names.includes(inactiveUnbooked.name),
+        "the value should not contain the searched item",
+      );
     });
   });
 });

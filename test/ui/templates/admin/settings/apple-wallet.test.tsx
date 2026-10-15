@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
@@ -18,14 +19,16 @@ describe("AppleWalletForm", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="apple_wallet_pass_type_id" placeholder="pass.com.example.tickets" type="text" value="pass.com.example.tickets">`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="apple_wallet_team_id" placeholder="ABC1234567" type="text" value="ABC1234567">`,
     );
-    expect(html).toContain("<label>Pass Type ID<input");
-    expect(html).toContain("<label>Team ID<input");
+    assertStringIncludes(html, "<label>Pass Type ID<input");
+    assertStringIncludes(html, "<label>Team ID<input");
   });
 
   test("renders the three PEM secret fields textareas, empty until configured", () => {
@@ -36,15 +39,19 @@ describe("AppleWalletForm", () => {
       "apple_wallet_signing_key",
       "apple_wallet_wwdr_cert",
     ]) {
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `maxlength="${MAX_TEXTAREA_LENGTH}" name="${name}"`,
       );
-      expect(html).toContain(`name="${name}" placeholder="-----BEGIN`);
+      assertStringIncludes(html, `name="${name}" placeholder="-----BEGIN`);
     }
-    expect(html).toContain("<label>Signing Certificate (PEM)<textarea");
-    expect(html).toContain("<label>Signing Private Key (PEM)<textarea");
-    expect(html).toContain("<label>WWDR Certificate (PEM)<textarea");
-    expect(html).not.toContain(MASK_SENTINEL);
+    assertStringIncludes(html, "<label>Signing Certificate (PEM)<textarea");
+    assertStringIncludes(html, "<label>Signing Private Key (PEM)<textarea");
+    assertStringIncludes(html, "<label>WWDR Certificate (PEM)<textarea");
+    assert(
+      !html.includes(MASK_SENTINEL),
+      "the value should not contain the searched item",
+    );
   });
 
   test("masks every saved secret once the site has its own credentials", () => {
@@ -61,12 +68,12 @@ describe("AppleWalletForm", () => {
   test("points its heading, action, and guide link at the Apple Wallet route", () => {
     const html = String(AppleWalletForm(advancedDefaultState));
 
-    expect(html).toContain("<h2>Apple Wallet</h2>");
-    expect(html).toContain('action="/admin/settings/apple-wallet"');
-    expect(html).toContain('id="settings-apple-wallet"');
-    expect(html).toContain('href="/admin/guide#apple-wallet"');
-    expect(html).toContain("Save Apple Wallet Settings");
-    expect(html).toContain("Add to Apple Wallet");
+    assertStringIncludes(html, "<h2>Apple Wallet</h2>");
+    assertStringIncludes(html, 'action="/admin/settings/apple-wallet"');
+    assertStringIncludes(html, 'id="settings-apple-wallet"');
+    assertStringIncludes(html, 'href="/admin/guide#apple-wallet"');
+    assertStringIncludes(html, "Save Apple Wallet Settings");
+    assertStringIncludes(html, "Add to Apple Wallet");
   });
 
   test("carries the host-config hint in both override states", () => {
@@ -74,7 +81,8 @@ describe("AppleWalletForm", () => {
       ...advancedDefaultState,
       hostAppleWalletLabel: "Host wallet",
     });
-    expect(String(fallingBack)).toContain(
+    assertStringIncludes(
+      String(fallingBack),
       "Currently using: Host wallet. Override below or leave empty to keep using host config.",
     );
 
@@ -83,6 +91,6 @@ describe("AppleWalletForm", () => {
       appleWalletConfigured: true,
       hostAppleWalletLabel: "Host wallet",
     });
-    expect(String(overriding)).toContain(" Overriding: Host wallet.");
+    assertStringIncludes(String(overriding), " Overriding: Host wallet.");
   });
 });

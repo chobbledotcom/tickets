@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   detailHtml,
@@ -13,8 +13,8 @@ describe("adminListingPage export button", () => {
 
   test("renders export CSV button", () => {
     const html = detailHtml(testListingWithCount({ attendee_count: 2 }));
-    expect(html).toContain("/admin/listing/1/export");
-    expect(html).toContain("Export CSV");
+    assertStringIncludes(html, "/admin/listing/1/export");
+    assertStringIncludes(html, "Export CSV");
   });
 
   test("the export link carries the active check-in filter", () => {
@@ -22,7 +22,7 @@ describe("adminListingPage export button", () => {
       activeFilter: "in",
       attendees: [testAttendee({ checked_in: 1 })],
     });
-    expect(html).toContain("/admin/listing/1/export?filter=in");
+    assertStringIncludes(html, "/admin/listing/1/export?filter=in");
   });
 });
 
@@ -46,31 +46,33 @@ describe("adminListingPage filter links", () => {
 
   test("renders All / Checked In / Checked Out links", () => {
     const html = linkHtml();
-    expect(html).toContain("All");
-    expect(html).toContain("Checked In");
-    expect(html).toContain("Checked Out");
+    assertStringIncludes(html, "All");
+    assertStringIncludes(html, "Checked In");
+    assertStringIncludes(html, "Checked Out");
   });
 
   test("bolds All when no filter is active", () => {
     const html = linkHtml();
-    expect(html).toContain("<strong><u>All</u></strong>");
-    expect(html).toContain(
+    assertStringIncludes(html, "<strong><u>All</u></strong>");
+    assertStringIncludes(
+      html,
       `href="/admin/listing/${listing.id}/attendees?filter=in"`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `href="/admin/listing/${listing.id}/attendees?filter=out"`,
     );
   });
 
   test("bolds Checked In when filter is in", () => {
     const html = linkHtml("in");
-    expect(html).toContain("<strong><u>Checked In</u></strong>");
-    expect(html).toContain(`href="/admin/listing/${listing.id}/attendees"`);
+    assertStringIncludes(html, "<strong><u>Checked In</u></strong>");
+    assertStringIncludes(html, `href="/admin/listing/${listing.id}/attendees"`);
   });
 
   test("bolds Checked Out when filter is out", () => {
     const html = linkHtml("out");
-    expect(html).toContain("<strong><u>Checked Out</u></strong>");
+    assertStringIncludes(html, "<strong><u>Checked Out</u></strong>");
   });
 
   test("filters to only checked-in attendees when filter is in", () => {
@@ -78,8 +80,11 @@ describe("adminListingPage filter links", () => {
       activeFilter: "in",
       attendees: namedPair(),
     });
-    expect(html).toContain("Checked In User");
-    expect(html).not.toContain("Not Checked In User");
+    assertStringIncludes(html, "Checked In User");
+    assert(
+      !html.includes("Not Checked In User"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("filters to only checked-out attendees when filter is out", () => {
@@ -90,8 +95,11 @@ describe("adminListingPage filter links", () => {
         testAttendee({ checked_in: 0, id: 2, name: "Bob Remote" }),
       ],
     });
-    expect(html).not.toContain("Alice InPerson");
-    expect(html).toContain("Bob Remote");
+    assert(
+      !html.includes("Alice InPerson"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "Bob Remote");
   });
 
   test("shows all attendees when filter is all", () => {
@@ -99,8 +107,8 @@ describe("adminListingPage filter links", () => {
       activeFilter: "all",
       attendees: namedPair(),
     });
-    expect(html).toContain("Checked In User");
-    expect(html).toContain("Not Checked In User");
+    assertStringIncludes(html, "Checked In User");
+    assertStringIncludes(html, "Not Checked In User");
   });
 
   test("includes return_filter hidden field in checkin form", () => {
@@ -108,8 +116,8 @@ describe("adminListingPage filter links", () => {
       activeFilter: "in",
       attendees: [testAttendee({ checked_in: 1 })],
     });
-    expect(html).toContain('name="return_filter"');
-    expect(html).toContain('value="in"');
+    assertStringIncludes(html, 'name="return_filter"');
+    assertStringIncludes(html, 'value="in"');
   });
 });
 
@@ -118,7 +126,7 @@ describe("adminListingPage add attendee", () => {
 
   test("offers the add-attendee form beneath the roster", () => {
     const html = detailHtml(testListingWithCount({ attendee_count: 0 }));
-    expect(html).toContain('id="add-attendee"');
+    assertStringIncludes(html, 'id="add-attendee"');
   });
 });
 
@@ -137,9 +145,9 @@ describe("adminListingPage failed payments", () => {
       testListingWithCount({ attendee_count: 3, unit_price: 1000 }),
       { attendees: paidPlusFailed() },
     );
-    expect(html).toContain("Failed Payments");
-    expect(html).toContain("1 attendee(s) with unresolved payments");
-    expect(html).toContain("/delete-incomplete");
+    assertStringIncludes(html, "Failed Payments");
+    assertStringIncludes(html, "1 attendee(s) with unresolved payments");
+    assertStringIncludes(html, "/delete-incomplete");
   });
 
   test("hides Failed Payments section when no incomplete attendees", () => {
@@ -151,7 +159,10 @@ describe("adminListingPage failed payments", () => {
         ],
       },
     );
-    expect(html).not.toContain("Failed Payments");
+    assert(
+      !html.includes("Failed Payments"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("hides Failed Payments section when an empty-payment-id attendee has a processed reference", () => {
@@ -164,8 +175,11 @@ describe("adminListingPage failed payments", () => {
         paymentReferenceAttendeeIds: new Set([7]),
       },
     );
-    expect(html).not.toContain("Failed Payments");
-    expect(html).toContain("John Doe");
+    assert(
+      !html.includes("Failed Payments"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "John Doe");
   });
 
   test("hides Failed Payments section for free listings", () => {
@@ -173,7 +187,10 @@ describe("adminListingPage failed payments", () => {
       testListingWithCount({ attendee_count: 1, unit_price: 0 }),
       { attendees: [testAttendee({ id: 1, price_paid: "0" })] },
     );
-    expect(html).not.toContain("Failed Payments");
+    assert(
+      !html.includes("Failed Payments"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("excludes incomplete attendees from attendee count", () => {
@@ -186,7 +203,7 @@ describe("adminListingPage failed payments", () => {
       { attendees: paidPlusFailed() },
     );
     // adjusted count: 3 - 1 (incomplete qty) = 2
-    expect(html).toContain("2 / 100");
+    assertStringIncludes(html, "2 / 100");
   });
 
   test("excludes incomplete attendees from checked-in count", () => {
@@ -210,7 +227,7 @@ describe("adminListingPage failed payments", () => {
       },
     );
     // Only complete attendees count: 1 checked in / 1 total
-    expect(html).toContain("1 / 1");
+    assertStringIncludes(html, "1 / 1");
   });
 
   test("excludes incomplete attendees from revenue", () => {
@@ -223,8 +240,11 @@ describe("adminListingPage failed payments", () => {
         ],
       },
     );
-    expect(html).toContain("£10");
-    expect(html).not.toContain("£30");
+    assertStringIncludes(html, "£10");
+    assert(
+      !html.includes("£30"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("failed payments table has delete button but no check-in or refund", () => {
@@ -243,13 +263,25 @@ describe("adminListingPage failed payments", () => {
     );
     const failedSection =
       html.split("Failed Payments")[1]?.split("Add Attendee")[0] ?? "";
-    expect(failedSection).toContain("Jane Stuck");
-    expect(failedSection).toContain("Delete");
-    expect(failedSection).toContain("/delete-incomplete");
-    expect(failedSection).not.toContain("Check in");
-    expect(failedSection).not.toContain("Check out");
-    expect(failedSection).not.toContain("Refund");
-    expect(failedSection).not.toContain("Re-send Webhook");
+    assertStringIncludes(failedSection, "Jane Stuck");
+    assertStringIncludes(failedSection, "Delete");
+    assertStringIncludes(failedSection, "/delete-incomplete");
+    assert(
+      !failedSection.includes("Check in"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !failedSection.includes("Check out"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !failedSection.includes("Refund"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !failedSection.includes("Re-send Webhook"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -260,14 +292,17 @@ describe("adminListingPage Renewal tag", () => {
     const html = detailHtml(testListingWithCount({ months_per_unit: 3 }), {
       allowedDomain: "",
     });
-    expect(html).toContain("Renewal");
+    assertStringIncludes(html, "Renewal");
   });
 
   test("does not render Renewal tag for listings with months_per_unit = 0", () => {
     const html = detailHtml(testListingWithCount({ months_per_unit: 0 }), {
       allowedDomain: "",
     });
-    expect(html).not.toContain("Renewal");
+    assert(
+      !html.includes("Renewal"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -296,12 +331,15 @@ describe("adminListingPage daily roster detail table", () => {
     const html = dailyRosterHtml(1000, [
       testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
     ]);
-    expect(html).toContain("Total Revenue");
-    expect(html).toContain("£10");
+    assertStringIncludes(html, "Total Revenue");
+    assertStringIncludes(html, "£10");
   });
 
   test("hides the revenue row for a free listing", () => {
     const html = dailyRosterHtml(0, [testAttendee({ price_paid: "0" })]);
-    expect(html).not.toContain("Total Revenue");
+    assert(
+      !html.includes("Total Revenue"),
+      "the value should not contain the searched item",
+    );
   });
 });

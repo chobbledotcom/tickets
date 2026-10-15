@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { logActivity } from "#test-utils/activity-log.ts";
 import {
@@ -34,10 +34,13 @@ describeWithEnv("admin activity log", { db: true }, () => {
       await logActivity(`Action ${index}`);
     }
     const html = await (await adminGet("/admin/log")).text();
-    expect(html).toContain("Showing the most recent 200 entries");
-    expect(html).toContain("Action 200");
-    expect(html).toContain("Action 1");
-    expect(html).not.toContain("Action 0</td>");
+    assertStringIncludes(html, "Showing the most recent 200 entries");
+    assertStringIncludes(html, "Action 200");
+    assertStringIncludes(html, "Action 1");
+    assert(
+      !html.includes("Action 0</td>"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("does not mark exactly 200 entries as truncated", async () => {
@@ -45,7 +48,10 @@ describeWithEnv("admin activity log", { db: true }, () => {
       await logActivity(`Exact action ${index}`);
     }
     const html = await (await adminGet("/admin/log")).text();
-    expect(html).not.toContain("Showing the most recent 200 entries");
+    assert(
+      !html.includes("Showing the most recent 200 entries"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("links each entry to its attendee and listing by name", async () => {
@@ -64,10 +70,12 @@ describeWithEnv("admin activity log", { db: true }, () => {
     const html = await (
       await awaitTestRequest("/admin/log", { cookie })
     ).text();
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<a href="/admin/attendees/${attendee.id}">Ada Lovelace</a>`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<a href="/admin/listing/${listing.id}">Gala Dinner</a>`,
     );
   });

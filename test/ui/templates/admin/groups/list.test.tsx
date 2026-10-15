@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { adminGroupsPage } from "#templates/admin/groups/list.tsx";
@@ -22,16 +23,20 @@ describe("admin groups list template", () => {
     const second = testGroup({ id: 8, name: "Summer", slug: "summer" });
     const html = adminGroupsPage([GROUP, second], OWNER_SESSION);
 
-    expect(html).toContain("<th>Name</th><th>Slug</th>");
-    expect(html).toContain(
+    assertStringIncludes(html, "<th>Name</th><th>Slug</th>");
+    assertStringIncludes(
+      html,
       '<a href="/admin/groups/7">Family &lt;script&gt;</a>',
     );
-    expect(html).toContain("family-&quot;weekend&quot;");
-    expect(html).not.toContain("Family <script>");
+    assertStringIncludes(html, "family-&quot;weekend&quot;");
+    assert(
+      !html.includes("Family <script>"),
+      "the value should not contain the searched item",
+    );
     expect(html.indexOf("Family &lt;script&gt;")).toBeLessThan(
       html.indexOf(">Summer<"),
     );
-    expect(html).toContain('href="/admin/guide#packages"');
+    assertStringIncludes(html, 'href="/admin/guide#packages"');
   });
 
   test("links an editor to the group and hides the forbidden staff guide", () => {
@@ -39,25 +44,35 @@ describe("admin groups list template", () => {
     // following this link lands on Edit.
     const html = adminGroupsPage([GROUP], EDITOR_SESSION);
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<a href="/admin/groups/7">Family &lt;script&gt;</a>',
     );
-    expect(html).not.toContain('href="/admin/guide#packages"');
-    expect(html).not.toContain("Packages guide");
+    assert(
+      !html.includes('href="/admin/guide#packages"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("Packages guide"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("marks the groups list as the section the page belongs to", () => {
     const html = adminGroupsPage([GROUP], OWNER_SESSION);
 
-    expect(html).toContain('<a class="active" href="/admin/groups">');
+    assertStringIncludes(html, '<a class="active" href="/admin/groups">');
   });
 
   test("renders the empty state without an empty table", () => {
     const html = adminGroupsPage([], OWNER_SESSION, "Group deleted.");
 
-    expect(html).toContain("Group deleted.");
-    expect(html).toContain("No groups configured.");
-    expect(html).not.toContain("<table");
-    expect(html).toContain('href="/admin/guide#packages"');
+    assertStringIncludes(html, "Group deleted.");
+    assertStringIncludes(html, "No groups configured.");
+    assert(
+      !html.includes("<table"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, 'href="/admin/guide#packages"');
   });
 });

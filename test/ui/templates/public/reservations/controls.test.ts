@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -18,8 +19,14 @@ describe("renderDateSelector", () => {
       "",
       1,
     );
-    expect(html).toContain('value="2026-01-01&quot; onload=&quot;alert(1)"');
-    expect(html).not.toContain('value="2026-01-01" onload="alert(1)"');
+    assertStringIncludes(
+      html,
+      'value="2026-01-01&quot; onload=&quot;alert(1)"',
+    );
+    assert(
+      !html.includes('value="2026-01-01" onload="alert(1)"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("marks the selected date as selected", () => {
@@ -28,23 +35,35 @@ describe("renderDateSelector", () => {
       "2026-01-02",
       1,
     );
-    expect(html).toContain('value="2026-01-02" selected');
-    expect(html).toContain('value="2026-01-01"');
-    expect(html).not.toContain('value="2026-01-01" selected');
+    assertStringIncludes(html, 'value="2026-01-02" selected');
+    assertStringIncludes(html, 'value="2026-01-01"');
+    assert(
+      !html.includes('value="2026-01-01" selected'),
+      "the value should not contain the searched item",
+    );
     // Options join edge to edge between the two dates.
-    expect(html).not.toContain("mutated");
+    assert(
+      !html.includes("mutated"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("says how many days each booking reserves when it spans several", () => {
     const html = renderDateSelector(["2026-01-01"], "", 3);
-    expect(html).toContain(reservesHint(3));
+    assertStringIncludes(html, reservesHint(3));
   });
 
   test("says nothing about duration for one-day bookings", () => {
     const html = renderDateSelector(["2026-01-01"], "", 1);
-    expect(html).not.toContain(reservesHintStart());
+    assert(
+      !html.includes(reservesHintStart()),
+      "the value should not contain the searched item",
+    );
     // The duration slot stays empty; no stray filler renders between options.
-    expect(html).not.toContain("mutated");
+    assert(
+      !html.includes("mutated"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("offers the error copy when no dates remain", () => {
@@ -59,19 +78,34 @@ describe("renderDayCountSelector", () => {
     const html = await withSubmittedValues({ day_count: "2" }, () =>
       renderDayCountSelector([1, 2, 3]),
     );
-    expect(html).toContain('<option value="2" selected>');
-    expect(html).not.toContain('<option value="1" selected>');
-    expect(html).not.toContain('<option value="3" selected>');
+    assertStringIncludes(html, '<option value="2" selected>');
+    assert(
+      !html.includes('<option value="1" selected>'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('<option value="3" selected>'),
+      "the value should not contain the searched item",
+    );
     // Unselected options keep their chosen-state slot empty.
-    expect(html).not.toContain("mutated");
+    assert(
+      !html.includes("mutated"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("marks no day count when nothing was submitted", () => {
     const html = renderDayCountSelector([1, 2]);
-    expect(html).toContain('<option value="1">');
-    expect(html).not.toContain('value="1" selected');
+    assertStringIncludes(html, '<option value="1">');
+    assert(
+      !html.includes('value="1" selected'),
+      "the value should not contain the searched item",
+    );
     // A span without a stated price renders no price suffix.
-    expect(html).not.toContain("mutated");
+    assert(
+      !html.includes("mutated"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("offers the error copy when no booking lengths remain", () => {
@@ -93,11 +127,11 @@ describe("renderPayMoreInput", () => {
     const html = await withSubmittedValues({ custom_price: "25.00" }, () =>
       renderPayMoreInput(listing),
     );
-    expect(html).toContain('value="25.00"');
+    assertStringIncludes(html, 'value="25.00"');
   });
 
   test("falls back to the minimum price when nothing was submitted", () => {
-    expect(renderPayMoreInput(listing)).toContain('value="5.00"');
+    assertStringIncludes(renderPayMoreInput(listing), 'value="5.00"');
   });
 
   test("states the months each priced unit buys on a site plan", () => {
@@ -108,13 +142,16 @@ describe("renderPayMoreInput", () => {
       unit_price: 500,
     };
     const html = renderPayMoreInput(plan);
-    expect(html).toContain("Price per 3 months (£5 minimum)");
-    expect(html).not.toContain("Price per ticket");
+    assertStringIncludes(html, "Price per 3 months (£5 minimum)");
+    assert(
+      !html.includes("Price per ticket"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("prices an ordinary listing per ticket", () => {
     const html = renderPayMoreInput(listing);
-    expect(html).toContain("Price per ticket (£5 minimum)");
+    assertStringIncludes(html, "Price per ticket (£5 minimum)");
   });
 
   test("names the optional ceiling in months on a free site plan", () => {
@@ -125,34 +162,39 @@ describe("renderPayMoreInput", () => {
       unit_price: 0,
     };
     const html = renderPayMoreInput(freePlan);
-    expect(html).toContain("Price per 3 months (optional, up to £100)");
-    expect(html).not.toContain("required");
+    assertStringIncludes(html, "Price per 3 months (optional, up to £100)");
+    assert(
+      !html.includes("required"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("per ticket stays the wording on an optional ordinary listing", () => {
     const free = { ...listing, unit_price: 0 };
     const html = renderPayMoreInput(free);
-    expect(html).toContain("Price per ticket (optional, up to £100)");
+    assertStringIncludes(html, "Price per ticket (optional, up to £100)");
   });
 
   test("makes a page-listing price input required down to the smallest price", () => {
     const nearlyFree = { ...listing, unit_price: 50 };
-    expect(renderPayMoreInput(nearlyFree)).toContain(" required />");
+    assertStringIncludes(renderPayMoreInput(nearlyFree), " required />");
   });
 
   test("treats even one minor unit as a priced minimum", () => {
     const smallest = { ...listing, unit_price: 1 };
     const html = renderPayMoreInput(smallest);
-    expect(html).toContain("Price per ticket (£0.01 minimum)");
-    expect(html).toContain(" required />");
+    assertStringIncludes(html, "Price per ticket (£0.01 minimum)");
+    assertStringIncludes(html, " required />");
   });
 
   test("prefills the entered value when it is at or above the minimum", () => {
-    expect(renderPayMoreInput(listing, "custom_price", 2500)).toContain(
+    assertStringIncludes(
+      renderPayMoreInput(listing, "custom_price", 2500),
       'value="25.00"',
     );
     // Below the minimum the buyer cannot start lower than it.
-    expect(renderPayMoreInput(listing, "custom_price", 100)).toContain(
+    assertStringIncludes(
+      renderPayMoreInput(listing, "custom_price", 100),
       'value="5.00"',
     );
   });
@@ -164,8 +206,14 @@ describe("renderPayMoreInput", () => {
       undefined,
       false,
     );
-    expect(html).not.toContain("required");
-    expect(html).not.toContain("mutated");
+    assert(
+      !html.includes("required"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("mutated"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -174,12 +222,15 @@ describe("renderTermsAndCheckbox", () => {
     const html = await withSubmittedValues({ agree_terms: "1" }, () =>
       renderTermsAndCheckbox("Be kind."),
     );
-    expect(html).toContain('name="agree_terms" value="1" checked required');
+    assertStringIncludes(html, 'name="agree_terms" value="1" checked required');
   });
 
   test("starts with the box clear", () => {
     const html = renderTermsAndCheckbox("Be kind.");
-    expect(html).toContain('name="agree_terms" value="1" required');
-    expect(html).not.toContain("checked");
+    assertStringIncludes(html, 'name="agree_terms" value="1" required');
+    assert(
+      !html.includes("checked"),
+      "the value should not contain the searched item",
+    );
   });
 });

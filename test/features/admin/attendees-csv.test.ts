@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { parse } from "@std/csv";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
@@ -30,7 +31,7 @@ describe("generateAttendeesCsv", () => {
       "Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
     );
     expectTestAttendeeCsvColumns(lines[1], 2);
-    expect(lines[1]).toContain("2024-01-15T10:30:00.000Z");
+    assertStringIncludes(lines[1] ?? "", "2024-01-15T10:30:00.000Z");
   });
 
   test("blanks the ticket URL for a no-quantity row but keeps the token", () => {
@@ -38,28 +39,31 @@ describe("generateAttendeesCsv", () => {
     const ghost = testAttendee({ quantity: 0, ticket_token: "ghost-tok" });
     const lines = generateAttendeesCsv([real, ghost]).split("\n");
     // Real row carries a live /t URL; the ghost row's URL column is empty.
-    expect(lines[1]).toContain("/t/real-tok");
-    expect(lines[2]).toContain("ghost-tok");
-    expect(lines[2]).not.toContain("/t/ghost-tok");
+    assertStringIncludes(lines[1] ?? "", "/t/real-tok");
+    assertStringIncludes(lines[2] ?? "", "ghost-tok");
+    assert(
+      !lines[2].includes("/t/ghost-tok"),
+      "the value should not contain the searched item",
+    );
     expect(lines[2]!.endsWith("ghost-tok,")).toBe(true);
   });
 
   test("escapes values with commas", () => {
     const attendees = [testAttendee({ name: "Doe, John" })];
     const csv = generateAttendeesCsv(attendees);
-    expect(csv).toContain('"Doe, John"');
+    assertStringIncludes(csv, '"Doe, John"');
   });
 
   test("escapes values with quotes", () => {
     const attendees = [testAttendee({ name: 'John "JD" Doe' })];
     const csv = generateAttendeesCsv(attendees);
-    expect(csv).toContain('"John ""JD"" Doe"');
+    assertStringIncludes(csv, '"John ""JD"" Doe"');
   });
 
   test("escapes values with newlines", () => {
     const attendees = [testAttendee({ name: "John\nDoe" })];
     const csv = generateAttendeesCsv(attendees);
-    expect(csv).toContain('"John\nDoe"');
+    assertStringIncludes(csv, '"John\nDoe"');
   });
 
   test("generates multiple rows", () => {
@@ -76,8 +80,8 @@ describe("generateAttendeesCsv", () => {
     const csv = generateAttendeesCsv(attendees);
     const lines = csv.split("\n");
     expect(lines).toHaveLength(3);
-    expect(lines[1]).toContain("John Doe");
-    expect(lines[2]).toContain("Jane Smith");
+    assertStringIncludes(lines[1] ?? "", "John Doe");
+    assertStringIncludes(lines[2] ?? "", "Jane Smith");
   });
 
   test("includes phone number in CSV output", () => {
@@ -86,7 +90,7 @@ describe("generateAttendeesCsv", () => {
     const lines = csv.split("\n");
     // The leading + would become a spreadsheet formula, so a quoted tab
     // keeps the value readable as text.
-    expect(lines[1]).toContain('"\t+1 555 123 4567"');
+    assertStringIncludes(lines[1] ?? "", '"\t+1 555 123 4567"');
   });
 
   test("stops attacker-controlled attendee values from running as spreadsheet formulas", () => {
@@ -100,26 +104,27 @@ describe("generateAttendeesCsv", () => {
       }),
     ];
     const row = generateAttendeesCsv(attendees).split("\n")[1]!;
-    expect(row).toContain('"\t=SUM(A1:A2)"');
-    expect(row).toContain('"\t+44@example.com"');
-    expect(row).toContain('"\t+1 555 123 4567"');
-    expect(row).toContain(
+    assertStringIncludes(row, '"\t=SUM(A1:A2)"');
+    assertStringIncludes(row, '"\t+44@example.com"');
+    assertStringIncludes(row, '"\t+1 555 123 4567"');
+    assertStringIncludes(
+      row,
       '"\t=HYPERLINK(""http://evil.example"",""Free trips!"")"',
     );
-    expect(row).toContain("\"\t=cmd|' /C calc'!A0\"");
+    assertStringIncludes(row, "\"\t=cmd|' /C calc'!A0\"");
   });
 
   test("stops a value whose formula hides behind a line feed", () => {
     const attendees = [testAttendee({ name: "\n=SUM(A1:A2)" })];
     const csv = generateAttendeesCsv(attendees);
-    expect(csv).toContain('"\t\n=SUM(A1:A2)"');
+    assertStringIncludes(csv, '"\t\n=SUM(A1:A2)"');
   });
 
   test("includes empty phone column when phone not collected", () => {
     const attendees = [testAttendee()];
     const csv = generateAttendeesCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[1]).toContain("john@example.com,,,,1,");
+    assertStringIncludes(lines[1] ?? "", "john@example.com,,,,1,");
   });
 
   test("generates CSV with price and transaction ID", () => {
@@ -132,15 +137,15 @@ describe("generateAttendeesCsv", () => {
     ];
     const csv = generateAttendeesCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[1]).toContain("20.00");
-    expect(lines[1]).toContain("pi_abc123");
+    assertStringIncludes(lines[1] ?? "", "20.00");
+    assertStringIncludes(lines[1] ?? "", "pi_abc123");
   });
 
   test("formats zero price and empty payment_id for free attendees", () => {
     const attendees = [testAttendee()];
     const csv = generateAttendeesCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[1]).toContain("0.00,,0,");
+    assertStringIncludes(lines[1] ?? "", "0.00,,0,");
   });
 
   /** The first attendee's Checked In cell, read by its header so no other
@@ -166,8 +171,8 @@ describe("generateAttendeesCsv", () => {
     const attendees = [testAttendee({ ticket_token: "abc123" })];
     const csv = generateAttendeesCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[1]).toContain("abc123");
-    expect(lines[1]).toContain("https://localhost/t/abc123");
+    assertStringIncludes(lines[1] ?? "", "abc123");
+    assertStringIncludes(lines[1] ?? "", "https://localhost/t/abc123");
   });
 
   test("includes Date column when includeDate is true", () => {
@@ -181,7 +186,7 @@ describe("generateAttendeesCsv", () => {
     const attendees = [testAttendee({ date: "2026-03-15" })];
     const csv = generateAttendeesCsv(attendees, true);
     const lines = csv.split("\n");
-    expect(lines[0]).toContain("Date,Name");
+    assertStringIncludes(lines[0] ?? "", "Date,Name");
     expect(lines[1]).toMatch(/^2026-03-15,/);
   });
 
@@ -214,7 +219,10 @@ describe("generateAttendeesCsv", () => {
     const attendees = [testAttendee({ date: "2026-03-15" })];
     const csv = generateAttendeesCsv(attendees, false);
     expect(csv.startsWith("Name,")).toBe(true);
-    expect(csv).not.toContain("2026-03-15");
+    assert(
+      !csv.includes("2026-03-15"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -227,8 +235,11 @@ describe("generateAttendeesCsv with listingInfo", () => {
       listingLocation: "",
     };
     const csv = generateAttendeesCsv([], false, listingInfo);
-    expect(csv).toContain("Listing Date,Name");
-    expect(csv).not.toContain("Listing Location");
+    assertStringIncludes(csv, "Listing Date,Name");
+    assert(
+      !csv.includes("Listing Location"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("includes Listing Location column when listingInfo has non-empty listingLocation", () => {
@@ -237,8 +248,11 @@ describe("generateAttendeesCsv with listingInfo", () => {
       listingLocation: "Village Hall",
     };
     const csv = generateAttendeesCsv([], false, listingInfo);
-    expect(csv).toContain("Listing Location,Name");
-    expect(csv).not.toContain("Listing Date");
+    assertStringIncludes(csv, "Listing Location,Name");
+    assert(
+      !csv.includes("Listing Date"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("includes both Listing Date and Listing Location columns", () => {
@@ -247,7 +261,7 @@ describe("generateAttendeesCsv with listingInfo", () => {
       listingLocation: "Village Hall",
     };
     const csv = generateAttendeesCsv([], false, listingInfo);
-    expect(csv).toContain("Listing Date,Listing Location,Name");
+    assertStringIncludes(csv, "Listing Date,Listing Location,Name");
   });
 
   test("includes listing date and location values in rows", () => {
@@ -260,7 +274,10 @@ describe("generateAttendeesCsv with listingInfo", () => {
     const lines = csv.split("\n");
     // The UTC ISO listing datetime is shown as a date + time in the tz
     // (14:00 UTC = 15:00 BST in the default Europe/London timezone).
-    expect(lines[1]).toContain("2026-06-15 15:00,Village Hall,John Doe");
+    assertStringIncludes(
+      lines[1] ?? "",
+      "2026-06-15 15:00,Village Hall,John Doe",
+    );
   });
 
   test("renders the Listing Date (with time) in the given timezone", () => {
@@ -277,7 +294,7 @@ describe("generateAttendeesCsv with listingInfo", () => {
       undefined,
       "UTC",
     );
-    expect(utc.split("\n")[1]).toContain("2026-06-15 23:30");
+    assertStringIncludes(utc.split("\n")[1] ?? "", "2026-06-15 23:30");
     const bst = generateAttendeesCsv(
       attendees,
       false,
@@ -285,13 +302,19 @@ describe("generateAttendeesCsv with listingInfo", () => {
       undefined,
       "Europe/London",
     );
-    expect(bst.split("\n")[1]).toContain("2026-06-16 00:30");
+    assertStringIncludes(bst.split("\n")[1] ?? "", "2026-06-16 00:30");
   });
 
   test("omits Listing Date and Listing Location when listingInfo is undefined", () => {
     const csv = generateAttendeesCsv([], false);
-    expect(csv).not.toContain("Listing Date");
-    expect(csv).not.toContain("Listing Location");
+    assert(
+      !csv.includes("Listing Date"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !csv.includes("Listing Location"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("omits Listing Date and Listing Location when both are empty", () => {
@@ -300,7 +323,13 @@ describe("generateAttendeesCsv with listingInfo", () => {
       listingLocation: "",
     };
     const csv = generateAttendeesCsv([], false, listingInfo);
-    expect(csv).not.toContain("Listing Date");
-    expect(csv).not.toContain("Listing Location");
+    assert(
+      !csv.includes("Listing Date"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !csv.includes("Listing Location"),
+      "the value should not contain the searched item",
+    );
   });
 });

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { generateSecureToken } from "#crypto/utils.ts";
@@ -55,17 +56,17 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       // definition fails this test instead of moving the expectation along.
       const { apiKeyForm } = await import("#routes/admin/api-keys-form.ts");
       const html = apiKeyForm.render();
-      expect(html).toContain("Name");
+      assertStringIncludes(html, "Name");
       const input = inputNamed(html, "name");
-      expect(input).toContain('maxlength="250"');
-      expect(input).toContain('placeholder="e.g. CI Pipeline"');
-      expect(input).toContain("required");
+      assertStringIncludes(input, 'maxlength="250"');
+      assertStringIncludes(input, 'placeholder="e.g. CI Pipeline"');
+      assertStringIncludes(input, "required");
     });
 
     test("GET /admin/api-keys shows the page", async () => {
       const html = await getApiKeysHtml();
-      expect(html).toContain("API Keys");
-      expect(html).toContain("Create API key");
+      assertStringIncludes(html, "API Keys");
+      assertStringIncludes(html, "Create API key");
     });
 
     test("GET /admin/api-keys shows existing keys with last used date", async () => {
@@ -73,16 +74,25 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       await touchApiKeyLastUsed(id);
 
       const html = await getApiKeysHtml();
-      expect(html).toContain("Visible Key");
-      expect(html).not.toContain("Never");
+      assertStringIncludes(html, "Visible Key");
+      assert(
+        !html.includes("Never"),
+        "the value should not contain the searched item",
+      );
       // The name links to the per-key manage page, not an inline delete link.
-      expect(html).toContain(`href="/admin/api-keys/${id}"`);
+      assertStringIncludes(html, `href="/admin/api-keys/${id}"`);
     });
 
     test("GET /admin/api-keys without success or error params shows no messages", async () => {
       const html = await getApiKeysHtml();
-      expect(html).not.toContain('class="success"');
-      expect(html).not.toContain('class="error"');
+      assert(
+        !html.includes('class="success"'),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes('class="error"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("GET /admin/api-keys/docs returns HTML docs via cookie auth", async () => {
@@ -93,27 +103,30 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
 
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("API Documentation");
-      expect(html).toContain("Bearer");
+      assertStringIncludes(html, "API Documentation");
+      assertStringIncludes(html, "Bearer");
     });
   });
 
   describe("flash messages", () => {
     test("shows a success message from the flash cookie", async () => {
       const html = await getApiKeysHtml(flashCookieHeader("done"));
-      expect(html).toContain("done");
+      assertStringIncludes(html, "done");
     });
 
     test("shows an error message from the flash cookie", async () => {
       const html = await getApiKeysHtml(flashCookieHeader("key failed", false));
-      expect(html).toContain("key failed");
-      expect(html).toContain("error");
+      assertStringIncludes(html, "key failed");
+      assertStringIncludes(html, "error");
     });
 
     test("shows a success message without a newline (no new key)", async () => {
       const html = await getApiKeysHtml(flashCookieHeader("Key updated"));
-      expect(html).toContain("Key updated");
-      expect(html).not.toContain("Copy your API key now");
+      assertStringIncludes(html, "Key updated");
+      assert(
+        !html.includes("Copy your API key now"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a flash that is only a key still shows the copy panel, not a message", async () => {
@@ -121,13 +134,14 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       // has an empty message and only the key. The copy panel must still
       // appear — the split runs on position 0, which is a found position.
       const html = await getApiKeysHtml(flashCookieHeader("\nBARE-KEY-123"));
-      expect(html).toContain("Copy your API key now");
+      assertStringIncludes(html, "Copy your API key now");
       // The key sits in its code block, exactly, with no stray newline.
-      expect(html).toContain("<code>BARE-KEY-123</code>");
+      assertStringIncludes(html, "<code>BARE-KEY-123</code>");
       // The page's own message is empty, so the only flash on the page is
       // the layout backstop's — which sits first inside <main>. A non-empty
       // page message would render inside the page body instead.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         '<main id="main-content" tabindex="-1"><div class="success"',
       );
     });
@@ -186,8 +200,8 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
         }),
       );
       const html = await redirectResponse.text();
-      expect(html).toContain("API key created");
-      expect(html).toContain("Copy your API key now");
+      assertStringIncludes(html, "API key created");
+      assertStringIncludes(html, "Copy your API key now");
       expect(await storedFeatureEnabled("apiKeys")).toBe(true);
     });
 

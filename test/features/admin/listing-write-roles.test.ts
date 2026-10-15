@@ -1,6 +1,7 @@
 // Role parity for the listing resource behind the JSON API: the create, update,
 // read, delete, deactivate, and reactivate pages each declare an audience, and
 // the API routes allow exactly those roles.
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";

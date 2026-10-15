@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -186,7 +188,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       }),
       (json) => {
         expect(json.processed).toBe(false);
-        expect(json.error).toContain("saved your details");
+        assertStringIncludes(json.error, "saved your details");
       },
     );
   });
@@ -226,7 +228,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
     for (const [code, expected] of REASON_EXPECTATIONS) {
       const spec = placeholderRefund(code)("internal detail line");
       expect(spec.code).toBe(code);
-      expect(spec.reason).toContain(expected);
+      assertStringIncludes(spec.reason, expected);
       expect(spec.detail).toBe("internal detail line");
     }
   });
@@ -234,25 +236,34 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
   test("chargeMismatchSpec and deletedListingSpec select their code and detail", () => {
     const mismatch = chargeMismatchSpec(paidSession("cs_charge"), 1000);
     expect(mismatch.code).toBe("charge_mismatch");
-    expect(mismatch.detail).toContain("1000");
-    expect(mismatch.reason).toContain("did not match the agreed total");
+    assertStringIncludes(mismatch.detail, "1000");
+    assertStringIncludes(mismatch.reason, "did not match the agreed total");
     const removed = deletedListingSpec(paidSession("cs_deleted"));
     expect(removed.code).toBe("listing_removed");
-    expect(removed.detail).toContain("cs_deleted");
-    expect(removed.reason).toContain("was removed while they were paying");
+    assertStringIncludes(removed.detail, "cs_deleted");
+    assertStringIncludes(removed.reason, "was removed while they were paying");
   });
 
   test("placeholderRefundNote distinguishes returned from tracked recovery", () => {
     const spec = placeholderRefund("price_changed")("detail line");
     const refunded = placeholderRefundNote(7, spec, true);
-    expect(refunded).toContain("payment was refunded because");
-    expect(refunded).toContain("Refund code: price_changed");
-    expect(refunded).not.toContain("pi_ref");
-    expect(refunded).not.toContain("Payment reference");
-    expect(refunded).toContain("/admin/ledger/attendee/7");
+    assertStringIncludes(refunded, "payment was refunded because");
+    assertStringIncludes(refunded, "Refund code: price_changed");
+    assert(
+      !refunded.includes("pi_ref"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !refunded.includes("Payment reference"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(refunded, "/admin/ledger/attendee/7");
     const notRefunded = placeholderRefundNote(7, spec, false);
-    expect(notRefunded).toContain("refund is tracked in Refund recovery");
-    expect(notRefunded).not.toContain("payment was refunded because");
+    assertStringIncludes(notRefunded, "refund is tracked in Refund recovery");
+    assert(
+      !notRefunded.includes("payment was refunded because"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("validationFailure short-circuits 404 without refunding", () => {
@@ -264,8 +275,8 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
     expect(result).not.toBeInstanceOf(Promise);
     expect(result.status).toBe(404);
     expect(result.success).toBe(false);
-    expect(result.detail).toContain("Post-payment listing not found");
-    expect(result.detail).toContain("cs_404");
+    assertStringIncludes(result.detail, "Post-payment listing not found");
+    assertStringIncludes(result.detail, "cs_404");
     expect(result.error).toBe("Listing not found");
   });
 
@@ -288,8 +299,8 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       if (result.success) throw new Error("expected a failure result");
       expect(result.refunded).toBe(true);
       expect(result.status).toBe(409);
-      expect(result.error.toLowerCase()).toContain("price");
-      expect(result.detail).toContain("1000");
+      assertStringIncludes(result.error.toLowerCase(), "price");
+      assertStringIncludes(result.detail, "1000");
     });
   });
 

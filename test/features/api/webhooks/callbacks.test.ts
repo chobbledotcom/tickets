@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -30,7 +32,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     const html = await (
       await handleRequest(mockRequest("/payment/success"))
     ).text();
-    expect(html).toContain("Invalid payment callback");
+    assertStringIncludes(html, "Invalid payment callback");
     expect(logLogged(E, "params=[none] referer=none")).toBe(true);
   });
 
@@ -104,7 +106,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       mockRequest("/payment/success?orderId=cs_sq_order"),
     );
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toContain("tokens=");
+    assertStringIncludes(res.headers.get("location") ?? "", "tokens=");
   });
 
   test("direct-render shows the ticket URL and thank-you link", async () => {
@@ -132,9 +134,9 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     );
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("/t/");
-    expect(html).toContain("https://ty.example.com");
-    expect(html).toContain('data-payment-result="success"');
+    assertStringIncludes(html, "/t/");
+    assertStringIncludes(html, "https://ty.example.com");
+    assertStringIncludes(html, 'data-payment-result="success"');
   });
 
   test("redirect URL includes the actual token value", async () => {
@@ -182,8 +184,11 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       mockRequest("/payment/success?session_id=cs_ap2"),
     );
     const html = await res2.text();
-    expect(html).toContain("trim.example.com");
-    expect(html).not.toContain("Invalid payment callback");
+    assertStringIncludes(html, "trim.example.com");
+    assert(
+      !html.includes("Invalid payment callback"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("tokens render path shows the ticket URL and single-listing thank-you", async () => {
@@ -210,8 +215,8 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     if (loc === null) return;
     const res2 = await handleRequest(mockRequest(loc));
     const html = await res2.text();
-    expect(html).toContain("/t/");
-    expect(html).toContain("tok-ty.example.com");
+    assertStringIncludes(html, "/t/");
+    assertStringIncludes(html, "tok-ty.example.com");
   });
 
   test("no-session callback logs all param names comma-separated", async () => {
@@ -248,7 +253,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       mockRequest("/payment/success?session_id=cs_ap_dpr"),
     );
     const html = await res2.text();
-    expect(html).toContain('data-payment-result="success"');
+    assertStringIncludes(html, 'data-payment-result="success"');
   });
 
   test("already-processed with no thank-you-url renders success without redirect", async () => {
@@ -276,8 +281,11 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       mockRequest("/payment/success?session_id=cs_nt_dpr"),
     );
     const html = await res2.text();
-    expect(html).toContain('data-payment-result="success"');
-    expect(html).not.toContain("meta http-equiv");
+    assertStringIncludes(html, 'data-payment-result="success"');
+    assert(
+      !html.includes("meta http-equiv"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("empty referer header is logged as empty, not 'none'", async () => {
@@ -304,7 +312,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     const res = await handleRequest(
       mockRequest("/payment/success?session_id=cs_de_detail"),
     );
-    expect(await res.text()).toContain("saved your details");
+    assertStringIncludes(await res.text(), "saved your details");
     expect(logLogged(E, "[redirect]")).toBe(true);
   });
 
@@ -356,6 +364,9 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     );
     expect(res2.status).toBe(200);
     const html = await res2.text();
-    expect(html).not.toContain("meta-refresh");
+    assert(
+      !html.includes("meta-refresh"),
+      "the value should not contain the searched item",
+    );
   });
 });

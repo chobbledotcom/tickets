@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
@@ -56,9 +57,9 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
 
     expect(response.status).toBe(200);
     const page = await response.text();
-    expect(page).toContain('data-payment-result="success"');
-    expect(page).toContain("https://example.com/parent-thanks");
-    expect(page).toContain('href="/t/');
+    assertStringIncludes(page, 'data-payment-result="success"');
+    assertStringIncludes(page, "https://example.com/parent-thanks");
+    assertStringIncludes(page, 'href="/t/');
   });
 
   test("replays an already-processed checkout from the listing's thank-you URL", async () => {
@@ -77,8 +78,8 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
 
     expect(replay.status).toBe(200);
     const page = await replay.text();
-    expect(page).toContain('data-payment-result="success"');
-    expect(page).toContain("url=https://example.com/listing-thanks");
+    assertStringIncludes(page, 'data-payment-result="success"');
+    assertStringIncludes(page, "url=https://example.com/listing-thanks");
   });
 
   test("keeps the intent's thank-you URL when a single-listing replay recomputes", async () => {
@@ -101,8 +102,11 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
     const replay = await visit("cs_paid_parent_replay");
 
     const page = await replay.text();
-    expect(page).toContain("url=https://example.com/parent-thanks");
-    expect(page).not.toContain("listing-thanks");
+    assertStringIncludes(page, "url=https://example.com/parent-thanks");
+    assert(
+      !page.includes("listing-thanks"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("hides an explicit thank-you URL for a concealing package", async () => {
@@ -154,14 +158,16 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
       const first = await visit(sessionId);
       expect(first.status).toBe(explicit ? 200 : 302);
       if (explicit) {
-        expect(await first.text()).toContain(
+        assertStringIncludes(
+          await first.text(),
           "url=https://example.com/mixed-thanks",
         );
       }
       await clearSessionTokens(sessionId);
       const replay = await visit(sessionId);
       expect(replay.status).toBe(200);
-      expect(await replay.text()).toContain(
+      assertStringIncludes(
+        await replay.text(),
         "url=https://example.com/mixed-thanks",
       );
     });
@@ -218,8 +224,11 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
 
     expect(replay.status).toBe(200);
     const page = await replay.text();
-    expect(page).toContain('data-payment-result="success"');
-    expect(page).not.toContain('http-equiv="refresh"');
+    assertStringIncludes(page, 'data-payment-result="success"');
+    assert(
+      !page.includes('http-equiv="refresh"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders a replay without a thank-you URL when the listing was deleted", async () => {
@@ -239,9 +248,15 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
 
     expect(replay.status).toBe(200);
     const page = await replay.text();
-    expect(page).toContain('data-payment-result="success"');
-    expect(page).not.toContain("gone-thanks");
-    expect(page).not.toContain('http-equiv="refresh"');
+    assertStringIncludes(page, 'data-payment-result="success"');
+    assert(
+      !page.includes("gone-thanks"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !page.includes('http-equiv="refresh"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("accepts Square's orderId redirect parameter", async () => {

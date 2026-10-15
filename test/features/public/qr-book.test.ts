@@ -12,6 +12,7 @@
  * token the organiser's page would never produce.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -73,8 +74,8 @@ describeWithEnv("QR booking", { db: true }, () => {
       );
       expect(response.status).toBe(400);
       const body = await response.text();
-      expect(body).toContain("expired or invalid");
-      expect(body).toContain(`/ticket/${listing.slug}`);
+      assertStringIncludes(body, "expired or invalid");
+      assertStringIncludes(body, `/ticket/${listing.slug}`);
     });
 
     test("unknown listing slug renders the error page", async () => {
@@ -196,7 +197,7 @@ describeWithEnv("QR booking", { db: true }, () => {
         // The visitor must choose a day count, so the form renders instead.
         expect(response.status).toBe(200);
         expect(stripe.calls()).toBe(0);
-        expect(await response.text()).toContain('name="day_count"');
+        assertStringIncludes(await response.text(), 'name="day_count"');
       });
     });
 
@@ -224,7 +225,7 @@ describeWithEnv("QR booking", { db: true }, () => {
           qrBookPath(listing.slug, token),
         );
         expect(response.status).toBe(200);
-        expect(await response.text()).toContain('name="day_count"');
+        assertStringIncludes(await response.text(), 'name="day_count"');
       });
     });
 
@@ -236,7 +237,8 @@ describeWithEnv("QR booking", { db: true }, () => {
       });
       const response = await scanWithCheckoutResult(listing, null);
       expect(response.status).toBe(500);
-      expect(await response.text()).toContain(
+      assertStringIncludes(
+        await response.text(),
         "Failed to create payment session. Please try again.",
       );
     });
@@ -253,7 +255,7 @@ describeWithEnv("QR booking", { db: true }, () => {
         error: refusal,
       });
       expect(response.status).toBe(400);
-      expect(await response.text()).toContain(refusal);
+      assertStringIncludes(await response.text(), refusal);
     });
 
     test("falls through when name is missing even though value is set", async () => {

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
@@ -59,10 +60,10 @@ describe("group admin panels", () => {
           testListingWithCount({ attendee_count: 8, id: 2 }),
         ],
       });
-      expect(html).toContain("Group Attendees");
-      expect(html).toContain("20 / 50");
-      expect(html).toContain("30 remain");
-      expect(html).toContain("across all listings");
+      assertStringIncludes(html, "Group Attendees");
+      assertStringIncludes(html, "20 / 50");
+      assertStringIncludes(html, "30 remain");
+      assertStringIncludes(html, "across all listings");
     });
 
     test("Group Attendees row drops cap fragment when group is uncapped", () => {
@@ -75,9 +76,16 @@ describe("group admin panels", () => {
         /<th>Group Attendees<\/th><td>([\s\S]*?)<\/td>/,
       );
       expect(groupRow).not.toBeNull();
-      expect(groupRow![1]).toContain("(no group cap)");
-      expect(groupRow![1]).not.toContain("remain");
-      expect(groupRow![1]).not.toContain(" / ");
+      const capCell = groupRow![1];
+      assertStringIncludes(capCell ?? "", "(no group cap)");
+      assert(
+        capCell !== undefined && !capCell.includes("remain"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        capCell !== undefined && !capCell.includes(" / "),
+        "the value should not contain the searched item",
+      );
     });
 
     test("shows the capacity meter for a cap of one", () => {
@@ -86,9 +94,12 @@ describe("group admin panels", () => {
         group,
         listings: [testListingWithCount({ attendee_count: 0 })],
       });
-      expect(html).toContain("0 / 1");
-      expect(html).toContain("1 remain");
-      expect(html).not.toContain("(no group cap)");
+      assertStringIncludes(html, "0 / 1");
+      assertStringIncludes(html, "1 remain");
+      assert(
+        !html.includes("(no group cap)"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("keeps one space between the meter and its scope note", () => {
@@ -97,21 +108,22 @@ describe("group admin panels", () => {
         group,
         listings: [testListingWithCount({ attendee_count: 20 })],
       });
-      expect(html).toContain("30 remain</span> <small>");
+      assertStringIncludes(html, "30 remain</span> <small>");
     });
 
     test("headlines the detail table with the group name across both columns", () => {
       const html = overviewHtml({ group: testGroup({ name: "Named Group" }) });
-      expect(html).toContain('<th colspan="2">Named Group</th>');
+      assertStringIncludes(html, '<th colspan="2">Named Group</th>');
     });
 
     test("keeps the hidden row off a group that is not hidden", () => {
       const html = overviewHtml({
         group: testGroup({ hidden: false, name: "Visible Group" }),
       });
-      expect(html).toContain("Visible Group");
-      expect(html).not.toContain(
-        t("listings_table.yes_not_shown_in_public_list"),
+      assertStringIncludes(html, "Visible Group");
+      assert(
+        !html.includes(t("listings_table.yes_not_shown_in_public_list")),
+        "the value should not contain the searched item",
       );
     });
 
@@ -121,9 +133,9 @@ describe("group admin panels", () => {
         group,
         listings: [testListingWithCount({ attendee_count: 10 })],
       });
-      expect(html).toContain("danger-text");
-      expect(html).toContain("10 / 10");
-      expect(html).toContain("0 remain");
+      assertStringIncludes(html, "danger-text");
+      assertStringIncludes(html, "10 / 10");
+      assertStringIncludes(html, "0 remain");
     });
 
     test("shows a running-total mismatch for group listings", () => {
@@ -148,9 +160,9 @@ describe("group admin panels", () => {
           }),
         ],
       });
-      expect(html).toContain("Running total check");
-      expect(html).toContain("expected <strong>2</strong>, got");
-      expect(html).toContain("Review group listings");
+      assertStringIncludes(html, "Running total check");
+      assertStringIncludes(html, "expected <strong>2</strong>, got");
+      assertStringIncludes(html, "Review group listings");
     });
 
     test("shows income for an override-priced package whose listings are free", () => {
@@ -168,7 +180,7 @@ describe("group admin panels", () => {
         hasPaidListing: true,
         listings,
       });
-      expect(withRevenue).toContain("Total income earned");
+      assertStringIncludes(withRevenue, "Total income earned");
 
       // Without a paid listing the revenue row is omitted entirely.
       const withoutRevenue = overviewHtml({
@@ -177,7 +189,10 @@ describe("group admin panels", () => {
         hasPaidListing: false,
         listings,
       });
-      expect(withoutRevenue).not.toContain("Total income earned");
+      assert(
+        !withoutRevenue.includes("Total income earned"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("summarises group income and servicing costs with a filtered ledger link", () => {
@@ -199,20 +214,26 @@ describe("group admin panels", () => {
           transferCount: 3,
         }),
       });
-      expect(html).toContain("Money in and out");
-      expect(html).toContain("Total income earned");
-      expect(html).toContain("+£200");
-      expect(html).toContain("Service event costs");
-      expect(html).toContain("Refunds");
-      expect(html).toContain("−£12");
-      expect(html).toContain("−£40");
-      expect(html).toContain("Net after refunds and costs");
-      expect(html).toContain("£160");
-      expect(html).not.toContain("+£160");
-      expect(html).toContain("<strong>Net after refunds and costs</strong>");
-      expect(html).toContain('href="/admin/ledger?group=8"');
-      expect(html).toContain("View this group's money changes");
-      expect(html).toContain("View every change in the group's money.");
+      assertStringIncludes(html, "Money in and out");
+      assertStringIncludes(html, "Total income earned");
+      assertStringIncludes(html, "+£200");
+      assertStringIncludes(html, "Service event costs");
+      assertStringIncludes(html, "Refunds");
+      assertStringIncludes(html, "−£12");
+      assertStringIncludes(html, "−£40");
+      assertStringIncludes(html, "Net after refunds and costs");
+      assertStringIncludes(html, "£160");
+      assert(
+        !html.includes("+£160"),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(
+        html,
+        "<strong>Net after refunds and costs</strong>",
+      );
+      assertStringIncludes(html, 'href="/admin/ledger?group=8"');
+      assertStringIncludes(html, "View this group's money changes");
+      assertStringIncludes(html, "View every change in the group's money.");
     });
 
     test("does not offer a forbidden ledger link without owner access", () => {
@@ -227,8 +248,11 @@ describe("group admin panels", () => {
           transferCount: 1,
         }),
       });
-      expect(html).toContain("Total income earned");
-      expect(html).not.toContain("/admin/ledger?group=8");
+      assertStringIncludes(html, "Total income earned");
+      assert(
+        !html.includes("/admin/ledger?group=8"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("shows money and its ledger link for a free group with only costs", () => {
@@ -242,10 +266,10 @@ describe("group admin panels", () => {
           transferCount: 1,
         }),
       });
-      expect(html).toContain("Money in and out");
-      expect(html).toContain("Service event costs");
-      expect(html).toContain("−£30");
-      expect(html).toContain('href="/admin/ledger?group=8"');
+      assertStringIncludes(html, "Money in and out");
+      assertStringIncludes(html, "Service event costs");
+      assertStringIncludes(html, "−£30");
+      assertStringIncludes(html, 'href="/admin/ledger?group=8"');
     });
 
     test("shows ledger income in the group detail table", () => {
@@ -254,7 +278,7 @@ describe("group admin panels", () => {
         hasPaidListing: false,
         money: moneyTotals({ recognisedIncome: 2500 }),
       });
-      expect(html).toContain("<th>Total Revenue</th><td>£25</td>");
+      assertStringIncludes(html, "<th>Total Revenue</th><td>£25</td>");
     });
 
     test("shows money and its ledger link for a free group with only outside costs", () => {
@@ -268,11 +292,12 @@ describe("group admin panels", () => {
           transferCount: 1,
         }),
       });
-      expect(html).toContain("Money in and out");
-      expect(html).toContain(
+      assertStringIncludes(html, "Money in and out");
+      assertStringIncludes(
+        html,
         '<th>Costs paid outside checkout</th><td class="col-amount">−£30</td>',
       );
-      expect(html).toContain('href="/admin/ledger?group=8"');
+      assertStringIncludes(html, 'href="/admin/ledger?group=8"');
     });
 
     test("suppresses the public URL / QR / embed when the group isn't shareable", () => {
@@ -280,22 +305,30 @@ describe("group admin panels", () => {
       const listings = [testListingWithCount({ attendee_count: 0, id: 1 })];
 
       const shareable = overviewHtml({ group, listings, shareable: true });
-      expect(shareable).toContain(`localhost/ticket/${group.slug}`);
-      expect(shareable).toContain(`embed-script-${group.id}`);
+      assertStringIncludes(shareable, `localhost/ticket/${group.slug}`);
+      assertStringIncludes(shareable, `embed-script-${group.id}`);
       // The Embed action is a label for the hidden toggle, and the embed code
       // rows start hidden, exactly as on the listing page.
-      expect(shareable).toContain(
+      assertStringIncludes(
+        shareable,
         `<label class="small-action" for="embed-toggle-${group.id}">Embed</label>`,
       );
-      expect(shareable).toContain(
+      assertStringIncludes(
+        shareable,
         `class="visually-hidden embed-toggle" id="embed-toggle-${group.id}" type="checkbox"`,
       );
       expect((shareable.match(/class="embed-code-row"/g) ?? []).length).toBe(2);
 
       const unshareable = overviewHtml({ group, listings, shareable: false });
-      expect(unshareable).not.toContain(`localhost/ticket/${group.slug}`);
-      expect(unshareable).not.toContain(`embed-script-${group.id}`);
-      expect(unshareable).toContain("isn't currently bookable");
+      assert(
+        !unshareable.includes(`localhost/ticket/${group.slug}`),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !unshareable.includes(`embed-script-${group.id}`),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(unshareable, "isn't currently bookable");
     });
 
     test("shows the check-in, revenue, and answer rows the shared stats build", () => {
@@ -307,10 +340,10 @@ describe("group admin panels", () => {
         money: moneyTotals({ recognisedIncome: 2500 }),
         questionData: sizeQuestionAnswerData(),
       });
-      expect(html).toContain("<th>Total Revenue</th><td>£25</td>");
-      expect(html).toContain("<th>Tickets Checked In</th>");
-      expect(html).toContain("Size?");
-      expect(html).toContain("Small (2), Large (1)");
+      assertStringIncludes(html, "<th>Total Revenue</th><td>£25</td>");
+      assertStringIncludes(html, "<th>Tickets Checked In</th>");
+      assertStringIncludes(html, "Size?");
+      assertStringIncludes(html, "Small (2), Large (1)");
     });
 
     test("leaves the answer rows out when the group carries no questions", () => {
@@ -318,8 +351,11 @@ describe("group admin panels", () => {
         group: testGroup({ id: 8 }),
         money: moneyTotals({ recognisedIncome: 2500 }),
       });
-      expect(html).toContain("<th>Total Revenue</th><td>£25</td>");
-      expect(html).not.toContain("Size?");
+      assertStringIncludes(html, "<th>Total Revenue</th><td>£25</td>");
+      assert(
+        !html.includes("Size?"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("offers ungrouped listings as add-to-group candidates", () => {
@@ -328,9 +364,9 @@ describe("group admin panels", () => {
         group,
         ungroupedListings: [testListingWithCount({ id: 7, name: "Joinable" })],
       });
-      expect(html).toContain("<strong>Add listings:</strong>");
-      expect(html).toContain('value="7"');
-      expect(html).toContain("Joinable");
+      assertStringIncludes(html, "<strong>Add listings:</strong>");
+      assertStringIncludes(html, 'value="7"');
+      assertStringIncludes(html, "Joinable");
     });
 
     test("shows deactivated candidates muted and last in the add-to-group list", () => {
@@ -371,7 +407,8 @@ describe("group admin panels", () => {
         '<input disabled name="listing_ids" type="checkbox" value="8"',
       );
       expect(striker).toBeGreaterThan(joinable);
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         t("groups.candidate_type_blocked", {
           candidate: "daily",
           type: "standard",
@@ -400,7 +437,7 @@ describe("group admin panels", () => {
         ],
       });
       expect(html).toMatch(/<input disabled[^>]*value="9"/);
-      expect(html).toContain(t("groups.candidate_days_blocked_fixed"));
+      assertStringIncludes(html, t("groups.candidate_days_blocked_fixed"));
     });
 
     test("an enabled candidate carries no disabled marker", () => {

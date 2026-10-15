@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { BuiltSite } from "#db/built-sites/types.ts";
@@ -23,8 +24,8 @@ const expectArrow = (
   if (arrow === undefined) {
     throw new Error(`No anchor carries the aria-label "${label}"`);
   }
-  expect(arrow).toContain(`href="${href}"`);
-  expect(arrow).toContain(`title="${title}"`);
+  assertStringIncludes(arrow, `href="${href}"`);
+  assertStringIncludes(arrow, `title="${title}"`);
 };
 
 describeWithEnv(
@@ -110,8 +111,14 @@ describeWithEnv(
       const site = await createTestBuiltSite({ name: "Only Site" });
       const response = await adminGet(`/admin/built-sites/${site.id}`);
       const html = await expectHtmlResponse(response, 200, "Only Site");
-      expect(html).not.toContain("Previous built site");
-      expect(html).not.toContain("Next built site");
+      assert(
+        !html.includes("Previous built site"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("Next built site"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("lands the pager's support-message cycle on a Deno site", async () => {
@@ -156,7 +163,7 @@ describeWithEnv(
         html.indexOf("</h1>") + 5,
       );
       expect(heading).toBe("<h1>Middle</h1>");
-      expect(html).toContain('class="title-nav"');
+      assertStringIncludes(html, 'class="title-nav"');
     });
   },
 );

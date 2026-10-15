@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -104,8 +105,11 @@ describeWithEnv("refund authorization", { db: true }, () => {
       expect(managerResponse.status).toBe(200);
       const ownerHtml = await ownerResponse.text();
       const managerHtml = await managerResponse.text();
-      expect(ownerHtml).toContain(url);
-      expect(managerHtml).not.toContain(url);
+      assertStringIncludes(ownerHtml, url);
+      assert(
+        !managerHtml.includes(url),
+        "the value should not contain the searched item",
+      );
     }
   });
 });

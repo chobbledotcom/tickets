@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
@@ -59,11 +59,14 @@ describeWithEnv(
         BUNNY_API_KEY: "k",
         NTFY_URL: "https://ntfy.example.com/t",
       });
-      expect(html).toContain("<code>BOTPOISON_PUBLIC_KEY</code>");
-      expect(html).toContain("<code>BOTPOISON_SECRET_KEY</code>");
-      expect(html).toContain(`/admin/built-sites/${site.id}/add-secrets`);
+      assertStringIncludes(html, "<code>BOTPOISON_PUBLIC_KEY</code>");
+      assertStringIncludes(html, "<code>BOTPOISON_SECRET_KEY</code>");
+      assertStringIncludes(html, `/admin/built-sites/${site.id}/add-secrets`);
       // The secret key's value never reaches the page.
-      expect(html).not.toContain("sk_host_7c2e");
+      assert(
+        !html.includes("sk_host_7c2e"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("leaves the Botpoison keys out when the host does not have them", async () => {
@@ -85,9 +88,15 @@ describeWithEnv(
         NTFY_URL: "https://ntfy.example.com/t",
       });
       // An unset key sits out exactly like every other unset secret.
-      expect(html).toContain("<code>NTFY_URL</code>");
-      expect(html).not.toContain("BOTPOISON_PUBLIC_KEY");
-      expect(html).not.toContain("BOTPOISON_SECRET_KEY");
+      assertStringIncludes(html, "<code>NTFY_URL</code>");
+      assert(
+        !html.includes("BOTPOISON_PUBLIC_KEY"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("BOTPOISON_SECRET_KEY"),
+        "the value should not contain the searched item",
+      );
     });
   },
 );

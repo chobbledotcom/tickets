@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getActiveHolidays } from "#db/holidays.ts";
@@ -28,8 +29,11 @@ describeWithEnv(
       await enablePublicApi();
       const { parent, child } = await makeParent();
       const slugs = await apiListingSlugs();
-      expect(slugs).toContain(parent.slug);
-      expect(slugs).not.toContain(child.slug);
+      assertStringIncludes(slugs, parent.slug);
+      assert(
+        !slugs.includes(child.slug),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a child listing detail endpoint is not bookable (404)", async () => {

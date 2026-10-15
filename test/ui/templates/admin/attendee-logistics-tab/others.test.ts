@@ -4,6 +4,7 @@
  * window helpers. The tab's core GET/POST behaviour lives in `page.test.ts`.
  */
 
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
@@ -54,7 +55,7 @@ describeWithEnv("attendee Logistics tab — demo mode", { db: true }, () => {
 
     const saved = (await getAttendeeOrNull(id, await getTestPrivateKey()))!;
     expect(saved.address).not.toBe("1 Real Street, Realtown");
-    expect(DEMO_ADDRESSES).toContain(saved.address);
+    assertArrayIncludes(DEMO_ADDRESSES, [saved.address]);
     expect(saved.lat).toBe("");
     expect(saved.lng).toBe("");
   });
@@ -133,9 +134,12 @@ describeWithEnv(
       expect(response.status).toBe(400);
       const html = await response.text();
       // The form re-renders with the operator's submitted choices…
-      expect(html).toContain('value="10:30"');
-      expect(html).toContain('value="18:30"');
-      expect(html).not.toContain('value="08:00"');
+      assertStringIncludes(html, 'value="10:30"');
+      assertStringIncludes(html, 'value="18:30"');
+      assert(
+        !html.includes('value="08:00"'),
+        "the value should not contain the searched item",
+      );
       // …while nothing was saved.
       expect((await getLogisticsAssignments(id)).get(listing.id)).toEqual({
         endAgentId: null,
@@ -164,11 +168,17 @@ describeWithEnv(
       ]);
 
       const html = await logisticsTabHtml(current);
-      expect(html).toContain("Other attendees");
-      expect(html).toContain("Overlap Person");
-      expect(html).toContain(`/admin/attendees/${overlapping}/logistics`);
-      expect(html).not.toContain("Far Away Person");
-      expect(html).not.toContain(`/admin/attendees/${elsewhere}/logistics`);
+      assertStringIncludes(html, "Other attendees");
+      assertStringIncludes(html, "Overlap Person");
+      assertStringIncludes(html, `/admin/attendees/${overlapping}/logistics`);
+      assert(
+        !html.includes("Far Away Person"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes(`/admin/attendees/${elsewhere}/logistics`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("shows the overlapping bookings' leg times and quantity", async () => {
@@ -201,10 +211,10 @@ describeWithEnv(
       );
 
       const html = await logisticsTabHtml(current);
-      expect(html).toContain("10:45");
-      expect(html).toContain("15:30");
+      assertStringIncludes(html, "10:45");
+      assertStringIncludes(html, "15:30");
       // A multi-unit booking shows its quantity beside the listing name.
-      expect(html).toContain("×2");
+      assertStringIncludes(html, "×2");
     });
 
     test("a booking in the gap between two bookings is not listed", async () => {
@@ -221,8 +231,11 @@ describeWithEnv(
       ]);
 
       const html = await logisticsTabHtml(current);
-      expect(html).toContain("Gap Edge Person");
-      expect(html).not.toContain("Gap Middle Person");
+      assertStringIncludes(html, "Gap Edge Person");
+      assert(
+        !html.includes("Gap Middle Person"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("the section is hidden when nothing overlaps", async () => {
@@ -231,7 +244,10 @@ describeWithEnv(
         { date: "2030-01-10", durationDays: 1, listingId: daily.id },
       ]);
       const html = await logisticsTabHtml(alone);
-      expect(html).not.toContain("Other attendees");
+      assert(
+        !html.includes("Other attendees"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("the section is hidden for a date-less booking", async () => {
@@ -244,7 +260,10 @@ describeWithEnv(
         { listingId: listing.id },
       ]);
       const html = await logisticsTabHtml(dateless);
-      expect(html).not.toContain("Other attendees");
+      assert(
+        !html.includes("Other attendees"),
+        "the value should not contain the searched item",
+      );
     });
   },
 );

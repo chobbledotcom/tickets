@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { KIND } from "#accounting/kinds.ts";
@@ -28,28 +29,34 @@ describe("LedgerTable", () => {
       refs,
       "dual",
     );
-    expect(html).toContain("table-scroll");
-    expect(html).toContain("<th>Time</th>");
-    expect(html).toContain("Booking made");
-    expect(html).not.toContain(">sale<");
+    assertStringIncludes(html, "table-scroll");
+    assertStringIncludes(html, "<th>Time</th>");
+    assertStringIncludes(html, "Booking made");
+    assert(
+      !html.includes(">sale<"),
+      "the value should not contain the searched item",
+    );
     // Both legs resolve to links, joined by an arrow (rendered as the glyph).
-    expect(html).toContain('<a href="/admin/ledger/attendee/1">Ada</a>');
-    expect(html).toContain('<a href="/admin/ledger?listing=1">Concert</a>');
-    expect(html).toContain("→");
-    expect(html).toContain(formatCurrency(2500));
+    assertStringIncludes(html, '<a href="/admin/ledger/attendee/1">Ada</a>');
+    assertStringIncludes(html, '<a href="/admin/ledger?listing=1">Concert</a>');
+    assertStringIncludes(html, "→");
+    assertStringIncludes(html, formatCurrency(2500));
   });
 
   test("explains a money change with no event type", () => {
     const html = renderLedger([transfer({})], names(), "dual");
-    expect(html).toContain("<td>No event type</td>");
+    assertStringIncludes(html, "<td>No event type</td>");
   });
 
   test("treats a synthetic empty event type as absent", () => {
     // The store maps a kindless stored row back to an omitted kind, so "" only
     // arises synthetically — it must still read as "no kind", never a blank cell.
     const html = renderLedger([transfer({ kind: "" })], names(), "dual");
-    expect(html).toContain("<td>No event type</td>");
-    expect(html).not.toContain("<td></td>");
+    assertStringIncludes(html, "<td>No event type</td>");
+    assert(
+      !html.includes("<td></td>"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("uses a safe translated label for an unknown opaque event type", () => {
@@ -58,8 +65,11 @@ describe("LedgerTable", () => {
       names(),
       "dual",
     );
-    expect(html).toContain("<td>Other money change</td>");
-    expect(html).not.toContain("future_money_change");
+    assertStringIncludes(html, "<td>Other money change</td>");
+    assert(
+      !html.includes("future_money_change"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("has a translated detailed-view label for every known event type", () => {
@@ -89,22 +99,28 @@ describe("LedgerTable", () => {
     ]);
     for (const [kind, label] of cases) {
       const html = renderLedger([transfer({ kind })], names(), "dual");
-      expect(html).not.toContain(`>${kind}<`);
-      expect(html).toContain(`>${label}<`);
+      assert(
+        !html.includes(`>${kind}<`),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(html, `>${label}<`);
     }
   });
 
   test("renders the empty state row spanning all four columns", () => {
     const html = renderLedger([], names(), "dual");
-    expect(html).toContain('colspan="4"');
-    expect(html).toContain("No money changes yet.");
+    assertStringIncludes(html, 'colspan="4"');
+    assertStringIncludes(html, "No money changes yet.");
   });
 
   test("escapes a stored name so PII cannot inject markup", () => {
     const refs = names({ attendees: new Map([[1, "<script>x</script>"]]) });
     const html = renderLedger([transfer()], refs, "dual");
-    expect(html).toContain("&lt;script&gt;x&lt;/script&gt;");
-    expect(html).not.toContain("<script>x</script>");
+    assertStringIncludes(html, "&lt;script&gt;x&lt;/script&gt;");
+    assert(
+      !html.includes("<script>x</script>"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("links manual-entry amounts to the edit page when a return URL is supplied", () => {
@@ -114,10 +130,11 @@ describe("LedgerTable", () => {
       "dual",
       "/admin/ledger?listing=1",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'href="/admin/ledger/entries/77/edit?return_url=%2Fadmin%2Fledger%3Flisting%3D1"',
     );
-    expect(html).toContain(formatCurrency(5000));
+    assertStringIncludes(html, formatCurrency(5000));
   });
 
   test("does not link manual-entry amounts without a return URL", () => {
@@ -127,7 +144,10 @@ describe("LedgerTable", () => {
       "dual",
       "",
     );
-    expect(html).not.toContain("/admin/ledger/entries/77/edit");
-    expect(html).toContain(`>${formatCurrency(5000)}<`);
+    assert(
+      !html.includes("/admin/ledger/entries/77/edit"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, `>${formatCurrency(5000)}<`);
   });
 });

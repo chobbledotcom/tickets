@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
@@ -127,16 +128,18 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         },
         { charge: observed },
       );
-      expect(
+      assertArrayIncludes(
         (await getAttendeeActivityLog(ctx.attendee.id)).map(
           (entry) => entry.message,
         ),
-      ).toContain("Refund issued");
-      expect(
-        (await getAttendeeActivityLog(ctx.attendee.id)).map(
-          (entry) => entry.message,
-        ),
-      ).not.toContain("Refund issued for attendee 'John Doe'");
+        ["Refund issued"],
+      );
+      assert(
+        !(await getAttendeeActivityLog(ctx.attendee.id))
+          .map((entry) => entry.message)
+          .includes("Refund issued for attendee 'John Doe'"),
+        "the value should not contain the searched item",
+      );
     });
 
     // The money is already back, so it is reported as a success WITHOUT the

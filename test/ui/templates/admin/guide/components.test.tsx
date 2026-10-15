@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -39,15 +40,21 @@ describe("admin guide components", () => {
       ]),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<h3 id="sample-guide">${t("guide.sections.servicing")}</h3>`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<summary>${t("guide.q.what_is_servicing")}</summary><p>`,
     );
-    expect(html).toContain("<strong>service event</strong>");
-    expect(html).not.toContain("&lt;strong&gt;service event&lt;/strong&gt;");
-    expect(html).toContain(
+    assertStringIncludes(html, "<strong>service event</strong>");
+    assert(
+      !html.includes("&lt;strong&gt;service event&lt;/strong&gt;"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(
+      html,
       `<summary>${t("guide.q.listing_table_columns")}</summary><p data-entry="custom">Custom &amp; safe</p>`,
     );
     expect(html.indexOf(t("guide.q.what_is_servicing"))).toBeLessThan(

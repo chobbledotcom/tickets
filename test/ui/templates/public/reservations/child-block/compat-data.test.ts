@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getActiveHolidays } from "#db/holidays.ts";
@@ -62,10 +64,16 @@ describeWithEnv(
 
       // Parent A's block lists the shared child as serveable on its Monday only;
       // parent B's on its Tuesday only — each parent's own calendar, not shared.
-      expect(datesAttr(parentA.id)).toContain(mondayDate);
-      expect(datesAttr(parentA.id)).not.toContain(tuesdayDate);
-      expect(datesAttr(parentB.id)).toContain(tuesdayDate);
-      expect(datesAttr(parentB.id)).not.toContain(mondayDate);
+      assertStringIncludes(datesAttr(parentA.id), mondayDate);
+      assert(
+        !datesAttr(parentA.id).includes(tuesdayDate),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(datesAttr(parentB.id), tuesdayDate);
+      assert(
+        !datesAttr(parentB.id).includes(mondayDate),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a sole daily child carries its compatibility data on the informational marker", async () => {
@@ -86,7 +94,7 @@ describeWithEnv(
       // The sole-child marker carries the span-keyed serveable dates.
       const marker = html.slice(html.indexOf(`data-sole-child="${child.id}"`));
       const block = marker.slice(0, marker.indexOf(">"));
-      expect(block).toContain(`data-child-dates="1:${childDates}"`);
+      assertStringIncludes(block, `data-child-dates="1:${childDates}"`);
       expect(childDates.length).toBeGreaterThan(0);
     });
 
@@ -128,8 +136,11 @@ describeWithEnv(
         isBookingRangeValid(childARow, d, 2, holidays),
       );
       // The setup must actually split the two spans (else the test proves nothing).
-      expect(oneDay).toContain(splitStart);
-      expect(twoDay).not.toContain(splitStart);
+      assertArrayIncludes(oneDay, [splitStart]);
+      assert(
+        !twoDay.includes(splitStart),
+        "the value should not contain the searched item",
+      );
 
       const html = await bookingPageHtml(parent.slug);
       const control = html.slice(
@@ -174,14 +185,19 @@ describeWithEnv(
       // dates — the holiday-aware set the server computed, not the parent's. The
       // fixed daily parent's one inherited span (1) keys the span-aware encoding
       // `span:dates`.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `name="child_qty_${parent.id}_${childB.id}" data-child-qty="${childB.id}" data-child-dates="1:${childBDates}"`,
       );
       expect(childBDates.length).toBeGreaterThan(0);
       // The holiday start must have been removed from the advertised set.
-      expect(childBDates).not.toContain(holidayDate);
-      expect(html).not.toContain(
-        `data-child-dates="1:${childBStarts.join(",")}"`,
+      assert(
+        !childBDates.includes(holidayDate),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes(`data-child-dates="1:${childBStarts.join(",")}"`),
+        "the value should not contain the searched item",
       );
     });
 
@@ -210,15 +226,22 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       // The customisable child advertises the spans it can serve.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `name="child_qty_${parent.id}_${childA.id}" data-child-qty="${childA.id}" data-child-spans="1,3"`,
       );
       // The standard child imposes no span constraint, so it emits neither attr.
       const standardControl = html.slice(
         html.indexOf(`name="child_qty_${parent.id}_${childB.id}"`),
       );
-      expect(standardControl).not.toContain("data-child-spans");
-      expect(standardControl.slice(0, 120)).not.toContain("data-child-dates");
+      assert(
+        !standardControl.includes("data-child-spans"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !standardControl.slice(0, 120).includes("data-child-dates"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a customisable daily child keeps date and span attributes adjacent", async () => {

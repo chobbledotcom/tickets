@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -113,7 +115,7 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         await adminGet(`/admin/attendees/${target.id}/actions`),
         200,
       );
-      expect(idle).toContain(" autofocus");
+      assertStringIncludes(idle, " autofocus");
       expect(extractInputValue(idle, "token")).toBe("");
       // After a successful search the box echoes the token back (so the admin
       // can see what matched) and cedes focus to the decision form.
@@ -121,7 +123,10 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         await mergeActionsPage(target.id, sourceToken),
         200,
       );
-      expect(searched).not.toContain("autofocus");
+      assert(
+        !searched.includes("autofocus"),
+        "the value should not contain the searched item",
+      );
       expect(extractInputValue(searched, "token")).toBe(sourceToken);
     });
   });
@@ -233,11 +238,16 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         "Decision",
       );
       const moveableRow = tableRowContaining(html, `Listing #${listing2.id}`);
-      expect(moveableRow).toContain(
+      assertStringIncludes(
+        moveableRow,
         '<td><span class="muted">Will be moved</span></td><td></td></tr>',
       );
-      expect(moveableRow).not.toContain('name="booking_');
-      expect(tableRowContaining(html, `Listing #${listing1.id}`)).toContain(
+      assert(
+        !moveableRow.includes('name="booking_'),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(
+        tableRowContaining(html, `Listing #${listing1.id}`),
         `name="booking_${listing1.id}:null:0:0"`,
       );
     });

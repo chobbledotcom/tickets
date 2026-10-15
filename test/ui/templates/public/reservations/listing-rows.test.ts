@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { TicketListing } from "#booking/model.ts";
@@ -132,13 +133,16 @@ describe("buildPageListingRows", () => {
         rowListing(2, "Listing B", "cd34e"),
       ],
     });
-    expect(html).toContain('<label>Listing A<select name="quantity_1">');
-    expect(html).toContain('<label>Listing B<select name="quantity_2">');
+    assertStringIncludes(html, '<label>Listing A<select name="quantity_1">');
+    assertStringIncludes(html, '<label>Listing B<select name="quantity_2">');
     expect(occurrences(html, 'class="ticket-row"')).toBe(2);
     // The rows are joined edge to edge, and nothing renders in a row's
     // accessory slots (image, description, price, add-on selector).
-    expect(html).toContain('</div>\n  \n    <div class="ticket-row">');
-    expect(html).not.toContain("mutated");
+    assertStringIncludes(html, '</div>\n  \n    <div class="ticket-row">');
+    assert(
+      !html.includes("mutated"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a closed listing row names the registration as closed", () => {
@@ -147,8 +151,11 @@ describe("buildPageListingRows", () => {
       maxPurchasable: 0,
     };
     const html = renderRows({ listings: [closed] });
-    expect(html).toContain("Registration Closed");
-    expect(html).not.toContain('name="quantity_1"');
+    assertStringIncludes(html, "Registration Closed");
+    assert(
+      !html.includes('name="quantity_1"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a parent whose child-limited ceiling sits below its minimum is sold out", () => {
@@ -157,14 +164,20 @@ describe("buildPageListingRows", () => {
     const html = bundledRow({
       children: new Map([[7, [tl(10, 2, { name: "Add-on", slug: "add010" })]]]),
     });
-    expect(html).toContain("Sold Out");
-    expect(html).not.toContain('name="quantity_7"');
+    assertStringIncludes(html, "Sold Out");
+    assert(
+      !html.includes('name="quantity_7"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a parent at or above its minimum under the same ceiling stays bookable", () => {
     const html = bundledRow();
-    expect(html).toContain('name="quantity_7"');
-    expect(html).not.toContain("ticket-row sold-out");
+    assertStringIncludes(html, 'name="quantity_7"');
+    assert(
+      !html.includes("ticket-row sold-out"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a parent whose split-pool children combine to its minimum stays bookable", () => {
@@ -192,8 +205,11 @@ describe("buildPageListingRows", () => {
         [2, 4],
       ]),
     });
-    expect(html).toContain('name="quantity_7"');
-    expect(html).not.toContain("ticket-row sold-out");
+    assertStringIncludes(html, 'name="quantity_7"');
+    assert(
+      !html.includes("ticket-row sold-out"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a row with pay-what-you-want renders its price input, a priced row does not", () => {
@@ -206,8 +222,11 @@ describe("buildPageListingRows", () => {
     const html = renderRows({
       listings: [rowListing(1, "Listing A", "ab12c"), payMore],
     });
-    expect(html).not.toContain('name="custom_price_1"');
-    expect(html).toContain('name="custom_price_2"');
+    assert(
+      !html.includes('name="custom_price_1"'),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, 'name="custom_price_2"');
   });
 
   test("a parent row renders its add-on selector once, in the parent's own row", () => {
@@ -216,7 +235,7 @@ describe("buildPageListingRows", () => {
       listings: [rowListing(7, "Parent", "pnt007")],
     });
     expect(occurrences(html, 'data-sole-parent="7"')).toBe(1);
-    expect(html).toContain("Add-on");
+    assertStringIncludes(html, "Add-on");
   });
 
   test("the bare single-listing controls label the quantity and keep the prefill", () => {
@@ -228,11 +247,15 @@ describe("buildPageListingRows", () => {
       listings: [rowListing(1, "Listing A", "ab12c")],
       prefill,
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<label>Number of Tickets<select name="quantity_1">',
     );
-    expect(html).toContain('<option value="3" selected>');
-    expect(html).not.toContain("Listing A");
+    assertStringIncludes(html, '<option value="3" selected>');
+    assert(
+      !html.includes("Listing A"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a page that hides quantity submits a fixed quantity instead of a chooser", () => {
@@ -241,11 +264,18 @@ describe("buildPageListingRows", () => {
       isSingleListing: true,
       listings: [rowListing(1, "Listing A", "ab12c")],
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input type="hidden" name="quantity_1" value="1" />',
     );
-    expect(html).not.toContain("Number of");
-    expect(html).not.toContain('<select name="quantity_1">');
+    assert(
+      !html.includes("Number of"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('<select name="quantity_1">'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a hidden quantity still states the term a plan grants", () => {
@@ -260,10 +290,14 @@ describe("buildPageListingRows", () => {
       isSingleListing: true,
       listings: [plan],
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input type="hidden" name="quantity_1" value="1" />',
     );
-    expect(html).toContain(t("public.ticket.fixed_term_granted", { count: 3 }));
+    assertStringIncludes(
+      html,
+      t("public.ticket.fixed_term_granted", { count: 3 }),
+    );
   });
 
   test("a built-site plan is sold in months, an ordinary listing in tickets", () => {
@@ -279,23 +313,34 @@ describe("buildPageListingRows", () => {
     });
     // Each option states the months it buys: three units of a three-month
     // plan are nine months.
-    expect(planHtml).toContain('<option value="1">3 months</option>');
-    expect(planHtml).toContain('<option value="2">6 months</option>');
-    expect(planHtml).toContain(
+    assertStringIncludes(planHtml, '<option value="1">3 months</option>');
+    assertStringIncludes(planHtml, '<option value="2">6 months</option>');
+    assertStringIncludes(
+      planHtml,
       '<label>Number of months<select name="quantity_1">',
     );
-    expect(planHtml).not.toContain("Number of Tickets");
-    expect(planHtml).not.toContain('">2</option>');
+    assert(
+      !planHtml.includes("Number of Tickets"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !planHtml.includes('">2</option>'),
+      "the value should not contain the searched item",
+    );
 
     const ordinaryHtml = renderRows({
       isSingleListing: true,
       listings: [rowListing(1, "Listing A", "ab12c")],
     });
-    expect(ordinaryHtml).toContain(
+    assertStringIncludes(
+      ordinaryHtml,
       '<label>Number of Tickets<select name="quantity_1">',
     );
-    expect(ordinaryHtml).toContain('<option value="2">2</option>');
-    expect(ordinaryHtml).not.toContain("Number of months");
+    assertStringIncludes(ordinaryHtml, '<option value="2">2</option>');
+    assert(
+      !ordinaryHtml.includes("Number of months"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a renewal page prices every tier by its months per unit", () => {
@@ -311,11 +356,17 @@ describe("buildPageListingRows", () => {
       listings: [tier],
       renewal: true,
     });
-    expect(html).toContain('<label>Number of months<select name="quantity_1">');
+    assertStringIncludes(
+      html,
+      '<label>Number of months<select name="quantity_1">',
+    );
     // Fulfillment extends the site by months per unit: two units of a
     // one-month-per-unit tier are two months.
-    expect(html).toContain('<option value="2">2 months</option>');
-    expect(html).not.toContain("6 months");
+    assertStringIncludes(html, '<option value="2">2 months</option>');
+    assert(
+      !html.includes("6 months"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a single-package page counts bundles and renders each member at its fixed quantity", () => {
@@ -324,12 +375,18 @@ describe("buildPageListingRows", () => {
       packages: [pagePackage(3, [7], { quantities: new Map([[7, 2]]) })],
       singlePackagePage: true,
     });
-    expect(html).toContain('data-package-members="7:2"');
-    expect(html).toContain("Number of packages");
-    expect(html).toContain("&times;2");
-    expect(html).toContain('<option value="1" selected>');
-    expect(html).not.toContain('name="quantity_7"');
-    expect(html).not.toContain("mutated");
+    assertStringIncludes(html, 'data-package-members="7:2"');
+    assertStringIncludes(html, "Number of packages");
+    assertStringIncludes(html, "&times;2");
+    assertStringIncludes(html, '<option value="1" selected>');
+    assert(
+      !html.includes('name="quantity_7"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("mutated"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a member missing from the quantity map counts one per package", () => {
@@ -338,8 +395,8 @@ describe("buildPageListingRows", () => {
       packages: [pagePackage(3, [7], { quantities: new Map() })],
       singlePackagePage: true,
     });
-    expect(html).toContain('data-package-members="7:1"');
-    expect(html).toContain("&times;1");
+    assertStringIncludes(html, 'data-package-members="7:1"');
+    assertStringIncludes(html, "&times;1");
   });
 
   test("a member's stored zero quantity is kept, not swapped for the default one", () => {
@@ -351,8 +408,8 @@ describe("buildPageListingRows", () => {
       packages: [pagePackage(3, [7, 8], { quantities: new Map([[8, 0]]) })],
       singlePackagePage: true,
     });
-    expect(html).toContain('data-package-members="7:1 8:0"');
-    expect(html).toContain("&times;0");
+    assertStringIncludes(html, 'data-package-members="7:1 8:0"');
+    assertStringIncludes(html, "&times;0");
   });
 
   test("each package on a mixed page sells under its own count", () => {
@@ -363,12 +420,13 @@ describe("buildPageListingRows", () => {
       ],
       packages: [pagePackage(3, [7]), pagePackage(4, [8])],
     });
-    expect(html).toContain("package_quantity_3");
-    expect(html).toContain("package_quantity_4");
-    expect(html).toContain("<legend>Package 3</legend>");
-    expect(html).toContain("<legend>Package 4</legend>");
+    assertStringIncludes(html, "package_quantity_3");
+    assertStringIncludes(html, "package_quantity_4");
+    assertStringIncludes(html, "<legend>Package 3</legend>");
+    assertStringIncludes(html, "<legend>Package 4</legend>");
     // The sections render edge to edge, with no filler between them.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '</fieldset><fieldset class="ticket-package" data-package-section="4">',
     );
   });
@@ -384,10 +442,11 @@ describe("buildPageListingRows", () => {
         pagePackage(4, [8]),
       ],
     });
-    expect(html).toContain("<p>Two together</p>");
-    expect(html).toContain("<legend>Package 3</legend>");
+    assertStringIncludes(html, "<p>Two together</p>");
+    assertStringIncludes(html, "<legend>Package 3</legend>");
     // A living bundle carries no sold-out marker on its fieldset.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<fieldset class="ticket-package" data-package-section="3">',
     );
   });
@@ -403,7 +462,10 @@ describe("buildPageListingRows", () => {
     expect(html).toBe(
       `<label>Number of packages<select name="package_quantity_3" data-package-members="7:1">${quantityOptions(5, 1)}</select></label>`,
     );
-    expect(html).not.toContain("Listing A");
+    assert(
+      !html.includes("Listing A"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a bundle with no room left renders a sold-out card without controls", () => {
@@ -412,10 +474,16 @@ describe("buildPageListingRows", () => {
       packageLimits: new Map([[3, 0]]),
       packages: [pagePackage(3, [7], { description: "Two together" })],
     });
-    expect(html).toContain('class="ticket-package sold-out"');
-    expect(html).not.toContain("package_quantity_3");
-    expect(html).not.toContain("Two together");
-    expect(html).toContain("Sold Out");
+    assertStringIncludes(html, 'class="ticket-package sold-out"');
+    assert(
+      !html.includes("package_quantity_3"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("Two together"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "Sold Out");
   });
 
   test("a shared parent keeps its add-on selector on one row when the cart also added it", () => {
@@ -426,7 +494,7 @@ describe("buildPageListingRows", () => {
       standaloneListingIds: new Set([7]),
     });
     expect(occurrences(html, 'data-sole-parent="7"')).toBe(1);
-    expect(html).toContain("&times;2");
-    expect(html).toContain('name="quantity_7"');
+    assertStringIncludes(html, "&times;2");
+    assertStringIncludes(html, 'name="quantity_7"');
   });
 });

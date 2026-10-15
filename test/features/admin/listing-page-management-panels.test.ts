@@ -3,6 +3,7 @@
  * which groups the edit form ticks after a rejected save.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
@@ -113,7 +114,7 @@ describeWithEnv(
     describe("the edit tab", () => {
       test("shows the listing's stored name", async () => {
         const listing = await createTestListing({ name: "Autumn Fair" });
-        expect(await editHtml(listing.id)).toContain("Autumn Fair");
+        assertStringIncludes(await editHtml(listing.id), "Autumn Fair");
       });
 
       test("ticks the groups the listing is stored in", async () => {
@@ -136,14 +137,18 @@ describeWithEnv(
 
       test("shows the message when a save was rejected", async () => {
         const listing = await createTestListing({});
-        expect(await editHtml(listing.id, "Slug is taken")).toContain(
+        assertStringIncludes(
+          await editHtml(listing.id, "Slug is taken"),
           "Slug is taken",
         );
       });
 
       test("shows no message when the tab is opened normally", async () => {
         const listing = await createTestListing({});
-        expect(await editHtml(listing.id)).not.toContain("Slug is taken");
+        assert(
+          !(await editHtml(listing.id)).includes("Slug is taken"),
+          "the value should not contain the searched item",
+        );
       });
     });
 
@@ -153,7 +158,7 @@ describeWithEnv(
         const html = await withTestSession(async () =>
           String(await loadListingImagesPanel(await loaded(listing.id))),
         );
-        expect(html).toContain(`/admin/listing/${listing.id}`);
+        assertStringIncludes(html, `/admin/listing/${listing.id}`);
       });
     });
 
@@ -176,8 +181,8 @@ describeWithEnv(
 
       test("offers every question the site has", async () => {
         const { html } = await questionsHtml();
-        expect(html).toContain("Any allergies?");
-        expect(html).toContain("Parking needed?");
+        assertStringIncludes(html, "Any allergies?");
+        assertStringIncludes(html, "Parking needed?");
       });
 
       test("ticks only the questions this listing uses", async () => {
@@ -209,8 +214,8 @@ describeWithEnv(
 
       test("offers every option the attribute has", async () => {
         const { html } = await attributesHtml();
-        expect(html).toContain("Step free");
-        expect(html).toContain("Stairs only");
+        assertStringIncludes(html, "Step free");
+        assertStringIncludes(html, "Stairs only");
       });
 
       test("ticks only the options this listing shows", async () => {
@@ -225,7 +230,7 @@ describeWithEnv(
         const html = await withTestSession(async () =>
           String(await loadListingQrPanel(await loaded(listing.id))),
         );
-        expect(html).toContain(`/admin/listing/${listing.id}/qr`);
+        assertStringIncludes(html, `/admin/listing/${listing.id}/qr`);
       });
     });
   },

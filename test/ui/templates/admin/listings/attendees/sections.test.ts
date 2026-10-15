@@ -1,6 +1,7 @@
 /** Rendering of the listing roster's sections: the attendee list with its
  * email action, the failed-payments table, and the add-attendee form. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { rosterListSetup } from "#routes/admin/listings-view.ts";
@@ -75,14 +76,21 @@ describe("AttendeesSection", () => {
 
   test("heads the section and omits the listing column it cannot need", () => {
     const html = sectionHtml(undefined);
-    expect(html).toContain('<h2 id="attendees">Attendees</h2>');
+    assertStringIncludes(html, '<h2 id="attendees">Attendees</h2>');
     // The page is already one listing's roster, so no Listings column.
-    expect(html).not.toContain("<th>Listings</th>");
+    assert(
+      !html.includes("<th>Listings</th>"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders the email action only when the compose page would open", () => {
-    expect(sectionHtml(undefined)).not.toContain("Email this date's attendees");
-    expect(sectionHtml("/admin/emails?mock")).toContain(
+    assert(
+      !sectionHtml(undefined).includes("Email this date's attendees"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(
+      sectionHtml("/admin/emails?mock"),
       '<a href="/admin/emails?mock">Email this date\'s attendees</a>',
     );
   });
@@ -97,27 +105,31 @@ describe("FailedPaymentsSection", () => {
   );
 
   test("heads the section and counts the unresolved rows", () => {
-    expect(html).toContain('<h2 id="failed-payments">Failed Payments</h2>');
-    expect(html).toContain("<p>1 attendee(s) with unresolved payments</p>");
+    assertStringIncludes(html, '<h2 id="failed-payments">Failed Payments</h2>');
+    assertStringIncludes(html, "<p>1 attendee(s) with unresolved payments</p>");
   });
 
   test("renders one delete row per attendee with its own columns", () => {
-    expect(html).toContain("<th>Name</th>");
-    expect(html).toContain('<th class="col-quantity">Qty</th>');
-    expect(html).toContain("<th>Registered</th>");
-    expect(html).toContain("<td>John Doe</td>");
-    expect(html).toContain('<td class="col-quantity">2</td>');
-    expect(html).toContain(`<td>${formatDatetimeShort(attendee.created)}</td>`);
+    assertStringIncludes(html, "<th>Name</th>");
+    assertStringIncludes(html, '<th class="col-quantity">Qty</th>');
+    assertStringIncludes(html, "<th>Registered</th>");
+    assertStringIncludes(html, "<td>John Doe</td>");
+    assertStringIncludes(html, '<td class="col-quantity">2</td>');
+    assertStringIncludes(
+      html,
+      `<td>${formatDatetimeShort(attendee.created)}</td>`,
+    );
   });
 
   test("points each row's delete at that attendee's record", () => {
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'action="/admin/listing/7/attendee/9/delete-incomplete"',
     );
-    expect(html).toContain('class="inline"');
-    expect(html).toContain('class="link-button danger"');
-    expect(html).toContain("<button");
-    expect(html).toContain(">Delete</button>");
+    assertStringIncludes(html, 'class="inline"');
+    assertStringIncludes(html, 'class="link-button danger"');
+    assertStringIncludes(html, "<button");
+    assertStringIncludes(html, ">Delete</button>");
   });
 });
 
@@ -131,12 +143,13 @@ describe("AddAttendeeSection", () => {
         listing: testListingWithCount({ id: 7, listing_type: "daily" }),
       }),
     );
-    expect(html).toContain('<h2 id="add-attendee">Add Attendee</h2>');
-    expect(html).toContain(
+    assertStringIncludes(html, '<h2 id="add-attendee">Add Attendee</h2>');
+    assertStringIncludes(
+      html,
       '<p class="notice">This listing requires a child listing (Kayak Hire, Wetsuit Hire) when booked publicly.',
     );
-    expect(html).toContain('action="/admin/listing/7/attendee"');
-    expect(html).toContain("<span>Add Attendee</span>");
+    assertStringIncludes(html, 'action="/admin/listing/7/attendee"');
+    assertStringIncludes(html, "<span>Add Attendee</span>");
   });
 
   test("warns about one child listing the same way", () => {
@@ -146,7 +159,8 @@ describe("AddAttendeeSection", () => {
         listing: testListingWithCount({ listing_type: "daily" }),
       }),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "requires a child listing (Kayak Hire) when booked publicly",
     );
   });
@@ -157,8 +171,14 @@ describe("AddAttendeeSection", () => {
         listing: testListingWithCount({ id: 7, listing_type: "daily" }),
       }),
     );
-    expect(html).not.toContain("child listing");
-    expect(html).not.toContain('class="notice"');
+    assert(
+      !html.includes("child listing"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('class="notice"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("offers the day count only on a customisable daily listing", () => {
@@ -168,20 +188,22 @@ describe("AddAttendeeSection", () => {
       duration_days: 2,
       listing_type: "daily",
     });
-    expect(String(AddAttendeeSection({ listing: customisable }))).toContain(
+    assertStringIncludes(
+      String(AddAttendeeSection({ listing: customisable })),
       "Number of days",
     );
     // A daily listing without customisable days and a customisable
     // non-daily listing both stay without the day-count choice.
-    expect(
-      String(
+    assert(
+      !String(
         AddAttendeeSection({
           listing: testListingWithCount({ listing_type: "daily" }),
         }),
-      ),
-    ).not.toContain("Number of days");
-    expect(
-      String(
+      ).includes("Number of days"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !String(
         AddAttendeeSection({
           listing: testListingWithCount({
             customisable_days: true,
@@ -189,7 +211,8 @@ describe("AddAttendeeSection", () => {
             duration_days: 2,
           }),
         }),
-      ),
-    ).not.toContain("Number of days");
+      ).includes("Number of days"),
+      "the value should not contain the searched item",
+    );
   });
 });

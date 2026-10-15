@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -59,7 +60,10 @@ describe("SelectField", () => {
         '<option value="b">Bravo</option>' +
         "</select>",
     );
-    expect(html).not.toContain("selected");
+    assert(
+      !html.includes("selected"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("selects exactly one option — the empty value does not match a non-empty one", () => {
@@ -103,7 +107,10 @@ describe("SelectField", () => {
     expect(html).toBe(
       '<select name="agent"><option selected value="a">Alpha</option></select>',
     );
-    expect(html).not.toContain("id=");
+    assert(
+      !html.includes("id="),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders an empty <select> when there are no options", () => {

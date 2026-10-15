@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 
@@ -39,16 +40,18 @@ describe("the public contact page", () => {
       }),
     );
 
-    expect(html).toContain("<title>Contact - Teeside Walks</title>");
-    expect(html).toContain("<h2>Send us a message</h2>");
-    expect(html).toContain('action="/contact"');
-    expect(html).toContain(
+    assertStringIncludes(html, "<title>Contact - Teeside Walks</title>");
+    assertStringIncludes(html, "<h2>Send us a message</h2>");
+    assertStringIncludes(html, 'action="/contact"');
+    assertStringIncludes(
+      html,
       `<label>Your email address<input autocomplete="email" maxlength="${MAX_INPUT_LENGTH}" name="email" required type="email"></label>`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="message" required></textarea>`,
     );
-    expect(html).toContain(`<button type="submit">Send message</button>`);
+    assertStringIncludes(html, `<button type="submit">Send message</button>`);
   });
 
   test("loads the contact script only when a botpoison key is configured", () => {
@@ -59,8 +62,8 @@ describe("the public contact page", () => {
       websiteTitle: "",
     });
 
-    expect(withKey).toContain('<script defer src="/contact.js"></script>');
-    expect(withKey).toContain('data-botpoison-public-key="pk_example"');
+    assertStringIncludes(withKey, '<script defer src="/contact.js"></script>');
+    assertStringIncludes(withKey, 'data-botpoison-public-key="pk_example"');
 
     const withoutKey = contactPage({
       botpoisonPublicKey: "",
@@ -69,8 +72,14 @@ describe("the public contact page", () => {
       websiteTitle: "",
     });
 
-    expect(withoutKey).not.toContain("/contact.js");
-    expect(withoutKey).not.toContain("data-botpoison-public-key");
+    assert(
+      !withoutKey.includes("/contact.js"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !withoutKey.includes("data-botpoison-public-key"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("keeps the form off when the contact form is disabled", () => {
@@ -81,9 +90,15 @@ describe("the public contact page", () => {
       websiteTitle: "",
     });
 
-    expect(html).toContain("<title>Contact</title>");
-    expect(html).not.toContain('action="/contact"');
-    expect(html).not.toContain("Send us a message");
+    assertStringIncludes(html, "<title>Contact</title>");
+    assert(
+      !html.includes('action="/contact"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("Send us a message"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("shows the site's contact text as markdown prose", () => {
@@ -95,8 +110,8 @@ describe("the public contact page", () => {
       websiteTitle: "",
     });
 
-    expect(html).toContain('<div class="prose"><h2>Find us</h2>');
-    expect(html).toContain("Call first.");
+    assertStringIncludes(html, '<div class="prose"><h2>Find us</h2>');
+    assertStringIncludes(html, "Call first.");
   });
 });
 
@@ -112,26 +127,30 @@ describe("the public home page", () => {
       "# Welcome\nEnjoy.",
     );
 
-    expect(html).toContain("<title>Home - Teeside Walks</title>");
-    expect(html).toContain("<h1>Teeside Walks</h1>");
-    expect(html).toContain("<h1>Welcome</h1>");
-    expect(html).toContain("Enjoy.");
-    expect(html).toContain('href="/admin/login"');
+    assertStringIncludes(html, "<title>Home - Teeside Walks</title>");
+    assertStringIncludes(html, "<h1>Teeside Walks</h1>");
+    assertStringIncludes(html, "<h1>Welcome</h1>");
+    assertStringIncludes(html, "Enjoy.");
+    assertStringIncludes(html, 'href="/admin/login"');
   });
 
   test("falls back to the bare title and the no-content note", () => {
     const html = publicSitePage("home", nav(), "", "");
 
-    expect(html).toContain("<title>Home</title>");
-    expect(html).not.toContain("<title>Home - ");
-    expect(html).toContain("<em>No content.</em>");
+    assertStringIncludes(html, "<title>Home</title>");
+    assert(
+      !html.includes("<title>Home - "),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "<em>No content.</em>");
     expect(html).not.toMatch(/<h1/);
   });
 
   test("labels the terms page by the site's dictionary title", () => {
     const html = publicSitePage("terms", nav(), "Teeside Walks", "Be kind.");
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<title>Terms &amp; Conditions - Teeside Walks</title>",
     );
   });

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -45,12 +46,15 @@ describeWithEnv(
       test("renders a tab strip linking Overview, Attendees, Edit, and Actions", async () => {
         const group = await createTestGroup({ name: "Tabbed", slug: "tabbed" });
         const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
-        expect(html).toContain(`href="/admin/groups/${group.id}"`);
-        expect(html).toContain(`href="/admin/groups/${group.id}/attendees"`);
-        expect(html).toContain(`href="/admin/groups/${group.id}/edit"`);
-        expect(html).toContain(`href="/admin/groups/${group.id}/actions"`);
+        assertStringIncludes(html, `href="/admin/groups/${group.id}"`);
+        assertStringIncludes(
+          html,
+          `href="/admin/groups/${group.id}/attendees"`,
+        );
+        assertStringIncludes(html, `href="/admin/groups/${group.id}/edit"`);
+        assertStringIncludes(html, `href="/admin/groups/${group.id}/actions"`);
         // The admin nav highlights the Groups section (navActive).
-        expect(html).toContain('class="active" href="/admin/groups"');
+        assertStringIncludes(html, 'class="active" href="/admin/groups"');
       });
 
       test("Actions tab shows the export, bulk-actions, and delete links", async () => {
@@ -61,16 +65,16 @@ describeWithEnv(
         const html = await (
           await adminGet(`/admin/groups/${group.id}/actions`)
         ).text();
-        expect(html).toContain(`/admin/groups/${group.id}/export.json`);
-        expect(html).toContain(`/admin/groups/${group.id}/bulk-actions`);
-        expect(html).toContain(`/admin/groups/${group.id}/delete`);
+        assertStringIncludes(html, `/admin/groups/${group.id}/export.json`);
+        assertStringIncludes(html, `/admin/groups/${group.id}/bulk-actions`);
+        assertStringIncludes(html, `/admin/groups/${group.id}/delete`);
         // Each action carries its icon (an empty icon name drops the <use> ref);
         // the nav renders none of these, so the refs are unique to the buttons.
-        expect(html).toContain("#save");
-        expect(html).toContain("#hammer");
-        expect(html).toContain("#trash-2");
+        assertStringIncludes(html, "#save");
+        assertStringIncludes(html, "#hammer");
+        assertStringIncludes(html, "#trash-2");
         // Delete is destructive, so it renders inside the danger zone (danger: true).
-        expect(html).toContain("entity-danger-zone");
+        assertStringIncludes(html, "entity-danger-zone");
       });
 
       test("returns 404 for an unknown tab", async () => {
@@ -97,8 +101,11 @@ describeWithEnv(
         });
         expectStatus(200)(response);
         const html = await response.text();
-        expect(html).toContain(`action="/admin/groups/${group.id}/edit"`);
-        expect(html).not.toContain("Public URL");
+        assertStringIncludes(html, `action="/admin/groups/${group.id}/edit"`);
+        assert(
+          !html.includes("Public URL"),
+          "the value should not contain the searched item",
+        );
       });
     });
 
@@ -166,7 +173,7 @@ describeWithEnv(
           "Listings added to group",
         )(response);
 
-        expect(await listingGroups.getIds(listing1.id)).toContain(group.id);
+        assertStringIncludes(await listingGroups.getIds(listing1.id), group.id);
         expect(await listingGroups.getIds(listing2.id)).toEqual([]);
         // The assignment is recorded in the activity log.
         const { getAllActivityLog } = await import(

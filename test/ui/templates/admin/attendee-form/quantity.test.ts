@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -112,7 +113,8 @@ describeWithEnv(
           await adminGet(`/admin/attendees/${attendee.id}/edit`)
         ).text();
         // Alphabetical attribute order puts `checked` first when ticked.
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `checked class="no-quantity-toggle" name="noqty_${attendeeLineIndex(
             html,
             listing.id,
@@ -141,8 +143,8 @@ describeWithEnv(
         );
         expect(qtyInputMatch).not.toBeNull();
         const qtyInput = qtyInputMatch?.[0] ?? "";
-        expect(qtyInput).toContain('class="line-qty"');
-        expect(qtyInput).toContain('type="number"');
+        assertStringIncludes(qtyInput, 'class="line-qty"');
+        assertStringIncludes(qtyInput, 'type="number"');
         expect(qtyInput).not.toMatch(/\bstyle\s*=/);
       });
 
@@ -185,12 +187,14 @@ describeWithEnv(
         // The block is surfaced as a top-of-page error, not buried in the table.
         // The alert is focusable (autofocus + tabindex) so the browser scrolls to
         // it after the failed submit.
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `<div autofocus class="error" role="alert" tabindex="-1">Refund this line's payment before marking it no quantity.</div>`,
         );
         // The paid line's "no quantity" box is disabled with an explaining tooltip
         // so it can't be ticked in the first place.
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `class="no-quantity-toggle" disabled name="noqty_${attendeeLineIndex(
             html,
             listing.id,
@@ -248,7 +252,7 @@ describeWithEnv(
 
         // Re-renders in place with the block message; the line stays a real booking.
         const html = await expectHtmlResponse(response, 200);
-        expect(html).toContain("Unassign the built site");
+        assertStringIncludes(html, "Unassign the built site");
         const row = await getDb().execute({
           args: [attendee.id, listing.id],
           sql: "SELECT quantity FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
@@ -278,7 +282,7 @@ describeWithEnv(
         );
 
         const html = await expectHtmlResponse(response, 200);
-        expect(html).toContain("Refund this booking's payment");
+        assertStringIncludes(html, "Refund this booking's payment");
         // The paid line is untouched (not dropped/replaced by a ghost).
         expect(await readLine(attendeeId, listing.id)).toMatchObject({
           price_paid: 1500,

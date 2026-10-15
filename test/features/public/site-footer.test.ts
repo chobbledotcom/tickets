@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -22,9 +24,15 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     await settings.update.siteFooter("");
 
     const home = await assertPublicHtml("/");
-    expect(home).not.toContain(footerTag);
+    assert(
+      !home.includes(footerTag),
+      "the value should not contain the searched item",
+    );
     const listings = await assertPublicHtml("/listings");
-    expect(listings).not.toContain(footerTag);
+    assert(
+      !listings.includes(footerTag),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders the footer once, at the bottom of the home page and the listings page", async () => {
@@ -53,7 +61,10 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
       "&lt;script&gt;alert(1)&lt;/script&gt;",
       "<strong>Bold</strong>",
     );
-    expect(html).not.toContain("<script>alert(1)");
+    assert(
+      !html.includes("<script>alert(1)"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("keeps the footer off an embedded page", async () => {
@@ -61,9 +72,12 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     await settings.update.siteFooter("A visitor-facing note.");
 
     const embedded = await assertPublicHtml("/listings?iframe=true");
-    expect(embedded).not.toContain(footerTag);
+    assert(
+      !embedded.includes(footerTag),
+      "the value should not contain the searched item",
+    );
     const page = await assertPublicHtml("/listings");
-    expect(page).toContain(footerTag);
+    assertStringIncludes(page, footerTag);
   });
 
   test("keeps the footer off admin pages", async () => {
@@ -72,11 +86,15 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
 
     const admin = await adminGet("/admin/settings");
     const html = await expectHtmlResponse(admin, 200);
-    expect(html).not.toContain(footerTag);
+    assert(
+      !html.includes(footerTag),
+      "the value should not contain the searched item",
+    );
     // The settings form shows the raw text for editing; the page must not
     // render it as markdown.
-    expect(html).not.toContain(
-      "<strong>Admin pages must not show this</strong>",
+    assert(
+      !html.includes("<strong>Admin pages must not show this</strong>"),
+      "the value should not contain the searched item",
     );
   });
 });

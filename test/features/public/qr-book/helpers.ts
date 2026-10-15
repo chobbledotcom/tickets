@@ -59,7 +59,10 @@ export const expectStripeRedirect = (
   stripe: StripeStub,
 ): void => {
   expect(response.status).toBe(302);
-  expect(response.headers.get("location")).toContain("stripe.example");
+  assertStringIncludes(
+    response.headers.get("location") ?? "",
+    "stripe.example",
+  );
   expect(stripe.calls()).toBe(1);
 };
 

@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -87,7 +88,10 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const log = await getAllActivityLog(10);
       const entry = log.find((e) => e.message.includes("revenue adjusted"));
       expect(entry?.message).toBe("Modifier 'Promo' revenue adjusted");
-      expect(entry?.message).not.toContain("12.34");
+      assert(
+        !(entry?.message).includes("12.34"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("rejects a blank amount with an error flash", async () => {

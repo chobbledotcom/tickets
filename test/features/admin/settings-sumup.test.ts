@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -104,16 +105,23 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await settings.update.paymentProvider("sumup");
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      expect(html).toContain("No SumUp credentials are saved");
-      expect(html).not.toContain("sumup-test-btn");
+      assertStringIncludes(html, "No SumUp credentials are saved");
+      assert(
+        !html.includes("sumup-test-btn"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("disables browser autocomplete on the SumUp credential fields", async () => {
       await settings.update.paymentProvider("sumup");
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      expect(inputNamed(html, "sumup_api_key")).toContain('autocomplete="off"');
-      expect(inputNamed(html, "sumup_merchant_code")).toContain(
+      assertStringIncludes(
+        inputNamed(html, "sumup_api_key"),
+        'autocomplete="off"',
+      );
+      assertStringIncludes(
+        inputNamed(html, "sumup_merchant_code"),
         'autocomplete="off"',
       );
     });
@@ -125,8 +133,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       });
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      expect(html).toContain("Your SumUp credentials are saved");
-      expect(html).toContain("sumup-test-btn");
+      assertStringIncludes(html, "Your SumUp credentials are saved");
+      assertStringIncludes(html, "sumup-test-btn");
     });
   });
 

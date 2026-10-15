@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -47,7 +48,7 @@ describe("adminSettingsPage > SuperuserForm", () => {
   describe("availability", () => {
     test("renders the heading when superuser recovery is available", () => {
       const html = renderSuperuser(availableSuperuser());
-      expect(html).toContain("Superuser Recovery");
+      assertStringIncludes(html, "Superuser Recovery");
     });
 
     test("does not render when recovery is unavailable", () => {
@@ -58,8 +59,14 @@ describe("adminSettingsPage > SuperuserForm", () => {
       ] as const;
       for (const reason of reasons) {
         const html = renderSuperuser({ available: false, reason });
-        expect(html).not.toContain("Superuser Recovery");
-        expect(html).not.toContain("superuser_choice");
+        assert(
+          !html.includes("Superuser Recovery"),
+          "the value should not contain the searched item",
+        );
+        assert(
+          !html.includes("superuser_choice"),
+          "the value should not contain the searched item",
+        );
       }
     });
   });
@@ -67,11 +74,15 @@ describe("adminSettingsPage > SuperuserForm", () => {
   describe("radio labels", () => {
     test("renders the self-managed choice with the correct wording", () => {
       const html = renderSuperuser(availableSuperuser());
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         "I understand that my attendee information cannot be decrypted without my password, and that I am responsible for storing my password securely. If I forget it, I will be locked out of my attendee records.",
       );
-      expect(html).toContain("responsible");
-      expect(html).not.toContain("responsiblity");
+      assertStringIncludes(html, "responsible");
+      assert(
+        !html.includes("responsiblity"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("renders the admin email in the enable-superuser choice", () => {
@@ -81,10 +92,12 @@ describe("adminSettingsPage > SuperuserForm", () => {
           username: "myadmin",
         }),
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         "I wish to enable a &quot;super user&quot; account on this platform for my admin, myadmin@example.com.",
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         "This user will be able to log in, decrypt attendee data, and invite a replacement owner account if I lose access.",
       );
     });
@@ -99,31 +112,37 @@ describe("adminSettingsPage > SuperuserForm", () => {
     });
 
     test("the self-managed radio has its stored value", () => {
-      expect(renderSuperuser(baseSuperuser)).toContain('value="self-managed"');
+      assertStringIncludes(
+        renderSuperuser(baseSuperuser),
+        'value="self-managed"',
+      );
     });
 
     test("the enable-superuser radio has its stored value", () => {
-      expect(renderSuperuser(baseSuperuser)).toContain(
+      assertStringIncludes(
+        renderSuperuser(baseSuperuser),
         'value="enable-superuser"',
       );
     });
 
     test("posts to the superuser settings route", () => {
-      expect(renderSuperuser(baseSuperuser)).toContain(
+      assertStringIncludes(
+        renderSuperuser(baseSuperuser),
         'action="/admin/settings/superuser"',
       );
     });
 
     test("has the anchor id", () => {
-      expect(renderSuperuser(baseSuperuser)).toContain(
+      assertStringIncludes(
+        renderSuperuser(baseSuperuser),
         'id="settings-superuser"',
       );
     });
 
     test("includes a CSRF token field", () => {
       const html = renderSuperuser(baseSuperuser);
-      expect(html).toContain('type="hidden"');
-      expect(html).toContain('name="csrf_token"');
+      assertStringIncludes(html, 'type="hidden"');
+      assertStringIncludes(html, 'name="csrf_token"');
     });
   });
 
@@ -162,32 +181,40 @@ describe("adminSettingsPage > SuperuserForm", () => {
       );
 
     test("shows the activated username", () => {
-      expect(existingSuperuserHtml()).toContain(
+      assertStringIncludes(
+        existingSuperuserHtml(),
         "Superuser myadmin is already activated.",
       );
     });
 
     test("links to the users page and ends the message with a period", () => {
       const html = existingSuperuserHtml();
-      expect(html).toContain('<a href="/admin/users">users page</a>');
-      expect(html).toContain("users page</a>.");
+      assertStringIncludes(html, '<a href="/admin/users">users page</a>');
+      assertStringIncludes(html, "users page</a>.");
     });
 
     test("does not render radio inputs", () => {
-      expect(superuserFormHtml(existingSuperuserHtml())).not.toContain(
-        'type="radio"',
+      assert(
+        !superuserFormHtml(existingSuperuserHtml()).includes('type="radio"'),
+        "the value should not contain the searched item",
       );
     });
 
     test("does not render a submit button", () => {
       const html = superuserFormHtml(existingSuperuserHtml());
-      expect(html).not.toContain('type="submit"');
-      expect(html).not.toContain("<button");
+      assert(
+        !html.includes('type="submit"'),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("<button"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("renders a submit button before activation", () => {
       const html = superuserFormHtml(renderSuperuser(availableSuperuser()));
-      expect(html).toContain('type="submit"');
+      assertStringIncludes(html, 'type="submit"');
     });
   });
 

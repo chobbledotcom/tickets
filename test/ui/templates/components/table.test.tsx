@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -31,7 +32,8 @@ describe("typed table rendering", () => {
       ),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<tbody><tr><td>Value 0</td></tr><tr><td>Value 1</td></tr><tr><td>Value 2</td></tr><tr><td>Value 3</td></tr><tr><td>Value 4</td></tr></tbody>",
     );
   });
@@ -62,10 +64,12 @@ describe("typed table rendering", () => {
       },
     ]);
 
-    expect(String(renderTable(table, [{ amount: 12 }]))).toContain(
+    assertStringIncludes(
+      String(renderTable(table, [{ amount: 12 }])),
       '<td class="col-amount highlight" title="Exact amount">12</td>',
     );
-    expect(String(renderTable(table, [], { empty: "None" }))).toContain(
+    assertStringIncludes(
+      String(renderTable(table, [], { empty: "None" })),
       '<td colspan="1">None</td>',
     );
   });
@@ -81,8 +85,8 @@ describe("typed table rendering", () => {
         hiddenKeys: new Set<"shown" | "hidden">(["hidden"]),
       }),
     );
-    expect(html).toContain("<thead><tr><th>Shown</th></tr></thead>");
-    expect(html).toContain("<tbody><tr><td>Keep</td></tr></tbody>");
+    assertStringIncludes(html, "<thead><tr><th>Shown</th></tr></thead>");
+    assertStringIncludes(html, "<tbody><tr><td>Keep</td></tr></tbody>");
   });
 
   test("renders attributes derived from each row", () => {
@@ -90,14 +94,13 @@ describe("typed table rendering", () => {
       { cell: (row) => row.name, header: "Name", key: "name" },
     ]);
 
-    expect(
+    assertStringIncludes(
       String(
         renderTable(table, [{ active: false, name: "Hidden" }], {
           rowAttrs: (row) =>
             row.active ? {} : { class: "inactive-row", "data-active": "false" },
         }),
       ),
-    ).toContain(
       '<tr class="inactive-row" data-active="false"><td>Hidden</td></tr>',
     );
   });
@@ -113,9 +116,10 @@ describe("typed table rendering", () => {
       { cell: (row) => row.value, header: "Value", key: "value" },
     ]);
 
-    expect(
+    assertStringIncludes(
       String(renderTable(table, [{ label: "Name", value: "Alice" }])),
-    ).toContain('<th scope="row">Name</th><td>Alice</td>');
+      '<th scope="row">Name</th><td>Alice</td>',
+    );
   });
 
   test("renders only documented columns in the reference", () => {
@@ -131,13 +135,17 @@ describe("typed table rendering", () => {
     ]);
 
     const html = String(renderColumnReference(table));
-    expect(html).toContain(`<th>${t("guide.table_reference.tag")}</th>`);
-    expect(html).toContain(`<th>${t("guide.table_reference.label")}</th>`);
-    expect(html).toContain(
+    assertStringIncludes(html, `<th>${t("guide.table_reference.tag")}</th>`);
+    assertStringIncludes(html, `<th>${t("guide.table_reference.label")}</th>`);
+    assertStringIncludes(
+      html,
       `<th>${t("guide.table_reference.description")}</th>`,
     );
-    expect(html).toContain("{{name}}");
-    expect(html).toContain("Stored name");
-    expect(html).not.toContain("{{internal}}");
+    assertStringIncludes(html, "{{name}}");
+    assertStringIncludes(html, "Stored name");
+    assert(
+      !html.includes("{{internal}}"),
+      "the value should not contain the searched item",
+    );
   });
 });

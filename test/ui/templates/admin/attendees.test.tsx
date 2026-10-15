@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BookedAnswer, QuestionWithAnswers } from "#db/question-types.ts";
@@ -54,19 +55,25 @@ describe("EditQuestions", () => {
 
   test("hides a deactivated radio answer the attendee has not selected", () => {
     const html = withDeactivated("radio", [10]);
-    expect(html).toContain("Red");
-    expect(html).not.toContain("Blue");
+    assertStringIncludes(html, "Red");
+    assert(
+      !html.includes("Blue"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("keeps a deactivated radio answer the attendee already selected", () => {
     const html = withDeactivated("radio", [11]);
-    expect(html).toContain("Blue");
+    assertStringIncludes(html, "Blue");
   });
 
   test("hides a deactivated select answer the attendee has not selected", () => {
     const html = withDeactivated("select", [10]);
-    expect(html).toContain("Red");
-    expect(html).not.toContain("Blue");
+    assertStringIncludes(html, "Red");
+    assert(
+      !html.includes("Blue"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("keeps a deactivated select answer the attendee already selected", () => {
@@ -74,7 +81,7 @@ describe("EditQuestions", () => {
     // Asserting the full option markup (not just the label) proves the
     // `selected` attribute is preserved — without it the edit form would
     // silently drop the attendee's existing answer on save.
-    expect(html).toContain('<option selected value="11">Blue</option>');
+    assertStringIncludes(html, '<option selected value="11">Blue</option>');
   });
 
   test("renders radio inputs by default", () => {
@@ -98,9 +105,9 @@ describe("EditQuestions", () => {
       { answerIds: [10] },
     );
 
-    expect(html).toContain('type="radio"');
-    expect(html).toContain("checked");
-    expect(html).toContain("Small");
+    assertStringIncludes(html, 'type="radio"');
+    assertStringIncludes(html, "checked");
+    assertStringIncludes(html, "Small");
   });
 
   test("renders select inputs when configured", () => {
@@ -131,10 +138,13 @@ describe("EditQuestions", () => {
       { answerIds: [11] },
     );
 
-    expect(html).toContain('<select name="question_1">');
-    expect(html).toContain('<option value="">No answer</option>');
-    expect(html).toContain('<option selected value="11">Large</option>');
-    expect(html).not.toContain('type="radio"');
+    assertStringIncludes(html, '<select name="question_1">');
+    assertStringIncludes(html, '<option value="">No answer</option>');
+    assertStringIncludes(html, '<option selected value="11">Large</option>');
+    assert(
+      !html.includes('type="radio"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders a text input pre-filled with the saved free-text answer", () => {
@@ -150,10 +160,16 @@ describe("EditQuestions", () => {
       { textAnswers: new Map([[1, "Allergic to nuts"]]) },
     );
 
-    expect(html).toContain('name="question_1" type="text"');
-    expect(html).toContain('value="Allergic to nuts"');
-    expect(html).not.toContain('type="radio"');
-    expect(html).not.toContain("<select");
+    assertStringIncludes(html, 'name="question_1" type="text"');
+    assertStringIncludes(html, 'value="Allergic to nuts"');
+    assert(
+      !html.includes('type="radio"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("<select"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders an empty text input when no free-text answer is saved", () => {
@@ -161,7 +177,7 @@ describe("EditQuestions", () => {
       { answers: [], display_type: "free_text", id: 7, text: "Anything else?" },
     ]);
 
-    expect(html).toContain('name="question_7" type="text" value=""');
+    assertStringIncludes(html, 'name="question_7" type="text" value=""');
   });
 
   test("renders complex markdown in a prose div for free-text questions", () => {
@@ -177,10 +193,13 @@ describe("EditQuestions", () => {
       { textAnswers: new Map([[1, "done"]]) },
     );
 
-    expect(html).toContain('<div class="prose" id="question-1-prose">');
-    expect(html).toContain('aria-labelledby="question-1-prose"');
-    expect(html).toContain("<strong>more</strong>");
-    expect(html).not.toContain('<label class="custom-question">');
+    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
+    assertStringIncludes(html, 'aria-labelledby="question-1-prose"');
+    assertStringIncludes(html, "<strong>more</strong>");
+    assert(
+      !html.includes('<label class="custom-question">'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders complex markdown in a prose div for select questions", () => {
@@ -204,10 +223,13 @@ describe("EditQuestions", () => {
       { answerIds: [10] },
     );
 
-    expect(html).toContain('<div class="prose" id="question-1-prose">');
-    expect(html).toContain('aria-labelledby="question-1-prose"');
-    expect(html).toContain('<a href="https://example.com">a colour</a>');
-    expect(html).not.toContain('<label class="custom-question">');
+    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
+    assertStringIncludes(html, 'aria-labelledby="question-1-prose"');
+    assertStringIncludes(html, '<a href="https://example.com">a colour</a>');
+    assert(
+      !html.includes('<label class="custom-question">'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders complex markdown in a prose div for radio questions", () => {
@@ -231,12 +253,16 @@ describe("EditQuestions", () => {
       { answerIds: [10] },
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<fieldset aria-labelledby="question-1-prose" class="custom-question">',
     );
-    expect(html).toContain('<div class="prose" id="question-1-prose">');
-    expect(html).toContain("<h1>Heading</h1>");
-    expect(html).not.toContain("<legend>");
+    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
+    assertStringIncludes(html, "<h1>Heading</h1>");
+    assert(
+      !html.includes("<legend>"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("shows the answer at booking under a changed question only", () => {
@@ -272,7 +298,8 @@ describe("EditQuestions", () => {
         [2, "Same"],
       ]),
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<small>Changed. At booking: &quot;Then&quot;.</small>",
     );
     expect(html.match(/<small>/g)?.length).toBe(1);

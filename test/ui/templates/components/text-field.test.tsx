@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
@@ -26,10 +27,12 @@ describe("TextField", () => {
       </>,
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email" type="email">`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="server_url" type="url">`,
     );
   });
@@ -44,8 +47,11 @@ describe("TextField", () => {
       }),
     );
 
-    expect(html).toContain('maxlength="8"');
-    expect(html).not.toContain(`maxlength="${MAX_INPUT_LENGTH}"`);
+    assertStringIncludes(html, 'maxlength="8"');
+    assert(
+      !html.includes(`maxlength="${MAX_INPUT_LENGTH}"`),
+      "the value should not contain the searched item",
+    );
   });
 
   test("carries value, placeholder, and required when given", () => {
@@ -90,7 +96,8 @@ describe("TextField", () => {
       TextField({ label: "Secret", name: "the_secret", type: "password" }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="the_secret" type="password">`,
     );
   });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
@@ -54,7 +55,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const response = await adminGet("/admin/questions");
       const body = await response.text();
-      expect(body).toContain('title="Gala Night"');
+      assertStringIncludes(body, 'title="Gala Night"');
     });
   });
 
@@ -69,7 +70,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(id).toBeGreaterThan(0);
       expect(await storedFeatureEnabled("questions")).toBe(true);
       // The creation lands in the activity log with the row's kind and name.
-      expect(await activityMessages()).toContain(
+      assertStringIncludes(
+        await activityMessages(),
         "Question 'What size?' created",
       );
     });
@@ -259,7 +261,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const response = await adminGet(`/admin/questions/${id}`);
       const body = await expectHtmlResponse(response, 200, "One", "Two");
       // Each answer links through to its own edit page.
-      expect(body).toContain(
+      assertStringIncludes(
+        body,
         `<a href="/admin/questions/${id}/answers/${answerId}/edit">One</a>`,
       );
     });
@@ -403,8 +406,11 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const response = await adminGet(`/admin/questions/${qId}`);
       const body = await response.text();
       // The answers table shows the stored selection total (0 with no bookings).
-      expect(body).toContain('<th class="col-quantity">Times selected</th>');
-      expect(body).toContain('<td class="col-quantity">0</td>');
+      assertStringIncludes(
+        body,
+        '<th class="col-quantity">Times selected</th>',
+      );
+      assertStringIncludes(body, '<td class="col-quantity">0</td>');
     });
   });
 });

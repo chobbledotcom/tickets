@@ -1,6 +1,7 @@
 /** Tests for the group Edit panel: the form fields an existing group's own
  * page draws — its package member prices, and its stored yes/no boxes. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { GroupEditPanel } from "#templates/admin/groups/form.tsx";
@@ -25,10 +26,10 @@ describe("GroupEditPanel package members table", () => {
         members,
       }),
     );
-    expect(html).toContain('name="package_price_1"');
-    expect(html).toContain('value="15.00"');
-    expect(html).toContain('name="package_qty_1"');
-    expect(html).toContain('value="4"');
+    assertStringIncludes(html, 'name="package_price_1"');
+    assertStringIncludes(html, 'value="15.00"');
+    assertStringIncludes(html, 'name="package_qty_1"');
+    assertStringIncludes(html, 'value="4"');
     // Listing 2 (no row): blank price, quantity defaults to 1.
     expect(html).toMatch(
       /<input(?=[^>]*name="package_price_2")(?=[^>]*value="")[^>]*>/,
@@ -45,11 +46,12 @@ describe("GroupEditPanel package members table", () => {
     const html = String(
       GroupEditPanel({ group: opening, listings: [], members: new Map() }),
     );
-    expect(
+    assertStringIncludes(
       html.match(
         /<input type="checkbox" name="scan_checks_in_all_listings"[^>]*>/,
       )![0],
-    ).toContain(" checked");
+      " checked",
+    );
 
     const closed = testGroup({
       name: "Festival",
@@ -58,11 +60,14 @@ describe("GroupEditPanel package members table", () => {
     const closedHtml = String(
       GroupEditPanel({ group: closed, listings: [], members: new Map() }),
     );
-    expect(
-      closedHtml.match(
-        /<input type="checkbox" name="scan_checks_in_all_listings"[^>]*>/,
-      )![0],
-    ).not.toContain(" checked");
+    assert(
+      !closedHtml
+        .match(
+          /<input type="checkbox" name="scan_checks_in_all_listings"[^>]*>/,
+        )![0]
+        .includes(" checked"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("shows the empty-state prompt when the package has no listings", () => {
@@ -70,7 +75,7 @@ describe("GroupEditPanel package members table", () => {
     const html = String(
       GroupEditPanel({ group, listings: [], members: new Map() }),
     );
-    expect(html).toContain("Add listings to this group");
+    assertStringIncludes(html, "Add listings to this group");
   });
 
   test("leaves the JSON export on the Actions tab", () => {
@@ -79,6 +84,9 @@ describe("GroupEditPanel package members table", () => {
       GroupEditPanel({ group, listings: [], members: new Map() }),
     );
     // The Actions panel owns the export link; the Edit panel omits it.
-    expect(html).not.toContain(`/admin/groups/${group.id}/export.json`);
+    assert(
+      !html.includes(`/admin/groups/${group.id}/export.json`),
+      "the value should not contain the searched item",
+    );
   });
 });
