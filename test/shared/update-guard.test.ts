@@ -1,4 +1,3 @@
-import { assertEquals } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -9,6 +8,7 @@ import {
   updatePageBuildTag,
   updatePageMeta,
   updatePageState,
+  waitForBeginPropagation,
   waitForUpdatePage,
 } from "#shared/update-guard.ts";
 import { recordingUpdateGuard } from "#test-utils/_shared-site-update.ts";
@@ -37,6 +37,27 @@ const page = (
   const tag = buildTag === undefined ? "" : updateBuildTagMeta(buildTag);
   return `<html><head>${updatePageMeta(state)}${tag}</head></html>`;
 };
+
+/** A guard io on a stepped clock that records every operation and answers
+ * every page fetch with `served`. */
+const clockGuardIo = (
+  clock: { now: () => number; sleep: (ms: number) => Promise<void> },
+  served: string,
+  calls: string[],
+): UpdateGuardIo => ({
+  clearFlag: async () => {
+    calls.push("clear");
+  },
+  fetchPage: () => {
+    calls.push("fetch");
+    return Promise.resolve(served);
+  },
+  now: clock.now,
+  setFlag: async (value) => {
+    calls.push(`set:${value}`);
+  },
+  sleep: clock.sleep,
+});
 
 describe("update page marker", () => {
   test("reads active, supported, and unsupported pages", () => {
@@ -106,36 +127,6 @@ describe("waitForUpdatePage", () => {
         sleep: clock.sleep,
       }),
     ).rejects.toThrow(/UPDATE_IN_PROGRESS is still set/);
-  });
-
-  test("honours an injected shorter deadline", async () => {
-    const clock = fakeClock();
-    await expect(
-      waitForUpdatePage({
-        fetchPage: () => Promise.resolve(page("supported")),
-        now: clock.now,
-        sleep: clock.sleep,
-        timeoutMs: 10_000,
-      }),
-    ).rejects.toThrow(/within 10 seconds/);
-  });
-
-  test("logs progress once a minute while the page is missing", async () => {
-    const seen: string[] = [];
-    const clock = fakeClock();
-    await expect(
-      waitForUpdatePage({
-        expectedBuildTag: "v2099-01-01-120000",
-        fetchPage: () => Promise.resolve(page("active")),
-        log: (message) => seen.push(message),
-        now: clock.now,
-        sleep: clock.sleep,
-        timeoutMs: 70_000,
-      }),
-    ).rejects.toThrow(/the deploy expected/);
-    // One line at 60 seconds, none before; the count pins "no noise".
-    assertEquals(seen.length, 1);
-    expect(seen[0]).toMatch(/after 60 seconds of the 70-second wait/);
   });
 
   test("a failed page fetch keeps the wait polling", async () => {
@@ -237,6 +228,104 @@ describe("waitForUpdatePage", () => {
   });
 });
 
+describe("waitForBeginPropagation", () => {
+  test("checks at the 10, 30, and 60 second marks and reverts on a run-out", async () => {
+    const clock = fakeClock();
+    const marks: number[] = [];
+    const seen: string[] = [];
+    let reverts = 0;
+    const error = await waitForBeginPropagation(
+      {
+        fetchPage: () => {
+          marks.push(clock.now());
+          return Promise.resolve(page("supported"));
+        },
+        log: (message) => seen.push(message),
+        now: clock.now,
+        skipWhenUnsupported: true,
+        sleep: clock.sleep,
+      },
+      () => {
+        reverts += 1;
+        return Promise.resolve();
+      },
+    ).catch((caught: unknown) => caught);
+    // Three single checks after quiet gaps: no check at t=0, no polling
+    // between the marks.
+    expect(marks).toEqual([10_000, 30_000, 60_000]);
+    expect(reverts).toBe(1);
+    expect(seen).toEqual([
+      "The site still does not show its update page 10 seconds after the flag was set.",
+      "The site still does not show its update page 30 seconds after the flag was set.",
+      "The site still does not show its update page 60 seconds after the flag was set.",
+    ]);
+    expect((error as Error).message).toMatch(
+      /The flag was removed, so the site accepts writes again/,
+    );
+  });
+
+  test("an update page at any mark ends the wait cleanly", async () => {
+    const clock = fakeClock();
+    const marks: number[] = [];
+    let reverts = 0;
+    await waitForBeginPropagation(
+      {
+        fetchPage: () => {
+          marks.push(clock.now());
+          return Promise.resolve(
+            marks.length === 1 ? page("supported") : page("active"),
+          );
+        },
+        now: clock.now,
+        skipWhenUnsupported: true,
+        sleep: clock.sleep,
+      },
+      () => {
+        reverts += 1;
+        return Promise.resolve();
+      },
+    );
+    expect(marks).toEqual([10_000, 30_000]);
+    expect(reverts).toBe(0);
+  });
+
+  test("reports a removal failure alongside the run-out", async () => {
+    const clock = fakeClock();
+    const error = await waitForBeginPropagation(
+      {
+        fetchPage: () => Promise.resolve(page("supported")),
+        now: clock.now,
+        skipWhenUnsupported: true,
+        sleep: clock.sleep,
+      },
+      () => Promise.reject(new Error("the delete failed")),
+    ).catch((caught: unknown) => caught);
+    expect((error as Error).message).toMatch(/within 60 seconds/);
+    expect((error as Error).message).toMatch(
+      /Removing the flag failed: the delete failed, so UPDATE_IN_PROGRESS may still be set/,
+    );
+  });
+
+  test("skips a build that predates update mode", async () => {
+    const clock = fakeClock();
+    let reverts = 0;
+    await waitForBeginPropagation(
+      {
+        fetchPage: () => Promise.resolve(page("unsupported")),
+        now: clock.now,
+        skipWhenUnsupported: true,
+        sleep: clock.sleep,
+      },
+      () => {
+        reverts += 1;
+        return Promise.resolve();
+      },
+    );
+    expect(clock.now()).toBe(10_000);
+    expect(reverts).toBe(0);
+  });
+});
+
 describe("runUnderUpdateGuard", () => {
   test("sets the flag, deploys, confirms the new build, and lifts", async () => {
     const { calls, io } = recordingUpdateGuard([
@@ -277,20 +366,7 @@ describe("runUnderUpdateGuard", () => {
     // fetch never stops answering with that old build.
     const clock = fakeClock();
     const calls: string[] = [];
-    const io: UpdateGuardIo = {
-      clearFlag: async () => {
-        calls.push("clear");
-      },
-      fetchPage: () => {
-        calls.push("fetch");
-        return Promise.resolve(page("active"));
-      },
-      now: clock.now,
-      setFlag: async (value) => {
-        calls.push(`set:${value}`);
-      },
-      sleep: clock.sleep,
-    };
+    const io = clockGuardIo(clock, page("active"), calls);
     await expect(
       runUnderUpdateGuard(
         io,
@@ -317,6 +393,23 @@ describe("runUnderUpdateGuard", () => {
       ),
     ).rejects.toThrow("upload failed");
     expect(calls).toEqual(["set:1", "fetch"]);
+  });
+
+  test("reverts the flag when the begin marks pass with the site unchanged", async () => {
+    const clock = fakeClock();
+    const calls: string[] = [];
+    const io = clockGuardIo(clock, page("supported"), calls);
+    await expect(
+      runUnderUpdateGuard(
+        io,
+        async () => {
+          calls.push("deploy");
+        },
+        () => MOCK_RELEASE.tag_name,
+      ),
+    ).rejects.toThrow(/The flag was removed, so the site accepts writes again/);
+    // Three checks, then the revert; the deploy body never ran.
+    expect(calls).toEqual(["set:1", "fetch", "fetch", "fetch", "clear"]);
   });
 
   test("leaves the flag set when the lift fails", async () => {

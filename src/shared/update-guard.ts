@@ -6,9 +6,10 @@
  * the wait, and the guard that wraps one deploy.
  *
  * A failure after the flag is set leaves the flag set and rethrows. A site
- * stuck read-only is safer than a half-migrated one. The operator lifts the
- * flag by hand in the hosting dashboard, or re-runs the same update, whose
- * successful finish lifts it.
+ * stuck read-only is safer than a half-migrated one. The begin schedule is
+ * the exception: before any update runs, a run-out reverts the flag and
+ * raises the error. The operator lifts the flag by hand in the hosting
+ * dashboard, or re-runs the same update, whose successful finish lifts it.
  */
 
 import { delay } from "#shared/now.ts";
@@ -62,14 +63,17 @@ export const updatePageBuildTag = (html: string): string | null =>
 export const UPDATE_WAIT_INTERVAL_MS = 5_000;
 export const UPDATE_WAIT_TIMEOUT_MS = 180_000;
 
-/** The begin wait's own deadline. Setting UPDATE_IN_PROGRESS writes the
- * script's environment on the Bunny API, and the serving edge nodes pick
- * that write up asynchronously. The first staging deploy after #2588 polled
- * for 180 seconds of pages that reported content="supported", and the wait
- * timed out before the flag reached them. The begin wait is pre-deploy, so
- * a longer window only delays. The end wait keeps the short deadline
- * because it verifies the build the deploy just published. */
-export const UPDATE_BEGIN_WAIT_TIMEOUT_MS = 600_000;
+/** The begin schedule's segments. The flag's propagation to the serving
+ * edge nodes lags the API write that set it. The begin wait checks the
+ * site 10, 30, and 60 seconds in. A site that still serves its normal page
+ * at the last mark reverts the flag and fails the deploy loudly. Fail safe
+ * plus retry beats blocking. The checks are single hits with quiet gaps
+ * between them. The gap lets the old app stop serving and the flag set.
+ * Immediate repeated checking kept the old app online and raced the
+ * propagation. */
+export const UPDATE_BEGIN_FIRST_WAIT_MS = 10_000;
+export const UPDATE_BEGIN_SECOND_WAIT_MS = 20_000;
+export const UPDATE_BEGIN_THIRD_WAIT_MS = 30_000;
 
 /** The longest one update-page fetch can take. A stalled connection must end
  * before the wait's deadline, or the deadline can never fire. The aborted
@@ -142,23 +146,20 @@ export type UpdateWaitOptions = UpdatePollIo & {
    * only when the served update page names this build, so an active page
    * from the build the deploy replaces never passes. */
   expectedBuildTag?: string | undefined;
-  /** The wait's deadline in milliseconds. Defaults to
-   * UPDATE_WAIT_TIMEOUT_MS. The pre-deploy begin wait passes a longer
-   * deadline because the flag's propagation to edge nodes lags the API
-   * write that set it. */
-  timeoutMs?: number | undefined;
+};
+
+/** One poll: the page state, the build the page names, and the failure
+ * that stood in for the state. */
+type UpdatePoll = {
+  buildTag: string | null;
+  lastError: string | null;
+  state: UpdatePageState;
 };
 
 /** One poll: resolve the page state, or report the failure that stood in for
  * it. A failed fetch says nothing about the site's state. It counts as
  * not-ready, and the wait retries. */
-const pollOnce = async (
-  options: UpdateWaitOptions,
-): Promise<{
-  buildTag: string | null;
-  lastError: string | null;
-  state: UpdatePageState;
-}> => {
+const pollOnce = async (options: UpdateWaitOptions): Promise<UpdatePoll> => {
   try {
     const html = await options.fetchPage();
     return {
@@ -175,28 +176,12 @@ const pollOnce = async (
   }
 };
 
-/** A progress line once a minute while the page is missing, so a long
- * propagation window is visible in the deploy log. */
-const progressLogger = (
-  log: ((message: string) => void) | undefined,
-  now: () => number,
-  startedAt: number,
-  timeoutMs: number,
-): (() => void) => {
-  let lastLoggedAt = startedAt;
-  return () => {
-    if (log === undefined || now() - lastLoggedAt < 60_000) return;
-    lastLoggedAt = now();
-    log(
-      `The site still does not show its update page after ${Math.round(
-        (now() - startedAt) / 1000,
-      )} seconds of the ${Math.round(timeoutMs / 1000)}-second wait.`,
-    );
-  };
-};
+const UNSUPPORTED_SKIP_MESSAGE =
+  "The site's running build does not understand update mode yet, so the " +
+  "wait cannot confirm it went read-only. The deploy continues.";
 
-/** Whether one poll satisfied the wait: the update page shows, and it names
- * the expected build when the caller pinned one. */
+/** Whether one check satisfied the wait: the update page shows, and it
+ * names the expected build when the caller pinned one. */
 const pollIsReady = (
   options: UpdateWaitOptions,
   poll: { buildTag: string | null; state: UpdatePageState },
@@ -204,6 +189,63 @@ const pollIsReady = (
   poll.state === "active" &&
   (options.expectedBuildTag === undefined ||
     poll.buildTag === options.expectedBuildTag);
+
+/** What one check found. "ready" ends the wait. "skip" ends it when the
+ * caller asked to skip a build that predates update mode. "unchanged"
+ * keeps the wait going. */
+const checkDecision = (
+  options: UpdateWaitOptions,
+  poll: UpdatePoll,
+): "ready" | "skip" | "unchanged" => {
+  if (pollIsReady(options, poll)) return "ready";
+  if (
+    poll.lastError === null &&
+    options.skipWhenUnsupported &&
+    poll.state === "unsupported"
+  ) {
+    return "skip";
+  }
+  return "unchanged";
+};
+
+/** The clock and sleep one wait runs on, taken from the caller's io with
+ * the real defaults filled in. */
+const waitClockFrom = (
+  options: UpdateWaitOptions,
+): { now: () => number; sleep: (ms: number) => Promise<void> } => ({
+  now: options.now ?? Date.now,
+  sleep: options.sleep ?? delay,
+});
+
+/** The plan one wait follows: the quiet gap before each check, and the
+ * run-out it raises after a check that still finds the page unchanged. A
+ * run-out of null keeps the wait going. */
+type UpdateWaitPlan = {
+  gap: (checked: number) => number;
+  giveUp: (checked: number, poll: UpdatePoll) => Promise<Error | null>;
+};
+
+/** The check loop both waits share: sleep the plan's gap, poll, and end
+ * the wait on a ready page or a pre-update-mode build. The run-out comes
+ * from the plan. */
+const loopChecks = async (
+  options: UpdateWaitOptions,
+  plan: UpdateWaitPlan,
+): Promise<void> => {
+  const { sleep } = waitClockFrom(options);
+  for (let checked = 1; ; checked += 1) {
+    await sleep(plan.gap(checked));
+    const poll = await pollOnce(options);
+    const decision = checkDecision(options, poll);
+    if (decision === "ready") return;
+    if (decision === "skip") {
+      options.log?.(UNSUPPORTED_SKIP_MESSAGE);
+      return;
+    }
+    const error = await plan.giveUp(checked, poll);
+    if (error !== null) throw error;
+  }
+};
 
 /** Poll the site's read-only page until the update page shows. A failed
  * page fetch says nothing about the site's state, so the wait retries it
@@ -214,45 +256,106 @@ const pollIsReady = (
 export const waitForUpdatePage = async (
   options: UpdateWaitOptions,
 ): Promise<void> => {
-  const sleep = options.sleep ?? delay;
-  const now = options.now ?? Date.now;
-  const timeoutMs = options.timeoutMs ?? UPDATE_WAIT_TIMEOUT_MS;
-  const deadline = now() + timeoutMs;
-  const logProgress = progressLogger(options.log, now, now(), timeoutMs);
-  for (;;) {
-    const poll = await pollOnce(options);
-    if (pollIsReady(options, poll)) {
-      return;
-    }
-    // A fetch failure must not read as "the build predates update mode". The
-    // skip therefore fires only on a real unsupported page.
-    if (
-      poll.lastError === null &&
-      options.skipWhenUnsupported &&
-      poll.state === "unsupported"
-    ) {
-      options.log?.(
-        "The site's running build does not understand update mode yet, so the " +
-          "wait cannot confirm it went read-only. The deploy continues.",
-      );
-      return;
-    }
-    logProgress();
-    if (now() >= deadline) {
-      throw new Error(
-        waitTimedOut(
-          timeoutMs,
-          poll.lastError,
-          buildMismatchNote(
-            options.expectedBuildTag,
-            poll.state,
-            poll.buildTag,
-          ),
-        ),
-      );
-    }
-    await sleep(UPDATE_WAIT_INTERVAL_MS);
+  const { now } = waitClockFrom(options);
+  const deadline = now() + UPDATE_WAIT_TIMEOUT_MS;
+  await loopChecks(options, {
+    gap: (checked) => (checked === 1 ? 0 : UPDATE_WAIT_INTERVAL_MS),
+    giveUp: (_checked, poll) =>
+      Promise.resolve(
+        now() >= deadline
+          ? new Error(
+              waitTimedOut(
+                UPDATE_WAIT_TIMEOUT_MS,
+                poll.lastError,
+                buildMismatchNote(
+                  options.expectedBuildTag,
+                  poll.state,
+                  poll.buildTag,
+                ),
+              ),
+            )
+          : null,
+      ),
+  });
+};
+
+/** The base a begin run-out names: the marks passed with the site still
+ * serving its normal page. */
+const beginTimedOutBase = (totalMs: number): string =>
+  `The site did not show its update page within ${Math.round(totalMs / 1000)} seconds. `;
+
+/** The error a begin run-out raises. The wait reverts the flag first
+ * through `revert`: begin is pre-deploy, the revert happens before any
+ * update, so it cannot hide a half-applied one. A failed revert is
+ * reported in the error's detail and never replaces the run-out. */
+const beginTimedOutError = async (
+  revert: () => Promise<void>,
+  poll: UpdatePoll,
+): Promise<Error> => {
+  const totalMs =
+    UPDATE_BEGIN_FIRST_WAIT_MS +
+    UPDATE_BEGIN_SECOND_WAIT_MS +
+    UPDATE_BEGIN_THIRD_WAIT_MS;
+  const detail =
+    poll.lastError === null
+      ? ""
+      : ` The last page check failed: ${poll.lastError}`;
+  try {
+    await revert();
+  } catch (revertIssue) {
+    return new Error(
+      beginTimedOutBase(totalMs) +
+        `Removing the flag failed: ${
+          revertIssue instanceof Error
+            ? revertIssue.message
+            : String(revertIssue)
+        }, so UPDATE_IN_PROGRESS may still be set and the site may still ` +
+        "refuse writes. Fix the removal failure, then re-run the same " +
+        "update, or remove UPDATE_IN_PROGRESS from the script's environment " +
+        "in the hosting dashboard." +
+        detail,
+    );
   }
+  return new Error(
+    beginTimedOutBase(totalMs) +
+      "The flag was removed, so the site accepts writes again. " +
+      "Re-run the deploy to retry." +
+      detail,
+  );
+};
+
+/** The scheduled begin wait: check the site 10, 30, and 60 seconds after
+ * the flag was set. An update page at any mark ends the wait cleanly, and
+ * a build that predates update mode skips the wait. A site that still
+ * serves its normal page at the last mark reverts the flag through
+ * `revert` and raises the error. */
+export const waitForBeginPropagation = async (
+  options: UpdateWaitOptions,
+  revert: () => Promise<void>,
+): Promise<void> => {
+  const segments = [
+    UPDATE_BEGIN_FIRST_WAIT_MS,
+    UPDATE_BEGIN_SECOND_WAIT_MS,
+    UPDATE_BEGIN_THIRD_WAIT_MS,
+  ];
+  await loopChecks(options, {
+    gap: (checked) => segments[checked - 1] ?? 0,
+    giveUp: async (checked, poll) => {
+      // One line per check, naming the elapsed segment: a long
+      // propagation window stays visible without noise.
+      const elapsed = segments
+        .slice(0, checked)
+        .reduce((sum, segment) => sum + segment, 0);
+      options.log?.(
+        `The site still does not show its update page ${Math.round(
+          elapsed / 1000,
+        )} seconds after the flag was set.`,
+      );
+      return checked < segments.length
+        ? null
+        : beginTimedOutError(revert, poll);
+    },
+  });
 };
 
 /** The operations one deploy needs to guard itself. A failed operation
@@ -282,8 +385,9 @@ export const waitOptionsFrom = (
 export type UpdateRun<T> = () => Promise<T>;
 
 /** Put a site into update mode around `run` (the code deploy itself). The
- * first wait proves the running copy went read-only before the deploy
- * touches it. The second wait proves the build the deploy published is
+ * begin schedule proves the running copy went read-only before the deploy
+ * touches it. It reverts the flag when the marks pass with the site
+ * unchanged. The second wait proves the build the deploy published is
  * serving. The page must name that build: an active page the old build
  * still answers cannot lift the flag. The new build's first served request
  * ran the migrations. `expectedBuildTag` reads the published build's tag
@@ -294,12 +398,9 @@ export const runUnderUpdateGuard = async <T>(
   expectedBuildTag: (result: T) => string,
 ): Promise<T> => {
   await io.setFlag(UPDATE_FLAG_VALUE);
-  // The begin wait is pre-deploy and runs on its own longer deadline: the
-  // flag's propagation to edge nodes lags the write that set it.
-  await waitForUpdatePage({
-    ...waitOptionsFrom(io, true),
-    timeoutMs: UPDATE_BEGIN_WAIT_TIMEOUT_MS,
-  });
+  await waitForBeginPropagation(waitOptionsFrom(io, true), () =>
+    io.clearFlag(),
+  );
   const result = await run();
   await waitForUpdatePage(waitOptionsFrom(io, false, expectedBuildTag(result)));
   await io.clearFlag();
