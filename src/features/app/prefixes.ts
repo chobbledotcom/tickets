@@ -1,16 +1,14 @@
 /**
  * The one declaration behind path-prefix routing (issue #2268). Every path
  * prefix states the module that serves it, the message groups its handlers
- * render, an optional gate, and the settings bundle its handlers read. The
- * gate answers before groups load. Consumers fold this one table:
- * `prefixHandlers` dispatches requests, and `settingsForPath` in
- * settings-bundles.ts pre-loads settings. The admin surface folds the same
- * way one level down (see src/shared/admin-surface/areas.ts).
+ * render, an optional gate, and the settings bundle its handlers read.
+ * Consumers fold this one table: `prefixHandlers` dispatches, and
+ * `settingsForPath` pre-loads settings. The admin surface folds the same way
+ * one level down (src/shared/admin-surface/areas.ts).
  *
- * This module and its loader leaf stay cheap to evaluate. No route handler
- * module is statically imported, so the pre-routing settings pipeline can
- * read the declaration without loading the app (see
- * test/scripts/cold-start-imports.test.ts).
+ * No route handler module is statically imported here, so the pre-routing
+ * settings pipeline reads this file without loading the app
+ * (test/scripts/cold-start-imports.test.ts).
  */
 
 import { CONFIG_KEYS } from "#db/settings.ts";
