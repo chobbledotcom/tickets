@@ -86,6 +86,17 @@ describe("the public contact page", () => {
     expect(html).not.toContain("Send us a message");
   });
 
+  test("prefixes the contact title with the site title", () => {
+    const html = contactPage({
+      botpoisonPublicKey: "",
+      formActive: false,
+      nav: nav(),
+      websiteTitle: "Teeside Walks",
+    });
+
+    expect(html).toContain("<title>Contact - Teeside Walks</title>");
+  });
+
   test("shows the site's contact text as markdown prose", () => {
     const html = contactPage({
       botpoisonPublicKey: "",
@@ -112,7 +123,8 @@ describe("the public home page", () => {
       "# Welcome\nEnjoy.",
     );
 
-    expect(html).toContain("<title>Home - Teeside Walks</title>");
+    expect(html).toContain("<title>Teeside Walks</title>");
+    expect(html).not.toContain("<title>Home");
     expect(html).toContain("<h1>Teeside Walks</h1>");
     expect(html).toContain("<h1>Welcome</h1>");
     expect(html).toContain("Enjoy.");
