@@ -14,12 +14,13 @@
  */
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createRealAttendee,
   createServicingHold,
@@ -46,21 +47,15 @@ describeWithEnv(
     test("a logged servicing attendee_id links to /admin/servicing/:id", async () => {
       const { id } = await createServicingHold();
       const body = await renderAdminPage("/admin/log");
-      assertStringIncludes(body, `/admin/servicing/${id}`);
-      assert(
-        !body.includes(`/admin/attendees/${id}`),
-        "the value should not contain the searched item",
-      );
+      says(body, `/admin/servicing/${id}`);
+      assert(!body.includes(`/admin/attendees/${id}`));
     });
 
     test("a logged normal attendee_id still links to /admin/attendees/:id", async () => {
       const { attendee } = await createRealAttendee();
       const body = await renderAdminPage("/admin/log");
-      assertStringIncludes(body, `/admin/attendees/${attendee.id}`);
-      assert(
-        !body.includes(`/admin/servicing/${attendee.id}`),
-        "the value should not contain the searched item",
-      );
+      says(body, `/admin/attendees/${attendee.id}`);
+      assert(!body.includes(`/admin/servicing/${attendee.id}`));
     });
   },
 );

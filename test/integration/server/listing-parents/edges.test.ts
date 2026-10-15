@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
@@ -17,6 +16,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { makeRenewalTier } from "#test-utils/listing-parents/helpers.ts";
 import { postChildren } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 
 type ListingConfig = Parameters<typeof createTestListing>[0];
 
@@ -235,10 +235,7 @@ describeWithEnv("server > listing parents > edges", { db: true }, () => {
     const parent = await createTestListing({ name: "Parent" });
     await postChildren(grandparent.id, [parent.id]); // parent becomes a child
     const res = await postChildren(parent.id, []); // empty no-op save
-    assertStringIncludes(
-      res.headers.get("set-cookie") ?? "",
-      "Required%20children%20updated",
-    );
+    says(res.headers.get("set-cookie"), "Required%20children%20updated");
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 

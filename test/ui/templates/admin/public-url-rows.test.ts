@@ -1,8 +1,9 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { PublicUrlRows } from "#templates/admin/public-url-rows.tsx";
 import { createDomInstaller } from "#test-utils/happy-dom.ts";
+import { has, says } from "#test-utils/says.ts";
 
 const availableRows = (): string =>
   String(
@@ -29,24 +30,18 @@ describe("the Public URL rows", () => {
 
   test("shows the full URL as the row's first content", () => {
     const html = availableRows();
-    assertStringIncludes(
-      html,
-      '<a data-share-link href="https://fair.example/ticket/sunday">',
-    );
+    says(html, '<a data-share-link href="https://fair.example/ticket/sunday">');
     // The link text equals its href, so a manual selection copies the whole
     // address and not a schemeless label.
-    assertStringIncludes(html, ">https://fair.example/ticket/sunday</a>");
+    says(html, ">https://fair.example/ticket/sunday</a>");
   });
 
   test("offers Share, QR code, and Embed under the link, never beside it", () => {
     const html = availableRows();
-    assertStringIncludes(html, 'class="public-url-actions"');
-    assertStringIncludes(
-      html,
-      'data-share-url="https://fair.example/ticket/sunday"',
-    );
-    assertStringIncludes(html, ">Share</button>");
-    assertStringIncludes(html, 'href="/ticket/sunday/qr"');
+    says(html, 'class="public-url-actions"');
+    says(html, 'data-share-url="https://fair.example/ticket/sunday"');
+    says(html, ">Share</button>");
+    says(html, 'href="/ticket/sunday/qr"');
     // The actions block follows the link inside one wrapping row.
     expect(html.indexOf("data-share-link")).toBeLessThan(
       html.indexOf("public-url-actions"),
@@ -58,20 +53,17 @@ describe("the Public URL rows", () => {
     const classes = availableRows().match(/class="[^"]*"/g) ?? [];
     expect(classes.length).toBeGreaterThan(0);
     for (const className of classes) {
-      assert(
-        !className.includes("share"),
-        "the value should not contain the searched item",
-      );
+      assert(!className.includes("share"));
     }
   });
 
   test("Embed is a label for the hidden toggle, and the embed code rows start hidden", () => {
     const html = availableRows();
-    assertStringIncludes(
+    says(
       html,
       '<label class="small-action" for="embed-toggle-7">Embed</label>',
     );
-    assertStringIncludes(
+    says(
       html,
       'class="visually-hidden embed-toggle" id="embed-toggle-7" type="checkbox"',
     );
@@ -105,7 +97,7 @@ describe("the Public URL rows", () => {
     // The hidden checkbox stays in the tab order, and the label's for=
     // association is its accessible name.
     expect(toggle.disabled).toBe(false);
-    assertArrayIncludes(Array.from(toggle.labels ?? []), [embed]);
+    has(Array.from(toggle.labels ?? []), embed);
     toggle.focus();
     expect(window.document.activeElement).toBe(toggle);
     // The checkbox itself is visually hidden, so the stylesheet must light
@@ -113,18 +105,12 @@ describe("the Public URL rows", () => {
     const stylesheet = await Deno.readTextFile(
       "src/ui/static/_public-url-rows.scss",
     );
-    assertStringIncludes(
-      stylesheet,
-      ".embed-toggle:focus-visible ~ .public-url-row label",
-    );
-    assertStringIncludes(
-      stylesheet,
-      "outline: 2px solid var(--color-secondary);",
-    );
+    says(stylesheet, ".embed-toggle:focus-visible ~ .public-url-row label");
+    says(stylesheet, "outline: 2px solid var(--color-secondary);");
   });
 
   test("hands the copied label to the client through a data attribute", () => {
-    assertStringIncludes(availableRows(), 'data-copied-label="Copied"');
+    says(availableRows(), 'data-copied-label="Copied"');
   });
 
   test("the unavailable rows keep their message and show no actions", () => {
@@ -134,15 +120,9 @@ describe("the Public URL rows", () => {
         message: "This page isn't live yet.",
       }),
     );
-    assertStringIncludes(html, "This page isn't live yet.");
-    assertStringIncludes(html, "Public URL");
-    assert(
-      !html.includes("data-share-url"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("public-url-actions"),
-      "the value should not contain the searched item",
-    );
+    says(html, "This page isn't live yet.");
+    says(html, "Public URL");
+    assert(!html.includes("data-share-url"));
+    assert(!html.includes("public-url-actions"));
   });
 });

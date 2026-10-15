@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -11,6 +10,7 @@ import {
 import type { EmailConfig } from "#shared/email.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 const config: EmailConfig = {
   apiKey: "re_key",
@@ -330,8 +330,8 @@ describe("sendBulkEmails", () => {
     try {
       await sendBulkEmails(postmark, payload(1));
       const logged = errorSpy.calls.map((c) => String(c.args[0])).join("\n");
-      assertStringIncludes(logged, "E_EMAIL_SEND");
-      assertStringIncludes(logged, "count=1");
+      says(logged, "E_EMAIL_SEND");
+      says(logged, "count=1");
     } finally {
       errorSpy.restore();
     }

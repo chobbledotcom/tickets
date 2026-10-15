@@ -21,7 +21,7 @@
  */
 // jscpd:ignore-start
 
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -29,11 +29,11 @@ import { createBackupZip, restoreFromZip } from "#db/backup.ts";
 import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { SCHEMA } from "#db/migrations/schema/index.ts";
-
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { indexExists } from "#test-utils/migrations.ts";
+import { has, says } from "#test-utils/says.ts";
 import { createTestServicingEvent, kindOf } from "#test-utils/servicing.ts";
 
 const MIGRATIONS = await loadMigrations();
@@ -57,30 +57,24 @@ describe("servicing §1 — schema declares the kind column + index", () => {
     expect(kindCol).toBeDefined();
     const [, type] = kindCol!;
     expect(type).toMatch(/NOT NULL/);
-    assertStringIncludes(type, ATTENDEE_KIND);
+    says(type, ATTENDEE_KIND);
     // Guards the wishful `/* NOT NULL */` comment hack: the invariant must be a
     // real constraint, not a comment, and the `IS NULL` escape (which left
     // NULL-kind rows that consumed capacity as neither attendee nor servicing)
     // must be gone from the CHECK.
-    assert(
-      !type.includes("/* NOT NULL */"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !type.includes("IS NULL"),
-      "the value should not contain the searched item",
-    );
+    assert(!type.includes("/* NOT NULL */"));
+    assert(!type.includes("IS NULL"));
   });
 
   test("the attendees schema declares idx_attendees_kind", () => {
     const names = (attendeesTable.indexes ?? []).map((i) => i.name);
-    assertArrayIncludes(names, ["idx_attendees_kind"]);
+    has(names, "idx_attendees_kind");
   });
 
   test("the kind column's allowed values are ATTENDEE_KIND and SERVICING_KIND only", () => {
     const [, type] = attendeesTable.columns.find(([n]) => n === "kind")!;
-    assertStringIncludes(type, ATTENDEE_KIND);
-    assertStringIncludes(type, SERVICING_KIND);
+    says(type, ATTENDEE_KIND);
+    says(type, SERVICING_KIND);
     expect(type).toMatch(/CHECK/i);
   });
 });
@@ -94,9 +88,9 @@ describe("servicing §1 — migration is registered and runs on an existing data
     const migration = MIGRATIONS.find((m) => m.id === MIGRATION_ID)!;
 
     test("kind column defaults existing attendees to ATTENDEE_KIND", async () => {
-      assertStringIncludes((await columnDefault()) ?? "", ATTENDEE_KIND);
+      says(await columnDefault(), ATTENDEE_KIND);
       await migration.up();
-      assertStringIncludes((await columnDefault()) ?? "", ATTENDEE_KIND);
+      says(await columnDefault(), ATTENDEE_KIND);
     });
 
     test("kind index is created by the migration (guards the requires.indexes omission)", async () => {
@@ -151,7 +145,7 @@ describe("servicing §1 — schema and migration stay in sync", () => {
       }
     ).requires;
     expect(requires?.columns?.kind).toBeDefined();
-    assertArrayIncludes(requires?.indexes ?? [], ["idx_attendees_kind"]);
+    has(requires?.indexes, "idx_attendees_kind");
   });
 });
 

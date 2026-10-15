@@ -7,7 +7,6 @@
  * every step held: one pair of legs, one note, one activity line, and an
  * authority that stays recorded. */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { decrypt } from "#crypto/encryption.ts";
@@ -41,6 +40,7 @@ import {
   ourRejection,
   withSucceedingRefundFor,
 } from "#test-utils/rejected-charge.ts";
+import { says } from "#test-utils/says.ts";
 
 /* jscpd:ignore-end */
 
@@ -158,10 +158,7 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
     const first = await storedNote();
     expect(first?.total).toBe(1);
     expect(first?.system_name).not.toBeNull();
-    assertStringIncludes(
-      await decrypt(first!.note),
-      "but its payment was refunded because",
-    );
+    says(await decrypt(first!.note), "but its payment was refunded because");
     expect(await activityCount()).toBe(1);
 
     // The durable handle a resume holds: the anchor row found through the

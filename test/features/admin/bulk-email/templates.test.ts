@@ -1,8 +1,7 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
-
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { getDb } from "#db/client.ts";
 import {
@@ -22,6 +21,7 @@ import {
   expectRedirect,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const seedTemplate = async (subject: string, body: string) => {
@@ -120,8 +120,8 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
       const html = await (
         await adminGet("/admin/emails?audience=active")
       ).text();
-      assertStringIncludes(html, "Load a template");
-      assertStringIncludes(html, "My Newsletter");
+      says(html, "Load a template");
+      says(html, "My Newsletter");
     });
 
     test("?template=N pre-fills subject and body from the template", async () => {
@@ -129,19 +129,13 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/emails?audience=active&template=${id}`)
       ).text();
-      assertStringIncludes(html, "Pre-fill Subject");
-      assertStringIncludes(html, "Pre-fill body");
+      says(html, "Pre-fill Subject");
+      says(html, "Pre-fill body");
       // A template carries no marketing flag, so the box starts unticked
       // and the owner opts in deliberately.
-      assertStringIncludes(html, 'name="marketing"');
-      assert(
-        !html.includes('name="marketing" checked'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('checked name="marketing"'),
-        "the value should not contain the searched item",
-      );
+      says(html, 'name="marketing"');
+      assert(!html.includes('name="marketing" checked'));
+      assert(!html.includes('checked name="marketing"'));
     });
 
     test("?template=N for an unknown id still renders the compose page", async () => {
@@ -163,13 +157,10 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
         await adminGet(`/admin/emails?audience=active&template=${id}`)
       ).text();
       // The template's content replaces the draft's…
-      assertStringIncludes(html, "Template Subject");
-      assertStringIncludes(html, "Template body");
+      says(html, "Template Subject");
+      says(html, "Template body");
       // …but the marketing flag is carried over from the saved draft.
-      assertStringIncludes(
-        html,
-        'checked name="marketing" type="checkbox" value="1"',
-      );
+      says(html, 'checked name="marketing" type="checkbox" value="1"');
     });
 
     test("POST /admin/emails/templates refuses to save when the template limit is reached", async () => {
@@ -201,7 +192,7 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
         subject: "Template subject",
       });
       const redirectUrl = expectRedirect(response);
-      assertStringIncludes(redirectUrl, "template=");
+      says(redirectUrl, "template=");
       expectFlash(response, "Template saved.");
     });
 
@@ -224,7 +215,7 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
         update_existing: "1",
       });
       const redirectUrl = expectRedirect(response);
-      assertStringIncludes(redirectUrl, `template=${id}`);
+      says(redirectUrl, `template=${id}`);
       expectFlash(response, "Template updated.");
     });
 
@@ -243,14 +234,11 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
       const id = await seedTemplate("To delete", "Body");
       const response = await adminGet(`/admin/emails/templates/${id}/delete`);
       const html = await expectHtmlResponse(response, 200);
-      assertStringIncludes(html, "Delete template");
+      says(html, "Delete template");
       // The subject (encrypted at rest) is decrypted to confirm against.
-      assertStringIncludes(html, "To delete");
-      assertStringIncludes(html, 'name="confirm_identifier"');
-      assertStringIncludes(
-        html,
-        `action="/admin/emails/templates/${id}/delete"`,
-      );
+      says(html, "To delete");
+      says(html, 'name="confirm_identifier"');
+      says(html, `action="/admin/emails/templates/${id}/delete"`);
     });
 
     test("GET /admin/emails/templates/:id/delete 404s for unknown template", async () => {
@@ -282,8 +270,8 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
         false,
       );
       // The owner lands back on the confirmation page to try again.
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
+      says(
+        response.headers.get("location"),
         `/admin/emails/templates/${id}/delete?`,
       );
     });

@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -15,6 +15,7 @@ import {
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { has } from "#test-utils/says.ts";
 
 const context = buildMigrationContext({
   applySchemaChanges,
@@ -80,12 +81,8 @@ describeWithEnv(
         expect(await tableExists("contact_preferences")).toBe(true);
         assert(
           !(await columnNames("contact_preferences")).includes("email_hash"),
-          "the value should not contain the searched item",
         );
-        assert(
-          !(await columnNames("contact_preferences")).includes("created"),
-          "the value should not contain the searched item",
-        );
+        assert(!(await columnNames("contact_preferences")).includes("created"));
         const rows = await getDb().execute(
           "SELECT contact_hash, unsubscribed, visits, stats_blob, last_activity FROM contact_preferences",
         );
@@ -180,8 +177,8 @@ describeWithEnv(
         await runContactPreferencesMigration();
 
         const columns = await columnNames("contact_preferences");
-        assertArrayIncludes(columns ?? [], ["contact_hash"]);
-        assertArrayIncludes(columns ?? [], ["email_hash"]);
+        has(columns, "contact_hash");
+        has(columns, "email_hash");
         expect(await tableRowCount("contact_preferences")).toBe(1);
       });
     });

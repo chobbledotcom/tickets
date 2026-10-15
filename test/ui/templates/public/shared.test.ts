@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
@@ -14,6 +14,7 @@ import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount, testTokenEntry } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 import type { ListingWithCount } from "#types";
 
 describeWithEnv(
@@ -34,9 +35,9 @@ describeWithEnv(
           image_thumb_url: "",
           image_url: "abc123.jpg",
         });
-        assertStringIncludes(html, "/image/abc123.jpg");
-        assertStringIncludes(html, 'alt=""');
-        assertStringIncludes(html, 'class="listing-image"');
+        says(html, "/image/abc123.jpg");
+        says(html, 'alt=""');
+        says(html, 'class="listing-image"');
       });
 
       test("uses empty alt text for decorative image", () => {
@@ -44,7 +45,7 @@ describeWithEnv(
           image_thumb_url: "",
           image_url: "img.jpg",
         });
-        assertStringIncludes(html, 'alt=""');
+        says(html, 'alt=""');
       });
 
       test("uses escaped alt text when present", () => {
@@ -53,7 +54,7 @@ describeWithEnv(
           image_thumb_url: "",
           image_url: "img.jpg",
         });
-        assertStringIncludes(html, 'alt="Front &quot;hero&quot; image"');
+        says(html, 'alt="Front &quot;hero&quot; image"');
       });
 
       test("uses the thumbnail URL in thumb contexts when one exists", () => {
@@ -62,12 +63,9 @@ describeWithEnv(
           "listing-thumbnail",
           { thumb: true },
         );
-        assertStringIncludes(html, "/image/thumb.webp");
-        assert(
-          !html.includes("/image/full.webp"),
-          "the value should not contain the searched item",
-        );
-        assertStringIncludes(html, 'class="listing-thumbnail"');
+        says(html, "/image/thumb.webp");
+        assert(!html.includes("/image/full.webp"));
+        says(html, 'class="listing-thumbnail"');
       });
 
       test("falls back to the full image in thumb contexts when no thumbnail", () => {
@@ -76,7 +74,7 @@ describeWithEnv(
           "listing-thumbnail",
           { thumb: true },
         );
-        assertStringIncludes(html, "/image/full.webp");
+        says(html, "/image/full.webp");
       });
 
       test("uses the full image outside thumb contexts even when a thumb exists", () => {
@@ -84,11 +82,8 @@ describeWithEnv(
           image_thumb_url: "thumb.webp",
           image_url: "full.webp",
         });
-        assertStringIncludes(html, "/image/full.webp");
-        assert(
-          !html.includes("/image/thumb.webp"),
-          "the value should not contain the searched item",
-        );
+        says(html, "/image/full.webp");
+        assert(!html.includes("/image/thumb.webp"));
       });
     });
 
@@ -107,16 +102,13 @@ describeWithEnv(
         slugs: ["camp-kit"],
       });
 
-      assertStringIncludes(html, "/image/camp-kit.webp");
-      assertStringIncludes(html, 'alt="Camp kit display"');
-      assertStringIncludes(
+      says(html, "/image/camp-kit.webp");
+      says(html, 'alt="Camp kit display"');
+      says(
         html,
         '<meta property="og:image" content="https://tickets.example/image/camp-kit.webp">',
       );
-      assert(
-        !html.includes('property="og:description"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('property="og:description"'));
     });
 
     describe("ticketPage with image", () => {
@@ -131,17 +123,14 @@ describeWithEnv(
       test("shows listing image when image_url is set", () => {
         const listing = testListingWithCount({ image_url: "listing-img.jpg" });
         const html = renderSingleListing(listing);
-        assertStringIncludes(html, "/image/listing-img.jpg");
-        assertStringIncludes(html, 'class="listing-image"');
+        says(html, "/image/listing-img.jpg");
+        says(html, 'class="listing-image"');
       });
 
       test("does not show image when image_url is empty", () => {
         const listing = testListingWithCount({ image_url: "" });
         const html = renderSingleListing(listing);
-        assert(
-          !html.includes("/image/"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("/image/"));
       });
 
       test("does not show image in iframe mode", async () => {
@@ -151,10 +140,7 @@ describeWithEnv(
             image_url: "listing-img.jpg",
           });
           const html = renderSingleListing(listing);
-          assert(
-            !html.includes("listing-img.jpg"),
-            "the value should not contain the searched item",
-          );
+          assert(!html.includes("listing-img.jpg"));
         });
       });
     });
@@ -174,8 +160,8 @@ describeWithEnv(
           }),
         ];
         const html = ticketPage({ listings, slugs: ["slug-a", "slug-b"] });
-        assertStringIncludes(html, "/image/img-a.jpg");
-        assertStringIncludes(html, "/image/img-b.jpg");
+        says(html, "/image/img-a.jpg");
+        says(html, "/image/img-b.jpg");
       });
 
       test("does not show images when image_url is empty", () => {
@@ -183,10 +169,7 @@ describeWithEnv(
           ticketListing({ id: 1, image_url: "", name: "Listing A" }),
         ];
         const html = ticketPage({ listings, slugs: ["slug-a"] });
-        assert(
-          !html.includes("/image/"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("/image/"));
       });
     });
 
@@ -204,7 +187,7 @@ describeWithEnv(
           },
         ];
         const html = ticketViewPage(cards);
-        assertStringIncludes(html, "1 Ticket");
+        says(html, "1 Ticket");
       });
 
       test("shows '2 Tickets' for multiple tickets", () => {
@@ -225,7 +208,7 @@ describeWithEnv(
           },
         ];
         const html = ticketViewPage(cards);
-        assertStringIncludes(html, "2 Tickets");
+        says(html, "2 Tickets");
       });
     });
 
@@ -242,8 +225,8 @@ describeWithEnv(
           },
         ];
         const html = ticketViewPage(cards);
-        assertStringIncludes(html, "/image/ticket-img.jpg");
-        assertStringIncludes(html, 'class="ticket-card-image"');
+        says(html, "/image/ticket-img.jpg");
+        says(html, 'class="ticket-card-image"');
       });
 
       test("does not show image when image_url is empty", () => {
@@ -254,10 +237,7 @@ describeWithEnv(
           },
         ];
         const html = ticketViewPage(cards);
-        assert(
-          !html.includes("ticket-card-image"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("ticket-card-image"));
       });
     });
   },

@@ -27,10 +27,7 @@ describeWithEnv("db > payment anchor > reference", { db: true }, () => {
 
     expect(prepared.stored.index).toBe(taggedIndex);
     expect(prepared.matchingIndexes).toEqual([taggedIndex, untaggedIndex]);
-    assert(
-      !prepared.stored.encrypted.includes(payment.reference),
-      "the value should not contain the searched item",
-    );
+    assert(!prepared.stored.encrypted.includes(payment.reference));
     expect(
       await loadPaymentReference(
         prepared.stored.encrypted,

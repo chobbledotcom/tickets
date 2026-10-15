@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -16,6 +15,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 /** Assert every package member's most recent booking landed on `date` and
@@ -382,9 +382,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           }),
         );
         const page = await response.text();
-        assertStringIncludes(page, "Staff diagnostics");
-        assertStringIncludes(page, "cs_staff_unpaid");
-        assertStringIncludes(page, "unpaid");
+        says(page, "Staff diagnostics");
+        says(page, "cs_staff_unpaid");
+        says(page, "unpaid");
       } finally {
         mockRetrieve.restore();
       }

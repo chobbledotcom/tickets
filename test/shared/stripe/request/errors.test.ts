@@ -76,7 +76,6 @@ describe("Stripe transport errors", () => {
       !JSON.stringify((error as ProviderTransportError).detail).includes(
         "Private value",
       ),
-      "the value should not contain the searched item",
     );
   });
 

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -15,6 +15,7 @@ import {
   expectRedirect,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 /** Read the rendered preview page's HTML. */
@@ -74,10 +75,7 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       expectFlash(response, "Subject is required", false);
       // The error is aimed at the compose form, so the page can show it
       // beside the field rather than only at the top.
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
-        "form=bulk-email",
-      );
+      says(response.headers.get("location"), "form=bulk-email");
     });
 
     test("rejects a posted listing that no longer exists", async () => {
@@ -121,13 +119,13 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Big news",
       });
-      assertStringIncludes(html, "Big news");
-      assertStringIncludes(html, "<strong>world</strong>");
-      assertStringIncludes(html, "via Resend");
-      assertStringIncludes(html, 'action="/admin/emails/send"');
-      assertStringIncludes(html, "Transactional / service email");
-      assertStringIncludes(html, 'class="recipient-emails"');
-      assertStringIncludes(html, "alice@example.com, bob@example.com");
+      says(html, "Big news");
+      says(html, "<strong>world</strong>");
+      says(html, "via Resend");
+      says(html, 'action="/admin/emails/send"');
+      says(html, "Transactional / service email");
+      says(html, 'class="recipient-emails"');
+      says(html, "alice@example.com, bob@example.com");
     });
 
     test("BCCs several recipients from the owner's business email", async () => {
@@ -139,9 +137,9 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Big news",
       });
-      assertStringIncludes(html, "everyone in BCC");
-      assertStringIncludes(html, "Open a BCC draft to 2 recipients");
-      assertStringIncludes(html, "mailto:owner%40example.com?bcc=");
+      says(html, "everyone in BCC");
+      says(html, "Open a BCC draft to 2 recipients");
+      says(html, "mailto:owner%40example.com?bcc=");
     });
 
     test("addresses a lone recipient directly instead of using BCC", async () => {
@@ -154,26 +152,17 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Big news",
       });
-      assertStringIncludes(html, "Open a draft to 1 recipient");
-      assertStringIncludes(html, "addressed straight to your one recipient");
-      assertStringIncludes(html, "mailto:alice%40example.com?");
-      assert(
-        !html.includes("Open a BCC draft"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("everyone in BCC"),
-        "the value should not contain the searched item",
-      );
+      says(html, "Open a draft to 1 recipient");
+      says(html, "addressed straight to your one recipient");
+      says(html, "mailto:alice%40example.com?");
+      assert(!html.includes("Open a BCC draft"));
+      assert(!html.includes("everyone in BCC"));
     });
 
     test("omits the address list when there are no recipients", async () => {
       useResend();
       const html = await staleListingDraftHtml();
-      assert(
-        !html.includes('class="recipient-emails"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('class="recipient-emails"'));
     });
 
     test("disables sending and explains marketing when not sendable", async () => {
@@ -184,9 +173,9 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         marketing: "1",
         subject: "Sale",
       });
-      assertStringIncludes(html, "Sending is disabled");
-      assertStringIncludes(html, "Marketing email");
-      assertStringIncludes(html, "unsubscribe footer is appended");
+      says(html, "Sending is disabled");
+      says(html, "Marketing email");
+      says(html, "unsubscribe footer is appended");
     });
 
     test("shows the audience description for an audience send", async () => {
@@ -197,16 +186,10 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         body: "Newsletter",
         subject: "Monthly news",
       });
-      assertStringIncludes(html, "Active listing attendees");
-      assertStringIncludes(
-        html,
-        "Everyone booked onto a listing that is currently active.",
-      );
-      assertStringIncludes(html, "1 recipient");
-      assert(
-        !html.includes("1 recipients"),
-        "the value should not contain the searched item",
-      );
+      says(html, "Active listing attendees");
+      says(html, "Everyone booked onto a listing that is currently active.");
+      says(html, "1 recipient");
+      assert(!html.includes("1 recipients"));
     });
 
     /**
@@ -219,9 +202,9 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       useResend();
       await seedMarketingDraftWithUnsubscriber();
       const html = await getPreviewHtml();
-      assertStringIncludes(html, "1 unsubscribed will be skipped");
+      says(html, "1 unsubscribed will be skipped");
       // The other attendee is still sendable, so the send is not empty.
-      assertStringIncludes(html, "1 recipient");
+      says(html, "1 recipient");
     });
 
     test("skips nobody when the same audience gets a plain send", async () => {
@@ -238,17 +221,14 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
 
       const html = await getPreviewHtml();
 
-      assert(
-        !html.includes("will be skipped"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, "2 recipients");
+      assert(!html.includes("will be skipped"));
+      says(html, "2 recipients");
     });
 
     test("labels a target whose listing has since been deleted", async () => {
       useResend();
       const html = await staleListingDraftHtml();
-      assertStringIncludes(html, "Listing attendees");
+      says(html, "Listing attendees");
     });
   });
 });

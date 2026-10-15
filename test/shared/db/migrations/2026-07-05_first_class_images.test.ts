@@ -77,14 +77,8 @@ const imageUseRows = (): Promise<
 
 const expectListingImageColumnsGone = async (): Promise<void> => {
   const columns = await columnNames("listings");
-  assert(
-    !columns.includes("image_url"),
-    "the value should not contain the searched item",
-  );
-  assert(
-    !columns.includes("image_thumb_url"),
-    "the value should not contain the searched item",
-  );
+  assert(!columns.includes("image_url"));
+  assert(!columns.includes("image_thumb_url"));
 };
 
 describeWithEnv(

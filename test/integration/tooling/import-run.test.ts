@@ -1,8 +1,8 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { runImport } from "#cli/import-run.ts";
 import type { AdminApiTransport } from "#shared/admin-api-client.ts";
+import { says } from "#test-utils/says.ts";
 
 /** A catalog with one product in one category. */
 const PRODUCT_FRONTMATTER = [
@@ -218,8 +218,8 @@ describe("frontmatter import runner", () => {
       "POST /api/admin/listings",
     ]);
     const stampedFile = await Deno.readTextFile(`${dir}/src/products/tower.md`);
-    assertStringIncludes(stampedFile, "tickets_id: 41");
-    assertStringIncludes(stampedFile, "tickets_slug: tower-hire");
+    says(stampedFile, "tickets_id: 41");
+    says(stampedFile, "tickets_slug: tower-hire");
   });
 
   test("reruns without --update as reads only: every product skips", async () => {

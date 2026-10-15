@@ -7,10 +7,11 @@
  * the bound args is caught.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingReader } from "#db/listings/select.ts";
+import { says } from "#test-utils/says.ts";
 
 const LISTINGS_FROM = "FROM listings AS listing";
 const GROUPS_FROM =
@@ -41,7 +42,7 @@ describe("the listing reader's statement", () => {
       "AS image_url",
       "listing.booked_quantity AS attendee_count",
     ]) {
-      assertStringIncludes(sql, projection);
+      says(sql, projection);
     }
   });
 
@@ -79,10 +80,7 @@ describe("the listing reader's statement", () => {
     const { sql, args } = listingReader.statement({
       where: { inGroups: [3, 4] },
     });
-    assertStringIncludes(
-      sql,
-      "json_group_array(groupListing.group_id) AS group_ids",
-    );
+    says(sql, "json_group_array(groupListing.group_id) AS group_ids");
     expect(tail(sql)).toBe(
       `${GROUPS_FROM} WHERE groupListing.group_id IN (?, ?) GROUP BY listing.id`,
     );
@@ -91,18 +89,9 @@ describe("the listing reader's statement", () => {
 
   test("a read that is not by group has no join, group column, or grouping", () => {
     const { sql } = listingReader.statement({ where: { ids: [1] } });
-    assert(
-      !sql.includes("group_listings"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !sql.includes("group_ids"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !tail(sql).includes("GROUP BY"),
-      "the value should not contain the searched item",
-    );
+    assert(!sql.includes("group_listings"));
+    assert(!sql.includes("group_ids"));
+    assert(!tail(sql).includes("GROUP BY"));
   });
 
   test("keeps only active listings when asked", () => {
@@ -119,7 +108,6 @@ describe("the listing reader's statement", () => {
         !tail(listingReader.statement({ where }).sql).includes(
           "listing.active",
         ),
-        "the value should not contain the searched item",
       );
     }
   });

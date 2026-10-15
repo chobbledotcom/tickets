@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
@@ -18,6 +18,7 @@ import { detectIframeMode } from "#shared/request-context.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Render a CsrfForm inside a flash context targeting `formId`, so the form's
  *  inline-flash branch (id === target form) can be exercised. */
@@ -40,18 +41,15 @@ describe("renderError", () => {
 
   test("renders error with role alert", () => {
     const html = renderError("Something went wrong");
-    assertStringIncludes(html, "Something went wrong");
-    assertStringIncludes(html, 'class="error"');
-    assertStringIncludes(html, 'role="alert"');
+    says(html, "Something went wrong");
+    says(html, 'class="error"');
+    says(html, 'role="alert"');
   });
 
   test("escapes HTML in error message", () => {
     const html = renderError("<script>alert(1)</script>");
-    assertStringIncludes(html, "&lt;script&gt;");
-    assert(
-      !html.includes("<script>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "&lt;script&gt;");
+    assert(!html.includes("<script>"));
   });
 });
 
@@ -63,71 +61,53 @@ describe("renderSuccess", () => {
 
   test("renders success message with role alert", () => {
     const html = renderSuccess("Changes saved");
-    assertStringIncludes(html, "Changes saved");
-    assertStringIncludes(html, 'class="success"');
-    assertStringIncludes(html, 'role="alert"');
+    says(html, "Changes saved");
+    says(html, 'class="success"');
+    says(html, 'role="alert"');
   });
 
   test("escapes HTML in success message", () => {
     const html = renderSuccess("<script>alert(1)</script>");
-    assertStringIncludes(html, "&lt;script&gt;");
-    assert(
-      !html.includes("<script>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "&lt;script&gt;");
+    assert(!html.includes("<script>"));
   });
 });
 
 describe("Flash", () => {
   test("renders nothing when no error or success", () => {
     const html = String(Flash({}));
-    assert(
-      !html.includes('class="error"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('class="success"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('class="error"'));
+    assert(!html.includes('class="success"'));
   });
 
   test("renders error with role alert", () => {
     const html = String(Flash({ error: "Bad input" }));
-    assertStringIncludes(html, "Bad input");
-    assertStringIncludes(html, 'class="error"');
-    assertStringIncludes(html, 'role="alert"');
-    assert(
-      !html.includes('class="success"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "Bad input");
+    says(html, 'class="error"');
+    says(html, 'role="alert"');
+    assert(!html.includes('class="success"'));
   });
 
   test("renders success with role alert", () => {
     const html = String(Flash({ success: "Saved" }));
-    assertStringIncludes(html, "Saved");
-    assertStringIncludes(html, 'class="success"');
-    assertStringIncludes(html, 'role="alert"');
-    assert(
-      !html.includes('class="error"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "Saved");
+    says(html, 'class="success"');
+    says(html, 'role="alert"');
+    assert(!html.includes('class="error"'));
   });
 
   test("renders both error and success", () => {
     const html = String(Flash({ error: "Oops", success: "Done" }));
-    assertStringIncludes(html, "Oops");
-    assertStringIncludes(html, "Done");
-    assertStringIncludes(html, 'class="error"');
-    assertStringIncludes(html, 'class="success"');
+    says(html, "Oops");
+    says(html, "Done");
+    says(html, 'class="error"');
+    says(html, 'class="success"');
   });
 
   test("escapes HTML in messages", () => {
     const html = String(Flash({ error: "<script>xss</script>" }));
-    assertStringIncludes(html, "&lt;script&gt;");
-    assert(
-      !html.includes("<script>xss"),
-      "the value should not contain the searched item",
-    );
+    says(html, "&lt;script&gt;");
+    assert(!html.includes("<script>xss"));
   });
 });
 
@@ -136,9 +116,9 @@ test("requestFlash renders every message from the request context", async () => 
     setFlashContext({ error: "Bad", info: "Notice", success: "Saved" });
     return String(requestFlash());
   });
-  assertStringIncludes(html, "Bad");
-  assertStringIncludes(html, "Notice");
-  assertStringIncludes(html, "Saved");
+  says(html, "Bad");
+  says(html, "Notice");
+  says(html, "Saved");
 });
 
 describe("CsrfForm", () => {
@@ -150,46 +130,43 @@ describe("CsrfForm", () => {
 
   test("renders POST form with action and CSRF token", () => {
     const html = String(CsrfForm({ action: "/submit" }));
-    assertStringIncludes(html, 'action="/submit"');
-    assertStringIncludes(html, 'method="POST"');
+    says(html, 'action="/submit"');
+    says(html, 'method="POST"');
     expect(hasInputWithValue(html, "csrf_token", getCurrentCsrfToken())).toBe(
       true,
     );
   });
 
   test("passes through class attribute", () => {
-    assertStringIncludes(
+    says(
       String(CsrfForm({ action: "/submit", class: "inline" })),
       'class="inline"',
     );
   });
 
   test("passes through enctype for multipart forms", () => {
-    assertStringIncludes(
+    says(
       String(CsrfForm({ action: "/upload", enctype: "multipart/form-data" })),
       'enctype="multipart/form-data"',
     );
   });
 
   test("passes through id attribute", () => {
-    assertStringIncludes(
+    says(
       String(CsrfForm({ action: "/submit", id: "settings-tz" })),
       'id="settings-tz"',
     );
   });
 
   test("does not render id attribute when not provided", () => {
-    assert(
-      !String(CsrfForm({ action: "/submit" })).includes("id="),
-      "the value should not contain the searched item",
-    );
+    assert(!String(CsrfForm({ action: "/submit" })).includes("id="));
   });
 
   test("renders children inside the form", () => {
     const html = String(
       CsrfForm({ action: "/submit", children: "Submit here" }),
     );
-    assertStringIncludes(html, "Submit here");
+    says(html, "Submit here");
   });
 
   test("shows success flash when id matches the targeted form", async () => {
@@ -198,8 +175,8 @@ describe("CsrfForm", () => {
       { success: "Saved" },
       "my-form",
     );
-    assertStringIncludes(html, "Saved");
-    assertStringIncludes(html, 'class="success"');
+    says(html, "Saved");
+    says(html, 'class="success"');
   });
 
   test("does not show success when id does not match", async () => {
@@ -211,7 +188,6 @@ describe("CsrfForm", () => {
           "other-form",
         )
       ).includes('class="success"'),
-      "the value should not contain the searched item",
     );
   });
 
@@ -224,7 +200,6 @@ describe("CsrfForm", () => {
           "my-form",
         )
       ).includes('class="success"'),
-      "the value should not contain the searched item",
     );
   });
 
@@ -234,8 +209,8 @@ describe("CsrfForm", () => {
       { error: "Something went wrong" },
       "my-form",
     );
-    assertStringIncludes(html, "Something went wrong");
-    assertStringIncludes(html, 'class="error"');
+    says(html, "Something went wrong");
+    says(html, 'class="error"');
   });
 
   test("does not show error when id does not match", async () => {
@@ -247,14 +222,13 @@ describe("CsrfForm", () => {
           "other-form",
         )
       ).includes('class="error"'),
-      "the value should not contain the searched item",
     );
   });
 
   test("appends ?iframe=true to action when in iframe mode", async () => {
     await withRequestContext(() => {
       detectIframeMode(new URL("https://example.com/?iframe=true"));
-      assertStringIncludes(
+      says(
         String(CsrfForm({ action: "/ticket/test" })),
         'action="/ticket/test?iframe=true"',
       );
@@ -265,11 +239,8 @@ describe("CsrfForm", () => {
     await withRequestContext(() => {
       detectIframeMode(new URL("https://example.com/"));
       const html = String(CsrfForm({ action: "/ticket/test" }));
-      assertStringIncludes(html, 'action="/ticket/test"');
-      assert(
-        !html.includes("iframe"),
-        "the value should not contain the searched item",
-      );
+      says(html, 'action="/ticket/test"');
+      assert(!html.includes("iframe"));
     });
   });
 });

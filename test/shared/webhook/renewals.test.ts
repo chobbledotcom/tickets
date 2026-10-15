@@ -4,7 +4,6 @@
  * be applied.
  */
 
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { type Stub, spy, stub } from "@std/testing/mock";
@@ -21,6 +20,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import type { EmailEntry } from "#test-utils/internal.ts";
+import { has, says } from "#test-utils/says.ts";
 
 /** A renewal tier line: hidden, purchase-only, and worth months per unit. */
 const tierEntry = (
@@ -123,10 +123,7 @@ describeWithEnv(
         true,
       );
 
-      assertStringIncludes(
-        (await renewalLogEntry())?.message ?? "",
-        "for 7 month(s)",
-      );
+      says((await renewalLogEntry())?.message, "for 7 month(s)");
     });
 
     test("counts a single-month line too", async () => {
@@ -134,10 +131,7 @@ describeWithEnv(
 
       await renewWithPush([tierEntry(103, 1, 1)], tokenIndex, true);
 
-      assertStringIncludes(
-        (await renewalLogEntry())?.message ?? "",
-        "for 1 month(s)",
-      );
+      says((await renewalLogEntry())?.message, "for 1 month(s)");
     });
 
     test("records the renewal against the first renewal line's listing", async () => {
@@ -167,7 +161,7 @@ describeWithEnv(
       );
 
       const { logged } = await renewWithPush([notATier], tokenIndex, true);
-      assertStringIncludes(
+      says(
         logged,
         "Renewal rejected: listing 55 is not an active hidden purchase-only renewal tier",
       );
@@ -182,10 +176,7 @@ describeWithEnv(
         unknownIndex,
         true,
       );
-      assertStringIncludes(
-        logged,
-        "Renewal site not found for token index abcdefgh...",
-      );
+      says(logged, "Renewal site not found for token index abcdefgh...");
     });
 
     test("says so when the deadline cannot be pushed to the site", async () => {
@@ -196,11 +187,11 @@ describeWithEnv(
         tokenIndex,
         false,
       );
-      assertStringIncludes(logged, "CDN_REQUEST");
+      says(logged, "CDN_REQUEST");
       // The operator alert names the failing area, so a push failure is
       // distinguishable from any other alert the site sends.
-      assertArrayIncludes(alerts ?? [], ["CDN_REQUEST"]);
-      assertStringIncludes(
+      has(alerts, "CDN_REQUEST");
+      says(
         logged,
         "Failed to push READ_ONLY_FROM for renewal of 'Renew Fail': provider refused",
       );

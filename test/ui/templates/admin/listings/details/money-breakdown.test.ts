@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { overviewStatsFromDbStats } from "#templates/admin/listings/overview.tsx";
@@ -7,6 +7,7 @@ import {
   renderListingDetail,
 } from "#test/ui/templates/admin/listings/helpers.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("adminListingPage money breakdown", () => {
   registerListingTemplateHooks();
@@ -19,14 +20,8 @@ describe("adminListingPage money breakdown", () => {
       attendees: [],
       listing,
     });
-    assert(
-      !html.includes("Money in and out"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('href="/admin/ledger?listing=7"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Money in and out"));
+    assert(!html.includes('href="/admin/ledger?listing=7"'));
   });
 
   test("shows money in, money out, and the net result with consistent signs", () => {
@@ -46,30 +41,24 @@ describe("adminListingPage money breakdown", () => {
         transferCount: 3,
       },
     });
-    assertStringIncludes(html, "Money in and out");
+    says(html, "Money in and out");
     // Gross sales credited (+), manual write-down (−), then the two subtotals.
-    assertStringIncludes(html, "Gross ticket sales");
-    assertStringIncludes(html, "+£100");
-    assertStringIncludes(html, "Income corrections");
-    assertStringIncludes(html, "−£10");
-    assertStringIncludes(html, "Total income earned");
-    assertStringIncludes(html, "£90");
-    assertStringIncludes(html, "Refunds");
-    assertStringIncludes(html, "−£20");
-    assertStringIncludes(html, "Net after refunds and costs");
-    assertStringIncludes(html, "£70");
+    says(html, "Gross ticket sales");
+    says(html, "+£100");
+    says(html, "Income corrections");
+    says(html, "−£10");
+    says(html, "Total income earned");
+    says(html, "£90");
+    says(html, "Refunds");
+    says(html, "−£20");
+    says(html, "Net after refunds and costs");
+    says(html, "£70");
     // The plain-English reconciliation note and the button to the filtered
     // ledger, preselected to this listing (no arrow glyph, button-styled).
-    assertStringIncludes(
-      html,
-      "Income is what this listing earned before refunds",
-    );
-    assertStringIncludes(html, 'href="/admin/ledger?listing=7"');
-    assertStringIncludes(html, "View all money changes");
-    assert(
-      !html.includes("View all money changes →"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Income is what this listing earned before refunds");
+    says(html, 'href="/admin/ledger?listing=7"');
+    says(html, "View all money changes");
+    assert(!html.includes("View all money changes →"));
   });
 
   test("makes a refund-driven divergence between income and net balance visible", () => {
@@ -96,10 +85,10 @@ describe("adminListingPage money breakdown", () => {
     expect(recognisedIdx).toBeGreaterThan(-1);
     expect(netIdx).toBeGreaterThan(-1);
     expect(netIdx).toBeGreaterThan(recognisedIdx);
-    assertStringIncludes(html, "£90");
-    assertStringIncludes(html, "£70");
+    says(html, "£90");
+    says(html, "£70");
     // The two figures differ exactly by the refunds line.
-    assertStringIncludes(html, "−£20");
+    says(html, "−£20");
   });
 
   test("omits the manual-adjustments row when there are none", () => {
@@ -119,15 +108,12 @@ describe("adminListingPage money breakdown", () => {
         transferCount: 1,
       },
     });
-    assertStringIncludes(html, "Money in and out");
-    assert(
-      !html.includes("Income corrections"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Money in and out");
+    assert(!html.includes("Income corrections"));
     // With no refunds either, recognised income and net balance coincide at £50.
-    assertStringIncludes(html, "Total income earned");
-    assertStringIncludes(html, "Net after refunds and costs");
-    assertStringIncludes(html, "£50");
+    says(html, "Total income earned");
+    says(html, "Net after refunds and costs");
+    says(html, "£50");
   });
 
   test("shows a signed positive manual write-up", () => {
@@ -147,8 +133,8 @@ describe("adminListingPage money breakdown", () => {
         transferCount: 2,
       },
     });
-    assertStringIncludes(html, "Income corrections");
-    assertStringIncludes(html, "+£15");
+    says(html, "Income corrections");
+    says(html, "+£15");
   });
 
   test("shows outside income and listing-specific costs when present", () => {
@@ -168,10 +154,10 @@ describe("adminListingPage money breakdown", () => {
         transferCount: 3,
       },
     });
-    assertStringIncludes(html, "Income received outside checkout");
-    assertStringIncludes(html, "+£12");
-    assertStringIncludes(html, "Costs paid outside checkout");
-    assertStringIncludes(html, "−£3");
+    says(html, "Income received outside checkout");
+    says(html, "+£12");
+    says(html, "Costs paid outside checkout");
+    says(html, "−£3");
   });
 });
 

@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
@@ -22,6 +22,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -161,11 +162,8 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
 
       // Before the merge the sibling lists the source, not the target.
       const before = await siblingPage();
-      assertStringIncludes(before, `/admin/attendees/${source.id}`);
-      assert(
-        !before.includes(`/admin/attendees/${target.id}`),
-        "the value should not contain the searched item",
-      );
+      says(before, `/admin/attendees/${source.id}`);
+      assert(!before.includes(`/admin/attendees/${target.id}`));
 
       // Merge the source into the target, keeping the source's email.
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
@@ -178,11 +176,8 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       // The target now carries the shared email, so the sibling lists it; the
       // deleted source is gone from the table.
       const after = await siblingPage();
-      assertStringIncludes(after, `/admin/attendees/${target.id}`);
-      assert(
-        !after.includes(`/admin/attendees/${source.id}`),
-        "the value should not contain the searched item",
-      );
+      says(after, `/admin/attendees/${target.id}`);
+      assert(!after.includes(`/admin/attendees/${source.id}`));
     });
 
     test("merges source listings into target and deletes source", async () => {

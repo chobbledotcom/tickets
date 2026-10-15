@@ -1,8 +1,8 @@
-import { assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv("admin action success cookie", { db: true }, () => {
@@ -21,8 +21,8 @@ describeWithEnv("admin action success cookie", { db: true }, () => {
       mockFormRequest("/admin/test-cookie", { csrf_token: csrfToken }, cookie),
     );
 
-    assertStringIncludes(
-      response.headers.get("set-cookie") ?? "",
+    says(
+      response.headers.get("set-cookie"),
       "restore_session=; Max-Age=0; Path=/",
     );
   });

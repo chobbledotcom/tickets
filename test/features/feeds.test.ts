@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -12,6 +12,7 @@ import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import { createTestApiKeyFull, requestAsApiKey } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -75,25 +76,19 @@ describeWithEnv("listing feed contracts", { db: true }, () => {
       ),
     ).toBe(true);
     expect(body.endsWith("\r\nEND:VCALENDAR")).toBe(true);
-    assert(
-      !body.includes(`UID:listing-${child.id}@`),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes(`UID:listing-${child.id}@`));
 
     const packageEntry = body
       .split("BEGIN:VLISTING\r\n")
       .find((entry) => entry.includes(`UID:package-${bundle.id}@`));
     expect(packageEntry).toBeDefined();
-    assertStringIncludes(
-      packageEntry!.split("\r\nEND:VLISTING")[0] ?? "",
-      "SUMMARY:Weekend bundle",
-    );
-    assert(
-      packageEntry!.split("\r\nEND:VLISTING")[0]?.includes("LOCATION:") ===
-        false,
+    says(packageEntry!.split("\r\nEND:VLISTING")[0], "SUMMARY:Weekend bundle");
+    saysNot(
+      packageEntry!.split("\r\nEND:VLISTING")[0],
+      "LOCATION:",
       "the value should not contain the searched item",
     );
-    assertStringIncludes(packageEntry ?? "", "\r\nEND:VLISTING");
+    says(packageEntry, "\r\nEND:VLISTING");
   });
 
   test("uses newlines between RSS documents, items, and details", async () => {
@@ -112,11 +107,8 @@ describeWithEnv("listing feed contracts", { db: true }, () => {
           '<rss version="2.0">\n  <channel>\n',
       ),
     ).toBe(true);
-    assertStringIncludes(
-      body,
-      "    <item>\n      <title>Full listing</title>\n",
-    );
-    assertStringIncludes(
+    says(body, "    <item>\n      <title>Full listing</title>\n");
+    says(
       body,
       "<description>A great listing\n" +
         "Date: Mon, 15 Jun 2026 14:00:00 GMT\n" +
@@ -131,8 +123,8 @@ describeWithEnv("news feed contracts", { db: true }, () => {
     await enablePublicSite();
 
     const body = await feedBody("/feeds/news.rss");
-    assertStringIncludes(body, "<title>News</title>");
-    assertStringIncludes(body, "<description>News from News</description>");
+    says(body, "<title>News</title>");
+    says(body, "<description>News from News</description>");
   });
 });
 
@@ -179,11 +171,8 @@ describeWithEnv("calendar feed contracts", { db: true }, () => {
           "X-WR-CALNAME:Tickets\r\nBEGIN:VEVENT\r\n",
       ),
     ).toBe(true);
-    assertStringIncludes(body, "SUMMARY:Real person");
-    assert(
-      !body.includes("No quantity person"),
-      "the value should not contain the searched item",
-    );
+    says(body, "SUMMARY:Real person");
+    assert(!body.includes("No quantity person"));
     expect(body.endsWith("\r\nEND:VEVENT\r\nEND:VCALENDAR")).toBe(true);
   });
 });

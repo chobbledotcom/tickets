@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
@@ -11,6 +11,7 @@ import {
   sortAttendeeRows,
 } from "#templates/attendee-table/values.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import { has } from "#test-utils/says.ts";
 import {
   attendeeTableSuite,
   makeOpts,
@@ -342,28 +343,16 @@ describe("hiddenAttendeeColumnKeys", () => {
   });
 
   test("hides status only when check-in is turned off", () => {
-    assert(
-      !cols().includes("status"),
-      "the value should not contain the searched item",
-    );
-    assertArrayIncludes(cols({ showCheckin: false }), ["status"]);
-    assert(
-      !cols({ showCheckin: true }).includes("status"),
-      "the value should not contain the searched item",
-    );
+    assert(!cols().includes("status"));
+    has(cols({ showCheckin: false }), "status");
+    assert(!cols({ showCheckin: true }).includes("status"));
   });
 
   test("hides the listings and date columns the caller turns off", () => {
-    assertArrayIncludes(cols(), ["listings"]);
-    assert(
-      !cols({ showListing: true }).includes("listings"),
-      "the value should not contain the searched item",
-    );
-    assertArrayIncludes(cols(), ["date"]);
-    assert(
-      !cols({ showDate: true }).includes("date"),
-      "the value should not contain the searched item",
-    );
+    has(cols(), "listings");
+    assert(!cols({ showListing: true }).includes("listings"));
+    has(cols(), "date");
+    assert(!cols({ showDate: true }).includes("date"));
   });
 
   test("hides the answers column until question data with questions arrives", () => {
@@ -371,11 +360,10 @@ describe("hiddenAttendeeColumnKeys", () => {
       attendeeAnswerMap: new Map<number, number[]>(),
       questions: questionList,
     });
-    assertArrayIncludes(cols(), ["answers"]);
-    assertArrayIncludes(cols({ questionData: withQuestions([]) }), ["answers"]);
+    has(cols(), "answers");
+    has(cols({ questionData: withQuestions([]) }), "answers");
     assert(
       !cols({ questionData: withQuestions(questions) }).includes("answers"),
-      "the value should not contain the searched item",
     );
   });
 });

@@ -1,9 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   SCHEDULED_OWNER_ENV,
   TEST_SCHEDULED_KEY,
@@ -19,7 +20,7 @@ describeWithEnv(
 
       expect(response.status).toBe(200);
       expect(response.headers.get("cache-control")).toBe("private, no-store");
-      assertStringIncludes(await response.text(), TEST_SCHEDULED_KEY);
+      says(await response.text(), TEST_SCHEDULED_KEY);
     });
 
     test("does not show the local key to a manager", async () => {
@@ -31,10 +32,7 @@ describeWithEnv(
       );
 
       expect(response.status).toBe(403);
-      assert(
-        !(await response.text()).includes(TEST_SCHEDULED_KEY),
-        "the value should not contain the searched item",
-      );
+      assert(!(await response.text()).includes(TEST_SCHEDULED_KEY));
     });
   },
 );

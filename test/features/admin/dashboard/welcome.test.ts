@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
@@ -10,6 +10,7 @@ import { WELCOME_STEPS } from "#templates/admin/welcome-banner.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminGet,
   createTestEditorSession,
@@ -62,39 +63,30 @@ describeWithEnv("admin dashboard welcome", { db: true }, () => {
     await forgetWelcomeKey();
     expect(await storedWelcome()).toBeNull();
     const html = await (await adminGet("/admin/")).text();
-    assert(
-      !html.includes(BANNER_MARK),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "Add Listing");
+    assert(!html.includes(BANNER_MARK));
+    says(html, "Add Listing");
   });
 
   test("keeps the welcome message hidden once the site stores it as off", async () => {
     await settings.setRaw(CONFIG_KEYS.WELCOME_ENABLED, "false");
     const html = await (await adminGet("/admin/")).text();
-    assert(
-      !html.includes(BANNER_MARK),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "Add Listing");
+    assert(!html.includes(BANNER_MARK));
+    says(html, "Add Listing");
   });
 
   test("shows the owner the welcome steps and the Got it button", async () => {
     // The test store is one the setup ceremony just ran, so the message is on.
     const banner = bannerHtml(await (await adminGet("/admin/")).text());
-    assertStringIncludes(banner, "Welcome to your new Chobble Tickets site");
-    assertStringIncludes(
-      banner,
-      "Here are the first things to do on your new site.",
-    );
+    says(banner, "Welcome to your new Chobble Tickets site");
+    says(banner, "Here are the first things to do on your new site.");
     // The public booking link renders only while the site feature is on; the
     // route test below covers it in that state.
     for (const { href, needsSite } of WELCOME_STEPS) {
       if (needsSite) continue;
-      assertStringIncludes(banner, `href="${href}"`, href);
+      says(banner, `href="${href}"`, href);
     }
-    assertStringIncludes(banner, "Got it");
-    assertStringIncludes(banner, 'action="/admin/welcome/dismiss"');
+    says(banner, "Got it");
+    says(banner, 'action="/admin/welcome/dismiss"');
   });
 
   test("keeps the whole banner inside the dismiss form and the steps in one prose block", async () => {
@@ -117,15 +109,9 @@ describeWithEnv("admin dashboard welcome", { db: true }, () => {
   test("shows a manager the dashboard without the welcome message", async () => {
     const cookie = await createTestManagerSession();
     const html = await (await awaitTestRequest("/admin/", { cookie })).text();
-    assertStringIncludes(html, "Add Listing");
-    assert(
-      !html.includes(BANNER_MARK),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Got it"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Add Listing");
+    assert(!html.includes(BANNER_MARK));
+    assert(!html.includes("Got it"));
   });
 
   test("sends an editor to the listings page without the welcome message", async () => {
@@ -136,18 +122,12 @@ describeWithEnv("admin dashboard welcome", { db: true }, () => {
     const html = await (
       await awaitTestRequest("/admin/listings", { cookie })
     ).text();
-    assert(
-      !html.includes(BANNER_MARK),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Got it"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes(BANNER_MARK));
+    assert(!html.includes("Got it"));
   });
 
   test("stores the dismissal for later logins", async () => {
-    assertStringIncludes(await (await adminGet("/admin/")).text(), BANNER_MARK);
+    says(await (await adminGet("/admin/")).text(), BANNER_MARK);
 
     const response = await postDismiss(
       await testCookie(),
@@ -162,10 +142,7 @@ describeWithEnv("admin dashboard welcome", { db: true }, () => {
     const htmlAfter = await (
       await awaitTestRequest("/admin/", { cookie })
     ).text();
-    assert(
-      !htmlAfter.includes(BANNER_MARK),
-      "the value should not contain the searched item",
-    );
+    assert(!htmlAfter.includes(BANNER_MARK));
   });
 
   test("refuses the dismissal without a valid CSRF token", async () => {
@@ -185,27 +162,15 @@ describeWithEnv("admin dashboard welcome", { db: true }, () => {
 
   test("shows the test booking step as plain text while the site is unpublished", async () => {
     const html = await (await adminGet("/admin/")).text();
-    assertStringIncludes(
-      html,
-      "Make a test booking and check the money and emails arrive",
-    );
-    assert(
-      !html.includes('href="/listings"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "Make a test booking and check the money and emails arrive");
+    assert(!html.includes('href="/listings"'));
   });
 
   test("hides the welcome banner in read-only mode", async () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = await (await adminGet("/admin/")).text();
-    assert(
-      !html.includes(BANNER_MARK),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Got it"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes(BANNER_MARK));
+    assert(!html.includes("Got it"));
   });
 
   test("points every welcome step at a page the site serves", async () => {

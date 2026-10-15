@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -19,6 +18,7 @@ import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { makeParent } from "#test-utils/parents.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
@@ -198,7 +198,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             "Thank you for your order",
             "https://example.com/thanks-parent",
           );
-          assertStringIncludes(firstHtml, "/t/");
+          says(firstHtml, "/t/");
 
           // Reload hits the already-processed branch; the persisted token still
           // yields a non-null ticket URL and the parent's thank-you URL.
@@ -211,7 +211,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             "Thank you for your order",
             "https://example.com/thanks-parent",
           );
-          assertStringIncludes(reloadHtml, "/t/");
+          says(reloadHtml, "/t/");
         },
       );
     });

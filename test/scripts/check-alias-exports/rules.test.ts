@@ -4,6 +4,7 @@ import {
   type AliasExportIssue,
   findIssues,
 } from "#scripts/check-alias-exports/rules.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("check-alias-exports rules", () => {
   /** One source that imports byParent, plus whatever the test adds. */
@@ -102,7 +103,7 @@ describe("check-alias-exports rules", () => {
     expect(issues).toHaveLength(1);
     expect(issues[0]?.exported).toBe("CheckinEntry");
     expect(issues[0]?.target).toBe("TokenEntry");
-    expect(issues[0]?.fix).toContain("its own module");
+    says(issues[0]?.fix, "its own module");
   });
 
   test("lets a wrapper that adds something stand", () => {

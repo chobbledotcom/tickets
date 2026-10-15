@@ -1,6 +1,5 @@
 /** The checks a post runs before writing are read in one go, not one by one. */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { transfersByEventGroup } from "#accounting/queries.ts";
@@ -9,6 +8,7 @@ import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { saleAndPayment, tx, useTransactionalDb } from "#test-utils/ledger.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Every recorded statement that reads the ledger. `recordQueries` writes a
  *  whole batch as one entry, so this counts round trips, not statements. */
@@ -74,9 +74,9 @@ describe("db > accounting > store > snapshot batching", () => {
       postTransferGroups([reversalOf(originalId)]),
     );
 
-    assertStringIncludes(String(snapshot), "event_group IN");
-    assertStringIncludes(String(snapshot), "reference IN");
-    assertStringIncludes(String(snapshot), "id IN");
+    says(String(snapshot), "event_group IN");
+    says(String(snapshot), "reference IN");
+    says(String(snapshot), "id IN");
   });
 
   test("skips the round trip entirely when there is nothing to check", async () => {

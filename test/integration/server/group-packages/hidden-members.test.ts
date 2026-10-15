@@ -6,7 +6,7 @@
  * own the branch cover, and the invariants that have no journey behind them.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
@@ -17,6 +17,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 // jscpd:ignore-start
 import { adminGet } from "#test-utils/session.ts";
 import { hiddenPackageMember, member } from "./helpers.ts";
@@ -43,15 +44,9 @@ describeWithEnv(
       ).text();
       // The page renders (as a package), but the lone member's name/location are
       // not leaked in the header/OpenGraph (singleListing is dropped when hidden).
-      assertStringIncludes(body, "HiddenPage");
-      assert(
-        !body.includes("SecretMember"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("SecretVenue"),
-        "the value should not contain the searched item",
-      );
+      says(body, "HiddenPage");
+      assert(!body.includes("SecretMember"));
+      assert(!body.includes("SecretVenue"));
     });
 
     test("a concealed package member keeps its own booking page", async () => {
@@ -67,7 +62,7 @@ describeWithEnv(
 
       const res = await handleRequest(mockRequest(`/ticket/${listing.slug}`));
       expect(res.status).toBe(200);
-      assertStringIncludes(await res.text(), "DirectMember");
+      says(await res.text(), "DirectMember");
     });
 
     test("a concealed package member keeps its QR booking paths", async () => {
@@ -97,8 +92,8 @@ describeWithEnv(
       );
       expect(qrBook.status).toBe(200);
       const page = await qrBook.text();
-      assertStringIncludes(page, "QrMember");
-      assertStringIncludes(page, 'value="Ada"');
+      says(page, "QrMember");
+      says(page, 'value="Ada"');
     });
 
     test("a regular group shows a shared concealed-package member", async () => {
@@ -123,7 +118,7 @@ describeWithEnv(
 
       const res = await handleRequest(mockRequest(`/ticket/${regular.slug}`));
       expect(res.status).toBe(200);
-      assertStringIncludes(await res.text(), "SharedMember");
+      says(await res.text(), "SharedMember");
     });
 
     test("a direct /ticket/<package> URL 404s once a member is deactivated", async () => {
@@ -154,10 +149,10 @@ describeWithEnv(
       const body = await (
         await adminGet(`/admin/listing/${listing.id}`)
       ).text();
-      assertStringIncludes(body, `/admin/listing/${listing.id}/qr`);
-      assertStringIncludes(body, `/ticket/${listing.slug}`);
-      assertStringIncludes(body, `embed-script-${listing.id}`);
-      assertStringIncludes(body, `embed-iframe-${listing.id}`);
+      says(body, `/admin/listing/${listing.id}/qr`);
+      says(body, `/ticket/${listing.slug}`);
+      says(body, `embed-script-${listing.id}`);
+      says(body, `embed-iframe-${listing.id}`);
     });
 
     test("a concealed package member's admin QR generator serves", async () => {
@@ -179,17 +174,14 @@ describeWithEnv(
 
       // Bookable bundle: the admin detail offers the public link.
       const before = await (await adminGet(`/admin/groups/${group.id}`)).text();
-      assertStringIncludes(before, `/ticket/${group.slug}`);
+      says(before, `/ticket/${group.slug}`);
 
       // Deactivating the sole member makes the bundle unbookable, so /ticket/<group>
       // now 404s and the admin share/QR/embed links are suppressed.
       await deactivateTestListing(only.id);
       const after = await (await adminGet(`/admin/groups/${group.id}`)).text();
-      assert(
-        !after.includes(`/ticket/${group.slug}`),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(after, "isn't currently bookable");
+      assert(!after.includes(`/ticket/${group.slug}`));
+      says(after, "isn't currently bookable");
     });
 
     test("a regular group can share a concealed-package member", async () => {
@@ -203,7 +195,7 @@ describeWithEnv(
       await assignListingsToGroup([shared.id], regular.id);
 
       const html = await (await adminGet(`/admin/groups/${regular.id}`)).text();
-      assertStringIncludes(html, `/ticket/${regular.slug}`);
+      says(html, `/ticket/${regular.slug}`);
     });
   },
 );

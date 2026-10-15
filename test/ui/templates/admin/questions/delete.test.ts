@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   adminAnswerDeletePage,
@@ -7,6 +6,7 @@ import {
 import { resetFeaturePageTest } from "#test/ui/templates/admin/feature-page-test.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { testAnswer, testQuestion } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import { setupQuestionPageTest, tShirtQuestion } from "./fixtures.ts";
 
 describe("adminQuestionDeletePage", () => {
@@ -26,16 +26,16 @@ describe("adminQuestionDeletePage", () => {
   afterAll(resetFeaturePageTest);
 
   test("renders confirmation form with question text", () => {
-    assertStringIncludes(html, "Delete question");
-    assertStringIncludes(html, "T-shirt size?");
-    assertStringIncludes(html, 'name="confirm_identifier"');
-    assertStringIncludes(html, 'action="/admin/questions/1/delete"');
-    assertStringIncludes(html, 'class="active" href="/admin/questions"');
+    says(html, "Delete question");
+    says(html, "T-shirt size?");
+    says(html, 'name="confirm_identifier"');
+    says(html, 'action="/admin/questions/1/delete"');
+    says(html, 'class="active" href="/admin/questions"');
   });
 
   test("warns about cascading deletes", () => {
-    assertStringIncludes(html, "all its answers");
-    assertStringIncludes(html, "attendee responses");
+    says(html, "all its answers");
+    says(html, "attendee responses");
   });
 
   test("renders error message when provided", () => {
@@ -44,7 +44,7 @@ describe("adminQuestionDeletePage", () => {
       OWNER_SESSION,
       "Text does not match",
     );
-    assertStringIncludes(html, "Text does not match");
+    says(html, "Text does not match");
   });
 });
 
@@ -62,14 +62,14 @@ describe("adminAnswerDeletePage", () => {
   afterAll(resetFeaturePageTest);
 
   test("renders confirmation form with answer text", () => {
-    assertStringIncludes(html, "Delete answer");
-    assertStringIncludes(html, "Small");
-    assertStringIncludes(html, 'name="confirm_identifier"');
-    assertStringIncludes(html, 'action="/admin/questions/1/answers/10/delete"');
+    says(html, "Delete answer");
+    says(html, "Small");
+    says(html, 'name="confirm_identifier"');
+    says(html, 'action="/admin/questions/1/answers/10/delete"');
   });
 
   test("shows question context", () => {
-    assertStringIncludes(html, "T-shirt size?");
+    says(html, "T-shirt size?");
   });
 
   test("renders error message when provided", () => {
@@ -79,6 +79,6 @@ describe("adminAnswerDeletePage", () => {
       OWNER_SESSION,
       "Text does not match",
     );
-    assertStringIncludes(html, "Text does not match");
+    says(html, "Text does not match");
   });
 });

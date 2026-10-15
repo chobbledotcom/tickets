@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -27,6 +26,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
@@ -82,11 +82,8 @@ describeWithEnv(
         await getTestPrivateKey(),
       );
       expect(notes).toHaveLength(1);
-      assertStringIncludes(notes[0]!.note, "price changed");
-      assertStringIncludes(
-        notes[0]!.note,
-        `/admin/ledger/attendee/${attendee!.id}`,
-      );
+      says(notes[0]!.note, "price changed");
+      says(notes[0]!.note, `/admin/ledger/attendee/${attendee!.id}`);
     });
 
     // ---- session-state invariants (regression: the finalize/store-refund seam) -
@@ -324,7 +321,7 @@ describeWithEnv(
       });
       try {
         const response = await redirectRequest("cs_foreign_redirect");
-        assertStringIncludes(await response.text(), "belongs to this site");
+        says(await response.text(), "belongs to this site");
         expect(refund.calls.length).toBe(0);
       } finally {
         retrieve.restore();

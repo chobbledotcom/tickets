@@ -146,14 +146,8 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       // The row answers with its real keys, so absent fields can be asserted
       // by name: neither storage detail may cross the boundary.
       const keys = Object.keys(rows[0]!);
-      assert(
-        !keys.includes("pii_blob"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !keys.includes("ticket_token_index"),
-        "the value should not contain the searched item",
-      );
+      assert(!keys.includes("pii_blob"));
+      assert(!keys.includes("ticket_token_index"));
       expect(rows[0]!.ticket_token).not.toBe("");
     });
 

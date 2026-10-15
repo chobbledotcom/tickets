@@ -18,7 +18,7 @@
  */
 // jscpd:ignore-start
 
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
@@ -31,6 +31,7 @@ import { DEMO_NAMES, DEMO_SERVICING_NAMES } from "#shared/demo/samples.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has } from "#test-utils/says.ts";
 import { getServicingEvent } from "#test-utils/servicing.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
@@ -51,12 +52,9 @@ describe("servicing §0 — demo override replaces a servicing name with a servi
       }
       // Every observed name is a valid servicing reason ...
       for (const name of observed) {
-        assertArrayIncludes(DEMO_SERVICING_NAMES as readonly string[], [name]);
+        has(DEMO_SERVICING_NAMES as readonly string[], name);
         // ... and never a person name from the attendee pool.
-        assert(
-          (DEMO_NAMES as readonly string[]).includes(name) === false,
-          "the value should not contain the searched item",
-        );
+        assert(!(DEMO_NAMES as readonly string[]).includes(name));
       }
       // randomness actually exercised the pool — we should have seen at least
       // a handful of distinct reasons across 50 draws (bounded by the pool
@@ -79,19 +77,13 @@ describe("servicing §0 — demo override replaces a servicing name with a servi
       // the random override always changes it (a seed that is in the pool could
       // be drawn back out unchanged, ~1/poolSize of the time — a real flake).
       const seedName = "Unlisted Placeholder Job";
-      assert(
-        (DEMO_SERVICING_NAMES as readonly string[]).includes(seedName) ===
-          false,
-        "the value should not contain the searched item",
-      );
+      assert(!(DEMO_SERVICING_NAMES as readonly string[]).includes(seedName));
       const form = new FormParams({ name: seedName });
       applyDemoOverrides(form, SERVICING_DEMO_FIELDS);
       // Rewritten to a servicing reason from the correct pool (so it changed,
       // and a wrong-pool mutant — which would pick a person — is caught).
       expect(form.get("name")).not.toBe(seedName);
-      assertArrayIncludes(DEMO_SERVICING_NAMES as readonly string[], [
-        form.getString("name"),
-      ]);
+      has(DEMO_SERVICING_NAMES as readonly string[], form.getString("name"));
       // email/phone were never present; they remain absent.
       expect(form.getString("email")).toBe("");
       expect(form.getString("phone")).toBe("");
@@ -106,10 +98,7 @@ describe("servicing §0 — demo override replaces a servicing name with a servi
     expect(ATTENDEE_DEMO_FIELDS.name).toBe(DEMO_NAMES);
     expect(SERVICING_DEMO_FIELDS.name).toBe(DEMO_SERVICING_NAMES);
     for (const person of DEMO_NAMES) {
-      assert(
-        (DEMO_SERVICING_NAMES as readonly string[]).includes(person) === false,
-        "the value should not contain the searched item",
-      );
+      assert(!(DEMO_SERVICING_NAMES as readonly string[]).includes(person));
     }
   });
 });
@@ -157,9 +146,7 @@ describeWithEnv(
     ): Promise<void> => {
       const event = await getServicingEvent(id);
       expect(event?.name).not.toBe(submitted);
-      assertArrayIncludes(DEMO_SERVICING_NAMES as readonly string[], [
-        event?.name,
-      ]);
+      has(DEMO_SERVICING_NAMES as readonly string[], event?.name);
     };
 
     test("creating a servicing event in demo mode stores a demo reason, not the submitted name", async () => {
@@ -169,11 +156,7 @@ describeWithEnv(
       // override is observable.
       const listing = await createTestListing({ maxAttendees: 10, name: "L" });
       const submitted = "Totally Unlisted Job XYZ";
-      assert(
-        (DEMO_SERVICING_NAMES as readonly string[]).includes(submitted) ===
-          false,
-        "the value should not contain the searched item",
-      );
+      assert(!(DEMO_SERVICING_NAMES as readonly string[]).includes(submitted));
       await inDemoMode(async () => {
         const id = await createViaRoute(listing.id, submitted);
         await expectDemoNameOverride(id, submitted);
@@ -185,11 +168,7 @@ describeWithEnv(
       // Create outside demo mode so the starting name is the real one.
       const id = await createViaRoute(listing.id, "Boiler Service");
       const submitted = "Another Unlisted Job ABC";
-      assert(
-        (DEMO_SERVICING_NAMES as readonly string[]).includes(submitted) ===
-          false,
-        "the value should not contain the searched item",
-      );
+      assert(!(DEMO_SERVICING_NAMES as readonly string[]).includes(submitted));
       await inDemoMode(async () => {
         await adminFormPost(
           `/admin/servicing/${id}`,
@@ -217,10 +196,7 @@ describe("servicing §0 — DEMO_SERVICING_NAMES is non-empty and distinct", () 
     // reasons are job-shaped ("Deep Clean", "Boiler Service" — still contain a
     // space, so we instead assert none of them coincide with a person).
     for (const reason of DEMO_SERVICING_NAMES) {
-      assert(
-        (DEMO_NAMES as readonly string[]).includes(reason) === false,
-        "the value should not contain the searched item",
-      );
+      assert(!(DEMO_NAMES as readonly string[]).includes(reason));
       expect(reason.trim().length).toBeGreaterThan(0);
     }
   });

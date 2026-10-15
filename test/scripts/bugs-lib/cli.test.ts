@@ -7,6 +7,7 @@ import {
   USAGE,
 } from "#scripts/bugs-lib.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 import {
   BASE,
   ENV,
@@ -58,7 +59,7 @@ describe("runBugsCli", () => {
     const { io, err } = ioWith([ISSUE_ID, "--events", "latest"], ENV);
 
     expect(await runBugsCli(io)).toBe(1);
-    expect(err[0]).toContain("must be a whole number");
+    says(err[0], "must be a whole number");
     expect(err[1]).toBe(USAGE);
   });
 
@@ -66,7 +67,7 @@ describe("runBugsCli", () => {
     const { io, err } = ioWith([ISSUE_ID, "--events", ""], ENV);
 
     expect(await runBugsCli(io)).toBe(1);
-    expect(err[0]).toContain("must be a whole number");
+    says(err[0], "must be a whole number");
   });
 
   test("prints one bundle for one issue", async () => {

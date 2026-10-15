@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -11,6 +11,7 @@ import {
 } from "#shared/stripe/webhook.ts";
 import { detectStripeKeyMode, stripeApi } from "#shared/stripe.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { has, says } from "#test-utils/says.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 import {
   noWebhooks,
@@ -132,10 +133,7 @@ describeStripe("stripe", () => {
           const result = await stripeApi.testStripeConnection();
           expect(result.ok).toBe(false);
           expect(result.apiKey.valid).toBe(true);
-          assertStringIncludes(
-            result.webhookError ?? "",
-            "Failed to list webhook endpoints",
-          );
+          says(result.webhookError, "Failed to list webhook endpoints");
         },
       );
     });
@@ -178,9 +176,7 @@ describeStripe("stripe", () => {
           expect(first!.endpointId).toBe("we_test_valid");
           expect(first!.url).toBe(getPaymentWebhookUrl());
           expect(first!.status).toBe("enabled");
-          assertArrayIncludes(first!.enabledEvents, [
-            "checkout.session.completed",
-          ]);
+          has(first!.enabledEvents, "checkout.session.completed");
           expect(second!.endpointId).toBe("we_test_other");
           expect(second!.url).toBe("https://other.com/webhook");
         },
@@ -276,14 +272,8 @@ describeStripe("stripe", () => {
         sensitiveMessage,
       );
       const detail = sanitizeStripeError(err);
-      assert(
-        !detail.includes(sensitiveMessage),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !detail.includes("sk_live"),
-        "the value should not contain the searched item",
-      );
+      assert(!detail.includes(sensitiveMessage));
+      assert(!detail.includes("sk_live"));
     });
 
     test("falls back to err.name when no Stripe fields present", () => {

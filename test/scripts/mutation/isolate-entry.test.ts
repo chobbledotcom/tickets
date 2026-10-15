@@ -1,4 +1,5 @@
 import { basename } from "node:path";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -7,6 +8,7 @@ import {
   planIsolateEntries,
 } from "#scripts/mutation/isolate-entry.ts";
 import { GROUPS_DIR } from "#scripts/test-groups.ts";
+import { says } from "#test-utils/says.ts";
 
 /** A test file body that can share an isolate: its hook sits inside a suite. */
 const groupable = 'describe("x", () => {\n  beforeAll(() => {});\n});\n';
@@ -65,7 +67,7 @@ describe("planIsolateEntries", () => {
     expect(entry.startsWith(`${root}/${GROUPS_DIR}/`)).toBe(true);
     const body = await Deno.readTextFile(entry);
     for (const path of paths) {
-      expect(body).toContain(`import "../${basename(path)}";`);
+      says(body, `import "../${basename(path)}";`);
     }
 
     await plan.cleanup();
@@ -84,7 +86,7 @@ describe("planIsolateEntries", () => {
     expect(plan.runArgs).toHaveLength(2);
     expect(plan.runArgs.at(-1)).toBe(`${root}/c.test.ts`);
     const body = await Deno.readTextFile(plan.runArgs[0]!);
-    expect(body).not.toContain("c.test.ts");
+    assert(!body.includes("c.test.ts"));
 
     await plan.cleanup();
     await Deno.remove(root, { recursive: true });

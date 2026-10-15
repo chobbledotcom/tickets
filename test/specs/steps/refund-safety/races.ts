@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
@@ -28,6 +29,7 @@ import {
 } from "#test/specs/support/refund-safety/windows.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { acceptedRefund } from "#test-utils/payment-state.ts";
+import { says } from "#test-utils/says.ts";
 import {
   expectPaidWithoutRefund,
   expectProviderSendCount,
@@ -51,7 +53,7 @@ const expectBrowserSays = (
   which: "first" | "second",
   words: string,
 ): void => {
-  expect(windowsFor(world)[which].pageText).toContain(words);
+  says(windowsFor(world)[which].pageText, words);
 };
 
 Given(

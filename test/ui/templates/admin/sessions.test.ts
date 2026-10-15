@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { TokenHash } from "#crypto/sealed.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
@@ -6,6 +6,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 import type { Session } from "#types";
 
 const mkSession = (token: string): Session => ({
@@ -45,29 +46,26 @@ describe("adminSessionsPage", () => {
       OWNER_SESSION,
       "",
     );
-    assertStringIncludes(html, "abcdefgh...");
-    assertStringIncludes(html, "qrstuvwx...");
-    assertStringIncludes(html, "Current");
+    says(html, "abcdefgh...");
+    says(html, "qrstuvwx...");
+    says(html, "Current");
   });
 
   test("renders empty state when no sessions", () => {
     const html = adminSessionsPage([], "some-token", OWNER_SESSION, "");
-    assertStringIncludes(html, "No sessions");
+    says(html, "No sessions");
   });
 
   test("marks the row that matches the current token as current", () => {
     const s = mkSession("abcdefghijklmnop");
     const html = adminSessionsPage([s], s.token, OWNER_SESSION, "");
-    assertStringIncludes(html, "Current");
+    says(html, "Current");
   });
 
   test("does not mark a row whose token is not the current one", () => {
     const s = mkSession("abcdefghijklmnop");
     const html = adminSessionsPage([s], "a-different-token", OWNER_SESSION, "");
-    assert(
-      !html.includes("Current"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Current"));
   });
 
   test("shows the logout-others control with the count of other sessions", () => {
@@ -79,15 +77,12 @@ describe("adminSessionsPage", () => {
       "",
     );
     // Two sessions other than the current one.
-    assertStringIncludes(html, "Log out of all other sessions (2)");
+    says(html, "Log out of all other sessions (2)");
   });
 
   test("hides the logout-others control when there are no other sessions", () => {
     const s = mkSession("aaaaaaaaaaaaaaaa");
     const html = adminSessionsPage([s], s.token, OWNER_SESSION, "");
-    assert(
-      !html.includes("Log out of all other sessions"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Log out of all other sessions"));
   });
 });

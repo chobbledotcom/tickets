@@ -1,9 +1,9 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createTursoApi } from "#shared/turso-api.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 const api = createTursoApi("platform-token");
 const databaseJson = (name = "new-database") =>
@@ -63,8 +63,8 @@ describe("Turso management API", () => {
           "https://api.turso.tech/v1/organizations/my%20org/databases",
         );
         expect(requests[0]?.init?.method).toBe("POST");
-        assertStringIncludes(
-          requests[1]?.url ?? "",
+        says(
+          requests[1]?.url,
           "/new-database/auth/tokens?authorization=full-access",
         );
         expect(requests[1]?.init?.method).toBe("POST");
@@ -139,7 +139,7 @@ describe("Turso management API", () => {
           value: ["default", "europe"],
         });
         expect(urls[0]).toBe("https://api.turso.tech/v1/organizations");
-        assertStringIncludes(urls[1] ?? "", "/organizations/my%20org/groups");
+        says(urls[1], "/organizations/my%20org/groups");
       },
     );
   });
@@ -243,10 +243,7 @@ describe("Turso management API", () => {
           const result = await createTestDatabase();
           expect(result.ok).toBe(false);
           if (!result.ok) {
-            assertStringIncludes(
-              result.error,
-              "Create database returned an invalid response",
-            );
+            says(result.error, "Create database returned an invalid response");
           }
         },
       );

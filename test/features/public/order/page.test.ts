@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
@@ -22,6 +22,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
@@ -62,20 +63,17 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         "View order",
         "Continue",
       );
-      assertStringIncludes(html, `name="select_${standard.id}"`);
-      assertStringIncludes(html, `name="select_${daily.id}"`);
+      says(html, `name="select_${standard.id}"`);
+      says(html, `name="select_${daily.id}"`);
       // The login footer is a homepage-only affordance (#69).
-      assert(
-        !html.includes('href="/admin/login"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('href="/admin/login"'));
     });
 
     test("renders the intro text as markdown", async () => {
       await createTestListing({ name: "Tote" });
       await settings.update.orderIntroText("**Pick** your items");
       const html = await assertPublicHtml("/order");
-      assertStringIncludes(html, "<strong>Pick</strong>");
+      says(html, "<strong>Pick</strong>");
     });
 
     test("shows an empty state and no cart when there are no listings", async () => {
@@ -83,14 +81,8 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         "/order",
         "No items are available to order",
       );
-      assert(
-        !html.includes('class="order-cart"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('class="order-continue"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('class="order-cart"'));
+      assert(!html.includes('class="order-continue"'));
     });
 
     test("excludes hidden and inactive listings", async () => {
@@ -100,32 +92,26 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       await deactivateTestListing(inactive.id);
 
       const html = await assertPublicHtml("/order", "Real Item");
-      assert(
-        !html.includes("Hidden Item"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("Inactive Item"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Hidden Item"));
+      assert(!html.includes("Inactive Item"));
     });
 
     test("shows the Order link in the public nav when enabled", async () => {
       const html = await assertPublicHtml("/listings");
-      assertStringIncludes(html, 'href="/order"');
+      says(html, 'href="/order"');
     });
 
     test("shows the website title as a heading", async () => {
       await createTestListing({ name: "Tote" });
       await settings.update.websiteTitle("Acme Shop");
       const html = await assertPublicHtml("/order");
-      assertStringIncludes(html, "<h1>Acme Shop</h1>");
+      says(html, "<h1>Acme Shop</h1>");
     });
 
     test("shows a price for priced listings", async () => {
       await createTestListing({ name: "Priced", unitPrice: 1500 });
       const html = await assertPublicHtml("/order");
-      assertStringIncludes(html, 'class="order-card-price"');
+      says(html, 'class="order-card-price"');
     });
 
     test("shows a 'From' price for pay-what-you-want listings", async () => {
@@ -136,7 +122,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         unitPrice: 1000,
       });
       const html = await assertPublicHtml("/order");
-      assertStringIncludes(html, "From ");
+      says(html, "From ");
     });
 
     test("shows selected listing attributes on order cards", async () => {
@@ -157,19 +143,13 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       const sold = await createTestListing({ maxAttendees: 1, name: "Gone" });
       await createTestAttendee(sold.id, sold.slug, "Buyer", "b@example.com");
       const html = await assertPublicHtml("/order", "Gone", "Sold Out");
-      assert(
-        !html.includes(`name="select_${sold.id}"`),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes(`name="select_${sold.id}"`));
     });
 
     test("marks a closed listing as unavailable", async () => {
       await createTestListing({ closesAt: "2020-01-01T00:00", name: "Past" });
       const html = await assertPublicHtml("/order", "Past", "Unavailable");
-      assert(
-        !html.includes("Sold Out"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Sold Out"));
     });
 
     test("lists bookable packages as selectable cards under a Packages heading", async () => {
@@ -204,7 +184,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         `name="select_package_${beach.id}"`,
         `data-order-key="package:${camp.id}"`,
       );
-      assertStringIncludes(html, `name="select_${tent.id}"`);
+      says(html, `name="select_${tent.id}"`);
     });
 
     test("the whole gallery is one cart form with live-availability hooks", async () => {
@@ -217,7 +197,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         `name="order"`,
         "data-order-state-label",
       );
-      assertStringIncludes(html, `data-order-key="listing:${item.id}"`);
+      says(html, `data-order-key="listing:${item.id}"`);
     });
 
     test("renders the date prompt and needs-date labels for daily items", async () => {
@@ -231,16 +211,13 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         "Have a date in mind?",
         "Pick a date to see availability",
       );
-      assertStringIncludes(html, "data-order-date");
+      says(html, "data-order-date");
     });
 
     test("omits the date field when nothing on the page needs a date", async () => {
       await createTestListing({ name: "Dateless Mug" });
       const html = await assertPublicHtml("/order");
-      assert(
-        !html.includes('name="start_date"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('name="start_date"'));
     });
 
     test("shows a concealing package and its standalone member", async () => {
@@ -256,13 +233,10 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       });
 
       const html = await assertPublicHtml("/order", "Mystery Box");
-      assertStringIncludes(html, `name="select_package_${group.id}"`);
-      assertStringIncludes(html, "Secret Widget");
-      assertStringIncludes(html, `name="select_${secret.id}"`);
-      assert(
-        !html.includes("No items are available to order"),
-        "the value should not contain the searched item",
-      );
+      says(html, `name="select_package_${group.id}"`);
+      says(html, "Secret Widget");
+      says(html, `name="select_${secret.id}"`);
+      assert(!html.includes("No items are available to order"));
     });
   });
 
@@ -273,7 +247,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         `/ticket/${item.slug}?q_${item.id}=2`,
         `name="quantity_${item.id}"`,
       );
-      assertStringIncludes(html, "selected>2</option>");
+      says(html, "selected>2</option>");
     });
 
     test("pre-selects quantities per row on a multi-listing page", async () => {
@@ -285,7 +259,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         `name="quantity_${b.id}"`,
       );
       // Row A is pre-filled to 2; row B has no q param so stays unselected.
-      assertStringIncludes(html, "selected>2</option>");
+      says(html, "selected>2</option>");
     });
 
     test("ignores malformed quantity pre-fill values", async () => {
@@ -294,10 +268,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         `/ticket/${item.slug}?q_${item.id}=2x`,
         `name="quantity_${item.id}"`,
       );
-      assert(
-        !html.includes("selected>2</option>"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("selected>2</option>"));
     });
   });
 });

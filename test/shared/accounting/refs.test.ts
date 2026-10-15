@@ -1,8 +1,9 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { eventGroup, legReference, type RefPart } from "#accounting/refs.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("accounting > refs", { encryptionKey: true }, () => {
   describe("eventGroup", () => {
@@ -39,19 +40,13 @@ describeWithEnv("accounting > refs", { encryptionKey: true }, () => {
     };
 
     test("rejects a non-finite part rather than hashing an ambiguous null", async () => {
-      assertStringIncludes(
-        await rejectionMessage(["booking", Number.NaN]),
-        "safe integer",
-      );
+      says(await rejectionMessage(["booking", Number.NaN]), "safe integer");
     });
 
     test("rejects an integer past MAX_SAFE_INTEGER that would round and collide", async () => {
       // 2 ** 53 and 2 ** 53 + 1 round to the same float, so hashing them raw
       // would alias two distinct ids onto one reference.
-      assertStringIncludes(
-        await rejectionMessage(["booking", 2 ** 53]),
-        "safe integer",
-      );
+      says(await rejectionMessage(["booking", 2 ** 53]), "safe integer");
     });
   });
 
@@ -71,10 +66,7 @@ describeWithEnv("accounting > refs", { encryptionKey: true }, () => {
     test("is non-empty and reveals nothing about its input", async () => {
       const ref = await legReference(["booking", "secret-payment-id"]);
       expect(ref.length).toBeGreaterThan(0);
-      assert(
-        !ref.includes("secret-payment-id"),
-        "the value should not contain the searched item",
-      );
+      assert(!ref.includes("secret-payment-id"));
     });
   });
 });

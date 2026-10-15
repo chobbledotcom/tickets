@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -7,6 +7,7 @@ import {
 } from "#templates/admin/attendee-table-block.tsx";
 import { makeOpts } from "#test/ui/templates/attendee-table/shared.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("AttendeeTableBlock", () => {
   beforeAll(setupAdminPageTest);
@@ -17,10 +18,7 @@ describe("AttendeeTableBlock", () => {
     );
 
     expect(html.match(/class="table-scroll"/g)).toHaveLength(1);
-    assert(
-      !html.includes("table-actions"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("table-actions"));
   });
 
   test("renders supplied actions after the table", () => {
@@ -31,7 +29,7 @@ describe("AttendeeTableBlock", () => {
       />,
     );
 
-    assertStringIncludes(
+    says(
       html,
       '</table></div><div class="table-actions"><a href="/export">Export attendees</a></div>',
     );

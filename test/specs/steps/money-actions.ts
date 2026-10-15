@@ -36,6 +36,7 @@ import {
 } from "#test/specs/support/money-reads.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { singleItem } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -207,7 +208,7 @@ Then(
     const breakdown = incomeLedgerArticle(
       await adminPageHtml(`/admin/listing/${listingIdNamed(this, RECONCILED)}`),
     );
-    expect(breakdown).toContain("Money in and out");
+    says(breakdown, "Money in and out");
     // Each figure is read from its own row: the 50.00 sale, the 10.00 taken off
     // by the correction, the 40.00 that leaves as earned income, the 50.00
     // handed back, and the 10.00 the listing is down overall.
@@ -230,8 +231,9 @@ Then(
   "the breakdown links to the Reconciled money record",
   async function (this: TicketsWorld): Promise<void> {
     const listingId = listingIdNamed(this, RECONCILED);
-    expect(
+    says(
       incomeLedgerArticle(await adminPageHtml(`/admin/listing/${listingId}`)),
-    ).toContain(`/admin/ledger?listing=${listingId}`);
+      `/admin/ledger?listing=${listingId}`,
+    );
   },
 );

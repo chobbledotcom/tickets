@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -10,6 +10,7 @@ import {
   formatOperatorMessage,
   formatRequestError,
 } from "#shared/logger.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("errorCodeLabel", () => {
   test("has a label for every error code", () => {
@@ -53,10 +54,7 @@ describe("formatErrorMessage", () => {
     expect(formatErrorMessage(context)).toBe(
       "Error: Payment session error (price mismatch)",
     );
-    assert(
-      !formatErrorMessage(context).includes("42"),
-      "the value should not contain the searched item",
-    );
+    assert(!formatErrorMessage(context).includes("42"));
   });
 
   test("ignores the operator-only detail", () => {
@@ -68,10 +66,7 @@ describe("formatErrorMessage", () => {
     expect(formatErrorMessage(context)).toBe(
       "Error: Email send failed (provider=postmark status=422)",
     );
-    assert(
-      !formatErrorMessage(context).includes("Suppressed"),
-      "the value should not contain the searched item",
-    );
+    assert(!formatErrorMessage(context).includes("Suppressed"));
   });
 });
 
@@ -128,10 +123,7 @@ describe("formatRequestError", () => {
       "/checkin/secret-token",
       new Error("fail"),
     );
-    assert(
-      !result.includes("secret-token"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(result, "[redacted]");
+    assert(!result.includes("secret-token"));
+    says(result, "[redacted]");
   });
 });

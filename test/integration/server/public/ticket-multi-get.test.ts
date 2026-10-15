@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -13,6 +13,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -77,10 +78,7 @@ describeWithEnv(
           `/ticket/${listing1.slug}+${listing2.slug}`,
           "Multi No Desc",
         );
-        assert(
-          !html.includes("margin: 0.25rem 0 0.5rem"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("margin: 0.25rem 0 0.5rem"));
       });
 
       test("shows sold-out label for full listings", async () => {
@@ -147,10 +145,7 @@ describeWithEnv(
           `quantity_${listing1.id}`,
         );
         // The inactive listing should not have a quantity selector
-        assert(
-          !html.includes(`quantity_${listing2.id}`),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes(`quantity_${listing2.id}`));
       });
 
       test("returns 404 when all listings are inactive", async () => {
@@ -213,10 +208,7 @@ describeWithEnv(
           mockRequest(`/ticket/${listing1.slug}+${listing2.slug}`),
         );
         const cookie = response.headers.get("set-cookie") || "";
-        assert(
-          !cookie.includes("csrf_token="),
-          "the value should not contain the searched item",
-        );
+        assert(!cookie.includes("csrf_token="));
       });
 
       /** Creates two listings and GETs their combined ticket page with
@@ -237,7 +229,7 @@ describeWithEnv(
 
       test("form action includes ?iframe=true in iframe mode", async () => {
         const { listing1, listing2, html } = await getMultiTicketIframePage();
-        assertStringIncludes(
+        says(
           html,
           `action="/ticket/${listing1.slug}+${listing2.slug}?iframe=true"`,
         );

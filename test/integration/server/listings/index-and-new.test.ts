@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -13,6 +12,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
@@ -30,9 +30,9 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
       const response = await adminGet("/admin/listings");
       const html = await response.text();
       expect(response.status).toBe(200);
-      assertStringIncludes(html, 'class="active" href="/admin/listings"');
-      assertStringIncludes(html, active.name);
-      assertStringIncludes(html, deactivated.name);
+      says(html, 'class="active" href="/admin/listings"');
+      says(html, active.name);
+      says(html, deactivated.name);
       expect(html.indexOf(active.name)).toBeLessThan(
         html.indexOf(deactivated.name),
       );
@@ -52,7 +52,7 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
       );
       // "Import from file" is a card in the picker grid, and the final one —
       // after every listing-type card (including "Custom / advanced").
-      assertStringIncludes(html, 'href="/admin/catalog/import"');
+      says(html, 'href="/admin/catalog/import"');
       expect(html.indexOf("Custom / advanced")).toBeLessThan(
         html.indexOf("Import from file"),
       );

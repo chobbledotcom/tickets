@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
@@ -16,6 +15,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withFailingOrderTrigger } from "#test-utils/db-helpers/failing-order.ts";
 import { addAnswer, createQuestion } from "#test-utils/questions/helpers.ts";
+import { has } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -212,9 +212,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       const question = await getQuestionWithAnswers(qId);
       expect(question!.answers.find((a) => a.id === aId)).toBeUndefined();
-      assertArrayIncludes((await activityMessages()) ?? [], [
+      has(
+        await activityMessages(),
         `Answer 'Goodbye Answer' deleted from question ${qId}`,
-      ]);
+      );
     });
 
     test("rejects deletion with wrong text", async () => {

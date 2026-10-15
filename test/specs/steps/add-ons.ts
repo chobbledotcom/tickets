@@ -18,6 +18,7 @@ import {
   rememberBrowser,
 } from "#test/specs/support/browser.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { has, says } from "#test-utils/says.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -86,8 +87,9 @@ Then(
   "the {word} is offered with a link to its own page",
   function (this: TicketsWorld, name: string): void {
     const page = forSalePage(this);
-    expect(page.pageText).toContain(name);
-    expect(page.links.map(({ href }) => href)).toContain(
+    says(page.pageText, name);
+    has(
+      page.links.map(({ href }) => href),
       bookingLinkFor(this, name),
     );
   },
@@ -98,7 +100,7 @@ Then(
   function (this: TicketsWorld, name: string): void {
     // The note belongs to things that are only ever sold alongside something
     // else, so it must not follow this one onto the page.
-    expect(forSalePage(this).pageText).toContain(name);
+    says(forSalePage(this).pageText, name);
     expect(
       forSalePage(this).containsText("as an add-on to another booking"),
     ).toBe(false);
@@ -115,14 +117,15 @@ Then(
     // Selling it on its own must not take it off the page of the thing it goes
     // with — that is where most people will meet it.
     const page = await bookingPageFor(this, mainThing);
-    expect(page.pageText).toContain(addOn);
+    says(page.pageText, addOn);
   },
 );
 
 Then(
   "the {word} is still offered too",
   function (this: TicketsWorld, name: string): void {
-    expect(forSalePage(this).links.map(({ href }) => href)).toContain(
+    has(
+      forSalePage(this).links.map(({ href }) => href),
       bookingLinkFor(this, name),
     );
   },

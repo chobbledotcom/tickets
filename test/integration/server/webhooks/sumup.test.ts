@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -19,6 +19,7 @@ import {
   foundCharge,
   fullyRefundedMoney,
 } from "#test-utils/payment-state.ts";
+import { says } from "#test-utils/says.ts";
 import {
   expectBookedExactlyOnce,
   stageSignedSumupCheckout,
@@ -139,10 +140,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       // The page's copy and link contract live with the classify and
       // template tests; this route-level leg proves the staged row opened,
       // the reload scheduled itself, and no error was paged.
-      assertStringIncludes(
-        await response.text(),
-        "30;url=/payment/success?session_id=",
-      );
+      says(await response.text(), "30;url=/payment/success?session_id=");
       expect(logLogged(debugSpy, "not confirmed yet")).toBe(true);
       expect(errors.contains("E_PAYMENT_SESSION")).toBe(false);
     } finally {
@@ -172,10 +170,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       // Nothing booked yet: the payment is unconfirmed, so the buyer is
       // still waiting rather than holding a ticket.
       expect(waiting.status).toBe(200);
-      assert(
-        !(await waiting.text()).includes('data-payment-result="success"'),
-        "the value should not contain the searched item",
-      );
+      assert(!(await waiting.text()).includes('data-payment-result="success"'));
 
       status = "PAID";
       const booked = await handleRequest(mockWebhookRequest(sumupWebhookEvent));
@@ -189,13 +184,10 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       );
       expect(returned.status).toBe(302);
       const tokensLocation = returned.headers.get("location") ?? "";
-      assertStringIncludes(tokensLocation, "/payment/success?tokens=");
+      says(tokensLocation, "/payment/success?tokens=");
       const success = await handleRequest(mockRequest(tokensLocation));
       expect(success.status).toBe(200);
-      assertStringIncludes(
-        await success.text(),
-        'data-payment-result="success"',
-      );
+      says(await success.text(), 'data-payment-result="success"');
       await expectBookedExactlyOnce();
     } finally {
       restore.restore();

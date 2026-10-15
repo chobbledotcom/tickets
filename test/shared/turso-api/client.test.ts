@@ -1,4 +1,4 @@
-import { assertRejects, assertStringIncludes } from "@std/assert";
+import { assertRejects } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { Result } from "#shared/result.ts";
@@ -6,6 +6,7 @@ import { createTursoApi } from "#shared/turso-api.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { TEST_TURSO_ENV } from "./fixtures.ts";
 
 /** Assert one databaseExists answer: a true/false value, or a refusal that
@@ -18,7 +19,7 @@ const assertExistsAnswer = async (
   if (expected === "error") {
     expect(exists.ok).toBe(false);
     if (!exists.ok) {
-      assertStringIncludes(exists.error, "Check database");
+      says(exists.error, "Check database");
     }
     return;
   }
@@ -58,7 +59,7 @@ describeWithEnv("turso api client", { env: TEST_TURSO_ENV }, () => {
         const result = await client().deleteDatabase("myorg", "db");
         expect(result.ok).toBe(false);
         if (!result.ok) {
-          assertStringIncludes(result.error ?? "", "Delete database");
+          says(result.error, "Delete database");
         }
       },
     );
@@ -193,12 +194,12 @@ describeWithEnv("turso api client", { env: TEST_TURSO_ENV }, () => {
         const groups = await client().listGroups("myorg");
         expect(groups.ok).toBe(false);
         if (!groups.ok) {
-          assertStringIncludes(groups.error, "List Turso groups");
+          says(groups.error, "List Turso groups");
         }
         const organizations = await client().listOrganizations();
         expect(organizations.ok).toBe(false);
         if (!organizations.ok) {
-          assertStringIncludes(organizations.error, "List Turso organizations");
+          says(organizations.error, "List Turso organizations");
         }
       },
     );

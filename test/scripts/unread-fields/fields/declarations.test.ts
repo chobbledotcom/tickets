@@ -1,5 +1,7 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { has } from "#test-utils/says.ts";
 import { fieldsOf, pathsOf } from "./fields-of-source.ts";
 
 /**
@@ -28,8 +30,8 @@ export type UsesTheClass = CarriesParameterFields;
       ),
     );
 
-    expect(paths).toContain("UsesTheClass.heldByAParameter.insideAParameter");
-    expect(paths).not.toContain("UsesTheClass.hiddenByAParameter");
+    has(paths, "UsesTheClass.heldByAParameter.insideAParameter");
+    assert(!paths.includes("UsesTheClass.hiddenByAParameter"));
     expect(paths).toEqual([
       "UsesTheClass.heldByAParameter",
       "UsesTheClass.heldByAParameter.insideAParameter",
@@ -49,7 +51,8 @@ export class HoldsAMadeClass {
       ),
     );
 
-    expect(paths).toContain(
+    has(
+      paths,
       'typeof HoldsAMadeClass.made["new ()"].result.configured.insideTheProperty',
     );
   });
@@ -67,6 +70,6 @@ export class HoldsAMadeClass {
       ),
     );
 
-    expect(paths).toContain("typeof HoldsAMadeClass.made.builtOn");
+    has(paths, "typeof HoldsAMadeClass.made.builtOn");
   });
 });

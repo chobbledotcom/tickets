@@ -20,9 +20,9 @@
  * code the browser actually receives.
  */
 
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { has, says } from "#test-utils/says.ts";
 import {
   addLink,
   adoptedCss,
@@ -144,7 +144,7 @@ describe("order widget", {
 
     // Scoped styles are adopted as an in-memory stylesheet (the CSP-safe path),
     // so no inline `<style>` element is added to the shadow root.
-    assertStringIncludes(adoptedCss(h), ".cart-button");
+    says(adoptedCss(h), ".cart-button");
     expect(styleEl(h)).toBeNull();
     expect(buttonType(shadow(h), ".cart-button")).toBe("button");
     expect(cartButton(h).hidden).toBe(true);
@@ -202,9 +202,9 @@ describe("order widget", {
     mountOpenListing(h, true);
     const styles = adoptedCss(h);
 
-    assertStringIncludes(styles, "grid-template-columns: minmax(0, 1fr) auto");
-    assertStringIncludes(styles, ".stepper { grid-column: 1 / -1");
-    assertStringIncludes(styles, ".close { display: block; width: 100%");
+    says(styles, "grid-template-columns: minmax(0, 1fr) auto");
+    says(styles, ".stepper { grid-column: 1 / -1");
+    says(styles, ".close { display: block; width: 100%");
   });
 
   test("falls back to a <style> element when the browser can't build a sheet", () => {
@@ -215,7 +215,7 @@ describe("order widget", {
 
     const style = styleEl(h);
     expect(style).not.toBeNull();
-    assertStringIncludes(style!.textContent, ".stepper { grid-column: 1 / -1");
+    says(style!.textContent, ".stepper { grid-column: 1 / -1");
     expect(adoptedCss(h)).toBe("");
   });
 
@@ -314,7 +314,7 @@ describe("order widget", {
       (el) => (el as { textContent: string }).textContent,
     );
     expect(prices).toEqual(["£30", "Price set at checkout"]);
-    assertStringIncludes(
+    says(
       (dialog.querySelector(".caveat") as { textContent: string }).textContent,
       "confirmed at checkout",
     );
@@ -367,7 +367,7 @@ describe("order widget", {
       dialog.querySelectorAll("p"),
       (el) => (el as { textContent: string }).textContent,
     );
-    assertArrayIncludes(paras, ["Your cart is empty."]);
+    has(paras, "Your cart is empty.");
     expect(dialog.querySelector(".subtotal")).toBeNull();
   });
 

@@ -4,13 +4,14 @@
  * coverage never depends on the server-test harness.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { pagePackage } from "#test-utils/package-cap-fixtures.ts";
+import { says } from "#test-utils/says.ts";
 import type { ListingWithCount } from "#types";
 
 const ticketListing = (over: Partial<ListingWithCount>) =>
@@ -37,16 +38,13 @@ describe("ticketPage — package sections beside standalone rows", () => {
 
   test("renders the bundle as a titled section and keeps the listing's own row", () => {
     const html = mixedPage();
-    assertStringIncludes(html, 'data-package-section="7"');
-    assertStringIncludes(html, "Party Bundle");
-    assertStringIncludes(html, 'name="package_quantity_7"');
+    says(html, 'data-package-section="7"');
+    says(html, "Party Bundle");
+    says(html, 'name="package_quantity_7"');
     // The standalone listing keeps its own quantity selector; the member has
     // none of its own (it books through the bundle's count).
-    assertStringIncludes(html, 'name="quantity_2"');
-    assert(
-      !html.includes('name="quantity_1"'),
-      "the value should not contain the searched item",
-    );
+    says(html, 'name="quantity_2"');
+    assert(!html.includes('name="quantity_1"'));
   });
 
   test("a sold-out bundle dims to a label while the rest of the page books", () => {
@@ -59,17 +57,11 @@ describe("ticketPage — package sections beside standalone rows", () => {
       }),
     );
     // The section stays (sold-out stub), its selector goes, the solo row lives.
-    assertStringIncludes(html, 'class="ticket-package sold-out"');
-    assertStringIncludes(html, "Sold Out");
-    assert(
-      !html.includes('name="package_quantity_7"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, 'name="quantity_2"');
-    assert(
-      !html.includes("Sorry, all listings are sold out."),
-      "the value should not contain the searched item",
-    );
+    says(html, 'class="ticket-package sold-out"');
+    says(html, "Sold Out");
+    assert(!html.includes('name="package_quantity_7"'));
+    says(html, 'name="quantity_2"');
+    assert(!html.includes("Sorry, all listings are sold out."));
   });
 
   test("a fresh page selects the bundle minimum when it sits above one", () => {
@@ -95,8 +87,8 @@ describe("ticketPage — package sections beside standalone rows", () => {
       ],
       slugs: ["pkg7s", "lant1"],
     });
-    assertStringIncludes(html, '<option value="3" selected>');
-    assertStringIncludes(html, 'name="package_quantity_7"');
+    says(html, '<option value="3" selected>');
+    says(html, 'name="package_quantity_7"');
   });
 
   test("a bundle whose floor exceeds its cap dims to a label while the rest books", () => {
@@ -122,13 +114,10 @@ describe("ticketPage — package sections beside standalone rows", () => {
       ],
       slugs: ["pkg7s", "lant1"],
     });
-    assertStringIncludes(html, 'class="ticket-package sold-out"');
-    assertStringIncludes(html, "Sold Out");
-    assert(
-      !html.includes('name="package_quantity_7"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, 'name="quantity_2"');
+    says(html, 'class="ticket-package sold-out"');
+    says(html, "Sold Out");
+    assert(!html.includes('name="package_quantity_7"'));
+    says(html, 'name="quantity_2"');
   });
 
   test("a member also added by its own slug gets a standalone row beside its section", () => {
@@ -138,8 +127,8 @@ describe("ticketPage — package sections beside standalone rows", () => {
       slugs: ["pkg7s", "tent1", "lant1"],
     });
     // Both paths at once: the bundle's count selector AND the member's own row.
-    assertStringIncludes(html, 'name="package_quantity_7"');
-    assertStringIncludes(html, 'name="quantity_1"');
+    says(html, 'name="package_quantity_7"');
+    says(html, 'name="quantity_1"');
   });
 
   test("a one-listing mixed page still NAMES the standalone row under the section", () => {
@@ -152,11 +141,11 @@ describe("ticketPage — package sections beside standalone rows", () => {
       packages: [pagePackage(7, [1], { name: "Party Bundle" })],
       slugs: ["pkg7s", "tent1"],
     });
-    assertStringIncludes(html, 'name="package_quantity_7"');
+    says(html, 'name="package_quantity_7"');
     // The standalone row carries the listing's name label (the row renderer's
     // ticket-row), beside — not merged into — the bundle's member row.
-    assertStringIncludes(html, 'name="quantity_1"');
-    assertStringIncludes(html, '<div class="ticket-row">');
+    says(html, 'name="quantity_1"');
+    says(html, '<div class="ticket-row">');
   });
 
   test("a single-package page keeps the classic layout (no section fieldset)", () => {
@@ -165,10 +154,7 @@ describe("ticketPage — package sections beside standalone rows", () => {
       packages: [pagePackage(7, [1], { name: "Party Bundle" })],
       slugs: ["pkg7s"],
     });
-    assertStringIncludes(html, 'name="package_quantity_7"');
-    assert(
-      !html.includes("data-package-section"),
-      "the value should not contain the searched item",
-    );
+    says(html, 'name="package_quantity_7"');
+    assert(!html.includes("data-package-section"));
   });
 });

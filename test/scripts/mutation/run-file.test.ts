@@ -10,6 +10,7 @@ import {
 } from "#scripts/mutation/run-file.ts";
 import type { StaticEvaluation } from "#scripts/mutation/static.ts";
 import type { Status } from "#scripts/mutation/summary.ts";
+import { says } from "#test-utils/says.ts";
 
 type FileRunDeps = NonNullable<Parameters<typeof runFileMutants>[3]>;
 type MutantLoopContext = Parameters<typeof runFileMutants>[2];
@@ -158,9 +159,9 @@ describe("mutation file coordinator", () => {
     expect(tested).toEqual(["mutant-1", "mutant-2", "mutant-3"]);
     expect(ctx.counts).toEqual({ ignored: 1, killed: 1, survived: 2 });
     expect(lines).toHaveLength(3);
-    expect(lines[0]).toContain("last survived");
-    expect(lines[1]).toContain("last survived");
-    expect(lines[2]).toContain("last ignored");
+    says(lines[0], "last survived");
+    says(lines[1], "last survived");
+    says(lines[2], "last ignored");
     expect(opts.originals.size).toBe(0);
   });
 

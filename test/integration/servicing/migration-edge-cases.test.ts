@@ -8,17 +8,16 @@
  */
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { SCHEMA } from "#db/migrations/schema/index.ts";
-
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { indexExists } from "#test-utils/migrations.ts";
+import { says } from "#test-utils/says.ts";
 import { createServicingHold, kindOf } from "#test-utils/servicing.ts";
 
 const MIGRATIONS = await loadMigrations();
@@ -136,8 +135,8 @@ describeWithEnv(
       expect(kindCol).toBeDefined();
       const [, type] = kindCol;
       expect(type).toMatch(/CHECK/i);
-      assertStringIncludes(type, ATTENDEE_KIND);
-      assertStringIncludes(type, SERVICING_KIND);
+      says(type, ATTENDEE_KIND);
+      says(type, SERVICING_KIND);
     });
   },
 );

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -16,6 +15,7 @@ import {
   renderAdminFooter,
 } from "#templates/admin/footer.tsx";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("request scopes", () => {
   test("binds request values while building the response", async () => {
@@ -96,7 +96,7 @@ describe("request scopes", () => {
       },
     );
 
-    assertStringIncludes(
+    says(
       blocked,
       `Subrequest allowance exceeded: 0 database + ${
         BUNNY_SUBREQUEST_LIMIT + 1

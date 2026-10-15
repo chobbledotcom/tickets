@@ -8,7 +8,6 @@
  * walk, the stored every-listing rule, and the guards.
  */
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -30,6 +29,7 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund } from "#test-utils/ledger.ts";
+import { has } from "#test-utils/says.ts";
 import {
   requestAsSession,
   testCookie,
@@ -140,10 +140,7 @@ describeWithEnv("group scanner scans", { db: true }, () => {
     // Both answer a true state: a check-in or the already-in answer of the
     // other scan's write. Neither is refused or admitted twice.
     for (const answer of [first, second]) {
-      assertArrayIncludes(
-        ["checked_in", "already_checked_in"],
-        [answer.json.status],
-      );
+      has(["checked_in", "already_checked_in"], answer.json.status);
       expect(answer.json.name).toBe("Ivy");
     }
     const after = await scanAtDoor(group.id, {

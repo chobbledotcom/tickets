@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -8,6 +7,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { apiBook, bookParentChild, makeParent } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicApi } from "#test-utils/settings.ts";
 import type { Listing } from "#types";
 
@@ -131,7 +131,7 @@ describeWithEnv(
         expect(res.status).toBe(400);
         if (c.expectErrorContains !== undefined) {
           const body = (await res.json()) as { error: string };
-          assertStringIncludes(body.error, c.expectErrorContains);
+          says(body.error, c.expectErrorContains);
         }
         if (c.expectZeroParentAttendees) {
           const { getAttendeesRaw } = await import("#db/attendees/queries.ts");

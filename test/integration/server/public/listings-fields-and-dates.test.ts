@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -18,6 +18,7 @@ import {
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -39,13 +40,10 @@ describeWithEnv(
           quantity: 1,
         });
         const html = await assertPublicHtml("/listings", "Sold Out");
-        assert(
-          !html.includes(`href="/ticket/${listing.slug}"`),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes(`href="/ticket/${listing.slug}"`));
         // The "Sold Out" message lives inside the card's prose block as a red
         // Badge, not a bare <p><strong>.
-        assertStringIncludes(
+        says(
           html,
           '<div class="prose"><h2>Full Listing</h2><p><span class="badge danger">Sold Out</span></p></div>',
         );
@@ -69,21 +67,15 @@ describeWithEnv(
           quantity: 1,
         });
         const html = await assertPublicHtml("/listings", "Daily Hire");
-        assert(
-          !html.includes("Sold Out"),
-          "the value should not contain the searched item",
-        );
-        assertStringIncludes(html, `href="/ticket/${listing.slug}"`);
+        assert(!html.includes("Sold Out"));
+        says(html, `href="/ticket/${listing.slug}"`);
         // The booking page still offers the date selector rather than a
         // sold-out label.
         const page = await assertPublicHtml(
           `/ticket/${listing.slug}`,
           'name="date"',
         );
-        assert(
-          !page.includes("Sold Out"),
-          "the value should not contain the searched item",
-        );
+        assert(!page.includes("Sold Out"));
       });
 
       test("invites a date and answers daily card availability once chosen", async () => {
@@ -125,10 +117,7 @@ describeWithEnv(
           "/listings",
           "listings-date-filter",
         );
-        assert(
-          !unfiltered.includes("Not available on"),
-          "the value should not contain the searched item",
-        );
+        assert(!unfiltered.includes("Not available on"));
 
         // With a date: the full listing reads honestly unavailable for it, the
         // free one's Book CTA carries the date through.
@@ -136,23 +125,11 @@ describeWithEnv(
           `/listings?date=${date}`,
           "Not available on",
         );
-        assertStringIncludes(
-          filtered,
-          `href="/ticket/${freeDaily.slug}?date=${date}"`,
-        );
-        assertStringIncludes(
-          filtered,
-          `href="/ticket/${flexDaily.slug}?date=${date}"`,
-        );
-        assert(
-          !filtered.includes(`href="/ticket/${fullDaily.slug}`),
-          "the value should not contain the searched item",
-        );
+        says(filtered, `href="/ticket/${freeDaily.slug}?date=${date}"`);
+        says(filtered, `href="/ticket/${flexDaily.slug}?date=${date}"`);
+        assert(!filtered.includes(`href="/ticket/${fullDaily.slug}`));
         // The "Not available on" message is a red Badge inside the card's prose.
-        assertStringIncludes(
-          filtered,
-          '<span class="badge danger">Not available on',
-        );
+        says(filtered, '<span class="badge danger">Not available on');
         // The unavailable card moves into its own section below the available
         // ones rather than staying interleaved among them.
         expect(filtered.indexOf("Free Daily")).toBeLessThan(
@@ -164,10 +141,7 @@ describeWithEnv(
 
         // A malformed date is ignored rather than trusted.
         const garbage = await assertPublicHtml("/listings?date=2026-02-30");
-        assert(
-          !garbage.includes("Not available on"),
-          "the value should not contain the searched item",
-        );
+        assert(!garbage.includes("Not available on"));
 
         // The carried date lands pre-selected on the booking page.
         await assertPublicHtml(
@@ -218,11 +192,8 @@ describeWithEnv(
           "Bundle Package",
           "Open Package",
         );
-        assert(
-          !filtered.includes(`href="/ticket/${pkg.slug}"`),
-          "the value should not contain the searched item",
-        );
-        assertStringIncludes(filtered, `href="/ticket/${openPkg.slug}"`);
+        assert(!filtered.includes(`href="/ticket/${pkg.slug}"`));
+        says(filtered, `href="/ticket/${openPkg.slug}"`);
         expect(filtered.indexOf("Open Package")).toBeLessThan(
           filtered.indexOf("Unavailable"),
         );
@@ -256,11 +227,8 @@ describeWithEnv(
           "Hidden Member Package",
           "Plain Listing",
         );
-        assertStringIncludes(filtered, "listings-date-filter");
-        assert(
-          !filtered.includes(`href="/ticket/${pkg.slug}"`),
-          "the value should not contain the searched item",
-        );
+        says(filtered, "listings-date-filter");
+        assert(!filtered.includes(`href="/ticket/${pkg.slug}"`));
         expect(filtered.indexOf("Plain Listing")).toBeLessThan(
           filtered.indexOf("Unavailable"),
         );

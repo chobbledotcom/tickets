@@ -1,7 +1,7 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildEmbedSnippets } from "#shared/embed.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("embed", () => {
   describe("buildEmbedSnippets", () => {
@@ -21,26 +21,20 @@ describe("embed", () => {
 
     test("uses plus-delimited slugs in data-listings and iframe src", () => {
       const result = buildEmbedSnippets("https://example.com/ticket/a+b");
-      assertStringIncludes(result.script, 'data-listings="a+b"');
-      assertStringIncludes(
-        result.iframe,
-        "https://example.com/ticket/a+b?iframe=true",
-      );
+      says(result.script, 'data-listings="a+b"');
+      says(result.iframe, "https://example.com/ticket/a+b?iframe=true");
     });
 
     test("extracts origin correctly for embed script URL", () => {
       const result = buildEmbedSnippets(
         "https://tickets.mysite.org/ticket/test",
       );
-      assertStringIncludes(
-        result.script,
-        'src="https://tickets.mysite.org/embed.js"',
-      );
+      says(result.script, 'src="https://tickets.mysite.org/embed.js"');
     });
 
     test("handles non-ticket URLs by emitting empty data-listings", () => {
       const result = buildEmbedSnippets("https://example.com/");
-      assertStringIncludes(result.script, 'data-listings=""');
+      says(result.script, 'data-listings=""');
     });
 
     test("rejects invalid URLs before building snippets", () => {

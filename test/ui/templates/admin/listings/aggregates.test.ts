@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -9,6 +9,7 @@ import {
 import { registerListingTemplateHooks } from "#test/ui/templates/admin/listings/helpers.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 /** booked_quantity mismatches (9 vs 4), tickets_count matches (5 vs 5). */
 const oneMismatch = {
@@ -29,17 +30,17 @@ describe("adminListingRecalculatePage", () => {
       },
       OWNER_SESSION,
     );
-    assertStringIncludes(html, "Recalculate: Workshop");
-    assertStringIncludes(html, "Current");
-    assertStringIncludes(html, "From attendee data");
-    assertStringIncludes(html, "Compare the stored listing totals");
-    assertStringIncludes(html, 'class="table-scroll"');
-    assertStringIncludes(html, 'name="recalculate_fields"');
-    assertStringIncludes(html, 'value="booked_quantity"');
-    assertStringIncludes(html, ">9<");
-    assertStringIncludes(html, ">4<");
+    says(html, "Recalculate: Workshop");
+    says(html, "Current");
+    says(html, "From attendee data");
+    says(html, "Compare the stored listing totals");
+    says(html, 'class="table-scroll"');
+    says(html, 'name="recalculate_fields"');
+    says(html, 'value="booked_quantity"');
+    says(html, ">9<");
+    says(html, ">4<");
     // The recalculate page marks the Home nav entry (/admin/) active.
-    assertStringIncludes(html, '<a class="active" href="/admin/">');
+    says(html, '<a class="active" href="/admin/">');
   });
 });
 
@@ -52,24 +53,18 @@ describe("ListingAggregateMismatchNotice", () => {
       aggregateRecalculation: oneMismatch,
     })!.toString();
 
-    assertStringIncludes(
-      html,
-      "Listing running totals do not match attendee rows.",
-    );
-    assertStringIncludes(html, "Expected values come from attendee rows.");
-    assertStringIncludes(
+    says(html, "Listing running totals do not match attendee rows.");
+    says(html, "Expected values come from attendee rows.");
+    says(
       html,
       '<a href="/admin/listings/recalculate/1">Review and recalculate totals</a>',
     );
     // booked_quantity drifted (expected 4, got 9); tickets_count matched.
-    assertStringIncludes(
+    says(
       html,
       "<strong>Total attendees ever</strong>: expected <strong>4</strong>, got <strong>9</strong>",
     );
-    assert(
-      !html.includes("Total ticket records"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Total ticket records"));
   });
 
   test("renders no notice when there is no recalculation", () => {
@@ -79,10 +74,7 @@ describe("ListingAggregateMismatchNotice", () => {
         aggregateRecalculation: undefined,
       }),
     );
-    assert(
-      !html.includes("Listing running totals do not match"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Listing running totals do not match"));
   });
 
   test("renders no notice when every stored total already matches", () => {
@@ -95,10 +87,7 @@ describe("ListingAggregateMismatchNotice", () => {
         },
       }),
     );
-    assert(
-      !html.includes("Listing running totals do not match"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Listing running totals do not match"));
   });
 });
 
@@ -113,14 +102,11 @@ describe("ListingAggregateMismatchRow", () => {
       listing,
     })!.toString();
 
-    assertStringIncludes(html, "<th>Running total check</th>");
-    assertStringIncludes(
-      html,
-      "Listing running totals do not match attendee rows.",
-    );
-    assertStringIncludes(html, `/admin/listings/recalculate/${listing.id}`);
-    assertStringIncludes(html, "Review and recalculate totals");
-    assertStringIncludes(
+    says(html, "<th>Running total check</th>");
+    says(html, "Listing running totals do not match attendee rows.");
+    says(html, `/admin/listings/recalculate/${listing.id}`);
+    says(html, "Review and recalculate totals");
+    says(
       html,
       "<strong>Total attendees ever</strong>: expected <strong>4</strong>, got <strong>9</strong>",
     );

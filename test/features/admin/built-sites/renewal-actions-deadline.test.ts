@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -8,6 +8,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
+import { has } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import {
   findSite,
@@ -70,9 +71,9 @@ describeWithEnv(
         const updated = await findSite(site.id);
         const expectedBase = new Date(NOW_MS + 10 * 86400000).toISOString();
         expect(updated.readOnlyFrom).toBe(addMonthsIso(expectedBase, 3));
-        assertArrayIncludes(
+        has(
           (await getAllActivityLog()).map(({ message }) => message),
-          ["Admin bumped 'Bump Future' deadline by 3 month(s)"],
+          "Admin bumped 'Bump Future' deadline by 3 month(s)",
         );
       });
 
@@ -125,10 +126,7 @@ describeWithEnv(
         expect(response.status).toBe(302);
 
         const secretNames = secretNamesOf(suite.secretStub);
-        assert(
-          !secretNames.includes("RENEWAL_URL"),
-          "the value should not contain the searched item",
-        );
+        assert(!secretNames.includes("RENEWAL_URL"));
       });
 
       test("clamps months <= 0 to 1", () =>

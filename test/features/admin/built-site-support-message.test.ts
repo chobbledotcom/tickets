@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -13,6 +13,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -153,12 +154,9 @@ describeWithEnv(
         { ok: true, value: "# Old text" },
         "# Draft that failed to save",
       );
-      assertStringIncludes(html, "# Draft that failed to save");
-      assert(
-        !html.includes("# Old text"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, "The support message could not be saved");
+      says(html, "# Draft that failed to save");
+      assert(!html.includes("# Old text"));
+      says(html, "The support message could not be saved");
     });
 
     test("keeps the refused draft above the error when the follow-up read fails", async () => {
@@ -174,9 +172,9 @@ describeWithEnv(
         },
         "# Draft kept through the outage",
       );
-      assertStringIncludes(html, "# Draft kept through the outage");
-      assertStringIncludes(html, 'name="support_message"');
-      assertStringIncludes(html, "The support message could not be read");
+      says(html, "# Draft kept through the outage");
+      says(html, 'name="support_message"');
+      says(html, "The support message could not be read");
     });
 
     test("keeps a refused empty draft empty over the stored text", async () => {
@@ -195,11 +193,8 @@ describeWithEnv(
       // empty editor.
       const editorStart = html.indexOf(">", html.indexOf("<textarea")) + 1;
       expect(html.slice(editorStart, html.indexOf("</textarea>"))).toBe("\n");
-      assertStringIncludes(html, "</textarea>");
-      assert(
-        !html.includes("# Old text"),
-        "the value should not contain the searched item",
-      );
+      says(html, "</textarea>");
+      assert(!html.includes("# Old text"));
     });
 
     test("shows the Bunny error when the write fails", async () => {

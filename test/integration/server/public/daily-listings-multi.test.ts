@@ -130,10 +130,7 @@ describeWithEnv(
           `/ticket/${listing1.slug}+${listing2.slug}`,
           "Monday",
         );
-        assert(
-          !html.includes("Tuesday"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Tuesday"));
       });
     });
 
@@ -207,14 +204,8 @@ describeWithEnv(
           `/ticket/${listing1.slug}+${listing2.slug}`,
           "Friendly One",
         );
-        assert(
-          !html.includes("Book them separately"),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes("has no dates available"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Book them separately"));
+        assert(!html.includes("has no dates available"));
       });
     });
   },

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
@@ -16,6 +16,7 @@ import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { defaultSettingsState } from "#test/ui/templates/admin/settings-state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
+import { says } from "#test-utils/says.ts";
 import type { PaymentProviderType } from "#types";
 
 /** Render one payment form over the default state plus the given overrides. */
@@ -48,16 +49,16 @@ describe("settings payment forms", () => {
   describe("PaymentProviderForm", () => {
     test("posts the provider choice to its own settings route", () => {
       const html = render(PaymentProviderForm);
-      assertStringIncludes(html, 'action="/admin/settings/payment-provider"');
-      assertStringIncludes(html, 'id="settings-payment-provider"');
-      assertStringIncludes(html, '<div class="prose">');
-      assertStringIncludes(html, '<fieldset class="radios">');
+      says(html, 'action="/admin/settings/payment-provider"');
+      says(html, 'id="settings-payment-provider"');
+      says(html, '<div class="prose">');
+      says(html, '<fieldset class="radios">');
     });
 
     test("attaches each registry label to its own radio value", () => {
       const html = render(PaymentProviderForm);
       for (const id of PAYMENT_PROVIDER_IDS) {
-        assertStringIncludes(
+        says(
           html,
           `${inputTagWithValue(html, id)}${PAYMENT_PROVIDERS[id].label}`,
         );
@@ -84,29 +85,17 @@ describe("settings payment forms", () => {
     test("offers every provider when the site currency suits them all", () => {
       const html = render(PaymentProviderForm, { currency: "GBP" });
       for (const id of PAYMENT_PROVIDER_IDS) {
-        assert(
-          !inputTagWithValue(html, id).includes("disabled"),
-          "the value should not contain the searched item",
-        );
+        assert(!inputTagWithValue(html, id).includes("disabled"));
       }
-      assert(
-        !html.includes('<small class="notice">'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('<small class="notice">'));
     });
 
     test("switches off a provider that cannot take the site currency", () => {
       const html = render(PaymentProviderForm, { currency: "JPY" });
-      assertStringIncludes(inputTagWithValue(html, "sumup"), "disabled");
-      assert(
-        !inputTagWithValue(html, "stripe").includes("disabled"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !inputTagWithValue(html, "square").includes("disabled"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(
+      says(inputTagWithValue(html, "sumup"), "disabled");
+      assert(!inputTagWithValue(html, "stripe").includes("disabled"));
+      assert(!inputTagWithValue(html, "square").includes("disabled"));
+      says(
         html,
         '<small class="notice">SumUp cannot take payments in JPY. ' +
           "Choose a different payment provider.</small>",
@@ -124,64 +113,55 @@ describe("settings payment forms", () => {
 
       test(`posts ${label} credentials to that provider's own route`, () => {
         const html = credentials(provider);
-        assertStringIncludes(html, `action="/admin/settings/${provider}"`);
-        assertStringIncludes(html, `id="settings-${provider}"`);
-        assertStringIncludes(html, `name="${secretField}"`);
+        says(html, `action="/admin/settings/${provider}"`);
+        says(html, `id="settings-${provider}"`);
+        says(html, `name="${secretField}"`);
       });
 
       test(`opens ${label} with the not-configured hint and the guide link`, () => {
         const html = credentials(provider);
-        assertStringIncludes(html, '<div class="prose">');
-        assertStringIncludes(html, `<h2>${label} settings</h2>`);
-        assertStringIncludes(html, `No ${label} credentials are saved`);
-        assertStringIncludes(html, 'href="/admin/guide#payment-setup"');
-        assertStringIncludes(html, "Read the payment setup guide");
+        says(html, '<div class="prose">');
+        says(html, `<h2>${label} settings</h2>`);
+        says(html, `No ${label} credentials are saved`);
+        says(html, 'href="/admin/guide#payment-setup"');
+        says(html, "Read the payment setup guide");
       });
 
       test(`swaps in the configured hint and masks the stored ${label} secret`, () => {
         const html = credentials(provider, { configured: true });
-        assertStringIncludes(html, `Your ${label} credentials are saved`);
+        says(html, `Your ${label} credentials are saved`);
         const field = html.match(
           new RegExp(`<input[^>]*name="${secretField}"[^>]*>`),
         )?.[0];
-        assertStringIncludes(field ?? "", `value="${MASK_SENTINEL}"`);
+        says(field, `value="${MASK_SENTINEL}"`);
       });
 
       test(`leaves the ${label} secret field empty when none is stored`, () => {
-        assert(
-          !credentials(provider).includes(MASK_SENTINEL),
-          "the value should not contain the searched item",
-        );
+        assert(!credentials(provider).includes(MASK_SENTINEL));
       });
 
       test(`offers ${label} a connection test only once it is configured`, () => {
         const configured = credentials(provider, { configured: true });
-        assertStringIncludes(
+        says(
           configured,
           `<button class="secondary" data-testing="Testing..." id="${provider}-test-btn"`,
         );
-        assertStringIncludes(configured, "Test connection");
-        assertStringIncludes(
+        says(configured, "Test connection");
+        says(
           configured,
           `<div class="hidden" data-failed="Connection test failed:" id="${provider}-test-result"`,
         );
 
         const blank = credentials(provider);
-        assert(
-          !blank.includes(`id="${provider}-test-btn"`),
-          "the value should not contain the searched item",
-        );
-        assertStringIncludes(
+        assert(!blank.includes(`id="${provider}-test-btn"`));
+        says(
           blank,
           `<div class="hidden" data-failed="Connection test failed:" id="${provider}-test-result"`,
         );
       });
 
       test(`names ${label} on its save button`, () => {
-        assertStringIncludes(
-          credentials(provider),
-          `Update ${label} credentials`,
-        );
+        says(credentials(provider), `Update ${label} credentials`);
       });
     }
 
@@ -192,7 +172,7 @@ describe("settings payment forms", () => {
         paymentProvider: null,
         ...showing("stripe"),
       });
-      assertStringIncludes(html, 'id="settings-stripe"');
+      says(html, 'id="settings-stripe"');
     });
 
     for (const [mode, opening, style] of [
@@ -202,51 +182,39 @@ describe("settings payment forms", () => {
     ] as const) {
       test(`warns that stored credentials point at the ${mode} estate`, () => {
         const html = credentials("stripe", { configured: true, mode });
-        assertStringIncludes(html, `<p ${style}>`);
-        assertStringIncludes(html, opening);
-        assertStringIncludes(html, "Stripe");
+        says(html, `<p ${style}>`);
+        says(html, opening);
+        says(html, "Stripe");
       });
     }
 
     test("says nothing about the estate when the credentials do not name one", () => {
       const html = credentials("stripe", { configured: true, mode: "unknown" });
-      assert(
-        !html.includes("mode:"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("mode:"));
     });
 
     test("says nothing about the estate until credentials are stored", () => {
       const html = credentials("stripe", { mode: "test" });
-      assert(
-        !html.includes("Test mode:"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Test mode:"));
     });
 
     test("offers the sandbox switch to Square alone", () => {
       const square = credentials("square");
       const checkbox = square.match(/<input[^>]*name="square_sandbox"[^>]*>/);
       const cell = checkbox?.[0];
-      assertStringIncludes(cell ?? "", 'type="checkbox"');
+      says(cell, 'type="checkbox"');
       assert(
         cell !== undefined && !cell.includes("checked"),
         "the value should not contain the searched item",
       );
-      assert(
-        !credentials("stripe").includes('name="square_sandbox"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !credentials("sumup").includes('name="square_sandbox"'),
-        "the value should not contain the searched item",
-      );
+      assert(!credentials("stripe").includes('name="square_sandbox"'));
+      assert(!credentials("sumup").includes('name="square_sandbox"'));
     });
 
     test("checks the sandbox switch when Square points at its test estate", () => {
       const html = credentials("square", { mode: "sandbox" });
       const checkbox = html.match(/<input[^>]*name="square_sandbox"[^>]*>/);
-      assertStringIncludes(checkbox?.[0] ?? "", "checked");
+      says(checkbox?.[0], "checked");
     });
   });
 
@@ -263,7 +231,7 @@ describe("settings payment forms", () => {
         paymentProvider: null,
         ...showing("square", { configured: true }),
       });
-      assertStringIncludes(html, 'id="settings-square-webhook"');
+      says(html, 'id="settings-square-webhook"');
     });
 
     test("posts the signature key to the Square webhook route", () => {
@@ -273,16 +241,13 @@ describe("settings payment forms", () => {
           configured: true,
         }),
       );
-      assertStringIncludes(html, 'action="/admin/settings/square-webhook"');
-      assertStringIncludes(html, 'id="settings-square-webhook"');
-      assertStringIncludes(html, '<div class="prose">');
-      assertStringIncludes(html, 'href="/admin/guide#payment-setup"');
-      assertStringIncludes(html, "No webhook signature key is configured");
-      assertStringIncludes(html, "Follow the steps above to set one up");
-      assert(
-        !html.includes(MASK_SENTINEL),
-        "the value should not contain the searched item",
-      );
+      says(html, 'action="/admin/settings/square-webhook"');
+      says(html, 'id="settings-square-webhook"');
+      says(html, '<div class="prose">');
+      says(html, 'href="/admin/guide#payment-setup"');
+      says(html, "No webhook signature key is configured");
+      says(html, "Follow the steps above to set one up");
+      assert(!html.includes(MASK_SENTINEL));
     });
 
     test("swaps in the configured hint once a key is stored", () => {
@@ -290,15 +255,12 @@ describe("settings payment forms", () => {
         squareWebhookConfigured: true,
         ...showing("square", { configured: true }),
       });
-      assertStringIncludes(
-        html,
-        "A webhook signature key is currently configured",
-      );
-      assertStringIncludes(html, "Enter a new key below to replace it");
+      says(html, "A webhook signature key is currently configured");
+      says(html, "Enter a new key below to replace it");
       const field = html.match(
         /<input[^>]*name="square_webhook_signature_key"[^>]*>/,
       )?.[0];
-      assertStringIncludes(field ?? "", `value="${MASK_SENTINEL}"`);
+      says(field, `value="${MASK_SENTINEL}"`);
     });
   });
 });

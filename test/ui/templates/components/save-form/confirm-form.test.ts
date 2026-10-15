@@ -1,6 +1,7 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { ConfirmForm } from "#templates/components/save-form.tsx";
+import { says } from "#test-utils/says.ts";
 
 describe("ConfirmForm", () => {
   test("defaults to danger styling", () => {
@@ -12,13 +13,10 @@ describe("ConfirmForm", () => {
         name: "n",
       }),
     );
-    assertStringIncludes(html, 'class="danger"');
+    says(html, 'class="danger"');
     // A danger confirm carries the bin icon; a safe confirm the check icon.
-    assertStringIncludes(html, "#trash-2");
-    assert(
-      !html.includes("#check"),
-      "the value should not contain the searched item",
-    );
+    says(html, "#trash-2");
+    assert(!html.includes("#check"));
   });
 
   test("gives a non-danger confirm the check icon", () => {
@@ -30,15 +28,9 @@ describe("ConfirmForm", () => {
         danger: false,
       }),
     );
-    assertStringIncludes(html, "#check");
-    assert(
-      !html.includes("#trash-2"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('class="danger"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "#check");
+    assert(!html.includes("#trash-2"));
+    assert(!html.includes('class="danger"'));
   });
 
   test("renders the confirm_identifier input by default", () => {
@@ -50,23 +42,17 @@ describe("ConfirmForm", () => {
         name: "n",
       }),
     );
-    assertStringIncludes(html, 'name="confirm_identifier"');
+    says(html, 'name="confirm_identifier"');
     // The typed-name box must not offer or remember completions.
-    assertStringIncludes(
-      html,
-      '<input autocomplete="off" name="confirm_identifier"',
-    );
-    assertStringIncludes(html, 'type="text"');
+    says(html, '<input autocomplete="off" name="confirm_identifier"');
+    says(html, 'type="text"');
   });
 
   test("omits the confirm input when confirmName is false", () => {
     const html = String(
       ConfirmForm({ action: "/x", buttonText: "OK", confirmName: false }),
     );
-    assert(
-      !html.includes('name="confirm_identifier"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('name="confirm_identifier"'));
   });
 
   test("wraps children in a prose div", () => {
@@ -78,8 +64,8 @@ describe("ConfirmForm", () => {
         confirmName: false,
       }),
     );
-    assertStringIncludes(html, 'class="prose"');
-    assertStringIncludes(html, "Warning text");
+    says(html, 'class="prose"');
+    says(html, "Warning text");
   });
 
   test("renders a hidden return_url input when returnUrl is given", () => {
@@ -91,8 +77,8 @@ describe("ConfirmForm", () => {
         returnUrl: "/back",
       }),
     );
-    assertStringIncludes(html, 'name="return_url"');
-    assertStringIncludes(html, 'value="/back"');
+    says(html, 'name="return_url"');
+    says(html, 'value="/back"');
   });
 
   test("renders the form with the given id", () => {
@@ -104,7 +90,7 @@ describe("ConfirmForm", () => {
         id: "restore-confirm",
       }),
     );
-    assertStringIncludes(html, 'id="restore-confirm"');
+    says(html, 'id="restore-confirm"');
   });
 
   test("renders hidden inputs for each hiddenFields entry", () => {
@@ -116,7 +102,7 @@ describe("ConfirmForm", () => {
         hiddenFields: { foo: "bar" },
       }),
     );
-    assertStringIncludes(html, 'name="foo"');
-    assertStringIncludes(html, 'value="bar"');
+    says(html, 'name="foo"');
+    says(html, 'value="bar"');
   });
 });

@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -5,6 +6,7 @@ import {
   generateMutants,
   type Mutant,
 } from "#scripts/mutation/generate.ts";
+import { has } from "#test-utils/says.ts";
 
 const mutationLabels = (content: string, exhaustive = false): string[] =>
   generateMutants(content, "sample.ts", exhaustive).map(
@@ -31,9 +33,9 @@ describe("generateMutants", () => {
       if (enabled && total >= 1) await persist(true);
     `);
 
-    expect(labels).toContain("&& -> ||");
-    expect(labels).toContain(">= -> <");
-    expect(labels).toContain("true -> false");
+    has(labels, "&& -> ||");
+    has(labels, ">= -> <");
+    has(labels, "true -> false");
     expect(labels.some((label) => label.includes("await persist"))).toBe(true);
   });
 
@@ -42,15 +44,24 @@ describe("generateMutants", () => {
       export const config = { label: "Adult", retries: 3, empty: "" };
     `);
 
-    expect(sources).toContain(`
-      export const config = { label:  "" , retries: 3, empty: "" };
-    `);
-    expect(sources).toContain(`
-      export const config = { label: "Adult", retries:  0 , empty: "" };
-    `);
-    expect(sources).toContain(`
-      export const config = { label: "Adult", retries: 3, empty:  "mutated"  };
-    `);
+    has(
+      sources,
+      `
+        export const config = { label:  "" , retries: 3, empty: "" };
+      `,
+    );
+    has(
+      sources,
+      `
+        export const config = { label: "Adult", retries:  0 , empty: "" };
+      `,
+    );
+    has(
+      sources,
+      `
+        export const config = { label: "Adult", retries: 3, empty:  "mutated"  };
+      `,
+    );
   });
 
   test("mutates every operator-family dispatch path", () => {
@@ -64,15 +75,15 @@ describe("generateMutants", () => {
       const signed = -total + +count;
     `);
 
-    expect(labels).toContain("+= -> /=");
-    expect(labels).toContain("-= -> *=");
-    expect(labels).toContain("! -> ∅");
-    expect(labels).toContain("|| -> &&");
-    expect(labels).toContain("< -> >=");
-    expect(labels).toContain("++ -> --");
-    expect(labels).toContain("-- -> ++");
-    expect(labels).toContain("- -> +");
-    expect(labels).toContain("+ -> -");
+    has(labels, "+= -> /=");
+    has(labels, "-= -> *=");
+    has(labels, "! -> ∅");
+    has(labels, "|| -> &&");
+    has(labels, "< -> >=");
+    has(labels, "++ -> --");
+    has(labels, "-- -> ++");
+    has(labels, "- -> +");
+    has(labels, "+ -> -");
   });
 
   test("walks array destructuring holes without crashing", () => {
@@ -81,7 +92,7 @@ describe("generateMutants", () => {
       export const stamp = year + month;
     `);
 
-    expect(labels).toContain("+ -> *");
+    has(labels, "+ -> *");
   });
 
   test("generates no mutants for declaration files", () => {
@@ -104,8 +115,8 @@ describe("generateMutants", () => {
       export const runtime = "value";
     `);
 
-    expect(labels).not.toContain('*.svg -> ""');
-    expect(labels).toContain('value -> ""');
+    assert(!labels.includes('*.svg -> ""'));
+    has(labels, 'value -> ""');
   });
 
   test("does not invent mutants for unsupported expression shapes", () => {
@@ -120,7 +131,7 @@ describe("generateMutants", () => {
     expect(labels.some((label) => label.startsWith("& ->"))).toBe(false);
     expect(labels.some((label) => label.startsWith("in ->"))).toBe(false);
     expect(labels.some((label) => label.startsWith("typeof ->"))).toBe(false);
-    expect(labels).not.toContain("value; -> (removed)");
+    assert(!labels.includes("value; -> (removed)"));
   });
 
   test("removes direct calls and awaited calls", () => {
@@ -130,8 +141,8 @@ describe("generateMutants", () => {
       reallyLongSideEffectName(alpha, beta, gamma, delta, epsilon);
     `);
 
-    expect(labels).toContain("persist(); -> (removed)");
-    expect(labels).toContain("await persist(); -> (removed)");
+    has(labels, "persist(); -> (removed)");
+    has(labels, "await persist(); -> (removed)");
     expect(labels.some((label) => label.includes("… -> (removed)"))).toBe(true);
   });
 
@@ -143,11 +154,11 @@ describe("generateMutants", () => {
       export const runtime = "value";
     `);
 
-    expect(labels).not.toContain('pkg -> ""');
-    expect(labels).not.toContain('pkg2 -> ""');
-    expect(labels).not.toContain("true -> false");
-    expect(labels).not.toContain("1 -> 0");
-    expect(labels).toContain('value -> ""');
+    assert(!labels.includes('pkg -> ""'));
+    assert(!labels.includes('pkg2 -> ""'));
+    assert(!labels.includes("true -> false"));
+    assert(!labels.includes("1 -> 0"));
+    has(labels, 'value -> ""');
   });
 
   test("skips TypeScript-only literals under every non-runtime field", () => {
@@ -160,11 +171,11 @@ describe("generateMutants", () => {
       }
     `);
 
-    expect(labels).not.toContain('type-param -> ""');
-    expect(labels).not.toContain('type-arg -> ""');
-    expect(labels).not.toContain('super-type -> ""');
-    expect(labels).not.toContain('return-type -> ""');
-    expect(labels).toContain('runtime -> ""');
+    assert(!labels.includes('type-param -> ""'));
+    assert(!labels.includes('type-arg -> ""'));
+    assert(!labels.includes('super-type -> ""'));
+    assert(!labels.includes('return-type -> ""'));
+    has(labels, 'runtime -> ""');
   });
 
   test("mutates return values, throws, ternaries, and loop control", () => {
@@ -181,15 +192,15 @@ describe("generateMutants", () => {
     `;
 
     const labels = mutationLabels(content, true);
-    expect(labels).toContain("?: -> arms swapped");
-    expect(labels).toContain("?: -> consequent only");
-    expect(labels).toContain("?: -> alternate only");
-    expect(labels).toContain("return pick(false) -> return undefined");
+    has(labels, "?: -> arms swapped");
+    has(labels, "?: -> consequent only");
+    has(labels, "?: -> alternate only");
+    has(labels, "return pick(false) -> return undefined");
     expect(labels.some((label) => label.includes("throw new Error"))).toBe(
       true,
     );
-    expect(labels).toContain("break; -> (removed)");
-    expect(labels).toContain("continue; -> (removed)");
+    has(labels, "break; -> (removed)");
+    has(labels, "continue; -> (removed)");
   });
 
   test("leaves valueless returns alone and clips long return labels", () => {
@@ -202,7 +213,7 @@ describe("generateMutants", () => {
       }
     `);
 
-    expect(labels).not.toContain("return; -> return undefined");
+    assert(!labels.includes("return; -> return undefined"));
     expect(
       labels.some(
         (label) =>
@@ -215,9 +226,9 @@ describe("generateMutants", () => {
   test("keeps forced ternary arms in exhaustive mode only", () => {
     const labels = mutationLabels("const value = flag ? left() : right();");
 
-    expect(labels).toContain("?: -> arms swapped");
-    expect(labels).not.toContain("?: -> consequent only");
-    expect(labels).not.toContain("?: -> alternate only");
+    has(labels, "?: -> arms swapped");
+    assert(!labels.includes("?: -> consequent only"));
+    assert(!labels.includes("?: -> alternate only"));
   });
 
   test("applies ternary mutants to valid replacement spans", () => {

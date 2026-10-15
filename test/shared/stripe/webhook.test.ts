@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -7,6 +6,7 @@ import {
   type StripeWebhookEvent,
   verifyWebhookSignature,
 } from "#shared/stripe/webhook.ts";
+import { says } from "#test-utils/says.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 import { signedHeader, signedWebhook } from "#test-utils/stripe/fixtures.ts";
 import { describeStripe } from "#test-utils/stripe/harness.ts";
@@ -20,8 +20,8 @@ describeStripe("stripe", () => {
         error: "Webhook secret not configured",
         valid: false,
       });
-      assertStringIncludes(
-        errorSpy.calls[0]?.args[0] ?? "",
+      says(
+        errorSpy.calls[0]?.args[0],
         'E_CONFIG_MISSING detail="webhook secret"',
       );
     } finally {
@@ -43,10 +43,7 @@ describeStripe("stripe", () => {
           valid: false,
         });
         expect(errorSpy.calls).toHaveLength(1);
-        assertStringIncludes(
-          errorSpy.calls[0]!.args[0] ?? "",
-          `detail="invalid header: ${reason}"`,
-        );
+        says(errorSpy.calls[0]!.args[0], `detail="invalid header: ${reason}"`);
       } finally {
         errorSpy.restore();
       }
@@ -229,10 +226,7 @@ describeStripe("stripe", () => {
       try {
         await verifyWebhookSignature('{"test": true}', "v1=abc123");
         const callArg = errorSpy.calls[0]!.args[0] as string;
-        assertStringIncludes(
-          callArg,
-          'detail="invalid header: missing timestamp"',
-        );
+        says(callArg, 'detail="invalid header: missing timestamp"');
       } finally {
         errorSpy.restore();
       }
@@ -243,10 +237,7 @@ describeStripe("stripe", () => {
       try {
         await verifyWebhookSignature('{"test": true}', "t=1234");
         const callArg = errorSpy.calls[0]!.args[0] as string;
-        assertStringIncludes(
-          callArg,
-          'detail="invalid header: missing signature"',
-        );
+        says(callArg, 'detail="invalid header: missing signature"');
       } finally {
         errorSpy.restore();
       }
@@ -257,7 +248,7 @@ describeStripe("stripe", () => {
       try {
         await verifyWebhookSignature('{"test": true}', "invalid-header");
         const callArg = errorSpy.calls[0]!.args[0] as string;
-        assertStringIncludes(
+        says(
           callArg,
           'detail="invalid header: missing timestamp and signature"',
         );
@@ -279,8 +270,8 @@ describeStripe("stripe", () => {
           valid: false,
         });
         const callArg = errorSpy.calls[0]!.args[0] as string;
-        assertStringIncludes(callArg, "timestamp out of tolerance delta=");
-        assertStringIncludes(callArg, "tolerance=300s");
+        says(callArg, "timestamp out of tolerance delta=");
+        says(callArg, "tolerance=300s");
       } finally {
         errorSpy.restore();
       }
@@ -294,7 +285,7 @@ describeStripe("stripe", () => {
       try {
         await verifyWebhookSignature(payload, header);
         const callArg = errorSpy.calls[0]!.args[0] as string;
-        assertStringIncludes(callArg, 'detail="invalid JSON:');
+        says(callArg, 'detail="invalid JSON:');
       } finally {
         errorSpy.restore();
       }
@@ -312,8 +303,8 @@ describeStripe("stripe", () => {
           error: "Signature verification failed",
           valid: false,
         });
-        assertStringIncludes(
-          errorSpy.calls[0]?.args[0] ?? "",
+        says(
+          errorSpy.calls[0]?.args[0],
           'E_STRIPE_SIGNATURE detail="mismatch"',
         );
       } finally {

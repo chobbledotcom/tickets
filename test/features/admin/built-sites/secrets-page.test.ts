@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
@@ -8,6 +8,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 /** Build a Bunny secret-list entry (name + metadata; the API never returns values). */
@@ -59,14 +60,11 @@ describeWithEnv(
         BUNNY_API_KEY: "k",
         NTFY_URL: "https://ntfy.example.com/t",
       });
-      assertStringIncludes(html, "<code>BOTPOISON_PUBLIC_KEY</code>");
-      assertStringIncludes(html, "<code>BOTPOISON_SECRET_KEY</code>");
-      assertStringIncludes(html, `/admin/built-sites/${site.id}/add-secrets`);
+      says(html, "<code>BOTPOISON_PUBLIC_KEY</code>");
+      says(html, "<code>BOTPOISON_SECRET_KEY</code>");
+      says(html, `/admin/built-sites/${site.id}/add-secrets`);
       // The secret key's value never reaches the page.
-      assert(
-        !html.includes("sk_host_7c2e"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("sk_host_7c2e"));
     });
 
     test("leaves the Botpoison keys out when the host does not have them", async () => {
@@ -88,15 +86,9 @@ describeWithEnv(
         NTFY_URL: "https://ntfy.example.com/t",
       });
       // An unset key sits out exactly like every other unset secret.
-      assertStringIncludes(html, "<code>NTFY_URL</code>");
-      assert(
-        !html.includes("BOTPOISON_PUBLIC_KEY"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("BOTPOISON_SECRET_KEY"),
-        "the value should not contain the searched item",
-      );
+      says(html, "<code>NTFY_URL</code>");
+      assert(!html.includes("BOTPOISON_PUBLIC_KEY"));
+      assert(!html.includes("BOTPOISON_SECRET_KEY"));
     });
   },
 );

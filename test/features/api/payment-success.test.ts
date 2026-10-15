@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handlePaymentSuccess } from "#routes/api/payment-success.ts";
@@ -8,6 +7,7 @@ import {
   stubSessionRetrieval,
 } from "#test-utils/payment-session.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 import { getTestSession, requestAsSession } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -37,12 +37,12 @@ describeWithEnv("the payment success redirect route", { db: true }, () => {
 
     expect(response.status).toBe(200);
     const page = await response.text();
-    assertStringIncludes(page, "We have not received your payment yet");
-    assertStringIncludes(page, "Staff diagnostics");
-    assertStringIncludes(page, "cs_route_unpaid");
+    says(page, "We have not received your payment yet");
+    says(page, "Staff diagnostics");
+    says(page, "cs_route_unpaid");
     // The row markup (label, then value) cannot pass because the session id
     // carries the word, so this reads the status itself, not the id.
-    assertStringIncludes(page, "Payment status</strong> unpaid");
+    says(page, "Payment status</strong> unpaid");
   });
 
   test("names the callback's facts to an owner when nothing readable arrived", async () => {
@@ -55,7 +55,7 @@ describeWithEnv("the payment success redirect route", { db: true }, () => {
     );
 
     const page = await response.text();
-    assertStringIncludes(page, "Invalid payment callback");
-    assertStringIncludes(page, "Staff diagnostics");
+    says(page, "Invalid payment callback");
+    says(page, "Staff diagnostics");
   });
 });

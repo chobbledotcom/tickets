@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -18,6 +18,7 @@ import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { chargeMoney, foundCharge } from "#test-utils/payment-state.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   stubRefundPayment,
@@ -65,11 +66,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       );
       expect(second.status).toBe(200);
       const html = await second.text();
-      assertStringIncludes(html, "saved your details");
-      assert(
-        !html.includes("being processed"),
-        "the value should not contain the searched item",
-      );
+      says(html, "saved your details");
+      assert(!html.includes("being processed"));
       expect(await countRemaining()).toBe(1);
       expect(mockRefund.calls.length).toBe(1);
     };
@@ -110,13 +108,10 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           expect(second.status).toBe(410);
           const html = await second.text();
-          assertStringIncludes(html, "no longer accepting registrations");
-          assertStringIncludes(html, "refunded");
+          says(html, "no longer accepting registrations");
+          says(html, "refunded");
           // The retry never shows the transient lock message...
-          assert(
-            !html.includes("being processed"),
-            "the value should not contain the searched item",
-          );
+          assert(!html.includes("being processed"));
           // ...and never issues a second refund.
           expect(mockRefund.calls.length).toBe(1);
         },
@@ -215,7 +210,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             mockRequest("/payment/success?session_id=cs_refund_failed"),
           );
           expect(mockRefund.calls.length).toBe(1);
-          assertStringIncludes(await response.text(), "contact support");
+          says(await response.text(), "contact support");
           // The callback reservation is released, while the one durable charge
           // authority preserves the provider's rejection for its owner.
           expect(await getProcessedPayment("cs_refund_failed")).toBeNull();
@@ -236,7 +231,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           const retry = await handleRequest(
             mockRequest("/payment/success?session_id=cs_refund_failed"),
           );
-          assertStringIncludes(await retry.text(), "contact support");
+          says(await retry.text(), "contact support");
           expect(mockRefund.calls.length).toBe(1);
         },
       );

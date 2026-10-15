@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -21,6 +21,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv(
   "server (public order) — selection and live availability",
@@ -42,10 +43,10 @@ describeWithEnv(
         const a = await createTestListing({ name: "Alpha" });
         const b = await createTestListing({ name: "Bravo" });
         const location = expectRedirect(await selectOrder([a.id, b.id]));
-        assertStringIncludes(location, a.slug);
-        assertStringIncludes(location, b.slug);
-        assertStringIncludes(location, `q_${a.id}=1`);
-        assertStringIncludes(location, `q_${b.id}=1`);
+        says(location, a.slug);
+        says(location, b.slug);
+        says(location, `q_${a.id}=1`);
+        says(location, `q_${b.id}=1`);
       });
 
       test("pre-fills a minimum-quantity listing at its minimum, not one", async () => {
@@ -88,12 +89,9 @@ describeWithEnv(
         await createTestAttendee(sold.id, sold.slug, "Buyer", "b@example.com");
 
         const location = expectRedirect(await selectOrder([open.id, sold.id]));
-        assertStringIncludes(location, sold.slug);
-        assertStringIncludes(location, `q_${open.id}=1`);
-        assert(
-          !location.includes(`q_${sold.id}=1`),
-          "the value should not contain the searched item",
-        );
+        says(location, sold.slug);
+        says(location, `q_${open.id}=1`);
+        assert(!location.includes(`q_${sold.id}=1`));
       });
 
       test("redirects with no pre-fill when every pick is sold out", async () => {

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -24,6 +23,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 /** A whole-order 10% discount unlocked by `code`, so the page offers the
@@ -143,8 +143,8 @@ describeWithEnv(
           }),
         )
       ).text();
-      assertStringIncludes(quoteHtml, "Summer25");
-      assertStringIncludes(quoteHtml, formatCurrency(900));
+      says(quoteHtml, "Summer25");
+      says(quoteHtml, formatCurrency(900));
 
       // And a paid submit carries the matched promo into the checkout intent.
       const { checkout, getCaptured } = stubCheckout("cs_promo_prefill");

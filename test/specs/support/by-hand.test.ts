@@ -1,10 +1,12 @@
 // jscpd:ignore-start
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   csvDateColumn,
   csvEvidencePage,
 } from "#test/specs/support/evidence.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -50,9 +52,7 @@ describe("csvDateColumn", () => {
     const path = csvEvidencePage("Retreat & <stay>", "Date & time");
 
     expect(path.startsWith("data:text/html,")).toBe(true);
-    expect(previewHtml(path)).toContain(
-      "Retreat &amp; &lt;stay&gt; attendee CSV",
-    );
-    expect(previewHtml(path)).toContain("Date &amp; time");
+    says(previewHtml(path), "Retreat &amp; &lt;stay&gt; attendee CSV");
+    says(previewHtml(path), "Date &amp; time");
   });
 });

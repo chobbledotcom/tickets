@@ -5,7 +5,6 @@
  */
 
 // jscpd:ignore-start
-import { expect } from "@std/expect";
 import { getAllAttributesWithOptions } from "#db/attributes.ts";
 import {
   openAdminPage,
@@ -23,6 +22,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -49,7 +49,7 @@ export const ownerKeepsDetail = (
       await fillInAndSend(browser, { text: wording }, "Add option");
     }
     for (const wording of wordings) {
-      expect(browser.pageText).toContain(wording);
+      says(browser.pageText, wording);
     }
   });
 

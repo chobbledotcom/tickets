@@ -2,7 +2,7 @@
 // hide_package_listings, package_members, and day_prices. Split from
 // api-groups.test.ts so each file stays under the ~400-line target.
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";
@@ -18,6 +18,7 @@ import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
@@ -63,10 +64,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
             quantity: 1,
           },
         ]);
-        assert(
-          !Object.keys(body.group).includes("slug_index"),
-          "the value should not contain the searched item",
-        );
+        assert(!Object.keys(body.group).includes("slug_index"));
       },
     );
   });
@@ -83,7 +81,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
         putGroup(group.id, { is_package: true, package_members: [member] }),
         400,
         (body) => {
-          assertStringIncludes(body.error, errorSubstring);
+          says(body.error, errorSubstring);
         },
       );
     }
@@ -103,7 +101,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
       }),
       400,
       (body) => {
-        assertStringIncludes(body.error, "cannot be set on create");
+        says(body.error, "cannot be set on create");
       },
     );
   });
@@ -353,7 +351,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
       }),
       400,
       (body) => {
-        assertStringIncludes(body.error, "package_members");
+        says(body.error, "package_members");
       },
     );
     // The existing override survives the rejected request.
@@ -372,7 +370,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
       }),
       400,
       (body) => {
-        assertStringIncludes(body.error, "Packages cannot contain");
+        says(body.error, "Packages cannot contain");
       },
     );
   });

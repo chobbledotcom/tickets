@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ExistingLine } from "#db/attendees/atomic-update.ts";
@@ -19,6 +19,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
+import { has, says } from "#test-utils/says.ts";
 
 describeWithEnv("server (admin refund UI)", { db: true }, () => {
   describe("listing page UI", () => {
@@ -198,7 +199,7 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
         null,
       );
 
-      assertStringIncludes(dailyData.topWarnings[0] ?? "", daily.name);
+      says(dailyData.topWarnings[0], daily.name);
       expect(standardData.topWarnings).toEqual([]);
     });
 
@@ -262,7 +263,7 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
 
       expect(nextDateData.topWarnings).toEqual([]);
       expect(noDateData.topWarnings).toEqual([]);
-      assertStringIncludes(spanData.topWarnings[0] ?? "", spanDaily.name);
+      says(spanData.topWarnings[0], spanDaily.name);
     });
 
     test("renders active listings plus inactive listings the attendee already books", async () => {
@@ -281,12 +282,9 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
         (listing) => listing.name,
       );
 
-      assertArrayIncludes(names, [active.name]);
-      assertArrayIncludes(names, [inactiveBooked.name]);
-      assert(
-        !names.includes(inactiveUnbooked.name),
-        "the value should not contain the searched item",
-      );
+      has(names, active.name);
+      has(names, inactiveBooked.name);
+      assert(!names.includes(inactiveUnbooked.name));
     });
   });
 });

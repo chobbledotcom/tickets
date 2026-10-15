@@ -1,4 +1,3 @@
-import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -14,12 +13,12 @@ import {
   updateSitePage,
 } from "#db/site-pages.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
-
 import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { has, saysNot } from "#test-utils/says.ts";
 import type { SitePage } from "#types";
 
 const makePage = async (
@@ -52,8 +51,9 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       ]);
       // At rest, everything is ciphertext (enc:… envelope), not plaintext.
       expectEncryptedAtRest(raw[0]?.name, raw[0]?.slug, raw[0]?.content);
-      assert(
-        raw[0]?.name?.includes("Name about") === false,
+      saysNot(
+        raw[0]?.name,
+        "Name about",
         "the value should not contain the searched item",
       );
 
@@ -116,7 +116,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
           name: "Fresh",
         });
         const slugs = (await sitePages.getAll()).map((r) => r.slug);
-        assertArrayIncludes(slugs ?? [], ["fresh-cache"]);
+        has(slugs, "fresh-cache");
         // The returned row is built from the input (no post-commit read-back),
         // and matches what a fresh read decrypts.
         expect(created.meta_title).toBe("Meta");
@@ -202,9 +202,9 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     });
 
     test("cache stats identify the site pages cache by name", () => {
-      assertArrayIncludes(
+      has(
         getAllCacheStats().map((stat) => stat.name),
-        ["site_pages_nav"],
+        "site_pages_nav",
       );
     });
   });

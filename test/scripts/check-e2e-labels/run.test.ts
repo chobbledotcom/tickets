@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { readCatalog, runLabelCheck } from "#scripts/check-e2e-labels/run.ts";
 import { capturedCheckOutput } from "#test-utils/check-script.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Write a file under a temp dir and return its path. */
 const tempFile = async (
@@ -124,7 +125,7 @@ describe("e2e label check run", () => {
       await expect(
         runLabelCheck(`${root}/no-locales`, `${root}/scan`, output),
       ).resolves.toBe(1);
-      expect(output.lines.join("\n")).toContain("Cannot read the message");
+      says(output.lines.join("\n"), "Cannot read the message");
     } finally {
       await Deno.remove(root, { recursive: true });
     }

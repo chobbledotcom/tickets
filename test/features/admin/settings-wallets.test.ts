@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -15,6 +14,7 @@ import {
   setGoogleWalletEnvVars,
 } from "#test-utils/google-wallet.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { loginAsAdmin } from "#test-utils/session.ts";
 
 describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
@@ -152,12 +152,12 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       cookie,
     });
     const body = await response.text();
-    assertStringIncludes(body, "Google Wallet");
-    assertStringIncludes(body, "google_wallet_issuer_id");
-    assertStringIncludes(body, "1234567890");
-    assertStringIncludes(body, "test@test-project.iam.gserviceaccount.com");
+    says(body, "Google Wallet");
+    says(body, "google_wallet_issuer_id");
+    says(body, "1234567890");
+    says(body, "test@test-project.iam.gserviceaccount.com");
     // Secret is masked
-    assertStringIncludes(body, "••••••••");
+    says(body, "••••••••");
   });
 });
 

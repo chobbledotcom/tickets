@@ -1,7 +1,8 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { testAttendee } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import {
   ALLOWED_DOMAIN,
   attendeeTableSuite,
@@ -15,14 +16,14 @@ attendeeTableSuite(() => {
   describe("always-visible columns", () => {
     test("renders check-in button column", () => {
       const html = render(makeOpts());
-      assertStringIncludes(html, "Check in");
-      assertStringIncludes(html, "/checkin");
+      says(html, "Check in");
+      says(html, "/checkin");
     });
 
     test("renders Name column", () => {
       const html = render(makeOpts());
-      assertStringIncludes(html, "<th>Name</th>");
-      assertStringIncludes(html, "John Doe");
+      says(html, "<th>Name</th>");
+      says(html, "John Doe");
     });
 
     test("links Name to the edit attendee page", () => {
@@ -31,51 +32,33 @@ attendeeTableSuite(() => {
           rows: [makeRow({ attendee: testAttendee({ id: 7, name: "Jane" }) })],
         }),
       );
-      assertStringIncludes(html, '<a href="/admin/attendees/7">Jane</a>');
+      says(html, '<a href="/admin/attendees/7">Jane</a>');
     });
 
     test("renders Qty column", () => {
-      assertStringIncludes(
-        render(makeOpts()),
-        '<th class="col-quantity">Qty</th>',
-      );
+      says(render(makeOpts()), '<th class="col-quantity">Qty</th>');
     });
 
     test("renders Ticket column with link", () => {
       const html = render(makeOpts());
-      assertStringIncludes(html, "<th>Ticket</th>");
-      assertStringIncludes(
+      says(html, "<th>Ticket</th>");
+      says(
         html,
         `<a href="https://${ALLOWED_DOMAIN}/t/test-token-1">test-token-1</a>`,
       );
     });
 
     test("renders Registered column", () => {
-      assertStringIncludes(render(makeOpts()), "<th>Registered</th>");
+      says(render(makeOpts()), "<th>Registered</th>");
     });
 
     test("does not render the moved Actions column", () => {
       const html = render(makeOpts());
-      assert(
-        !html.includes("<th>Actions</th>"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes(">Edit<"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes(">Delete<"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("Re-send Notification"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("/refund"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("<th>Actions</th>"));
+      assert(!html.includes(">Edit<"));
+      assert(!html.includes(">Delete<"));
+      assert(!html.includes("Re-send Notification"));
+      assert(!html.includes("/refund"));
     });
   });
 
@@ -113,14 +96,8 @@ attendeeTableSuite(() => {
   describe("Listings column", () => {
     test("is hidden when showListing is false", () => {
       const html = render(makeOpts({ showListing: false }));
-      assert(
-        !html.includes("<th>Listings</th>"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("listings-cell"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("<th>Listings</th>"));
+      assert(!html.includes("listings-cell"));
     });
 
     test("links the listing when showListing is true", () => {
@@ -130,8 +107,8 @@ attendeeTableSuite(() => {
           showListing: true,
         }),
       );
-      assertStringIncludes(html, "<th>Listings</th>");
-      assertStringIncludes(html, '<a href="/admin/listing/42">Test Gala</a>');
+      says(html, "<th>Listings</th>");
+      says(html, '<a href="/admin/listing/42">Test Gala</a>');
     });
 
     const groupedRowHtml = (): string =>
@@ -150,7 +127,7 @@ attendeeTableSuite(() => {
       );
 
     test("links grouped listings in row order", () => {
-      assertStringIncludes(
+      says(
         groupedRowHtml(),
         '<a href="/admin/listing/5">Spring Fair</a>, ' +
           '<a href="/admin/listing/3">Autumn Ball</a>',
@@ -158,7 +135,7 @@ attendeeTableSuite(() => {
     });
 
     test("puts the complete grouped listing names in the title", () => {
-      assertStringIncludes(
+      says(
         groupedRowHtml(),
         '<span class="listings-cell" title="Spring Fair, Autumn Ball">',
       );
@@ -175,14 +152,8 @@ attendeeTableSuite(() => {
           showListing: true,
         }),
       );
-      assertStringIncludes(
-        html,
-        'title="A &lt;b&gt;&quot;wild&quot;&lt;/b&gt; &amp; odd one"',
-      );
-      assert(
-        !html.includes("<b>"),
-        "the value should not contain the searched item",
-      );
+      says(html, 'title="A &lt;b&gt;&quot;wild&quot;&lt;/b&gt; &amp; odd one"');
+      assert(!html.includes("<b>"));
     });
   });
 
@@ -201,30 +172,23 @@ attendeeTableSuite(() => {
           !render(makeOpts({ rows: [makeRow({ attendee })] })).includes(
             `<th>${heading}</th>`,
           ),
-          "the value should not contain the searched item",
         );
       });
 
       test(`shows ${heading} when a value is present`, () => {
         const attendee = testAttendee({ [field]: value });
         const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
-        assertStringIncludes(html, `<th>${heading}</th>`);
-        assertStringIncludes(html, value);
+        says(html, `<th>${heading}</th>`);
+        says(html, value);
       });
     }
 
     test("hides Date when showDate is false", () => {
-      assert(
-        !render(makeOpts({ showDate: false })).includes("<th>Date</th>"),
-        "the value should not contain the searched item",
-      );
+      assert(!render(makeOpts({ showDate: false })).includes("<th>Date</th>"));
     });
 
     test("shows Date when showDate is true", () => {
-      assertStringIncludes(
-        render(makeOpts({ showDate: true })),
-        "<th>Date</th>",
-      );
+      says(render(makeOpts({ showDate: true })), "<th>Date</th>");
     });
 
     test("renders phone as a normalized tel link", () => {
@@ -232,8 +196,8 @@ attendeeTableSuite(() => {
       const html = render(
         makeOpts({ phonePrefix: "44", rows: [makeRow({ attendee })] }),
       );
-      assertStringIncludes(html, 'href="tel:+447700900000"');
-      assertStringIncludes(html, ">07700 900000</a>");
+      says(html, 'href="tel:+447700900000"');
+      says(html, ">07700 900000</a>");
     });
 
     test("uses the supplied phone prefix", () => {
@@ -241,12 +205,12 @@ attendeeTableSuite(() => {
       const html = render(
         makeOpts({ phonePrefix: "1", rows: [makeRow({ attendee })] }),
       );
-      assertStringIncludes(html, 'href="tel:+12345678900"');
+      says(html, 'href="tel:+12345678900"');
     });
 
     test("defaults the phone prefix to 44", () => {
       const attendee = testAttendee({ phone: "07700 900000" });
-      assertStringIncludes(
+      says(
         render(makeOpts({ rows: [makeRow({ attendee })] })),
         'href="tel:+447700900000"',
       );
@@ -265,9 +229,9 @@ attendeeTableSuite(() => {
     ] as const) {
       test(`renders a blank ${heading} cell beside a filled one`, () => {
         const html = render(makeOpts({ rows: mixedRows(field) }));
-        assertStringIncludes(html, `<th>${heading}</th>`);
-        assertStringIncludes(html, "Filled in");
-        assertStringIncludes(html, "<td></td>");
+        says(html, `<th>${heading}</th>`);
+        says(html, "Filled in");
+        says(html, "<td></td>");
       });
     }
 
@@ -276,11 +240,8 @@ attendeeTableSuite(() => {
         special_instructions: "Line 1\nLine 2",
       });
       const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
-      assertStringIncludes(html, "Line 1 Line 2");
-      assert(
-        !html.includes("Line 1, Line 2"),
-        "the value should not contain the searched item",
-      );
+      says(html, "Line 1 Line 2");
+      assert(!html.includes("Line 1, Line 2"));
     });
   });
 });

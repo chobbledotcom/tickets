@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
@@ -6,6 +5,7 @@ import {
   BookingIntentSchema,
   type BookingItem,
 } from "#shared/booking-intent.ts";
+import { has } from "#test-utils/says.ts";
 
 /** A minimal booking line that satisfies every schema rule; spread and override
  * one field per case to probe a single boundary in isolation. Every line is
@@ -56,9 +56,10 @@ describe("booking line validation", () => {
       oneLineBooking({ ...validItem, k: "p" }),
     );
     expect(result.success).toBe(false);
-    assertArrayIncludes(result.issues?.map((issue) => issue.message) ?? [], [
+    has(
+      result.issues?.map((issue) => issue.message),
       "edge tag k and r must both be present or both absent",
-    ]);
+    );
   });
 
   test("the listing id (e) must be a positive integer", () => {

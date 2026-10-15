@@ -21,6 +21,7 @@ import {
   keepWhatTheyWereTold,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -67,7 +68,7 @@ Given(
 Then(
   "the organiser is told the holiday was created",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("Holiday created");
+    says(ownerLastTold(this), "Holiday created");
   },
 );
 
@@ -101,7 +102,7 @@ When(
 Then(
   "the organiser is told the holiday was deleted",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("Holiday deleted");
+    says(ownerLastTold(this), "Holiday deleted");
   },
 );
 

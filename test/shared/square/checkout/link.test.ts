@@ -1,4 +1,3 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decrypt } from "#crypto/encryption.ts";
@@ -14,6 +13,7 @@ import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { testListing } from "#test-utils/factories.ts";
+import { saysNot } from "#test-utils/says.ts";
 import {
   configureSquare,
   expectNoLink,
@@ -238,8 +238,9 @@ describeSquare(() => {
           // own clock decides here: 2026-09-29T12:00:00Z plus one hour.
           expect(row?.link_ends_at).toBe("2026-09-29T13:00:00.000Z");
           expect(row?.next_attempt_at).toBe("2026-09-29T13:00:00.000Z");
-          assert(
-            row?.sealed_handle?.includes("link_order_stage") === false,
+          saysNot(
+            row?.sealed_handle,
+            "link_order_stage",
             "the value should not contain the searched item",
           );
           expect(await decrypt(row?.sealed_handle as EnvKeyEncrypted)).toBe(

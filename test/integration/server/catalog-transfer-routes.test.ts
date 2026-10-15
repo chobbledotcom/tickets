@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -15,6 +14,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockMultipartRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, getTestSession } from "#test-utils/session.ts";
 
 /** POST a JSON blob to the import endpoint as an uploaded file. */
@@ -46,12 +46,9 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
         `/admin/listing/${listing.id}/export.json`,
       );
       expect(response.status).toBe(200);
-      assertStringIncludes(
-        response.headers.get("content-type") ?? "",
-        "application/json",
-      );
-      assertStringIncludes(
-        response.headers.get("content-disposition") ?? "",
+      says(response.headers.get("content-type"), "application/json");
+      says(
+        response.headers.get("content-disposition"),
         'attachment; filename="listing-exportable.json"',
       );
       const blob = await response.json();
@@ -75,8 +72,8 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       const response = await adminGet(
         `/admin/listing/${listing.id}/export.json`,
       );
-      assertStringIncludes(
-        response.headers.get("content-disposition") ?? "",
+      says(
+        response.headers.get("content-disposition"),
         'filename="listing-listing.json"',
       );
     });
@@ -99,7 +96,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
         `/admin/listing/${listing.id}/export.json`,
       );
       expect(response.status).toBe(422);
-      assertStringIncludes(await response.text(), "can't be exported");
+      says(await response.text(), "can't be exported");
     });
 
     test("returns 422 when a group row holds an unexportable value", async () => {
@@ -111,7 +108,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       ]);
       const response = await adminGet(`/admin/groups/${group.id}/export.json`);
       expect(response.status).toBe(422);
-      assertStringIncludes(await response.text(), "can't be exported");
+      says(await response.text(), "can't be exported");
     });
   });
 
@@ -122,8 +119,8 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       const response = await adminGet("/admin/catalog/import");
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, "Import a listing or group");
-      assertStringIncludes(html, 'name="catalog_file"');
+      says(html, "Import a listing or group");
+      says(html, 'name="catalog_file"');
     });
   });
 
@@ -243,8 +240,8 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
         version: 1,
       });
       const location = response.headers.get("location") ?? "";
-      assertStringIncludes(location, "/admin/catalog/import");
-      assertStringIncludes(location, "flash=");
+      says(location, "/admin/catalog/import");
+      says(location, "flash=");
     });
   });
 });

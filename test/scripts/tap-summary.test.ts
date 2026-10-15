@@ -6,6 +6,7 @@ import {
   printCompactSummary,
 } from "#scripts/tap-summary.ts";
 import { capturingConsole } from "#test-utils/captured-console.ts";
+import { has } from "#test-utils/says.ts";
 
 const summary = (over: Partial<CompactTapSummary> = {}): CompactTapSummary => ({
   droppedLines: [],
@@ -234,7 +235,7 @@ describe("printing the run summary", () => {
   test("states the exit code when no test failed and the run errored", async () => {
     const { errors } = await printed(summary(), 1, "");
 
-    expect(errors).toContain("deno exited with code 1");
+    has(errors, "deno exited with code 1");
   });
 
   test("states the signal that killed the child", async () => {
@@ -244,7 +245,7 @@ describe("printing the run summary", () => {
       "",
     );
 
-    expect(errors).toContain("deno exited with code 137, killed by SIGKILL");
+    has(errors, "deno exited with code 137, killed by SIGKILL");
   });
 
   test("names the files deno's JUnit report holds uncaught errors for", async () => {
@@ -255,11 +256,12 @@ describe("printing the run summary", () => {
       ["./.test-groups/group-23.test.ts", "./.test-groups/group-40.test.ts"],
     );
 
-    expect(errors).toContain(
+    has(
+      errors,
       "\ndeno's JUnit report marks these files with uncaught errors:",
     );
-    expect(errors).toContain("  ./.test-groups/group-23.test.ts");
-    expect(errors).toContain("  ./.test-groups/group-40.test.ts");
+    has(errors, "  ./.test-groups/group-23.test.ts");
+    has(errors, "  ./.test-groups/group-40.test.ts");
   });
 
   test("shows the stdout lines the TAP stream carried beside the results", async () => {
@@ -269,10 +271,8 @@ describe("printing the run summary", () => {
       "",
     );
 
-    expect(errors).toContain(
-      "\nStdout lines deno printed beside the TAP results:",
-    );
-    expect(errors).toContain("error: Uncaught TypeError: boom");
+    has(errors, "\nStdout lines deno printed beside the TAP results:");
+    has(errors, "error: Uncaught TypeError: boom");
   });
 
   test("shows those lines beside counted test failures too", async () => {
@@ -296,10 +296,8 @@ describe("printing the run summary", () => {
       "",
     );
 
-    expect(errors).toContain(
-      "\nStdout lines deno printed beside the TAP results:",
-    );
-    expect(errors).toContain("error: Uncaught TypeError: boom");
+    has(errors, "\nStdout lines deno printed beside the TAP results:");
+    has(errors, "error: Uncaught TypeError: boom");
   });
 });
 

@@ -3,7 +3,7 @@
  * provider-less owed booking, the no-provider quote messages, the quote's
  * CSRF rejection, the site-menu gate, and the one-listing group page. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
@@ -31,6 +31,7 @@ import {
 import { awaitTestRequest, useFetchStub } from "#test-utils/mocks.ts";
 import { setupAnswerTier } from "#test-utils/modifiers.ts";
 import { setPublicReservation } from "#test-utils/reservation/helpers.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** Select Square as the payment provider without giving it credentials, so
@@ -209,11 +210,8 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
         (await getAttendeeBalanceState(attendee!.id))?.remainingBalance,
       ).toBe(1000);
       const svg = expectSingleTicketSvg(fetch.getFetchJsonBody());
-      assert(
-        !svg.includes("Price:"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(svg, "Qty: 1");
+      assert(!svg.includes("Price:"));
+      says(svg, "Qty: 1");
     });
   });
 
@@ -238,8 +236,8 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
 
       expect(response.status).toBe(302);
       const body = fetch.getFetchJsonBody();
-      assertStringIncludes(body.text, "Choose one: Chosen");
-      assertStringIncludes(body.text, "Anything else?: Arriving late");
+      says(body.text, "Choose one: Chosen");
+      says(body.text, "Anything else?: Arriving late");
     });
   });
 
@@ -275,16 +273,13 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
         [`quantity_${listing.id}`]: "1",
       });
 
-      assertStringIncludes(
+      says(
         html,
         `No online payment is needed now — you'll owe ${formatCurrency(
           1000,
         )} for this booking.`,
       );
-      assert(
-        !html.includes("No payment required"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("No payment required"));
     });
 
     test("tells the buyer a free order needs no payment", async () => {
@@ -294,11 +289,8 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
         [`quantity_${listing.id}`]: "1",
       });
 
-      assertStringIncludes(html, "No payment required for this booking.");
-      assert(
-        !html.includes("you'll owe"),
-        "the value should not contain the searched item",
-      );
+      says(html, "No payment required for this booking.");
+      assert(!html.includes("you'll owe"));
     });
 
     test("tells the buyer they owe a one-penny order", async () => {
@@ -311,10 +303,7 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
         [`quantity_${listing.id}`]: "1",
       });
 
-      assertStringIncludes(
-        html,
-        `you'll owe ${formatCurrency(1)} for this booking.`,
-      );
+      says(html, `you'll owe ${formatCurrency(1)} for this booking.`);
     });
 
     test("rejects a quote without a CSRF token as 403", async () => {
@@ -341,11 +330,8 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
         [`quantity_${listing.id}`]: "1",
       });
 
-      assertStringIncludes(html, "No payment required for this booking.");
-      assert(
-        !html.includes("no longer available"),
-        "the value should not contain the searched item",
-      );
+      says(html, "No payment required for this booking.");
+      assert(!html.includes("no longer available"));
     });
   });
 
@@ -364,10 +350,7 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       const listing = await createTestListing({ maxAttendees: 50 });
 
       const html = await assertPublicHtml(`/ticket/${listing.slug}`);
-      assert(
-        !html.includes('aria-label="Site menu"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('aria-label="Site menu"'));
     });
   });
 

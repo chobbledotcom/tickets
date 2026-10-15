@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -9,6 +8,7 @@ import {
 import { modifiersTable } from "#db/modifiers.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("db > modifier-usage", { db: true }, () => {
   test("modifierUsedQuantities returns an empty map for no ids", async () => {
@@ -67,8 +67,8 @@ describe("allModifiersInStockCondition", () => {
     expect(statement.args).toEqual([7, 2, 11, 3]);
     expect(statement.sql.match(/\?1/gu)).toHaveLength(3);
     expect(statement.sql.match(/\?3/gu)).toHaveLength(3);
-    assertStringIncludes(statement.sql, ">= ?2");
-    assertStringIncludes(statement.sql, ">= ?4");
-    assertStringIncludes(statement.sql, ") AND (");
+    says(statement.sql, ">= ?2");
+    says(statement.sql, ">= ?4");
+    says(statement.sql, ") AND (");
   });
 });

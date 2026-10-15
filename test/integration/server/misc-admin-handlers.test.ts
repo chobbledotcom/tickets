@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ActionHandlerConfig } from "#routes/admin/actions.ts";
@@ -11,6 +10,7 @@ import {
   mockMultipartRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
@@ -105,10 +105,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
-        "/admin/test-owner",
-      );
+      says(response.headers.get("location"), "/admin/test-owner");
     });
 
     test("createActionHandler with multipart body and any auth redirects on success", async () => {
@@ -133,10 +130,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
-        "/admin/test-multipart",
-      );
+      says(response.headers.get("location"), "/admin/test-multipart");
     });
 
     test("createActionHandler with multipart body and owner auth redirects on success", async () => {
@@ -161,10 +155,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
-        "/admin/test-owner-multipart",
-      );
+      says(response.headers.get("location"), "/admin/test-owner-multipart");
     });
 
     test("createActionHandler redacts string secret from activity log", async () => {
@@ -297,10 +288,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expect(response.headers.get("content-type")).toBe(
         "text/csv; charset=utf-8",
       );
-      assertStringIncludes(
-        response.headers.get("content-disposition") ?? "",
-        'filename="test.csv"',
-      );
+      says(response.headers.get("content-disposition"), 'filename="test.csv"');
       const body = await response.text();
       expect(body).toBe("name,email\nJohn,john@test.com");
     });

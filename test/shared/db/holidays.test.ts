@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getActiveHolidays, holidays } from "#db/holidays.ts";
@@ -6,6 +5,7 @@ import { settings } from "#db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
+import { has } from "#test-utils/says.ts";
 
 describeWithEnv("db > holidays", { db: true }, () => {
   test("keeps only holidays that have not finished", async () => {
@@ -28,9 +28,9 @@ describeWithEnv("db > holidays", { db: true }, () => {
     });
 
     const active = await getActiveHolidays();
-    assertArrayIncludes(
+    has(
       active.map((holiday) => holiday.name),
-      ["Final Day"],
+      "Final Day",
     );
   });
 

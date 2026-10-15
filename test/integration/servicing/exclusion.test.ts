@@ -34,6 +34,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has, hasNot, says, saysNot } from "#test-utils/says.ts";
 import { createServicingHold, renderAdminPage } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
@@ -73,8 +74,8 @@ describeWithEnv(
         sort: "newest",
       });
       const names = await decryptNames(page.rows);
-      expect(names).toContain(REAL_NAME);
-      expect(names).not.toContain(HOLD_NAME);
+      has(names, REAL_NAME);
+      hasNot(names, HOLD_NAME);
     });
 
     test("the dashboard 'newest attendees' feed excludes servicing", async () => {
@@ -86,9 +87,9 @@ describeWithEnv(
       );
       const newestRows = await getNewestAttendeesRaw(10);
       const ids = newestRows.map((a) => a.id);
-      expect(ids).toContain(newest.id);
+      has(ids, newest.id);
       const kinds = [...(await getAttendeeKindsByIds(ids)).values()];
-      expect(kinds).not.toContain(SERVICING_KIND);
+      hasNot(kinds, SERVICING_KIND);
     });
 
     test("bulk-email targets exclude servicing (all + per-listing)", async () => {
@@ -120,8 +121,8 @@ describeWithEnv(
       );
       const rows = body.trim().split("\n");
       expect(rows.length).toBe(2);
-      expect(body).toContain(REAL_NAME);
-      expect(body).not.toContain(HOLD_NAME);
+      says(body, REAL_NAME);
+      saysNot(body, HOLD_NAME);
     });
 
     test("refund-all and check-in counts exclude servicing (no real line ⇒ no action)", async () => {

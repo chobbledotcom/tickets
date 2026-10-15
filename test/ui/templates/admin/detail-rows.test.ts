@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -21,6 +21,7 @@ import {
   testQuestion,
   unselectedAnswerQuestionData,
 } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("detail-rows", () => {
   const answerSummaryRows = (
@@ -179,7 +180,7 @@ describe("detail-rows", () => {
         ],
       });
 
-      assertStringIncludes(
+      says(
         String(DetailTable({ rows })),
         "<th>&lt;strong&gt;Question?&lt;/strong&gt;</th><td>&lt;img src=&quot;x&quot;&gt; (1)</td>",
       );
@@ -208,8 +209,8 @@ describe("detail-rows", () => {
 
     test("includes attendees row with count, capacity, and remain", () => {
       const value = attendeesRowValue(5, 20);
-      assertStringIncludes(value, "5 / 20");
-      assertStringIncludes(value, "15 remain");
+      says(value, "5 / 20");
+      says(value, "15 remain");
     });
 
     test("uses a capacity of one", () => {
@@ -219,21 +220,15 @@ describe("detail-rows", () => {
     });
 
     test("shows danger-text when near capacity", () => {
-      assertStringIncludes(attendeesRowValue(19, 20), "danger-text");
+      says(attendeesRowValue(19, 20), "danger-text");
     });
 
     test("does not show danger-text when well below capacity", () => {
-      assert(
-        !attendeesRowValue(5, 20).includes("danger-text"),
-        "the value should not contain the searched item",
-      );
+      assert(!attendeesRowValue(5, 20).includes("danger-text"));
     });
 
     test("does not show danger-text when no capacity set", () => {
-      assert(
-        !attendeesRowValue(100, 0).includes("danger-text"),
-        "the value should not contain the searched item",
-      );
+      assert(!attendeesRowValue(100, 0).includes("danger-text"));
     });
 
     test("shows single checked-in row when no multi-quantity", () => {

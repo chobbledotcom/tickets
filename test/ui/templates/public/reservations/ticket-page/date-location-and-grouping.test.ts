@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
 import { settings } from "#db/settings.ts";
@@ -11,6 +11,7 @@ import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { testListingWithCount, testTokenEntry } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 import type { ListingWithCount } from "#types";
 
 describe("ticketPage listing date and location", () => {
@@ -36,17 +37,14 @@ describe("ticketPage listing date and location", () => {
       date: "2026-06-15T14:00:00.000Z",
     });
     const html = await renderTicket(listing);
-    assertStringIncludes(html, "<strong>Date:</strong>");
-    assertStringIncludes(html, "Monday 15 June 2026 at 15:00 GMT+1");
+    says(html, "<strong>Date:</strong>");
+    says(html, "Monday 15 June 2026 at 15:00 GMT+1");
   });
 
   test("does not show date on public ticket page when date is empty", async () => {
     const listing = testListingWithCount({ attendee_count: 0, date: "" });
     const html = await renderTicket(listing);
-    assert(
-      !html.includes("<strong>Date:</strong>"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<strong>Date:</strong>"));
   });
 
   test("shows location on public ticket page when listing has location", async () => {
@@ -55,17 +53,14 @@ describe("ticketPage listing date and location", () => {
       location: "Village Hall",
     });
     const html = await renderTicket(listing);
-    assertStringIncludes(html, "<strong>Location:</strong>");
-    assertStringIncludes(html, "Village Hall");
+    says(html, "<strong>Location:</strong>");
+    says(html, "Village Hall");
   });
 
   test("does not show location on public ticket page when location is empty", async () => {
     const listing = testListingWithCount({ attendee_count: 0, location: "" });
     const html = await renderTicket(listing);
-    assert(
-      !html.includes("<strong>Location:</strong>"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<strong>Location:</strong>"));
   });
 
   test("hides date and location in iframe mode", async () => {
@@ -75,14 +70,8 @@ describe("ticketPage listing date and location", () => {
       location: "Village Hall",
     });
     const html = await renderTicket(listing, { iframe: true });
-    assert(
-      !html.includes("<strong>Date:</strong>"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("<strong>Location:</strong>"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<strong>Date:</strong>"));
+    assert(!html.includes("<strong>Location:</strong>"));
   });
 
   test("shows past listing badge for listing with date in the past", async () => {
@@ -91,8 +80,8 @@ describe("ticketPage listing date and location", () => {
       date: "2020-01-15T14:00:00.000Z",
     });
     const html = await renderTicket(listing);
-    assertStringIncludes(html, "badge-alert");
-    assertStringIncludes(html, "ago");
+    says(html, "badge-alert");
+    says(html, "ago");
   });
 
   test("does not show past listing badge for future listing", async () => {
@@ -101,19 +90,13 @@ describe("ticketPage listing date and location", () => {
       date: "2099-06-15T14:00:00.000Z",
     });
     const html = await renderTicket(listing);
-    assert(
-      !html.includes("badge-alert"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("badge-alert"));
   });
 
   test("does not show past listing badge when date is empty", async () => {
     const listing = testListingWithCount({ attendee_count: 0, date: "" });
     const html = await renderTicket(listing);
-    assert(
-      !html.includes("badge-alert"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("badge-alert"));
   });
 
   test("past listing badge shows singular day for 1 day ago", async () => {
@@ -123,11 +106,8 @@ describe("ticketPage listing date and location", () => {
       date: `${yesterday}T12:00:00.000Z`,
     });
     const html = await renderTicket(listing);
-    assertStringIncludes(html, "1 day ago");
-    assert(
-      !html.includes("(1 day ago)"),
-      "the value should not contain the searched item",
-    );
+    says(html, "1 day ago");
+    assert(!html.includes("(1 day ago)"));
   });
 
   test("past listing badge shows plural days for multiple days ago", async () => {
@@ -137,11 +117,8 @@ describe("ticketPage listing date and location", () => {
       date: `${threeDaysAgo}T12:00:00.000Z`,
     });
     const html = await renderTicket(listing);
-    assertStringIncludes(html, "3 days ago");
-    assert(
-      !html.includes("(3 days ago)"),
-      "the value should not contain the searched item",
-    );
+    says(html, "3 days ago");
+    assert(!html.includes("(3 days ago)"));
   });
 });
 
@@ -177,18 +154,15 @@ describe("ticketViewPage package grouping", () => {
       false,
       new Map([[1, { hideListings: false, name: "Camp Kit" }]]),
     );
-    assertStringIncludes(html, "Camp Kit");
-    assertStringIncludes(html, "Tent");
-    assertStringIncludes(html, "&times;2");
-    assertStringIncludes(html, "Chair");
-    assertStringIncludes(html, "&times;6");
+    says(html, "Camp Kit");
+    says(html, "Tent");
+    says(html, "&times;2");
+    says(html, "Chair");
+    says(html, "&times;6");
     // One shared QR for the whole bundle.
-    assertStringIncludes(html, `/t/${token}/svg`);
+    says(html, `/t/${token}/svg`);
     // No member is non-transferable, so no "ID required" notice.
-    assert(
-      !html.includes("ID required at entry"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("ID required at entry"));
   });
 
   test("hides member listings for a hidden package, showing only the name", () => {
@@ -198,16 +172,10 @@ describe("ticketViewPage package grouping", () => {
       false,
       new Map([[1, { hideListings: true, name: "Secret Bundle" }]]),
     );
-    assertStringIncludes(html, "Secret Bundle");
-    assert(
-      !html.includes("<li>Tent"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("<li>Chair"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, `/t/${token}/svg`);
+    says(html, "Secret Bundle");
+    assert(!html.includes("<li>Tent"));
+    assert(!html.includes("<li>Chair"));
+    says(html, `/t/${token}/svg`);
   });
 
   test("omits wallet links on a package card even when wallets are enabled", () => {
@@ -220,10 +188,7 @@ describe("ticketViewPage package grouping", () => {
       true,
       new Map([[1, { hideListings: false, name: "Camp Kit" }]]),
     );
-    assert(
-      !html.includes("wallet-link"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("wallet-link"));
   });
 
   test("omits wallet links on a standalone card sharing a token with a package", () => {
@@ -247,12 +212,9 @@ describe("ticketViewPage package grouping", () => {
       new Map([[1, { hideListings: false, name: "Camp Kit" }]]),
     );
     // The standalone card renders (it's not part of the package)…
-    assertStringIncludes(html, "Standalone Add-On");
+    says(html, "Standalone Add-On");
     // …but no wallet links anywhere, because the shared token's pass 404s.
-    assert(
-      !html.includes("wallet-link"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("wallet-link"));
   });
 
   test("a purchase-only package omits the QR", () => {
@@ -266,11 +228,8 @@ describe("ticketViewPage package grouping", () => {
       },
     ];
     const html = ticketViewPage(cards, false, false, purchaseBundleGroups);
-    assertStringIncludes(html, "Purchase Bundle");
-    assert(
-      !html.includes(`/t/${token}/svg`),
-      "the value should not contain the searched item",
-    );
+    says(html, "Purchase Bundle");
+    assert(!html.includes(`/t/${token}/svg`));
   });
 
   test("shows a non-transferable notice on a package card without naming the member", () => {
@@ -294,12 +253,9 @@ describe("ticketViewPage package grouping", () => {
       false,
       new Map([[1, { hideListings: true, name: "Secret Bundle" }]]),
     );
-    assertStringIncludes(html, "ID required at entry");
+    says(html, "ID required at entry");
     // The warning is package-level: the concealed member is never named.
-    assert(
-      !html.includes("Secret Pass"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Secret Pass"));
   });
 
   test("omits the non-transferable notice when the non-transferable member is purchase-only", () => {
@@ -319,9 +275,6 @@ describe("ticketViewPage package grouping", () => {
       },
     ];
     const html = ticketViewPage(cards, false, false, purchaseBundleGroups);
-    assert(
-      !html.includes("ID required at entry"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("ID required at entry"));
   });
 });

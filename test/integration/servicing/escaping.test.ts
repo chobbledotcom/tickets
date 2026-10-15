@@ -9,11 +9,12 @@
  */
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { createServicingHold, renderAdminPage } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
@@ -28,11 +29,8 @@ describeWithEnv(
     test("the create page escapes the listing name in the booking table", async () => {
       await createDailyTestListing({ maxAttendees: 5, name: XSS_NAME });
       const body = await renderAdminPage("/admin/servicing/new");
-      assertStringIncludes(body, ESCAPED_NAME);
-      assert(
-        !body.includes(XSS_NAME),
-        "the value should not contain the searched item",
-      );
+      says(body, ESCAPED_NAME);
+      assert(!body.includes(XSS_NAME));
     });
 
     test("the edit page escapes the listing name in the booking table and the cost <option>", async () => {
@@ -49,16 +47,10 @@ describeWithEnv(
       // name; the raw script tag never appears verbatim.
       const occurrences = body.split(ESCAPED_NAME).length - 1;
       expect(occurrences).toBeGreaterThanOrEqual(2);
-      assert(
-        !body.includes(XSS_NAME),
-        "the value should not contain the searched item",
-      );
+      assert(!body.includes(XSS_NAME));
       // The cost form's option targets the listing by its id, and the label is
       // the escaped name (not the raw markup).
-      assertStringIncludes(
-        body,
-        `<option value="${listing.id}">${ESCAPED_NAME}</option>`,
-      );
+      says(body, `<option value="${listing.id}">${ESCAPED_NAME}</option>`);
     });
   },
 );

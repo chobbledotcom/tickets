@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
@@ -25,6 +24,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 const pruneLegacyReplayRow = async (sessionId: string) => {
@@ -161,7 +161,7 @@ describeWithEnv(
       await runWebhook(session, async (refund) => {
         await assertJson(webhookRequest(), 200, (json) => {
           expect(json.processed).toBe(false);
-          assertStringIncludes(json.error, "already been processed");
+          says(json.error, "already been processed");
         });
         expect(refund.calls.length).toBe(0);
       });

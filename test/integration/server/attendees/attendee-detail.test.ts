@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 // jscpd:ignore-end
@@ -16,6 +16,7 @@ import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -46,15 +47,9 @@ describeWithEnv(
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await response.text();
         expect(response.status).toBe(200);
-        assertStringIncludes(html, 'class="active" href="/admin/attendees"');
-        assert(
-          !html.includes('href="/admin/attendees/new"'),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes("admin-subnav"),
-          "the value should not contain the searched item",
-        );
+        says(html, 'class="active" href="/admin/attendees"');
+        assert(!html.includes('href="/admin/attendees/new"'));
+        assert(!html.includes("admin-subnav"));
       });
 
       test("the attendee page hides the add-note link in read-only mode", async () => {
@@ -65,10 +60,9 @@ describeWithEnv(
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "Attendee: John Doe");
+        says(html, "Attendee: John Doe");
         assert(
           !html.includes(`/admin/attendee/${attendee.id}/note?return_url=`),
-          "the value should not contain the searched item",
         );
       });
 
@@ -145,9 +139,9 @@ describeWithEnv(
           "Save Attendee",
         );
         // Listing link table shows the listing
-        assertStringIncludes(html, "Edit Page Listing");
+        says(html, "Edit Page Listing");
         // The editor renders a quantity box per listing
-        assertStringIncludes(html, "qty_");
+        says(html, "qty_");
       });
 
       test("edit page shows checked-in badge for checked-in attendee", async () => {
@@ -189,7 +183,7 @@ describeWithEnv(
           "Daily Dates Listing",
         );
         // The shared start date is seeded from the daily booking.
-        assertStringIncludes(html, 'value="2026-04-07"');
+        says(html, 'value="2026-04-07"');
       });
 
       test("includes active listings in add-to-listing selector", async () => {

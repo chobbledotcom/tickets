@@ -1,5 +1,4 @@
 import { inflateSync } from "node:zlib";
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
@@ -12,6 +11,7 @@ import {
 import { getMimeTypeFromFilename } from "#shared/storage.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Read a big-endian 32-bit number out of the PNG bytes. */
 const pngNumberAt = (offset: number): number =>
@@ -67,9 +67,9 @@ describe("images > broken image fallback", () => {
       expect(await decryptImageFilename(stored, "image 2 filename")).toBe(
         BROKEN_IMAGE_FILENAME,
       );
-      assertStringIncludes(errors.lastMessage() ?? "", "E_IMAGE_BROKEN");
-      assertStringIncludes(
-        errors.lastMessage() ?? "",
+      says(errors.lastMessage(), "E_IMAGE_BROKEN");
+      says(
+        errors.lastMessage(),
         "image 2 filename decrypted to an empty value",
       );
     });
@@ -78,15 +78,9 @@ describe("images > broken image fallback", () => {
       expect(await decryptImageFilename("garbage", "image 3 filename")).toBe(
         BROKEN_IMAGE_FILENAME,
       );
-      assertStringIncludes(errors.lastMessage() ?? "", "E_IMAGE_BROKEN");
-      assertStringIncludes(
-        errors.lastMessage() ?? "",
-        "image 3 filename could not be decrypted",
-      );
-      assertStringIncludes(
-        errors.lastMessage() ?? "",
-        "Invalid encrypted data format",
-      );
+      says(errors.lastMessage(), "E_IMAGE_BROKEN");
+      says(errors.lastMessage(), "image 3 filename could not be decrypted");
+      says(errors.lastMessage(), "Invalid encrypted data format");
     });
 
     test("treats an empty or missing projection as no image, not broken", async () => {
@@ -107,10 +101,7 @@ describe("images > broken image fallback", () => {
       expect(
         await decryptImageFilenameOrEmpty(await encrypt(""), "listing 5 image"),
       ).toBe(BROKEN_IMAGE_FILENAME);
-      assertStringIncludes(
-        errors.lastMessage() ?? "",
-        "listing 5 image decrypted to an empty value",
-      );
+      says(errors.lastMessage(), "listing 5 image decrypted to an empty value");
     });
   });
 });

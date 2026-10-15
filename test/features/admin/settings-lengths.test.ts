@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { MAX_EMAIL_TEMPLATE_LENGTH } from "#db/settings/constants.ts";
@@ -11,6 +10,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("settings length refusals", { db: true }, () => {
@@ -44,7 +44,7 @@ describeWithEnv("settings length refusals", { db: true }, () => {
       const control = html.match(
         new RegExp(`<(?:input|textarea)\\b[^>]*name="${name}"[^>]*>`),
       );
-      assertStringIncludes(control?.[0] ?? "", `maxlength="${limit}"`, name);
+      says(control?.[0], `maxlength="${limit}"`, name);
     }
   });
 

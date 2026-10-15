@@ -1,10 +1,10 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createNewsPost } from "#db/news-posts.ts";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 const makePost = (name: string) =>
@@ -27,7 +27,7 @@ describeWithEnv("public /news routes", { db: true }, () => {
     await enablePublicSite();
     await makePost("Big Launch");
     const body = await (await handleRequest(mockRequest("/news"))).text();
-    assertStringIncludes(body, "Big Launch");
+    says(body, "Big Launch");
   });
 
   test("a post page renders its content; an unknown slug 404s", async () => {
@@ -35,10 +35,7 @@ describeWithEnv("public /news routes", { db: true }, () => {
     const post = await makePost("Behind The Scenes");
     const page = await handleRequest(mockRequest(`/news/${post.slug}`));
     expect(page.status).toBe(200);
-    assertStringIncludes(
-      await page.text(),
-      "The full story of Behind The Scenes.",
-    );
+    says(await page.text(), "The full story of Behind The Scenes.");
 
     const unknown = await handleRequest(mockRequest("/news/no-such-post"));
     expect(unknown.status).toBe(404);

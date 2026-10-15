@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { Holiday } from "#db/holidays.ts";
@@ -9,6 +8,7 @@ import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListing, testListingWithCount } from "#test-utils/factories.ts";
+import { has } from "#test-utils/says.ts";
 import type { ListingWithCount } from "#types";
 
 const today = () => todayInTz("UTC");
@@ -342,9 +342,9 @@ describeWithEnv("loadSortedListings", { db: true }, () => {
     const created = await createTestListing({ name: "Unfiltered listing" });
 
     const { listings } = await loadSortedListings();
-    assertArrayIncludes(
+    has(
       listings.map((listing) => listing.id),
-      [created.id],
+      created.id,
     );
   });
 });

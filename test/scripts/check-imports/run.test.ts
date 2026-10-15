@@ -7,6 +7,7 @@ import {
   SOURCE_DIRS,
 } from "#scripts/check-imports/run.ts";
 import { checkScriptRun } from "#test-utils/check-script.ts";
+import { says } from "#test-utils/says.ts";
 
 const CONFIG = JSON.stringify({
   imports: {
@@ -75,16 +76,14 @@ describe("runImportCheck", () => {
       "",
     ].join("\n");
     expect(await checkOnly(twice)).toBe(1);
-    expect(run.errors[0]).toContain(`${run.path}/src/a.ts:2`);
-    expect(run.errors[0]).toContain('imports "#types" again');
+    says(run.errors[0], `${run.path}/src/a.ts:2`);
+    says(run.errors[0], 'imports "#types" again');
   });
 
   test("names the count and the rule it enforced", async () => {
     expect(await checkOnly(LONG_SPELLING)).toBe(1);
-    expect(run.errors.at(-1)).toContain("1 import issue(s) found");
-    expect(run.errors.at(-1)).toContain(
-      '"Imports name a module one way" in AGENTS.md',
-    );
+    says(run.errors.at(-1), "1 import issue(s) found");
+    says(run.errors.at(-1), '"Imports name a module one way" in AGENTS.md');
   });
 
   test("lists every root it checked in the success line", async () => {
@@ -102,7 +101,7 @@ describe("runImportCheck", () => {
     await run.write("src/a.ts", 'import { a } from "#db/client.ts";\n');
     await run.write("test/b.ts", 'import { b } from "#shared/types.ts";\n');
     expect(await check(`${run.path}/src`, `${run.path}/test`)).toBe(1);
-    expect(run.errors[0]).toContain(`${run.path}/test/b.ts:1`);
+    says(run.errors[0], `${run.path}/test/b.ts:1`);
   });
 
   test("skips a file that is not TypeScript", async () => {

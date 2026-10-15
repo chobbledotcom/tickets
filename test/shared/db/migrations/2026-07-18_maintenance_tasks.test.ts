@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -11,6 +10,7 @@ import {
 } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { has } from "#test-utils/says.ts";
 
 const context = buildMigrationContext({ applySchemaChanges, syncIndexes });
 const runMigration = () => maintenanceMigration(context).up();
@@ -110,9 +110,9 @@ describeWithEnv(
       await runMigration();
 
       const columns = await getDb().execute("PRAGMA table_info(built_sites)");
-      assertArrayIncludes(
+      has(
         columns.rows.map((row) => String(row.name)),
-        ["site_data_revision"],
+        "site_data_revision",
       );
     });
 

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
 import { setLogisticsAssignments } from "#db/logistics.ts";
@@ -12,6 +12,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { testCookie } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
@@ -69,9 +70,9 @@ describeWithEnv(
     test("CSV export includes the run-sheet agent columns", async () => {
       const { d } = await setup();
       const csv = await exportCsv(`/admin/calendar/export?date=${d}`);
-      assertStringIncludes(csv, "Start Agent,Start Time,End Agent,End Time");
-      assertStringIncludes(csv, "Mine");
-      assertStringIncludes(csv, "Agent User");
+      says(csv, "Start Agent,Start Time,End Agent,End Time");
+      says(csv, "Mine");
+      says(csv, "Agent User");
     });
 
     test("CSV export honours the agent filter", async () => {
@@ -80,32 +81,23 @@ describeWithEnv(
         `/admin/calendar/export?date=${d}&agent=${other.id}`,
       );
       // Filtered to the other agent → the booking drops out entirely.
-      assert(
-        !csv.includes("Agent User"),
-        "the value should not contain the searched item",
-      );
+      assert(!csv.includes("Agent User"));
     });
 
     test("renders the agent filter bar when agents exist", async () => {
       const { d } = await setup();
       const html = await calendarHtml(`/admin/calendar?date=${d}`);
-      assertStringIncludes(html, "Agent:");
-      assertStringIncludes(html, "Mine");
-      assertStringIncludes(html, "Agent User");
+      says(html, "Agent:");
+      says(html, "Mine");
+      says(html, "Agent User");
     });
 
     test("does not load the agent filter bar until a date is selected", async () => {
       await setup();
       const html = await calendarHtml("/admin/calendar?agent=none");
-      assert(
-        !html.includes("Agent:"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("SELECT * FROM logistics_agents"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, 'href="/admin/deliveries"');
+      assert(!html.includes("Agent:"));
+      assert(!html.includes("SELECT * FROM logistics_agents"));
+      says(html, 'href="/admin/deliveries"');
     });
 
     test("filtering to the assigned agent keeps the attendee", async () => {
@@ -113,7 +105,7 @@ describeWithEnv(
       const html = await calendarHtml(
         `/admin/calendar?date=${d}&agent=${assigned.id}`,
       );
-      assertStringIncludes(html, "Agent User");
+      says(html, "Agent User");
     });
 
     test("filtering to another agent hides the attendee", async () => {
@@ -121,19 +113,13 @@ describeWithEnv(
       const html = await calendarHtml(
         `/admin/calendar?date=${d}&agent=${other.id}`,
       );
-      assert(
-        !html.includes("Agent User"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Agent User"));
     });
 
     test("the 'none' filter hides assigned attendees", async () => {
       const { d } = await setup();
       const html = await calendarHtml(`/admin/calendar?date=${d}&agent=none`);
-      assert(
-        !html.includes("Agent User"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Agent User"));
     });
 
     test("keeps the chosen agent in the links that change the day", async () => {
@@ -147,9 +133,9 @@ describeWithEnv(
       // page returns by all carried only the date. The operator landed on the
       // whole site's list for that day with nothing to say the run sheet had
       // gone.
-      assertStringIncludes(html, `href="${withAgent}#attendees"`);
-      assertStringIncludes(html, `value="${withAgent}#attendees"`);
-      assertStringIncludes(html, `${withAgent}&amp;cal=`);
+      says(html, `href="${withAgent}#attendees"`);
+      says(html, `value="${withAgent}#attendees"`);
+      says(html, `${withAgent}&amp;cal=`);
     });
 
     test("keeps the agent out of the link that shows every agent", async () => {
@@ -157,7 +143,7 @@ describeWithEnv(
       const html = await calendarHtml(
         `/admin/calendar?date=${d}&agent=${assigned.id}`,
       );
-      assertStringIncludes(html, `href="/admin/calendar?date=${d}#attendees"`);
+      says(html, `href="/admin/calendar?date=${d}#attendees"`);
     });
 
     test("clears the agent with the date, since its bar goes too", async () => {
@@ -165,17 +151,14 @@ describeWithEnv(
       const html = await calendarHtml(
         `/admin/calendar?date=${d}&agent=${assigned.id}`,
       );
-      assertStringIncludes(html, 'value="/admin/calendar#attendees"');
+      says(html, 'value="/admin/calendar#attendees"');
     });
 
     test("no filter bar when logistics is disabled", async () => {
       const { d } = await setup();
       settings.setForTest(featureSetting());
       const html = await calendarHtml(`/admin/calendar?date=${d}`);
-      assert(
-        !html.includes("Agent:"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Agent:"));
     });
   },
 );

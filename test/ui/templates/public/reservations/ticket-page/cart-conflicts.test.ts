@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import {
@@ -7,6 +7,7 @@ import {
 } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { pagePackage } from "#test-utils/package-cap-fixtures.ts";
+import { says } from "#test-utils/says.ts";
 
 /** The hidden package that conceals listing 1 in these fixtures. */
 const hiddenPackage = () => [
@@ -63,7 +64,7 @@ describe("ticketPage (cart conflict notes)", () => {
       ...dateClash({ name: "Near", slug: "near1" }),
       slugs: ["near1", "far01"],
     });
-    assertStringIncludes(
+    says(
       html,
       "'Near' and 'Far' do not share an available date. Book them separately.",
     );
@@ -74,7 +75,7 @@ describe("ticketPage (cart conflict notes)", () => {
       listings: lengthClashListings({ name: "Short", slug: "shrt1" }),
       slugs: ["shrt1", "long1"],
     });
-    assertStringIncludes(
+    says(
       html,
       "'Short' and 'Long' do not share a booking length. Book them separately.",
     );
@@ -87,10 +88,7 @@ describe("ticketPage (cart conflict notes)", () => {
       slugs: ["mystery", "secret", "far01"],
     });
 
-    assertStringIncludes(
-      html,
-      "'Secret Unit' and 'Far' do not share an available date.",
-    );
+    says(html, "'Secret Unit' and 'Far' do not share an available date.");
   });
 });
 
@@ -107,10 +105,7 @@ describe("ticketPage (concealed cart conflict items)", () => {
       packages: hiddenPackage(),
       slugs: ["mystery", "far01"],
     });
-    assert(
-      !html.includes("do not share an available date"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("do not share an available date"));
   });
 
   test("warns about booking lengths for a member the cart also sells standalone", () => {
@@ -119,7 +114,7 @@ describe("ticketPage (concealed cart conflict items)", () => {
       packages: hiddenPackage(),
       slugs: ["mystery", "shrt1", "long1"],
     });
-    assertStringIncludes(
+    says(
       html,
       "'Short' and 'Long' do not share a booking length. Book them separately.",
     );
@@ -131,9 +126,6 @@ describe("ticketPage (concealed cart conflict items)", () => {
       packages: hiddenPackage(),
       slugs: ["mystery", "long1"],
     });
-    assert(
-      !html.includes("do not share a booking length"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("do not share a booking length"));
   });
 });

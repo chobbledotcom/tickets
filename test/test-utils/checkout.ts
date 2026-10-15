@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import { has } from "#test-utils/says.ts";
 import { submitTicketForm } from "./csrf.ts";
 import { stubRetrieveCheckoutSession } from "./webhooks/stripe.ts";
 
@@ -53,7 +54,7 @@ export const captureCheckoutIntent = async (
       name: "Buyer",
       ...fields,
     });
-    expect([302, 303]).toContain(response.status);
+    has([302, 303], response.status);
     return getCaptured();
   } finally {
     checkout.restore();

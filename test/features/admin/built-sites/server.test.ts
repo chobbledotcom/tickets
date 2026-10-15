@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -19,6 +19,7 @@ import {
 } from "#test-utils/db-helpers/built-sites.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -59,14 +60,8 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         "https://mysite.b-cdn.net",
         `/admin/built-sites/${site.id}`,
       );
-      assertStringIncludes(
-        html,
-        `href="/admin/built-sites/${site.id}">My Site</a>`,
-      );
-      assert(
-        !html.includes(`/admin/built-sites/${site.id}/delete`),
-        "the value should not contain the searched item",
-      );
+      says(html, `href="/admin/built-sites/${site.id}">My Site</a>`);
+      assert(!html.includes(`/admin/built-sites/${site.id}/delete`));
     });
 
     test("shows Not assignable status for default sites", async () => {
@@ -111,11 +106,8 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       });
       const response = await adminGet("/admin/built-sites");
       const body = await response.text();
-      assertStringIncludes(body, "1111|222");
-      assert(
-        !body.includes("1111|222|"),
-        "the value should not contain the searched item",
-      );
+      says(body, "1111|222");
+      assert(!body.includes("1111|222|"));
     });
 
     test("displays empty string when no script IDs present", async () => {
@@ -130,7 +122,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     test("warns when no qualifying renewal tier exists", async () => {
       const response = await adminGet("/admin/built-sites");
       const body = await response.text();
-      assertStringIncludes(body, "No renewal tier listing is configured");
+      says(body, "No renewal tier listing is configured");
     });
 
     test("lists qualifying tiers with units sold from real attendee data", async () => {
@@ -154,13 +146,10 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
       const response = await adminGet("/admin/built-sites");
       const body = await response.text();
-      assertStringIncludes(body, "Listed Monthly Tier");
+      says(body, "Listed Monthly Tier");
       // Sum of quantities, not the booking count.
-      assertStringIncludes(body, ">5<");
-      assert(
-        !body.includes("No renewal tier listing is configured"),
-        "the value should not contain the searched item",
-      );
+      says(body, ">5<");
+      assert(!body.includes("No renewal tier listing is configured"));
     });
   });
 
@@ -306,38 +295,26 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       });
       const response = await adminGet(`/admin/built-sites/${site.id}`);
       const html = await expectHtmlResponse(response, 200, "Sections");
-      assertStringIncludes(html, `/admin/built-sites/${site.id}/secrets`);
-      assertStringIncludes(html, `/admin/built-sites/${site.id}/actions`);
-      assert(
-        !html.includes("Secrets status is unavailable"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes(`/admin/built-sites/${site.id}/delete`),
-        "the value should not contain the searched item",
-      );
+      says(html, `/admin/built-sites/${site.id}/secrets`);
+      says(html, `/admin/built-sites/${site.id}/actions`);
+      assert(!html.includes("Secrets status is unavailable"));
+      assert(!html.includes(`/admin/built-sites/${site.id}/delete`));
     });
 
     test("loads renewal controls only on the renewal tab", async () => {
       const site = await createTestBuiltSite({ name: "Renewal Tab" });
       const response = await adminGet(`/admin/built-sites/${site.id}/renewal`);
       const html = await expectHtmlResponse(response, 200, "Current deadline");
-      assertStringIncludes(html, `/admin/built-sites/${site.id}/bump-deadline`);
-      assert(
-        !html.includes('name="site_url"'),
-        "the value should not contain the searched item",
-      );
+      says(html, `/admin/built-sites/${site.id}/bump-deadline`);
+      assert(!html.includes('name="site_url"'));
     });
 
     test("loads delete only on the actions tab", async () => {
       const site = await createTestBuiltSite({ name: "Actions Tab" });
       const response = await adminGet(`/admin/built-sites/${site.id}/actions`);
       const html = await expectHtmlResponse(response, 200, "Delete this site");
-      assertStringIncludes(html, `/admin/built-sites/${site.id}/delete`);
-      assert(
-        !html.includes('name="site_url"'),
-        "the value should not contain the searched item",
-      );
+      says(html, `/admin/built-sites/${site.id}/delete`);
+      assert(!html.includes('name="site_url"'));
     });
 
     test("returns 404 for non-existent built site", async () => {
@@ -365,10 +342,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const site = await createTestBuiltSite({ name: "Secrets status" });
       const response = await adminGet(`/admin/built-sites/${site.id}/secrets`);
       const html = await expectHtmlResponse(response, 200, "no hosting ID");
-      assert(
-        !html.includes("Unknown — no read-only database credentials"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Unknown — no read-only database credentials"));
     });
 
     test("loads update status only on the update tab", async () => {
@@ -383,7 +357,6 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         !html.includes(
           "BUNNY_API_KEY is not configured on this host, so its secrets can't be read",
         ),
-        "the value should not contain the searched item",
       );
     });
 
@@ -464,12 +437,9 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         "Site name is required",
         "https://test.b-cdn.net",
       );
-      assertStringIncludes(html, 'aria-current="page"');
-      assertStringIncludes(html, `href="/admin/built-sites/${site.id}/edit"`);
-      assert(
-        !html.includes("Secrets status is unavailable"),
-        "the value should not contain the searched item",
-      );
+      says(html, 'aria-current="page"');
+      says(html, `href="/admin/built-sites/${site.id}/edit"`);
+      assert(!html.includes("Secrets status is unavailable"));
     });
 
     test("shows read-only status without edit or action controls", async () => {
@@ -479,19 +449,10 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       });
       const response = await adminGet(`/admin/built-sites/${site.id}`);
       const html = await expectHtmlResponse(response, 200, "Current deadline");
-      assert(
-        !html.includes(`/admin/built-sites/${site.id}/edit`),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes(`/admin/built-sites/${site.id}/actions`),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes(`/admin/built-sites/${site.id}/bump-deadline`),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, `/admin/built-sites/${site.id}/secrets`);
+      assert(!html.includes(`/admin/built-sites/${site.id}/edit`));
+      assert(!html.includes(`/admin/built-sites/${site.id}/actions`));
+      assert(!html.includes(`/admin/built-sites/${site.id}/bump-deadline`));
+      says(html, `/admin/built-sites/${site.id}/secrets`);
     });
   });
 
@@ -601,9 +562,9 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       try {
         const response = await adminGet("/admin/built-sites");
         const body = await response.text();
-        assertStringIncludes(body, "/admin/built-sites");
+        says(body, "/admin/built-sites");
         // The nav link is labelled "Builds" (the page title stays "Built sites").
-        assertStringIncludes(body, ">Builds<");
+        says(body, ">Builds<");
       } finally {
         Deno.env.delete("CAN_BUILD_SITES");
       }
@@ -613,10 +574,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       Deno.env.delete("CAN_BUILD_SITES");
       const response = await adminGet("/admin/built-sites");
       const body = await response.text();
-      assert(
-        !body.includes('href="/admin/built-sites"'),
-        "the value should not contain the searched item",
-      );
+      assert(!body.includes('href="/admin/built-sites"'));
     });
   });
 
@@ -709,7 +667,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       await createTestBuiltSite({ name: "Listed Site", updates: "beta" });
       const response = await adminGet("/admin/built-sites");
       const html = await expectHtmlResponse(response, 200, "Updates");
-      assertStringIncludes(html, "<td>beta</td>");
+      says(html, "<td>beta</td>");
     });
   });
 

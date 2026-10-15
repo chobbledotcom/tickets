@@ -11,7 +11,7 @@
  */
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -20,6 +20,7 @@ import { getServicingEvent } from "#db/attendees/servicing.ts";
 import { getDb } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createRealAttendee,
   createServicingHold,
@@ -142,11 +143,8 @@ describeWithEnv(
         name: "Future Service",
       });
       const body = await renderAdminPage("/admin/");
-      assertStringIncludes(body, `/admin/servicing/${service.id}`);
-      assert(
-        !body.includes(`/admin/servicing/${attendee.id}`),
-        "the value should not contain the searched item",
-      );
+      says(body, `/admin/servicing/${service.id}`);
+      assert(!body.includes(`/admin/servicing/${attendee.id}`));
     });
   },
 );

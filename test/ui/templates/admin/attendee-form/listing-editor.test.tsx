@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
@@ -12,6 +12,7 @@ import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/ty
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { attendeeFormLine } from "#test-utils/attendee-form-factories.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import { formData } from "./fixtures.ts";
 
 const booking = (
@@ -76,39 +77,30 @@ describe("ListingEditor", () => {
       }),
     );
 
-    assertStringIncludes(html, 'class="listing-editor show-all-listings"');
-    assert(
-      !html.includes('class="show-all-toggle"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(
+    says(html, 'class="listing-editor show-all-listings"');
+    assert(!html.includes('class="show-all-toggle"'));
+    says(
       html,
       '<label class="show-all"><input class="package-paths-toggle" type="checkbox">',
     );
-    assertStringIncludes(
+    says(
       html,
       '<span class="muted small booking-path"> via Weekend pass</span>',
     );
-    assertStringIncludes(html, "via Day pass");
-    assertStringIncludes(html, "via deleted package #11");
-    assertStringIncludes(html, "add-on under Main tour");
-    assertStringIncludes(html, "add-on under 1");
-    assertStringIncludes(
-      html,
-      '<tr class="attendee-line attendee-line-package-blank">',
-    );
-    assertStringIncludes(
-      html,
-      '<tr class="attendee-line attendee-line-empty">',
-    );
-    assertStringIncludes(html, '<span class="muted small">Fixed date</span>');
-    assertStringIncludes(html, 'name="line_package_1"');
+    says(html, "via Day pass");
+    says(html, "via deleted package #11");
+    says(html, "add-on under Main tour");
+    says(html, "add-on under 1");
+    says(html, '<tr class="attendee-line attendee-line-package-blank">');
+    says(html, '<tr class="attendee-line attendee-line-empty">');
+    says(html, '<span class="muted small">Fixed date</span>');
+    says(html, 'name="line_package_1"');
     expect(html.match(/name="line_package_\d+"/g)).toHaveLength(3);
-    assertStringIncludes(
+    says(
       html,
       'class="line-qty" max="5" min="0" name="qty_0" type="number" value="0"',
     );
-    assertStringIncludes(html, "Fixed date");
+    says(html, "Fixed date");
   });
 
   test("carries one lowest-value package path on its own", () => {
@@ -124,16 +116,10 @@ describe("ListingEditor", () => {
       }),
     );
 
-    assertStringIncludes(html, 'class="package-paths-toggle"');
-    assertStringIncludes(html, "via Day pass");
-    assertStringIncludes(
-      html,
-      '<tr class="attendee-line attendee-line-package-blank">',
-    );
-    assertStringIncludes(
-      html,
-      '<input name="line_package_0" type="hidden" value="1">',
-    );
+    says(html, 'class="package-paths-toggle"');
+    says(html, "via Day pass");
+    says(html, '<tr class="attendee-line attendee-line-package-blank">');
+    says(html, '<input name="line_package_0" type="hidden" value="1">');
   });
 
   test("keeps a plain selected line booked without a stored booking", () => {
@@ -145,18 +131,12 @@ describe("ListingEditor", () => {
       }),
     );
 
-    assertStringIncludes(html, 'class="listing-editor"');
-    assertStringIncludes(html, 'class="show-all-toggle"');
-    assertStringIncludes(html, '<label class="show-all">');
-    assertStringIncludes(html, '<tr class="attendee-line">');
-    assert(
-      !html.includes("attendee-line-empty"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("attendee-line-package-blank"),
-      "the value should not contain the searched item",
-    );
+    says(html, 'class="listing-editor"');
+    says(html, 'class="show-all-toggle"');
+    says(html, '<label class="show-all">');
+    says(html, '<tr class="attendee-line">');
+    assert(!html.includes("attendee-line-empty"));
+    assert(!html.includes("attendee-line-package-blank"));
   });
 
   test("keeps a paid daily booking visible with its notices", () => {
@@ -201,58 +181,43 @@ describe("ListingEditor", () => {
       }),
     );
 
-    assertStringIncludes(html, 'class="listing-editor"');
-    assertStringIncludes(
+    says(html, 'class="listing-editor"');
+    says(
       html,
       '<label class="show-all"><input class="show-all-toggle" type="checkbox">',
     );
     expect(html.match(/class="attendee-line"/g)).toHaveLength(3);
-    assert(
-      !html.includes("attendee-line-empty"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("package-paths-toggle"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, '<table class="line-editor">');
-    assertStringIncludes(
+    assert(!html.includes("attendee-line-empty"));
+    assert(!html.includes("package-paths-toggle"));
+    says(html, '<table class="line-editor">');
+    says(
       html,
       'class="line-qty" max="3" min="0" name="qty_0" type="number" value="2"',
     );
-    assertStringIncludes(
+    says(
       html,
       'class="line-qty" max="5" min="0" name="qty_1" type="number" value="1"',
     );
-    assertStringIncludes(html, '<span class="muted small">Shared dates</span>');
-    assertStringIncludes(
+    says(html, '<span class="muted small">Shared dates</span>');
+    says(
       html,
       `<div class="muted small">${formatDateRangeLabel("2026-07-01T00:00:00Z", "2026-07-03T00:00:00Z")}</div>`,
     );
-    assertStringIncludes(
+    says(
       html,
       '<div class="warning small" role="alert">This booking is over capacity.</div>',
     );
-    assertStringIncludes(html, '<td class="attendee-line-qty">');
-    assertStringIncludes(html, "<th></th>");
-    assertStringIncludes(html, '<label class="small">');
-    assertStringIncludes(html, "Choose a smaller quantity.");
-    assertStringIncludes(html, "Checked in");
-    assertStringIncludes(html, "Refunded");
-    assertStringIncludes(html, "Inactive");
-    assertStringIncludes(
-      html,
-      'class="no-quantity-toggle" disabled name="noqty_0"',
-    );
-    assertStringIncludes(html, 'name="noqty_0" title="Refund this line');
-    assertStringIncludes(html, 'type="checkbox" value="1"');
-    assertStringIncludes(
-      html,
-      '<input name="line_listing_0" type="hidden" value="1">',
-    );
-    assertStringIncludes(
-      html,
-      '<input name="line_key_0" type="hidden" value="1|2026-07-01">',
-    );
+    says(html, '<td class="attendee-line-qty">');
+    says(html, "<th></th>");
+    says(html, '<label class="small">');
+    says(html, "Choose a smaller quantity.");
+    says(html, "Checked in");
+    says(html, "Refunded");
+    says(html, "Inactive");
+    says(html, 'class="no-quantity-toggle" disabled name="noqty_0"');
+    says(html, 'name="noqty_0" title="Refund this line');
+    says(html, 'type="checkbox" value="1"');
+    says(html, '<input name="line_listing_0" type="hidden" value="1">');
+    says(html, '<input name="line_key_0" type="hidden" value="1|2026-07-01">');
   });
 });

@@ -3,7 +3,6 @@
  * kind of listing is offered, and which one a bare URL opens.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
@@ -15,6 +14,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, createTestManagerSession } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
@@ -110,7 +110,7 @@ describeWithEnv("the tabs a listing offers", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/listing/${listing.id}`)).text();
 
-    assertStringIncludes(
+    says(
       html,
       `<a aria-current="page" class="active" href="/admin/listing/${listing.id}">Overview</a>`,
     );
@@ -124,7 +124,7 @@ describeWithEnv("the tabs a listing offers", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/listing/${listing.id}`)).text();
 
-    assertStringIncludes(
+    says(
       html,
       `<a href="/admin/listing/${listing.id}/activity">${t("entity.view_all_activity")}</a>`,
     );

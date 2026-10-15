@@ -1,9 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   ConfirmPage,
   warningDeletePage,
 } from "#templates/admin/confirm-page.tsx";
+import { says } from "#test-utils/says.ts";
 import type { AdminSession } from "#types";
 
 const OWNER: AdminSession = {
@@ -46,42 +47,30 @@ describe("ConfirmPage", () => {
       OWNER,
     );
 
-    assertStringIncludes(html, "<title></title>");
-    assertStringIncludes(html, "<h1>Delete Alice</h1>");
+    says(html, "<title></title>");
+    says(html, "<h1>Delete Alice</h1>");
   });
 
   test("renders the real confirmation form while the action is available", () => {
     const html = renderConfirmation();
 
-    assertStringIncludes(html, 'action="/admin/people/1/refund"');
-    assertStringIncludes(html, 'name="confirm_identifier"');
-    assertStringIncludes(html, 'placeholder="Alice Example"');
-    assertStringIncludes(html, "Send refund");
-    assertStringIncludes(html, "Money will be returned.");
-    assertStringIncludes(html, "<h1>Check payment</h1>");
-    assertStringIncludes(html, "Payment details");
+    says(html, 'action="/admin/people/1/refund"');
+    says(html, 'name="confirm_identifier"');
+    says(html, 'placeholder="Alice Example"');
+    says(html, "Send refund");
+    says(html, "Money will be returned.");
+    says(html, "<h1>Check payment</h1>");
+    says(html, "Payment details");
   });
 
   test("renders the blocked explanation without any usable form", () => {
     const html = renderConfirmation(true);
 
-    assertStringIncludes(html, "A refund is already moving");
-    assertStringIncludes(html, "Payment details");
-    assert(
-      !html.includes("<form"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('name="confirm_identifier"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Send refund"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Money will be returned."),
-      "the value should not contain the searched item",
-    );
+    says(html, "A refund is already moving");
+    says(html, "Payment details");
+    assert(!html.includes("<form"));
+    assert(!html.includes('name="confirm_identifier"'));
+    assert(!html.includes("Send refund"));
+    assert(!html.includes("Money will be returned."));
   });
 });

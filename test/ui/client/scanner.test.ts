@@ -12,10 +12,10 @@
  * `scanner/answers.test.ts`.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 import { el, useScannerSuite } from "./scanner/fixture.ts";
 
 describe("scanner bundle", {
@@ -30,7 +30,7 @@ describe("scanner bundle", {
     await h.window.happyDOM.waitUntilComplete();
 
     expect(h.statusEl.textContent).toBe("Camera access denied");
-    assertStringIncludes(h.statusEl.className, "scanner-status-error");
+    says(h.statusEl.className, "scanner-status-error");
   });
 
   test("names the camera refusal from its own words when the page carries none", async () => {
@@ -125,7 +125,7 @@ describe("scanner bundle", {
     expect(h.statusEl.textContent).toBe(
       "Ada checked in for Standard, Society (2 tickets)",
     );
-    assertStringIncludes(h.statusEl.className, "scanner-status-success");
+    says(h.statusEl.className, "scanner-status-success");
 
     handleResult(
       h.statusEl,
@@ -140,11 +140,11 @@ describe("scanner bundle", {
     expect(h.statusEl.textContent).toBe(
       "Ada already checked in for Standard (1 ticket)",
     );
-    assertStringIncludes(h.statusEl.className, "scanner-status-warning");
+    says(h.statusEl.className, "scanner-status-warning");
 
     handleResult(h.statusEl, { name: "Ada", status: "refunded" }, messages);
     expect(h.statusEl.textContent).toBe("Ada has been refunded");
-    assertStringIncludes(h.statusEl.className, "scanner-status-error");
+    says(h.statusEl.className, "scanner-status-error");
 
     // The forced rescan of a ticket whose only rows are "No check-in"
     // answers wrong_listing again; the organiser must see why, not silence.
@@ -156,11 +156,11 @@ describe("scanner bundle", {
     expect(h.statusEl.textContent).toBe(
       "This ticket has no door to check in at.",
     );
-    assertStringIncludes(h.statusEl.className, "scanner-status-error");
+    says(h.statusEl.className, "scanner-status-error");
 
     handleResult(h.statusEl, { status: "not_found" }, messages);
     expect(h.statusEl.textContent).toBe("Ticket not found");
-    assertStringIncludes(h.statusEl.className, "scanner-status-error");
+    says(h.statusEl.className, "scanner-status-error");
 
     handleResult(
       h.statusEl,
@@ -168,6 +168,6 @@ describe("scanner bundle", {
       messages,
     );
     expect(h.statusEl.textContent).toBe("Scan failed");
-    assertStringIncludes(h.statusEl.className, "scanner-status-error");
+    says(h.statusEl.className, "scanner-status-error");
   });
 });

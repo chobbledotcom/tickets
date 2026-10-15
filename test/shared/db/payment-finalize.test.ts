@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, requireOne } from "#db/client.ts";
@@ -22,6 +21,7 @@ import {
   getProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { says } from "#test-utils/says.ts";
 
 /** One reserved payment belonging to a fresh attendee. */
 const reserveAttendeePayment = async (sessionId: string): Promise<number> => {
@@ -72,7 +72,7 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
     const update = statements[0];
     if (!update) throw new Error("Expected the balance finalize update");
 
-    assertStringIncludes(update.sql, "SET attendee_id = ?,");
+    says(update.sql, "SET attendee_id = ?,");
     expect(update.args[0]).toBe(7);
   });
 

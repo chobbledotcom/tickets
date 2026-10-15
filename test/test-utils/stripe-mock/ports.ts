@@ -5,11 +5,11 @@
  */
 
 import { join } from "node:path";
-import { expect } from "@std/expect";
 import {
   STRIPE_MOCK_FAILED_TO_START,
   startStripeMock,
 } from "#scripts/stripe-mock.ts";
+import { says } from "#test-utils/says.ts";
 import type { StartOptions } from "#test-utils/stripe-mock/helpers.ts";
 
 type StartedStripeMock = Awaited<ReturnType<typeof startStripeMock>>;
@@ -125,7 +125,7 @@ export const startFailedOrPortTaken = async (
   try {
     started = await start();
   } catch (error) {
-    if (message) expect(String(error)).toContain(message);
+    if (message) says(String(error), message);
     return false;
   }
   // Outside the catch above, so a stop that goes wrong is not mistaken for

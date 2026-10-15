@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
@@ -7,6 +7,7 @@ import {
 } from "#routes/payment-response.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("paymentErrorResponse", () => {
   test("renders the message on a 400 by default", async () => {
@@ -14,11 +15,8 @@ describe("paymentErrorResponse", () => {
 
     expect(response.status).toBe(400);
     const page = await response.text();
-    assertStringIncludes(page, "Something went wrong");
-    assert(
-      !page.includes("Staff diagnostics"),
-      "the value should not contain the searched item",
-    );
+    says(page, "Something went wrong");
+    assert(!page.includes("Staff diagnostics"));
   });
 
   test("honours the given status", () => {
@@ -32,10 +30,10 @@ describe("paymentErrorResponse", () => {
     });
 
     const page = await response.text();
-    assertStringIncludes(page, "Staff diagnostics");
-    assertStringIncludes(page, "Session id");
-    assertStringIncludes(page, "cs_panel");
-    assertStringIncludes(page, "The card step was never finished.");
+    says(page, "Staff diagnostics");
+    says(page, "Session id");
+    says(page, "cs_panel");
+    says(page, "The card step was never finished.");
   });
 });
 

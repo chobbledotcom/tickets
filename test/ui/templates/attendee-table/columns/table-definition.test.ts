@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
@@ -12,6 +12,7 @@ import {
   render,
 } from "#test/ui/templates/attendee-table/shared.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import type { AttendeeTableRow } from "#types";
 
 const headersOf = (html: string): (string | undefined)[] =>
@@ -61,10 +62,7 @@ attendeeTableSuite(() => {
         showCheckin: false,
       }),
     );
-    assert(
-      !html.includes("<th>Email</th>"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<th>Email</th>"));
   });
 
   test("reorders columns as specified", () => {
@@ -92,7 +90,7 @@ attendeeTableSuite(() => {
         showCheckin: false,
       }),
     );
-    assertStringIncludes(html, "April 10, 2026");
+    says(html, "April 10, 2026");
   });
 
   test("renders the complete default Registered format", () => {
@@ -104,11 +102,8 @@ attendeeTableSuite(() => {
         showCheckin: false,
       }),
     );
-    assertStringIncludes(html, "2026-04-10 15:00");
-    assert(
-      !html.includes("April 10, 2026"),
-      "the value should not contain the searched item",
-    );
+    says(html, "2026-04-10 15:00");
+    assert(!html.includes("April 10, 2026"));
   });
 
   test("keeps the attendee link when a name filter is present", () => {
@@ -121,11 +116,8 @@ attendeeTableSuite(() => {
       }),
     );
 
-    assertStringIncludes(html, '<a href="/admin/attendees/7">Jane</a>');
-    assert(
-      !html.includes(">JANE<"),
-      "the value should not contain the searched item",
-    );
+    says(html, '<a href="/admin/attendees/7">Jane</a>');
+    assert(!html.includes(">JANE<"));
   });
 
   test("keeps the attendee quantity when a filter is present", () => {
@@ -138,11 +130,8 @@ attendeeTableSuite(() => {
       }),
     );
 
-    assertStringIncludes(html, '<td class="col-quantity">3</td>');
-    assert(
-      !html.includes('<td class="col-quantity">5</td>'),
-      "the value should not contain the searched item",
-    );
+    says(html, '<td class="col-quantity">3</td>');
+    assert(!html.includes('<td class="col-quantity">5</td>'));
   });
 
   test("returns raw attendee values for Liquid filters", () => {

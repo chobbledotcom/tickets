@@ -1,10 +1,11 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testTokenEntry } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("ticketViewPage ticket cards", () => {
   beforeAll(setupAdminPageTest);
@@ -33,7 +34,7 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    assertStringIncludes(html, "Monday 15 June 2026 at 15:00 GMT+1");
+    says(html, "Monday 15 June 2026 at 15:00 GMT+1");
   });
 
   test("does not show listing date when listing has empty date", () => {
@@ -44,10 +45,7 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    assert(
-      !html.includes("ticket-card-date"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("ticket-card-date"));
   });
 
   test("shows a single booking date for a one-day daily booking", () => {
@@ -65,11 +63,8 @@ describe("ticketViewPage ticket cards", () => {
     ];
     const html = ticketViewPage(cards);
     // Duration 1 → a single day, not a range.
-    assertStringIncludes(html, "Booking Date: Monday 15 June 2026");
-    assert(
-      !html.includes("15–"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Booking Date: Monday 15 June 2026");
+    assert(!html.includes("15–"));
   });
 
   test("shows location when entry has non-empty location", () => {
@@ -80,7 +75,7 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    assertStringIncludes(html, "Village Hall");
+    says(html, "Village Hall");
   });
 
   test("does not show location when listing has empty location", () => {
@@ -91,10 +86,7 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    assert(
-      !html.includes("ticket-card-location"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("ticket-card-location"));
   });
 
   test("shows both listing date and location when both are present", () => {
@@ -110,8 +102,8 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    assertStringIncludes(html, "Monday 15 June 2026 at 15:00 GMT+1");
-    assertStringIncludes(html, "Town Centre");
+    says(html, "Monday 15 June 2026 at 15:00 GMT+1");
+    says(html, "Town Centre");
   });
 
   test("shows each ticket as separate card with SVG endpoint reference", () => {
@@ -135,25 +127,16 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    assertStringIncludes(html, "/t/AABB0011CCDDEEF1/svg");
-    assertStringIncludes(html, "/t/AABB0011CCDDEEF2/svg");
-    assertStringIncludes(html, "2 Tickets");
+    says(html, "/t/AABB0011CCDDEEF1/svg");
+    says(html, "/t/AABB0011CCDDEEF2/svg");
+    says(html, "2 Tickets");
   });
 
   test("hides QR code and token for purchase_only listings", () => {
     const html = purchaseOnlyViewHtml();
-    assert(
-      !html.includes("ticket-card-qr"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("ticket-card-token"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("/svg"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("ticket-card-qr"));
+    assert(!html.includes("ticket-card-token"));
+    assert(!html.includes("/svg"));
   });
 
   test("hides wallet links for purchase_only listings", () => {
@@ -164,18 +147,9 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards, true, true);
-    assert(
-      !html.includes("wallet-link"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Apple Wallet"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Google Wallet"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("wallet-link"));
+    assert(!html.includes("Apple Wallet"));
+    assert(!html.includes("Google Wallet"));
   });
 
   test("hides non-transferable notice for purchase_only listings", () => {
@@ -191,19 +165,13 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    assert(
-      !html.includes("Non-transferable"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Non-transferable"));
   });
 
   test("shows Your Purchase heading for purchase_only listings", () => {
     const html = purchaseOnlyViewHtml();
-    assertStringIncludes(html, "Your Purchase");
-    assert(
-      !html.includes("Ticket"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Your Purchase");
+    assert(!html.includes("Ticket"));
   });
 
   test("shows ticket count heading for mixed listings", () => {
@@ -224,11 +192,8 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    assertStringIncludes(html, "2 Tickets");
-    assert(
-      !html.includes("Your Purchase"),
-      "the value should not contain the searched item",
-    );
+    says(html, "2 Tickets");
+    assert(!html.includes("Your Purchase"));
   });
 
   /** The page for one ordinary ticket, built from whatever this test puts on
@@ -241,8 +206,8 @@ describe("ticketViewPage ticket cards", () => {
 
   test("shows the organiser's description of the thing booked", () => {
     const html = oneCardPage({ listing: { description: "A night of song" } });
-    assertStringIncludes(html, "ticket-card-description");
-    assertStringIncludes(html, "A night of song");
+    says(html, "ticket-card-description");
+    says(html, "A night of song");
   });
 
   test("leaves the description out when the organiser wrote none", () => {
@@ -250,14 +215,13 @@ describe("ticketViewPage ticket cards", () => {
       !oneCardPage({ listing: { description: "" } }).includes(
         "ticket-card-description",
       ),
-      "the value should not contain the searched item",
     );
   });
 
   test("shows what was paid for a booking that cost money", () => {
     const html = oneCardPage({ attendee: { price_paid: "1500" } });
-    assertStringIncludes(html, "ticket-card-price");
-    assertStringIncludes(html, `Price: ${formatCurrency(1500)}`);
+    says(html, "ticket-card-price");
+    says(html, `Price: ${formatCurrency(1500)}`);
   });
 
   test("says nothing about price for a free booking", () => {
@@ -265,7 +229,6 @@ describe("ticketViewPage ticket cards", () => {
       !oneCardPage({ attendee: { price_paid: "0" } }).includes(
         "ticket-card-price",
       ),
-      "the value should not contain the searched item",
     );
   });
 
@@ -273,8 +236,8 @@ describe("ticketViewPage ticket cards", () => {
     const html = oneCardPage({
       listing: { non_transferable: true, purchase_only: false },
     });
-    assertStringIncludes(html, "ticket-card-notice");
-    assertStringIncludes(html, "Non-transferable — ID required at entry");
+    says(html, "ticket-card-notice");
+    says(html, "Non-transferable — ID required at entry");
   });
 
   test("offers the file the organiser attached, behind its signed link", () => {
@@ -282,8 +245,8 @@ describe("ticketViewPage ticket cards", () => {
       { listing: { attachment_name: "Guide.pdf" } },
       { attachmentUrl: "/attachment/42?a=7&exp=1&sig=x" },
     );
-    assertStringIncludes(html, 'href="/attachment/42?a=7&amp;exp=1&amp;sig=x"');
-    assertStringIncludes(html, "Download: Guide.pdf");
+    says(html, 'href="/attachment/42?a=7&amp;exp=1&amp;sig=x"');
+    says(html, "Download: Guide.pdf");
   });
 
   test("leaves out the download when the thing hands out no file", () => {
@@ -291,7 +254,6 @@ describe("ticketViewPage ticket cards", () => {
       !oneCardPage({ listing: { attachment_name: "" } }).includes(
         "attachment-link",
       ),
-      "the value should not contain the searched item",
     );
   });
 
@@ -313,10 +275,10 @@ describe("ticketViewPage ticket cards", () => {
       false,
       new Map([[7, { hideListings: false, name: "Welcome Pack" }]]),
     );
-    assertStringIncludes(html, "Welcome Pack");
-    assertStringIncludes(html, "Handbook");
-    assertStringIncludes(html, 'href="/attachment/9?a=3&amp;exp=1&amp;sig=y"');
-    assertStringIncludes(html, "Download: Handbook.pdf");
+    says(html, "Welcome Pack");
+    says(html, "Handbook");
+    says(html, 'href="/attachment/9?a=3&amp;exp=1&amp;sig=y"');
+    says(html, "Download: Handbook.pdf");
   });
 
   test("renders multi-day booking range when daily listing has duration > 1", () => {
@@ -334,6 +296,6 @@ describe("ticketViewPage ticket cards", () => {
     ];
     const html = ticketViewPage(cards);
     // duration=3 starting 2026-06-12 → covers 12, 13, 14 inclusive.
-    assertStringIncludes(html, "12–14 June 2026");
+    says(html, "12–14 June 2026");
   });
 });

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
@@ -11,6 +10,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   apiRequest,
   createTestManagerSession,
@@ -390,7 +390,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          assertStringIncludes(body.error, "does not match");
+          says(body.error, "does not match");
         },
       );
 

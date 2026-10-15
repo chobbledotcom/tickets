@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { KIND } from "#accounting/kinds.ts";
@@ -13,6 +12,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund, postModifierLeg, tx } from "#test-utils/ledger.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -23,11 +23,11 @@ describeWithEnv(
       const { attendeeId } = await seededSale("Gala", 2500);
       const html = await ledgerPageHtml(`/admin/ledger/attendee/${attendeeId}`);
       // The attendee's own label heads the page; a fully-paid sale nets to zero.
-      assertStringIncludes(html, "Ada Lovelace");
-      assertStringIncludes(html, "Amount still owed:");
-      assertStringIncludes(html, '<th class="col-amount">Running total</th>');
+      says(html, "Ada Lovelace");
+      says(html, "Amount still owed:");
+      says(html, '<th class="col-amount">Running total</th>');
       // The sale's counterparty is the listing revenue account, linked by name.
-      assertStringIncludes(html, "Gala");
+      says(html, "Gala");
     });
 
     test("renders a revenue listing's statement", async () => {
@@ -35,9 +35,9 @@ describeWithEnv(
       const response = await adminGet(`/admin/ledger/revenue/${listingId}`);
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, "Workshop");
+      says(html, "Workshop");
       // The counterparty of the sale leg is the paying attendee.
-      assertStringIncludes(html, "Ada Lovelace");
+      says(html, "Ada Lovelace");
     });
 
     test("renders a listing's servicing-cost statement", async () => {
@@ -56,14 +56,14 @@ describeWithEnv(
       const response = await adminGet(`/admin/ledger/cost/${listingId}`);
       expect(response.status).toBe(200);
       // The cost account labels itself with the listing's name.
-      assertStringIncludes(await response.text(), "Workshop");
+      says(await response.text(), "Workshop");
     });
 
     test("falls back to 'Modifier #<id>' when no modifier row exists", async () => {
       await postModifierLeg({ delta: 500, modifierId: 1 });
       const html = await ledgerPageHtml("/admin/ledger/modifier/1");
       // No modifier row exists, so the account falls back to "Modifier #1".
-      assertStringIncludes(html, "Modifier #1");
+      says(html, "Modifier #1");
     });
 
     test("renders the singleton card/bank statement", async () => {
@@ -71,7 +71,7 @@ describeWithEnv(
       const response = await adminGet("/admin/ledger/external/world");
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, "Card / bank");
+      says(html, "Card / bank");
     });
 
     test("renders the booking-fee income statement", async () => {
@@ -80,7 +80,7 @@ describeWithEnv(
       const response = await adminGet("/admin/ledger/fee_income/booking");
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, "Booking fees");
+      says(html, "Booking fees");
     });
 
     test("renders the writeoff contra-revenue statement", async () => {
@@ -94,9 +94,9 @@ describeWithEnv(
       await adjustListingIncome(listing.id, 1500);
       const html = await ledgerPageHtml("/admin/ledger/writeoff/default");
       // The writeoff singleton renders its label, not a raw "writeoff:default".
-      assertStringIncludes(html, "Corrections");
+      says(html, "Corrections");
       // The correction's counterparty is the listing's revenue account.
-      assertStringIncludes(html, "Adjusted");
+      says(html, "Adjusted");
     });
 
     test("includes a refunded attendee's reversal legs in their statement", async () => {
@@ -117,9 +117,9 @@ describeWithEnv(
       });
       const response = await adminGet(`/admin/ledger/attendee/${attendee.id}`);
       const html = await response.text();
-      assertStringIncludes(html, "Grace Hopper");
+      says(html, "Grace Hopper");
       // A full refund nets to zero, so the final running balance is zero.
-      assertStringIncludes(html, "Amount still owed:");
+      says(html, "Amount still owed:");
     });
 
     test("404s on an unknown account type", async () => {

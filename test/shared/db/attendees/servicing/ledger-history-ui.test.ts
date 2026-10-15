@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { costAccount } from "#accounting/accounts.ts";
@@ -12,6 +12,7 @@ import { deleteListing } from "#db/listings/delete.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createServicingHold,
   deleteServicingEvent,
@@ -38,10 +39,7 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
       memo: "Boiler part",
       target_listing_id: String(listing.id),
     });
-    assertStringIncludes(
-      response.headers.get("location") ?? "",
-      `/admin/servicing/${id}`,
-    );
+    says(response.headers.get("location"), `/admin/servicing/${id}`);
     expect(await listingCostOf(listing.id)).toBe(9000);
   });
 
@@ -65,14 +63,14 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
       servicingId: id,
     });
     const body = await renderAdminPage(`/admin/servicing/${id}`);
-    assertStringIncludes(body, "Service event costs");
-    assertStringIncludes(body, formatCurrency(9000));
-    assertStringIncludes(body, "Boiler part");
-    assertStringIncludes(body, listing.name);
-    assertStringIncludes(body, "Money out");
-    assertStringIncludes(body, `href="/admin/ledger?listing=${listing.id}"`);
-    assertStringIncludes(body, "View money changes");
-    assertStringIncludes(body, `/admin/servicing/${id}/cost/`);
+    says(body, "Service event costs");
+    says(body, formatCurrency(9000));
+    says(body, "Boiler part");
+    says(body, listing.name);
+    says(body, "Money out");
+    says(body, `href="/admin/ledger?listing=${listing.id}"`);
+    says(body, "View money changes");
+    says(body, `/admin/servicing/${id}/cost/`);
   });
 
   test("shows managers the outgoing without a forbidden ledger link", async () => {
@@ -82,15 +80,9 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
       cookie: await createTestManagerSession(),
     });
     const body = await response.text();
-    assertStringIncludes(body, listing.name);
-    assert(
-      !body.includes(`/admin/ledger?listing=${listing.id}`),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !body.includes("View money changes"),
-      "the value should not contain the searched item",
-    );
+    says(body, listing.name);
+    assert(!body.includes(`/admin/ledger?listing=${listing.id}`));
+    assert(!body.includes("View money changes"));
   });
 
   test("shows a deleted cost listing as plain text without a dead ledger link", async () => {
@@ -100,15 +92,9 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
 
     const body = await renderAdminPage(`/admin/servicing/${id}`);
 
-    assertStringIncludes(body, "Deleted listing");
-    assert(
-      !body.includes(`/admin/ledger?listing=${listing.id}`),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !body.includes("View money changes"),
-      "the value should not contain the searched item",
-    );
+    says(body, "Deleted listing");
+    assert(!body.includes(`/admin/ledger?listing=${listing.id}`));
+    assert(!body.includes("View money changes"));
   });
 
   test("getServicingCosts returns records in (occurred_at, transfer_id) order with each memo on its own row", async () => {
@@ -155,17 +141,8 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
     const memo = rows[0]?.memo;
     if (memo === null || memo === undefined)
       throw new Error("Missing stored memo");
-    assert(
-      !memo.includes("Plumber Dave"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !memo.includes("07700 900000"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !memo.includes("Plumber Dave 07700 900000"),
-      "the value should not contain the searched item",
-    );
+    assert(!memo.includes("Plumber Dave"));
+    assert(!memo.includes("07700 900000"));
+    assert(!memo.includes("Plumber Dave 07700 900000"));
   });
 });

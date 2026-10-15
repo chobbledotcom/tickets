@@ -10,6 +10,7 @@ import {
   ratchetExit,
 } from "#scripts/check-coverage-exclusions/ratchet-run.ts";
 import type { CapturedOutput } from "#scripts/process.ts";
+import { says } from "#test-utils/says.ts";
 
 /** A RunCommand stub that answers a fixed map of git invocations. */
 const stubRun =
@@ -136,8 +137,8 @@ describe("ratchetExit", () => {
 
   test("exits 1 and names each added entry", async () => {
     expect(await exitFor(["src/a.ts", "src/new.ts"], ["src/a.ts"])).toBe(1);
-    expect(lines.join("\n")).toContain("src/new.ts");
-    expect(lines.join("\n")).toContain(RATCHET_GUIDE);
+    says(lines.join("\n"), "src/new.ts");
+    says(lines.join("\n"), RATCHET_GUIDE);
   });
 
   test("fails loudly when an entry hides from the parser", async () => {

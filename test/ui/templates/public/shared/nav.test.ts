@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -9,6 +9,7 @@ import {
   type PublicNavProps,
   publicPage,
 } from "#templates/public/shared.tsx";
+import { says } from "#test-utils/says.ts";
 import {
   navEdge as edge,
   navKey,
@@ -48,24 +49,21 @@ describe("PublicNav (leaf-current render)", () => {
   test("marks the leaf active and terminates the nesting at its level", () => {
     const html = String(PublicNav(props(true)));
     // The whole chain renders: root subnav → page 2 → the active leaf link.
-    assertStringIncludes(html, '<a class="active" href="/ticket/leaf">');
+    says(html, '<a class="active" href="/ticket/leaf">');
     // Nesting stops at the leaf level: exactly two desktop subnav levels
     // (page 1's children, page 2's children), each once more in mobile bars.
     expect((html.match(/admin-subnav/g) ?? []).length).toBe(2);
     // Mobile bars are named for each level's parent page.
-    assertStringIncludes(html, 'aria-label="Page 1"');
-    assertStringIncludes(html, 'aria-label="Page 2"');
+    says(html, 'aria-label="Page 1"');
+    says(html, 'aria-label="Page 2"');
     // The terms link renders in both the desktop and mobile root rows.
     expect((html.match(/href="\/terms"/g) ?? []).length).toBe(2);
   });
 
   test("a dead leaf renders as text even while active", () => {
     const html = String(PublicNav(props(false)));
-    assertStringIncludes(html, "<span>Leaf Listing</span>");
-    assert(
-      !html.includes('href="/ticket/leaf"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "<span>Leaf Listing</span>");
+    assert(!html.includes('href="/ticket/leaf"'));
   });
 
   test("stays a direct main child beside the public page layout", () => {
@@ -75,8 +73,8 @@ describe("PublicNav (leaf-current render)", () => {
       props(true),
     )(Raw({ html: "<p>Page body</p>" }));
 
-    assertStringIncludes(html, '<h1>Website</h1><div class="admin-nav-group">');
-    assertStringIncludes(
+    says(html, '<h1>Website</h1><div class="admin-nav-group">');
+    says(
       html,
       '</nav></div><div class="page-regions public-page"><p>Page body</p></div>',
     );

@@ -5,7 +5,6 @@
  */
 
 // jscpd:ignore-start
-import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
@@ -22,6 +21,7 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { requestAsApiKey } from "#test-utils/session.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -176,5 +176,5 @@ export const ownerTakesBackKey: TakesOneThingDown = takesDownFromList(
 /** The story's own listing, so "it was told about the Pottery" means the site
  * really named it rather than answering with anything at all. */
 export const expectToldAbout = (said: string, name: string): void => {
-  expect(said).toContain(name);
+  says(said, name);
 };

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -11,6 +10,7 @@ import {
   expectNoAttendeesForListings,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 describeWithEnv("admin attendee create atomic failures", { db: true }, () => {
@@ -27,7 +27,7 @@ describeWithEnv("admin attendee create atomic failures", { db: true }, () => {
         ]),
       });
       expect(response.status).toBe(200);
-      assertStringIncludes(await response.text(), "spots");
+      says(await response.text(), "spots");
     });
 
     await expectNoAttendeesForListings([first.id, full.id]);

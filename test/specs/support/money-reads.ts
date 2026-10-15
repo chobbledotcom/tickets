@@ -14,6 +14,7 @@ import {
 import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { allBalances } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 // jscpd:ignore-end
 
@@ -90,9 +91,7 @@ export const assertStatementBalance: CheckMoneyShown = async (
   minor,
 ) => {
   const statement = await adminPageHtml(`/admin/ledger/revenue/${listingId}`);
-  expect(statement).toContain(
-    `Income balance: ${formatSignedCurrency(minor, false)}`,
-  );
+  says(statement, `Income balance: ${formatSignedCurrency(minor, false)}`);
 };
 
 /**
@@ -108,7 +107,7 @@ export const assertEditPageIncome: CheckMoneyShown = async (
   minor,
 ) => {
   const edit = await adminPageHtml(`/admin/listing/${listingId}/edit`);
-  expect(edit).toContain(`value="${formatCurrency(minor)}"`);
+  says(edit, `value="${formatCurrency(minor)}"`);
 };
 
 /** With no refund applied, both income surfaces agree on the same figure. */
@@ -133,8 +132,8 @@ export const assertRenderedOwed: CheckMoneyShown = async (
   const balancePage = await adminPageHtml(
     `/admin/attendees/${attendeeId}/ledger`,
   );
-  expect(balancePage).toContain("Balance outstanding:");
-  expect(balancePage).toContain(formatted);
+  says(balancePage, "Balance outstanding:");
+  says(balancePage, formatted);
 };
 
 /**
@@ -147,9 +146,9 @@ export const assertRenderedModifierRevenue: CheckMoneyShown = async (
 ) => {
   const formatted = formatCurrency(minor);
   const edit = await adminPageHtml(`/admin/modifiers/${modifierId}/edit`);
-  expect(edit).toContain(`value="${formatted}"`);
+  says(edit, `value="${formatted}"`);
   const list = await adminPageHtml("/admin/modifiers");
-  expect(list).toContain(formatted);
+  says(list, formatted);
 };
 
 /** Slice the `#income-ledger` reconciliation article out of a listing detail

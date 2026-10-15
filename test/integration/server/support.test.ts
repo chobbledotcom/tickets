@@ -12,7 +12,6 @@
  * not count towards coverage and these routes have no other direct cover.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -26,6 +25,7 @@ import {
   installRecordingFetch,
   mockFormRequest,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -60,7 +60,7 @@ describeWithEnv(
         // owns the other side of that branch — the link when they listen.
         const response = await adminGet("/admin/guide");
         const html = await response.text();
-        assertStringIncludes(html, 'href="/admin/support"');
+        says(html, 'href="/admin/support"');
       });
 
       test("renders the host's SUPPORT_PAGE_TEXT as markdown", async () => {
@@ -72,8 +72,8 @@ describeWithEnv(
         });
         const response = await adminGet("/admin/support");
         const html = await response.text();
-        assertStringIncludes(html, "<h1>Help Center</h1>");
-        assertStringIncludes(html, "<p>Reach out anytime</p>");
+        says(html, "<h1>Help Center</h1>");
+        says(html, "<p>Reach out anytime</p>");
       });
     });
 
@@ -90,7 +90,7 @@ describeWithEnv(
           const emailCall = mock.emailCall();
           expect(emailCall?.body?.to).toEqual(["host@support.test"]);
           expect(emailCall?.body?.reply_to).toBe("owner@example.com");
-          assertStringIncludes(
+          says(
             String(emailCall?.body?.subject),
             "Support message from Chobble Tickets site",
           );
@@ -124,7 +124,7 @@ describeWithEnv(
           // The nag branch of the page: rendered only when a submission was
           // recorded inside the nag window. The words before the bold time
           // value come from the catalog key support.last_submitted.
-          assertStringIncludes(html, "You last submitted this form");
+          says(html, "You last submitted this form");
         } finally {
           mock.restore();
         }
@@ -178,7 +178,7 @@ describeWithEnv(
           mockFormRequest("/admin/support", { message: "Help" }, cookie),
         );
         expect(response.status).toBe(403);
-        await expect(response.text()).resolves.toContain("Invalid CSRF token");
+        says(await response.text(), "Invalid CSRF token");
       });
 
       test("is forbidden for a non-owner (manager) session", async () => {

@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { once } from "#fp";
@@ -12,6 +13,7 @@ import {
   mockRequest,
 } from "#test-utils/mocks.ts";
 import { escapeForRegex } from "#test-utils/regex.ts";
+import { says } from "#test-utils/says.ts";
 
 export const FLASH_TEST_ID = "t001";
 
@@ -27,7 +29,7 @@ export const expectDatabaseResetRedirect = (response: Response): Response => {
   const sessionCookie = response.headers
     .getSetCookie()
     .find((c) => c.startsWith(`${getSessionCookieName()}=`));
-  expect(sessionCookie).toContain("Max-Age=0");
+  says(sessionCookie, "Max-Age=0");
   return response;
 };
 
@@ -48,8 +50,8 @@ export const expectActivityLogShows = async (
   const { adminGet } = await import("#test-utils/session.ts");
   const response = await adminGet("/admin/log");
   const body = await response.text();
-  expect(body).toContain(name);
-  expect(body).toContain(verb);
+  says(body, name);
+  says(body, verb);
 };
 
 const listingActivityLogHasMessage = async (
@@ -89,9 +91,9 @@ export const expectTestAttendeeCsvColumns = (
   row: string | undefined,
   quantity = 1,
 ): void => {
-  expect(row).toContain("John Doe");
-  expect(row).toContain("john@example.com");
-  expect(row).toContain(`,${quantity},`);
+  says(row, "John Doe");
+  says(row, "john@example.com");
+  says(row, `,${quantity},`);
 };
 
 /** Asserts a response is a 200 CSV download with the standard
@@ -104,10 +106,8 @@ export const expectCsvDownloadHeaders = (
 ): void => {
   expect(response.status).toBe(200);
   expect(response.headers.get("content-type")).toBe("text/csv; charset=utf-8");
-  expect(response.headers.get("content-disposition")).toContain("attachment");
-  expect(response.headers.get("content-disposition")).toContain(
-    filenameFragment,
-  );
+  says(response.headers.get("content-disposition"), "attachment");
+  says(response.headers.get("content-disposition"), filenameFragment);
 };
 
 /** Fetch a listing's CSV export as the given admin, assert 200, return the body. */
@@ -207,7 +207,7 @@ export const expectHtmlContains = (
   html: string,
   substrings: string[],
 ): string => {
-  for (const s of substrings) expect(html).toContain(s);
+  for (const s of substrings) says(html, s);
   return html;
 };
 
@@ -304,7 +304,7 @@ export const expectHtml = async (
   if (opts.status !== undefined) expect(response.status).toBe(opts.status);
   const html = await response.text();
   expectHtmlContains(html, opts.contains ?? []);
-  for (const s of opts.notContains ?? []) expect(html).not.toContain(s);
+  for (const s of opts.notContains ?? []) assert(!html.includes(s));
   return html;
 };
 
@@ -332,7 +332,7 @@ export const expectRedirect = (
   const location = getHeader(response, "location");
   for (const p of patterns) {
     if (typeof p === "string") {
-      expect(location).toContain(p);
+      says(location, p);
     } else {
       expect(location).toMatch(p);
     }
@@ -588,8 +588,8 @@ export const rejectionMessage = async (
 /** Assert that HTML content is properly escaped — `<script>` shows as
  *  `&lt;script&gt;`. */
 export const expectHtmlEscaped = (html: string): void => {
-  expect(html).not.toContain("<script>");
-  expect(html).toContain("&lt;script&gt;");
+  assert(!html.includes("<script>"));
+  says(html, "&lt;script&gt;");
 };
 
 export const matchGroup = (text: string, pattern: RegExp, group = 1): string =>
@@ -696,6 +696,6 @@ export const expectBuyerRefusalWithoutStaffPanel = async (
   message: string,
 ): Promise<void> => {
   const page = await response.text();
-  expect(page).toContain(message);
-  expect(page).not.toContain("Staff diagnostics");
+  says(page, message);
+  assert(!page.includes("Staff diagnostics"));
 };

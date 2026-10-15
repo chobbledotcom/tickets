@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -20,35 +20,33 @@ import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("server (public balance page) > GET", { db: true }, () => {
   test("GET shows the recap and balance due for a reserved attendee", async () => {
     const html = await getPayPage(await createReserved(1500));
     expectRecap(html);
     // No PII (the booker's name) is shown.
-    assert(
-      !html.includes("Guest"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Guest"));
   });
 
   test("GET shows a settled message once the balance is cleared", async () => {
     const attendeeId = await createReserved(1500);
     await settleAttendeeBalance(attendeeId, 1500, settle());
-    assertStringIncludes(await getPayPage(attendeeId), "Nothing to pay");
+    says(await getPayPage(attendeeId), "Nothing to pay");
   });
 
   test("GET rejects an invalid token", async () => {
     const response = await handleRequest(mockRequest("/pay/bal1.bogus.bogus"));
     const html = await response.text();
-    assertStringIncludes(html, "not valid");
+    says(html, "not valid");
   });
 
   test("GET rejects a validly-signed token for a missing attendee", async () => {
     // The token verifies, but no attendee row matches, so the balance state is
     // null. The handler must short-circuit to the not-valid page rather than
     // dereference the absent state.
-    assertStringIncludes(await getPayPage(999_999), "not valid");
+    says(await getPayPage(999_999), "not valid");
   });
 
   test("GET shows the recap for a non-reservation attendee with an outstanding balance", async () => {
@@ -56,10 +54,7 @@ describeWithEnv("server (public balance page) > GET", { db: true }, () => {
     // money can pay it online, whatever status the booking sits in.
     const html = await getPayPage(await createNonReservation(1500));
     expectRecap(html);
-    assert(
-      !html.includes("Nothing to pay"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Nothing to pay"));
   });
 
   test("GET shows the recap when just 1 is still owed", async () => {
@@ -67,10 +62,7 @@ describeWithEnv("server (public balance page) > GET", { db: true }, () => {
     // penny still outstanding shows the pay page rather than "Nothing to pay".
     const html = await getPayPage(await createNonReservation(1));
     expectRecap(html);
-    assert(
-      !html.includes("Nothing to pay"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Nothing to pay"));
   });
 
   test("GET refuses a reserved balance whose only line is no-quantity", async () => {
@@ -81,7 +73,7 @@ describeWithEnv("server (public balance page) > GET", { db: true }, () => {
       sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
     });
     // An honest "no tickets to pay for" message, not a misleading "link invalid".
-    assertStringIncludes(await getPayPage(attendeeId), "no tickets to pay for");
+    says(await getPayPage(attendeeId), "no tickets to pay for");
   });
 
   test("GET hides concealed package members behind the package name", async () => {
@@ -92,13 +84,10 @@ describeWithEnv("server (public balance page) > GET", { db: true }, () => {
 
     const html = await getPayPage(attendeeId);
 
-    assert(
-      !html.includes("Secret Contents"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "Mystery Box");
-    assertStringIncludes(html, "Workshop Ticket");
-    assertStringIncludes(html, "Balance due");
+    assert(!html.includes("Secret Contents"));
+    says(html, "Mystery Box");
+    says(html, "Workshop Ticket");
+    says(html, "Balance due");
   });
 
   test("GET uses the generic package label when the package row is gone", async () => {
@@ -136,11 +125,8 @@ describeWithEnv("server (public balance page) > GET", { db: true }, () => {
 
     const html = await getPayPage(attendee.id);
 
-    assert(
-      !html.includes("Secret Remnant"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "Package");
+    assert(!html.includes("Secret Remnant"));
+    says(html, "Package");
   });
 
   test("non-matching /pay requests fall through", async () => {

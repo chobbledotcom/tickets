@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
@@ -8,6 +8,7 @@ import type {
   AttendeeMergeDiffBookingItem,
 } from "#shared/merge/attendee-merge-types.ts";
 import { MergeDecisionTables } from "#templates/admin/attendees/merge-tables.tsx";
+import { says } from "#test-utils/says.ts";
 
 const bookingRow = (
   overrides: Partial<ListingAttendeeRow> = {},
@@ -88,34 +89,25 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    assertStringIncludes(
+    says(
       html,
       "<th>Field</th><th>Keep current: Target Person</th><th>Use source: Source Person</th>",
     );
-    assertStringIncludes(html, '<th scope="row">Name</th>');
-    assertStringIncludes(
+    says(html, '<th scope="row">Name</th>');
+    says(
       html,
       '<input checked name="pii_name" type="radio" value="target"> Target &lt;script&gt;name&lt;/script&gt;',
     );
-    assertStringIncludes(
+    says(
       html,
       '<input name="pii_name" type="radio" value="source"> Source &lt;strong&gt;name&lt;/strong&gt;',
     );
-    assert(
-      !html.includes("<script>name</script>"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("<strong>name</strong>"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, '<th scope="row">Address</th>');
-    assertStringIncludes(html, '<span style="white-space:pre-wrap">—</span>');
-    assertStringIncludes(html, '<span class="muted">(same)</span>');
-    assert(
-      !html.includes('name="pii_address" type="radio" value="source"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<script>name</script>"));
+    assert(!html.includes("<strong>name</strong>"));
+    says(html, '<th scope="row">Address</th>');
+    says(html, '<span style="white-space:pre-wrap">—</span>');
+    says(html, '<span class="muted">(same)</span>');
+    assert(!html.includes('name="pii_address" type="radio" value="source"'));
   });
 
   test("renders every required choice for a conflicting answer", () => {
@@ -135,23 +127,17 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    assertStringIncludes(
+    says(
       html,
       '<fieldset class="listing-section"><legend>Custom Question Answers</legend>',
     );
-    assertStringIncludes(html, '<th scope="row">Favourite colour?</th>');
-    assertStringIncludes(
+    says(html, '<th scope="row">Favourite colour?</th>');
+    says(
       html,
       '<input checked name="answer_10" type="radio" value="target"> Red',
     );
-    assertStringIncludes(
-      html,
-      '<input name="answer_10" type="radio" value="source"> Blue',
-    );
-    assertStringIncludes(
-      html,
-      '<input name="answer_10" type="radio" value="clear"> None',
-    );
+    says(html, '<input name="answer_10" type="radio" value="source"> Blue');
+    says(html, '<input name="answer_10" type="radio" value="clear"> None');
   });
 
   test("labels non-conflicting answers without rendering controls", () => {
@@ -180,30 +166,21 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    assertStringIncludes(
+    says(
       html,
       '<span class="muted">Target kept (target, kept automatically)</span>',
     );
-    assertStringIncludes(
+    says(
       html,
       '<span class="muted">Source kept (source, kept automatically)</span>',
     );
-    assertStringIncludes(
-      html,
-      "<thead><tr><th>Question</th><th>Status</th></tr></thead>",
-    );
-    assertStringIncludes(
+    says(html, "<thead><tr><th>Question</th><th>Status</th></tr></thead>");
+    says(
       html,
       '<tr><th scope="row">Source answer?</th><td><span class="muted">Source kept (source, kept automatically)</span></td></tr>',
     );
-    assert(
-      !html.includes('name="answer_11"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('name="answer_12"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('name="answer_11"'));
+    assert(!html.includes('name="answer_12"'));
   });
 
   test("renders booking conflicts and paid money controls", () => {
@@ -241,61 +218,55 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    assertStringIncludes(
+    says(
       html,
       "<th>Listing</th><th>Date</th><th>Source (qty)</th><th>Status</th><th>Decision</th>",
     );
-    assertStringIncludes(html, "2–3 February 2027");
-    assertStringIncludes(
+    says(html, "2–3 February 2027");
+    says(
       html,
       "<strong>Duplicate</strong> Current quantity: 5. Source quantity: 2.",
     );
-    assertStringIncludes(
+    says(
       html,
       '<input checked name="booking_' +
         paidKey +
         '" type="radio" value="keep_target"> Keep current booking',
     );
-    assertStringIncludes(
+    says(
       html,
       '<input name="booking_' +
         paidKey +
         '" type="radio" value="take_source"> Use source booking',
     );
-    assertStringIncludes(
+    says(
       html,
       '<input name="booking_' +
         paidKey +
         '" type="radio" value="skip_source"> Skip source booking',
     );
-    assertStringIncludes(
+    says(
       html,
       `Source payment: ${formatCurrency(1234)}. Current payment: ${formatCurrency(567)}.`,
     );
-    assertStringIncludes(
+    says(
       html,
       `<input name="money_${paidKey}" type="radio" value="credit"> Keep it as credit for this person`,
     );
-    assertStringIncludes(
+    says(
       html,
       `<input name="money_${paidKey}" type="radio" value="writeoff"> Write it off`,
     );
-    assertStringIncludes(
+    says(
       html,
       "<strong>Conflicting metadata</strong> Current quantity: 1. Source quantity: 3.",
     );
-    assert(
-      !html.includes('name="money_8:null:0:0"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(
+    assert(!html.includes('name="money_8:null:0:0"'));
+    says(
       html,
       '<tr><td>Listing #9</td><td>—</td><td>1</td><td><span class="muted">Will be moved</span></td><td></td></tr>',
     );
-    assert(
-      !html.includes('name="booking_9:null:0:0"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('name="booking_9:null:0:0"'));
   });
 
   test("omits decision columns when every booking can move", () => {
@@ -312,20 +283,11 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    assertStringIncludes(html, "Listing #15");
-    assertStringIncludes(html, '<span class="muted">Will be moved</span>');
-    assert(
-      !html.includes("<th>Decision</th>"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('name="booking_15:null:0:0"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Custom Question Answers"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Listing #15");
+    says(html, '<span class="muted">Will be moved</span>');
+    assert(!html.includes("<th>Decision</th>"));
+    assert(!html.includes('name="booking_15:null:0:0"'));
+    assert(!html.includes("Custom Question Answers"));
   });
 
   test("fails clearly when a conflict has no target booking", () => {

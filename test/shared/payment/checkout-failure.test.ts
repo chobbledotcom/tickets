@@ -80,10 +80,7 @@ describe("running one provider's checkout calls", () => {
       reason: "provider_error",
       statusCode: 409,
     });
-    assert(
-      !closedError.message.includes("private.person@example.com"),
-      "the value should not contain the searched item",
-    );
+    assert(!closedError.message.includes("private.person@example.com"));
   });
 
   test("lets a bug of ours keep travelling instead of blaming the provider", () => {

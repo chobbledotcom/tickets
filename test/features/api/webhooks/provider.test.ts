@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -17,6 +17,7 @@ import {
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockWebhookRequest, withExpectedError } from "#test-utils/mocks.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import { stripeClient } from "#test-utils/stripe/fixtures.ts";
 
@@ -119,10 +120,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
     );
 
     expect(response.status).toBe(503);
-    assert(
-      !(await response.text()).includes("PRIVATE_STRIPE_READ_FAILURE"),
-      "the value should not contain the searched item",
-    );
+    assert(!(await response.text()).includes("PRIVATE_STRIPE_READ_FAILURE"));
     expect(logLogged(E, "PRIVATE_STRIPE_READ_FAILURE")).toBe(false);
   });
 
@@ -160,18 +158,9 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
     expect(await getAttendeesRaw(listing.id)).toHaveLength(0);
     expect(await getProcessedPayment(sessionId)).toBeNull();
     const activity = JSON.stringify(await getAllActivityLog());
-    assertStringIncludes(
-      activity,
-      "Signed payment's booking could not be read",
-    );
-    assert(
-      !activity.includes(sessionId),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !activity.includes(privateEmail),
-      "the value should not contain the searched item",
-    );
+    says(activity, "Signed payment's booking could not be read");
+    assert(!activity.includes(sessionId));
+    assert(!activity.includes(privateEmail));
   });
 
   test("unpaid session acks as pending and logs", async () => {
@@ -242,7 +231,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
       mockWebhookRequest({}, { "stripe-signature": "sig" }),
     );
     expect(res.status).toBe(400);
-    assertStringIncludes(await res.text(), "Payment provider not configured");
+    says(await res.text(), "Payment provider not configured");
     expect(logLogged(E, "provider not configured")).toBe(true);
     expect(logLogged(D, "Rejected webhook")).toBe(true);
   });
@@ -253,7 +242,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
       mockWebhookRequest({ private: "PRIVATE_WEBHOOK_BODY" }),
     );
     expect(res.status).toBe(400);
-    assertStringIncludes(await res.text(), "Missing signature");
+    says(await res.text(), "Missing signature");
     expect(logLogged(E, "missing signature header")).toBe(true);
     expect(logLogged(D, "Rejected webhook")).toBe(true);
     expect(logLogged(D, "PRIVATE_WEBHOOK_BODY")).toBe(false);
@@ -306,7 +295,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
     );
     using _v = verify;
     expect(res.status).toBe(409);
-    assertStringIncludes(await res.text(), "being processed");
+    says(await res.text(), "being processed");
   });
 
   test("kept-refunded webhook acks with the correct listing in the error log", async () => {
@@ -327,7 +316,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
       }),
       (j) => {
         expect(j.processed).toBe(false);
-        assertStringIncludes(String(j.error), "saved your details");
+        says(String(j.error), "saved your details");
       },
     );
     expect(logLogged(E, `listing=${l.id}`)).toBe(true);

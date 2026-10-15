@@ -13,6 +13,7 @@
  * relationship it needs instead of assembling it line by line.
  */
 
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { listingChildren } from "#db/listing-parents.ts";
 import { handleRequest } from "#routes";
@@ -532,5 +533,5 @@ export const soldOutParentInGroup = async (
 export const expectNoListingsCta = async (groupSlug: string): Promise<void> => {
   await enablePublicSite();
   const body = await testPageHtml("/listings");
-  expect(body).not.toContain(`href="/ticket/${groupSlug}"`);
+  assert(!body.includes(`href="/ticket/${groupSlug}"`));
 };

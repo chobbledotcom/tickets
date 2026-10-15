@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { projectRoot } from "#scripts/project-root.ts";
+import { says } from "#test-utils/says.ts";
 
 /**
  * The setup-devenv action resolves the Deno version through
@@ -116,7 +117,7 @@ describe("the setup-devenv Deno version resolve", () => {
         );
         expect(result.code, `script stderr: ${stderr}`).toBe(1);
         expect(await Deno.readTextFile(stub.callsFile)).toBe("3\n");
-        expect(stderr).toContain("resolve attempt 3 failed; retrying");
+        says(stderr, "resolve attempt 3 failed; retrying");
         // A printed line from a failed eval must not become the cache key.
         const output = await Deno.stat(
           join(stub.binDir, "github-output"),

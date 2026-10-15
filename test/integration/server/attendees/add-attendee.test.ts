@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -28,6 +27,7 @@ import {
   getAttendeesRaw,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -100,7 +100,7 @@ describeWithEnv("server (admin attendees) > add attendee", { db: true }, () => {
       const log = (await getListingActivityLog(listing.id)).find((l) =>
         l.message.includes("added manually"),
       );
-      assertStringIncludes(log?.message ?? "", "Jane Doe");
+      says(log?.message, "Jane Doe");
     });
 
     test("persists every submitted contact field, not just the name", async () => {
@@ -155,10 +155,7 @@ describeWithEnv("server (admin attendees) > add attendee", { db: true }, () => {
       const edit = await adminGet(`/admin/attendees/${added!.id}/edit`);
       const html = await edit.text();
       // The lookup panel's search box starts filled with the saved postcode.
-      assertStringIncludes(
-        html,
-        'data-address-search type="text" value="SW1A 1AA"',
-      );
+      says(html, 'data-address-search type="text" value="SW1A 1AA"');
     });
 
     test("adds a customisable daily attendee spanning the chosen day count", async () => {

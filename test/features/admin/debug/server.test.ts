@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { SCHEMA_HASH } from "#db/migrations.ts";
 import { settings } from "#db/settings.ts";
@@ -20,6 +20,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { debugOwnerSession, makeDebugState } from "#test-utils/debug.ts";
 import { nonRsaCertificatePem } from "#test-utils/der.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, getTestSession } from "#test-utils/session.ts";
 import { activateStripe, enablePublicSite } from "#test-utils/settings.ts";
 
@@ -86,7 +87,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     test("shows the actual Deno version it is running on", async () => {
       const { denoVersion } = getRuntimeInfo();
       const html = await assertAdminHtml("/admin/debug", "Deno version");
-      assertStringIncludes(html, denoVersion);
+      says(html, denoVersion);
     });
 
     test("shows Apple Wallet section", async () => {
@@ -160,18 +161,9 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("does not expose secret keys or full URLs", async () => {
       const html = await assertAdminHtml("/admin/debug");
-      assert(
-        !html.includes("sk_test_"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("sk_live_"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("ntfy.sh"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("sk_test_"));
+      assert(!html.includes("sk_live_"));
+      assert(!html.includes("ntfy.sh"));
     });
 
     test("shows exact empty and unconfigured values", async () => {
@@ -216,20 +208,14 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       await settings.update.paymentProvider("stripe");
       await settings.update.stripe.secretKey("sk_test_fake");
       const html = await assertAdminHtml("/admin/debug", "Mode", "Test");
-      assert(
-        !html.includes("sk_test_fake"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("sk_test_fake"));
     });
 
     test("shows Live mode for a live-prefixed key", async () => {
       await settings.update.paymentProvider("stripe");
       await settings.update.stripe.secretKey("sk_live_fake");
       const html = await assertAdminHtml("/admin/debug", "Live");
-      assert(
-        !html.includes("sk_live_fake"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("sk_live_fake"));
     });
 
     test("shows an em dash for mode when no key is set", async () => {
@@ -473,10 +459,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         Promise.resolve({ error: "API error", ok: false as const });
       try {
         const html = await assertAdminHtml("/admin/debug", "badge-ok");
-        assert(
-          !html.includes("mysite.b-cdn.net"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("mysite.b-cdn.net"));
       } finally {
         bunnyCdnApi.getCdnHostname = original;
       }
@@ -523,8 +506,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         },
       });
       const html = adminDebugPage(debugOwnerSession, state);
-      assertStringIncludes(html, "mylisting.example.com");
-      assertStringIncludes(html, ".tickets");
+      says(html, "mylisting.example.com");
+      says(html, ".tickets");
     });
   });
 
@@ -636,8 +619,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
           },
         });
         const html = adminDebugPage(debugOwnerSession, state);
-        assertStringIncludes(html, "Database host");
-        assertStringIncludes(html, `<td>${label}</td>`);
+        says(html, "Database host");
+        says(html, `<td>${label}</td>`);
       }
     });
 
@@ -651,8 +634,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         },
       });
       const html = adminDebugPage(debugOwnerSession, state);
-      assertStringIncludes(html, "Out of sync");
-      assertStringIncludes(html, "deadbeef");
+      says(html, "Out of sync");
+      says(html, "deadbeef");
     });
   });
 
@@ -660,8 +643,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     test("shows limits table with all entries", async () => {
       const html = await assertAdminHtml("/admin/debug", "Limits");
       for (const entry of LIMIT_ENTRIES) {
-        assertStringIncludes(html, entry.envKey);
-        assertStringIncludes(html, entry.label);
+        says(html, entry.envKey);
+        says(html, entry.label);
       }
     });
 
@@ -678,8 +661,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         ],
       });
       const html = adminDebugPage(debugOwnerSession, state);
-      assertStringIncludes(html, "200B");
-      assertStringIncludes(html, "(overridden)");
+      says(html, "200B");
+      says(html, "(overridden)");
     });
   });
 });

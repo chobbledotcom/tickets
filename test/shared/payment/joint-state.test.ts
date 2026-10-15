@@ -1,4 +1,3 @@
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -13,6 +12,7 @@ import {
 import { openPaymentReview } from "#payment/review.ts";
 import { ROW_NODES } from "#payment/row-machine-spec.ts";
 import type { PaymentRowState } from "#payment/row-state.ts";
+import { has, says } from "#test-utils/says.ts";
 
 const HELD: PaymentRowState = {
   claim: {
@@ -57,9 +57,9 @@ const AUTHORITY_FACTS: readonly AuthorityFact[] = Object.values(
 describe("payment joint state", () => {
   test("every declared entry names known facts with a real reason", () => {
     for (const entry of ILLEGAL_JOINT_STATES) {
-      assertArrayIncludes(AUTHORITY_FACTS ?? [], [entry.authority]);
+      has(AUTHORITY_FACTS, entry.authority);
       expect(entry.reason.length).toBeGreaterThan(0);
-      for (const row of entry.rows) assertArrayIncludes(ROW_FACTS ?? [], [row]);
+      for (const row of entry.rows) has(ROW_FACTS, row);
     }
   });
 
@@ -99,15 +99,12 @@ describe("payment joint state", () => {
     for (const row of ROW_FACTS) {
       const reason = illegalJointReasonOrNull(row, "send_armed");
       if (row.startsWith("claim")) expect(reason, row).toBeNull();
-      else assertStringIncludes(reason ?? "", "armed", row);
+      else says(reason, "armed", row);
     }
   });
 
   test("a held claim is illegal over references with no charge", () => {
-    assertStringIncludes(
-      illegalJointReasonOrNull("claim", "absent") ?? "",
-      "claim",
-    );
+    says(illegalJointReasonOrNull("claim", "absent"), "claim");
     expect(illegalJointReasonOrNull("free_finalized", "absent")).toBeNull();
     expect(illegalJointReasonOrNull("settled", "absent")).toBeNull();
   });

@@ -8,6 +8,7 @@ import {
 } from "#scripts/cycles/graph.ts";
 import { runCycleGate } from "#scripts/cycles/run.ts";
 import type { ModuleGraph } from "#scripts/module-graph.ts";
+import { says } from "#test-utils/says.ts";
 
 const ROOT = "/repo";
 
@@ -235,17 +236,17 @@ describe("formatCycleReport", () => {
       ["b.ts", new Set(["a.ts"])],
     ]);
     const report = formatCycleReport(edges, [["a.ts", "b.ts"]]);
-    expect(report).toContain("modules with load-time imports: 2");
-    expect(report).toContain("cyclic groups: 1");
-    expect(report).toContain("dynamic");
-    expect(report).toContain("== group of 2 ==");
-    expect(report).toContain("  a.ts");
-    expect(report).toContain("  b.ts");
+    says(report, "modules with load-time imports: 2");
+    says(report, "cyclic groups: 1");
+    says(report, "dynamic");
+    says(report, "== group of 2 ==");
+    says(report, "  a.ts");
+    says(report, "  b.ts");
   });
 
   test("still explains the measurement when the tree is clean", () => {
     const report = formatCycleReport(new Map(), []);
-    expect(report).toContain("cyclic groups: 0");
+    says(report, "cyclic groups: 0");
   });
 });
 
@@ -271,19 +272,17 @@ describe("runCycleGate", () => {
   test("exits non-zero with fix guidance while a ring stands", async () => {
     const gate = await gateOverPair();
     expect(gate.exitCode).toBe(1);
-    expect(gate.text).toContain("modules with load-time imports: 2");
-    expect(gate.text).toContain("cyclic groups: 1");
-    expect(gate.text).toContain("== group of 2 ==");
-    expect(gate.text).toContain("  src/a.ts");
-    expect(gate.text).toContain("  src/b.ts");
-    expect(gate.text).toContain(
-      "type-only imports evaluate nothing and dynamic",
-    );
+    says(gate.text, "modules with load-time imports: 2");
+    says(gate.text, "cyclic groups: 1");
+    says(gate.text, "== group of 2 ==");
+    says(gate.text, "  src/a.ts");
+    says(gate.text, "  src/b.ts");
+    says(gate.text, "type-only imports evaluate nothing and dynamic");
   });
 
   test("exits zero once the tree holds no ring", async () => {
     const gate = await gateOverPair(false);
     expect(gate.exitCode).toBe(0);
-    expect(gate.text).toContain("cyclic groups: 0");
+    says(gate.text, "cyclic groups: 0");
   });
 });

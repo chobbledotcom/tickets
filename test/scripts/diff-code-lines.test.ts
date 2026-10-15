@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -8,6 +9,7 @@ import {
   gitDiffArgs,
   tallyDiff,
 } from "#scripts/diff-code-lines-lib.ts";
+import { says } from "#test-utils/says.ts";
 
 test("requests a raw unified diff that external Git tools cannot replace", () => {
   expect(gitDiffArgs("origin/main")).toEqual([
@@ -208,17 +210,17 @@ describe("diff-code-lines formatReport", () => {
     counts.added.src.code = 4;
     counts.added.test.code = 8;
     const out = formatReport(counts);
-    expect(out).toContain("  src : 4");
-    expect(out).toContain("  test: 8");
-    expect(out).toContain("  test/src ratio: 2.00");
+    says(out, "  src : 4");
+    says(out, "  test: 8");
+    says(out, "  test/src ratio: 2.00");
   });
 
   test("omits the ratio when no src code changed", () => {
     const counts = { added: emptyAreaTally(), removed: emptyAreaTally() };
     counts.added.test.code = 3;
     const out = formatReport(counts);
-    expect(out).not.toContain("ratio");
-    expect(out).toContain("  src : 0");
-    expect(out).toContain("  test: 3");
+    assert(!out.includes("ratio"));
+    says(out, "  src : 0");
+    says(out, "  test: 3");
   });
 });

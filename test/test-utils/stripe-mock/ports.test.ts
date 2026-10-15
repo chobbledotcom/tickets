@@ -1,6 +1,7 @@
 // test-groups: run-alone - the unload tests fire the isolate's unload
 // listeners by hand, and a shared isolate would run other suites' unload
 // cleanup with them, dropping its golden database and suite mock.
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";

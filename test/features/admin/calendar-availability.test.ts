@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -6,6 +5,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import {
   bookDailyTicket,
   fetchCalendarHtml,
@@ -23,14 +23,14 @@ describeWithEnv(
           name: "Avail Listing",
         });
         const html = await fetchCalendarHtml();
-        assertStringIncludes(html, "Check availability");
-        assertStringIncludes(html, "data-availability-checker");
-        assertStringIncludes(html, "Avail Listing");
-        assertStringIncludes(html, "5/5");
-        assertStringIncludes(html, 'action="/admin/attendees/new"');
-        assertStringIncludes(html, 'formaction="/admin/servicing/new"');
-        assertStringIncludes(html, "Create Service Event");
-        assertStringIncludes(html, `name="select_${listing.id}"`);
+        says(html, "Check availability");
+        says(html, "data-availability-checker");
+        says(html, "Avail Listing");
+        says(html, "5/5");
+        says(html, 'action="/admin/attendees/new"');
+        says(html, 'formaction="/admin/servicing/new"');
+        says(html, "Create Service Event");
+        says(html, `name="select_${listing.id}"`);
       });
 
       test("reflects bookings in the remaining count", async () => {
@@ -41,7 +41,7 @@ describeWithEnv(
         });
         await bookAttendee(listing, { quantity: 2 });
         const html = await fetchCalendarHtml();
-        assertStringIncludes(html, "3/5");
+        says(html, "3/5");
       });
 
       test("passes the selected calendar date to the create form", async () => {
@@ -53,8 +53,8 @@ describeWithEnv(
           name: "A",
         });
         const html = await fetchCalendarHtml(`/admin/calendar?date=${date}`);
-        assertStringIncludes(html, 'name="start_date"');
-        assertStringIncludes(html, `value="${date}"`);
+        says(html, 'name="start_date"');
+        says(html, `value="${date}"`);
       });
     });
   },

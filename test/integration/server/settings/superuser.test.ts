@@ -33,6 +33,7 @@ import {
   withMocks,
 } from "#test-utils/mocks.ts";
 import { statementSql } from "#test-utils/record-queries.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   createTestManagerSession,
@@ -136,7 +137,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
         cookie,
       ),
     );
-    await expect(response.text()).resolves.toContain("Invalid CSRF token");
+    says(await response.text(), "Invalid CSRF token");
     expect(response.status).toBe(403);
   });
 

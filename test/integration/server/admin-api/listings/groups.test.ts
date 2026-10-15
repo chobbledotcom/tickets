@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
@@ -7,6 +7,7 @@ import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { storedListingNames } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Listings", { db: true }, () => {
@@ -200,7 +201,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          assertStringIncludes(body.error, "same type");
+          says(body.error, "same type");
         },
       );
     });
@@ -231,7 +232,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          assertStringIncludes(
+          says(
             body.error,
             "already contains listings with a fixed number of days",
           );
@@ -239,10 +240,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
 
       // A refused create leaves nothing behind.
-      assert(
-        !(await storedListingNames()).includes("Customisable Candidate"),
-        "the value should not contain the searched item",
-      );
+      assert(!(await storedListingNames()).includes("Customisable Candidate"));
     });
 
     test("rejects flipping a grouped listing's type when the update leaves membership alone", async () => {
@@ -280,7 +278,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          assertStringIncludes(body.error, "same type");
+          says(body.error, "same type");
         },
       );
 

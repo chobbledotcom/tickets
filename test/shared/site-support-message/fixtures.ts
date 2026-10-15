@@ -4,7 +4,6 @@
  * suites share.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
@@ -13,6 +12,7 @@ import {
 } from "#shared/site-support-message.ts";
 import { type FetchReply, stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 /** A readable bunny site record for the module-level paths. */
 export const bunnySite = (overrides: Partial<BuiltSite> = {}): BuiltSite => ({
@@ -62,5 +62,5 @@ export const expectErrorResult = (
   contains: string,
 ): void => {
   expect(result.ok).toBe(false);
-  if (!result.ok) assertStringIncludes(result.error ?? "", contains);
+  if (!result.ok) says(result.error, contains);
 };

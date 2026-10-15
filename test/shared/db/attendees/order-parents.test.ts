@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ChildAllocation, ListingBooking } from "#db/attendee-types.ts";
@@ -9,6 +8,7 @@ import {
 import { listingChildren } from "#db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has } from "#test-utils/says.ts";
 
 /** A bare booking line for a listing id (other fields default at insert time). */
 const line = (listingId: number): ListingBooking => ({ listingId });
@@ -134,8 +134,8 @@ describe("db > attendees > expandChildAllocations", () => {
     const childRows = result.filter((r) => r.listingId === 30);
     expect(childRows).toHaveLength(2);
     const parentIds = childRows.map((r) => r.parentListingId);
-    assertArrayIncludes(parentIds ?? [], [10]);
-    assertArrayIncludes(parentIds ?? [], [20]);
+    has(parentIds, 10);
+    has(parentIds, 20);
     // Each child allocation carries qty 1.
     expect(childRows.every((r) => r.quantity === 1)).toBe(true);
     // All rows share one token.

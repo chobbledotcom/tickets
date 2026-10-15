@@ -24,6 +24,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -81,7 +82,7 @@ Then(
       "settings.advanced.confirmation_email",
       "settings.advanced.admin_notification_email",
     ]) {
-      expect(page).toContain(await settingsCopy(heading));
+      says(page, await settingsCopy(heading));
     }
   },
 );
@@ -124,14 +125,12 @@ Then(
   "there is a way to start from the site's own wording",
   async function (this: TicketsWorld): Promise<void> {
     const page = whatTheyWereTold(this, ORGANISER);
-    expect(page).toContain(
-      await settingsCopy("settings.advanced.edit_default_template"),
-    );
+    says(page, await settingsCopy("settings.advanced.edit_default_template"));
     // Each box separately, because the link only copies the wording the box
     // already carries. A page with the right wording on one box and nothing
     // on the other three still fills three boxes with an empty string.
     for (const { box, part, which } of BOXES_WITH_A_DEFAULT) {
-      expect(page).toContain(`data-fill-default="${box}"`);
+      says(page, `data-fill-default="${box}"`);
       expect(whatTheBoxCarries(page, box).fillsInWith).toBe(
         DEFAULT_TEMPLATES[which][part],
       );
@@ -165,9 +164,7 @@ Then(
       // And the site's own wording for THIS email. The two emails' defaults
       // open with different words, so a blank render, the other email's
       // wording, or a mixed-up part all fail here.
-      expect(sent[part]).toContain(
-        firstFixedWordsOf(DEFAULT_TEMPLATES[email][part]),
-      );
+      says(sent[part], firstFixedWordsOf(DEFAULT_TEMPLATES[email][part]));
     }
   },
 );
@@ -175,8 +172,6 @@ Then(
 Then(
   "the owner is told the template syntax is wrong",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
-      "Invalid template syntax",
-    );
+    says(whatTheyWereTold(this, ORGANISER), "Invalid template syntax");
   },
 );

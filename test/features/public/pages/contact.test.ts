@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handlePublicContactSubmit } from "#routes/public/pages.ts";
@@ -18,6 +18,7 @@ import {
   mockFormRequest,
   withMocks,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { activateContactForm, enablePublicSite } from "#test-utils/settings.ts";
 
 const BOTPOISON_ENV = {
@@ -184,11 +185,8 @@ describeWithEnv(
       const html = await response.text();
 
       expect(response.status).toBe(200);
-      assertStringIncludes(html, "Write to the team.");
-      assert(
-        !html.includes('action="/contact"'),
-        "the value should not contain the searched item",
-      );
+      says(html, "Write to the team.");
+      assert(!html.includes('action="/contact"'));
     });
 
     test("shows the active form without contact text", async () => {
@@ -196,11 +194,8 @@ describeWithEnv(
       const response = await awaitTestRequest("/contact");
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, 'action="/contact"');
-      assertStringIncludes(
-        inputNamed(html, "email"),
-        `maxlength="${MAX_INPUT_LENGTH}"`,
-      );
+      says(html, 'action="/contact"');
+      says(inputNamed(html, "email"), `maxlength="${MAX_INPUT_LENGTH}"`);
     });
 
     test("shows success and error messages after redirects", async () => {
@@ -209,12 +204,12 @@ describeWithEnv(
         `/contact?flash=${FLASH_TEST_ID}`,
         { cookie: flashCookieHeader("Sent") },
       );
-      assertStringIncludes(await success.text(), "Sent");
+      says(await success.text(), "Sent");
 
       const error = await awaitTestRequest(`/contact?flash=${FLASH_TEST_ID}`, {
         cookie: flashCookieHeader("Try again", false),
       });
-      assertStringIncludes(await error.text(), "Try again");
+      says(await error.text(), "Try again");
     });
   },
 );

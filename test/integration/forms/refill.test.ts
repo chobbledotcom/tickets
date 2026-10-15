@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -8,6 +8,7 @@ import {
   followRedirectWithFlash,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 /**
@@ -33,7 +34,7 @@ describeWithEnv("form re-fill across an error redirect", { db: true }, () => {
     const html = await followed.text();
     expect(followed.status).toBe(200);
     // The description the user already typed is restored from the stash.
-    assertStringIncludes(html, "Remember this description");
+    says(html, "Remember this description");
   });
 
   test("keeps the message but drops the re-fill on a cold isolate", async () => {
@@ -50,9 +51,6 @@ describeWithEnv("form re-fill across an error redirect", { db: true }, () => {
       cookie,
     );
     const html = await followed.text();
-    assert(
-      !html.includes("This text would be lost"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("This text would be lost"));
   });
 });

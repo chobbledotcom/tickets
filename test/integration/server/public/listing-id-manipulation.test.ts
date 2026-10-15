@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -16,6 +16,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -106,11 +107,8 @@ describeWithEnv(
         const html = await getResponse.text();
 
         // Page should load but only show the active listing
-        assertStringIncludes(html, "Active Listing");
-        assert(
-          !html.includes("Inactive Listing"),
-          "the value should not contain the searched item",
-        );
+        says(html, "Active Listing");
+        assert(!html.includes("Inactive Listing"));
       });
     });
   },

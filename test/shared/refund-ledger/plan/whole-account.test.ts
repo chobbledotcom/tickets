@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -36,6 +35,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 // -- recordAttendeeRefund (integration) ---------------------------------- //
 
@@ -331,6 +331,6 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     await expectRefundNeedsManualAdjustment();
     // "Logs" is part of the contract: the operator's only breadcrumb for a
     // stranded refund is the classified error.
-    assertStringIncludes(errors.lastMessage() ?? "", "E_LEDGER_POST");
+    says(errors.lastMessage(), "E_LEDGER_POST");
   });
 });

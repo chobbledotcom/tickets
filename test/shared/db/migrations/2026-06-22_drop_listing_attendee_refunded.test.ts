@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -12,6 +12,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { has } from "#test-utils/says.ts";
 
 // This migration's up() only recreates the table.
 const context = buildMigrationContext({ recreateTable });
@@ -24,14 +25,9 @@ describeWithEnv(
   () => {
     test("drops the refunded column from listing_attendees", async () => {
       await seedPreDropLedgerColumns();
-      assertArrayIncludes((await columnNames("listing_attendees")) ?? [], [
-        "refunded",
-      ]);
+      has(await columnNames("listing_attendees"), "refunded");
       await runMigration();
-      assert(
-        !(await columnNames("listing_attendees")).includes("refunded"),
-        "the value should not contain the searched item",
-      );
+      assert(!(await columnNames("listing_attendees")).includes("refunded"));
     });
 
     test("preserves the existing booking rows it rebuilds", async () => {

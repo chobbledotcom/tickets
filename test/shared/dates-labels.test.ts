@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -11,6 +10,7 @@ import {
   shiftMonth,
 } from "#shared/date-labels.ts";
 import { DAY_NAMES } from "#shared/day-names.ts";
+import { has } from "#test-utils/says.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
 describe("dates", () => {
@@ -68,7 +68,7 @@ describe("dates", () => {
     });
 
     test("includes the centre month itself", () => {
-      assertArrayIncludes(monthsAround("2026-03", 5) ?? [], ["2026-03"]);
+      has(monthsAround("2026-03", 5), "2026-03");
     });
   });
 
@@ -101,12 +101,12 @@ describe("dates", () => {
 
     test("includes every day of the target month", () => {
       const grid = calendarGridDates("2026-07");
-      assertArrayIncludes(grid ?? [], ["2026-07-01"]);
-      assertArrayIncludes(grid ?? [], ["2026-07-31"]);
+      has(grid, "2026-07-01");
+      has(grid, "2026-07-31");
     });
 
     test("includes the leap day in a leap February", () => {
-      assertArrayIncludes(calendarGridDates("2024-02") ?? [], ["2024-02-29"]);
+      has(calendarGridDates("2024-02"), "2024-02-29");
     });
   });
 

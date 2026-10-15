@@ -4,6 +4,7 @@ import {
   type CatalogCopy,
   findLabelIssues,
 } from "#scripts/check-e2e-labels/rules.ts";
+import { says } from "#test-utils/says.ts";
 
 /** A catalog from bare values (and keys when a case exercises them). */
 const catalog = (
@@ -59,7 +60,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    expect(issues[0]?.message).toContain("renders exactly");
+    says(issues[0]?.message, "renders exactly");
   });
 
   test("flags a page-text helper whose key names nothing", () => {
@@ -80,7 +81,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    expect(issues[0]?.message).toContain('"admin.attendees.gone"');
+    says(issues[0]?.message, '"admin.attendees.gone"');
   });
 
   test("reads key calls written in single quotes", () => {
@@ -206,8 +207,8 @@ describe("e2e label rules", () => {
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
     expect(issues[0]?.line).toBe(1);
-    expect(issues[0]?.message).toContain('"Update Stripe Key"');
-    expect(issues[0]?.message).toContain("no message in src/locales/en");
+    says(issues[0]?.message, '"Update Stripe Key"');
+    says(issues[0]?.message, "no message in src/locales/en");
   });
 
   test("flags a page-text marker that no message carries", () => {
@@ -229,7 +230,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    expect(issues[0]?.message).toContain('"Save changes"');
+    says(issues[0]?.message, '"Save changes"');
   });
 
   test("leaves the scenario's own data and pattern matches alone", () => {
@@ -391,9 +392,7 @@ describe("e2e label rules", () => {
     const issues = findLabelIssues("await session.clickButton();", catalog([]));
 
     expect(issues.length).toBe(1);
-    expect(issues[0]?.message).toContain(
-      "calls clickButton with no argument 1 to read",
-    );
+    says(issues[0]?.message, "calls clickButton with no argument 1 to read");
   });
 
   test("leaves a spread argument alone, for it hides the positions", () => {

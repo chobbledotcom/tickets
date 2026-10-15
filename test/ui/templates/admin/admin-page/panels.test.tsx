@@ -3,11 +3,11 @@
  * message above the form, and the route the form posts back to.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { editPanel, recordEditPanel } from "#templates/admin/admin-page.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 
 const FIELDS = <input name="name" type="text" />;
 
@@ -17,7 +17,7 @@ describe("the edit panel", () => {
   test("shows the reason a save was refused, above the fields", () => {
     const html = String(editPanel("Name is taken")(FIELDS));
 
-    assertStringIncludes(html, "Name is taken");
+    says(html, "Name is taken");
     expect(html.indexOf("Name is taken")).toBeLessThan(html.indexOf("<input"));
   });
 
@@ -36,15 +36,15 @@ describe("a record's edit panel", () => {
   test("posts to the route that edits the record it names", () => {
     const html = String(panel(9, undefined, FIELDS));
 
-    assertStringIncludes(html, 'action="/admin/holidays/9/edit"');
-    assertStringIncludes(html, "Save the holiday");
-    assertStringIncludes(html, '<input name="name" type="text">');
+    says(html, 'action="/admin/holidays/9/edit"');
+    says(html, "Save the holiday");
+    says(html, '<input name="name" type="text">');
   });
 
   test("keeps the rejection message above the form", () => {
     const html = String(panel(9, "Name is taken", FIELDS));
 
-    assertStringIncludes(html, "Name is taken");
+    says(html, "Name is taken");
     expect(html.indexOf("Name is taken")).toBeLessThan(html.indexOf("<form"));
   });
 });

@@ -1,9 +1,9 @@
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { has, says } from "#test-utils/says.ts";
 
 /** The env-var view of a Deno Deploy app, exercised against stubbed API
  * responses. Shared by the secrets backfill (names) and the Support message
@@ -28,8 +28,8 @@ describeWithEnv(
       const result = await denoDeployApi.getEnvVarNames("app_gn");
       expect(result.ok).toBe(true);
       if (result.ok) {
-        assertArrayIncludes(result.value ?? [], ["DB_URL"]);
-        assertArrayIncludes(result.value ?? [], ["DB_TOKEN"]);
+        has(result.value, "DB_URL");
+        has(result.value, "DB_TOKEN");
         expect(result.value.length).toBe(2);
       }
     });
@@ -88,8 +88,8 @@ describeWithEnv(
       const result = await denoDeployApi.getEnvVarNames("app_bad");
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        assertStringIncludes(result.error ?? "", "Get app failed (404)");
-        assertStringIncludes(result.error ?? "", "app not found");
+        says(result.error, "Get app failed (404)");
+        says(result.error, "app not found");
       }
     });
 
@@ -186,10 +186,7 @@ describeWithEnv(
       });
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        assertStringIncludes(
-          result.error ?? "",
-          "Set app env var failed (422)",
-        );
+        says(result.error, "Set app env var failed (422)");
       }
     });
   },

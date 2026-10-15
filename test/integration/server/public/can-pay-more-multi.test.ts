@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -10,6 +10,7 @@ import { submitMultiTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -76,11 +77,8 @@ describeWithEnv(
           mockRequest(`/ticket/${listing1.slug}+${listing2.slug}`),
         );
         const html = await response.text();
-        assertStringIncludes(html, `name="custom_price_${listing1.id}"`);
-        assert(
-          !html.includes(`name="custom_price_${listing2.id}"`),
-          "the value should not contain the searched item",
-        );
+        says(html, `name="custom_price_${listing1.id}"`);
+        assert(!html.includes(`name="custom_price_${listing2.id}"`));
       });
 
       test("POST ticket with can_pay_more redirects to checkout", async () => {

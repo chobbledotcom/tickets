@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -18,6 +18,7 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { mockFormRequest, withMocks } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 import { describeAdminSettings } from "#test-utils/settings.ts";
 
@@ -152,11 +153,8 @@ describeAdminSettings(() => {
       const response = await adminGet("/admin/settings");
       const html = await response.text();
       expect(response.status).toBe(200);
-      assertStringIncludes(html, "No Square credentials are saved");
-      assert(
-        !html.includes("square-test-btn"),
-        "the value should not contain the searched item",
-      );
+      says(html, "No Square credentials are saved");
+      assert(!html.includes("square-test-btn"));
     });
 
     test("settings page shows Square is configured after setting token", async () => {
@@ -169,9 +167,9 @@ describeAdminSettings(() => {
       // Check the settings page shows it's configured
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      assertStringIncludes(html, "Your Square credentials are saved");
-      assertStringIncludes(html, "square-test-btn");
-      assertStringIncludes(html, "Test connection");
+      says(html, "Your Square credentials are saved");
+      says(html, "square-test-btn");
+      says(html, "Test connection");
     });
   });
 

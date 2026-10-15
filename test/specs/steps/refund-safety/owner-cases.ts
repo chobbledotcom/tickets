@@ -1,5 +1,7 @@
 // jscpd:ignore-start
+
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { loadRefundAuthorityByReference } from "#db/provider-refund-authority.ts";
@@ -23,6 +25,7 @@ import {
 } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -193,8 +196,8 @@ Then(
   "the refund is listed without exposing its provider reference",
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
-    expect(browser.pageText).toContain(`Open refund ${ownerCase(this).id}`);
-    expect(browser.pageText).not.toContain(ownerCase(this).reference);
+    says(browser.pageText, `Open refund ${ownerCase(this).id}`);
+    assert(!browser.pageText.includes(ownerCase(this).reference));
   },
 );
 
@@ -220,7 +223,7 @@ const expectRequiredUnansweredChoices = (
   expected: readonly string[],
 ): void => {
   const browser = scenarioBrowser(world);
-  expect(browser.pageText).toContain(expectedProviderReference(world));
+  says(browser.pageText, expectedProviderReference(world));
   const choices = usableInputsOfKind(browser.currentHtml, "radio").filter(
     ({ field }) => field === "choice",
   );
@@ -233,12 +236,14 @@ Then(
   "the ready refund has one clearly marked Send control",
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
-    expect(browser.pageText).toContain("Send this refund");
-    expect(browser.pageText).not.toContain("Check the provider again");
-    expect(browser.currentHtml).toContain(
+    says(browser.pageText, "Send this refund");
+    assert(!browser.pageText.includes("Check the provider again"));
+    says(
+      browser.currentHtml,
       'name="choice" type="hidden" value="check_again"',
     );
-    expect(browser.currentHtml).toContain(
+    says(
+      browser.currentHtml,
       '<button class="danger" type="submit">Send this refund</button>',
     );
     expect(usableInputsOfKind(browser.currentHtml, "radio")).toEqual([]);
@@ -266,7 +271,8 @@ Then("SumUp receives no refund attempt", function (this: TicketsWorld): void {
 Then(
   "the owner is told that unreadable evidence sent no refund",
   function (this: TicketsWorld): void {
-    expect(scenarioBrowser(this).pageText).toContain(
+    says(
+      scenarioBrowser(this).pageText,
       "No refund was sent; check the payment there and make the required choice.",
     );
   },
@@ -275,7 +281,8 @@ Then(
 Then(
   "the current page asks for the returned money to be recorded in Money",
   function (this: TicketsWorld): void {
-    expect(scenarioBrowser(this).pageText).toContain(
+    says(
+      scenarioBrowser(this).pageText,
       "I confirm that this returned money is now recorded in Money.",
     );
   },
@@ -315,8 +322,10 @@ Then(
 Then(
   "the resolved case leaves the owner queue",
   function (this: TicketsWorld): void {
-    expect(scenarioBrowser(this).pageText).not.toContain(
-      `Open refund ${ownerCase(this).id}`,
+    assert(
+      !scenarioBrowser(this).pageText.includes(
+        `Open refund ${ownerCase(this).id}`,
+      ),
     );
   },
 );
@@ -325,8 +334,8 @@ Then(
   "the newly authorised attempt remains reachable in the owner queue",
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
-    expect(browser.pageText).toContain(`Open refund ${ownerCase(this).id}`);
-    expect(browser.pageText).toContain("Refund ready to continue");
+    says(browser.pageText, `Open refund ${ownerCase(this).id}`);
+    says(browser.pageText, "Refund ready to continue");
   },
 );
 
@@ -360,7 +369,8 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const browser = scenarioBrowser(this);
     await browser.clickLink(`Open refund ${ownerCase(this).id}`);
-    expect(browser.pageText).toContain(
+    says(
+      browser.pageText,
       "I confirm that this returned money is now recorded in Money.",
     );
   },

@@ -2,13 +2,14 @@
 // process, on the first client it sets up. Sharing an isolate would let
 // another suite decide that before this file installs its fetch stub.
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { ErrorCode, logDebug } from "#shared/logger.ts";
 import { captureServerError, initSentry } from "#shared/sentry.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 import { resetSentry } from "#test-utils/sentry.ts";
 
 const DSN = "https://key@bugs.example.test/1";
@@ -38,15 +39,9 @@ describe("report breadcrumbs", () => {
       String(call.args[0]).includes("bugs.example.test"),
     );
     const body = String((sentryCall!.args[1] as RequestInit).body);
-    assertStringIncludes(body, "a line worth keeping");
-    assert(
-      !body.includes("cs_live_secret"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !body.includes('"category":"fetch"'),
-      "the value should not contain the searched item",
-    );
+    says(body, "a line worth keeping");
+    assert(!body.includes("cs_live_secret"));
+    assert(!body.includes('"category":"fetch"'));
   });
 
   test("does not record its own reports as breadcrumbs", async () => {
@@ -58,10 +53,7 @@ describe("report breadcrumbs", () => {
     await captureServerError({ code: ErrorCode.DB_QUERY });
 
     const body = String((fetchStub.calls[1]!.args[1] as RequestInit).body);
-    assert(
-      !body.includes('"category":"sentry"'),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes('"category":"sentry"'));
   });
 
   // The SDK collects console lines onto one shared scope and ships no
@@ -81,10 +73,7 @@ describe("report breadcrumbs", () => {
     });
 
     const body = String((fetchStub.calls.at(-1)!.args[1] as RequestInit).body);
-    assertStringIncludes(body, "the reporting request");
-    assert(
-      !body.includes("the neighbouring request"),
-      "the value should not contain the searched item",
-    );
+    says(body, "the reporting request");
+    assert(!body.includes("the neighbouring request"));
   });
 });

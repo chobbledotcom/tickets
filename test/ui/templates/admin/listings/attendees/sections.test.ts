@@ -1,7 +1,7 @@
 /** Rendering of the listing roster's sections: the attendee list with its
  * email action, the failed-payments table, and the add-attendee form. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { rosterListSetup } from "#routes/admin/listings-view.ts";
@@ -16,6 +16,7 @@ import type { RosterListView } from "#templates/admin/listings/types.ts";
 import { registerListingTemplateHooks } from "#test/ui/templates/admin/listings/helpers.ts";
 import { bookedLineRow } from "#test-utils/attendees/pair-bookings.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("filterAttendees", () => {
   registerListingTemplateHooks();
@@ -76,20 +77,14 @@ describe("AttendeesSection", () => {
 
   test("heads the section and omits the listing column it cannot need", () => {
     const html = sectionHtml(undefined);
-    assertStringIncludes(html, '<h2 id="attendees">Attendees</h2>');
+    says(html, '<h2 id="attendees">Attendees</h2>');
     // The page is already one listing's roster, so no Listings column.
-    assert(
-      !html.includes("<th>Listings</th>"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<th>Listings</th>"));
   });
 
   test("renders the email action only when the compose page would open", () => {
-    assert(
-      !sectionHtml(undefined).includes("Email this date's attendees"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(
+    assert(!sectionHtml(undefined).includes("Email this date's attendees"));
+    says(
       sectionHtml("/admin/emails?mock"),
       '<a href="/admin/emails?mock">Email this date\'s attendees</a>',
     );
@@ -105,31 +100,25 @@ describe("FailedPaymentsSection", () => {
   );
 
   test("heads the section and counts the unresolved rows", () => {
-    assertStringIncludes(html, '<h2 id="failed-payments">Failed Payments</h2>');
-    assertStringIncludes(html, "<p>1 attendee(s) with unresolved payments</p>");
+    says(html, '<h2 id="failed-payments">Failed Payments</h2>');
+    says(html, "<p>1 attendee(s) with unresolved payments</p>");
   });
 
   test("renders one delete row per attendee with its own columns", () => {
-    assertStringIncludes(html, "<th>Name</th>");
-    assertStringIncludes(html, '<th class="col-quantity">Qty</th>');
-    assertStringIncludes(html, "<th>Registered</th>");
-    assertStringIncludes(html, "<td>John Doe</td>");
-    assertStringIncludes(html, '<td class="col-quantity">2</td>');
-    assertStringIncludes(
-      html,
-      `<td>${formatDatetimeShort(attendee.created)}</td>`,
-    );
+    says(html, "<th>Name</th>");
+    says(html, '<th class="col-quantity">Qty</th>');
+    says(html, "<th>Registered</th>");
+    says(html, "<td>John Doe</td>");
+    says(html, '<td class="col-quantity">2</td>');
+    says(html, `<td>${formatDatetimeShort(attendee.created)}</td>`);
   });
 
   test("points each row's delete at that attendee's record", () => {
-    assertStringIncludes(
-      html,
-      'action="/admin/listing/7/attendee/9/delete-incomplete"',
-    );
-    assertStringIncludes(html, 'class="inline"');
-    assertStringIncludes(html, 'class="link-button danger"');
-    assertStringIncludes(html, "<button");
-    assertStringIncludes(html, ">Delete</button>");
+    says(html, 'action="/admin/listing/7/attendee/9/delete-incomplete"');
+    says(html, 'class="inline"');
+    says(html, 'class="link-button danger"');
+    says(html, "<button");
+    says(html, ">Delete</button>");
   });
 });
 
@@ -143,13 +132,13 @@ describe("AddAttendeeSection", () => {
         listing: testListingWithCount({ id: 7, listing_type: "daily" }),
       }),
     );
-    assertStringIncludes(html, '<h2 id="add-attendee">Add Attendee</h2>');
-    assertStringIncludes(
+    says(html, '<h2 id="add-attendee">Add Attendee</h2>');
+    says(
       html,
       '<p class="notice">This listing requires a child listing (Kayak Hire, Wetsuit Hire) when booked publicly.',
     );
-    assertStringIncludes(html, 'action="/admin/listing/7/attendee"');
-    assertStringIncludes(html, "<span>Add Attendee</span>");
+    says(html, 'action="/admin/listing/7/attendee"');
+    says(html, "<span>Add Attendee</span>");
   });
 
   test("warns about one child listing the same way", () => {
@@ -159,10 +148,7 @@ describe("AddAttendeeSection", () => {
         listing: testListingWithCount({ listing_type: "daily" }),
       }),
     );
-    assertStringIncludes(
-      html,
-      "requires a child listing (Kayak Hire) when booked publicly",
-    );
+    says(html, "requires a child listing (Kayak Hire) when booked publicly");
   });
 
   test("shows no child warning without child listings", () => {
@@ -171,14 +157,8 @@ describe("AddAttendeeSection", () => {
         listing: testListingWithCount({ id: 7, listing_type: "daily" }),
       }),
     );
-    assert(
-      !html.includes("child listing"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('class="notice"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("child listing"));
+    assert(!html.includes('class="notice"'));
   });
 
   test("offers the day count only on a customisable daily listing", () => {
@@ -188,7 +168,7 @@ describe("AddAttendeeSection", () => {
       duration_days: 2,
       listing_type: "daily",
     });
-    assertStringIncludes(
+    says(
       String(AddAttendeeSection({ listing: customisable })),
       "Number of days",
     );
@@ -200,7 +180,6 @@ describe("AddAttendeeSection", () => {
           listing: testListingWithCount({ listing_type: "daily" }),
         }),
       ).includes("Number of days"),
-      "the value should not contain the searched item",
     );
     assert(
       !String(
@@ -212,7 +191,6 @@ describe("AddAttendeeSection", () => {
           }),
         }),
       ).includes("Number of days"),
-      "the value should not contain the searched item",
     );
   });
 });

@@ -4,11 +4,11 @@
  * the per-feature modules beside it, each with its own suite.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("the listings routes", { db: true }, () => {
@@ -19,7 +19,7 @@ describeWithEnv("the listings routes", { db: true }, () => {
     const tab = await adminGet(`/admin/listing/${listing.id}/attendees`);
 
     expect(page.status).toBe(200);
-    assertStringIncludes(await page.text(), "Bouncy Castle");
+    says(await page.text(), "Bouncy Castle");
     expect(tab.status).toBe(200);
   });
 
@@ -38,10 +38,7 @@ describeWithEnv("the listings routes", { db: true }, () => {
     );
 
     expect(response.status).toBe(302);
-    assertStringIncludes(
-      response.headers.get("location") ?? "",
-      `/admin/listing/${listing.id}/edit`,
-    );
+    says(response.headers.get("location"), `/admin/listing/${listing.id}/edit`);
   });
 
   test("exports the listing's attendees as a CSV download", async () => {
@@ -52,9 +49,6 @@ describeWithEnv("the listings routes", { db: true }, () => {
     );
 
     expect(response.status).toBe(200);
-    assertStringIncludes(
-      response.headers.get("content-type") ?? "",
-      "text/csv",
-    );
+    says(response.headers.get("content-type"), "text/csv");
   });
 });

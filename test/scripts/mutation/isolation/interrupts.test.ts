@@ -11,6 +11,7 @@ import {
 } from "#test/scripts/mutation/isolation-helpers.ts";
 import { eventually } from "#test/scripts/stale-claim/helpers.ts";
 import { pathExists } from "#test-utils/files.ts";
+import { says } from "#test-utils/says.ts";
 import {
   captureSimpleSnapshotMutation,
   controlledChild,
@@ -167,7 +168,7 @@ describe("interrupting a snapshot run", () => {
         // Only because the test stubbed the exit away does the run carry on
         // to its release, which finds the claim gone — in production the
         // process is over the moment the claim comes down.
-        expect(String(await run)).toContain("was lost while the work ran");
+        says(String(await run), "was lost while the work ran");
       });
     });
   });

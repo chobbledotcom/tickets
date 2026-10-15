@@ -17,6 +17,7 @@ import {
   validEmail,
 } from "#test-utils/email.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
+import { saysNot } from "#test-utils/says.ts";
 
 const plainMsg: EmailMessage = {
   html: "<p>Hi</p>",
@@ -51,15 +52,13 @@ const sendEmailExpectingError = async (
       expect(delivery.reason).toBe(expected.reason);
     }
     const logs = errorSpy.calls.map((c) => c.args[0] as string);
-    assert(
-      !logs.join("\n").includes(msg.to),
-      "the value should not contain the searched item",
-    );
+    assert(!logs.join("\n").includes(msg.to));
     const line = logs.find((l) => l.includes("E_EMAIL_SEND"));
     expect(line).toBe(`[Error] E_EMAIL_SEND ${expected.logged}`);
     if (expected.reason)
-      assert(
-        line?.includes(expected.reason) === false,
+      saysNot(
+        line,
+        expected.reason,
         "the value should not contain the searched item",
       );
   } finally {

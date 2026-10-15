@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
@@ -11,6 +11,7 @@ import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { gbp } from "#test-utils/payment-state.ts";
 import { providerRefundHttpCases } from "#test-utils/provider-failure-cases.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import { resetSentry, sentryRequestBody } from "#test-utils/sentry.ts";
 import {
   configureSquare,
@@ -110,27 +111,19 @@ describeSquare(() => {
           reason: "provider_error",
         });
 
-        assertStringIncludes(errors.lastMessage() ?? "", "outcome=uncertain");
-        assertStringIncludes(
-          errors.lastMessage() ?? "",
-          "reason=provider_error",
-        );
-        assert(
-          errors.lastMessage()?.includes(PRIVATE_REFERENCE) === false,
+        says(errors.lastMessage(), "outcome=uncertain");
+        says(errors.lastMessage(), "reason=provider_error");
+        saysNot(
+          errors.lastMessage(),
+          PRIVATE_REFERENCE,
           "the value should not contain the searched item",
         );
 
         const body = sentryRequestBody(fetchStub.calls);
-        assert(
-          !body.includes(PRIVATE_REFERENCE),
-          "the value should not contain the searched item",
-        );
-        assertStringIncludes(body, "Status code: 503");
-        assertStringIncludes(body, "stacktrace");
-        assertStringIncludes(
-          body,
-          '"detail":"outcome=uncertain reason=provider_error"',
-        );
+        assert(!body.includes(PRIVATE_REFERENCE));
+        says(body, "Status code: 503");
+        says(body, "stacktrace");
+        says(body, '"detail":"outcome=uncertain reason=provider_error"');
       } finally {
         resetSentry();
       }
@@ -142,10 +135,7 @@ describeSquare(() => {
       );
       // The refund left with nobody able to say what became of it, so the
       // report names our own failure rather than one of Square's.
-      assertStringIncludes(
-        errors.lastMessage() ?? "",
-        "outcome=thrown reason=internal_error",
-      );
+      says(errors.lastMessage(), "outcome=thrown reason=internal_error");
     });
   });
 });

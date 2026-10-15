@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -17,6 +17,7 @@ import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
 import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
 import { refundUrl } from "#test-utils/refund-routes.ts";
+import { says } from "#test-utils/says.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("admin attendee action loaders", { db: true }, () => {
@@ -79,15 +80,9 @@ describeWithEnv("admin attendee action loaders", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(400);
-    assertStringIncludes(html, "Refresh payment status");
-    assert(
-      !html.includes("Refund Attendee</button>"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('name="confirm_identifier"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "Refresh payment status");
+    assert(!html.includes("Refund Attendee</button>"));
+    assert(!html.includes('name="confirm_identifier"'));
   });
 
   test("names the attendee field and preserves the return address on a refused confirmation", async () => {

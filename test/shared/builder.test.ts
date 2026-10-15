@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -20,6 +20,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { has, says } from "#test-utils/says.ts";
 
 const BUILD_INPUT = {
   dbToken: "token123",
@@ -206,10 +207,10 @@ describeWithEnv(
 
           const secretsSet = secretsFrom(secretStub);
           const secretNames = secretsSet.map(([name]) => name);
-          assertArrayIncludes(secretNames ?? [], ["DB_URL"]);
-          assertArrayIncludes(secretNames ?? [], ["DB_TOKEN"]);
-          assertArrayIncludes(secretNames ?? [], ["DB_ENCRYPTION_KEY"]);
-          assertArrayIncludes(secretNames ?? [], ["BUNNY_SCRIPT_ID"]);
+          has(secretNames, "DB_URL");
+          has(secretNames, "DB_TOKEN");
+          has(secretNames, "DB_ENCRYPTION_KEY");
+          has(secretNames, "BUNNY_SCRIPT_ID");
 
           expectSecret(secretsSet, "DB_URL", "libsql://test.turso.io");
           expectSecret(secretsSet, "BUNNY_SCRIPT_ID", "42");
@@ -362,7 +363,7 @@ describeWithEnv(
         async (tursoStub) => {
           const result = await builderApi.createDatabase("My Site", "turso");
           expect(result.ok).toBe(true);
-          if (result.ok) assertStringIncludes(result.value.dbUrl, "turso.io");
+          if (result.ok) says(result.value.dbUrl, "turso.io");
           expect(tursoStub.calls).toHaveLength(1);
         },
       ));
@@ -382,7 +383,7 @@ describeWithEnv(
         async (bunnyStub) => {
           const result = await builderApi.createDatabase("My Site", "bunny");
           expect(result.ok).toBe(true);
-          if (result.ok) assertStringIncludes(result.value.dbUrl, "bunny.io");
+          if (result.ok) says(result.value.dbUrl, "bunny.io");
           expect(bunnyStub.calls).toHaveLength(1);
         },
       ));
@@ -433,18 +434,9 @@ describeWithEnv(
           expect(result.ok).toBe(true);
           const secrets = setEnvStub.calls[0]!.args[1] as [string, string][];
           const names = secrets.map(([name]) => name);
-          assert(
-            !names.includes("BUNNY_API_KEY"),
-            "the value should not contain the searched item",
-          );
-          assert(
-            !names.includes("BUNNY_DNS_ZONE_ID"),
-            "the value should not contain the searched item",
-          );
-          assert(
-            !names.includes("BUNNY_DNS_SUBDOMAIN_SUFFIX"),
-            "the value should not contain the searched item",
-          );
+          assert(!names.includes("BUNNY_API_KEY"));
+          assert(!names.includes("BUNNY_DNS_ZONE_ID"));
+          assert(!names.includes("BUNNY_DNS_SUBDOMAIN_SUFFIX"));
         },
       );
     });

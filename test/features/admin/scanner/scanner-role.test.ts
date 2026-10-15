@@ -7,7 +7,7 @@
  * and the door suites beside this one; this one owns who may open a door.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -27,6 +27,7 @@ import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { allDays, createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestAgentSession,
   createTestEditorSession,
@@ -74,7 +75,7 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     const response = await getAs("/admin/scanner", cookie);
     expect(response.status).toBe(200);
     const body = await response.text();
-    assertStringIncludes(body, t("admin.scanner.doors_empty"));
+    says(body, t("admin.scanner.doors_empty"));
   });
 
   test("lists every listing door and group door on the doors page", async () => {
@@ -91,13 +92,10 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     expect(response.status).toBe(200);
     const body = await response.text();
 
-    assertStringIncludes(body, "Ceilidh");
-    assertStringIncludes(body, "Summer Ball");
+    says(body, "Ceilidh");
+    says(body, "Summer Ball");
     // A "No check-in" listing sells something with no door, so it is not one.
-    assert(
-      !body.includes("Merch Stand"),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes("Merch Stand"));
   });
 
   test("orders the doors by name", async () => {
@@ -129,19 +127,13 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const body = await response.text();
-    assertStringIncludes(body, "Quiz");
+    says(body, "Quiz");
     // The guide link behind this page is staff-only, so a scanner login must
     // not be promised it (never render a forbidden link).
-    assert(
-      !body.includes('href="/admin/guide'),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes('href="/admin/guide'));
     // The manual pick list carries attendee ids, never the ticket
     // credential: the token opens the attendee's own ticket page elsewhere.
-    assert(
-      !body.includes(attendee.ticket_token),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes(attendee.ticket_token));
   });
 
   test("answers 404 for a no-check-in listing's door and refuses its scan", async () => {
@@ -251,11 +243,8 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     );
 
     const body = await doorPage(group.id);
-    assertStringIncludes(
-      body,
-      `Ada (2 tickets) — Standard · ${formatDateLabel(firstDay)}`,
-    );
-    assertStringIncludes(
+    says(body, `Ada (2 tickets) — Standard · ${formatDateLabel(firstDay)}`);
+    says(
       body,
       `Ada (2 tickets) — Society · ${formatDateLabel(addDays(testDate(firstDay), 1))}`,
     );

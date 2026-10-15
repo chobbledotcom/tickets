@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -7,6 +7,7 @@ import {
   LinkedItemsCheckboxes,
   toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
+import { says } from "#test-utils/says.ts";
 
 const option = (
   value: string,
@@ -32,24 +33,12 @@ describe("LinkedItemsCheckboxes", () => {
       { label: "Groups", options: [option("group:3", { checked: true })] },
     ]);
 
-    assertStringIncludes(html, "<p><strong>Linked items (2):</strong></p>");
-    assertStringIncludes(html, '<ul class="linked-items">');
-    assertStringIncludes(
-      html,
-      '<li class="checkboxes"><strong>Listings:</strong>',
-    );
-    assertStringIncludes(
-      html,
-      '<li class="checkboxes"><strong>Groups:</strong>',
-    );
-    assertStringIncludes(
-      html,
-      'checked name="linked" type="checkbox" value="listing:1"',
-    );
-    assertStringIncludes(
-      html,
-      '<input name="linked" type="checkbox" value="listing:2"',
-    );
+    says(html, "<p><strong>Linked items (2):</strong></p>");
+    says(html, '<ul class="linked-items">');
+    says(html, '<li class="checkboxes"><strong>Listings:</strong>');
+    says(html, '<li class="checkboxes"><strong>Groups:</strong>');
+    says(html, 'checked name="linked" type="checkbox" value="listing:1"');
+    says(html, '<input name="linked" type="checkbox" value="listing:2"');
   });
 
   test("keeps each option under its own type's row", () => {
@@ -77,22 +66,13 @@ describe("LinkedItemsCheckboxes", () => {
       { label: "Groups", options: [] },
     ]);
 
-    assertStringIncludes(
+    says(
       html,
       '<fieldset class="checkboxes"><strong>Linked listings (1):</strong>',
     );
-    assert(
-      !html.includes("<ul"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Linked items"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Groups"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<ul"));
+    assert(!html.includes("Linked items"));
+    assert(!html.includes("Groups"));
   });
 
   test("sorts deactivated options last and renders them muted", () => {
@@ -111,7 +91,7 @@ describe("LinkedItemsCheckboxes", () => {
     const old = html.indexOf('value="listing:1"');
     expect(live).toBeGreaterThan(-1);
     expect(old).toBeGreaterThan(live);
-    assertStringIncludes(
+    says(
       html,
       '<label class="muted"><input name="linked" type="checkbox" value="listing:1"',
     );
@@ -119,7 +99,6 @@ describe("LinkedItemsCheckboxes", () => {
       !html.includes(
         '<label class="muted"><input name="linked" type="checkbox" value="listing:2"',
       ),
-      "the value should not contain the searched item",
     );
   });
 
@@ -135,15 +114,9 @@ describe("LinkedItemsCheckboxes", () => {
     ]);
 
     expect(html).toMatch(/<input disabled[^>]*value="listing:1"/);
-    assertStringIncludes(
-      html,
-      '<small class="muted">Clashes with the group</small>',
-    );
+    says(html, '<small class="muted">Clashes with the group</small>');
     expect(html).not.toMatch(/<input disabled[^>]*value="listing:2"/);
-    assert(
-      !html.includes('<small class="muted">Label listing:2</small>'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('<small class="muted">Label listing:2</small>'));
   });
 
   test("sorts already-linked options to the front, keeping the rest in order", () => {
@@ -199,7 +172,7 @@ describe("LinkedItemsCheckboxes", () => {
       },
     ]);
 
-    assertStringIncludes(html, "<strong>Linked listings (1):</strong>");
+    says(html, "<strong>Linked listings (1):</strong>");
   });
 
   test("applies a custom heading and renders the leading control first", () => {
@@ -217,11 +190,8 @@ describe("LinkedItemsCheckboxes", () => {
       }),
     );
 
-    assertStringIncludes(html, "<strong>Add listings:</strong>");
-    assert(
-      !html.includes("Linked"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<strong>Add listings:</strong>");
+    assert(!html.includes("Linked"));
     const leading = html.indexOf('name="all"');
     const firstOption = html.indexOf('name="linked"');
     expect(leading).toBeGreaterThan(-1);

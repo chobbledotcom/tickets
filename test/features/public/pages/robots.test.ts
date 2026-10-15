@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
@@ -12,6 +11,7 @@ import {
   createTestSitePage,
 } from "#test-utils/db-helpers/misc.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
 
 const robotsTagFor = async (path: string): Promise<Headers> =>
@@ -86,7 +86,7 @@ describeWithEnv(
         "Private Kit",
         "Separate Unit",
       );
-      assertStringIncludes(html, `href="/ticket/${listing.slug}"`);
+      says(html, `href="/ticket/${listing.slug}"`);
       expect(
         (await robotsTagFor(`/ticket/${listing.slug}`)).get("x-robots-tag"),
       ).toBe("index, follow");

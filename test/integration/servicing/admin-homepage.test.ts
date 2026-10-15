@@ -13,11 +13,11 @@
  */
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestServicingEvent,
   renderAdminPage,
@@ -50,8 +50,8 @@ describeWithEnv("servicing — the service event form", { db: true }, () => {
     expect(body).toMatch(
       new RegExp(`name="quantity_${listing.id}"[^>]*value="1"`),
     );
-    assertStringIncludes(body, 'name="start_date"');
-    assertStringIncludes(body, 'value="2099-07-01"');
+    says(body, 'name="start_date"');
+    says(body, 'value="2099-07-01"');
   });
 
   test("the edit page renders saved booking quantities", async () => {
@@ -60,6 +60,6 @@ describeWithEnv("servicing — the service event form", { db: true }, () => {
     expect(body).toMatch(
       new RegExp(`name="quantity_${listing.id}"[^>]*value="2"`),
     );
-    assertStringIncludes(body, 'value="2099-07-01"');
+    says(body, 'value="2099-07-01"');
   });
 });

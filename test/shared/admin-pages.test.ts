@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -15,6 +15,7 @@ import {
 import type { AdminDestinationDef } from "#shared/admin-surface/definitions.ts";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { normalizePath } from "#shared/path.ts";
+import { has } from "#test-utils/says.ts";
 import { type AdminLevel, ALL_ADMIN_LEVELS } from "#types";
 
 const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
@@ -34,9 +35,8 @@ describe("admin navigation", () => {
       !visibleTopLevel(context)
         .map((link) => link.href)
         .includes("/admin/site"),
-      "the value should not contain the searched item",
     );
-    assertArrayIncludes(
+    has(
       visibleTopLevel({
         ...context,
         enabledFeatures: setFeatureEnabled(
@@ -45,7 +45,7 @@ describe("admin navigation", () => {
           true,
         ),
       }).map((link) => link.href),
-      ["/admin/site"],
+      "/admin/site",
     );
   });
 
@@ -67,22 +67,18 @@ describe("admin navigation", () => {
     }).map((link) => link.href);
     // Builds is a top-level section now: it leaves the Settings sub-nav and
     // answers only to the builder flag.
-    assert(
-      !hidden.includes("/admin/built-sites"),
-      "the value should not contain the searched item",
-    );
+    assert(!hidden.includes("/admin/built-sites"));
     assert(
       !visibleSections({ ...context, support: true })
         .flatMap((section) => section.items)
         .map((link) => link.href)
         .includes("/admin/built-sites"),
-      "the value should not contain the searched item",
     );
-    assertArrayIncludes(visible ?? [], ["/admin/built-sites"]);
+    has(visible, "/admin/built-sites");
     const subNav = visibleSections({ ...context, support: true })
       .flatMap((section) => section.items)
       .map((link) => link.href);
-    assertArrayIncludes(subNav ?? [], ["/admin/support"]);
+    has(subNav, "/admin/support");
     const featureLinks = visibleSections({
       ...context,
       enabledFeatures: setFeatureEnabled(
@@ -91,13 +87,13 @@ describe("admin navigation", () => {
         true,
       ),
     }).flatMap((section) => section.items);
-    assertArrayIncludes(
+    has(
       featureLinks.map((link) => link.href),
-      ["/admin/attributes"],
+      "/admin/attributes",
     );
-    assertArrayIncludes(
+    has(
       featureLinks.map((link) => link.href),
-      ["/admin/questions"],
+      "/admin/questions",
     );
   });
 
@@ -113,18 +109,12 @@ describe("admin navigation", () => {
     });
     assert(
       !sections.map((section) => section.topHref).includes("/admin/ledger"),
-      "the value should not contain the searched item",
     );
   });
 
   test("derives read-only blocks from destination intent", () => {
-    assertArrayIncludes(readOnlyGetRoutePatterns() ?? [], [
-      "/admin/listing/new",
-    ]);
-    assert(
-      !readOnlyGetRoutePatterns().includes("/admin/listings"),
-      "the value should not contain the searched item",
-    );
+    has(readOnlyGetRoutePatterns(), "/admin/listing/new");
+    assert(!readOnlyGetRoutePatterns().includes("/admin/listings"));
   });
 });
 
@@ -153,15 +143,14 @@ describe("links a section hides", () => {
   test("drops a section whose only link is its own landing", () => {
     // Money is on, so the owner can see the Ledger section, and it still has
     // no sub-navigation of its own because it holds exactly one link.
-    assertArrayIncludes(
+    has(
       visibleTopLevel(ownerContext).map((link) => link.href),
-      ["/admin/ledger"],
+      "/admin/ledger",
     );
     assert(
       !visibleSections(ownerContext)
         .map((section) => section.topHref)
         .includes("/admin/ledger"),
-      "the value should not contain the searched item",
     );
   });
 
@@ -172,12 +161,9 @@ describe("links a section hides", () => {
     const writable = visibleSections(ownerContext)
       .flatMap((section) => section.items)
       .map((link) => link.href);
-    assertArrayIncludes(writable ?? [], ["/admin/listing/new"]);
-    assert(
-      !readOnly.includes("/admin/listing/new"),
-      "the value should not contain the searched item",
-    );
-    assertArrayIncludes(readOnly ?? [], ["/admin/listings"]);
+    has(writable, "/admin/listing/new");
+    assert(!readOnly.includes("/admin/listing/new"));
+    has(readOnly, "/admin/listings");
   });
 
   test("hides a link the viewer's role cannot reach", () => {
@@ -189,10 +175,7 @@ describe("links a section hides", () => {
       .flatMap((section) => section.items)
       .map((link) => link.href);
     // Editors reach the listings pages but not the owner-only settings ones.
-    assert(
-      !editorLinks.includes("/admin/settings"),
-      "the value should not contain the searched item",
-    );
+    assert(!editorLinks.includes("/admin/settings"));
   });
 });
 
@@ -209,10 +192,7 @@ describe("adminLandingPath", () => {
 
   test("lands every role on a route that role can open", () => {
     for (const adminLevel of ALL_ADMIN_LEVELS) {
-      assertArrayIncludes(
-        routeServingAt(adminLandingPath(adminLevel)).audience ?? [],
-        [adminLevel],
-      );
+      has(routeServingAt(adminLandingPath(adminLevel)).audience, adminLevel);
     }
   });
 

@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { decryptAttendees } from "#db/attendees/pii.ts";
@@ -23,6 +22,7 @@ import {
 } from "#shared/seeds.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { has } from "#test-utils/says.ts";
 
 describeWithEnv("seeds", { db: true }, () => {
   // The seeds page clamps to these two ceilings and offers each as its box's
@@ -141,8 +141,8 @@ describeWithEnv("seeds", { db: true }, () => {
     const raw = await getAttendeesRaw(listing!.id);
     const [attendee] = await decryptAttendees(raw, await getTestPrivateKey());
 
-    assertArrayIncludes(DEMO_NAMES as readonly string[], [attendee!.name]);
-    assertArrayIncludes(DEMO_EMAILS as readonly string[], [attendee!.email]);
+    has(DEMO_NAMES as readonly string[], attendee!.name);
+    has(DEMO_EMAILS as readonly string[], attendee!.email);
     // The seed payment id embeds the booking's worth: unit price x quantity.
     const worth = listing!.unit_price * raw[0]!.quantity;
     expect(attendee!.payment_id).toBe(

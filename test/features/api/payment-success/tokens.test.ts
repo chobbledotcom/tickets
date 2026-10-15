@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handlePaymentSuccess } from "#routes/api/payment-success.ts";
@@ -12,6 +12,7 @@ import {
   type CheckoutLine,
   stubPaidCheckout,
 } from "#test-utils/payment-session.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv("the paid success token page", { db: true }, () => {
@@ -76,11 +77,8 @@ describeWithEnv("the paid success token page", { db: true }, () => {
   ): Promise<string> => {
     expect(response.status).toBe(200);
     const page = await response.text();
-    assertStringIncludes(page, `href="/t/${tokens}"`);
-    assert(
-      !page.includes('http-equiv="refresh"'),
-      "the value should not contain the searched item",
-    );
+    says(page, `href="/t/${tokens}"`);
+    assert(!page.includes('http-equiv="refresh"'));
     return page;
   };
 
@@ -97,9 +95,9 @@ describeWithEnv("the paid success token page", { db: true }, () => {
 
     expect(response.status).toBe(200);
     const page = await response.text();
-    assertStringIncludes(page, 'data-payment-result="success"');
-    assertStringIncludes(page, `href="/t/${tokens}"`);
-    assertStringIncludes(page, "url=https://example.com/real-thanks");
+    says(page, 'data-payment-result="success"');
+    says(page, `href="/t/${tokens}"`);
+    says(page, "url=https://example.com/real-thanks");
   });
 
   test("joins several real tokens into one ticket link", async () => {
@@ -112,7 +110,7 @@ describeWithEnv("the paid success token page", { db: true }, () => {
     );
 
     expect(response.status).toBe(200);
-    assertStringIncludes(await response.text(), `href="/t/${tokens}"`);
+    says(await response.text(), `href="/t/${tokens}"`);
   });
 
   test("shows no thank-you redirect when the tokens span several listings", async () => {
@@ -142,10 +140,7 @@ describeWithEnv("the paid success token page", { db: true }, () => {
     });
 
     const page = await expectTokenLinkWithoutRedirect(response, tokens);
-    assert(
-      !page.includes("concealed-thanks"),
-      "the value should not contain the searched item",
-    );
+    assert(!page.includes("concealed-thanks"));
   });
 
   test("shows a concealing package member's standalone thank-you URL", async () => {
@@ -162,10 +157,7 @@ describeWithEnv("the paid success token page", { db: true }, () => {
     });
 
     expect(response.status).toBe(200);
-    assertStringIncludes(
-      await response.text(),
-      "url=https://example.com/standalone-thanks",
-    );
+    says(await response.text(), "url=https://example.com/standalone-thanks");
   });
 
   test("shows a visible package member's thank-you URL", async () => {
@@ -182,10 +174,7 @@ describeWithEnv("the paid success token page", { db: true }, () => {
     });
 
     expect(response.status).toBe(200);
-    assertStringIncludes(
-      await response.text(),
-      "url=https://example.com/shown-thanks",
-    );
+    says(await response.text(), "url=https://example.com/shown-thanks");
   });
 
   for (const separateTokens of [false, true]) {
@@ -211,8 +200,8 @@ describeWithEnv("the paid success token page", { db: true }, () => {
       const { response, tokens } = await renderTokenPage(...bookings);
       expect(response.status).toBe(200);
       const page = await response.text();
-      assertStringIncludes(page, `href="/t/${tokens}"`);
-      assertStringIncludes(page, "url=https://example.com/mixed-thanks");
+      says(page, `href="/t/${tokens}"`);
+      says(page, "url=https://example.com/mixed-thanks");
     });
   }
 
@@ -234,6 +223,6 @@ describeWithEnv("the paid success token page", { db: true }, () => {
     const response = await tokensRequest("not-a-token");
 
     expect(response.status).toBe(400);
-    assertStringIncludes(await response.text(), "Invalid payment callback");
+    says(await response.text(), "Invalid payment callback");
   });
 });

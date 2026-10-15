@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups } from "#i18n";
@@ -27,6 +26,7 @@ import {
   validateUsername,
   validateWholeNumber,
 } from "#templates/fields/validators.ts";
+import { says } from "#test-utils/says.ts";
 
 /** A validator accepts a value when it returns exactly `null` (not `undefined`,
  *  which a `return null -> return undefined` mutant would produce). */
@@ -159,10 +159,7 @@ describe("fields validators", () => {
   describe("stored option validators", () => {
     test("accepts known contact fields and rejects unknown ones", () => {
       accepts(validateListingFields, "email, phone, address");
-      assertStringIncludes(
-        validateListingFields("email, unknown") ?? "",
-        "unknown",
-      );
+      says(validateListingFields("email, unknown"), "unknown");
     });
 
     test("accepts exact update tiers only", () => {
@@ -190,10 +187,7 @@ describe("fields validators", () => {
     test("names the valid days, comma-and-space separated", () => {
       // The join separator of the valid-day list itself must survive the
       // copy: a message that runs the names together is not readable.
-      assertStringIncludes(
-        validateBookableDays("Funday") ?? "",
-        "Use: Monday, Tuesday",
-      );
+      says(validateBookableDays("Funday"), "Use: Monday, Tuesday");
     });
     test("VALID_DAY_NAMES lists all seven days, Monday first", () => {
       expect(VALID_DAY_NAMES).toHaveLength(7);
@@ -247,15 +241,9 @@ describe("fields validators", () => {
       // A swapped hint or label would still make the two kinds distinct,
       // so the exact copy of each is pinned here on its own.
       expect(buildHiddenField("Listing").label).toBe("Hidden listing");
-      assertStringIncludes(
-        buildHiddenField("Listing").hint ?? "",
-        "The listing is still bookable",
-      );
+      says(buildHiddenField("Listing").hint, "The listing is still bookable");
       expect(buildHiddenField("Group").label).toBe("Hidden Group");
-      assertStringIncludes(
-        buildHiddenField("Group").hint ?? "",
-        "The group is still bookable",
-      );
+      says(buildHiddenField("Group").hint, "The group is still bookable");
     });
   });
 

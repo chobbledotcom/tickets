@@ -6,7 +6,6 @@
 
 // jscpd:ignore-start
 import { parse } from "@std/csv/parse";
-import { expect } from "@std/expect";
 import {
   adminBrowser,
   ORGANISER,
@@ -27,6 +26,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -86,7 +86,7 @@ export const ownerAsksChoiceQuestion = async (
     await fillInAndSend(browser, { text: answer }, "Add answer");
   }
   for (const answer of answers) {
-    expect(browser.pageText).toContain(answer);
+    says(browser.pageText, answer);
   }
   await ownerAssignsQuestionTo(world, listingName);
 };
@@ -116,7 +116,7 @@ export const questionFieldOn = (
   browser: TestBrowser,
 ): string => {
   const name = `question_${askedQuestion(world).id}`;
-  expect(browser.currentHtml).toContain(`name="${name}"`);
+  says(browser.currentHtml, `name="${name}"`);
   return name;
 };
 
@@ -138,7 +138,7 @@ export const visitorBooksAnswering = async (
     },
     "Continue",
   );
-  expect(browser.pageText).toContain("Thank you for your order");
+  says(browser.pageText, "Thank you for your order");
 };
 
 /** What the owner's list download says this booking answered. The download is

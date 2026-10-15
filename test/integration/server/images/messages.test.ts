@@ -67,10 +67,7 @@ describeWithEnv(
           mockRequest(`/admin/listing/${listing.id}`, { headers: { cookie } }),
         );
         const html = await response.text();
-        assert(
-          !html.includes("image was not uploaded"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("image was not uploaded"));
       });
     });
   },

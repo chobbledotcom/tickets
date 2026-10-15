@@ -1,7 +1,8 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, testCookie } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -14,12 +15,12 @@ describeWithEnv("server (admin site nav)", { db: true }, () => {
         cookie: await testCookie(),
       });
       const html = await response.text();
-      assertStringIncludes(html, 'href="/admin/site"');
-      assertStringIncludes(html, 'href="/admin/site/contact"');
-      assertStringIncludes(html, 'href="/admin/site/order"');
-      assertStringIncludes(html, "Homepage");
-      assertStringIncludes(html, "Contact");
-      assertStringIncludes(html, "Order");
+      says(html, 'href="/admin/site"');
+      says(html, 'href="/admin/site/contact"');
+      says(html, 'href="/admin/site/order"');
+      says(html, "Homepage");
+      says(html, "Contact");
+      says(html, "Order");
     };
 
     test("homepage shows subnav with Homepage, Contact and Order links", async () => {
@@ -40,16 +41,13 @@ describeWithEnv("server (admin site nav)", { db: true }, () => {
       await enablePublicSite();
       const response = await adminGet("/admin/site");
       const html = await response.text();
-      assertStringIncludes(html, 'href="/admin/site"');
+      says(html, 'href="/admin/site"');
     });
 
     test("hides Site link when public site is disabled", async () => {
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      assert(
-        !html.includes('href="/admin/site"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('href="/admin/site"'));
     });
   });
 });

@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -12,6 +11,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
@@ -86,10 +86,7 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
 
       // Verify refund was logged to activity log tagged to listing
       const refundEntry = await findRefundActivityEntry(listing.id);
-      assertStringIncludes(
-        refundEntry.message,
-        "no longer accepting registrations",
-      );
+      says(refundEntry.message, "no longer accepting registrations");
     } finally {
       console.debug = origDebug;
       setSuppressDebugLogs(null);
@@ -132,7 +129,7 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
       expect(response.status).toBe(200);
 
       const refundEntry = await findRefundActivityEntry(listing.id);
-      assertStringIncludes(refundEntry.message, "price");
+      says(refundEntry.message, "price");
     } finally {
       mockVerify.restore();
       mockRefund.restore();

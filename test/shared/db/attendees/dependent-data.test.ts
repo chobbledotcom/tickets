@@ -1,10 +1,10 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
 import { ATTENDEE_DATA_RULES } from "#db/attendees/dependent-data.ts";
 import { APP_SCHEMA } from "#db/migrations/schema/index.ts";
 import { paymentTables } from "#db/migrations/schema/payments/index.ts";
+import { says } from "#test-utils/says.ts";
 
 const tableColumns = new Map(
   APP_SCHEMA.map(([name, table]) => [
@@ -90,7 +90,7 @@ describe("attendee dependent data", () => {
       expect(statements[index]!.args).toEqual(
         rule.kind === "notes" ? ["attendee", ...attendeeIds.args] : [12, 13],
       );
-      assertStringIncludes(statements[index]!.sql, rule.table);
+      says(statements[index]!.sql, rule.table);
     }
   });
 });

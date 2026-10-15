@@ -10,12 +10,12 @@
  * their own checks in `render-content.test.ts`.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { renderEmailContent } from "#shared/email-renderer.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import type { EmailTemplateType } from "#types";
 import { buildTestData, describeEmailRenderer } from "./test-helpers.ts";
 
@@ -111,24 +111,15 @@ describe("the whole email the site's own wording sends with answers", () => {
     test("the confirmation prints each answer", async () => {
       const sent = await renderEmailContent("confirmation", await data());
 
-      assertStringIncludes(
-        sent.text,
-        "Any allergies?: Peanuts <b>and</b> nuts",
-      );
-      assertStringIncludes(
-        sent.html,
-        "Any allergies?: Peanuts &lt;b&gt;and&lt;/b&gt; nuts",
-      );
+      says(sent.text, "Any allergies?: Peanuts <b>and</b> nuts");
+      says(sent.html, "Any allergies?: Peanuts &lt;b&gt;and&lt;/b&gt; nuts");
     });
 
     test("the admin notification prints each answer with its listing", async () => {
       const sent = await renderEmailContent("admin", await data());
 
-      assertStringIncludes(
-        sent.text,
-        "Any allergies? (Test Listing): Peanuts <b>and</b> nuts",
-      );
-      assertStringIncludes(
+      says(sent.text, "Any allergies? (Test Listing): Peanuts <b>and</b> nuts");
+      says(
         sent.html,
         "Any allergies? (Test Listing): Peanuts &lt;b&gt;and&lt;/b&gt; nuts",
       );

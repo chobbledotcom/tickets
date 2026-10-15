@@ -1,5 +1,7 @@
 /** Package booking-flow test helpers. */
 
+import { assert } from "@std/assert";
+import { has } from "#test-utils/says.ts";
 import type { Group, ListingWithCount } from "#types";
 
 /**
@@ -104,8 +106,10 @@ export const createFlexPackage = async (
 export const expectPackageBookingAccepted = async (
   submit: Response,
 ): Promise<void> => {
-  const { expect } = await import("@std/expect");
-  expect([302, 303]).toContain(submit.status);
+  has([302, 303], submit.status);
   // A 30x always carries a Location header.
-  expect(submit.headers.get("location")!).not.toContain("error");
+  assert(
+    !submit.headers.get("location")!.includes("error"),
+    "the value should not contain the searched item",
+  );
 };

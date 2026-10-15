@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -14,6 +14,7 @@ import {
 } from "#test-utils/listing-parents/helpers.ts";
 import { optInAddOnForListings } from "#test-utils/modifiers.ts";
 import { postChildren } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet, apiRequest } from "#test-utils/session.ts";
 import type { Listing } from "#types";
 
@@ -46,7 +47,7 @@ const expectApiAddOnError = async (
   request: Promise<Response>,
 ): Promise<void> => {
   await assertJson<{ error: string }>(request, 400, (json) => {
-    assertStringIncludes(json.error, ADDON_ERROR);
+    says(json.error, ADDON_ERROR);
   });
 };
 
@@ -175,7 +176,7 @@ describeWithEnv(
       // Renders the confirmation page (200), not a 302 back to itself.
       expect(response.status).toBe(200);
       expect(response.headers.get("location")).toBe(null);
-      assertStringIncludes(body, await childOnlyAddOnFlash());
+      says(body, await childOnlyAddOnFlash());
       // The listing is untouched by the GET.
       expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
     });

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -15,6 +14,7 @@ import {
 } from "#routes/admin/attendee-page-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 const SAVED_RECORD = {
@@ -77,8 +77,8 @@ describeWithEnv("attendee contact records", { db: true }, () => {
       );
 
       expect(records.email?.record.visits).toBe(7);
-      assertStringIncludes(
-        errorSpy.calls[0]?.args[0] ?? "",
+      says(
+        errorSpy.calls[0]?.args[0],
         `detail="contact history ${base64ToBase64Url(hash)}:`,
       );
     } finally {

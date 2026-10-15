@@ -12,7 +12,7 @@
  * be advertised live even though each member's own card is bookable.
  */
 
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -33,6 +33,7 @@ import {
   makeParent,
   publicBody,
 } from "#test-utils/parents.ts";
+import { has, says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -53,8 +54,8 @@ describeWithEnv(
         await settings.update.orderEnabled(true);
         const { child } = await parentWithFlaggedChild();
         const body = await (await handleRequest(mockRequest("/order"))).text();
-        assertStringIncludes(body, `name="select_${child.id}"`);
-        assertStringIncludes(body, "Solo Widget");
+        says(body, `name="select_${child.id}"`);
+        says(body, "Solo Widget");
       });
     });
 
@@ -65,7 +66,7 @@ describeWithEnv(
         const rss = await (
           await handleRequest(mockRequest("/feeds/listings.rss"))
         ).text();
-        assertStringIncludes(rss, `/ticket/${child.slug}`);
+        says(rss, `/ticket/${child.slug}`);
       });
     });
 
@@ -74,7 +75,7 @@ describeWithEnv(
         await settings.update.showPublicApi(true);
         const { child } = await parentWithFlaggedChild();
         const slugs = await apiListingSlugs();
-        assertArrayIncludes(slugs, [child.slug]);
+        has(slugs, child.slug);
         const res = await apiGet(`/api/listings/${child.slug}`);
         expect(res.status).toBe(200);
         const body = (await res.json()) as {
@@ -98,7 +99,7 @@ describeWithEnv(
       test("the multi-booking builder offers a bookable_alone child", async () => {
         const { child } = await parentWithFlaggedChild();
         const body = await (await adminGet("/admin/listings")).text();
-        assertStringIncludes(body, `data-multi-booking-slug="${child.slug}"`);
+        says(body, `data-multi-booking-slug="${child.slug}"`);
       });
 
       test("a bookable_alone child keeps its share/QR affordances", async () => {
@@ -106,12 +107,11 @@ describeWithEnv(
         const body = await (
           await adminGet(`/admin/listing/${child.id}`)
         ).text();
-        assertStringIncludes(body, `/ticket/${child.slug}`);
+        says(body, `/ticket/${child.slug}`);
         assert(
           !body.includes(
             "it has no standalone booking link, embed, or QR code",
           ),
-          "the value should not contain the searched item",
         );
       });
     });
@@ -137,12 +137,9 @@ describeWithEnv(
         await deactivateTestListing(parent.id);
         const body = await publicBody("/listings");
         // The child's own card is bookable...
-        assertStringIncludes(body, `href="/ticket/${child.slug}"`);
+        says(body, `href="/ticket/${child.slug}"`);
         // ...but the group's own /ticket/<group> Book link is not advertised.
-        assert(
-          !body.includes(`href="/ticket/${group.slug}"`),
-          "the value should not contain the searched item",
-        );
+        assert(!body.includes(`href="/ticket/${group.slug}"`));
       });
     });
 

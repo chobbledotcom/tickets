@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createListingChoicePost } from "#routes/admin/listing-choice-post.ts";
@@ -8,6 +7,7 @@ import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { has } from "#test-utils/says.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 import { enableFeature } from "#test-utils/settings.ts";
 
@@ -58,9 +58,7 @@ describeWithEnv("admin listing choice post", { db: true }, () => {
     expect(saved).toEqual([{ ids: [4, 7], listingId: listing.id }]);
     expectRedirect(response, `/admin/listing/${listing.id}/widgets`);
     expectFlash(response, "Widgets updated");
-    assertArrayIncludes((await activityMessages()) ?? [], [
-      "Widgets updated for 'Fair' (2 widgets)",
-    ]);
+    has(await activityMessages(), "Widgets updated for 'Fair' (2 widgets)");
   });
 
   test("logs a single choice in the singular", async () => {
@@ -73,9 +71,7 @@ describeWithEnv("admin listing choice post", { db: true }, () => {
     });
 
     response.body?.cancel();
-    assertArrayIncludes((await activityMessages()) ?? [], [
-      "Widgets updated for 'Solo' (1 widget)",
-    ]);
+    has(await activityMessages(), "Widgets updated for 'Solo' (1 widget)");
   });
 
   test("hands a custom id reader the configured field name", async () => {

@@ -3,11 +3,11 @@
  *  follows the parent it is booked under. Split from the main edge-rule file
  *  to keep both under the ~400-line target. */
 
-import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { edgeFieldError } from "#shared/listing-parents-rules.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import { edgeListing as listing } from "./helpers.ts";
 
 /** The i18n message a broken edge rule reports for the named listing — the
@@ -22,9 +22,10 @@ describe("edgeFieldError minimum quantity", () => {
       listing(),
       listing({ min_quantity: 2, name: "Bundled" }),
     );
-    assertStringIncludes(message ?? "", "'Bundled'");
-    assert(
-      message?.includes("children_err") === false,
+    says(message, "'Bundled'");
+    saysNot(
+      message,
+      "children_err",
       "the value should not contain the searched item",
     );
   });

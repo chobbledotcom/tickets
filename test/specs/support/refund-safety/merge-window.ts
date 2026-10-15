@@ -14,6 +14,7 @@ import {
 } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { has } from "#test-utils/says.ts";
 import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 import {
   findFormByButton,
@@ -151,7 +152,7 @@ export const choosePaidDetails = (
   );
   const values = sourceChoices(form.body);
   for (const field of Object.keys(values)) {
-    expect(choicesForQuestion(form.body, field)).toContain("source");
+    has(choicesForQuestion(form.body, field), "source");
   }
   keptForms.set(world, { html: form.body, values });
 };

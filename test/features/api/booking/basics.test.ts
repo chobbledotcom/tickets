@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -12,6 +11,7 @@ import {
 import { assertJson } from "#test-utils/assertions.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 
 describePublicApi(() => {
   describe("POST /api/listings/:slug/book", () => {
@@ -76,7 +76,7 @@ describePublicApi(() => {
         name: "Alice",
       });
       expect(response.status).toBe(400);
-      assertStringIncludes(body.error ?? "", "website");
+      says(body.error, "website");
     });
 
     test("returns 400 when required name is missing", async () => {

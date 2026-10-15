@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -12,6 +11,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { addAnswer, createQuestion } from "#test-utils/questions/helpers.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
@@ -91,8 +91,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       // The shared child-edit frame: a back link to the question and a small
       // context line naming it.
-      assertStringIncludes(html, `href="/admin/questions/${qId}"`);
-      assertStringIncludes(html, "Answer for: Edit answer page");
+      says(html, `href="/admin/questions/${qId}"`);
+      says(html, "Answer for: Edit answer page");
     });
 
     test("updates the answer text and redirects to the question", async () => {
@@ -228,8 +228,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "Logged after");
-      assertStringIncludes(body, "updated");
+      says(body, "Logged after");
+      says(body, "updated");
     });
 
     test("saves the edited selection total", async () => {
@@ -315,12 +315,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const body = await response.text();
       expect(response.status).toBe(200);
       // Stored (8) and the value rebuilt from the single booking (1).
-      assertStringIncludes(body, "<td>8</td>");
-      assertStringIncludes(body, "<td>1</td>");
-      assertStringIncludes(
-        body,
-        `action="/admin/questions/${qId}/answers/${aId}/recalculate"`,
-      );
+      says(body, "<td>8</td>");
+      says(body, "<td>1</td>");
+      says(body, `action="/admin/questions/${qId}/answers/${aId}/recalculate"`);
     });
 
     test("re-renders with a prompt when no field is selected", async () => {
@@ -333,7 +330,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       const body = await response.text();
       expect(response.status).toBe(400);
-      assertStringIncludes(body, "Choose at least one total to recalculate");
+      says(body, "Choose at least one total to recalculate");
     });
 
     test("resets the stored total from attendee answers and redirects", async () => {

@@ -4,7 +4,6 @@
  * gate runs against overrides.ts.
  */
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
@@ -20,6 +19,7 @@ import { defineResource } from "#shared/rest/resource.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { has } from "#test-utils/says.ts";
 
 describeWithEnv("demo overrides", { db: true }, () => {
   afterEach(() => {
@@ -49,10 +49,7 @@ describeWithEnv("demo overrides", { db: true }, () => {
     });
 
     expect(result).toBe(form);
-    assertArrayIncludes(
-      ["Demo Person", "Another Person"],
-      [result.get("name")],
-    );
+    has(["Demo Person", "Another Person"], result.get("name"));
     expect(result.get("untouched")).toBe("kept");
   });
 

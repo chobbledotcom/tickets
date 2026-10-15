@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -11,6 +10,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { buildAttendeeEditForm } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -106,8 +106,8 @@ describeWithEnv(
           },
         );
         const html = await response.text();
-        assertStringIncludes(html, "Shirt size?");
-        assertStringIncludes(html, "Meal choice?");
+        says(html, "Shirt size?");
+        says(html, "Meal choice?");
       });
 
       test("saving an edit preserves answers for every booked event", async () => {
@@ -219,10 +219,7 @@ describeWithEnv(
       );
 
       expect(response.status).toBe(200);
-      assertStringIncludes(
-        await response.text(),
-        "Answer is too long: Access needs?",
-      );
+      says(await response.text(), "Answer is too long: Access needs?");
     });
   },
 );

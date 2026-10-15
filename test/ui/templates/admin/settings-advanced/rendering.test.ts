@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
@@ -6,6 +6,7 @@ import {
   adminAdvancedSettingsPage,
 } from "#templates/admin/settings-advanced.tsx";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 import { advancedDefaultState } from "./state.ts";
 
 describe("admin advanced settings rendering contracts", () => {
@@ -21,42 +22,30 @@ describe("admin advanced settings rendering contracts", () => {
     );
 
   test("marks the advanced settings route as active", () => {
-    assertStringIncludes(
-      render(),
-      '<a class="active" href="/admin/settings-advanced">',
-    );
+    says(render(), '<a class="active" href="/admin/settings-advanced">');
   });
 
   test("renders the scheduled maintenance section with its prose class", () => {
-    assertStringIncludes(
-      render(),
-      '<article class="prose"><h2>Scheduled maintenance</h2>',
-    );
+    says(render(), '<article class="prose"><h2>Scheduled maintenance</h2>');
   });
 
   test("shows the configured scheduled maintenance key as code", () => {
     const html = render({ scheduledTaskKey: "scheduled-secret" });
 
-    assertStringIncludes(html, "<code>scheduled-secret</code>");
-    assert(
-      !html.includes("No scheduled maintenance key is set on this site."),
-      "the value should not contain the searched item",
-    );
+    says(html, "<code>scheduled-secret</code>");
+    assert(!html.includes("No scheduled maintenance key is set on this site."));
   });
 
   test("shows the unset message when no scheduled maintenance key exists", () => {
     const html = render();
 
-    assertStringIncludes(
-      html,
-      "No scheduled maintenance key is set on this site.",
-    );
+    says(html, "No scheduled maintenance key is set on this site.");
   });
 
   test("renders the reset form with its exact action and id", () => {
     const html = render();
 
-    assertStringIncludes(html, 'action="/admin/settings/reset-database"');
-    assertStringIncludes(html, 'id="settings-reset-database"');
+    says(html, 'action="/admin/settings/reset-database"');
+    says(html, 'id="settings-reset-database"');
   });
 });

@@ -69,10 +69,7 @@ describeWithEnv(
       });
       const { allTransfers } = await import("#accounting/queries.ts");
       const kinds = (await allTransfers()).map((t) => t.kind);
-      assert(
-        !kinds.includes("modifier"),
-        "the value should not contain the searched item",
-      );
+      assert(!kinds.includes("modifier"));
       expect(id).toBeGreaterThan(0);
     });
 

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptBytes } from "#crypto/encryption.ts";
@@ -25,6 +25,7 @@ import {
   withStorageEnabled,
   withStorageMock,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminGet,
   createTestManagerSession,
@@ -88,10 +89,7 @@ const submitHeaderImageDelete = async (): Promise<Response> =>
 /** Assert a response redirects back to /admin/settings (success case) */
 const expectSettingsRedirect = (response: Response): void => {
   expect(response.status).toBe(302);
-  assertStringIncludes(
-    response.headers.get("location") ?? "",
-    "/admin/settings",
-  );
+  says(response.headers.get("location"), "/admin/settings");
 };
 
 describeWithEnv("server (header image settings)", { db: true }, () => {
@@ -106,10 +104,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
     test("hides header image section when storage is disabled", async () => {
       await withStorageDisabled(async () => {
         const html = await assertAdminHtml("/admin/settings");
-        assert(
-          !html.includes("Header Image"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Header Image"));
       });
     });
 
@@ -123,12 +118,9 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
           "Remove Image",
           "/image/existing.jpg",
         );
-        assertStringIncludes(html, 'class="listing-image-preview"');
-        assertStringIncludes(
-          html,
-          'action="/admin/settings/header-image/delete"',
-        );
-        assertStringIncludes(html, 'id="settings-header-image-delete"');
+        says(html, 'class="listing-image-preview"');
+        says(html, 'action="/admin/settings/header-image/delete"');
+        says(html, 'id="settings-header-image-delete"');
       });
     });
 
@@ -136,33 +128,27 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
       await withStorageEnabled(async () => {
         const response = await adminGet("/admin/settings");
         const html = await expectHtmlResponse(response, 200, "Upload Image");
-        assertStringIncludes(html, 'action="/admin/settings/header-image"');
-        assertStringIncludes(html, 'enctype="multipart/form-data"');
-        assertStringIncludes(html, 'name="header_image"');
-        assertStringIncludes(html, 'type="file"');
+        says(html, 'action="/admin/settings/header-image"');
+        says(html, 'enctype="multipart/form-data"');
+        says(html, 'name="header_image"');
+        says(html, 'type="file"');
       });
     });
 
     test("advertises only image formats the server accepts", async () => {
       await withStorageEnabled(async () => {
         const html = await assertAdminHtml("/admin/settings");
-        assertStringIncludes(html, "JPEG, PNG, or WebP");
-        assertStringIncludes(html, 'accept="image/jpeg,image/png,image/webp"');
-        assert(
-          !html.includes("GIF"),
-          "the value should not contain the searched item",
-        );
+        says(html, "JPEG, PNG, or WebP");
+        says(html, 'accept="image/jpeg,image/png,image/webp"');
+        assert(!html.includes("GIF"));
       });
     });
 
     test("renders the iframe hint as inline code, not escaped markup", async () => {
       await withStorageEnabled(async () => {
         const html = await assertAdminHtml("/admin/settings");
-        assertStringIncludes(html, "<code>?iframe=true</code>");
-        assert(
-          !html.includes("&lt;code&gt;"),
-          "the value should not contain the searched item",
-        );
+        says(html, "<code>?iframe=true</code>");
+        assert(!html.includes("&lt;code&gt;"));
       });
     });
   });
@@ -344,10 +330,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
           const response = await handleRequest(mockRequest(PROXY_URL));
           expect(response.status).toBe(200);
           expect(response.headers.get("content-type")).toBe("image/jpeg");
-          assertStringIncludes(
-            response.headers.get("cache-control") ?? "",
-            "immutable",
-          );
+          says(response.headers.get("cache-control"), "immutable");
           expect(new Uint8Array(await response.arrayBuffer())).toEqual(
             JPEG_HEADER,
           );

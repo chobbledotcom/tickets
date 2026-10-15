@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
@@ -43,6 +42,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
   describe("invite self-activation (handoff)", () => {
@@ -136,10 +136,7 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
-        "/admin/user/new",
-      );
+      says(response.headers.get("location"), "/admin/user/new");
       expect(await getUserByUsername("guarded")).toBeNull();
     });
   });

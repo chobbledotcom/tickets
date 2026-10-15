@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
@@ -19,6 +18,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 import { tx } from "#test-utils/transfer-factory.ts";
 
 /** A refund leg no derivation can attribute — an event group nothing derived
@@ -136,7 +136,7 @@ describeWithEnv("accounting > reverses-group backfill", { db: true }, () => {
       await backfillReversesGroup();
       const ran = getQueryLog().map((entry) => entry.sql);
       expect(ran.length).toBe(1);
-      assertStringIncludes(ran[0] ?? "", "FROM settings WHERE key = ?");
+      says(ran[0], "FROM settings WHERE key = ?");
     });
     await expectStampedToBooking(bookingGroup);
   });

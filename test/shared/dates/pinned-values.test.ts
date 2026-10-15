@@ -6,7 +6,6 @@
  * broader behaviour tests in dates.test.ts did not distinguish.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -25,6 +24,7 @@ import {
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { testListing } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
 describe("dates — pinned values", () => {
@@ -63,7 +63,7 @@ describe("dates — pinned values", () => {
     ];
     for (const [index, month] of monthNames.entries()) {
       const iso = `2026-${String(index + 1).padStart(2, "0")}-15`;
-      assertStringIncludes(formatDateLabel(iso), ` 15 ${month} 2026`);
+      says(formatDateLabel(iso), ` 15 ${month} 2026`);
     }
   });
 

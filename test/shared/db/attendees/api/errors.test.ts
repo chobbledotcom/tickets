@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -17,6 +17,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -31,8 +32,8 @@ describeWithEnv(
         });
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "Book at least one listing");
-        assertStringIncludes(html, "No Lines");
+        says(html, "Book at least one listing");
+        says(html, "No Lines");
       });
 
       test("create re-renders with error when atomic create fails with capacity_exceeded", async () => {
@@ -54,7 +55,7 @@ describeWithEnv(
               ]),
             });
             expect(response.status).toBe(200);
-            assertStringIncludes(await response.text(), "spots");
+            says(await response.text(), "spots");
           },
         );
       });
@@ -72,10 +73,7 @@ describeWithEnv(
         });
         // "abc" parses to no quantity, so nothing is booked.
         expect(response.status).toBe(200);
-        assertStringIncludes(
-          await response.text(),
-          "Book at least one listing",
-        );
+        says(await response.text(), "Book at least one listing");
         expect((await getAttendeesRaw(event.id)).length).toBe(0);
       });
 
@@ -90,8 +88,8 @@ describeWithEnv(
         });
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "Quantity must be at most 2.");
-        assertStringIncludes(html, "Valid Name");
+        says(html, "Quantity must be at most 2.");
+        says(html, "Valid Name");
       });
 
       test("create rejects a malformed email and saves nothing", async () => {
@@ -112,8 +110,8 @@ describeWithEnv(
         // is the only thing standing between bad data and the PII blob.
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "Please enter a valid email address");
-        assertStringIncludes(html, "Valid Name");
+        says(html, "Please enter a valid email address");
+        says(html, "Valid Name");
         expect((await getAttendeesRaw(event.id)).length).toBe(0);
       });
 
@@ -131,17 +129,14 @@ describeWithEnv(
         // The date error is a focusable alert (autofocus + tabindex), so the
         // browser scrolls straight to it instead of leaving the operator at the
         // top of the page — no JavaScript involved.
-        assertStringIncludes(
+        says(
           html,
           `<div autofocus class="error" role="alert" tabindex="-1">A start date is required`,
         );
         // The name field gives up its default autofocus so it doesn't win the
         // focus race over the (lower) date error.
-        assertStringIncludes(html, `autocomplete="off" id="name"`);
-        assert(
-          !html.includes(`autocomplete="off" autofocus id="name"`),
-          "the value should not contain the searched item",
-        );
+        says(html, `autocomplete="off" id="name"`);
+        assert(!html.includes(`autocomplete="off" autofocus id="name"`));
         expect((await getAttendeesRaw(daily.id)).length).toBe(0);
       });
 
@@ -164,10 +159,7 @@ describeWithEnv(
           },
         );
         expect(response.status).toBe(200);
-        assertStringIncludes(
-          await response.text(),
-          "Book at least one listing",
-        );
+        says(await response.text(), "Book at least one listing");
         // The existing booking is untouched (no_lines short-circuits the diff).
         expect((await getAttendeesRaw(event.id)).length).toBe(1);
       });
@@ -201,8 +193,8 @@ describeWithEnv(
             // page-level explanation that nothing was saved.
             expect(response.status).toBe(200);
             const html = await response.text();
-            assertStringIncludes(html, "nothing was saved");
-            assertStringIncludes(html, "Cap Edited");
+            says(html, "nothing was saved");
+            says(html, "Cap Edited");
           },
         );
       });
@@ -212,7 +204,7 @@ describeWithEnv(
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "Attendee: Orphan");
+        says(html, "Attendee: Orphan");
       });
 
       test("POST edit for attendee with no bookings re-renders with no_lines error", async () => {
@@ -222,10 +214,7 @@ describeWithEnv(
           { name: "Orphan" },
         );
         expect(response.status).toBe(200);
-        assertStringIncludes(
-          await response.text(),
-          "Book at least one listing",
-        );
+        says(await response.text(), "Book at least one listing");
       });
     });
   },

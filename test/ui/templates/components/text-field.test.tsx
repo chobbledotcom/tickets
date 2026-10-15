@@ -1,8 +1,9 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { TextField } from "#templates/components/text-field.tsx";
+import { says } from "#test-utils/says.ts";
 
 describe("TextField", () => {
   test("renders a labelled text input capped at the shared input length", () => {
@@ -27,11 +28,11 @@ describe("TextField", () => {
       </>,
     );
 
-    assertStringIncludes(
+    says(
       html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email" type="email">`,
     );
-    assertStringIncludes(
+    says(
       html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="server_url" type="url">`,
     );
@@ -47,11 +48,8 @@ describe("TextField", () => {
       }),
     );
 
-    assertStringIncludes(html, 'maxlength="8"');
-    assert(
-      !html.includes(`maxlength="${MAX_INPUT_LENGTH}"`),
-      "the value should not contain the searched item",
-    );
+    says(html, 'maxlength="8"');
+    assert(!html.includes(`maxlength="${MAX_INPUT_LENGTH}"`));
   });
 
   test("carries value, placeholder, and required when given", () => {
@@ -96,7 +94,7 @@ describe("TextField", () => {
       TextField({ label: "Secret", name: "the_secret", type: "password" }),
     );
 
-    assertStringIncludes(
+    says(
       html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="the_secret" type="password">`,
     );

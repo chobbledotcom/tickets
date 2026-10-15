@@ -4,8 +4,9 @@
  * the last second.
  */
 
-// jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
+// jscpd:ignore-start
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { quantityFieldName } from "#booking/tree.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -29,6 +30,7 @@ import {
 } from "#test/specs/support/refused-orders.ts";
 import { combinedPath } from "#test/specs/support/sales-pages.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -89,7 +91,7 @@ Then(
   "the customer opening the {word} page is told registration is closed",
   async function (this: TicketsWorld, name: string): Promise<void> {
     const browser = await openBookingPage(listingNamed(this, name));
-    expect(browser.pageText).toContain(t("public.ticket.registration_closed"));
+    says(browser.pageText, t("public.ticket.registration_closed"));
   },
 );
 
@@ -97,7 +99,7 @@ Then(
   "the page offers no way to book",
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openBookingPage(listingNamed(this, "Trip"));
-    expect(browser.currentHtml).not.toContain("Continue");
+    assert(!browser.currentHtml.includes("Continue"));
   },
 );
 
@@ -143,9 +145,7 @@ Then(
     const mugField = `name="${quantityFieldName(
       listingNamed(this, "Mug").id,
     )}"`;
-    expect(tripRowOn(currentHtml, mugField)).toContain(
-      t("public.registration_closed"),
-    );
+    says(tripRowOn(currentHtml, mugField), t("public.registration_closed"));
   },
 );
 
@@ -164,24 +164,24 @@ Then(
   "the page selling both is closed to booking",
   async function (this: TicketsWorld): Promise<void> {
     const { currentHtml } = await openTripAndMugPage(this);
-    expect(currentHtml).toContain(t("public.ticket.registration_closed"));
+    says(currentHtml, t("public.ticket.registration_closed"));
     // Closed to booking means nothing to book with: no count for either
     // thing, and no button to send anything.
     for (const name of ["Trip", "Mug"]) {
-      expect(currentHtml).not.toContain(
-        `name="${quantityFieldName(listingNamed(this, name).id)}"`,
+      assert(
+        !currentHtml.includes(
+          `name="${quantityFieldName(listingNamed(this, name).id)}"`,
+        ),
       );
     }
-    expect(currentHtml).not.toContain("Continue");
+    assert(!currentHtml.includes("Continue"));
   },
 );
 
 Then(
   "the customer is told registration closed while they were submitting",
   function (this: TicketsWorld): void {
-    expect(sentOrder(this).browser.pageText).toContain(
-      REGISTRATION_CLOSED_SUBMIT_MESSAGE,
-    );
+    says(sentOrder(this).browser.pageText, REGISTRATION_CLOSED_SUBMIT_MESSAGE);
   },
 );
 

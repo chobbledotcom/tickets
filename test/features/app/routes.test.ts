@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
@@ -10,6 +9,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicApi, enablePublicSite } from "#test-utils/settings.ts";
 
 const routeRequest = async (
@@ -64,7 +64,7 @@ describeWithEnv("main app router", { db: true }, () => {
     const response = await route("/listings");
 
     expect(response.status).toBe(200);
-    assertStringIncludes(await response.text(), "No listings listed.");
+    says(await response.text(), "No listings listed.");
   });
 
   test("does not serve a public page below its exact path", async () => {

@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#accounting/accounts.ts";
@@ -17,6 +17,7 @@ import { account } from "#shared/ledger/account.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createDatedServicingScenario,
   createServicingHold,
@@ -42,18 +43,9 @@ describeWithEnv(
     test("creating a servicing event posts no sale, payment, or fee legs (never a sale)", async () => {
       const { listing } = await createServicingHold();
       const kinds = (await allTransfers()).map((transfer) => transfer.kind);
-      assert(
-        !kinds.includes("sale"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !kinds.includes("payment"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !kinds.includes("fee"),
-        "the value should not contain the searched item",
-      );
+      assert(!kinds.includes("sale"));
+      assert(!kinds.includes("payment"));
+      assert(!kinds.includes("fee"));
       expect(await accountBalance(revenueAccount(listing.id))).toBe(0);
     });
 
@@ -122,10 +114,10 @@ describeWithEnv(
 
       const html = await renderAdminPage(`/admin/listing/${listing.id}`);
 
-      assertStringIncludes(html, "Service event costs");
-      assertStringIncludes(html, formatCurrency(9000));
-      assertStringIncludes(html, "Profit before refunds");
-      assertStringIncludes(html, formatCurrency(11000));
+      says(html, "Service event costs");
+      says(html, formatCurrency(9000));
+      says(html, "Profit before refunds");
+      says(html, formatCurrency(11000));
     });
 
     test("the cost route dates the cost leg to the service event date, not the submit time", async () => {

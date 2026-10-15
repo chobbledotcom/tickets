@@ -1,9 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getSettingsNagItems } from "#shared/settings-nags.ts";
 import { SettingsNagBanner } from "#templates/admin/settings-nag-banner.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { withSetting } from "#test-utils/settings.ts";
 
 describeWithEnv(
@@ -20,23 +21,11 @@ describeWithEnv(
         },
         () => {
           const html = String(SettingsNagBanner());
-          assertStringIncludes(html, "Finish setting up your site");
-          assertStringIncludes(
-            html,
-            'href="/admin/settings#settings-payment-provider"',
-          );
-          assertStringIncludes(
-            html,
-            'href="/admin/settings#settings-business-email"',
-          );
-          assertStringIncludes(
-            html,
-            'href="/admin/settings-advanced#settings-custom-domain"',
-          );
-          assert(
-            !html.includes("superuser"),
-            "the value should not contain the searched item",
-          );
+          says(html, "Finish setting up your site");
+          says(html, 'href="/admin/settings#settings-payment-provider"');
+          says(html, 'href="/admin/settings#settings-business-email"');
+          says(html, 'href="/admin/settings-advanced#settings-custom-domain"');
+          assert(!html.includes("superuser"));
         },
       );
     });
@@ -51,11 +40,8 @@ describeWithEnv(
         },
         () => {
           const html = String(SettingsNagBanner({}));
-          assertStringIncludes(html, "Finish setting up your site");
-          assertStringIncludes(
-            html,
-            'href="/admin/settings#settings-payment-provider"',
-          );
+          says(html, "Finish setting up your site");
+          says(html, 'href="/admin/settings#settings-payment-provider"');
         },
       );
     });
@@ -69,11 +55,8 @@ describeWithEnv(
     test("renders superuser nag link when items contain the superuser item", () => {
       const items = [superuserItem];
       const html = String(SettingsNagBanner({ items }));
-      assertStringIncludes(html, 'href="/admin/settings#settings-superuser"');
-      assertStringIncludes(
-        html,
-        "Choose whether to enable a superuser recovery account.",
-      );
+      says(html, 'href="/admin/settings#settings-superuser"');
+      says(html, "Choose whether to enable a superuser recovery account.");
     });
 
     test("renders multiple nags when items contain both base and superuser nags", async () => {
@@ -88,22 +71,10 @@ describeWithEnv(
           const baseNags = getSettingsNagItems();
           const items = [...baseNags, superuserItem];
           const html = String(SettingsNagBanner({ items }));
-          assertStringIncludes(
-            html,
-            'href="/admin/settings#settings-payment-provider"',
-          );
-          assertStringIncludes(
-            html,
-            'href="/admin/settings#settings-business-email"',
-          );
-          assertStringIncludes(
-            html,
-            'href="/admin/settings-advanced#settings-custom-domain"',
-          );
-          assertStringIncludes(
-            html,
-            'href="/admin/settings#settings-superuser"',
-          );
+          says(html, 'href="/admin/settings#settings-payment-provider"');
+          says(html, 'href="/admin/settings#settings-business-email"');
+          says(html, 'href="/admin/settings-advanced#settings-custom-domain"');
+          says(html, 'href="/admin/settings#settings-superuser"');
         },
       );
     });
@@ -116,10 +87,7 @@ describeWithEnv(
     test("superuser nag label text matches exactly", () => {
       const items = [superuserItem];
       const html = String(SettingsNagBanner({ items }));
-      assertStringIncludes(
-        html,
-        "Choose whether to enable a superuser recovery account.",
-      );
+      says(html, "Choose whether to enable a superuser recovery account.");
     });
   },
 );

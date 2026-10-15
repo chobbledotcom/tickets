@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
@@ -9,6 +8,7 @@ import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { recordingRenewalUrlPush } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import {
   failingRenewalUrlPush,
   setUpAssignmentSuite,
@@ -200,7 +200,7 @@ describeWithEnv(
           expect(afterRace.readOnlyFrom).not.toBe("");
           expect(recorder.pushedUrls.length).toBeGreaterThanOrEqual(1);
           for (const pushed of recorder.pushedUrls) {
-            assertStringIncludes(pushed, afterRace.renewalToken!);
+            says(pushed, afterRace.renewalToken!);
           }
         } finally {
           recorder.stub.restore();

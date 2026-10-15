@@ -19,6 +19,7 @@ import {
 } from "#test/scripts/code-quality/detectors.ts";
 import { detectRelativeImport } from "#test/scripts/code-quality/relative-import.ts";
 import { tempDir } from "#test-utils/files.ts";
+import { says } from "#test-utils/says.ts";
 
 /**
  * Fixture-driven tests for the code-quality detectors. The integration test
@@ -128,9 +129,10 @@ describe("findRawDbViolation", () => {
   });
 
   test("flags a direct getDb().batch call", () => {
-    expect(
+    says(
       findRawDbViolation("features/y.ts", "await getDb().batch(stmts);", []),
-    ).toContain("instead of getDb().execute/.batch");
+      "instead of getDb().execute/.batch",
+    );
   });
 
   test("returns null for clean content", () => {

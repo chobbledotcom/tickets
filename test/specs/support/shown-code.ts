@@ -18,6 +18,7 @@ import type { ActOnOneThing, TicketsWorld } from "#test/specs/support/world.ts";
 import { STUB_CHECKOUT_URL } from "#test-utils/checkout.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite, setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -221,7 +222,7 @@ export const customerPaysMore = (
 ): Promise<WhatIsBeingCharged> =>
   withPayingStubbed(async ({ timesReached, whatWasCharged }) => {
     const browser = await openAsNewcomer(link);
-    expect(browser.currentHtml).toContain('name="qr_token"');
+    says(browser.currentHtml, 'name="qr_token"');
     await browser.submitForm(
       {
         [priceBoxOn(browser.currentHtml)]: price.toFixed(2),

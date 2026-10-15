@@ -1,14 +1,3 @@
-// test-groups: run-alone
-/**
- * The shared production handler (`src/serve-app.ts`): lazy one-time boot, the
- * unhandled-error 503 guard, the production N+1 notify-only mode, and the dev
- * entry's port resolution.
- *
- * `initialize` is memoized at module level (`once`), so the order here is
- * load-bearing: the failing-boot case must run BEFORE the first successful
- * boot — a thrown boot check is not memoized, which is exactly what the first
- * test proves — and every later test reuses the one successful boot.
- */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -29,6 +18,7 @@ import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockAdminLoginRequest, withExpectedError } from "#test-utils/mocks.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 import {
   expectScheduledResponse,
   scheduledAuthorization,
@@ -225,8 +215,8 @@ describeWithEnv("serve-app", { db: true }, () => {
         const other = await serveFrom(await wrongLogin(), "192.0.2.2");
         const locked = await serveFrom(await wrongLogin(), "192.0.2.1");
 
-        expect(flashOf(other)).toContain("Username or password was wrong");
-        expect(flashOf(locked)).toContain("Too many login attempts");
+        says(flashOf(other), "Username or password was wrong");
+        says(flashOf(locked), "Too many login attempts");
         const rows = await queryAll<{ attempts: number; ip: string }>(
           "SELECT ip, attempts FROM login_attempts ORDER BY attempts",
         );

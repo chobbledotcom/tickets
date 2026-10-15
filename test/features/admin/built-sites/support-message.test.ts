@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { supportMessageApi } from "#shared/site-support-message.ts";
@@ -6,6 +6,7 @@ import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -45,10 +46,10 @@ describeWithEnv(
         );
         const response = await adminGet(tabPath(site.id));
         const html = await expectHtmlResponse(response, 200, "Support message");
-        assertStringIncludes(html, "data-markdown-preview");
+        says(html, "data-markdown-preview");
         // The byte-budget hint replaces a character maxlength, which cannot
         // express the UTF-8 byte rule.
-        assertStringIncludes(html, "at most 2,048 bytes");
+        says(html, "at most 2,048 bytes");
       });
 
       test("shows the read error on the panel on Bunny failure", async () => {
@@ -84,11 +85,8 @@ describeWithEnv(
         using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
         const response = await adminGet(tabPath(site.id));
         const html = await expectHtmlResponse(response, 200, "Support message");
-        assertStringIncludes(html, "<h1>Quiet hours</h1>");
-        assert(
-          !html.includes('name="support_message"'),
-          "the value should not contain the searched item",
-        );
+        says(html, "<h1>Quiet hours</h1>");
+        assert(!html.includes('name="support_message"'));
       });
 
       test("opens the tab for a Deno-hosted site too", async () => {
@@ -110,7 +108,7 @@ describeWithEnv(
 
         const edit = await adminGet(`/admin/built-sites/${site.id}`);
         const html = await expectHtmlResponse(edit, 200, "Deno Site");
-        assertStringIncludes(html, tabPath(site.id));
+        says(html, tabPath(site.id));
       });
     });
   },

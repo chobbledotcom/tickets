@@ -3,7 +3,7 @@
  * asks how many tickets, the ticket page reads the part count, and the
  * staff quantity page stays shut. */
 
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { moveTickets } from "#db/attendees/update.ts";
@@ -14,6 +14,7 @@ import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
+import { has, says } from "#test-utils/says.ts";
 import { requestAsSession, testCsrfToken } from "#test-utils/session.ts";
 
 /** One door scan sent as a scanner session, with the page script's body. */
@@ -71,9 +72,10 @@ describeWithEnv("a scanner login and part bookings", { db: true }, () => {
     });
 
     expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 2 }]);
-    assertArrayIncludes((await activityMessages()) ?? [], [
+    has(
+      await activityMessages(),
       "Attendee checked in 2 tickets via scanner for 'Doors'",
-    ]);
+    );
   });
 
   test("the ticket page shows a scanner the part count and both door actions", async () => {
@@ -86,16 +88,15 @@ describeWithEnv("a scanner login and part bookings", { db: true }, () => {
       await awaitTestRequest(`/checkin/${token}`, { cookie })
     ).text();
 
-    assertStringIncludes(body, "Checked in (1 of 3)");
-    assertStringIncludes(body, "Check In All");
-    assertStringIncludes(body, "Check Out All");
+    says(body, "Checked in (1 of 3)");
+    says(body, "Check In All");
+    says(body, "Check Out All");
     // The per-line quantity page is a staff page, so the door-only view
     // never links to it (never render a forbidden link).
     assert(
       !body.includes(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
       ),
-      "the value should not contain the searched item",
     );
   });
 
@@ -138,8 +139,8 @@ describeWithEnv("a scanner login and part bookings", { db: true }, () => {
       })
     ).text();
 
-    assertStringIncludes(body, `data-attendee-id="${attendee.id}"`);
-    assertStringIncludes(body, 'data-quantity="1"');
-    assertStringIncludes(body, "Pia (1 ticket)");
+    says(body, `data-attendee-id="${attendee.id}"`);
+    says(body, 'data-quantity="1"');
+    says(body, "Pia (1 ticket)");
   });
 });

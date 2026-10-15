@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
@@ -20,6 +20,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   activateContactForm,
   CONTACT_OWNER_EMAIL,
@@ -82,7 +83,7 @@ const renderActiveContactForm = async (): Promise<string> => {
   const response = await handleRequest(mockRequest("/contact"));
   const html = await response.text();
   expect(response.status).toBe(200);
-  assertStringIncludes(html, 'action="/contact"');
+  says(html, 'action="/contact"');
   return html;
 };
 
@@ -94,10 +95,7 @@ const expectContactFormOmitted = async (): Promise<void> => {
   await settings.update.contactPageText("Just some text");
   const response = await handleRequest(mockRequest("/contact"));
   const html = await response.text();
-  assert(
-    !html.includes("data-botpoison-public-key"),
-    "the value should not contain the searched item",
-  );
+  assert(!html.includes("data-botpoison-public-key"));
 };
 
 /** Submit the contact form with an invalid email and assert the server rejects
@@ -125,26 +123,23 @@ describeWithEnv(
     describe("GET /contact", () => {
       test("renders the form with the public key when active", async () => {
         const html = await renderActiveContactForm();
-        assertStringIncludes(
-          html,
-          'data-botpoison-public-key="pk_test_public"',
-        );
-        assertStringIncludes(html, 'name="email"');
-        assertStringIncludes(html, 'name="message"');
+        says(html, 'data-botpoison-public-key="pk_test_public"');
+        says(html, 'name="email"');
+        says(html, 'name="message"');
       });
 
       test("loads the bundled contact widget script", async () => {
         await activateContactForm();
         const response = await handleRequest(mockRequest("/contact"));
         const html = await response.text();
-        assertStringIncludes(html, "/contact.js");
+        says(html, "/contact.js");
       });
 
       test("shows the Contact link in the public nav even without text", async () => {
         await activateContactForm();
         const response = await handleRequest(mockRequest("/"));
         const html = await response.text();
-        assertStringIncludes(html, 'href="/contact"');
+        says(html, 'href="/contact"');
       });
 
       test("renders both contact text and the form together", async () => {
@@ -152,8 +147,8 @@ describeWithEnv(
         await settings.update.contactPageText("Reach us anytime");
         const response = await handleRequest(mockRequest("/contact"));
         const html = await response.text();
-        assertStringIncludes(html, "Reach us anytime");
-        assertStringIncludes(html, "data-botpoison-public-key");
+        says(html, "Reach us anytime");
+        says(html, "data-botpoison-public-key");
       });
 
       test("shows the website title heading when one is configured", async () => {
@@ -161,8 +156,8 @@ describeWithEnv(
         await settings.update.websiteTitle("Acme Tickets");
         const response = await handleRequest(mockRequest("/contact"));
         const html = await response.text();
-        assertStringIncludes(html, "<h1>Acme Tickets</h1>");
-        assertStringIncludes(html, "<title>Contact - Acme Tickets</title>");
+        says(html, "<h1>Acme Tickets</h1>");
+        says(html, "<title>Contact - Acme Tickets</title>");
       });
 
       test("renders a success flash after a redirect", async () => {
@@ -172,7 +167,7 @@ describeWithEnv(
           { cookie: flashCookieHeader("Message sent") },
         );
         const html = await response.text();
-        assertStringIncludes(html, "Message sent");
+        says(html, "Message sent");
       });
 
       test("renders an error flash after a redirect", async () => {
@@ -182,7 +177,7 @@ describeWithEnv(
           { cookie: flashCookieHeader("Please enter a message.", false) },
         );
         const html = await response.text();
-        assertStringIncludes(html, "Please enter a message.");
+        says(html, "Please enter a message.");
       });
 
       test("404s when the form is off and there is no contact text", async () => {
@@ -208,10 +203,7 @@ describeWithEnv(
       test("allows the Botpoison API in connect-src when configured", async () => {
         const response = await handleRequest(mockRequest("/"));
         const csp = getHeader(response, "content-security-policy");
-        assertStringIncludes(
-          csp,
-          "connect-src 'self' https://api.botpoison.com",
-        );
+        says(csp, "connect-src 'self' https://api.botpoison.com");
       });
     });
 
@@ -355,10 +347,7 @@ describeWithEnv(
       test("serves the bundled widget as JavaScript", async () => {
         const response = await handleRequest(mockRequest("/contact.js"));
         expect(response.status).toBe(200);
-        assertStringIncludes(
-          getHeader(response, "content-type"),
-          "application/javascript",
-        );
+        says(getHeader(response, "content-type"), "application/javascript");
       });
     });
 
@@ -386,16 +375,10 @@ describeWithEnv(
   () => {
     test("renders the form without the Botpoison widget", async () => {
       const html = await renderActiveContactForm();
-      assertStringIncludes(html, 'name="email"');
-      assertStringIncludes(html, 'name="message"');
-      assert(
-        !html.includes("data-botpoison-public-key"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("/contact.js"),
-        "the value should not contain the searched item",
-      );
+      says(html, 'name="email"');
+      says(html, 'name="message"');
+      assert(!html.includes("data-botpoison-public-key"));
+      assert(!html.includes("/contact.js"));
     });
 
     test("accepts a submission without verification and emails the owner", async () => {
@@ -438,10 +421,7 @@ describeWithEnv(
       await enablePublicSite();
       const response = await handleRequest(mockRequest("/"));
       const csp = getHeader(response, "content-security-policy");
-      assert(
-        !csp.includes("api.botpoison.com"),
-        "the value should not contain the searched item",
-      );
+      assert(!csp.includes("api.botpoison.com"));
     });
   },
 );

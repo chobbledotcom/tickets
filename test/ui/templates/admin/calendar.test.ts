@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
@@ -11,6 +11,7 @@ import {
 } from "#test-utils/admin-page-test.ts";
 import { selectOptionLabels } from "#test-utils/assertions.ts";
 import { shownLineBookings } from "#test-utils/attendees/pair-bookings.ts";
+import { says } from "#test-utils/says.ts";
 import {
   calendarAttendee,
   calendarDate,
@@ -22,12 +23,9 @@ describe("adminCalendarPage", () => {
 
   test("renders Calendar title", () => {
     const html = calendarHtml();
-    assertStringIncludes(html, "Calendar");
-    assert(
-      !html.includes("Attendees by Date"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, '<article id="attendees">');
+    says(html, "Calendar");
+    assert(!html.includes("Attendees by Date"));
+    says(html, '<article id="attendees">');
   });
 
   test("renders date selector dropdown", () => {
@@ -36,9 +34,9 @@ describe("adminCalendarPage", () => {
       calendarDate("Monday 16 March 2026", "2026-03-16", false),
     ];
     const html = calendarHtml({ availableDates: dates });
-    assertStringIncludes(html, "Sunday 15 March 2026");
-    assertStringIncludes(html, "Monday 16 March 2026");
-    assertStringIncludes(html, "Select a date");
+    says(html, "Sunday 15 March 2026");
+    says(html, "Monday 16 March 2026");
+    says(html, "Select a date");
   });
 
   test("disables options for dates without bookings", () => {
@@ -47,32 +45,29 @@ describe("adminCalendarPage", () => {
         calendarDate("Sunday 15 March 2026", "2026-03-15", false),
       ],
     });
-    assertStringIncludes(html, "<option disabled>");
+    says(html, "<option disabled>");
   });
 
   test("enables options for dates with bookings", () => {
     const html = calendarHtml({
       availableDates: [calendarDate("Sunday 15 March 2026", "2026-03-15")],
     });
-    assertStringIncludes(
-      html,
-      'value="/admin/calendar?date=2026-03-15#attendees"',
-    );
+    says(html, 'value="/admin/calendar?date=2026-03-15#attendees"');
   });
 
   test("shows prompt when no date selected", () => {
     const html = calendarHtml();
-    assertStringIncludes(html, "Select a date above to view attendees");
+    says(html, "Select a date above to view attendees");
   });
 
   test("shows no attendees message when date selected but empty", () => {
     const html = calendarHtml({ dateFilter: "2026-03-15" });
-    assertStringIncludes(html, "No attendees for this date");
+    says(html, "No attendees for this date");
   });
 
   test("shows formatted date label when date is selected", () => {
     const html = calendarHtml({ dateFilter: "2026-03-15" });
-    assertStringIncludes(html, "Sunday 15 March 2026");
+    says(html, "Sunday 15 March 2026");
   });
 
   test("renders attendee rows with listing name and link", () => {
@@ -80,14 +75,14 @@ describe("adminCalendarPage", () => {
       attendees: [calendarAttendee()],
       dateFilter: "2026-03-15",
     });
-    assertStringIncludes(html, "Daily Listing");
-    assertStringIncludes(html, 'href="/admin/listing/1"');
-    assertStringIncludes(html, "John Doe");
+    says(html, "Daily Listing");
+    says(html, 'href="/admin/listing/1"');
+    says(html, "John Doe");
   });
 
   test("renders Listings column header", () => {
     const html = calendarHtml();
-    assertStringIncludes(html, "<th>Listings</th>");
+    says(html, "<th>Listings</th>");
   });
 
   test("shows CSV export link when date has attendees", () => {
@@ -95,11 +90,11 @@ describe("adminCalendarPage", () => {
       attendees: [calendarAttendee()],
       dateFilter: "2026-03-15",
     });
-    assertStringIncludes(
+    says(
       html,
       '<div class="table-actions"><a href="/admin/calendar/export?date=2026-03-15">',
     );
-    assertStringIncludes(html, "Export CSV");
+    says(html, "Export CSV");
   });
 
   test("renders the roster with no date column, plain count, no revenue", () => {
@@ -115,41 +110,29 @@ describe("adminCalendarPage", () => {
       [],
       "2026-03-10",
     );
-    assert(
-      !html.includes("<th>Date</th>"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "Attendees</th><td>1</td>");
-    assert(
-      !html.includes("Total Revenue"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<th>Date</th>"));
+    says(html, "Attendees</th><td>1</td>");
+    assert(!html.includes("Total Revenue"));
   });
 
   test("does not show CSV export when date has no attendees", () => {
     const html = calendarHtml({ dateFilter: "2026-03-15" });
-    assert(
-      !html.includes("Export CSV"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Export CSV"));
   });
 
   test("does not show CSV export when no date selected", () => {
     const html = calendarHtml();
-    assert(
-      !html.includes("Export CSV"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Export CSV"));
   });
 
   test("includes Calendar link in admin nav", () => {
     const html = calendarHtml();
-    assertStringIncludes(html, 'href="/admin/calendar"');
+    says(html, 'href="/admin/calendar"');
   });
 
   test("marks the calendar link as the page the operator is on", () => {
     const html = calendarHtml();
-    assertStringIncludes(html, 'class="active" href="/admin/calendar"');
+    says(html, 'class="active" href="/admin/calendar"');
   });
 
   test("renders the shared detail rows only for a day with attendees", () => {
@@ -157,27 +140,18 @@ describe("adminCalendarPage", () => {
       attendees: [calendarAttendee()],
       dateFilter: "2026-03-15",
     });
-    assertStringIncludes(html, "listing-details-table");
-    assertStringIncludes(html, "Checked In");
+    says(html, "listing-details-table");
+    says(html, "Checked In");
     // No capacity is set for a day, so the count is a plain number and the
     // calendar page never claims revenue (the roster does not know it).
-    assertStringIncludes(html, "Attendees</");
-    assert(
-      !html.includes("Total Revenue"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Attendees</");
+    assert(!html.includes("Total Revenue"));
   });
 
   test("omits the shared detail rows when the day has no attendees", () => {
     const html = calendarHtml({ dateFilter: "2026-03-15" });
-    assert(
-      !html.includes("listing-details-table"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !calendarHtml().includes("listing-details-table"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("listing-details-table"));
+    assert(!calendarHtml().includes("listing-details-table"));
   });
 
   test("renders empty string for attendee without email", () => {
@@ -185,7 +159,7 @@ describe("adminCalendarPage", () => {
       attendees: [calendarAttendee({ email: "" })],
       dateFilter: "2026-03-15",
     });
-    assertStringIncludes(html, "John Doe");
+    says(html, "John Doe");
   });
 
   test("escapes attendee data", () => {
@@ -193,7 +167,7 @@ describe("adminCalendarPage", () => {
       attendees: [calendarAttendee({ name: "<script>evil()</script>" })],
       dateFilter: "2026-03-15",
     });
-    assertStringIncludes(html, "&lt;script&gt;");
+    says(html, "&lt;script&gt;");
   });
 
   test("places Select a date between past and future dates", () => {
@@ -243,8 +217,8 @@ describe("adminCalendarPage", () => {
     const html = calendarHtml({
       availableDates: [calendarDate("Sunday 15 March 2026", "2026-03-15")],
     });
-    assertStringIncludes(html, 'class="calendar"');
-    assertStringIncludes(html, "calendar-grid");
+    says(html, 'class="calendar"');
+    says(html, "calendar-grid");
     expect(html.indexOf('class="calendar"')).toBeLessThan(
       html.indexOf('aria-label="Select a date"'),
     );
@@ -254,10 +228,7 @@ describe("adminCalendarPage", () => {
     const html = calendarHtml({
       availableDates: [calendarDate("Thursday 12 March 2026", "2026-03-12")],
     });
-    assertStringIncludes(
-      html,
-      'href="/admin/calendar?date=2026-03-12#attendees"',
-    );
+    says(html, 'href="/admin/calendar?date=2026-03-12#attendees"');
   });
 
   test("calendar shows the selected date's month", () => {
@@ -277,7 +248,7 @@ describe("adminCalendarPage", () => {
     const html = calendarHtml({ dateFilter: "2026-03-15" });
     // The selected date rides along on the month-paging links so paging
     // months never clears the current selection.
-    assertStringIncludes(html, "date=2026-03-15&amp;cal=");
+    says(html, "date=2026-03-15&amp;cal=");
   });
 
   test("every in-page link returns to the calendar's attendee list", () => {
@@ -285,15 +256,15 @@ describe("adminCalendarPage", () => {
       attendees: [calendarAttendee()],
       dateFilter: "2026-03-15",
     });
-    assertStringIncludes(
+    says(
       html,
       'name="return_url" type="hidden" value="/admin/calendar?date=2026-03-15#attendees"',
     );
-    assertStringIncludes(html, 'value="/admin/calendar#attendees"');
+    says(html, 'value="/admin/calendar#attendees"');
     expect(html).toMatch(
       /#calendar">(?:January|February|March) 2026<\/option>/,
     );
-    assertStringIncludes(html, 'href="/admin/guide#calendar"');
+    says(html, 'href="/admin/guide#calendar"');
   });
 });
 
@@ -302,8 +273,8 @@ describe("admin nav Calendar link", () => {
 
   test("admin dashboard includes Calendar link in nav", () => {
     const html = adminDashboardPage([], OWNER_SESSION);
-    assertStringIncludes(html, 'href="/admin/calendar"');
-    assertStringIncludes(html, "Calendar");
+    says(html, 'href="/admin/calendar"');
+    says(html, "Calendar");
   });
 });
 
@@ -331,23 +302,23 @@ describe("adminCalendarPage availability checker", () => {
     const html = checkerHtml([
       availabilityRow({ id: 7, name: "Kayak Hire", remaining: 3, total: 5 }),
     ]);
-    assertStringIncludes(html, "Check availability");
-    assertStringIncludes(html, "data-availability-checker");
-    assertStringIncludes(html, 'href="/admin/listing/7"');
-    assertStringIncludes(html, "Kayak Hire");
-    assertStringIncludes(html, "3/5");
-    assertStringIncludes(html, 'name="select_7"');
-    assertStringIncludes(html, 'action="/admin/attendees/new"');
-    assertStringIncludes(html, 'formaction="/admin/servicing/new"');
-    assertStringIncludes(html, "Create Service Event");
+    says(html, "Check availability");
+    says(html, "data-availability-checker");
+    says(html, 'href="/admin/listing/7"');
+    says(html, "Kayak Hire");
+    says(html, "3/5");
+    says(html, 'name="select_7"');
+    says(html, 'action="/admin/attendees/new"');
+    says(html, 'formaction="/admin/servicing/new"');
+    says(html, "Create Service Event");
   });
 
   test("marks a sold-out row as danger", () => {
     const html = checkerHtml([
       availabilityRow({ id: 8, remaining: 0, total: 2 }),
     ]);
-    assertStringIncludes(html, "0/2");
-    assertStringIncludes(html, 'class="col-quantity danger"');
+    says(html, "0/2");
+    says(html, 'class="col-quantity danger"');
   });
 
   test("shows Free, From and plain prices", () => {
@@ -356,28 +327,25 @@ describe("adminCalendarPage availability checker", () => {
       availabilityRow({ canPayMore: true, id: 2, unitPrice: 500 }),
       availabilityRow({ canPayMore: false, id: 3, unitPrice: 1000 }),
     ]);
-    assertStringIncludes(html, "Free");
-    assertStringIncludes(html, `From ${formatCurrency(500)}`);
-    assertStringIncludes(html, formatCurrency(1000));
+    says(html, "Free");
+    says(html, `From ${formatCurrency(500)}`);
+    says(html, formatCurrency(1000));
   });
 
   test("includes the selected date as a hidden start_date field", () => {
     const html = checkerHtml([availabilityRow()], "2026-03-15");
-    assertStringIncludes(html, 'name="start_date"');
-    assertStringIncludes(html, 'value="2026-03-15"');
+    says(html, 'name="start_date"');
+    says(html, 'value="2026-03-15"');
   });
 
   test("omits start_date when no date is selected", () => {
     const html = checkerHtml([availabilityRow()]);
-    assert(
-      !html.includes('name="start_date"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('name="start_date"'));
   });
 
   test("shows a fallback when there are no bookable listings", () => {
     const html = checkerHtml([]);
-    assertStringIncludes(html, "Check availability");
-    assertStringIncludes(html, "No bookable listings");
+    says(html, "Check availability");
+    says(html, "No bookable listings");
   });
 });

@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
-import { expect } from "@std/expect";
+import { assert } from "@std/assert";
 import { questionsTable } from "#db/questions/tables.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
@@ -15,6 +15,7 @@ import {
 } from "#test/specs/support/world.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { enableFeature } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -65,8 +66,8 @@ When(
     await browser.visit(
       `/ticket/${requiredWorldValue(this.groupSlug, "volunteer group slug")}`,
     );
-    expect(browser.pageText).toContain(GROUP_NAME);
-    expect(browser.pageText).toContain(ACCESS_QUESTION);
+    says(browser.pageText, GROUP_NAME);
+    says(browser.pageText, ACCESS_QUESTION);
     await browser.submitForm(
       {
         email: VOLUNTEER_EMAIL,
@@ -84,11 +85,11 @@ Then(
   "Sam receives a free booking confirmation for the set-up shift",
   async function (this: TicketsWorld): Promise<void> {
     const browser = scenarioBrowser(this);
-    expect(browser.pageText).toContain("Thank you for your order");
+    says(browser.pageText, "Thank you for your order");
     await browser.clickLink("View your ticket");
-    expect(browser.pageText).toContain(SETUP_SHIFT);
-    expect(browser.pageText).not.toContain(GATE_SHIFT);
-    expect(browser.pageText).not.toContain(CLEARUP_SHIFT);
+    says(browser.pageText, SETUP_SHIFT);
+    assert(!browser.pageText.includes(GATE_SHIFT));
+    assert(!browser.pageText.includes(CLEARUP_SHIFT));
   },
 );
 
@@ -101,8 +102,8 @@ Then(
       "set-up shift listing id",
     );
     await browser.visit(`/admin/listing/${listingId}/attendees`);
-    expect(browser.pageText).toContain(VOLUNTEER_NAME);
-    expect(browser.pageText).toContain(VOLUNTEER_EMAIL);
-    expect(browser.pageText).toContain(ACCESS_ANSWER);
+    says(browser.pageText, VOLUNTEER_NAME);
+    says(browser.pageText, VOLUNTEER_EMAIL);
+    says(browser.pageText, ACCESS_ANSWER);
   },
 );

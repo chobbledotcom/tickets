@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setImagesForItem } from "#db/images.ts";
@@ -19,6 +19,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite, withSetting } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -125,22 +126,13 @@ describeWithEnv(
 
       test("does not show date or location when they are empty", async () => {
         const html = await plainTicketHtml();
-        assert(
-          !html.includes("<strong>Date:</strong>"),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes("<strong>Location:</strong>"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("<strong>Date:</strong>"));
+        assert(!html.includes("<strong>Location:</strong>"));
       });
 
       test("does not show description div when description is empty", async () => {
         const html = await plainTicketHtml();
-        assert(
-          !html.includes("font-size: 0.9em"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("font-size: 0.9em"));
       });
 
       test("returns 404 for inactive listing", async () => {
@@ -167,19 +159,10 @@ describeWithEnv(
           'class="iframe"',
           "Continue",
         );
-        assert(
-          !html.includes("<h1>"),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes("A <b>great</b> listing"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("<h1>"));
+        assert(!html.includes("A <b>great</b> listing"));
         // The site menu is dropped inside an embedded iframe.
-        assert(
-          !html.includes("admin-nav-group"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("admin-nav-group"));
       });
 
       test("hides the configured header image in iframe mode", async () => {
@@ -187,14 +170,8 @@ describeWithEnv(
         const html = await withSetting({ header_image_url: "header.jpg" }, () =>
           assertPublicHtml(`/ticket/${listing.slug}?iframe=true`),
         );
-        assert(
-          !html.includes("header-image"),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes("/image/header.jpg"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("header-image"));
+        assert(!html.includes("/image/header.jpg"));
       });
 
       test("shows the configured header image without iframe param", async () => {
@@ -202,8 +179,8 @@ describeWithEnv(
         const html = await withSetting({ header_image_url: "header.jpg" }, () =>
           assertPublicHtml(`/ticket/${listing.slug}`),
         );
-        assertStringIncludes(html, 'class="header-image"');
-        assertStringIncludes(html, "/image/header.jpg");
+        says(html, 'class="header-image"');
+        says(html, "/image/header.jpg");
       });
 
       test("shows header and description without iframe param", async () => {
@@ -217,24 +194,18 @@ describeWithEnv(
           "<h1>",
           "A &lt;b&gt;great&lt;/b&gt; listing",
         );
-        assert(
-          !html.includes('class="iframe"'),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes('class="iframe"'));
         // With the public site off (the default), the menu's Home/Listings
         // links would only bounce a visitor to the admin login, so no menu.
-        assert(
-          !html.includes("admin-nav-group"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("admin-nav-group"));
       });
 
       test("shows the site menu on a normal page when the public site is on", async () => {
         await enablePublicSite();
         const listing = await createTestListing({ maxAttendees: 50 });
         const html = await assertPublicHtml(`/ticket/${listing.slug}`, "<h1>");
-        assertStringIncludes(html, '<div class="admin-nav-group">');
-        assertStringIncludes(html, 'aria-label="Site menu"');
+        says(html, '<div class="admin-nav-group">');
+        says(html, 'aria-label="Site menu"');
       });
 
       test("still drops the menu in iframe mode when the public site is on", async () => {
@@ -244,10 +215,7 @@ describeWithEnv(
           `/ticket/${listing.slug}?iframe=true`,
           'class="iframe"',
         );
-        assert(
-          !html.includes("admin-nav-group"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("admin-nav-group"));
       });
 
       test("does not set CSRF cookies (uses signed tokens instead)", async () => {
@@ -256,10 +224,7 @@ describeWithEnv(
           mockRequest(`/ticket/${listing.slug}`),
         );
         const cookie = response.headers.get("set-cookie") || "";
-        assert(
-          !cookie.includes("csrf_token="),
-          "the value should not contain the searched item",
-        );
+        assert(!cookie.includes("csrf_token="));
       });
 
       /** GETs a listing's ticket page with `?iframe=true` and returns the
@@ -277,10 +242,7 @@ describeWithEnv(
       test("form action includes ?iframe=true in iframe mode", async () => {
         const listing = await createTestListing({ maxAttendees: 50 });
         const html = await iframeTicketHtml(listing);
-        assertStringIncludes(
-          html,
-          `action="/ticket/${listing.slug}?iframe=true"`,
-        );
+        says(html, `action="/ticket/${listing.slug}?iframe=true"`);
       });
 
       test("form action does not include ?iframe=true without iframe param", async () => {
@@ -289,11 +251,8 @@ describeWithEnv(
           mockRequest(`/ticket/${listing.slug}`),
         );
         const html = await response.text();
-        assertStringIncludes(html, `action="/ticket/${listing.slug}"`);
-        assert(
-          !html.includes("?iframe=true"),
-          "the value should not contain the searched item",
-        );
+        says(html, `action="/ticket/${listing.slug}"`);
+        assert(!html.includes("?iframe=true"));
       });
 
       test("POST with iframe=true succeeds with valid signed CSRF token", async () => {
@@ -332,10 +291,7 @@ describeWithEnv(
           false,
         );
         const cookies = response.headers.getSetCookie().join("; ");
-        assert(
-          !cookies.includes("csrf_token="),
-          "the value should not contain the searched item",
-        );
+        assert(!cookies.includes("csrf_token="));
       });
 
       test("GET returns signed CSRF token in form", async () => {

@@ -1,4 +1,3 @@
-import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
@@ -39,6 +38,7 @@ import {
 } from "#test-utils/processed-payments.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 
 describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("clears the balance, moves to the paid status and logs it", async () => {
@@ -55,7 +55,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
     const log = await getAttendeeActivityLog(attendeeId);
     expect(log).toHaveLength(1);
-    assertStringIncludes(log[0]!.message, "Reservation balance paid");
+    says(log[0]!.message, "Reservation balance paid");
 
     const { rows } = await getDb().execute({
       args: [KIND.payment, String(attendeeId), 1500],
@@ -100,8 +100,9 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
     const row = await getProcessedPayment("balance-ref-ok");
     expect(row?.attendee_id).toBe(attendeeId);
-    assert(
-      row?.payment_reference?.includes("pi_balance_ok") === false,
+    saysNot(
+      row?.payment_reference,
+      "pi_balance_ok",
       "the value should not contain the searched item",
     );
     await expectRefundReferences(attendeeId, ["pi_balance_ok"]);

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getApiKeysForUser, touchApiKeyLastUsed } from "#db/api-keys.ts";
@@ -10,6 +10,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   createTestApiKeyFull,
@@ -33,16 +34,13 @@ describeWithEnv("API key manage page", { db: true }, () => {
 
       // A never-used key shows the "Never" placeholder for last used.
       const html = await getManagePage(id);
-      assertStringIncludes(html, "Managed Key");
-      assertStringIncludes(html, `href="/admin/api-keys/${id}"`);
-      assertStringIncludes(html, `href="/admin/api-keys/${id}/actions"`);
-      assert(
-        !html.includes(`/admin/api-keys/${id}/delete`),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, "Never");
+      says(html, "Managed Key");
+      says(html, `href="/admin/api-keys/${id}"`);
+      says(html, `href="/admin/api-keys/${id}/actions"`);
+      assert(!html.includes(`/admin/api-keys/${id}/delete`));
+      says(html, "Never");
       // The manage page lights up the API keys entry in the admin nav.
-      assertStringIncludes(html, '<a class="active" href="/admin/api-keys">');
+      says(html, '<a class="active" href="/admin/api-keys">');
     });
 
     test("GET /admin/api-keys/:id shows the last-used date once the key is used", async () => {
@@ -50,12 +48,9 @@ describeWithEnv("API key manage page", { db: true }, () => {
 
       await touchApiKeyLastUsed(id);
       const html = await getManagePage(id);
-      assert(
-        !html.includes("Never"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Never"));
       // The touch just happened, so the rendered date carries this year.
-      assertStringIncludes(html, String(new Date().getFullYear()));
+      says(html, String(new Date().getFullYear()));
     });
 
     test("GET /admin/api-keys/:id/actions shows the delete action", async () => {
@@ -68,9 +63,9 @@ describeWithEnv("API key manage page", { db: true }, () => {
 
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, `href="/admin/api-keys/${id}/delete"`);
-      assertStringIncludes(html, `href="/admin/api-keys/${id}"`);
-      assertStringIncludes(html, `href="/admin/api-keys/${id}/actions"`);
+      says(html, `href="/admin/api-keys/${id}/delete"`);
+      says(html, `href="/admin/api-keys/${id}"`);
+      says(html, `href="/admin/api-keys/${id}/actions"`);
     });
 
     test("GET /admin/api-keys/:id rejects an unknown tab", async () => {
@@ -103,7 +98,6 @@ describeWithEnv("API key manage page", { db: true }, () => {
         !(await summary.text()).includes(
           `href="/admin/api-keys/${id}/actions"`,
         ),
-        "the value should not contain the searched item",
       );
       expect(actions.status).toBe(404);
     });
@@ -202,8 +196,8 @@ describeWithEnv("API key manage page", { db: true }, () => {
 
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, "Confirm Key");
-      assertStringIncludes(html, "confirm_identifier");
+      says(html, "Confirm Key");
+      says(html, "confirm_identifier");
     });
 
     test("GET /admin/api-keys/:id/delete returns 404 for nonexistent key", async () => {

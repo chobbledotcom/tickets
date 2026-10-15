@@ -8,6 +8,7 @@ import { confirmRefund } from "#routes/admin/refunds/confirmation.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { releaseClaimRows } from "#test-utils/payment-claim.ts";
+import { saysNot } from "#test-utils/says.ts";
 import { withTestSession } from "#test-utils/session.ts";
 import {
   confirmationCount,
@@ -64,12 +65,14 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
       entry.message.includes("Payment marked as refunded"),
     );
     expect(confirmations).toHaveLength(1);
-    assert(
-      confirmations[0]?.message?.includes(refund.attendeeName) === false,
+    saysNot(
+      confirmations[0]?.message,
+      refund.attendeeName,
       "the value should not contain the searched item",
     );
-    assert(
-      confirmations[0]?.message?.includes(refund.reference.reference) === false,
+    saysNot(
+      confirmations[0]?.message,
+      refund.reference.reference,
       "the value should not contain the searched item",
     );
     const notes = await getNotesFor(target, refund.privateKey);
@@ -87,10 +90,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
       [refund.attendee.id],
     );
     if (stored === null) throw new Error("the confirmation was not stored");
-    assert(
-      !stored.identity.includes(refund.reference.reference),
-      "the value should not contain the searched item",
-    );
+    assert(!stored.identity.includes(refund.reference.reference));
   });
 
   test("serialises concurrent replay and canonicalises duplicate references", async () => {

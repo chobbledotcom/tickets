@@ -7,7 +7,7 @@
  * to read that data at all.
  */
 
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
@@ -21,6 +21,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { has, says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -49,7 +50,7 @@ describeWithEnv("inviting a user", { db: true }, () => {
 
     const location = response.headers.get("location")!;
     expect(location.split("?")[0]).toBe(LIST_PATH);
-    assertStringIncludes(decodeURIComponent(location), "/join/");
+    says(decodeURIComponent(location), "/join/");
     expect(parseFlashCookie(response).success).toBe(t("success.user_invited"));
   });
 
@@ -57,9 +58,7 @@ describeWithEnv("inviting a user", { db: true }, () => {
     const { response } = await invite("loggedinvite", "manager");
 
     expect(response.status).toBe(302);
-    assertArrayIncludes((await activityMessages()) ?? [], [
-      "User 'loggedinvite' invited as manager",
-    ]);
+    has(await activityMessages(), "User 'loggedinvite' invited as manager");
   });
 
   test("shows the link on the page the owner lands on", async () => {
@@ -68,7 +67,7 @@ describeWithEnv("inviting a user", { db: true }, () => {
 
     const html = await (await adminGet(location)).text();
 
-    assertStringIncludes(html, "/join/");
+    says(html, "/join/");
   });
 
   test("shows no link when the owner opens the list on its own", async () => {
@@ -76,10 +75,7 @@ describeWithEnv("inviting a user", { db: true }, () => {
 
     const html = await (await adminGet(LIST_PATH)).text();
 
-    assert(
-      !html.includes("/join/"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("/join/"));
   });
 });
 
@@ -114,7 +110,7 @@ describeWithEnv("an invite that cannot be made", { db: true }, () => {
     const { response } = await invite("", "manager");
 
     expect(response.status).toBe(302);
-    assertStringIncludes(response.headers.get("location") ?? "", NEW_PATH);
+    says(response.headers.get("location"), NEW_PATH);
   });
 });
 
@@ -128,8 +124,8 @@ describeWithEnv("removing a user", { db: true }, () => {
 
     const html = await (await adminGet(`${LIST_PATH}/${id}/delete`)).text();
 
-    assertStringIncludes(html, "Username");
-    assertStringIncludes(html, "typeme");
+    says(html, "Username");
+    says(html, "typeme");
   });
 
   test("removes one whose username was typed exactly", async () => {
@@ -169,7 +165,7 @@ describeWithEnv("removing a user", { db: true }, () => {
     );
 
     expect(response.status).toBe(400);
-    assertStringIncludes(await response.text(), t("error.cannot_delete_self"));
+    says(await response.text(), t("error.cannot_delete_self"));
   });
 
   test("answers 404 for a user that is not there", async () => {
@@ -178,7 +174,7 @@ describeWithEnv("removing a user", { db: true }, () => {
     });
 
     expect(response.status).toBe(404);
-    assertStringIncludes(await response.text(), t("error.user_not_found"));
+    says(await response.text(), t("error.user_not_found"));
   });
 });
 
@@ -225,21 +221,15 @@ describeWithEnv(
 
       const html = await (await adminGet(LIST_PATH)).text();
 
-      assertStringIncludes(html, t("users.status.invited"));
-      assert(
-        !html.includes(t("users.status.expired")),
-        "the value should not contain the searched item",
-      );
+      says(html, t("users.status.invited"));
+      assert(!html.includes(t("users.status.expired")));
     });
 
     test("marks the owner, who has joined, as active", async () => {
       const html = await (await adminGet(LIST_PATH)).text();
 
-      assertStringIncludes(html, t("users.status.active"));
-      assert(
-        !html.includes(t("users.status.expired")),
-        "the value should not contain the searched item",
-      );
+      says(html, t("users.status.active"));
+      assert(!html.includes(t("users.status.expired")));
     });
 
     test("marks an invite whose week ran out as expired", async () => {
@@ -257,7 +247,7 @@ describeWithEnv(
 
       const html = await (await adminGet(LIST_PATH)).text();
 
-      assertStringIncludes(html, t("users.status.expired"));
+      says(html, t("users.status.expired"));
     });
   },
 );
@@ -280,7 +270,7 @@ describeWithEnv("choosing which vans an agent drives", { db: true }, () => {
 
     const html = await (await adminGet(`${LIST_PATH}/${userId}/agents`)).text();
 
-    assertStringIncludes(html, `action="${LIST_PATH}/${userId}/agents"`);
+    says(html, `action="${LIST_PATH}/${userId}/agents"`);
   });
 
   test("says the choice was saved and writes it to the log", async () => {
@@ -291,9 +281,7 @@ describeWithEnv("choosing which vans an agent drives", { db: true }, () => {
     });
 
     await expectFlashRedirect(LIST_PATH, t("success.agents_updated"))(response);
-    assertArrayIncludes((await activityMessages()) ?? [], [
-      "Agents updated for user 'loggeddriver'",
-    ]);
+    has(await activityMessages(), "Agents updated for user 'loggeddriver'");
   });
 });
 
@@ -310,15 +298,9 @@ describeWithEnv("a users page shown with an error", { db: true }, () => {
 
     expect(response.status).toBe(400);
     const html = await response.text();
-    assertStringIncludes(html, t("error.not_agent_user"));
-    assert(
-      !html.includes("/join/"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("<code>"),
-      "the value should not contain the searched item",
-    );
+    says(html, t("error.not_agent_user"));
+    assert(!html.includes("/join/"));
+    assert(!html.includes("<code>"));
   });
 });
 
@@ -327,6 +309,6 @@ describeWithEnv("the page for inviting somebody", { db: true }, () => {
     const response = await adminGet(NEW_PATH);
 
     expect(response.status).toBe(200);
-    assertStringIncludes(await response.text(), 'name="username"');
+    says(await response.text(), 'name="username"');
   });
 });

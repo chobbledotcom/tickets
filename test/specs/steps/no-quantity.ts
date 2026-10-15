@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   listingIdNamed,
@@ -19,6 +20,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { testCookie } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -120,20 +122,16 @@ const expectNoQuantityWithoutTicket = async (
   listingName: string,
 ): Promise<void> => {
   const html = await attendeeList(world, listingName);
-  expect(html).toContain(
-    requiredWorldValue(world.attendeeName, "attendee name"),
-  );
-  expect(html).toContain("No quantity");
-  expect(html).not.toContain(`/t/${ticketToken(world)}`);
+  says(html, requiredWorldValue(world.attendeeName, "attendee name"));
+  says(html, "No quantity");
+  assert(!html.includes(`/t/${ticketToken(world)}`));
 };
 
 const expectAttendeeListTicket = async (
   world: TicketsWorld,
   listingName: string,
 ): Promise<void> => {
-  expect(await attendeeList(world, listingName)).toContain(
-    `/t/${ticketToken(world)}`,
-  );
+  says(await attendeeList(world, listingName), `/t/${ticketToken(world)}`);
 };
 
 Given(
@@ -193,7 +191,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const response = await awaitTestRequest(`/t/${ticketToken(this)}`);
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain(WORKSHOP);
+    says(await response.text(), WORKSHOP);
   },
 );
 
@@ -229,8 +227,8 @@ Then(
     const response = await awaitTestRequest(`/t/${ticketToken(this)}`);
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain(REAL_SHOW);
-    expect(html).not.toContain(GHOST_SHOW);
+    says(html, REAL_SHOW);
+    assert(!html.includes(GHOST_SHOW));
   },
 );
 

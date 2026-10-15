@@ -1,4 +1,5 @@
-import { assert, assertStringIncludes } from "@std/assert";
+// jscpd:ignore-start
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -6,6 +7,9 @@ import {
   renderListingDetail,
 } from "#test/ui/templates/admin/listings/helpers.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
+
+// jscpd:ignore-end
 
 describe("listing details table date rows", () => {
   registerListingTemplateHooks();
@@ -43,25 +47,19 @@ describe("listing details table date rows", () => {
         date: "",
       }),
     });
-    assertStringIncludes(deadline, "Registration Closes");
+    says(deadline, "Registration Closes");
     expect(deadline).toMatch(
       new RegExp(`Monday 4 March 2030 at 05:06 GMT${countdown().source}`),
     );
     // The deadline carries no calendar link.
-    assert(
-      !deadline.includes("/admin/calendar?date="),
-      "the value should not contain the searched item",
-    );
+    assert(!deadline.includes("/admin/calendar?date="));
 
     const none = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing: testListingWithCount({ closes_at: null, date: "" }),
     });
-    assertStringIncludes(none, "No deadline");
-    assert(
-      !none.includes("from now)"),
-      "the value should not contain the searched item",
-    );
+    says(none, "No deadline");
+    assert(!none.includes("from now)"));
   });
 });

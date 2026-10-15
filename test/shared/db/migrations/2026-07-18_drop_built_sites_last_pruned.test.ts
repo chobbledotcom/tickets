@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -6,6 +6,7 @@ import dropLastPrunedMigration from "#db/migrations/2026-07-18_drop_built_sites_
 import { recreateTable } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { has } from "#test-utils/says.ts";
 
 const context = buildMigrationContext({ recreateTable });
 
@@ -30,11 +31,8 @@ describeWithEnv(
 
       const columns = await getDb().execute("PRAGMA table_info(built_sites)");
       const names = columns.rows.map((row) => String(row.name));
-      assert(
-        !names.includes("last_pruned"),
-        "the value should not contain the searched item",
-      );
-      assertArrayIncludes(names ?? [], ["site_data_revision"]);
+      assert(!names.includes("last_pruned"));
+      has(names, "site_data_revision");
     });
   },
 );

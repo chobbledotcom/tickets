@@ -1,9 +1,11 @@
 import type { InValue, ResultSet } from "@libsql/client";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, getDb, queryBatch } from "#db/client.ts";
 import { initDb, invalidateInitDbCache } from "#db/migrations.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has } from "#test-utils/says.ts";
 
 /** Run many plain SQL strings as a single batched write round-trip. */
 export const executeStatements = (sqls: readonly string[]): Promise<void> =>
@@ -459,9 +461,9 @@ export const runAggregateColumnDropTests = (
 ): void => {
   test(`drops the ${spec.dropColumn} column from ${spec.targetTable}`, async () => {
     await seedLegacyAggregateColumnDropSchema(spec);
-    expect(await columnNames(spec.targetTable)).toContain(spec.dropColumn);
+    has(await columnNames(spec.targetTable), spec.dropColumn);
     await spec.runMigration();
-    expect(await columnNames(spec.targetTable)).not.toContain(spec.dropColumn);
+    assert(!(await columnNames(spec.targetTable)).includes(spec.dropColumn));
   });
 
   test("keeps the three aggregate triggers in place", async () => {

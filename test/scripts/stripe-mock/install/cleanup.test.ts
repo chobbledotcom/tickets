@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { installLockPath } from "#scripts/stripe-mock/install.ts";
 import { delay } from "#shared/now.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createFakeArchive,
   withFakeCurl,
@@ -86,7 +87,7 @@ describe("cleaning up after an install", () => {
         },
       );
 
-      expect(await Deno.readTextFile(lockPath)).toContain(replacementOwner);
+      says(await Deno.readTextFile(lockPath), replacementOwner);
     });
   });
 

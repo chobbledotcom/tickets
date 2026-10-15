@@ -8,6 +8,7 @@ import {
   splitTypeMembers,
   typeShapeSignature,
 } from "#test/scripts/code-quality/detectors.ts";
+import { says } from "#test-utils/says.ts";
 
 /**
  * Fixture-driven tests for the duplicate-type-shape detector. As with the other
@@ -243,9 +244,7 @@ describe("findDuplicateTypeShapes", () => {
       def("a.ts", "A", ["x: number", "y: number"], "interface"),
       def("b.ts", "B", ["x: number", "y: number"]),
     ];
-    expect(findDuplicateTypeShapes(defs, [])[0]).toContain(
-      "interface A (a.ts)",
-    );
+    says(findDuplicateTypeShapes(defs, [])[0], "interface A (a.ts)");
   });
 });
 

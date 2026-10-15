@@ -2,13 +2,13 @@
  * The full list views have their own suite; this pins the group-name and
  * group-linked-listing options the page module assembles itself. */
 
-import { assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { ledgerPageHtml } from "#test/integration/server/ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("db > admin ledger page", { db: true }, () => {
   test("offers every group's name as a scope option", async () => {
@@ -16,7 +16,7 @@ describeWithEnv("db > admin ledger page", { db: true }, () => {
 
     const html = await ledgerPageHtml("/admin/ledger");
 
-    assertStringIncludes(html, "Weekend runs");
+    says(html, "Weekend runs");
   });
 
   test("offers a group-linked listing by name in the listing scope", async () => {
@@ -26,6 +26,6 @@ describeWithEnv("db > admin ledger page", { db: true }, () => {
 
     const html = await ledgerPageHtml("/admin/ledger?scope=listing");
 
-    assertStringIncludes(html, "Sprint night");
+    says(html, "Sprint night");
   });
 });

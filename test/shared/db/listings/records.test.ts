@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -27,6 +26,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { has } from "#test-utils/says.ts";
 
 describeWithEnv("db > listings > records", { db: true, triggers: true }, () => {
   describe("batch queries", () => {
@@ -276,9 +276,9 @@ describeWithEnv(
     });
 
     test("cache stats identify the listings cache by name", async () => {
-      assertArrayIncludes(
+      has(
         getAllCacheStats().map((stat) => stat.name),
-        ["listings"],
+        "listings",
       );
     });
   },

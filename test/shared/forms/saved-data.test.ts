@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
@@ -12,6 +12,7 @@ import {
 } from "#shared/forms/saved-data.ts";
 import { field } from "#test-utils/field.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("saved form data", () => {
   test("restores text values across all non-sensitive field types", async () => {
@@ -21,8 +22,8 @@ describe("saved form data", () => {
         field({ label: "Name", name: "name" }),
         field({ label: "Email", name: "email", type: "email" }),
       ]);
-      assertStringIncludes(html, 'value="Alice"');
-      assertStringIncludes(html, 'value="alice@test.com"');
+      says(html, 'value="Alice"');
+      says(html, 'value="alice@test.com"');
     });
   });
 
@@ -33,14 +34,8 @@ describe("saved form data", () => {
         field({ label: "Password", name: "password", type: "password" }),
         field({ label: "Photo", name: "photo", type: "file" }),
       ]);
-      assert(
-        !html.includes("secret123"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("hack.jpg"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("secret123"));
+      assert(!html.includes("hack.jpg"));
     });
   });
 
@@ -53,7 +48,7 @@ describe("saved form data", () => {
       const notesHtml = renderFields([
         field({ label: "Notes", name: "notes", type: "textarea" }),
       ]);
-      assertStringIncludes(notesHtml, "My notes");
+      says(notesHtml, "My notes");
 
       const selectHtml = renderFields([
         field({
@@ -66,7 +61,7 @@ describe("saved form data", () => {
           type: "select",
         }),
       ]);
-      assertStringIncludes(selectHtml, 'value="blue" selected');
+      says(selectHtml, 'value="blue" selected');
 
       const checkboxHtml = renderFields([
         field({
@@ -80,12 +75,9 @@ describe("saved form data", () => {
           type: "checkbox-group",
         }),
       ]);
-      assertStringIncludes(checkboxHtml, 'value="a" checked');
-      assert(
-        !checkboxHtml.includes('value="b" checked'),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(checkboxHtml, 'value="c" checked');
+      says(checkboxHtml, 'value="a" checked');
+      assert(!checkboxHtml.includes('value="b" checked'));
+      says(checkboxHtml, 'value="c" checked');
     });
   });
 
@@ -97,8 +89,8 @@ describe("saved form data", () => {
       const html = renderFields([
         field({ label: "Start", name: "start", type: "datetime" }),
       ]);
-      assertStringIncludes(html, 'value="2026-03-21"');
-      assertStringIncludes(html, 'value="14:30"');
+      says(html, 'value="2026-03-21"');
+      says(html, 'value="14:30"');
     });
   });
 
@@ -108,8 +100,8 @@ describe("saved form data", () => {
       const html = renderFields([
         field({ label: "Start", name: "start", type: "datetime" }),
       ]);
-      assertStringIncludes(html, 'value="2026-03-21"');
-      assertStringIncludes(html, 'value="00:00"');
+      says(html, 'value="2026-03-21"');
+      says(html, 'value="00:00"');
     });
   });
 
@@ -122,10 +114,7 @@ describe("saved form data", () => {
         const html = renderFields([
           field({ label: "Start", name: "start", type: "datetime" }),
         ]);
-        assert(
-          !html.includes('value="'),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes('value="'));
       });
     }
   });
@@ -138,7 +127,6 @@ describe("saved form data", () => {
         !renderFields([field({ label: "Name", name: "name" })]).includes(
           'value="Alice"',
         ),
-        "the value should not contain the searched item",
       );
     });
   });
@@ -149,7 +137,6 @@ describe("saved form data", () => {
         !renderFields([field({ label: "Name", name: "name" })]).includes(
           'value="',
         ),
-        "the value should not contain the searched item",
       );
     });
   });
@@ -160,11 +147,8 @@ describe("saved form data", () => {
         new FormParams("name=%3Cscript%3Ealert(1)%3C%2Fscript%3E"),
       );
       const html = renderFields([field({ label: "Name", name: "name" })]);
-      assertStringIncludes(html, "&lt;script&gt;");
-      assert(
-        !html.includes("<script>alert"),
-        "the value should not contain the searched item",
-      );
+      says(html, "&lt;script&gt;");
+      assert(!html.includes("<script>alert"));
     });
   });
 
@@ -176,7 +160,7 @@ describe("saved form data", () => {
       const html = renderFields([field({ label: "Name", name: "name" })], {
         name: "",
       });
-      assertStringIncludes(html, 'value="Restored"');
+      says(html, 'value="Restored"');
     });
   });
 
@@ -186,10 +170,7 @@ describe("saved form data", () => {
         [field({ defaultValue: "Default", label: "Name", name: "name" })],
         { name: "" },
       );
-      assert(
-        !html.includes('value="Default"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('value="Default"'));
     });
   });
 

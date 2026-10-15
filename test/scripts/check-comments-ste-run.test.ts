@@ -9,6 +9,7 @@ import {
 } from "#scripts/check-comments/ste-run.ts";
 import type { PerFileFinding, Registry } from "#scripts/check-runner.ts";
 import { checkScriptRun } from "#test-utils/check-script.ts";
+import { says } from "#test-utils/says.ts";
 
 /** One finding a rule holds, at the line the rule reports. */
 const finding = (rule: string, line = 1): PerFileFinding => ({
@@ -125,7 +126,7 @@ describe("comment language check shell", () => {
     );
 
     expect(code).toBe(0);
-    expect(run.logs[0]).toContain("holds no comment-language finding");
+    says(run.logs[0], "holds no comment-language finding");
   });
 
   test("a fallen count asks for --update and fails until it is recorded", async () => {

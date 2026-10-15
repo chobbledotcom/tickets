@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -9,6 +8,7 @@ import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("catalog group import", { db: true }, () => {
   test("creates a group with its named member", async () => {
@@ -107,7 +107,7 @@ describeWithEnv("catalog group import", { db: true }, () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("The package import should be rejected");
-    assertStringIncludes(result.error, "5-day");
+    says(result.error, "5-day");
   });
 });
 

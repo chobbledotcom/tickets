@@ -1,4 +1,3 @@
-import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { executeBatch, queryAll } from "#db/client.ts";
@@ -25,6 +24,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import type { Image } from "#types";
 
 const makeImage = (
@@ -83,8 +83,9 @@ describeWithEnv("db > images", { db: true }, () => {
       expect(raw?.filename.startsWith("enc:")).toBe(true);
       expect(raw?.filename_thumb.startsWith("enc:")).toBe(true);
       expect(raw?.alt_text.startsWith("enc:")).toBe(true);
-      assert(
-        raw?.name?.includes("Hero") === false,
+      saysNot(
+        raw?.name,
+        "Hero",
         "the value should not contain the searched item",
       );
 
@@ -101,9 +102,9 @@ describeWithEnv("db > images", { db: true }, () => {
       expect(images[0]?.filename).toBe(BROKEN_IMAGE_FILENAME);
       expect(images[0]?.filename_thumb).toBe("broken-thumb.webp");
       expect(images[0]?.name).toBe("Broken");
-      assertStringIncludes(errors.lastMessage() ?? "", "E_IMAGE_BROKEN");
-      assertStringIncludes(
-        errors.lastMessage() ?? "",
+      says(errors.lastMessage(), "E_IMAGE_BROKEN");
+      says(
+        errors.lastMessage(),
         `image ${id} filename decrypted to an empty value`,
       );
     });
@@ -130,8 +131,8 @@ describeWithEnv("db > images", { db: true }, () => {
         image_thumb_url: "broken-thumb.webp",
         image_url: BROKEN_IMAGE_FILENAME,
       });
-      assertStringIncludes(
-        errors.lastMessage() ?? "",
+      says(
+        errors.lastMessage(),
         `image ${id} (first image of listing ${listing.id}) filename decrypted to an empty value`,
       );
     });

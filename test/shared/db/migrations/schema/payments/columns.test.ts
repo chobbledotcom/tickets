@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -14,6 +13,7 @@ import {
   words,
   wordsOrNull,
 } from "#db/migrations/schema/payments/columns.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("the kinds of column a payment record is built from", () => {
   // These say what a column is, and nothing about what a payment may say —
@@ -56,9 +56,9 @@ describe("the kinds of column a payment record is built from", () => {
   test("an owner-only value must carry the public-key envelope", () => {
     const rule = ownerEncryptedPaymentColumn("provider_reference");
 
-    assertStringIncludes(rule, "provider_reference GLOB 'hyb:1:?*:?*:?*'");
-    assertStringIncludes(rule, "provider_reference NOT GLOB 'hyb:1:*:*:*:*'");
-    assertStringIncludes(rule, "typeof(provider_reference) = 'text'");
+    says(rule, "provider_reference GLOB 'hyb:1:?*:?*:?*'");
+    says(rule, "provider_reference NOT GLOB 'hyb:1:*:*:*:*'");
+    says(rule, "typeof(provider_reference) = 'text'");
   });
 
   test("every record says when it was made and last touched", () => {

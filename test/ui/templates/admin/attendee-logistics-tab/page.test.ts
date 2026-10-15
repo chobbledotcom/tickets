@@ -6,7 +6,7 @@
  * `others.test.ts`.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -31,6 +31,7 @@ import {
   makeAttendee,
 } from "#test-utils/logistics-tab.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, getTestSession } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
@@ -39,19 +40,19 @@ describeWithEnv("attendee Logistics tab (GET)", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 10 });
     const id = await makeAttendee("Tab Person", [{ listingId: listing.id }]);
     const html = await logisticsTabHtml(id);
-    assertStringIncludes(html, 'name="address"');
-    assertStringIncludes(html, 'name="lat"');
-    assertStringIncludes(html, 'name="lng"');
-    assertStringIncludes(html, "data-logistics-map hidden");
-    assertStringIncludes(html, "data-address-diff");
+    says(html, 'name="address"');
+    says(html, 'name="lat"');
+    says(html, 'name="lng"');
+    says(html, "data-logistics-map hidden");
+    says(html, "data-address-diff");
   });
 
   test("the tab strip links to the Logistics tab", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
     const id = await makeAttendee("Strip Person", [{ listingId: listing.id }]);
     const html = await logisticsTabHtml(id);
-    assertStringIncludes(html, `/admin/attendees/${id}/logistics`);
-    assertStringIncludes(html, ">Logistics<");
+    says(html, `/admin/attendees/${id}/logistics`);
+    says(html, ">Logistics<");
   });
 
   test("404s for an unknown attendee", async () => {
@@ -84,8 +85,8 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
       },
     );
     expect(response.status).toBe(302);
-    assertStringIncludes(
-      response.headers.get("location") ?? "",
+    says(
+      response.headers.get("location"),
       `/admin/attendees/${created.id}/logistics`,
     );
 
@@ -111,13 +112,10 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
     });
 
     const html = await logisticsTabHtml(id);
-    assertStringIncludes(html, 'value="51.5"');
-    assertStringIncludes(html, 'value="-0.1"');
-    assert(
-      !html.includes("data-logistics-map hidden"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "data-logistics-map");
+    says(html, 'value="51.5"');
+    says(html, 'value="-0.1"');
+    assert(!html.includes("data-logistics-map hidden"));
+    says(html, "data-logistics-map");
   });
 
   test("blank coordinates clear the pin", async () => {
@@ -155,9 +153,9 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
     expect(response.status).toBe(400);
     const html = await response.text();
     // The submitted values survive the re-render; the stored blob does not change.
-    assertStringIncludes(html, "New Address");
-    assertStringIncludes(html, 'value="91"');
-    assertStringIncludes(html, "leave both empty");
+    says(html, "New Address");
+    says(html, 'value="91"');
+    says(html, "leave both empty");
     const saved = (await getAttendeeOrNull(id, await getTestPrivateKey()))!;
     expect(saved.address).toBe("");
     expect(saved.lat).toBe("");
@@ -176,7 +174,7 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
       },
     );
     expect(response.status).toBe(400);
-    assertStringIncludes(await response.text(), "250");
+    says(await response.text(), "250");
   });
 
   test("404s for an unknown attendee", async () => {
@@ -195,8 +193,8 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
     );
 
     const html = await logisticsTabHtml(id);
-    assertStringIncludes(html, 'name="logistics_start"');
-    assertStringIncludes(html, "Tab Van");
+    says(html, 'name="logistics_start"');
+    says(html, "Tab Van");
 
     await adminFormPost(`/admin/attendees/${id}/logistics`, {
       address: "Somewhere",

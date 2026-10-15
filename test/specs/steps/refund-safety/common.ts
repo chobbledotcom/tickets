@@ -1,5 +1,7 @@
 // jscpd:ignore-start
+
 import { Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
 import { transfersByAccount } from "#accounting/queries.ts";
@@ -25,6 +27,7 @@ import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
+import { has, says } from "#test-utils/says.ts";
 import type { PaymentProviderType } from "#types";
 // jscpd:ignore-end
 
@@ -126,7 +129,7 @@ export const expectNoRefundAction = async (
   who: string,
 ): Promise<string[]> => {
   const actions = await ownerActionNames(world, who);
-  expect(actions).not.toContain("Refund");
+  assert(!actions.includes("Refund"));
   return actions;
 };
 
@@ -168,7 +171,7 @@ export const expectOwnerWasTold = (
   ...words: string[]
 ): void => {
   for (const word of words) {
-    expect(scenarioBrowser(world).pageText).toContain(word);
+    says(scenarioBrowser(world).pageText, word);
   }
 };
 
@@ -226,7 +229,7 @@ Then(
 Then(
   "{word}'s Actions page does not offer Delete while payment work remains",
   async function (this: TicketsWorld, who: string): Promise<void> {
-    expect(await ownerActionNames(this, who)).not.toContain("Delete attendee");
+    assert(!(await ownerActionNames(this, who)).includes("Delete attendee"));
   },
 );
 
@@ -234,7 +237,7 @@ Then(
   "{word}'s Actions page does not offer another Refund and does offer recovery",
   async function (this: TicketsWorld, who: string): Promise<void> {
     const actions = await expectNoRefundAction(this, who);
-    expect(actions).toContain("Open Refund recovery");
+    has(actions, "Open Refund recovery");
   },
 );
 
@@ -265,7 +268,7 @@ Then(
   "the owner can delete {word} now that the payment work is finished",
   async function (this: TicketsWorld, who: string): Promise<void> {
     const browser = await ownerDeletesAttendee(this, who);
-    expect(browser.pageText).toContain("Attendee deleted");
+    says(browser.pageText, "Attendee deleted");
   },
 );
 

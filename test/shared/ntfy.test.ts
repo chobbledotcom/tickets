@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, spy } from "@std/testing/mock";
@@ -6,6 +5,7 @@ import { ErrorCode } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
   let fetchStub: Stub;
@@ -70,14 +70,8 @@ describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
 
       expect(failedFetch.calls.length).toBe(1);
       expect(errorSpy.calls.length).toBe(1);
-      assertStringIncludes(
-        errorSpy.calls[0]!.args[0] ?? "",
-        "[Error] E_CDN_REQUEST",
-      );
-      assertStringIncludes(
-        errorSpy.calls[0]!.args[0] ?? "",
-        "ntfy send failed",
-      );
+      says(errorSpy.calls[0]!.args[0], "[Error] E_CDN_REQUEST");
+      says(errorSpy.calls[0]!.args[0], "ntfy send failed");
       errorSpy.restore();
     });
   });

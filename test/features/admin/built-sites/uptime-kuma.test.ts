@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -7,6 +6,7 @@ import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { restoreStubsAfterEach } from "#test-utils/mocks.ts";
+import { has } from "#test-utils/says.ts";
 import {
   insertScheduledTestSite,
   SCHEDULED_OWNER_ENV,
@@ -48,9 +48,10 @@ describeWithEnv(
         `/admin/built-sites/${site.id}/maintenance`,
       );
       expect(monitored).not.toBe("");
-      assertArrayIncludes((await activityMessages()) ?? [], [
+      has(
+        await activityMessages(),
         `Added Uptime Kuma monitor for '${monitored}'`,
-      ]);
+      );
     });
 
     test("reports an existing monitor without adding another", async () => {

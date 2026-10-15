@@ -1,10 +1,10 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { expectReserved, postBooking } from "#test-utils/parents.ts";
+import { has } from "#test-utils/says.ts";
 
 describeWithEnv(
   "server > parents booking — Stage B shared child",
@@ -64,8 +64,8 @@ describeWithEnv(
         expect(childBookings.length).toBe(2);
         // Each child row links to a distinct parent.
         const parentIds = childBookings.map((b) => b.parent_listing_id);
-        assertArrayIncludes(parentIds, [parentA.id]);
-        assertArrayIncludes(parentIds, [parentB.id]);
+        has(parentIds, parentA.id);
+        has(parentIds, parentB.id);
         // Each child allocation has qty 1.
         expect(childBookings.every((b) => b.quantity === 1)).toBe(true);
         // All 4 rows share one order_token.

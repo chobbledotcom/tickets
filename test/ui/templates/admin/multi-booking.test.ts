@@ -3,7 +3,7 @@
  * where it sits, and what it leaves out.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { adminListingsPage } from "#templates/admin/dashboard.tsx";
@@ -12,6 +12,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import type { ListingWithCount } from "#types";
 
 describe("adminListingsPage multi-booking link", () => {
@@ -22,15 +23,12 @@ describe("adminListingsPage multi-booking link", () => {
     ...expectations: string[]
   ): string => {
     const html = adminListingsPage(listings, OWNER_SESSION);
-    for (const expected of expectations) assertStringIncludes(html, expected);
+    for (const expected of expectations) says(html, expected);
     return html;
   };
 
   const expectNoMultiBookingLink = (listings: ListingWithCount[]) => {
-    assert(
-      !renderListingsPage(listings).includes("Multi-booking link"),
-      "the value should not contain the searched item",
-    );
+    assert(!renderListingsPage(listings).includes("Multi-booking link"));
   };
 
   const twoListings = [
@@ -109,10 +107,7 @@ describe("adminListingsPage multi-booking link", () => {
       "Active One",
       "Active Two",
     );
-    assert(
-      !html.includes('data-multi-booking-slug="cd34e"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('data-multi-booking-slug="cd34e"'));
   });
 
   test("excludes listings without standalone pages from checkboxes", () => {
@@ -142,12 +137,9 @@ describe("adminListingsPage multi-booking link", () => {
       undefined,
       new Set<number>([2]),
     );
-    assertStringIncludes(html, 'data-multi-booking-slug="ab12c"');
-    assertStringIncludes(html, 'data-multi-booking-slug="ef56g"');
-    assert(
-      !html.includes('data-multi-booking-slug="cd34e"'),
-      "the value should not contain the searched item",
-    );
+    says(html, 'data-multi-booking-slug="ab12c"');
+    says(html, 'data-multi-booking-slug="ef56g"');
+    assert(!html.includes('data-multi-booking-slug="cd34e"'));
   });
 
   test("renders checkboxes with slug data attributes", () => {
@@ -239,12 +231,9 @@ describe("adminListingsPage multi-booking link", () => {
       },
     );
     // The venue filter narrows the table to the Hall listing...
-    assert(
-      !html.includes('href="/admin/listing/2"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('href="/admin/listing/2"'));
     // ...but the builder still offers every active listing.
-    assertStringIncludes(html, 'data-multi-booking-slug="ab12c"');
-    assertStringIncludes(html, 'data-multi-booking-slug="cd34e"');
+    says(html, 'data-multi-booking-slug="ab12c"');
+    says(html, 'data-multi-booking-slug="cd34e"');
   });
 });

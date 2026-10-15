@@ -22,6 +22,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 import { attrValue } from "#test-utils/test-browser/forms.ts";
 import { regexCollect } from "#test-utils/test-browser/parsing.ts";
 import { findForms } from "#test-utils/test-browser/pressing.ts";
@@ -153,7 +154,8 @@ When(
 Then(
   "the organiser is told the listings were removed from the group",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    says(
+      whatTheyWereTold(this, ORGANISER),
       t("success.listings_removed_from_group"),
     );
   },
@@ -162,14 +164,15 @@ Then(
 Then(
   "the removal page names {string}",
   function (this: TicketsWorld, listingName: string): void {
-    expect(browserSeenBy(this, ORGANISER).pageText).toContain(listingName);
+    says(browserSeenBy(this, ORGANISER).pageText, listingName);
   },
 );
 
 Then(
   "the removal page says each listing keeps its bookings and its money",
   function (this: TicketsWorld): void {
-    expect(browserSeenBy(this, ORGANISER).pageText).toContain(
+    says(
+      browserSeenBy(this, ORGANISER).pageText,
       "Each listing keeps its bookings and its money.",
     );
   },

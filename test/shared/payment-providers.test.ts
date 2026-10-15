@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -10,6 +9,7 @@ import {
   WEBHOOK_SIGNATURE_HEADERS,
 } from "#shared/payment-providers.ts";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
+import { has } from "#test-utils/says.ts";
 
 const messages = await allEnglishMessages();
 
@@ -176,10 +176,7 @@ describe("payment provider registry", () => {
 
     test("declares a refund capability for every provider", () => {
       for (const id of PAYMENT_PROVIDER_IDS) {
-        assertArrayIncludes(
-          ["keyed", "keyless"],
-          [PAYMENT_PROVIDERS[id].refundCapability],
-        );
+        has(["keyed", "keyless"], PAYMENT_PROVIDERS[id].refundCapability);
       }
     });
 

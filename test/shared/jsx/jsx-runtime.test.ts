@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -8,6 +7,7 @@ import {
   SafeHtml,
   VOID_ELEMENTS,
 } from "#jsx/jsx-runtime.ts";
+import { says } from "#test-utils/says.ts";
 
 // The HTML void elements, as a fixed spec list independent of the production
 // table. Driving the render tests from this (rather than from VOID_ELEMENTS
@@ -109,12 +109,12 @@ describe("jsx-runtime", () => {
 
     test("escapes text children", () => {
       const result = jsx("div", { children: "<script>alert(1)</script>" });
-      assertStringIncludes(result.toString(), "&lt;script&gt;");
+      says(result.toString(), "&lt;script&gt;");
     });
 
     test("escapes attribute values", () => {
       const result = jsx("div", { title: 'say "hello"' });
-      assertStringIncludes(result.toString(), 'title="say &quot;hello&quot;"');
+      says(result.toString(), 'title="say &quot;hello&quot;"');
     });
 
     test("renders component that returns SafeHtml", () => {

@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -11,6 +11,7 @@ import { syncReadOnlyFrom } from "#shared/site-renewal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { has } from "#test-utils/says.ts";
 import {
   deactivateAllTierListings,
   siteEntry,
@@ -66,8 +67,8 @@ describeWithEnv(
         );
 
         const keys = secretStub.calls.map((c) => c.args[1]);
-        assertArrayIncludes(keys, ["RENEWAL_URL"]);
-        assertArrayIncludes(keys, ["READ_ONLY_FROM"]);
+        has(keys, "RENEWAL_URL");
+        has(keys, "READ_ONLY_FROM");
       });
 
       test("pushes only READ_ONLY_FROM when no renewalUrl is given", async () => {
@@ -86,11 +87,8 @@ describeWithEnv(
         await syncReadOnlyFrom(site, addMonthsIso(nowIso(), 3));
 
         const keys = secretStub.calls.map((c) => c.args[1]);
-        assert(
-          !keys.includes("RENEWAL_URL"),
-          "the value should not contain the searched item",
-        );
-        assertArrayIncludes(keys, ["READ_ONLY_FROM"]);
+        assert(!keys.includes("RENEWAL_URL"));
+        has(keys, "READ_ONLY_FROM");
       });
     });
 

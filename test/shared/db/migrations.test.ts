@@ -4,7 +4,7 @@ import {
   type ResultSet,
   type TransactionMode,
 } from "@libsql/client";
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -37,6 +37,7 @@ import {
 } from "#test-utils/migrations.ts";
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import { has, says } from "#test-utils/says.ts";
 import { saveAModifier } from "#test-utils/settings.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
@@ -223,9 +224,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
         "{{name}}, {{listings}}, {{email}}",
       );
       // ...it is now recorded in schema_migrations...
-      assertArrayIncludes((await appliedMigrationIds()) ?? [], [
-        "2026-07-03_attendee_listings_tag",
-      ]);
+      has(await appliedMigrationIds(), "2026-07-03_attendee_listings_tag");
       // ...and the markers are refreshed to the current release.
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
@@ -245,9 +244,10 @@ describeWithEnv("db > migrations", { db: true }, () => {
       // and the marker is the current release's.
       const images = await getDb().execute("SELECT id FROM images");
       expect(images.rows.map((row) => row.id)).toEqual([]);
-      assertArrayIncludes((await appliedMigrationIds()) ?? [], [
+      has(
+        await appliedMigrationIds(),
         "2026-07-12_remove_broken_image_records",
-      ]);
+      );
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
@@ -273,9 +273,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
         end_date: "2027-06-02",
         start_date: "2027-06-01",
       });
-      assertArrayIncludes((await appliedMigrationIds()) ?? [], [
-        "2026-10-07_holiday_date_padding",
-      ]);
+      has(await appliedMigrationIds(), "2026-10-07_holiday_date_padding");
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
@@ -296,9 +294,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       expect(task.rows).toEqual([
         { checkpoint: ACTIVITY_LOG_BACKFILL_COMPLETE },
       ]);
-      assertArrayIncludes((await appliedMigrationIds()) ?? [], [
-        "2026-07-21_activity_backfill_complete",
-      ]);
+      has(await appliedMigrationIds(), "2026-07-21_activity_backfill_complete");
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
@@ -331,9 +327,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       });
       expect(await settingsValueOrNull("has_logistics")).toBeNull();
       expect(await settingsValueOrNull("show_public_site")).toBeNull();
-      assertArrayIncludes((await appliedMigrationIds()) ?? [], [
-        "2026-07-15_enabled_features",
-      ]);
+      has(await appliedMigrationIds(), "2026-07-15_enabled_features");
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
@@ -387,10 +381,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
         const partial = await appliedMigrationIds();
         expect(partial.length).toBeGreaterThan(0);
         expect(partial.length).toBeLessThan(MIGRATION_IDS.length);
-        assert(
-          !partial.includes(crashing.id),
-          "the value should not contain the searched item",
-        );
+        assert(!partial.includes(crashing.id));
         expect(await settingsValueOrNull("db_schema_hash")).toBe("stale");
         expect(await settingsValueOrNull("migration_lock")).toBeNull();
       } finally {
@@ -487,7 +478,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       try {
         const error = await initDb().catch((e: unknown) => e);
         expect(error).not.toBeInstanceOf(MissingSettingsTableError);
-        assertStringIncludes(String(error), "no such table: user_settings");
+        says(String(error), "no such table: user_settings");
       } finally {
         setDb(null);
       }

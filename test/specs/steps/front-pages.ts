@@ -10,6 +10,7 @@ import {
   visitorOnFrontPage,
 } from "#test/specs/support/front-pages.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -24,7 +25,7 @@ When(
 Then(
   "the owner is told the homepage saved",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("Homepage updated");
+    says(ownerLastTold(this), "Homepage updated");
   },
 );
 
@@ -38,7 +39,7 @@ When(
 Then(
   "the owner is told the contact page saved",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("Contact page updated");
+    says(ownerLastTold(this), "Contact page updated");
   },
 );
 
@@ -65,7 +66,7 @@ Then(
   async function (this: TicketsWorld, words: string): Promise<void> {
     const read = await visitorOnFrontPage("/");
     expect(read.answered).toBe(200);
-    expect(read.said).toContain(words);
+    says(read.said, words);
   },
 );
 
@@ -74,7 +75,7 @@ Then(
   async function (this: TicketsWorld, words: string): Promise<void> {
     const read = await visitorOnFrontPage("/contact");
     expect(read.answered).toBe(200);
-    expect(read.said).toContain(words);
+    says(read.said, words);
   },
 );
 
@@ -83,6 +84,6 @@ Then(
   async function (this: TicketsWorld, words: string): Promise<void> {
     const read = await visitorOnFrontPage("/order");
     expect(read.answered).toBe(200);
-    expect(read.said).toContain(words);
+    says(read.said, words);
   },
 );

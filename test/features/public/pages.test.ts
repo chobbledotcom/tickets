@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -17,6 +17,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -53,10 +54,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         "No listings listed.",
         "My Listings",
       );
-      assert(
-        !html.includes('href="/admin/login"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('href="/admin/login"'));
     });
   });
 
@@ -88,8 +86,8 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
       });
 
       const html = await assertPublicHtml("/listings", "Concert", "Raffle");
-      assertStringIncludes(html, `href="/ticket/${concert.slug}">Book now`);
-      assertStringIncludes(html, `href="/ticket/${raffle.slug}">Buy now`);
+      says(html, `href="/ticket/${concert.slug}">Book now`);
+      says(html, `href="/ticket/${raffle.slug}">Buy now`);
     });
 
     test("uses the selected stay length for daily capacity", async () => {
@@ -120,24 +118,15 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         "Fixed stay",
         "Flexible stay",
       );
-      assert(
-        !html.includes(`href="/ticket/${fixed.slug}?date=${date}"`),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(
-        html,
-        `href="/ticket/${flexible.slug}?date=${date}"`,
-      );
+      assert(!html.includes(`href="/ticket/${fixed.slug}?date=${date}"`));
+      says(html, `href="/ticket/${flexible.slug}?date=${date}"`);
     });
 
     test("shows no date filter when no daily listings are listed", async () => {
       await enablePublicSite();
       await createTestListing({ maxAttendees: 5, name: "Standard Only" });
       const html = await assertPublicHtml("/listings", "Standard Only");
-      assert(
-        !html.includes("listings-date-filter"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("listings-date-filter"));
     });
   });
 
@@ -150,14 +139,8 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
       await createTestListing({ name: "Visible Listing" });
 
       const html = await assertPublicHtml("/listings", "Visible Listing");
-      assert(
-        !html.includes("Off Sale Listing"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("Secret Listing"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Off Sale Listing"));
+      assert(!html.includes("Secret Listing"));
     });
 
     test("drops a group kept off the list while keeping its member", async () => {
@@ -177,10 +160,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         "/listings",
         "Visible Listing In Hidden Group",
       );
-      assert(
-        !html.includes("Secret Group"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Secret Group"));
     });
   });
 
@@ -211,10 +191,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         "Weekend Package",
         "Standalone Listing",
       );
-      assert(
-        !filtered.includes(`href="/ticket/${pkg.slug}"`),
-        "the value should not contain the searched item",
-      );
+      assert(!filtered.includes(`href="/ticket/${pkg.slug}"`));
       expect(filtered.indexOf("Unavailable")).toBeLessThan(
         filtered.indexOf("Weekend Package"),
       );
@@ -224,7 +201,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         `/listings?date=${otherDate}`,
         "Weekend Package",
       );
-      assertStringIncludes(available, `href="/ticket/${pkg.slug}"`);
+      says(available, `href="/ticket/${pkg.slug}"`);
     });
 
     test("shows a group with its description, its way in, and its member", async () => {
@@ -314,14 +291,8 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
     ): Promise<void> => {
       await createTestListing({ maxAttendees: 50, name: "Standalone" });
       const html = await assertPublicHtml("/listings", "Standalone");
-      assert(
-        !html.includes(`href="/ticket/${group.slug}"`),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes(groupName),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes(`href="/ticket/${group.slug}"`));
+      assert(!html.includes(groupName));
     };
 
     test("suppresses a group whose members are all off sale", async () => {

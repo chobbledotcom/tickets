@@ -1,6 +1,5 @@
 /** The checks that stop a bad group save. */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -15,6 +14,7 @@ import {
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { groupInput, soldPackage } from "./helpers.ts";
 
 describeWithEnv("admin group validation", { db: true }, () => {
@@ -62,7 +62,7 @@ describeWithEnv("admin group validation", { db: true }, () => {
       await groupInput({ isPackage: true, name: group.name, slug: group.slug }),
       group.id,
     );
-    assertStringIncludes(error ?? "", "Package child");
+    says(error, "Package child");
   });
 
   test("a visible package with no bookings can be un-packaged", async () => {

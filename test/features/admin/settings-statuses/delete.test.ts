@@ -6,7 +6,7 @@
  * page moves every held attendee to the status the operator picks first.
  */
 
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -19,6 +19,7 @@ import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
+import { has, says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const PATH = "/admin/settings/statuses";
@@ -52,10 +53,7 @@ describeWithEnv("deleting a status", { db: true }, () => {
     const { response } = await remove(id, "Spare");
 
     await expectFlashRedirect(PATH, "Status deleted")(response);
-    assert(
-      !(await names()).includes("Spare"),
-      "the value should not contain the searched item",
-    );
+    assert(!(await names()).includes("Spare"));
   });
 
   test("writes the removal to the activity log by its full name", async () => {
@@ -65,9 +63,7 @@ describeWithEnv("deleting a status", { db: true }, () => {
 
     await remove(id, "Logged Removal");
 
-    assertArrayIncludes((await activityMessages()) ?? [], [
-      "Attendee status 'Logged Removal' deleted",
-    ]);
+    has(await activityMessages(), "Attendee status 'Logged Removal' deleted");
   });
 
   test("refuses the last one left", async () => {
@@ -80,7 +76,7 @@ describeWithEnv("deleting a status", { db: true }, () => {
       "You must keep at least one status",
       false,
     )(response);
-    assertArrayIncludes((await names()) ?? [], [only.name]);
+    has(await names(), only.name);
   });
 
   test("refuses the one new public bookings get", async () => {
@@ -125,7 +121,7 @@ describeWithEnv("deleting a status", { db: true }, () => {
       "Choose another status for its attendees before deleting",
       false,
     )(response);
-    assertArrayIncludes((await names()) ?? [], ["In Use"]);
+    has(await names(), "In Use");
     expect(await attendeeStatusCount(id)).toBe(1);
   });
 });
@@ -136,8 +132,8 @@ describeWithEnv("the delete confirmation", { db: true }, () => {
 
     const html = await (await adminGet(`${PATH}/${id}/delete`)).text();
 
-    assertStringIncludes(html, "Name");
-    assertStringIncludes(html, "Type Me");
+    says(html, "Name");
+    says(html, "Type Me");
   });
 
   test("refuses a name that does not match", async () => {
@@ -150,7 +146,7 @@ describeWithEnv("the delete confirmation", { db: true }, () => {
       "Name does not match. Please type the exact name to confirm deletion.",
       false,
     )(response);
-    assertArrayIncludes((await names()) ?? [], ["Exact"]);
+    has(await names(), "Exact");
   });
 });
 
@@ -177,10 +173,10 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
 
     const html = await (await adminGet(`${PATH}/${busyId}/delete`)).text();
 
-    assertStringIncludes(html, "Busy");
-    assertStringIncludes(html, "1 attendee holds this status.");
-    assertStringIncludes(html, 'name="reassign_status_id"');
-    assertStringIncludes(html, "Landing Status");
+    says(html, "Busy");
+    says(html, "1 attendee holds this status.");
+    says(html, 'name="reassign_status_id"');
+    says(html, "Landing Status");
   });
 
   test("the picker is absent from a free status's delete page", async () => {
@@ -188,10 +184,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
 
     const html = await (await adminGet(`${PATH}/${id}/delete`)).text();
 
-    assert(
-      !html.includes('name="reassign_status_id"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('name="reassign_status_id"'));
   });
 
   test("a lone status attendees hold shows the prerequisite instead of an empty picker", async () => {
@@ -206,11 +199,8 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
 
     // No target exists to move them to, so the page says what the save will
     // refuse on instead of rendering a picker with nothing to pick.
-    assertStringIncludes(html, "You must keep at least one status");
-    assert(
-      !html.includes('name="reassign_status_id"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "You must keep at least one status");
+    assert(!html.includes('name="reassign_status_id"'));
   });
 
   test("a default status's delete page names the prerequisite instead of a picker", async () => {
@@ -224,15 +214,9 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
       await adminGet(`${PATH}/${defaulted.id}/delete`)
     ).text();
 
-    assertStringIncludes(
-      html,
-      "Choose another public default before deleting this status",
-    );
-    assert(
-      !html.includes('name="reassign_status_id"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "Delete status");
+    says(html, "Choose another public default before deleting this status");
+    assert(!html.includes('name="reassign_status_id"'));
+    says(html, "Delete status");
   });
 
   test("a paid default's delete page names the paid prerequisite", async () => {
@@ -243,15 +227,9 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
 
     const html = await (await adminGet(`${PATH}/${paid.id}/delete`)).text();
 
-    assertStringIncludes(
-      html,
-      "Choose another paid default before deleting this status",
-    );
-    assert(
-      !html.includes('name="reassign_status_id"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "Delete status");
+    says(html, "Choose another paid default before deleting this status");
+    assert(!html.includes('name="reassign_status_id"'));
+    says(html, "Delete status");
   });
 
   test("moves its attendees to the chosen status, then deletes the status", async () => {
@@ -266,14 +244,12 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
       attendeeId,
     ]);
     expect(Number(rows.rows[0]!.status_id)).toBe(otherId);
-    assertArrayIncludes((await names()) ?? [], ["Landing Status"]);
-    assert(
-      !(await names()).includes("Busy"),
-      "the value should not contain the searched item",
-    );
-    assertArrayIncludes((await activityMessages()) ?? [], [
+    has(await names(), "Landing Status");
+    assert(!(await names()).includes("Busy"));
+    has(
+      await activityMessages(),
       "1 attendee(s) moved from status 'Busy' to 'Landing Status'",
-    ]);
+    );
   });
 
   test("a missing target status refuses the delete and keeps everything", async () => {
@@ -288,7 +264,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
       "Choose another status for its attendees before deleting",
       false,
     )(response);
-    assertArrayIncludes((await names()) ?? [], ["Busy"]);
+    has(await names(), "Busy");
     expect(await attendeeStatusCount(busyId)).toBe(1);
   });
 
@@ -306,7 +282,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     );
     await expect(fault).rejects.toThrow("reassign unavailable");
 
-    assertArrayIncludes((await names()) ?? [], ["Busy"]);
+    has(await names(), "Busy");
     expect(await attendeeStatusCount(busyId)).toBe(1);
     const rows = await execute("SELECT status_id FROM attendees WHERE id = ?", [
       attendeeId,

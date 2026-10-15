@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unique } from "#fp";
@@ -6,6 +5,7 @@ import { GUIDE_MESSAGE_GROUPS } from "#locales/manifest.ts";
 import { Faq, type GuideSection } from "#templates/admin/guide/components.tsx";
 import { guideSections } from "#templates/admin/guide.tsx";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
+import { says } from "#test-utils/says.ts";
 
 const en = await allEnglishMessages(GUIDE_MESSAGE_GROUPS);
 
@@ -115,7 +115,7 @@ describe("guide schema", () => {
   });
 
   test("a faq entry renders its id as the anchor on its details element", () => {
-    assertStringIncludes(
+    says(
       String(Faq({ id: "embed_booking_form" })),
       '<details id="embed_booking_form">',
     );

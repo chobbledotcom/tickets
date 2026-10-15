@@ -1,7 +1,7 @@
-import { assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { seedCountry } from "#test-utils/settings.ts";
 
@@ -10,7 +10,7 @@ describeWithEnv("integration: currency from country", { db: true }, () => {
     const response = await adminGet("/admin/guide");
     const html = await response.text();
     // The guide page renders formatCurrency(1000) which is £10.00 for GBP
-    assertStringIncludes(html, "£10");
+    says(html, "£10");
   });
 
   test("country US derives USD (dollar symbol)", async () => {
@@ -18,7 +18,7 @@ describeWithEnv("integration: currency from country", { db: true }, () => {
 
     const response = await adminGet("/admin/guide");
     const html = await response.text();
-    assertStringIncludes(html, "$10");
+    says(html, "$10");
   });
 
   test("country JP derives JPY (yen symbol, no decimals)", async () => {
@@ -26,7 +26,7 @@ describeWithEnv("integration: currency from country", { db: true }, () => {
 
     const response = await adminGet("/admin/guide");
     const html = await response.text();
-    assertStringIncludes(html, "¥");
+    says(html, "¥");
   });
 
   test("country DE derives EUR (euro symbol)", async () => {
@@ -34,7 +34,7 @@ describeWithEnv("integration: currency from country", { db: true }, () => {
 
     const response = await adminGet("/admin/guide");
     const html = await response.text();
-    assertStringIncludes(html, "€");
+    says(html, "€");
   });
 
   test("currency is reflected on admin dashboard", async () => {
@@ -44,6 +44,6 @@ describeWithEnv("integration: currency from country", { db: true }, () => {
     const response = await adminGet("/admin");
     const html = await response.text();
     // Dashboard shows income with formatCurrency, should use $ for USD
-    assertStringIncludes(html, "$");
+    says(html, "$");
   });
 });

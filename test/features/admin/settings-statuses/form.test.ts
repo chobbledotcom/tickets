@@ -6,7 +6,6 @@
  * a status cannot be both.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
@@ -14,6 +13,7 @@ import { t } from "#i18n";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 const PATH = "/admin/settings/statuses";
@@ -117,14 +117,14 @@ describeWithEnv("clearing a default", { db: true }, () => {
   };
 
   test("refuses to leave the site with no public default", async () => {
-    assertStringIncludes(
+    says(
       await dropOneDefault("is_paid_default"),
       "Choose another public default before clearing this one",
     );
   });
 
   test("refuses to leave the site with no paid default", async () => {
-    assertStringIncludes(
+    says(
       await dropOneDefault("is_public_default"),
       "Choose another paid default before clearing this one",
     );

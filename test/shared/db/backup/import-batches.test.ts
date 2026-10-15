@@ -1,5 +1,5 @@
 import type { InStatement, TransactionMode } from "@libsql/client";
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -7,6 +7,7 @@ import { PostResetError, restoreFromSql } from "#db/backup.ts";
 import { getDb, queryAll } from "#db/client.ts";
 import { verifyCurrentAppSchema } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { has } from "#test-utils/says.ts";
 
 describeWithEnv("backup import batches", { db: true }, () => {
   const restoreAndInspectImport = async (
@@ -81,19 +82,13 @@ describeWithEnv("backup import batches", { db: true }, () => {
       settingsDump(["v"]),
     );
 
-    assertArrayIncludes(schemaObjects ?? [], ["idx_listings_slug_index"]);
-    assertArrayIncludes(schemaObjects ?? [], [
-      "trg_attendee_answers_validate_insert",
-    ]);
+    has(schemaObjects, "idx_listings_slug_index");
+    has(schemaObjects, "trg_attendee_answers_validate_insert");
+    assert(!(schemaObjects ?? []).includes("idx_maintenance_tasks_due"));
     assert(
-      (schemaObjects ?? []).includes("idx_maintenance_tasks_due") === false,
-      "the value should not contain the searched item",
-    );
-    assert(
-      (schemaObjects ?? []).includes(
+      !(schemaObjects ?? []).includes(
         "trg_listing_attendees_aggregates_insert",
-      ) === false,
-      "the value should not contain the searched item",
+      ),
     );
     await verifyCurrentAppSchema();
   });

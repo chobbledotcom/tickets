@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { validatePaidSession } from "#routes/api/payment-processing/classify.ts";
@@ -13,6 +13,7 @@ import {
   stubSessionRetrieval,
 } from "#test-utils/payment-session.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestEditorSession,
   getTestSession,
@@ -68,20 +69,11 @@ describeWithEnv(
       );
 
       const page = await waitingPageOf(result);
-      assertStringIncludes(page, "We have not received your payment yet");
-      assertStringIncludes(
-        page,
-        "If you have paid, your ticket will be sent to you by email.",
-      );
-      assertStringIncludes(
-        page,
-        'href="/payment/success?session_id=cs_unpaid"',
-      );
-      assertStringIncludes(page, "Check again");
-      assert(
-        !page.includes("Payment verification failed"),
-        "the value should not contain the searched item",
-      );
+      says(page, "We have not received your payment yet");
+      says(page, "If you have paid, your ticket will be sent to you by email.");
+      says(page, 'href="/payment/success?session_id=cs_unpaid"');
+      says(page, "Check again");
+      assert(!page.includes("Payment verification failed"));
       // A normal provider state is not an outage: a debug line, not an error.
       expect(logLogged(debugSpy, "not confirmed yet")).toBe(true);
       expect(errors.contains("E_PAYMENT_SESSION")).toBe(false);
@@ -108,22 +100,16 @@ describeWithEnv(
 
       // Each reload carries one count up, so a tab left open stops itself.
       // The URL lives in an HTML attribute, so its & reads as &amp;.
-      assertStringIncludes(
+      says(
         await waitingPageOf(bare),
         "url=/payment/success?session_id=cs_unpaid&amp;wait=1",
       );
-      assertStringIncludes(await waitingPageOf(eighth), "&amp;wait=9");
-      assertStringIncludes(await waitingPageOf(ninth), "&amp;wait=10");
+      says(await waitingPageOf(eighth), "&amp;wait=9");
+      says(await waitingPageOf(ninth), "&amp;wait=10");
       const page = await waitingPageOf(atTheLimit);
-      assert(
-        !page.includes("http-equiv="),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !page.includes("This page will keep checking for you."),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(page, "Check again");
+      assert(!page.includes("http-equiv="));
+      assert(!page.includes("This page will keep checking for you."));
+      says(page, "Check again");
     });
 
     test("keeps a forged reload count inside the window", async () => {
@@ -142,12 +128,9 @@ describeWithEnv(
 
       // Every unreadable value, including a negative one, opens a fresh
       // window of one reload.
-      assertStringIncludes(await waitingPageOf(forged), "&amp;wait=1");
-      assertStringIncludes(await waitingPageOf(negative), "&amp;wait=1");
-      assert(
-        !(await waitingPageOf(huge)).includes("http-equiv="),
-        "the value should not contain the searched item",
-      );
+      says(await waitingPageOf(forged), "&amp;wait=1");
+      says(await waitingPageOf(negative), "&amp;wait=1");
+      assert(!(await waitingPageOf(huge)).includes("http-equiv="));
     });
 
     test("hands an owner the diagnostics beside the waiting page", async () => {
@@ -163,12 +146,12 @@ describeWithEnv(
       );
 
       const page = await waitingPageOf(result);
-      assertStringIncludes(page, "Staff diagnostics");
-      assertStringIncludes(page, "cs_unpaid");
+      says(page, "Staff diagnostics");
+      says(page, "cs_unpaid");
       // The row markup (label, then value) cannot pass because the session id
       // carries the word, so this reads the status itself, not the id.
-      assertStringIncludes(page, "Payment status</strong> unpaid");
-      assertStringIncludes(page, "3-D Secure");
+      says(page, "Payment status</strong> unpaid");
+      says(page, "3-D Secure");
     });
 
     test("keeps the buyer's page free of staff detail", async () => {

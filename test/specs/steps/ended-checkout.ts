@@ -1,5 +1,5 @@
 import { Given, Then, When } from "@cucumber/cucumber";
-import { expect } from "@std/expect";
+import { assert } from "@std/assert";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
@@ -7,6 +7,7 @@ import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
@@ -71,8 +72,8 @@ When(
 Then(
   "they are told the payment was cancelled",
   async function (this: TicketsWorld): Promise<void> {
-    expect(this.returnPageHtml).toContain(CANCEL_MARKER);
-    expect(this.returnPageHtml).toContain(t("payment.cancel.heading"));
+    says(this.returnPageHtml, CANCEL_MARKER);
+    says(this.returnPageHtml, t("payment.cancel.heading"));
   },
 );
 
@@ -81,22 +82,22 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const listing = await getListingWithCount(this.listingId!);
     if (!listing) throw new Error("the story's listing is missing");
-    expect(this.returnPageHtml).toContain(`href="/ticket/${listing.slug}"`);
-    expect(this.returnPageHtml).toContain(t("payment.cancel.try_again"));
+    says(this.returnPageHtml, `href="/ticket/${listing.slug}"`);
+    says(this.returnPageHtml, t("payment.cancel.try_again"));
   },
 );
 
 Then(
   "they are asked to check again shortly",
   async function (this: TicketsWorld): Promise<void> {
-    expect(this.returnPageHtml).not.toContain(CANCEL_MARKER);
-    expect(this.returnPageHtml).toContain(t("payment.pending.check_again"));
+    assert(!this.returnPageHtml?.includes(CANCEL_MARKER));
+    says(this.returnPageHtml, t("payment.pending.check_again"));
   },
 );
 
 Then(
   "they are not told the payment was cancelled",
   async function (this: TicketsWorld): Promise<void> {
-    expect(this.returnPageHtml).not.toContain(t("payment.cancel.heading"));
+    assert(!this.returnPageHtml?.includes(t("payment.cancel.heading")));
   },
 );

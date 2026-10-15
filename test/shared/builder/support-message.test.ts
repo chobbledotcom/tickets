@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withMessageGroups } from "#i18n";
@@ -12,6 +12,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 const BUILD_INPUT = {
   dbToken: "token123",
@@ -64,10 +65,7 @@ describeWithEnv(
           }
         },
       );
-      assert(
-        !savedNames.includes("SUPPORT_PAGE_TEXT"),
-        "the value should not contain the searched item",
-      );
+      assert(!savedNames.includes("SUPPORT_PAGE_TEXT"));
     });
 
     test("does not seed when the host has no support text", async () => {
@@ -139,7 +137,7 @@ describeWithEnv(
           const result = await buildSite();
           expect(result.ok).toBe(false);
           if (!result.ok) {
-            assertStringIncludes(result.error ?? "", "Set support message");
+            says(result.error, "Set support message");
           }
         },
       );

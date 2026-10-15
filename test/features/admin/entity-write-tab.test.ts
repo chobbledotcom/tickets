@@ -5,7 +5,7 @@
  * "one form, then delete" page.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -19,6 +19,7 @@ import type { AuthSession } from "#routes/auth.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 import { getTestAuthSession } from "#test-utils/session.ts";
 
 type Widget = { id: number; name: string };
@@ -105,10 +106,10 @@ describeWithEnv("an edit entity page", { db: true }, () => {
 
     const html = await (await editPage.renderPage(session, 7, "")).text();
 
-    assertStringIncludes(html, "<p>Widget|clean</p>");
-    assertStringIncludes(html, 'href="/admin/holidays/7/edit"');
-    assertStringIncludes(html, 'href="/admin/holidays/7/notes"');
-    assertStringIncludes(html, 'href="/admin/holidays/7/actions"');
+    says(html, "<p>Widget|clean</p>");
+    says(html, 'href="/admin/holidays/7/edit"');
+    says(html, 'href="/admin/holidays/7/notes"');
+    says(html, 'href="/admin/holidays/7/actions"');
   });
 
   test("offers deleting the record on the actions tab", async () => {
@@ -118,7 +119,7 @@ describeWithEnv("an edit entity page", { db: true }, () => {
       await editPage.renderPage(session, 7, "actions")
     ).text();
 
-    assertStringIncludes(html, 'href="/admin/holidays/7/delete"');
+    says(html, 'href="/admin/holidays/7/delete"');
   });
 
   test("re-renders the edit tab at 400 with what was typed", async () => {
@@ -132,7 +133,7 @@ describeWithEnv("an edit entity page", { db: true }, () => {
     );
 
     expect(response.status).toBe(400);
-    assertStringIncludes(await response.text(), "<p>Widget|Half typed</p>");
+    says(await response.text(), "<p>Widget|Half typed</p>");
   });
 
   test("hides the writing tabs in read-only mode", async () => {
@@ -145,15 +146,9 @@ describeWithEnv("an edit entity page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, "<p>Notes</p>");
-    assert(
-      !html.includes('href="/admin/holidays/7/actions"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("<p>Widget|clean</p>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<p>Notes</p>");
+    assert(!html.includes('href="/admin/holidays/7/actions"'));
+    assert(!html.includes("<p>Widget|clean</p>"));
   });
 
   test("answers 404 for a record that is not there", async () => {

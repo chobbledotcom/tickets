@@ -155,10 +155,7 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
       });
 
       const html = await expectHtmlResponse(response, 400, "still settling");
-      assert(
-        !html.includes("Refund Attendee</button>"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Refund Attendee</button>"));
     });
 
     test("admits one canonical charge, records it, and refuses a second send", async () => {

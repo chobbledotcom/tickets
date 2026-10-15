@@ -12,7 +12,7 @@
  * contact-history write failing after the text has already gone.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -28,6 +28,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const PHONE = "+447700900123";
@@ -83,11 +84,8 @@ describeWithEnv("admin sms", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, "Messages awaiting delivery:");
-    assert(
-      !html.includes("Send a text message"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Messages awaiting delivery:");
+    assert(!html.includes("Send a text message"));
   });
 
   it("GET renders one person's page and their history", async () => {
@@ -100,10 +98,10 @@ describeWithEnv("admin sms", { db: true }, () => {
     await adminFormPost("/admin/sms", { ...form, message: "History line" });
 
     const html = await (await adminGet(smsUrl)).text();
-    assertStringIncludes(html, "Send a text message");
-    assertStringIncludes(html, "Jane Doe");
-    assertStringIncludes(html, PHONE);
-    assertStringIncludes(html, "History line");
+    says(html, "Send a text message");
+    says(html, "Jane Doe");
+    says(html, PHONE);
+    says(html, "History line");
   });
 
   it("POST rejects a message of only spaces", async () => {

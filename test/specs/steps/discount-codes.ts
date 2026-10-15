@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
 import {
@@ -21,6 +22,7 @@ import {
   modifierUsageAmount,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
+import { has, says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -48,7 +50,7 @@ Given(
 Then(
   "the organiser is told the modifier was created",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("Modifier created");
+    says(ownerLastTold(this), "Modifier created");
   },
 );
 
@@ -83,7 +85,7 @@ When(
 Then(
   "the summary shows the place at {float}",
   function (this: TicketsWorld, pounds: number): void {
-    expect(priceSummary(this)).toContain(asMoney(pounds.toFixed(2)));
+    says(priceSummary(this), asMoney(pounds.toFixed(2)));
   },
 );
 
@@ -97,19 +99,19 @@ Then(
 Then(
   "the summary total is {float}",
   function (this: TicketsWorld, pounds: number): void {
-    expect(summaryTotal(this)).toContain(asMoney(pounds.toFixed(2)));
+    says(summaryTotal(this), asMoney(pounds.toFixed(2)));
   },
 );
 
 Then("the summary shows no discount line", function (this: TicketsWorld): void {
   // No negative figure anywhere: nothing was taken off at all.
-  expect(priceSummary(this)).not.toContain("-£");
+  assert(!priceSummary(this).includes("-£"));
 });
 
 Then(
   "the summary never names {string}",
   function (this: TicketsWorld, code: string): void {
-    expect(priceSummary(this)).not.toContain(code);
+    assert(!priceSummary(this).includes(code));
   },
 );
 
@@ -141,7 +143,8 @@ Then(
 Then(
   "the activity log says the code {string} took {float} off",
   async function (this: TicketsWorld, code: string, pounds: number) {
-    expect(await activityMessages()).toContain(
+    has(
+      await activityMessages(),
       `Promo code '${code}' used: ${asMoney(pounds.toFixed(2))} off`,
     );
   },

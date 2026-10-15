@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { updateBuiltSiteRenewalState } from "#db/built-sites.ts";
@@ -12,6 +12,7 @@ import {
   provisionTestBuiltSite,
 } from "#test-utils/db-helpers/built-sites.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has, says } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import {
   findSite,
@@ -99,11 +100,8 @@ describeWithEnv(
 
         // Rotate only re-pushes RENEWAL_URL, not READ_ONLY_FROM.
         const secretNames = secretNamesOf(suite.secretStub);
-        assertArrayIncludes(secretNames, ["RENEWAL_URL"]);
-        assert(
-          !secretNames.includes("READ_ONLY_FROM"),
-          "the value should not contain the searched item",
-        );
+        has(secretNames, "RENEWAL_URL");
+        assert(!secretNames.includes("READ_ONLY_FROM"));
 
         const logs = await getAllActivityLog();
         expect(
@@ -164,9 +162,9 @@ describeWithEnv(
 
         const updated = await findSite(site.id);
         expect(updated.readOnlyFrom).toBe("2027-06-15T23:59:59Z");
-        assertArrayIncludes(
+        has(
           (await getAllActivityLog()).map(({ message }) => message),
-          ["Admin overrode 'Override Site' deadline to 2027-06-15T23:59:59Z"],
+          "Admin overrode 'Override Site' deadline to 2027-06-15T23:59:59Z",
         );
       });
 
@@ -183,10 +181,7 @@ describeWithEnv(
         expect(response.status).toBe(302);
 
         const secretNames = secretNamesOf(suite.secretStub);
-        assert(
-          !secretNames.includes("RENEWAL_URL"),
-          "the value should not contain the searched item",
-        );
+        assert(!secretNames.includes("RENEWAL_URL"));
       });
 
       test("redirects when date is missing", async () => {
@@ -248,23 +243,11 @@ describeWithEnv(
         // control — no rotate, no deadline edits, no unconfirmed URL.
         suite.resetSecretStub();
         const panel = String(renewalPanelFor(await findSite(site.id)));
-        assertStringIncludes(
-          panel,
-          "The last provisioning did not reach the site",
-        );
-        assertStringIncludes(panel, '/provision-renewal"');
-        assert(
-          !panel.includes('/rotate-renewal-token"'),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !panel.includes('/bump-deadline"'),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !panel.includes('/override-deadline"'),
-          "the value should not contain the searched item",
-        );
+        says(panel, "The last provisioning did not reach the site");
+        says(panel, '/provision-renewal"');
+        assert(!panel.includes('/rotate-renewal-token"'));
+        assert(!panel.includes('/bump-deadline"'));
+        assert(!panel.includes('/override-deadline"'));
 
         // A direct deadline bump cannot store a cutoff over the retry.
         const { response: bumpResponse } = await siteAction(

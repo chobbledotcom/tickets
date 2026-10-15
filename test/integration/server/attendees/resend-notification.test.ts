@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 // jscpd:ignore-end
@@ -27,6 +26,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import type { Attendee } from "#types";
 
@@ -142,7 +142,7 @@ describeWithEnv(
           cookie,
         );
         const html = await page.text();
-        assertStringIncludes(html, "does not match");
+        says(html, "does not match");
       });
 
       test("re-sends notification with matching name", async () => {
@@ -180,7 +180,7 @@ describeWithEnv(
           l.message.includes("Notification re-sent"),
         );
         expect(resendLog).toBeDefined();
-        assertStringIncludes(resendLog?.message ?? "", "John Doe");
+        says(resendLog?.message, "John Doe");
       });
 
       test("a package member's resend rehydrates every line of the package", async () => {

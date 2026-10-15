@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -12,6 +11,7 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 import { describeAdminSettings } from "#test-utils/settings.ts";
 
@@ -104,8 +104,8 @@ describeAdminSettings(() => {
       expect(response.status).toBe(200);
       const html = await response.text();
       // Check that dark radio button is checked
-      assertStringIncludes(html, 'value="dark"');
-      assertStringIncludes(html, "checked");
+      says(html, 'value="dark"');
+      says(html, "checked");
     });
 
     test("ticking the underline-links checkbox enables it", async () => {
@@ -138,7 +138,7 @@ describeAdminSettings(() => {
       const checkboxMatch = html.match(
         /<input[^>]*name="underline_links"[^>]*>/,
       );
-      assertStringIncludes(checkboxMatch?.[0] ?? "", "checked");
+      says(checkboxMatch?.[0], "checked");
     });
   });
 });

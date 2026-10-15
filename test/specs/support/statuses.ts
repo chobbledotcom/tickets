@@ -8,8 +8,6 @@
  * showing is one the story cannot find either.
  */
 
-import { expect } from "@std/expect";
-// jscpd:ignore-start
 import { t } from "#i18n";
 import {
   findsTheWayInFrom,
@@ -31,6 +29,7 @@ import type {
   ReadAboutOneThing,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { has } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -202,5 +201,5 @@ export const stateIsOfferedAMoveUp: AsksAboutOneThing = (world, name) =>
  * to have worked, or the rule it feeds proves nothing. */
 export const organiserHasAddedState: ActOnOneThing = async (world, name) => {
   await organiserAddsState(world, { name });
-  expect(await statesOffered(world)).toContain(name);
+  has(await statesOffered(world), name);
 };

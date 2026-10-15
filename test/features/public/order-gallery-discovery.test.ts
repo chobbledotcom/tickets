@@ -4,7 +4,7 @@
  * redirect never carries a child slug or a pre-fill its availability refuses.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { settings } from "#db/settings.ts";
@@ -14,6 +14,7 @@ import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { makeParent } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** Fetch the gallery body with the public site + order page enabled. */
@@ -45,15 +46,9 @@ describeWithEnv(
           parent: { name: "GalParent" },
         });
         const body = await galleryBody();
-        assertStringIncludes(body, `name="select_${parent.id}"`);
-        assert(
-          !body.includes(`name="select_${child.id}"`),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !body.includes("GalChild"),
-          "the value should not contain the searched item",
-        );
+        says(body, `name="select_${parent.id}"`);
+        assert(!body.includes(`name="select_${child.id}"`));
+        assert(!body.includes("GalChild"));
       });
 
       test("a selection redirect never contains a child slug", async () => {
@@ -63,11 +58,8 @@ describeWithEnv(
         });
         // Even if a child id is injected into the query, it is not selectable.
         const location = await orderRedirect([parent.id, child.id]);
-        assertStringIncludes(location, `/ticket/${parent.slug}`);
-        assert(
-          !location.includes(child.slug),
-          "the value should not contain the searched item",
-        );
+        says(location, `/ticket/${parent.slug}`);
+        assert(!location.includes(child.slug));
       });
 
       test("a parent with no bookable child is dimmed, not pre-filled", async () => {
@@ -80,15 +72,9 @@ describeWithEnv(
         await listingChildren.setIds(parent.id, [child.id]);
         const body = await galleryBody();
         // Sold-out parents are rendered as a non-selectable, dimmed card.
-        assert(
-          !body.includes(`name="select_${parent.id}"`),
-          "the value should not contain the searched item",
-        );
+        assert(!body.includes(`name="select_${parent.id}"`));
         const location = await orderRedirect([parent.id]);
-        assert(
-          !location.includes(`q_${parent.id}=1`),
-          "the value should not contain the searched item",
-        );
+        assert(!location.includes(`q_${parent.id}=1`));
       });
 
       test("a registration-closed listing is carried as a slug but never pre-filled", async () => {
@@ -104,11 +90,8 @@ describeWithEnv(
           name: "ClosedListing",
         });
         const location = await orderRedirect([closed.id]);
-        assertStringIncludes(location, `/ticket/${closed.slug}`);
-        assert(
-          !location.includes(`q_${closed.id}=1`),
-          "the value should not contain the searched item",
-        );
+        says(location, `/ticket/${closed.slug}`);
+        assert(!location.includes(`q_${closed.id}=1`));
       });
     });
   },

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -12,6 +11,7 @@ import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import { says } from "#test-utils/says.ts";
 import { testCookie } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import { expectTemporaryError } from "#test-utils/temporary-error.ts";
@@ -70,8 +70,8 @@ describeWithEnv("request pipeline", { db: true }, () => {
     await settings.update.paymentProvider("square");
     await settings.update.square.sandbox(true);
     const response = await handleRequest(mockRequest("/"));
-    assertStringIncludes(
-      response.headers.get("content-security-policy") ?? "",
+    says(
+      response.headers.get("content-security-policy"),
       "https://connect.squareupsandbox.com",
     );
   });
@@ -85,7 +85,7 @@ describeWithEnv("request pipeline", { db: true }, () => {
 
     const response = await handleRequest(request);
     expect(response.status).toBe(400);
-    assertStringIncludes(await response.text(), "Invalid Content-Type");
+    says(await response.text(), "Invalid Content-Type");
   });
 
   test("redirects a tracked GET before touching the database", async () => {
@@ -129,7 +129,7 @@ describeWithEnv("request pipeline", { db: true }, () => {
 
       const response = await handleRequest(mockRequest("/"));
       expect(response.status).toBe(503);
-      assertStringIncludes(await response.text(), "Update In Progress");
+      says(await response.text(), "Update In Progress");
     } finally {
       await db.execute("DELETE FROM settings WHERE key = 'migration_lock'");
       await db.execute({
@@ -186,13 +186,13 @@ describeWithEnv("request pipeline", { db: true }, () => {
   test("keeps the styled 404 page for GET and HEAD probes", async () => {
     const get = await handleRequest(mockRequest("/signin"));
     expect(get.status).toBe(404);
-    assertStringIncludes(await get.text(), "Not Found");
+    says(await get.text(), "Not Found");
 
     const head = await handleRequest(
       mockRequest("/signin", { method: "HEAD" }),
     );
     expect(head.status).toBe(404);
-    assertStringIncludes(await head.text(), "Not Found");
+    says(await head.text(), "Not Found");
   });
 
   for (const method of ["GET", "HEAD"]) {
@@ -240,8 +240,8 @@ describeWithEnv("request pipeline", { db: true }, () => {
       );
       expect(response.status).toBe(503);
       const html = await response.text();
-      assertStringIncludes(html, "The database is too busy.");
-      assertStringIncludes(html, 'http-equiv="refresh"');
+      says(html, "The database is too busy.");
+      says(html, 'http-equiv="refresh"');
       expect(errors.contains("E_DB_BUSY")).toBe(true);
     } finally {
       executeStub.restore();
@@ -256,8 +256,8 @@ describeWithEnv("request pipeline", { db: true }, () => {
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toBe("/admin");
     const cookie = getHeader(response, "set-cookie");
-    assertStringIncludes(cookie, "session=");
-    assertStringIncludes(cookie, "Max-Age=0");
+    says(cookie, "session=");
+    says(cookie, "Max-Age=0");
   });
 
   test("redirects an unsupported setup request while setup is incomplete", async () => {
@@ -283,7 +283,7 @@ describeWithEnv("request pipeline", { db: true }, () => {
       }),
     );
 
-    assertStringIncludes(await response.text(), "Saved from cookie");
-    assertStringIncludes(getHeader(response, "set-cookie"), "flash_notice=;");
+    says(await response.text(), "Saved from cookie");
+    says(getHeader(response, "set-cookie"), "flash_notice=;");
   });
 });

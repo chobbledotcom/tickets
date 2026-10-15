@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -15,6 +14,7 @@ import {
   readProducts,
 } from "#cli/product-catalog.ts";
 import { withTempDir } from "#test-utils/files.ts";
+import { says } from "#test-utils/says.ts";
 
 const productFrontmatter = `---
 title: 8 Lane Reindeer Racing Hire
@@ -257,7 +257,7 @@ describe("product catalog", () => {
         "z",
       ]);
       // Each file carries the exact text it was parsed from.
-      assertStringIncludes(catalog[0]!.text, "options:");
+      says(catalog[0]!.text, "options:");
     } finally {
       await Deno.remove(dir, { recursive: true });
     }

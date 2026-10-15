@@ -4,7 +4,6 @@
 // parity, editor field locks, and money redaction are pinned in
 // listing-write-roles.test.ts and the api-*.test.ts suites.
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
@@ -22,6 +21,7 @@ import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts"
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { doAuthenticatedMultipartFormRequest } from "#test-utils/db-helpers/request.ts";
 import { testListingInput } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import {
   requestAsSession,
   testCookie,
@@ -153,7 +153,7 @@ describeWithEnv("Listing parity pins", { db: true }, () => {
 
     const apiRepeat = await deactivateViaApi(apiListing.id);
     expect(apiRepeat.status).toBe(400);
-    assertStringIncludes((await apiRepeat.json()).error, "already deactivated");
+    says((await apiRepeat.json()).error, "already deactivated");
   });
 
   test("api round trip keeps an undated listing's empty date", async () => {

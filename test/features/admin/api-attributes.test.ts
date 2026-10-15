@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -19,6 +18,7 @@ import {
   createTestAttributeOption,
 } from "#test-utils/db-helpers/attributes.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   apiRequest,
   createTestManagerSession,
@@ -244,7 +244,7 @@ describeWithEnv("Admin API - Attributes", { db: true }, () => {
         }),
         400,
         (body) => {
-          assertStringIncludes(body.error, "does not match");
+          says(body.error, "does not match");
         },
       );
       expect(await getAttributeWithOptions(attribute.id)).not.toBeNull();

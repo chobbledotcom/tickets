@@ -14,7 +14,6 @@
  */
 // jscpd:ignore-start
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -24,6 +23,7 @@ import {
 } from "#db/questions/queries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has } from "#test-utils/says.ts";
 import {
   createServicingHold,
   updateServicingEvent,
@@ -77,9 +77,9 @@ describeWithEnv("servicing §11 — custom questions", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 10, name: "L" });
     const { questionId } = await attachQuestion(listing.id);
     const { questions } = await getQuestionsWithListingIds([listing.id]);
-    assertArrayIncludes(
+    has(
       questions.map((q) => q.id),
-      [questionId],
+      questionId,
     );
   });
 

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -8,6 +7,7 @@ import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { nowIso } from "#shared/now.ts";
 import { parseReadOnlyFromMs, syncReadOnlyFrom } from "#shared/site-renewal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv(
   "syncReadOnlyFrom (Deno site)",
@@ -97,7 +97,7 @@ describe("syncReadOnlyFrom with non-numeric bunny hostingId", () => {
     });
     const result = await syncReadOnlyFrom(site, "2099-01-01T00:00:00Z");
     expect(result.ok).toBe(false);
-    if (!result.ok) assertStringIncludes(result.error, "No hostingId");
+    if (!result.ok) says(result.error, "No hostingId");
   });
 });
 

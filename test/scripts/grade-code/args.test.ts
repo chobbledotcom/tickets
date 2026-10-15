@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { resolve } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
 import { parseGradeArgs, resolveTargets } from "#scripts/grade-code/cli.ts";
+import { says } from "#test-utils/says.ts";
 import { CLEAN_CODE, depsOver } from "./support.ts";
 
 describe("parseGradeArgs", () => {
@@ -110,15 +111,15 @@ describe("resolveTargets", () => {
   });
 
   test("refuses paths outside src and paths that do not read", async () => {
-    expect((await resolveTargets(["scripts/x.ts"], deps)).error).toContain(
+    says(
+      (await resolveTargets(["scripts/x.ts"], deps)).error,
       "not under src/",
     );
-    expect((await resolveTargets(["src/../scripts"], deps)).error).toContain(
+    says(
+      (await resolveTargets(["src/../scripts"], deps)).error,
       "not under src/",
     );
-    expect((await resolveTargets(["src/nope.ts"], deps)).error).toContain(
-      "cannot read",
-    );
+    says((await resolveTargets(["src/nope.ts"], deps)).error, "cannot read");
     const empty = await resolveTargets(
       ["src/features"],
       depsOver({ dirs: ["src/features"], files: {} }),

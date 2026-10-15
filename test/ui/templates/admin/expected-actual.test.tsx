@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -7,6 +7,7 @@ import {
   ExpectedActualNotice,
   ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
+import { says } from "#test-utils/says.ts";
 
 const item = (over: Partial<ExpectedActualItem> = {}): ExpectedActualItem => ({
   actual: "4",
@@ -47,21 +48,18 @@ test("ExpectedActualNotice renders the wrapper, badge and first item", () => {
     items: [item({ actual: "4", expected: "3", label: "Total" })],
   })!.toString();
 
-  assertStringIncludes(html, 'class="expected-actual-notice"');
-  assertStringIncludes(html, 'role="alert"');
-  assertStringIncludes(html, 'class="badge-alert"');
+  says(html, 'class="expected-actual-notice"');
+  says(html, 'role="alert"');
+  says(html, 'class="badge-alert"');
   // Default badge label and title come from i18n.
-  assertStringIncludes(html, ">Mismatch</span>");
-  assertStringIncludes(html, "Stored total mismatch");
+  says(html, ">Mismatch</span>");
+  says(html, "Stored total mismatch");
   // Summary spells out the first item with the surrounding spacing preserved.
-  assertStringIncludes(
+  says(
     html,
     "<strong>Total</strong>: expected <strong>3</strong>, got <strong>4</strong>.",
   );
-  assertStringIncludes(
-    html,
-    "The stored value does not match the expected value.",
-  );
+  says(html, "The stored value does not match the expected value.");
 });
 
 test("ExpectedActualNotice omits the extra summary text for a single item", () => {
@@ -70,10 +68,7 @@ test("ExpectedActualNotice omits the extra summary text for a single item", () =
     items: [item()],
   })!.toString();
 
-  assert(
-    !html.includes("more)"),
-    "the value should not contain the searched item",
-  );
+  assert(!html.includes("more)"));
   // Single item: exactly one list entry.
   expect(html.match(/<li>/g)?.length).toBe(1);
 });
@@ -89,19 +84,13 @@ test("ExpectedActualNotice appends the pluralised extra count for many items", (
   })!.toString();
 
   // count = items.length - 1 = 2 → "(+2 more)".
-  assertStringIncludes(html, "(+2 more)");
-  assert(
-    !html.includes("(+3 more)"),
-    "the value should not contain the searched item",
-  );
-  assert(
-    !html.includes("(+1 more)"),
-    "the value should not contain the searched item",
-  );
+  says(html, "(+2 more)");
+  assert(!html.includes("(+3 more)"));
+  assert(!html.includes("(+1 more)"));
   // Only the first item drives the summary line, so scope the check to the
   // <summary> to make sure a later item can't satisfy it.
   const summary = html.match(/<summary>[\s\S]*?<\/summary>/)?.[0];
-  assertStringIncludes(summary ?? "", "<strong>Total</strong>: expected");
+  says(summary, "<strong>Total</strong>: expected");
   assert(
     summary !== undefined && !summary.includes("<strong>Subtotal</strong>"),
     "the value should not contain the searched item",
@@ -113,11 +102,11 @@ test("ExpectedActualNotice appends the pluralised extra count for many items", (
   // The full list renders every item, spacing between the labels and values
   // included.
   expect(html.match(/<li>/g)?.length).toBe(3);
-  assertStringIncludes(
+  says(
     html,
     "<strong>Subtotal</strong>: expected <strong>3</strong>, got <strong>4</strong>",
   );
-  assertStringIncludes(
+  says(
     html,
     "<strong>Tax</strong>: expected <strong>3</strong>, got <strong>4</strong>",
   );
@@ -131,16 +120,10 @@ test("ExpectedActualNotice honours explicit badge and title overrides", () => {
     title: "Custom title",
   })!.toString();
 
-  assertStringIncludes(html, ">Custom badge</span>");
-  assertStringIncludes(html, "Custom title");
-  assert(
-    !html.includes("Mismatch"),
-    "the value should not contain the searched item",
-  );
-  assert(
-    !html.includes("Stored total mismatch"),
-    "the value should not contain the searched item",
-  );
+  says(html, ">Custom badge</span>");
+  says(html, "Custom title");
+  assert(!html.includes("Mismatch"));
+  assert(!html.includes("Stored total mismatch"));
 });
 
 test("ExpectedActualNotice keeps empty-string overrides instead of the defaults", () => {
@@ -153,16 +136,10 @@ test("ExpectedActualNotice keeps empty-string overrides instead of the defaults"
 
   // `??` keeps the empty strings; `||` would fall back to the i18n defaults.
   // Assert the overrides are rendered as empty elements, not merely omitted.
-  assertStringIncludes(html, '<span class="badge-alert"></span>');
-  assertStringIncludes(html, "<div><p></p><p>explanation</p>");
-  assert(
-    !html.includes("Mismatch"),
-    "the value should not contain the searched item",
-  );
-  assert(
-    !html.includes("Stored total mismatch"),
-    "the value should not contain the searched item",
-  );
+  says(html, '<span class="badge-alert"></span>');
+  says(html, "<div><p></p><p>explanation</p>");
+  assert(!html.includes("Mismatch"));
+  assert(!html.includes("Stored total mismatch"));
 });
 
 test("ExpectedActualNotice renders the action link only when both parts are set", () => {
@@ -172,36 +149,27 @@ test("ExpectedActualNotice renders the action link only when both parts are set"
     explanation: "explanation",
     items: [item()],
   })!.toString();
-  assertStringIncludes(withLink, '<a href="/fix">Fix it</a>');
+  says(withLink, '<a href="/fix">Fix it</a>');
 
   const hrefOnly = ExpectedActualNotice({
     actionHref: "/fix",
     explanation: "explanation",
     items: [item()],
   })!.toString();
-  assert(
-    !hrefOnly.includes("<a href="),
-    "the value should not contain the searched item",
-  );
+  assert(!hrefOnly.includes("<a href="));
 
   const labelOnly = ExpectedActualNotice({
     actionLabel: "Fix it",
     explanation: "explanation",
     items: [item()],
   })!.toString();
-  assert(
-    !labelOnly.includes("<a href="),
-    "the value should not contain the searched item",
-  );
+  assert(!labelOnly.includes("<a href="));
 
   const neither = ExpectedActualNotice({
     explanation: "explanation",
     items: [item()],
   })!.toString();
-  assert(
-    !neither.includes("<a href="),
-    "the value should not contain the searched item",
-  );
+  assert(!neither.includes("<a href="));
 });
 
 test("ExpectedActualTableRow returns null when there are no mismatches", () => {

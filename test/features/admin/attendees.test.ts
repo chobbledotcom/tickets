@@ -5,7 +5,6 @@
  * view with the confirmation.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -17,6 +16,7 @@ import {
 } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, getTestSession } from "#test-utils/session.ts";
 
 /** Whether the roster row for one attendee on one listing is checked in. */
@@ -108,8 +108,8 @@ describeWithEnv("adding an attendee by hand", { db: true }, () => {
     );
 
     expect(response.status).toBe(302);
-    assertStringIncludes(
-      response.headers.get("location") ?? "",
+    says(
+      response.headers.get("location"),
       `/admin/listing/${listing.id}/attendees`,
     );
   });

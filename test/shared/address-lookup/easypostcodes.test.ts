@@ -3,7 +3,6 @@
  * the API fetch (stubbed at globalThis.fetch).
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -13,6 +12,7 @@ import {
   parseEasypostcodesBody,
 } from "#shared/address-lookup/easypostcodes.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("normaliseUkPostcode", () => {
   // Every Royal Mail outward format: A9, A99, AA9, AA99, A9A, AA9A.
@@ -165,16 +165,14 @@ describe("fetchEasypostcodesAddresses", () => {
     using _fetch = stubFetch(new Error("connection refused"));
     const result = await fetchEasypostcodesAddresses("SW1A 1AA", "k");
     expect(result.ok).toBe(false);
-    if (!result.ok)
-      assertStringIncludes(result.error ?? "", "connection refused");
+    if (!result.ok) says(result.error, "connection refused");
   });
 
   test("reports an unexpected response shape as a failure", async () => {
     using _fetch = stubFetch(new Response('{"weird":true}'));
     const result = await fetchEasypostcodesAddresses("SW1A 1AA", "k");
     expect(result.ok).toBe(false);
-    if (!result.ok)
-      assertStringIncludes(result.error ?? "", "unexpected response");
+    if (!result.ok) says(result.error, "unexpected response");
   });
 });
 

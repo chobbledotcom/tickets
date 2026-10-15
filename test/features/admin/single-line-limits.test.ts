@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -10,6 +9,7 @@ import { FormParams } from "#shared/form-data.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { builderForm } from "#templates/fields/builder.ts";
 import { inputNamed } from "#test-utils/assertions.ts";
+import { says } from "#test-utils/says.ts";
 
 const content = defineContentForms({
   createSlugFields: [contentSlugField()],
@@ -56,10 +56,7 @@ describe("single-line form limits", () => {
       });
 
       test(`${label} renders the declared cap for ${field}`, () => {
-        assertStringIncludes(
-          inputNamed(form.render(), field),
-          `maxlength="${cap}"`,
-        );
+        says(inputNamed(form.render(), field), `maxlength="${cap}"`);
       });
     }
   }

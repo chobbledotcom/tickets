@@ -82,14 +82,8 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
         "Listing Type",
         "Standard",
       );
-      assert(
-        !html.includes("Bookable Days"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("Booking Window"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Bookable Days"));
+      assert(!html.includes("Booking Window"));
     });
 
     test("admin listing edit page pre-fills daily config", async () => {
@@ -107,10 +101,7 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
         'value="5"',
         'value="120"',
       );
-      assert(
-        !html.includes('value="Monday" checked'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('value="Monday" checked'));
     });
 
     test("updates listing from standard to daily", async () => {
@@ -157,10 +148,7 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
         'value="2"',
         'value="45"',
       );
-      assert(
-        !html.includes('value="Monday" checked'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('value="Monday" checked'));
     });
 
     test("rejects invalid listing_type value", async () => {
@@ -204,10 +192,7 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
       const { listing } = await setupListingAndLogin();
 
       const html = await assertAdminHtml(`/admin/listing/${listing.id}`);
-      assert(
-        !html.includes("Non-Transferable"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Non-Transferable"));
     });
 
     test("admin listing edit page pre-fills non-transferable select", async () => {

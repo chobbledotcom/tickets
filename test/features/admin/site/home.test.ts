@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -15,6 +14,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin site home)", { db: true }, () => {
@@ -24,32 +24,26 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
     test("serves the home form boxes with their labels and hints", async () => {
       const { siteHomeForm } = await import("#templates/fields/site.ts");
       const html = siteHomeForm.render();
-      assertStringIncludes(html, "Website title");
-      assertStringIncludes(
+      says(html, "Website title");
+      says(
         html,
         `Displayed as the main heading on all public pages (max ${MAX_INPUT_LENGTH} characters).`,
       );
-      assertStringIncludes(
-        inputNamed(html, "website_title"),
-        'autocomplete="off"',
-      );
+      says(inputNamed(html, "website_title"), 'autocomplete="off"');
       // The id ties the label to the field; an emptied id breaks that link.
-      assertStringIncludes(
-        inputNamed(html, "website_title"),
-        'id="website_title"',
-      );
-      assertStringIncludes(html, "Homepage text");
+      says(inputNamed(html, "website_title"), 'id="website_title"');
+      says(html, "Homepage text");
       const homepage = inputNamed(html, "homepage_text");
-      assertStringIncludes(homepage, 'placeholder="Welcome to our site..."');
+      says(homepage, 'placeholder="Welcome to our site..."');
       // markdown: true wires the preview affordance to the textarea.
-      assertStringIncludes(homepage, "data-markdown-preview");
+      says(homepage, "data-markdown-preview");
     });
 
     test("serves the contact form box with its label", async () => {
       const { siteContactForm } = await import("#templates/fields/site.ts");
       const html = siteContactForm.render();
       inputNamed(html, "contact_page_text");
-      assertStringIncludes(html, "Contact page text");
+      says(html, "Contact page text");
     });
   });
 
@@ -73,8 +67,8 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
       await settings.update.homepageText("Welcome!");
       const response = await adminGet("/admin/site");
       const html = await response.text();
-      assertStringIncludes(html, "My Listings");
-      assertStringIncludes(html, "Welcome!");
+      says(html, "My Listings");
+      says(html, "Welcome!");
     });
 
     test("displays success message from flash cookie", async () => {
@@ -86,7 +80,7 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
         },
       );
       const html = await response.text();
-      assertStringIncludes(html, "Homepage updated");
+      says(html, "Homepage updated");
     });
 
     test("displays error message from flash cookie", async () => {
@@ -98,7 +92,7 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
         },
       );
       const html = await response.text();
-      assertStringIncludes(html, "Title is required");
+      says(html, "Title is required");
     });
   });
 

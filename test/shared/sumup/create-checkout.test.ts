@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -10,6 +9,7 @@ import {
   expectClosedCheckoutFailure,
   expectSameThrown,
 } from "#test-utils/checkout-failure.ts";
+import { says } from "#test-utils/says.ts";
 import {
   makeSumupClient,
   setupSumupSuite,
@@ -99,7 +99,7 @@ describe("sumup createCheckout", () => {
       expect(capture.sent().description).toBe("Evt (x2)");
       expect(capture.sent().hosted_checkout).toEqual({ enabled: true });
       expect(capture.sent().merchant_code).toBe("MC123");
-      assertStringIncludes(
+      says(
         String(capture.sent().redirect_url),
         `session_id=${result!.reference}`,
       );

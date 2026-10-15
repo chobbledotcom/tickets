@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -16,6 +15,7 @@ import {
   webhookMeta,
 } from "#test-utils/factories.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
@@ -183,7 +183,7 @@ export const expectStoredRefundRecord = async (
 export const expectStoredRefund = async (listingId: number): Promise<void> => {
   await assertJson(webhookRequest(), 200, (json) => {
     expect(json.processed).toBe(false);
-    assertStringIncludes(json.error ?? "", "saved your details");
+    says(json.error, "saved your details");
   });
   await expectStoredRefundRecord(listingId);
 };

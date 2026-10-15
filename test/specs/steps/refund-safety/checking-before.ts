@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
@@ -10,6 +11,7 @@ import {
 } from "#test/specs/support/refund-safety/journeys.ts";
 import { safetyBooking } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 import { PaymentProviderSchema } from "#types";
 import {
   expectNoRefundAction,
@@ -34,7 +36,7 @@ When(
     const browser = await openActionsAsOwner(this, who);
     await browser.clickLink("Edit");
     await browser.submitForm({}, "Save Attendee");
-    expect(browser.pageText).toContain(`Updated ${who}`);
+    says(browser.pageText, `Updated ${who}`);
   },
 );
 

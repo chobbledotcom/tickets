@@ -7,7 +7,7 @@
  */
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
@@ -17,6 +17,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createServicingHold,
   createTestServicingEvent,
@@ -78,8 +79,8 @@ describeWithEnv("servicing edge cases — date boundaries", { db: true }, () => 
       name: "Today Service",
     });
     const body = await renderAdminPage("/admin/");
-    assertStringIncludes(body, "Today Service");
-    assertStringIncludes(body, `/admin/servicing/${id}`);
+    says(body, "Today Service");
+    says(body, `/admin/servicing/${id}`);
   });
 
   test("a past-dated hold is excluded from the upcoming-events list (boundary exclusion)", async () => {
@@ -92,10 +93,7 @@ describeWithEnv("servicing edge cases — date boundaries", { db: true }, () => 
       name: "Ancient Service",
     });
     const body = await renderAdminPage("/admin/");
-    assert(
-      !body.includes("Ancient Service"),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes("Ancient Service"));
   });
 
   test("an undated servicing event always appears in upcoming regardless of created date", async () => {
@@ -113,6 +111,6 @@ describeWithEnv("servicing edge cases — date boundaries", { db: true }, () => 
       sql: "UPDATE attendees SET created = ? WHERE id = ?",
     });
     const body = await renderAdminPage("/admin/");
-    assertStringIncludes(body, "Undated Service");
+    says(body, "Undated Service");
   });
 });

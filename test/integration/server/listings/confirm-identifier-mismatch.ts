@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -6,6 +5,7 @@ import {
   expectFlash,
   followRedirectWithFlash,
 } from "#test-utils/assertions.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
 
 /**
@@ -55,6 +55,6 @@ export const testConfirmIdentifierMismatch = (
       cookie,
     );
     const html = await page.text();
-    assertStringIncludes(html, "does not match");
+    says(html, "does not match");
   });
 };

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -11,6 +12,7 @@ import {
 import { projectRoot } from "#scripts/project-root.ts";
 import { withEnvironment } from "#scripts/test-environment.ts";
 import { withTempDir } from "#test-utils/files.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Wrap raw lcov lines into one record. */
 const recordOf = (lines: string[]): string =>
@@ -176,12 +178,12 @@ describe("printFailureSummary", () => {
         printFailureSummary(failure),
       );
       const text = errors.join("\n");
-      expect(text).toContain("missing 2, 10");
-      expect(text).toContain("missing 10");
-      expect(text).toContain("| row number 2");
-      expect(text).toContain("| row number 10");
+      says(text, "missing 2, 10");
+      says(text, "missing 10");
+      says(text, "| row number 2");
+      says(text, "| row number 10");
       // The jump from the lines around 2 to the lines around 10 is shown.
-      expect(text).toContain("    ...");
+      says(text, "    ...");
     });
   });
 
@@ -195,8 +197,8 @@ describe("printFailureSummary", () => {
       printFailureSummary(failure),
     );
     const text = errors.join("\n");
-    expect(text).toContain("missing 1");
-    expect(text).not.toContain("snippets");
+    says(text, "missing 1");
+    assert(!text.includes("snippets"));
   });
 
   test("prints snippets for a failure that only has branches", async () => {
@@ -212,7 +214,7 @@ describe("printFailureSummary", () => {
       const { errors } = await runWithCapturedErrors(() =>
         printFailureSummary(failure),
       );
-      expect(errors.join("\n")).toContain("| beta");
+      says(errors.join("\n"), "| beta");
     });
   });
 
@@ -229,7 +231,7 @@ describe("printFailureSummary", () => {
       const { errors } = await runWithCapturedErrors(() =>
         printFailureSummary(failure),
       );
-      expect(errors.join("\n")).toContain("missing unknown");
+      says(errors.join("\n"), "missing unknown");
     });
   });
 
@@ -255,8 +257,8 @@ describe("printFailureSummary", () => {
         printFailureSummary(failure),
       );
       const text = errors.join("\n");
-      expect(text).toContain("| line 1");
-      expect(text).toContain("more source lines");
+      says(text, "| line 1");
+      says(text, "more source lines");
     });
   });
 });
@@ -274,7 +276,8 @@ describe("printCoverageReport", () => {
     } finally {
       logged.restore();
     }
-    expect(logged.calls[0]?.args[0]).toContain(
+    says(
+      logged.calls[0]?.args[0],
       "All files have 100% line and branch coverage",
     );
   });
@@ -289,7 +292,7 @@ describe("printCoverageReport", () => {
     );
 
     expect(result).toBe(1);
-    expect(errors.join("\n")).toContain("Test quality rules");
+    says(errors.join("\n"), "Test quality rules");
   });
 
   test("prints no GitHub annotations outside a CI run", async () => {
@@ -299,7 +302,7 @@ describe("printCoverageReport", () => {
         runWithCapturedErrors(() => printCoverageReport(withLinesFailing())),
     );
 
-    expect(errors.join("\n")).not.toContain("::error");
+    assert(!errors.join("\n").includes("::error"));
   });
 
   test("prints GitHub annotations in a CI run and caps them", async () => {
@@ -323,7 +326,7 @@ describe("printCoverageReport", () => {
     );
 
     const text = errors.join("\n");
-    expect(text).toContain("::error file=");
-    expect(text).toContain("additional coverage annotations omitted");
+    says(text, "::error file=");
+    says(text, "additional coverage annotations omitted");
   });
 });

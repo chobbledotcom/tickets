@@ -1,9 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { MaskedTextarea } from "#templates/components/masked-textarea.tsx";
+import { says } from "#test-utils/says.ts";
 
 describe("MaskedTextarea", () => {
   test("shows the mask sentinel body for a stored credential", () => {
@@ -31,14 +32,11 @@ describe("MaskedTextarea", () => {
       }),
     );
 
-    assertStringIncludes(
+    says(
       html,
       `<label>Service Account Private Key (PEM)<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="google_wallet_service_account_key" placeholder="-----BEGIN PRIVATE KEY-----" rows="4"></textarea></label>`,
     );
-    assert(
-      !html.includes(MASK_SENTINEL),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes(MASK_SENTINEL));
   });
 
   test("keeps a declared maxlength over the textarea default", () => {
@@ -52,10 +50,7 @@ describe("MaskedTextarea", () => {
       }),
     );
 
-    assertStringIncludes(html, 'maxlength="100"');
-    assert(
-      !html.includes(`maxlength="${MAX_TEXTAREA_LENGTH}"`),
-      "the value should not contain the searched item",
-    );
+    says(html, 'maxlength="100"');
+    assert(!html.includes(`maxlength="${MAX_TEXTAREA_LENGTH}"`));
   });
 });

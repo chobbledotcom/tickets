@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
@@ -12,6 +11,7 @@ import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
 import { BOOKING_AT } from "#test/shared/refund-ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { says } from "#test-utils/says.ts";
 
 const PLACEHOLDER = {
   amount: 5000,
@@ -96,12 +96,9 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
     expect(
       await transfersByAccount(attendeeAccount(PLACEHOLDER.attendeeId)),
     ).toEqual([]);
-    assertStringIncludes(errors.lastMessage() ?? "", "E_LEDGER_POST");
-    assertStringIncludes(
-      errors.lastMessage() ?? "",
-      "Placeholder refund ledger post failed",
-    );
-    assertStringIncludes(errors.lastMessage() ?? "", "attendee=7");
+    says(errors.lastMessage(), "E_LEDGER_POST");
+    says(errors.lastMessage(), "Placeholder refund ledger post failed");
+    says(errors.lastMessage(), "attendee=7");
   });
 
   test("logs and does not throw when the payment reference conflicts", async () => {
@@ -109,7 +106,7 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
     expect(
       await recordPlaceholderRefund(PLACEHOLDER, "sold_out", true),
     ).toEqual({ posted: false });
-    assertStringIncludes(errors.lastMessage() ?? "", "E_LEDGER_POST");
+    says(errors.lastMessage(), "E_LEDGER_POST");
   });
 
   test("reports a payment-only conflict as not posted", async () => {
@@ -117,6 +114,6 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
     expect(
       await recordPlaceholderRefund(PLACEHOLDER, "charge_mismatch", false),
     ).toEqual({ posted: false });
-    assertStringIncludes(errors.lastMessage() ?? "", "E_LEDGER_POST");
+    says(errors.lastMessage(), "E_LEDGER_POST");
   });
 });

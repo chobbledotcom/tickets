@@ -66,14 +66,8 @@ describeWithEnv("server listings > date and location", { db: true }, () => {
     test("admin detail page hides Listing Date and Location when empty", async () => {
       const { listing } = await setupListingAndLogin();
       const html = await assertAdminHtml(`/admin/listing/${listing.id}`);
-      assert(
-        !html.includes("Listing Date"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("<th>Location</th>"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Listing Date"));
+      assert(!html.includes("<th>Location</th>"));
     });
 
     test("admin edit page pre-fills date as split inputs", async () => {
@@ -120,14 +114,8 @@ describeWithEnv("server listings > date and location", { db: true }, () => {
       const { listing, cookie } = await setupListingAndLogin();
       await createTestAttendee(listing.id, listing.slug, "Bob", "bob@test.com");
       const csv = await fetchListingExportCsv(listing.id, cookie);
-      assert(
-        !csv.includes("Listing Date"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !csv.includes("Listing Location"),
-        "the value should not contain the searched item",
-      );
+      assert(!csv.includes("Listing Date"));
+      assert(!csv.includes("Listing Location"));
     });
 
     test("rejects invalid listing date on edit", async () => {

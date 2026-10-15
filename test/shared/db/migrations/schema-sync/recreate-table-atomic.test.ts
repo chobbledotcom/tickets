@@ -1,9 +1,10 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { recreateTable } from "#db/migrations/schema-sync.ts";
 import { setupTransactionalTestDb } from "#test-utils/db.ts";
+import { has } from "#test-utils/says.ts";
 
 /**
  * recreateTable rebuilds a table, then (re)creates its indexes and triggers, all
@@ -69,7 +70,7 @@ describe("db > recreateTable atomicity", () => {
 
     // The rebuild dropped `legacy_extra` on the staged table; its survival proves
     // the DROP/CREATE/RENAME were rolled back, not committed-then-failed.
-    assertArrayIncludes((await columnNames("users")) ?? [], ["legacy_extra"]);
+    has(await columnNames("users"), "legacy_extra");
 
     // Both duplicate rows are still present and untouched.
     const rows = await getDb().execute(
@@ -78,10 +79,7 @@ describe("db > recreateTable atomicity", () => {
     expect(rows.rows.map((row) => row.username_index)).toEqual(["dup", "dup"]);
 
     // The UNIQUE index never landed — its creation is what failed and rolled back.
-    assert(
-      !(await indexNames("users")).includes("idx_users_username_index"),
-      "the value should not contain the searched item",
-    );
+    assert(!(await indexNames("users")).includes("idx_users_username_index"));
 
     // The staged rebuild table must not be left behind either.
     const staged = await getDb().execute(
@@ -96,17 +94,12 @@ describe("db > recreateTable atomicity", () => {
     await recreateTable("users");
 
     // The extra column is gone (rebuilt from SCHEMA) and the row survived.
-    assert(
-      !(await columnNames("users")).includes("legacy_extra"),
-      "the value should not contain the searched item",
-    );
+    assert(!(await columnNames("users")).includes("legacy_extra"));
     const rows = await getDb().execute("SELECT username_index FROM users");
     expect(rows.rows.map((row) => row.username_index)).toEqual(["only"]);
 
     // The SCHEMA's UNIQUE index was (re)created in the same transaction.
-    assertArrayIncludes((await indexNames("users")) ?? [], [
-      "idx_users_username_index",
-    ]);
+    has(await indexNames("users"), "idx_users_username_index");
   });
 
   test("creates a current schema table when it is absent from the live database", async () => {

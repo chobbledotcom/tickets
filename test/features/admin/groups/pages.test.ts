@@ -1,7 +1,6 @@
 /** The admin group pages, and the routes that create, delete and illustrate a
  * group. */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -18,6 +17,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withStorageMock } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -30,14 +30,14 @@ describeWithEnv("admin group pages", { db: true }, () => {
 
     const response = await adminGet("/admin/groups");
     expect(response.status).toBe(200);
-    assertStringIncludes(await response.text(), group.name);
+    says(await response.text(), group.name);
   });
 
   test("offers a form for a new group", async () => {
     const response = await adminGet("/admin/groups/new");
 
     expect(response.status).toBe(200);
-    assertStringIncludes(await response.text(), 'name="name"');
+    says(await response.text(), 'name="name"');
   });
 
   test("opens a group's own page", async () => {
@@ -45,7 +45,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
 
     const response = await adminGet(`/admin/groups/${group.id}`);
     expect(response.status).toBe(200);
-    assertStringIncludes(await response.text(), group.name);
+    says(await response.text(), group.name);
   });
 
   test("sends the operator to the new group's page after creating it", async () => {
@@ -58,7 +58,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toMatch(/^\/admin\/groups\/\d+/);
-    assertStringIncludes(parseFlashCookie(response).success ?? "", "Group");
+    says(parseFlashCookie(response).success, "Group");
   });
 
   test("sends the operator back to the group list after deleting one", async () => {
@@ -71,7 +71,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
       },
     );
     expect(response.headers.get("location")).toMatch(/^\/admin\/groups(\?|$)/);
-    assertStringIncludes(parseFlashCookie(response).success ?? "", "Group");
+    says(parseFlashCookie(response).success, "Group");
   });
 
   test("adds an uploaded image to the group", async () => {

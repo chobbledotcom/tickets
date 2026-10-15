@@ -1,6 +1,6 @@
 /* jscpd:ignore-start -- imports */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
@@ -20,6 +20,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   connectResendProvider,
   enablePublicSite,
@@ -35,7 +36,7 @@ const reservedOrder = async (slug: string): Promise<string> => {
     name: "Jane Doe",
   });
   const location = response.headers.get("location") ?? "";
-  assertStringIncludes(location, "/ticket/reserved?tokens=");
+  says(location, "/ticket/reserved?tokens=");
   return location;
 };
 
@@ -52,7 +53,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/svg+xml");
-    assertStringIncludes(await response.text(), "svg");
+    says(await response.text(), "svg");
   });
 
   test("an unknown slug has no QR", async () => {
@@ -86,7 +87,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     await createTestListing({ groupId: group.id, name: "Stargazing Slot" });
     const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     expect(response.status).toBe(200);
-    assertStringIncludes(await response.text(), "Stargazing");
+    says(await response.text(), "Stargazing");
   });
 
   /** An opted-out group with two public tiers and one hidden tier — the group
@@ -135,12 +136,9 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "Surf Society Lesson 0");
-    assertStringIncludes(html, "Surf Society Lesson 1");
-    assert(
-      !html.includes("Surf Society Secret Tier"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Surf Society Lesson 0");
+    says(html, "Surf Society Lesson 1");
+    assert(!html.includes("Surf Society Secret Tier"));
 
     // A crafted quantity field cannot book the hidden tier either: the
     // submission prices the page's own listing set, which no longer has it.
@@ -151,10 +149,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
       [`quantity_${hiddenTier.id}`]: "3",
     });
     expect(booking.status).toBe(302);
-    assertStringIncludes(
-      booking.headers.get("location") ?? "",
-      "/ticket/reserved",
-    );
+    says(booking.headers.get("location"), "/ticket/reserved");
     const [publicRows, hiddenRows] = await Promise.all([
       getAttendeesByListingIds([publicTier.id], true),
       getAttendeesByListingIds([hiddenTier.id], true),
@@ -187,10 +182,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     expect(response.status).toBe(404);
     const listings = await handleRequest(mockRequest("/listings"));
-    assert(
-      !(await listings.text()).includes("Fan Club"),
-      "the value should not contain the searched item",
-    );
+    assert(!(await listings.text()).includes("Fan Club"));
   });
 
   test("a group that unticks the box stops showing its hidden tier", async () => {
@@ -213,17 +205,14 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     });
 
     const shown = await handleRequest(mockRequest(`/ticket/${group.slug}`));
-    assertStringIncludes(await shown.text(), "Board Game Club Secret Tier");
+    says(await shown.text(), "Board Game Club Secret Tier");
 
     await updateTestGroup(group.id, { showHiddenListings: false });
     const cleared = await handleRequest(
       mockRequest(`/ticket/${group.slug}?q_${publicTier.id}=1`),
     );
     expect(cleared.status).toBe(200);
-    assert(
-      !(await cleared.text()).includes("Board Game Club Secret Tier"),
-      "the value should not contain the searched item",
-    );
+    assert(!(await cleared.text()).includes("Board Game Club Secret Tier"));
   });
 
   /** Book one purchase-only listing and read its reserved page. */
@@ -242,29 +231,23 @@ describeWithEnv("public ticket routes", { db: true }, () => {
 
   test("the reserved page links a one-listing order's ticket, and hides the from-address while email is off", async () => {
     const html = await reservedPageHtml("Quiet Order");
-    assertStringIncludes(html, "Thank you for your order");
+    says(html, "Thank you for your order");
     expect(html).toMatch(/\/t\/[A-Za-z0-9+-]+/);
-    assert(
-      !html.includes("will be sent from"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("will be sent from"));
 
     // With no tokens at all the page still renders, and still names no sender.
     const bare = await (
       await handleRequest(mockRequest("/ticket/reserved"))
     ).text();
-    assertStringIncludes(bare, "Thank you for your order");
-    assert(
-      !bare.includes("will be sent from"),
-      "the value should not contain the searched item",
-    );
+    says(bare, "Thank you for your order");
+    assert(!bare.includes("will be sent from"));
   });
 
   test("the reserved page names the sending address once email is configured", async () => {
     await connectResendProvider();
     await settings.update.businessEmail("owner@example.com");
     const html = await reservedPageHtml("Chatty Order");
-    assertStringIncludes(html, "sent from owner@example.com");
+    says(html, "sent from owner@example.com");
   });
 
   test("a two-order reserved page joins its tokens, and a space still resolves them", async () => {
@@ -291,7 +274,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     const html = await (
       await handleRequest(mockRequest(`/ticket/reserved?tokens=${tokens}`))
     ).text();
-    assertStringIncludes(html, `/t/${tokens}`);
+    says(html, `/t/${tokens}`);
 
     // A space where the URL shows "+" resolves to the same order.
     const spaced = await (
@@ -299,7 +282,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
         mockRequest(`/ticket/reserved?tokens=${tokens.replaceAll("+", " ")}`),
       )
     ).text();
-    assertStringIncludes(spaced, `/t/${tokens}`);
+    says(spaced, `/t/${tokens}`);
   });
 
   test("a single package slug renders the package form, not the cart", async () => {
@@ -313,13 +296,10 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, `name="package_quantity_${group.id}"`);
+    says(html, `name="package_quantity_${group.id}"`);
     // Only the group fallback renders the description; the lone-package cart
     // path would drop it.
-    assertStringIncludes(
-      html,
-      "The package page names what the group page says.",
-    );
+    says(html, "The package page names what the group page says.");
   });
 
   test("a package booked beside a listing renders the cart's package section", async () => {
@@ -338,9 +318,9 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, `name="package_quantity_${group.id}"`);
-    assertStringIncludes(html, "Combo Pkg Stall");
-    assertStringIncludes(html, "Combo Addon");
+    says(html, `name="package_quantity_${group.id}"`);
+    says(html, "Combo Pkg Stall");
+    says(html, "Combo Addon");
   });
 
   test("a multi-slug page renders the cart, and a mixed unknown cart stays 404", async () => {
@@ -352,8 +332,8 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     );
     expect(cart.status).toBe(200);
     const html = await cart.text();
-    assertStringIncludes(html, "Cart Kayak");
-    assertStringIncludes(html, "Cart Sauna");
+    says(html, "Cart Kayak");
+    says(html, "Cart Sauna");
 
     const group = await createTestGroup({ name: "Cart Decoy Group" });
     await createTestListing({ groupId: group.id, name: "Cart Decoy Stall" });

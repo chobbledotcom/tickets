@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -14,6 +13,7 @@ import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import type { Listing } from "#types";
 
 const NOW_MS = 1_700_000_000_000;
@@ -274,7 +274,7 @@ describeWithEnv("renewals", { db: true }, () => {
       const logs = await getAllActivityLog();
       const renewalLog = logs.find((l) => l.message.includes("Renewal of"));
       expect(renewalLog).toBeDefined();
-      assertStringIncludes(renewalLog!.message, "2 month(s)");
+      says(renewalLog!.message, "2 month(s)");
     }),
   );
 });

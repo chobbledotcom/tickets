@@ -3,7 +3,6 @@
  *  tests in test/integration/server/logistics.test.ts exercise the same routes
  *  through the server; these are the mirror for mutation testing. */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { logisticsAgents } from "#db/logistics-agents.ts";
@@ -12,6 +11,7 @@ import { getAllUsers } from "#db/users.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createLogisticsAgent } from "#test-utils/db-helpers/logistics-agents.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("settings-logistics", { db: true }, () => {
@@ -25,7 +25,7 @@ describeWithEnv("settings-logistics", { db: true }, () => {
       "Logistics agent created",
     )(response);
     const html = await (await adminGet("/admin/logistics")).text();
-    assertStringIncludes(html, "Mirror Van");
+    says(html, "Mirror Van");
   });
 
   test("edits an agent and renames it", async () => {
@@ -101,7 +101,7 @@ describeWithEnv("settings-logistics", { db: true }, () => {
     const html = await (
       await adminGet(`/admin/logistics/${id}/actions`)
     ).text();
-    assertStringIncludes(html, `/admin/logistics/${id}/delete`);
+    says(html, `/admin/logistics/${id}/delete`);
 
     const { response } = await adminFormPost(`/admin/logistics/${id}/delete`, {
       confirm_identifier: "Delete Me",

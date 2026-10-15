@@ -5,6 +5,7 @@ import {
   commandExitCode,
   denoNpmArgs,
 } from "#scripts/deno-command.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("denoNpmArgs", () => {
   test("builds the deno run -A npm:<pkg> arg list with the extra args", () => {
@@ -49,8 +50,8 @@ describe("commandDetail", () => {
       args: ["eval", "console.log('out line'); console.error('err line');"],
     });
     expect(detail.code).toBe(0);
-    expect(detail.output).toContain("out line");
-    expect(detail.output).toContain("err line");
+    says(detail.output, "out line");
+    says(detail.output, "err line");
   });
 
   test("carries a failed child's exit code with its output", async () => {
@@ -58,6 +59,6 @@ describe("commandDetail", () => {
       args: ["eval", "console.error('it broke'); Deno.exit(2);"],
     });
     expect(detail.code).toBe(2);
-    expect(detail.output).toContain("it broke");
+    says(detail.output, "it broke");
   });
 });

@@ -17,6 +17,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -49,14 +50,14 @@ When(
 Then(
   "the organiser is told {word} was checked in",
   function (this: TicketsWorld, who: string): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(`Checked ${who} in`);
+    says(whatTheyWereTold(this, ORGANISER), `Checked ${who} in`);
   },
 );
 
 Then(
   "the organiser is told {word} was checked out",
   function (this: TicketsWorld, who: string): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(`Checked ${who} out`);
+    says(whatTheyWereTold(this, ORGANISER), `Checked ${who} out`);
   },
 );
 
@@ -116,7 +117,8 @@ Then(
     who: string,
     total: number,
   ): Promise<void> {
-    expect(await partCountOnTheList(this, listing)).toContain(
+    says(
+      await partCountOnTheList(this, listing),
       `${who}, ${listing}: ${admitted} of ${total} tickets checked in`,
     );
   },

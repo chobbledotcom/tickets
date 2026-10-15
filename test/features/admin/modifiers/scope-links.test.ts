@@ -112,10 +112,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         'name="group_ids"',
       );
       // Groups have no deactivated state, so a group option is never muted.
-      assert(
-        !html.includes('<label class="muted"><input name="group_ids"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('<label class="muted"><input name="group_ids"'));
     });
 
     test("links listings via the scope form", async () => {
@@ -241,10 +238,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
-      assert(
-        !html.includes("Linked answers"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Linked answers"));
     });
   });
 

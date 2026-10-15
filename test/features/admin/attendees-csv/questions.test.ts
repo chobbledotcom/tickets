@@ -1,9 +1,9 @@
-import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 
 /** Build a question with answers that each have a distinct numeric id. */
 const question = (
@@ -123,7 +123,7 @@ describe("CSV with custom questions", () => {
       [commaQuestion],
       new Map([[1, [30]]]),
     );
-    assertStringIncludes(header ?? "", '"Name, as printed on ticket"');
+    says(header, '"Name, as printed on ticket"');
   });
 
   test("escapes commas in answer text", () => {
@@ -136,7 +136,7 @@ describe("CSV with custom questions", () => {
       [q],
       new Map([[1, [40]]]),
     );
-    assertStringIncludes(row ?? "", '"Nuts, dairy"');
+    says(row, '"Nuts, dairy"');
   });
 
   test("escapes quotes in answer text per RFC 4180", () => {
@@ -146,7 +146,7 @@ describe("CSV with custom questions", () => {
       [q],
       new Map([[1, [50]]]),
     );
-    assertStringIncludes(row ?? "", '"She said ""hi"""');
+    says(row, '"She said ""hi"""');
   });
 
   test("ignores answer IDs that do not belong to any of the provided questions", () => {
@@ -157,10 +157,7 @@ describe("CSV with custom questions", () => {
     );
     // The unknown answer must not leak into the column or appear as "undefined"
     expect(row!.endsWith(",Small")).toBe(true);
-    assert(
-      row?.includes("undefined") === false,
-      "the value should not contain the searched item",
-    );
+    saysNot(row, "undefined", "the value should not contain the searched item");
   });
 
   test("leaves a free-text cell empty when the attendee wrote nothing", () => {

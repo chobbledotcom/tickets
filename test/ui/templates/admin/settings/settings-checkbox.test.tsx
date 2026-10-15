@@ -1,19 +1,20 @@
 /** Direct tests for settings-checkbox.tsx — the shared settings-form checkbox
  *  and the data attributes that declare an either/or pair. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
+import { says } from "#test-utils/says.ts";
 
 describe("SettingsCheckbox", () => {
   test("posts true when ticked, with its label text beside it", () => {
     const html = String(
       SettingsCheckbox({ checked: true, label: "Enabled", name: "enabled" }),
     );
-    assertStringIncludes(html, '<input checked name="enabled"');
-    assertStringIncludes(html, '<input checked name="enabled" type="checkbox"');
-    assertStringIncludes(html, "> Enabled</label>");
-    assertStringIncludes(html, 'type="checkbox" value="true"');
+    says(html, '<input checked name="enabled"');
+    says(html, '<input checked name="enabled" type="checkbox"');
+    says(html, "> Enabled</label>");
+    says(html, 'type="checkbox" value="true"');
   });
 
   test("keeps the label unstyled when no class is asked for", () => {
@@ -24,10 +25,7 @@ describe("SettingsCheckbox", () => {
         name: "enabled",
       }),
     );
-    assert(
-      !html.includes("class="),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("class="));
   });
 
   test("styles the label when a class is asked for", () => {
@@ -39,7 +37,7 @@ describe("SettingsCheckbox", () => {
         name: "enabled",
       }),
     );
-    assertStringIncludes(html, '<label class="toggle">');
+    says(html, '<label class="toggle">');
   });
 
   test("declares an either/or pair as data attributes", () => {
@@ -54,8 +52,8 @@ describe("SettingsCheckbox", () => {
         name: "is_paid_default",
       }),
     );
-    assertStringIncludes(html, 'data-exclusive-with="is_reservation"');
-    assertStringIncludes(
+    says(html, 'data-exclusive-with="is_reservation"');
+    says(
       html,
       'data-exclusive-why="A paid status can\'t also be a reservation"',
     );
@@ -69,9 +67,6 @@ describe("SettingsCheckbox", () => {
         name: "is_paid_default",
       }),
     );
-    assert(
-      !html.includes("data-exclusive"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("data-exclusive"));
   });
 });

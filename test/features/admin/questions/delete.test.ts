@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
@@ -7,6 +6,7 @@ import { expectFlashRedirect, expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withFailingOrderTrigger } from "#test-utils/db-helpers/failing-order.ts";
 import { createQuestion } from "#test-utils/questions/helpers.ts";
+import { has } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -60,9 +60,7 @@ describeWithEnv(
           true,
         )(response);
         expectStatus(404)(await adminGet(`/admin/questions/${id}`));
-        assertArrayIncludes((await activityMessages()) ?? [], [
-          "Question 'Doomed question?' deleted",
-        ]);
+        has(await activityMessages(), "Question 'Doomed question?' deleted");
       });
     });
   },

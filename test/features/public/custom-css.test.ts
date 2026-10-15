@@ -1,4 +1,3 @@
-import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -9,6 +8,7 @@ import {
 } from "#routes/public/custom-css.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 const customCss = (): Promise<Response> =>
@@ -37,7 +37,7 @@ describe("custom.css asset helpers", () => {
 
   test("emptyCustomCssResponse is an empty, uncached stylesheet", async () => {
     const res = emptyCustomCssResponse();
-    assertStringIncludes(res.headers.get("content-type") ?? "", "text/css");
+    says(res.headers.get("content-type"), "text/css");
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(await res.text()).toBe("");
   });
@@ -47,7 +47,7 @@ describeWithEnv("custom.css handler", { db: true, triggers: true }, () => {
   test("serves an empty text/css body by default", async () => {
     const res = await customCss();
     expect(res.status).toBe(200);
-    assertStringIncludes(res.headers.get("content-type") ?? "", "text/css");
+    says(res.headers.get("content-type"), "text/css");
     expect(res.headers.get("cache-control")).toBe(
       "public, max-age=31536000, immutable",
     );
@@ -58,7 +58,7 @@ describeWithEnv("custom.css handler", { db: true, triggers: true }, () => {
     const css = "body { background: rebeccapurple; }";
     await settings.update.customCss(css);
     const res = await customCss();
-    assertStringIncludes(res.headers.get("content-type") ?? "", "text/css");
+    says(res.headers.get("content-type"), "text/css");
     expect(await res.text()).toBe(css);
   });
 
@@ -83,10 +83,9 @@ describeWithEnv("custom.css handler", { db: true, triggers: true }, () => {
     await enablePublicSite();
     await settings.update.customCss("body { color: red; }");
     const before = await handleRequest(mockRequest("/"));
-    assert(
-      before.headers
-        .get("content-security-policy")
-        ?.includes("fonts.bunny.net") === false,
+    saysNot(
+      before.headers.get("content-security-policy"),
+      "fonts.bunny.net",
       "the value should not contain the searched item",
     );
 
@@ -95,7 +94,7 @@ describeWithEnv("custom.css handler", { db: true, triggers: true }, () => {
     );
     const after = await handleRequest(mockRequest("/"));
     const csp = after.headers.get("content-security-policy") ?? "";
-    assertStringIncludes(csp, "style-src 'self' https://fonts.bunny.net");
-    assertStringIncludes(csp, "font-src 'self' https://fonts.bunny.net");
+    says(csp, "style-src 'self' https://fonts.bunny.net");
+    says(csp, "font-src 'self' https://fonts.bunny.net");
   });
 });

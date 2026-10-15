@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -15,6 +14,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMockBunnyCdnApi } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Register the standard test subdomain under a 204 fetch stub, asserting the
  * canonical success result. */
@@ -329,10 +329,7 @@ describeWithEnv(
       const result = await bunnyCdnApi.deleteDnsRecord("42", 999);
       expect(result).toEqual({ ok: true });
       expect(fetchStub.calls).toHaveLength(1);
-      assertStringIncludes(
-        String(fetchStub.calls[0]!.args[0]),
-        "/dnszone/42/records/999",
-      );
+      says(String(fetchStub.calls[0]!.args[0]), "/dnszone/42/records/999");
       expect((fetchStub.calls[0]!.args[1] as RequestInit).method).toBe(
         "DELETE",
       );
@@ -424,10 +421,7 @@ describeWithEnv(
             ok: true,
           });
           expect(fetchStub.calls).toHaveLength(1);
-          assertStringIncludes(
-            String(fetchStub.calls[0]!.args[0]),
-            "/dnszone/42/records",
-          );
+          says(String(fetchStub.calls[0]!.args[0]), "/dnszone/42/records");
           expect(
             JSON.parse(
               (fetchStub.calls[0]!.args[1] as RequestInit).body as string,

@@ -4,12 +4,12 @@
  * server; this is the mirror the mutation gate runs against.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const PATH = "/admin/settings/statuses";
@@ -27,7 +27,7 @@ describeWithEnv("attendee statuses", { db: true }, () => {
     const { response } = await adminFormPost(PATH, { name: "Waiting" });
 
     await expectFlashRedirect(PATH, "Status created")(response);
-    assertStringIncludes(await (await adminGet(PATH)).text(), "Waiting");
+    says(await (await adminGet(PATH)).text(), "Waiting");
   });
 
   test("sends the operator to the status's own page after an edit", async () => {
@@ -45,8 +45,8 @@ describeWithEnv("attendee statuses", { db: true }, () => {
 
     const html = await (await adminGet(`${PATH}/${id}/delete`)).text();
 
-    assertStringIncludes(html, "Name");
-    assertStringIncludes(html, "Spare");
+    says(html, "Name");
+    says(html, "Spare");
   });
 
   test("moves a status down, and the list shows the new order", async () => {

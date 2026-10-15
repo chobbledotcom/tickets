@@ -4,7 +4,7 @@
  * plain multi-listing path.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleCartBySlugs } from "#routes/public/cart.ts";
@@ -15,6 +15,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { createFreePackage } from "#test-utils/packages.ts";
+import { says } from "#test-utils/says.ts";
 
 /** The cart page for these slugs, or null when the cart holds no package. */
 const cartResponse = (slugs: string[]): Promise<Response | null> =>
@@ -51,10 +52,10 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
     });
 
     const html = await cartHtml([group.slug, solo.slug]);
-    assertStringIncludes(html, `name="package_quantity_${group.id}"`);
-    assertStringIncludes(html, `name="quantity_${solo.id}"`);
-    assertStringIncludes(html, "Kit tent");
-    assertStringIncludes(html, "Lantern");
+    says(html, `name="package_quantity_${group.id}"`);
+    says(html, `name="quantity_${solo.id}"`);
+    says(html, "Kit tent");
+    says(html, "Lantern");
   });
 
   test("keeps one row for a listing named twice", async () => {
@@ -88,18 +89,15 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
     await deactivateTestListing(gone.id);
 
     const html = await cartHtml([group.slug, gone.slug]);
-    assert(
-      !html.includes(`name="quantity_${gone.id}"`),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "Live tent");
+    assert(!html.includes(`name="quantity_${gone.id}"`));
+    says(html, "Live tent");
   });
 
   test("shows a package on its own", async () => {
     const { group } = await createFreePackage("Lone kit", "Lone tent");
 
     const html = await cartHtml([group.slug]);
-    assertStringIncludes(html, `name="package_quantity_${group.id}"`);
-    assertStringIncludes(html, "Lone tent");
+    says(html, `name="package_quantity_${group.id}"`);
+    says(html, "Lone tent");
   });
 });

@@ -1,5 +1,4 @@
 import type { TransactionMode } from "@libsql/client";
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -21,6 +20,7 @@ import {
   createTestAttributeOption,
 } from "#test-utils/db-helpers/attributes.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { has } from "#test-utils/says.ts";
 
 const { attributes } = ADMIN_API_RESOURCES;
 
@@ -41,9 +41,10 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
         "15-20 minutes",
         "20-30 minutes",
       ]);
-      assertArrayIncludes((await activityMessages()) ?? [], [
+      has(
+        await activityMessages(),
         "Attribute option '20-30 minutes' added to Game Length",
-      ]);
+      );
     });
 
     test("loads the attribute on the primary, so a lagging replica cannot 404 it", async () => {
@@ -73,9 +74,9 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
           attribute.id,
           { text: "20-200 guests" },
         );
-        assertArrayIncludes(
+        has(
           answered.attribute.options.map((option) => option.text),
-          ["20-200 guests"],
+          "20-200 guests",
         );
       } finally {
         batchStub.restore();
@@ -146,9 +147,10 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
           text: "2-4 players",
         },
       ]);
-      assertArrayIncludes((await activityMessages()) ?? [], [
+      has(
+        await activityMessages(),
         "Attribute option '2-4 players' updated in Player Count",
-      ]);
+      );
     });
 
     test("returns 404 for an unknown attribute", async () => {
@@ -193,9 +195,10 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
       expect((await getAttributeWithOptions(attribute.id))?.options).toEqual(
         [],
       );
-      assertArrayIncludes((await activityMessages()) ?? [], [
+      has(
+        await activityMessages(),
         "Attribute option '5 minutes' deleted from Game Length",
-      ]);
+      );
     });
 
     test("rejects a delete with the wrong confirmation", async () => {

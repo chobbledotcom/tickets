@@ -1,9 +1,10 @@
 import { createClient, type ResultSet } from "@libsql/client";
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { stub } from "@std/testing/mock";
 import { insert, setDb } from "#db/client.ts";
 import { resetDb } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { has } from "#test-utils/says.ts";
 import {
   cleanupTestDbPath,
   createTrackedTestDbFile,
@@ -249,13 +250,10 @@ export const expectAttendeeCols = async (
   const cols = await client.execute("PRAGMA table_info(attendees)");
   const colNames = cols.rows.map((r) => r.name);
   for (const col of absent) {
-    assert(
-      !colNames.includes(col),
-      "the value should not contain the searched item",
-    );
+    assert(!colNames.includes(col));
   }
   for (const col of present) {
-    assertArrayIncludes(colNames, [col]);
+    has(colNames, col);
   }
 };
 

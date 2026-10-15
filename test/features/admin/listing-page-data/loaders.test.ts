@@ -3,7 +3,7 @@
  * rendering, and what the roster and activity panels put on screen.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
@@ -19,6 +19,7 @@ import type { AuthSession } from "#routes/auth.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 const SESSION: AuthSession = {
@@ -129,11 +130,11 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
     };
 
     test("lists an attendee who booked", async () => {
-      assertStringIncludes(await rosterFor(), "Ada Lovelace");
+      says(await rosterFor(), "Ada Lovelace");
     });
 
     test("ignores a chosen day on a listing not booked by the day", async () => {
-      assertStringIncludes(await rosterFor("date=2026-08-03"), "Ada Lovelace");
+      says(await rosterFor("date=2026-08-03"), "Ada Lovelace");
     });
   });
 
@@ -141,31 +142,25 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
     test("names the listing", async () => {
       const listing = await createTestListing({ name: "Winter Show" });
       const html = await overviewHtml(listing.id);
-      assertStringIncludes(html, "Winter Show");
+      says(html, "Winter Show");
     });
 
     test("links this listing's own ledger for someone who may see the money", async () => {
       const listing = await createTestListing({});
       const html = await overviewHtml(listing.id, true);
-      assertStringIncludes(html, `/admin/ledger?listing=${listing.id}`);
+      says(html, `/admin/ledger?listing=${listing.id}`);
     });
 
     test("keeps the ledger away from someone who may not", async () => {
       const listing = await createTestListing({});
       const html = await overviewHtml(listing.id, false);
-      assert(
-        !html.includes("/admin/ledger"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("/admin/ledger"));
     });
 
     test("keeps it away by default, so a caller must ask for it", async () => {
       const listing = await createTestListing({});
       const html = await overviewHtml(listing.id);
-      assert(
-        !html.includes("/admin/ledger"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("/admin/ledger"));
     });
   });
 
@@ -231,7 +226,7 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
           await loadListingRosterPanel(await loaded(parent.id), ctxWith()),
         ),
       );
-      assertStringIncludes(html, "Distinctive Child");
+      says(html, "Distinctive Child");
     });
   });
 
@@ -262,7 +257,7 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       // The date picker only appears when the booked days were collected, so
       // its presence is the assertion — the attendee row below prints the same
       // date either way.
-      assertStringIncludes(html, "All dates");
+      says(html, "All dates");
     });
   });
 
@@ -282,8 +277,8 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       );
 
       const html = await overviewHtml(listing.id);
-      assertStringIncludes(html, "Called about parking");
-      assertStringIncludes(html, "Noted Person");
+      says(html, "Called about parking");
+      says(html, "Noted Person");
     });
   });
 
@@ -306,16 +301,13 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       await askEveryone("Favourite colour");
       const listing = await createTestListing({});
       const html = await overviewHtml(listing.id);
-      assertStringIncludes(html, "Favourite colour");
+      says(html, "Favourite colour");
     });
 
     test("is left out entirely for a listing that asks nothing", async () => {
       const listing = await createTestListing({});
       const html = await overviewHtml(listing.id);
-      assert(
-        !html.includes("Favourite colour"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Favourite colour"));
     });
   });
 });

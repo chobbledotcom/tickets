@@ -5,7 +5,6 @@
  */
 
 // jscpd:ignore-start
-import { expect } from "@std/expect";
 import {
   newcomerReading,
   openAdminPage,
@@ -15,6 +14,7 @@ import {
 import { requireCheckboxOffered } from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import type { ActOnOneThing, TicketsWorld } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -54,9 +54,9 @@ export const ownerTurnsOrderPageOn: ActOnOneThing = async (world, intro) => {
   // value the route reads — not a value the story made up.
   requireCheckboxOffered(browser.currentHtml, "order_enabled", "true");
   await fillInAndSend(browser, { order_enabled: "true" }, "Save");
-  expect(browser.pageText).toContain("Order page enabled");
+  says(browser.pageText, "Order page enabled");
   await fillInAndSend(browser, { order_intro_text: intro }, "Save");
-  expect(browser.pageText).toContain("Order page updated");
+  says(browser.pageText, "Order page updated");
 };
 
 /** What a visitor on one of the front pages is shown — nothing more. The

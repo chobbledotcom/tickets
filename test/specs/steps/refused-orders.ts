@@ -5,7 +5,6 @@
  * the customer typed still filled in.
  */
 
-// jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { customPriceFieldName, quantityFieldName } from "#booking/tree.ts";
@@ -64,6 +63,8 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+// jscpd:ignore-start
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -333,7 +334,7 @@ Then(
   function (this: TicketsWorld): void {
     const attempt = sentOrder(this);
     expect(attempt.wasBooked).toBe(false);
-    expect(attempt.browser.pageText).toContain(TICKETS_UNAVAILABLE_MESSAGE);
+    says(attempt.browser.pageText, TICKETS_UNAVAILABLE_MESSAGE);
   },
 );
 
@@ -410,9 +411,7 @@ Then(
     const attempt = sentOrder(this);
     expect(attempt.wasBooked).toBe(false);
     // The site's exact words, from src/features/public/ticket-submit/prepare.ts.
-    expect(attempt.browser.pageText).toContain(
-      "Please select at least one ticket",
-    );
+    says(attempt.browser.pageText, "Please select at least one ticket");
   },
 );
 
@@ -433,7 +432,7 @@ Then(
   "the customer is told no days are available",
   function (this: TicketsWorld): void {
     const browser = browserSeenBy(this, CUSTOMERS_BROWSER);
-    expect(browser.pageText).toContain(t("public.ticket.no_dates_available"));
+    says(browser.pageText, t("public.ticket.no_dates_available"));
   },
 );
 

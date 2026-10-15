@@ -80,10 +80,7 @@ describe("encoding helpers", () => {
     const bytes = new Uint8Array([251, 255, 0, 16]);
     const encoded = toBase64Url(bytes);
     expect(encoded).toBe("-_8AEA");
-    assert(
-      !encoded.includes("="),
-      "the value should not contain the searched item",
-    );
+    assert(!encoded.includes("="));
     expect(fromBase64Url(encoded)).toEqual(bytes);
   });
 });
@@ -127,14 +124,8 @@ describe("generateTicketToken", () => {
 
   it("contains no dashes or underscores", () => {
     const token = generateTicketToken();
-    assert(
-      !token.includes("-"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !token.includes("_"),
-      "the value should not contain the searched item",
-    );
+    assert(!token.includes("-"));
+    assert(!token.includes("_"));
   });
 
   it("generates unique tokens", () => {

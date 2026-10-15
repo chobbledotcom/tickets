@@ -1,6 +1,5 @@
 /** Removing listings from a group through the typed-name confirmation. */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -18,6 +17,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { groupScopedAddOn } from "#test-utils/listing-parents/helpers.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, getTestSession } from "#test-utils/session.ts";
 
 /** The confirmed removal post: the typed group name plus the hidden ids. */
@@ -58,12 +58,9 @@ describeWithEnv("admin group listing removal", { db: true }, () => {
       )
     ).text();
 
-    assertStringIncludes(html, "Saturday Gig");
-    assertStringIncludes(
-      html,
-      "Warning: Each listing keeps its bookings and its money.",
-    );
-    assertStringIncludes(html, `value="${listing.id}"`);
+    says(html, "Saturday Gig");
+    says(html, "Warning: Each listing keeps its bookings and its money.");
+    says(html, `value="${listing.id}"`);
   });
 
   test("nothing selected sends the operator back to the group", async () => {
@@ -86,10 +83,7 @@ describeWithEnv("admin group listing removal", { db: true }, () => {
       listing.id,
     ]);
 
-    assertStringIncludes(
-      response.headers.get("location") ?? "",
-      `/admin/groups/${group.id}`,
-    );
+    says(response.headers.get("location"), `/admin/groups/${group.id}`);
     expectFlash(
       response,
       "Group name does not match. Please type the exact group name to confirm removal.",
@@ -163,7 +157,7 @@ describeWithEnv("admin group listing removal", { db: true }, () => {
     await confirmRemoval(group.id, group.name, [listing.id]);
     const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
 
-    assertStringIncludes(html, "Saturday Gig");
-    assertStringIncludes(html, t("groups.detail.no_listings"));
+    says(html, "Saturday Gig");
+    says(html, t("groups.detail.no_listings"));
   });
 });

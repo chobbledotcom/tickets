@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -22,6 +22,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 // jscpd:ignore-end
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
@@ -115,7 +116,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         expect(response.status).toBe(410);
         const body = await response.text();
-        assertStringIncludes(body, "Concealed Member XYZ");
+        says(body, "Concealed Member XYZ");
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();
@@ -176,11 +177,8 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         expect(response.status).toBe(410);
         const body = await response.text();
-        assertStringIncludes(body, "no longer accepting registrations");
-        assert(
-          !body.includes("Vanished Member XYZ"),
-          "the value should not contain the searched item",
-        );
+        says(body, "no longer accepting registrations");
+        assert(!body.includes("Vanished Member XYZ"));
         expect(mockRefund.calls[0]!.args).toEqual([
           stripeRefundRequestShape("pi_stale_pkg_group", 1000),
         ]);

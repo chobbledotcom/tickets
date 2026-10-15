@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -9,6 +8,7 @@ import {
 } from "#shared/payment-provider-status.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { has } from "#test-utils/says.ts";
 
 describeWithEnv("payment provider status", { db: true }, () => {
   test("reports no credentials for any provider on a fresh site", () => {
@@ -38,9 +38,9 @@ describeWithEnv("payment provider status", { db: true }, () => {
 
   test("answers a mode for every provider, so no page shows a blank", () => {
     for (const provider of PAYMENT_PROVIDER_IDS) {
-      assertArrayIncludes(
+      has(
         ["live", "sandbox", "test", "unknown"],
-        [paymentProviderMode(provider)],
+        paymentProviderMode(provider),
       );
     }
   });

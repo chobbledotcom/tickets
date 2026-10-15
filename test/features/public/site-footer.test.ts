@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -9,6 +9,7 @@ import {
   expectHtmlResponse,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -24,15 +25,9 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     await settings.update.siteFooter("");
 
     const home = await assertPublicHtml("/");
-    assert(
-      !home.includes(footerTag),
-      "the value should not contain the searched item",
-    );
+    assert(!home.includes(footerTag));
     const listings = await assertPublicHtml("/listings");
-    assert(
-      !listings.includes(footerTag),
-      "the value should not contain the searched item",
-    );
+    assert(!listings.includes(footerTag));
   });
 
   test("renders the footer once, at the bottom of the home page and the listings page", async () => {
@@ -61,10 +56,7 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
       "&lt;script&gt;alert(1)&lt;/script&gt;",
       "<strong>Bold</strong>",
     );
-    assert(
-      !html.includes("<script>alert(1)"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<script>alert(1)"));
   });
 
   test("keeps the footer off an embedded page", async () => {
@@ -72,12 +64,9 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     await settings.update.siteFooter("A visitor-facing note.");
 
     const embedded = await assertPublicHtml("/listings?iframe=true");
-    assert(
-      !embedded.includes(footerTag),
-      "the value should not contain the searched item",
-    );
+    assert(!embedded.includes(footerTag));
     const page = await assertPublicHtml("/listings");
-    assertStringIncludes(page, footerTag);
+    says(page, footerTag);
   });
 
   test("keeps the footer off admin pages", async () => {
@@ -86,15 +75,9 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
 
     const admin = await adminGet("/admin/settings");
     const html = await expectHtmlResponse(admin, 200);
-    assert(
-      !html.includes(footerTag),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes(footerTag));
     // The settings form shows the raw text for editing; the page must not
     // render it as markdown.
-    assert(
-      !html.includes("<strong>Admin pages must not show this</strong>"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<strong>Admin pages must not show this</strong>"));
   });
 });

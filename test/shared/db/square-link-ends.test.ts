@@ -2,8 +2,6 @@
  * worker at a time, moved on by what Square's answer proved, and taken away
  * by the completion when a payment lands. */
 
-import { assert } from "@std/assert";
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { decrypt } from "#crypto/encryption.ts";
@@ -26,6 +24,7 @@ import {
   WINDOW_END,
 } from "#test/shared/square/link-end-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { saysNot } from "#test-utils/says.ts";
 
 /* jscpd:ignore-end */
 
@@ -40,8 +39,9 @@ describeWithEnv("square link ends", { db: true }, () => {
       "link_sq_stage",
     );
     // The session id itself never rests in the row, only its one-way hash.
-    assert(
-      row?.sealed_handle?.includes("sq_stage") === false,
+    saysNot(
+      row?.sealed_handle,
+      "sq_stage",
       "the value should not contain the searched item",
     );
   });

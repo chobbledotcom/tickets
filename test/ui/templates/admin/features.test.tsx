@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -12,6 +12,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 
 const FEATURE = ADMIN_FEATURES.find((feature) => feature.key === "attributes");
 if (!FEATURE) throw new Error("Attributes feature definition was not found");
@@ -40,13 +41,13 @@ describe("admin feature templates", () => {
     const html = String(FeaturesTable({ enabledFeatures }));
 
     for (const feature of ADMIN_FEATURES) {
-      assertStringIncludes(html, `href="/admin/features/${feature.slug}"`);
+      says(html, `href="/admin/features/${feature.slug}"`);
     }
-    assertStringIncludes(
+    says(
       html,
       '<td><a href="/admin/features/attributes">Attributes</a></td><td>Enabled</td>',
     );
-    assertStringIncludes(
+    says(
       html,
       '<td><a href="/admin/features/site">Site</a></td><td>Disabled</td>',
     );
@@ -56,56 +57,32 @@ describe("admin feature templates", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = renderFeature({ enabled: true });
 
-    assertStringIncludes(html, 'action="/admin/features/attributes"');
-    assertStringIncludes(
-      html,
-      '<input checked name="enabled" type="radio" value="true">',
-    );
-    assertStringIncludes(
-      html,
-      '<input name="enabled" type="radio" value="false">',
-    );
-    assertStringIncludes(html, "Save feature");
-    assert(
-      !html.includes("This feature is in use."),
-      "the value should not contain the searched item",
-    );
+    says(html, 'action="/admin/features/attributes"');
+    says(html, '<input checked name="enabled" type="radio" value="true">');
+    says(html, '<input name="enabled" type="radio" value="false">');
+    says(html, "Save feature");
+    assert(!html.includes("This feature is in use."));
   });
 
   test("shows an in-use feature status without a form", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = renderFeature({ enabled: true, inUse: true });
 
-    assertStringIncludes(html, "<strong>Status:</strong> Enabled");
-    assertStringIncludes(html, "This feature is in use.");
-    assertStringIncludes(html, "Remove its saved items before you disable it.");
-    assert(
-      !html.includes('action="/admin/features/attributes"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('name="enabled"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "<strong>Status:</strong> Enabled");
+    says(html, "This feature is in use.");
+    says(html, "Remove its saved items before you disable it.");
+    assert(!html.includes('action="/admin/features/attributes"'));
+    assert(!html.includes('name="enabled"'));
   });
 
   test("shows a disabled read-only status without in-use help or controls", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = renderFeature();
 
-    assertStringIncludes(html, "<strong>Status:</strong> Disabled");
-    assert(
-      !html.includes("This feature is in use."),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('action="/admin/features/attributes"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('name="enabled"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "<strong>Status:</strong> Disabled");
+    assert(!html.includes("This feature is in use."));
+    assert(!html.includes('action="/admin/features/attributes"'));
+    assert(!html.includes('name="enabled"'));
   });
 
   test("renders submitted error and success notices", () => {
@@ -115,11 +92,11 @@ describe("admin feature templates", () => {
       success: "Attributes enabled.",
     });
 
-    assertStringIncludes(html, '<div class="success" role="alert">');
-    assertStringIncludes(html, "Attributes enabled.");
+    says(html, '<div class="success" role="alert">');
+    says(html, "Attributes enabled.");
     expect(html).toMatch(
       /<div(?=[^>]*class="error")(?=[^>]*role="alert")[^>]*>/,
     );
-    assertStringIncludes(html, "Choose a value.");
+    says(html, "Choose a value.");
   });
 });

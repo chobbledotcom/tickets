@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -10,6 +9,7 @@ import {
   MOCK_DB_RESULT,
   stubBuildSiteApis,
 } from "#test-utils/builder-mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Stub `testDbConnection` to resolve `ok: true`. */
 const stubDbOk = () =>
@@ -182,7 +182,7 @@ describeWithEnv(
     test("GET /admin/builder shows empty sites message", async () => {
       const response = await adminGet("/admin/builder");
       const html = await response.text();
-      assertStringIncludes(html, "No sites have been built yet");
+      says(html, "No sites have been built yet");
     });
 
     test("GET /admin/builder displays success flash", async () => {
@@ -194,7 +194,7 @@ describeWithEnv(
         },
       );
       const html = await response.text();
-      assertStringIncludes(html, "Site created");
+      says(html, "Site created");
     });
 
     test("GET /admin/builder displays error flash", async () => {
@@ -206,7 +206,7 @@ describeWithEnv(
         },
       );
       const html = await response.text();
-      assertStringIncludes(html, "Build failed");
+      says(html, "Build failed");
     });
 
     test("POST /admin/builder returns error when site name is empty", async () => {
@@ -521,8 +521,8 @@ describeWithEnv(
 
       const response = await adminGet("/admin/builder");
       const html = await response.text();
-      assertStringIncludes(html, "Table Test Site");
-      assertStringIncludes(html, "test-42.b-cdn.net");
+      says(html, "Table Test Site");
+      says(html, "test-42.b-cdn.net");
     });
 
     test("POST /admin/builder passes deno hosting_provider to buildSite", async () => {

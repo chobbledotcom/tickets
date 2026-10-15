@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -26,6 +26,7 @@ import {
   selectOptionsFromHtml,
   selectOptionsHtml,
 } from "#test-utils/parents-gate/helpers.ts";
+import { says } from "#test-utils/says.ts";
 import type { Listing } from "#types";
 
 // jscpd:ignore-end
@@ -53,12 +54,9 @@ const renderHidingChildName = async (
   child: Listing,
 ): Promise<string> => {
   const html = await bookingPageHtml(parent.slug);
-  assertStringIncludes(html, `data-sole-child="${child.id}"`);
-  assertStringIncludes(html, `name="child_price_${parent.id}_${child.id}"`);
-  assert(
-    !html.includes("Hidden add-on"),
-    "the value should not contain the searched item",
-  );
+  says(html, `data-sole-child="${child.id}"`);
+  says(html, `name="child_price_${parent.id}_${child.id}"`);
+  assert(!html.includes("Hidden add-on"));
   return html;
 };
 
@@ -106,12 +104,12 @@ describeWithEnv(
         html,
         `child_qty_${parent.id}_${childB.id}`,
       );
-      assertStringIncludes(optionsB, 'value="1" selected');
+      says(optionsB, 'value="1" selected');
       const optionsA = selectOptionsFromHtml(
         html,
         `child_qty_${parent.id}_${childA.id}`,
       );
-      assertStringIncludes(optionsA, 'value="0" selected');
+      says(optionsA, 'value="0" selected');
     });
 
     test("pay-more children render non-required price inputs", async () => {
@@ -129,27 +127,17 @@ describeWithEnv(
       ];
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(
+      says(
         html,
         `<fieldset class="child-selector" data-parent-id="${parent.id}">`,
       );
-      assertStringIncludes(
-        html,
-        `name="child_price_${parent.id}_${childA.id}"`,
-      );
-      assertStringIncludes(
-        html,
-        `name="child_price_${parent.id}_${childB.id}"`,
-      );
-      assertStringIncludes(
-        html,
-        `name="child_qty_${parent.id}_${fixedChild.id}"`,
-      );
+      says(html, `name="child_price_${parent.id}_${childA.id}"`);
+      says(html, `name="child_price_${parent.id}_${childB.id}"`);
+      says(html, `name="child_qty_${parent.id}_${fixedChild.id}"`);
       assert(
         !html.includes(`name="child_price_${parent.id}_${fixedChild.id}"`),
-        "the value should not contain the searched item",
       );
-      assertStringIncludes(
+      says(
         html,
         `data-child-qty="${fixedChild.id}"><option value="0" selected>0</option><option value="1">1</option></select> Child 3 (£10)</label></fieldset>`,
       );
@@ -173,21 +161,15 @@ describeWithEnv(
       await deactivateTestListing(deadChild.id);
 
       const html = await bookingPageHtml(parent.slug);
-      assert(
-        !html.includes(`name="child_qty_${parent.id}_${liveChild.id}"`),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, `data-sole-child="${liveChild.id}"`);
+      assert(!html.includes(`name="child_qty_${parent.id}_${liveChild.id}"`));
+      says(html, `data-sole-child="${liveChild.id}"`);
       expect(html).toMatch(
         new RegExp(
           `<select name="child_qty_${parent.id}_${deadChild.id}"[^>]*\\sdisabled`,
         ),
       );
-      assert(
-        !html.includes(`name="child_price_${parent.id}_${deadChild.id}"`),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(
+      assert(!html.includes(`name="child_price_${parent.id}_${deadChild.id}"`));
+      says(
         html,
         `<select name="child_qty_${parent.id}_${deadChild.id}" disabled><option value="0" selected>0</option></select> Child 2 (unavailable)</label></fieldset>`,
       );
@@ -201,39 +183,21 @@ describeWithEnv(
       const [childA, childB] = [children[0]!, children[1]!];
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(
-        html,
-        `<select name="child_qty_${parent.id}_${childA.id}"`,
-      );
-      assertStringIncludes(
-        html,
-        `<select name="child_qty_${parent.id}_${childB.id}"`,
-      );
+      says(html, `<select name="child_qty_${parent.id}_${childA.id}"`);
+      says(html, `<select name="child_qty_${parent.id}_${childB.id}"`);
       const optionsA = await selectOptionsHtml(
         parent.slug,
         `child_qty_${parent.id}_${childA.id}`,
       );
-      assertStringIncludes(optionsA, 'value="2"');
-      assert(
-        !optionsA.includes('value="3"'),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(
-        html,
-        "Choose add-ons to match your ticket quantity",
-      );
-      assert(
-        !html.includes("Choose 2 add-ons in total"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(
+      says(optionsA, 'value="2"');
+      assert(!optionsA.includes('value="3"'));
+      says(html, "Choose add-ons to match your ticket quantity");
+      assert(!html.includes("Choose 2 add-ons in total"));
+      says(
         html,
         `<p class="child-total-note" data-child-total="${parent.id}">Choose add-ons to match your ticket quantity. <span class="child-total-hint" data-child-hint="${parent.id}"></span></p>`,
       );
-      assertStringIncludes(
-        html,
-        "<legend>Choose an option for Parent</legend>",
-      );
+      says(html, "<legend>Choose an option for Parent</legend>");
     });
 
     test("a sole pay-more child renders its price input", async () => {
@@ -242,11 +206,8 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      assert(
-        !html.includes(`name="child_qty_${parent.id}_${child.id}"`),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, `name="child_price_${parent.id}_${child.id}"`);
+      assert(!html.includes(`name="child_qty_${parent.id}_${child.id}"`));
+      says(html, `name="child_price_${parent.id}_${child.id}"`);
     });
 
     test("a sole free child is informational", async () => {
@@ -256,41 +217,23 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      assert(
-        !html.includes(`name="child_qty_${parent.id}_${child.id}"`),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, `data-sole-child="${child.id}"`);
+      assert(!html.includes(`name="child_qty_${parent.id}_${child.id}"`));
+      says(html, `data-sole-child="${child.id}"`);
       // An ordinary sole child shows its name alone — no plan term.
-      assertStringIncludes(
+      says(
         html,
         `<p class="child-option child-sole" data-sole-parent="${parent.id}" data-sole-child="${child.id}">Add-on</p>`,
       );
-      assertStringIncludes(
+      says(
         html,
         `<fieldset class="child-selector" data-parent-id="${parent.id}"><p class="child-option child-sole"`,
       );
-      assertStringIncludes(html, "Add-on");
-      assert(
-        !html.includes("Includes"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("one per booking"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("Choose an option for"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("Choose add-ons to match your ticket quantity"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("(£0"),
-        "the value should not contain the searched item",
-      );
+      says(html, "Add-on");
+      assert(!html.includes("Includes"));
+      assert(!html.includes("one per booking"));
+      assert(!html.includes("Choose an option for"));
+      assert(!html.includes("Choose add-ons to match your ticket quantity"));
+      assert(!html.includes("(£0"));
     });
 
     test("a sole paid child shows its name and price", async () => {
@@ -299,40 +242,25 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(html, `data-sole-child="${child.id}"`);
-      assertStringIncludes(html, "Paid add-on");
-      assertStringIncludes(html, "(£10");
-      assert(
-        !html.includes("Includes"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("one per booking"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("Choose an option for"),
-        "the value should not contain the searched item",
-      );
+      says(html, `data-sole-child="${child.id}"`);
+      says(html, "Paid add-on");
+      says(html, "(£10");
+      assert(!html.includes("Includes"));
+      assert(!html.includes("one per booking"));
+      assert(!html.includes("Choose an option for"));
     });
 
     test("a sole hidden child keeps its markers without showing its name", async () => {
       const { parent, child } = await makeHiddenSoleChild();
 
       const html = await renderHidingChildName(parent, child);
-      assertStringIncludes(
+      says(
         html,
         `<p class="child-option child-sole" data-sole-parent="${parent.id}" data-sole-child="${child.id}"></p><label>Price per ticket`,
       );
-      assertStringIncludes(html, "</label></fieldset>");
-      assert(
-        !html.includes("Includes"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("Choose an option for"),
-        "the value should not contain the searched item",
-      );
+      says(html, "</label></fieldset>");
+      assert(!html.includes("Includes"));
+      assert(!html.includes("Choose an option for"));
     });
 
     test("a visible sole child shows its selected attributes", async () => {
@@ -342,10 +270,10 @@ describeWithEnv(
       await giveAdultsAudience(child.id);
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(html, `data-sole-child="${child.id}"`);
-      assertStringIncludes(html, "listing-attributes");
-      assertStringIncludes(html, "Audience");
-      assertStringIncludes(html, "Adults");
+      says(html, `data-sole-child="${child.id}"`);
+      says(html, "listing-attributes");
+      says(html, "Audience");
+      says(html, "Adults");
     });
 
     test("a hidden sole child does not show its attributes", async () => {
@@ -353,14 +281,8 @@ describeWithEnv(
       await giveAdultsAudience(child.id);
 
       const html = await renderHidingChildName(parent, child);
-      assert(
-        !html.includes("Audience"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("Adults"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Audience"));
+      assert(!html.includes("Adults"));
     });
 
     test("an all-free multi-child selector hides every price", async () => {
@@ -373,19 +295,16 @@ describeWithEnv(
       const [childA, childB] = [children[0]!, children[1]!];
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(html, "Choose an option for Parent");
-      assertStringIncludes(html, "Free A");
-      assertStringIncludes(html, "Free B");
-      assertStringIncludes(html, `name="child_qty_${parent.id}_${childA.id}"`);
-      assertStringIncludes(html, `name="child_qty_${parent.id}_${childB.id}"`);
-      assertStringIncludes(
+      says(html, "Choose an option for Parent");
+      says(html, "Free A");
+      says(html, "Free B");
+      says(html, `name="child_qty_${parent.id}_${childA.id}"`);
+      says(html, `name="child_qty_${parent.id}_${childB.id}"`);
+      says(
         html,
         `Free A</label><label class="child-option"><select name="child_qty_${parent.id}_${childB.id}"`,
       );
-      assert(
-        !html.includes("(£0"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("(£0"));
     });
 
     test("a mixed-price selector shows every price", async () => {
@@ -397,11 +316,11 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(html, "Choose an option for Parent");
-      assertStringIncludes(html, "Free A");
-      assertStringIncludes(html, "Paid B");
-      assertStringIncludes(html, "(£0");
-      assertStringIncludes(html, "(£10");
+      says(html, "Choose an option for Parent");
+      says(html, "Free A");
+      says(html, "Paid B");
+      says(html, "(£0");
+      says(html, "(£10");
     });
   },
 );

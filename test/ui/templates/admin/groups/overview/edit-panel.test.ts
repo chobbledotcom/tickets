@@ -1,12 +1,13 @@
 /** Tests for the group Edit panel: the form fields an existing group's own
  * page draws — its package member prices, and its stored yes/no boxes. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { GroupEditPanel } from "#templates/admin/groups/form.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("GroupEditPanel package members table", () => {
   beforeAll(setupAdminPageTest);
@@ -26,10 +27,10 @@ describe("GroupEditPanel package members table", () => {
         members,
       }),
     );
-    assertStringIncludes(html, 'name="package_price_1"');
-    assertStringIncludes(html, 'value="15.00"');
-    assertStringIncludes(html, 'name="package_qty_1"');
-    assertStringIncludes(html, 'value="4"');
+    says(html, 'name="package_price_1"');
+    says(html, 'value="15.00"');
+    says(html, 'name="package_qty_1"');
+    says(html, 'value="4"');
     // Listing 2 (no row): blank price, quantity defaults to 1.
     expect(html).toMatch(
       /<input(?=[^>]*name="package_price_2")(?=[^>]*value="")[^>]*>/,
@@ -46,10 +47,10 @@ describe("GroupEditPanel package members table", () => {
     const html = String(
       GroupEditPanel({ group: opening, listings: [], members: new Map() }),
     );
-    assertStringIncludes(
+    says(
       html.match(
         /<input type="checkbox" name="scan_checks_in_all_listings"[^>]*>/,
-      )![0] ?? "",
+      )![0],
       " checked",
     );
 
@@ -75,7 +76,7 @@ describe("GroupEditPanel package members table", () => {
     const html = String(
       GroupEditPanel({ group, listings: [], members: new Map() }),
     );
-    assertStringIncludes(html, "Add listings to this group");
+    says(html, "Add listings to this group");
   });
 
   test("leaves the JSON export on the Actions tab", () => {
@@ -84,9 +85,6 @@ describe("GroupEditPanel package members table", () => {
       GroupEditPanel({ group, listings: [], members: new Map() }),
     );
     // The Actions panel owns the export link; the Edit panel omits it.
-    assert(
-      !html.includes(`/admin/groups/${group.id}/export.json`),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes(`/admin/groups/${group.id}/export.json`));
   });
 });

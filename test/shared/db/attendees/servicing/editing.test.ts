@@ -14,12 +14,12 @@
  */
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createDailyListingPair,
   createServicingHold,
@@ -150,8 +150,8 @@ describeWithEnv(
       await deactivateTestListing(listing.id);
 
       const body = await renderAdminPage(`/admin/servicing/${id}`);
-      assertStringIncludes(body, "Boiler Room");
-      assertStringIncludes(body, "(inactive)");
+      says(body, "Boiler Room");
+      says(body, "(inactive)");
       expect(body).toMatch(
         new RegExp(`name="quantity_${listing.id}"[^>]*value="2"`),
       );
@@ -194,8 +194,8 @@ describeWithEnv(
       });
 
       const body = await renderAdminPage(`/admin/servicing/${id}`);
-      assertStringIncludes(body, "no longer exist");
-      assertStringIncludes(body, "will be removed");
+      says(body, "no longer exist");
+      says(body, "will be removed");
     });
   },
 );

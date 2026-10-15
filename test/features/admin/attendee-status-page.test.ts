@@ -4,12 +4,12 @@
  * these ask the routes it produces rather than the fields it sets.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, getTestAuthSession } from "#test-utils/session.ts";
 
 const PATH = "/admin/settings/statuses";
@@ -25,8 +25,8 @@ describeWithEnv("the attendee status page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, `action="${PATH}/${status.id}/edit"`);
-    assertStringIncludes(html, status.name);
+    says(html, `action="${PATH}/${status.id}/edit"`);
+    says(html, status.name);
   });
 
   test("marks the statuses list as the section it belongs to", async () => {
@@ -34,7 +34,7 @@ describeWithEnv("the attendee status page", { db: true }, () => {
 
     const html = await (await adminGet(`${PATH}/${status.id}`)).text();
 
-    assertStringIncludes(html, `<a class="active" href="${PATH}">`);
+    says(html, `<a class="active" href="${PATH}">`);
   });
 
   test("offers deleting the status on its actions tab", async () => {
@@ -44,8 +44,8 @@ describeWithEnv("the attendee status page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, `href="${PATH}/${status.id}/delete"`);
-    assertStringIncludes(html, "Delete status");
+    says(html, `href="${PATH}/${status.id}/delete"`);
+    says(html, "Delete status");
   });
 
   test("answers 404 for a status that is not there", async () => {
@@ -69,7 +69,7 @@ describeWithEnv("the attendee status page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(400);
-    assertStringIncludes(html, "Half typed");
-    assertStringIncludes(html, "Name is already taken");
+    says(html, "Half typed");
+    says(html, "Name is already taken");
   });
 });

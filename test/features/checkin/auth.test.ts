@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { logisticsAgents } from "#db/logistics-agents.ts";
@@ -15,6 +15,7 @@ import {
 } from "#test-utils/logistics.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestAgentSession,
   createTestEditorSession,
@@ -61,31 +62,20 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       );
 
       const allowedBody = await readTicketPage(own.token, cookie);
-      assertStringIncludes(allowedBody, "Assigned Person");
+      says(allowedBody, "Assigned Person");
       // An agent's run-sheet view never carries the bulk actions: their
       // session is not a door role, so the POST would refuse them.
-      assert(
-        !allowedBody.includes('name="check_in"'),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(allowedBody, "assigned@example.com");
-      assert(
-        !allowedBody.includes("Check In All"),
-        "the value should not contain the searched item",
-      );
+      assert(!allowedBody.includes('name="check_in"'));
+      says(allowedBody, "assigned@example.com");
+      assert(!allowedBody.includes("Check In All"));
       assert(
         !allowedBody.includes(`href="/admin/attendees/${own.attendee.id}"`),
-        "the value should not contain the searched item",
       );
-      assert(
-        !allowedBody.includes(`href="/admin/listing/${own.listing.id}"`),
-        "the value should not contain the searched item",
-      );
+      assert(!allowedBody.includes(`href="/admin/listing/${own.listing.id}"`));
       assert(
         !allowedBody.includes(
           `/admin/listing/${own.listing.id}/attendee/${own.attendee.id}/checkin`,
         ),
-        "the value should not contain the searched item",
       );
 
       const forbidden = await awaitTestRequest(`/checkin/${other.token}`, {
@@ -93,14 +83,8 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       });
       expect(forbidden.status).toBe(403);
       const forbiddenBody = await forbidden.text();
-      assert(
-        !forbiddenBody.includes("Other Person"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !forbiddenBody.includes("other@example.com"),
-        "the value should not contain the searched item",
-      );
+      assert(!forbiddenBody.includes("Other Person"));
+      assert(!forbiddenBody.includes("other@example.com"));
 
       const mixed = await awaitTestRequest(
         `/checkin/${own.token}+${other.token}`,
@@ -108,29 +92,16 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       );
       expect(mixed.status).toBe(200);
       const mixedBody = await mixed.text();
-      assertStringIncludes(mixedBody, "Assigned Person");
-      assertStringIncludes(mixedBody, "assigned@example.com");
-      assert(
-        !mixedBody.includes("Other Person"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !mixedBody.includes("other@example.com"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !mixedBody.includes(`href="/admin/attendees/${own.attendee.id}"`),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !mixedBody.includes(`href="/admin/listing/${own.listing.id}"`),
-        "the value should not contain the searched item",
-      );
+      says(mixedBody, "Assigned Person");
+      says(mixedBody, "assigned@example.com");
+      assert(!mixedBody.includes("Other Person"));
+      assert(!mixedBody.includes("other@example.com"));
+      assert(!mixedBody.includes(`href="/admin/attendees/${own.attendee.id}"`));
+      assert(!mixedBody.includes(`href="/admin/listing/${own.listing.id}"`));
       assert(
         !mixedBody.includes(
           `/admin/listing/${own.listing.id}/attendee/${own.attendee.id}/checkin`,
         ),
-        "the value should not contain the searched item",
       );
     });
 
@@ -158,17 +129,11 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       await refundThroughLedger(own.attendee.id, own.listing.id);
 
       const body = await readTicketPage(own.token, cookie);
-      assertStringIncludes(body, "Refunded Person");
+      says(body, "Refunded Person");
       // A refunded leg offers nothing to change, and an agent's session is
       // not a door role: no bulk action may appear.
-      assert(
-        !body.includes("Check In All"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes('name="check_in"'),
-        "the value should not contain the searched item",
-      );
+      assert(!body.includes("Check In All"));
+      assert(!body.includes('name="check_in"'));
     });
 
     test("a scanner's door role alone offers no action on a token no row can change", async () => {
@@ -184,19 +149,10 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       // A door role is one half of the bulk action's gate; the other half is
       // a row the POST could change. A fully refunded token meets neither
       // offer: the POST would refuse, so the page must not advertise it.
-      assertStringIncludes(body, "Still Home");
-      assert(
-        !body.includes("Check In All"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("Check Out All"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes('name="check_in"'),
-        "the value should not contain the searched item",
-      );
+      says(body, "Still Home");
+      assert(!body.includes("Check In All"));
+      assert(!body.includes("Check Out All"));
+      assert(!body.includes('name="check_in"'));
     });
 
     test("keeps the door-safe columns even when a staff layout names contact ones", async () => {
@@ -216,19 +172,10 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       // An operator's saved column order is a staff-table choice; the
       // door-only ticket page always reads its own fixed door-safe columns,
       // so a contact column can never ride onto a door worker's screen.
-      assertStringIncludes(body, "<th>Name</th>");
-      assert(
-        !body.includes("perry@test.com"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("<th>Email</th>"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("<th>Phone</th>"),
-        "the value should not contain the searched item",
-      );
+      says(body, "<th>Name</th>");
+      assert(!body.includes("perry@test.com"));
+      assert(!body.includes("<th>Email</th>"));
+      assert(!body.includes("<th>Phone</th>"));
     });
 
     test("delivery agents see only the row whose leg is on their run sheet when one attendee has two rows on the same listing on different dates", async () => {
@@ -261,20 +208,14 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       const body = await readTicketPage(token, cookie);
 
       // The agent owns only Row A, so only its quantity appears.
-      assertStringIncludes(body, "Multi Row Person");
-      assertStringIncludes(body, "multirow@example.com");
+      says(body, "Multi Row Person");
+      says(body, "multirow@example.com");
       // Row A's quantity (2) is visible; Row B's quantity (3) never is.
-      assertStringIncludes(body, ">2<");
-      assert(
-        !body.includes(">3<"),
-        "the value should not contain the searched item",
-      );
+      says(body, ">2<");
+      assert(!body.includes(">3<"));
       // Row A's date label is visible; Row B's later date must not leak.
-      assertStringIncludes(body, formatDateLabel(today));
-      assert(
-        !body.includes(formatDateLabel(laterDate)),
-        "the value should not contain the searched item",
-      );
+      says(body, formatDateLabel(today));
+      assert(!body.includes(formatDateLabel(laterDate)));
     });
 
     test("delivery agents see a leg that is on tomorrow's run sheet", async () => {
@@ -300,7 +241,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       );
 
       const body = await readTicketPage(token, cookie);
-      assertStringIncludes(body, "Tomorrow Person");
+      says(body, "Tomorrow Person");
     });
   });
 
@@ -318,14 +259,8 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
       expect(response.status).toBe(403);
       const body = await response.text();
-      assert(
-        !body.includes("Editor Hidden"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("editor-hidden@example.com"),
-        "the value should not contain the searched item",
-      );
+      assert(!body.includes("Editor Hidden"));
+      assert(!body.includes("editor-hidden@example.com"));
     });
   });
 
@@ -341,18 +276,12 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
 
       const body = await readTicketPage(token, cookie);
 
-      assertStringIncludes(body, "Door Guest");
-      assertStringIncludes(body, "Check In All");
+      says(body, "Door Guest");
+      says(body, "Check In All");
       // The admin pages behind these links stay shut for a scanner login, so
       // the page must not promise them (never render a forbidden link).
-      assert(
-        !body.includes('href="/admin/attendees/'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes('href="/admin/listing/'),
-        "the value should not contain the searched item",
-      );
+      assert(!body.includes('href="/admin/attendees/'));
+      assert(!body.includes('href="/admin/listing/'));
     });
   });
 });

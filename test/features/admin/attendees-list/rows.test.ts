@@ -3,7 +3,7 @@
  * it pages the grouped rows.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ATTENDEES_PAGE_SIZE } from "#db/attendees/queries.ts";
@@ -14,6 +14,7 @@ import {
   createMultiBookingAttendee,
   createTestAttendeeDirect,
 } from "#test-utils/db-helpers/attendees.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { makeListing, seedListingFilterPair } from "./helpers.ts";
 
@@ -32,7 +33,7 @@ describeWithEnv("the attendees browser rows", { db: true }, () => {
 
       const response = await adminGet("/admin/attendees");
       const html = await response.text();
-      assertStringIncludes(
+      says(
         html,
         '<span class="listings-cell" title="Alpha Show, Beta Show">' +
           `<a href="/admin/listing/${alpha.id}">Alpha Show</a>, ` +
@@ -55,7 +56,7 @@ describeWithEnv("the attendees browser rows", { db: true }, () => {
 
       const response = await adminGet("/admin/attendees");
       const html = await response.text();
-      assertStringIncludes(html, '<td class="col-quantity">5</td>');
+      says(html, '<td class="col-quantity">5</td>');
     });
   });
 
@@ -80,12 +81,9 @@ describeWithEnv("the attendees browser rows", { db: true }, () => {
 
       const response = await adminGet("/admin/attendees?page=0");
       const html = await response.text();
-      assertStringIncludes(html, "Alice");
+      says(html, "Alice");
       // First page has no previous link.
-      assert(
-        !html.includes('rel="prev"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('rel="prev"'));
     });
 
     test("shows the whole page with no paging links when the attendees exactly fill it", async () => {
@@ -100,15 +98,9 @@ describeWithEnv("the attendees browser rows", { db: true }, () => {
 
       const response = await adminGet("/admin/attendees");
       const html = await response.text();
-      assertStringIncludes(html, "OldestExact");
-      assert(
-        !html.includes('rel="next"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('rel="prev"'),
-        "the value should not contain the searched item",
-      );
+      says(html, "OldestExact");
+      assert(!html.includes('rel="next"'));
+      assert(!html.includes('rel="prev"'));
     });
 
     test("paginates by attendee, keeping a grouped row's bookings together", async () => {
@@ -125,28 +117,19 @@ describeWithEnv("the attendees browser rows", { db: true }, () => {
       // Page 0: newest PAGE_SIZE attendees, a next link, no previous link.
       const first = await adminGet("/admin/attendees");
       const firstHtml = await first.text();
-      assert(
-        !firstHtml.includes("OldestPerson"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(firstHtml, 'rel="next"');
-      assertStringIncludes(firstHtml, 'href="/admin/attendees?page=1"');
-      assert(
-        !firstHtml.includes('rel="prev"'),
-        "the value should not contain the searched item",
-      );
+      assert(!firstHtml.includes("OldestPerson"));
+      says(firstHtml, 'rel="next"');
+      says(firstHtml, 'href="/admin/attendees?page=1"');
+      assert(!firstHtml.includes('rel="prev"'));
 
       // Page 1: the remaining oldest attendee — one row carrying both
       // listings — a previous link, no next link.
       const second = await adminGet("/admin/attendees?page=1");
       const secondHtml = await second.text();
-      assertStringIncludes(secondHtml, "OldestPerson");
-      assertStringIncludes(secondHtml, 'title="Big Listing, Other Show"');
-      assertStringIncludes(secondHtml, 'rel="prev"');
-      assert(
-        !secondHtml.includes('rel="next"'),
-        "the value should not contain the searched item",
-      );
+      says(secondHtml, "OldestPerson");
+      says(secondHtml, 'title="Big Listing, Other Show"');
+      says(secondHtml, 'rel="prev"');
+      assert(!secondHtml.includes('rel="next"'));
     });
   });
 });

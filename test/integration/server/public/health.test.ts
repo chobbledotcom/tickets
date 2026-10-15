@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -8,6 +7,7 @@ import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -16,10 +16,7 @@ describeWithEnv("server public > health", { db: true, triggers: true }, () => {
     test("returns a plain liveness reply by default", async () => {
       const response = await handleRequest(mockRequest("/health"));
       expect(response.status).toBe(200);
-      assertStringIncludes(
-        response.headers.get("content-type") ?? "",
-        "text/plain",
-      );
+      says(response.headers.get("content-type"), "text/plain");
       expect(await response.text()).toBe("Up :)");
     });
 

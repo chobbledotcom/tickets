@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -16,6 +15,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -68,10 +68,10 @@ describeWithEnv("server listings > edit form and income", { db: true }, () => {
       const response = await adminGet("/admin/listing/1/edit");
       const html = await response.text();
       // The dedicated money-correction section, separate from the counts override.
-      assertStringIncludes(html, "Adjust income");
-      assertStringIncludes(html, 'action="/admin/listing/1/income"');
-      assertStringIncludes(html, 'name="income"');
-      assertStringIncludes(html, "This adds a correction to Money.");
+      says(html, "Adjust income");
+      says(html, 'action="/admin/listing/1/income"');
+      says(html, 'name="income"');
+      says(html, "This adds a correction to Money.");
     });
   });
   describe("POST /admin/listing/:id/income", () => {
@@ -137,8 +137,9 @@ describeWithEnv("server listings > edit form and income", { db: true }, () => {
       const entry = log.find((e) => e.message.includes("income adjusted"));
       expect(entry?.message).toBe("Listing 'Gala' income adjusted");
       // The raw corrected figure is not logged verbatim.
-      assert(
-        entry?.message?.includes("12.34") === false,
+      saysNot(
+        entry?.message,
+        "12.34",
         "the value should not contain the searched item",
       );
     });

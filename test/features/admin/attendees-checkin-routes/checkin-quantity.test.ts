@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -12,6 +12,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import type { Attendee, Listing } from "#types";
 
@@ -54,16 +55,13 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const html = await expectHtmlResponse(response, 200, "Check in tickets");
       // The line's state, the three options, the whole line selected, and no
       // release form while nothing is admitted.
-      assertStringIncludes(html, `Cara Party, ${listing.name}`);
-      assertStringIncludes(html, "Tickets to check in");
-      assertStringIncludes(html, `<option selected value="3">3 tickets`);
+      says(html, `Cara Party, ${listing.name}`);
+      says(html, "Tickets to check in");
+      says(html, `<option selected value="3">3 tickets`);
       for (const option of ["1 ticket", "2 tickets", "3 tickets"]) {
-        assertStringIncludes(html, `>${option}</option>`);
+        says(html, `>${option}</option>`);
       }
-      assert(
-        !html.includes("Tickets to check out"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Tickets to check out"));
     });
 
     test("keeps the roster's filter and return link on its forms", async () => {
@@ -76,11 +74,8 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         ),
         200,
       );
-      assertStringIncludes(
-        html,
-        '<input name="return_filter" type="hidden" value="out">',
-      );
-      assertStringIncludes(
+      says(html, '<input name="return_filter" type="hidden" value="out">');
+      says(
         html,
         '<input name="return_url" type="hidden" value="/admin/calendar">',
       );
@@ -97,12 +92,12 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
       );
       const html = await expectHtmlResponse(response, 200, "Check in tickets");
-      assertStringIncludes(html, "1 of 3 tickets checked in");
+      says(html, "1 of 3 tickets checked in");
       // The check-in select tops out at the two still owed; the release
       // select holds the one admitted place.
-      assertStringIncludes(html, '<option selected value="2">2 tickets');
-      assertStringIncludes(html, "Tickets to check out");
-      assertStringIncludes(html, '<option selected value="1">1 ticket');
+      says(html, '<option selected value="2">2 tickets');
+      says(html, "Tickets to check out");
+      says(html, '<option selected value="1">1 ticket');
     });
 
     test("totals only the rows a refund has not returned", async () => {
@@ -131,12 +126,9 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const html = await expectHtmlResponse(response, 200, "Check in tickets");
       // The refunded sibling holds no movable tickets, so the page totals
       // the live row alone: one owed, and no offer the write cannot apply.
-      assertStringIncludes(html, "0 of 1 tickets checked in");
-      assertStringIncludes(html, '<option selected value="1">1 ticket');
-      assert(
-        !html.includes('value="3"'),
-        "the value should not contain the searched item",
-      );
+      says(html, "0 of 1 tickets checked in");
+      says(html, '<option selected value="1">1 ticket');
+      assert(!html.includes('value="3"'));
     });
 
     test("admits the count the page names", async () => {
@@ -154,7 +146,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const messages = (await getListingActivityLog(listing.id))
         .map((entry) => entry.message)
         .join(" ");
-      assertStringIncludes(messages, "checked in 2 tickets");
+      says(messages, "checked in 2 tickets");
     });
 
     test("releases the count the page names", async () => {
@@ -186,13 +178,10 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
       );
       const html = await expectHtmlResponse(response, 200, "Check out tickets");
-      assertStringIncludes(html, "3 of 3 tickets checked in");
-      assert(
-        !html.includes("Tickets to check in"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, "Tickets to check out");
-      assertStringIncludes(html, '<option selected value="3">3 tickets');
+      says(html, "3 of 3 tickets checked in");
+      assert(!html.includes("Tickets to check in"));
+      says(html, "Tickets to check out");
+      says(html, '<option selected value="3">3 tickets');
     });
 
     test("refuses a count that is not a positive whole number", async () => {

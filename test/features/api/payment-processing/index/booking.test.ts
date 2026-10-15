@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -15,7 +15,6 @@ import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
-
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -28,6 +27,7 @@ import {
   getProcessedPayment,
 } from "#test-utils/processed-payments.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
@@ -182,7 +182,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     // The staged row went with the booking's create batch.
     expect(await readCheckoutAnswers(id)).toEqual(new Map());
     const body = fetch.getFetchJsonBody();
-    assertStringIncludes(body.text, "Anything else?: Arriving late");
+    says(body.text, "Anything else?: Arriving late");
   });
 
   test("a failed create batch writes nothing and keeps the staged answers", async () => {
@@ -240,10 +240,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       ),
     ).toBe(true);
     const body = fetch.getFetchJsonBody();
-    assert(
-      !body.text.includes("Arriving late"),
-      "the value should not contain the searched item",
-    );
+    assert(!body.text.includes("Arriving late"));
   });
 
   test("heals a missing reservation from the durable booking ledger", async () => {

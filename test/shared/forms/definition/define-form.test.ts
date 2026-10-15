@@ -1,8 +1,9 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
 import { defineForm } from "#shared/forms/definition.ts";
+import { says } from "#test-utils/says.ts";
 import { testWithSetting } from "#test-utils/settings.ts";
 
 describe("defineForm", () => {
@@ -23,10 +24,10 @@ describe("defineForm", () => {
       });
 
       const html = form.render({ amount: "1.005" });
-      assertStringIncludes(html, 'type="number"');
-      assertStringIncludes(html, 'inputmode="decimal"');
-      assertStringIncludes(html, 'step="0.001"');
-      assertStringIncludes(html, 'value="1.005"');
+      says(html, 'type="number"');
+      says(html, 'inputmode="decimal"');
+      says(html, 'step="0.001"');
+      says(html, 'value="1.005"');
     },
   );
 
@@ -46,16 +47,10 @@ describe("defineForm", () => {
       });
 
       const html = form.render();
-      assertStringIncludes(html, 'id="refund-amount"');
-      assertStringIncludes(html, 'step="0.01"');
-      assert(
-        !html.includes(" required"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes(' min="'),
-        "the value should not contain the searched item",
-      );
+      says(html, 'id="refund-amount"');
+      says(html, 'step="0.01"');
+      assert(!html.includes(" required"));
+      assert(!html.includes(' min="'));
     },
   );
 
@@ -65,10 +60,7 @@ describe("defineForm", () => {
         { label: "When", name: "when", type: "datetime-local" },
       ] as const,
     });
-    assertStringIncludes(
-      form.render({ when: "2026-06-22T09:30" }),
-      'type="datetime-local"',
-    );
+    says(form.render({ when: "2026-06-22T09:30" }), 'type="datetime-local"');
   });
 
   const formWithMessages = () =>
@@ -165,8 +157,8 @@ describe("defineForm", () => {
     });
 
     const html = form.render({ name: "Alice" });
-    assertStringIncludes(html, "Alice");
-    assertStringIncludes(html, 'name="name"');
+    says(html, "Alice");
+    says(html, 'name="name"');
   });
 
   test("field render returns single field HTML", () => {
@@ -175,7 +167,7 @@ describe("defineForm", () => {
     });
 
     const html = form.renderField("color", "blue");
-    assertStringIncludes(html, "blue");
+    says(html, "blue");
   });
 
   test("returns an empty string for a blank optional text field", () => {

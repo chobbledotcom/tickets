@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { formatDateLabel } from "#shared/date-labels.ts";
@@ -18,6 +18,7 @@ import {
 import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
@@ -32,8 +33,8 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       expect(response.status).toBe(200);
 
       const body = await response.text();
-      assertStringIncludes(body, "Check-in");
-      assertStringIncludes(body, "show this QR code");
+      says(body, "Check-in");
+      says(body, "show this QR code");
     });
 
     test("returns 404 for invalid token", async () => {
@@ -45,12 +46,9 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
     test("shows current status without auto-checking-in", async () => {
       const { token, session } = await setupCheckinTest("Bob", "bob@test.com");
       const body = await readTicketPage(token, session.cookie);
-      assertStringIncludes(body, "Check in");
-      assertStringIncludes(body, "Check In All");
-      assert(
-        !body.includes('class="success"'),
-        "the value should not contain the searched item",
-      );
+      says(body, "Check in");
+      says(body, "Check In All");
+      assert(!body.includes('class="success"'));
     });
 
     test("keeps one row per booking line, each with its own listing's check-in button", async () => {
@@ -75,14 +73,8 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       );
       const body = await response.text();
       // The bookings stay separate rows so each listing checks in on its own.
-      assertStringIncludes(
-        body,
-        `/admin/listing/${first.id}/attendee/${attendee.id}/checkin`,
-      );
-      assertStringIncludes(
-        body,
-        `/admin/listing/${second.id}/attendee/${attendee.id}/checkin`,
-      );
+      says(body, `/admin/listing/${first.id}/attendee/${attendee.id}/checkin`);
+      says(body, `/admin/listing/${second.id}/attendee/${attendee.id}/checkin`);
     });
 
     test("shows attendee contact details in admin view", async () => {
@@ -94,9 +86,9 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         "555-1234",
       );
       const body = await readTicketPage(token, session.cookie);
-      assertStringIncludes(body, "Bob");
-      assertStringIncludes(body, "bob@test.com");
-      assertStringIncludes(body, "555-1234");
+      says(body, "Bob");
+      says(body, "bob@test.com");
+      says(body, "555-1234");
     });
 
     test("shows multiple attendees from different listings", async () => {
@@ -109,8 +101,8 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       expect(response.status).toBe(200);
 
       const body = await response.text();
-      assertStringIncludes(body, listingA.name);
-      assertStringIncludes(body, listingB.name);
+      says(body, listingA.name);
+      says(body, listingB.name);
     });
 
     test("returns 404 for invalid tokens when authenticated", async () => {
@@ -140,8 +132,8 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         3,
       );
       const body = await readTicketPage(token, session.cookie);
-      assertStringIncludes(body, listing.name);
-      assertStringIncludes(body, "3");
+      says(body, listing.name);
+      says(body, "3");
     });
 
     test("links listing name to admin listing page", async () => {
@@ -150,18 +142,18 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         "fay@test.com",
       );
       const body = await readTicketPage(token, session.cookie);
-      assertStringIncludes(body, `href="/admin/listing/${listing.id}"`);
+      says(body, `href="/admin/listing/${listing.id}"`);
     });
 
     test("shows green bulk check-in button when not checked in", async () => {
       const { token, session } = await setupCheckinTest("Eve", "eve@test.com");
       const body = await readTicketPage(token, session.cookie);
-      assertStringIncludes(body, 'class="bulk-checkin"');
-      assertStringIncludes(body, "Check In All");
+      says(body, 'class="bulk-checkin"');
+      says(body, "Check In All");
       // The form posts this hidden input, so the name the POST handler reads
       // is part of what the page renders.
-      assertStringIncludes(body, 'name="check_in"');
-      assertStringIncludes(body, 'value="true"');
+      says(body, 'name="check_in"');
+      says(body, 'value="true"');
     });
 
     test("displays booked date for daily listing in admin view", async () => {
@@ -176,8 +168,8 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       expect(response.status).toBe(200);
 
       const body = await response.text();
-      assertStringIncludes(body, formatDateLabel(date));
-      assertStringIncludes(body, "<th>Date</th>");
+      says(body, formatDateLabel(date));
+      says(body, "<th>Date</th>");
     });
 
     test("shows the Date column when a daily listing attendee is combined with a standard one", async () => {
@@ -198,14 +190,10 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       // has a date. Zara's row shows the formatted date label; Alice's row
       // shows an empty cell instead. The negative case — column hidden when
       // no attendee has a date — is covered by the test below.
-      assertStringIncludes(body, "<th>Date</th>");
-      assertStringIncludes(
-        tableRowContaining(body, "Zara"),
-        formatDateLabel(date),
-      );
+      says(body, "<th>Date</th>");
+      says(tableRowContaining(body, "Zara"), formatDateLabel(date));
       assert(
         !tableRowContaining(body, "Alice").includes(formatDateLabel(date)),
-        "the value should not contain the searched item",
       );
     });
 
@@ -234,16 +222,13 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       );
       const body = await response.text();
       // Column headers render because at least one attendee has each field.
-      assertStringIncludes(body, "<th>Email</th>");
-      assertStringIncludes(body, "<th>Phone</th>");
-      assertStringIncludes(
+      says(body, "<th>Email</th>");
+      says(body, "<th>Phone</th>");
+      says(
         tableRowContaining(body, "WithContact"),
         '<td>with@test.com</td><td><a href="tel:+44712345678">0712345678</a></td>',
       );
-      assertStringIncludes(
-        tableRowContaining(body, "NoContact"),
-        "<td></td><td></td>",
-      );
+      says(tableRowContaining(body, "NoContact"), "<td></td><td></td>");
     });
 
     test("does not show date column for standard listing in admin view", async () => {
@@ -252,10 +237,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         "alice@test.com",
       );
       const body = await readTicketPage(token, session.cookie);
-      assert(
-        !body.includes("<th>Date</th>"),
-        "the value should not contain the searched item",
-      );
+      assert(!body.includes("<th>Date</th>"));
     });
 
     test("keeps the check-in action while some eligible rows await check-in", async () => {
@@ -284,8 +266,8 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       const body = await response.text();
       // Staff have the per-row controls for fine-grained work, so the bulk
       // action stays on check-in until EVERY eligible row is in.
-      assertStringIncludes(body, "Check In All");
-      assertStringIncludes(body, "Check out");
+      says(body, "Check In All");
+      says(body, "Check out");
     });
 
     test("offers checkout when every eligible row is checked in", async () => {
@@ -297,8 +279,8 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       await postCheckin(token, session, "true");
 
       const body = await (await adminGet(`/checkin/${token}`)).text();
-      assertStringIncludes(body, "Check Out All");
-      assertStringIncludes(body, 'class="bulk-checkout"');
+      says(body, "Check Out All");
+      says(body, 'class="bulk-checkout"');
     });
 
     test("hides the bulk action when no eligible row remains", async () => {
@@ -315,19 +297,10 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       const body = await readTicketPage(token, session.cookie);
       // The token's only row is refunded, so the POST has nothing it may
       // change: no bulk action is advertised, for staff or scanner.
-      assertStringIncludes(body, "Refunded");
-      assert(
-        !body.includes("Check In All"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("Check Out All"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes('name="check_in"'),
-        "the value should not contain the searched item",
-      );
+      says(body, "Refunded");
+      assert(!body.includes("Check In All"));
+      assert(!body.includes("Check Out All"));
+      assert(!body.includes('name="check_in"'));
     });
   });
 });

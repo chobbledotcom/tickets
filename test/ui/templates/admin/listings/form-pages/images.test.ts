@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import {
@@ -17,6 +17,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { TEST_STORAGE_ZONE } from "#test-utils/internal.ts";
 import { withStorageDisabled } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 /** A listing carrying the renewal-tier builder fields, shared by the
  *  months_per_unit / initial_site_months visibility tests. */
@@ -32,12 +33,8 @@ const expectNoImageInDuplicateAndNew = (
     !adminDuplicateListingPage(listing, [], OWNER_SESSION).includes(
       'name="image"',
     ),
-    "the value should not contain the searched item",
   );
-  assert(
-    !adminListingNewPage([], OWNER_SESSION).includes('name="image"'),
-    "the value should not contain the searched item",
-  );
+  assert(!adminListingNewPage([], OWNER_SESSION).includes('name="image"'));
 };
 
 describeWithEnv(
@@ -49,14 +46,8 @@ describeWithEnv(
     describe("adminListingPage image section", () => {
       test("does not show image upload on detail page", () => {
         const html = detailHtml(testListingWithCount({ image_url: "" }));
-        assert(
-          !html.includes('type="file"'),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes('name="image"'),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes('type="file"'));
+        assert(!html.includes('name="image"'));
       });
     });
 
@@ -66,22 +57,10 @@ describeWithEnv(
           const html = editPanelHtml(
             testListingWithCount({ image_url: "current.jpg" }),
           );
-          assert(
-            !html.includes('name="image"'),
-            "the value should not contain the searched item",
-          );
-          assert(
-            !html.includes("Remove Image"),
-            "the value should not contain the searched item",
-          );
-          assert(
-            !html.includes("/image/delete"),
-            "the value should not contain the searched item",
-          );
-          assert(
-            !html.includes("listing-image-full"),
-            "the value should not contain the searched item",
-          );
+          assert(!html.includes('name="image"'));
+          assert(!html.includes("Remove Image"));
+          assert(!html.includes("/image/delete"));
+          assert(!html.includes("listing-image-full"));
         });
       });
 
@@ -96,10 +75,7 @@ describeWithEnv(
       test("keeps image controls absent when storage is disabled", () => {
         withStorageDisabled(() => {
           const listing = testListingWithCount({ image_url: "current.jpg" });
-          assert(
-            !editPanelHtml(listing).includes('name="image"'),
-            "the value should not contain the searched item",
-          );
+          assert(!editPanelHtml(listing).includes('name="image"'));
           expectNoImageInDuplicateAndNew(listing);
         });
       });
@@ -109,18 +85,15 @@ describeWithEnv(
       test("shows assign built site field when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
-          assertStringIncludes(html, "assign_built_site");
-          assertStringIncludes(html, "Assign a site on booking");
+          says(html, "assign_built_site");
+          says(html, "Assign a site on booking");
         });
       });
 
       test("hides assign built site field when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
-          assert(
-            !html.includes("assign_built_site"),
-            "the value should not contain the searched item",
-          );
+          assert(!html.includes("assign_built_site"));
         });
       });
 
@@ -129,8 +102,8 @@ describeWithEnv(
           const html = editPanelHtml(
             testListingWithCount({ assign_built_site: true }),
           );
-          assertStringIncludes(html, "assign_built_site");
-          assertStringIncludes(html, "checked");
+          says(html, "assign_built_site");
+          says(html, "checked");
         });
       });
 
@@ -138,7 +111,7 @@ describeWithEnv(
         withBuilder(() => {
           const listing = testListingWithCount({ assign_built_site: true });
           const html = adminDuplicateListingPage(listing, [], OWNER_SESSION);
-          assertStringIncludes(html, "assign_built_site");
+          says(html, "assign_built_site");
         });
       });
     });
@@ -147,54 +120,36 @@ describeWithEnv(
       test("shows months_per_unit and initial_site_months when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
-          assertStringIncludes(html, "months_per_unit");
-          assertStringIncludes(html, "Months per unit");
-          assertStringIncludes(html, "initial_site_months");
-          assertStringIncludes(html, "Initial site months");
+          says(html, "months_per_unit");
+          says(html, "Months per unit");
+          says(html, "initial_site_months");
+          says(html, "Initial site months");
         });
       });
 
       test("hides months_per_unit and initial_site_months when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
-          assert(
-            !html.includes("months_per_unit"),
-            "the value should not contain the searched item",
-          );
-          assert(
-            !html.includes("Months per unit"),
-            "the value should not contain the searched item",
-          );
-          assert(
-            !html.includes("initial_site_months"),
-            "the value should not contain the searched item",
-          );
-          assert(
-            !html.includes("Initial site months"),
-            "the value should not contain the searched item",
-          );
+          assert(!html.includes("months_per_unit"));
+          assert(!html.includes("Months per unit"));
+          assert(!html.includes("initial_site_months"));
+          assert(!html.includes("Initial site months"));
         });
       });
 
       test("shows on edit page when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
           const html = editPanelHtml(builderListing());
-          assertStringIncludes(html, "months_per_unit");
-          assertStringIncludes(html, "initial_site_months");
+          says(html, "months_per_unit");
+          says(html, "initial_site_months");
         });
       });
 
       test("hides on edit page when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
           const html = editPanelHtml(builderListing());
-          assert(
-            !html.includes("months_per_unit"),
-            "the value should not contain the searched item",
-          );
-          assert(
-            !html.includes("initial_site_months"),
-            "the value should not contain the searched item",
-          );
+          assert(!html.includes("months_per_unit"));
+          assert(!html.includes("initial_site_months"));
         });
       });
 
@@ -205,8 +160,8 @@ describeWithEnv(
             [],
             OWNER_SESSION,
           );
-          assertStringIncludes(html, "months_per_unit");
-          assertStringIncludes(html, "initial_site_months");
+          says(html, "months_per_unit");
+          says(html, "initial_site_months");
         });
       });
 
@@ -217,14 +172,8 @@ describeWithEnv(
             [],
             OWNER_SESSION,
           );
-          assert(
-            !html.includes("months_per_unit"),
-            "the value should not contain the searched item",
-          );
-          assert(
-            !html.includes("initial_site_months"),
-            "the value should not contain the searched item",
-          );
+          assert(!html.includes("months_per_unit"));
+          assert(!html.includes("initial_site_months"));
         });
       });
     });

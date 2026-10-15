@@ -1,4 +1,4 @@
-import { assert, assertExists, assertStringIncludes } from "@std/assert";
+import { assert, assertExists } from "@std/assert";
 import { expect } from "@std/expect";
 import { KIND } from "#accounting/kinds.ts";
 import { MANUAL_ATTENDEE_PAYMENT } from "#accounting/manual-entries.ts";
@@ -9,6 +9,7 @@ import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale, tx } from "#test-utils/ledger.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 /** GET an admin ledger page, assert it loads (200) with the "Money" heading and
@@ -17,11 +18,8 @@ export const ledgerPageHtml = async (path: string): Promise<string> => {
   const response = await adminGet(path);
   expect(response.status).toBe(200);
   const html = await response.text();
-  assertStringIncludes(html, "Money");
-  assert(
-    !html.includes("Money history"),
-    "the value should not contain the searched item",
-  );
+  says(html, "Money");
+  assert(!html.includes("Money history"));
   return html;
 };
 

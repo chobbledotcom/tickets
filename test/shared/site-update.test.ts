@@ -1,5 +1,4 @@
 import { type Client, createClient } from "@libsql/client";
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -29,6 +28,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 
 const LATEST_TAG = "v2099-01-01-120000";
 
@@ -228,7 +228,7 @@ describeWithEnv(
 
       expect(state.latestVersion).toBe(LATEST_TAG);
       expect(state.latestVersionName).toBe("2099-01-01 - Big Update");
-      assertStringIncludes(state.siteVersionLabel ?? "", "2026");
+      says(state.siteVersionLabel, "2026");
       expect(state.updateAvailable).toBe(true);
       expect(state.upToDate).toBe(false);
       expect(state.providerConfigured).toBe(true);
@@ -293,7 +293,7 @@ describeWithEnv(
       const state = await loadBuiltSiteUpdateState(site);
 
       expect(state.latestVersion).toBe("");
-      assertStringIncludes(state.siteVersionLabel ?? "", "2026");
+      says(state.siteVersionLabel, "2026");
       expect(state.updateAvailable).toBe(false);
       expect(state.upToDate).toBe(false);
     });

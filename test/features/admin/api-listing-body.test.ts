@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -10,6 +9,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("Admin API - Listings", { db: true }, () => {
   describe("bodyToCreateInput", () => {
@@ -243,7 +243,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       });
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        assertStringIncludes(result.error, "positive integer ids");
+        says(result.error, "positive integer ids");
       }
     });
 
@@ -340,7 +340,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       const result = await bodyToUpdateInput({ group_ids: ["5"] }, existing);
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        assertStringIncludes(result.error, "positive integer ids");
+        says(result.error, "positive integer ids");
       }
     });
 

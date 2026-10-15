@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { BuiltSite } from "#db/built-sites/types.ts";
@@ -6,6 +6,7 @@ import { builtSites } from "#db/built-sites.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 /** Arrow assertions shared by every test below. The three attributes must
@@ -24,8 +25,8 @@ const expectArrow = (
   if (arrow === undefined) {
     throw new Error(`No anchor carries the aria-label "${label}"`);
   }
-  assertStringIncludes(arrow, `href="${href}"`);
-  assertStringIncludes(arrow, `title="${title}"`);
+  says(arrow, `href="${href}"`);
+  says(arrow, `title="${title}"`);
 };
 
 describeWithEnv(
@@ -111,14 +112,8 @@ describeWithEnv(
       const site = await createTestBuiltSite({ name: "Only Site" });
       const response = await adminGet(`/admin/built-sites/${site.id}`);
       const html = await expectHtmlResponse(response, 200, "Only Site");
-      assert(
-        !html.includes("Previous built site"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("Next built site"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Previous built site"));
+      assert(!html.includes("Next built site"));
     });
 
     test("lands the pager's support-message cycle on a Deno site", async () => {
@@ -163,7 +158,7 @@ describeWithEnv(
         html.indexOf("</h1>") + 5,
       );
       expect(heading).toBe("<h1>Middle</h1>");
-      assertStringIncludes(html, 'class="title-nav"');
+      says(html, 'class="title-nav"');
     });
   },
 );

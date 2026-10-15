@@ -1,6 +1,5 @@
 /* jscpd:ignore-start -- shared import block with rest.test.ts */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -11,6 +10,7 @@ import {
   installMockFetch,
   jsonResponse,
 } from "#test/shared/square/mock-fetch.ts";
+import { says } from "#test-utils/says.ts";
 import { describeSquare } from "#test-utils/square/harness.ts";
 
 /* jscpd:ignore-end */
@@ -110,10 +110,7 @@ describeSquare(() => {
         paymentId: "pay_prod",
       });
 
-      assertStringIncludes(
-        mockFetch.calls[0]!.args[0] ?? "",
-        "connect.squareup.com",
-      );
+      says(mockFetch.calls[0]!.args[0], "connect.squareup.com");
     });
   });
 });

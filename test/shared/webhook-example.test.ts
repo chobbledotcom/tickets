@@ -5,7 +5,6 @@
  * admin guide and README).
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -26,6 +25,7 @@ import {
   WEBHOOK_EXAMPLE_PAYLOAD,
 } from "#shared/webhook-example.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Extract the domain from the example ticket_url (e.g. "https://x.com/t/..." → "x.com") */
 const exampleDomain = new URL(WEBHOOK_EXAMPLE_PAYLOAD.ticket_url).hostname;
@@ -145,6 +145,6 @@ describe("webhook example", () => {
   test("README.md contains the example JSON", async () => {
     const readme = await Deno.readTextFile("README.md");
 
-    assertStringIncludes(readme, WEBHOOK_EXAMPLE_JSON);
+    says(readme, WEBHOOK_EXAMPLE_JSON);
   });
 });

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -13,6 +13,7 @@ import {
 } from "#templates/components/aggregate-sections.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("IdCheckboxLabel", () => {
   test("ticks the box of an id inside the chosen set", () => {
@@ -41,10 +42,7 @@ describe("IdCheckboxLabel", () => {
     expect(html).toBe(
       '<label><input name="choices" type="checkbox" value="8">Leave me</label>',
     );
-    assert(
-      !html.includes("checked"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("checked"));
   });
 });
 
@@ -116,9 +114,9 @@ describe("CheckboxForm", () => {
     const html = String(
       CheckboxForm({ action: "/x", children: "kids", submitLabel: "Save it" }),
     );
-    assertStringIncludes(html, '<fieldset class="checkboxes">kids</fieldset>');
-    assertStringIncludes(html, "/icons.svg#save");
-    assertStringIncludes(html, "<span>Save it</span>");
+    says(html, '<fieldset class="checkboxes">kids</fieldset>');
+    says(html, "/icons.svg#save");
+    says(html, "<span>Save it</span>");
   });
 });
 
@@ -168,21 +166,15 @@ describe("RunningTotalsFieldset", () => {
 
   test("offers the recalculate step as a link while the site is writable", () => {
     const html = String(RunningTotalsFieldset({ config }));
-    assertStringIncludes(html, "<legend>Running totals</legend>");
-    assertStringIncludes(
-      html,
-      '<a href="/admin/listing/1/recalculate">Recalculate</a>',
-    );
+    says(html, "<legend>Running totals</legend>");
+    says(html, '<a href="/admin/listing/1/recalculate">Recalculate</a>');
   });
 
   test("shows the recalculate label as plain text once the site is read-only", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = String(RunningTotalsFieldset({ config }));
-    assertStringIncludes(html, "Recalculate");
-    assert(
-      !html.includes("<a href="),
-      "the value should not contain the searched item",
-    );
+    says(html, "Recalculate");
+    assert(!html.includes("<a href="));
   });
 });
 
@@ -211,12 +203,9 @@ describe("CheckboxesFieldset", () => {
         selected: [2],
       }),
     );
-    assertStringIncludes(html, '<fieldset class="checkboxes">');
-    assertStringIncludes(
-      html,
-      '<input name="listing_ids" type="checkbox" value="1"> First',
-    );
-    assertStringIncludes(
+    says(html, '<fieldset class="checkboxes">');
+    says(html, '<input name="listing_ids" type="checkbox" value="1"> First');
+    says(
       html,
       '<input checked name="listing_ids" type="checkbox" value="2"> Second',
     );

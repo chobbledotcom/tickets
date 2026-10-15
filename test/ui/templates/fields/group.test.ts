@@ -1,9 +1,9 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { getGroupCreateForm, getGroupForm } from "#templates/fields/group.ts";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
+import { says } from "#test-utils/says.ts";
 
 await allEnglishMessages();
 
@@ -86,8 +86,8 @@ describe("group fields", () => {
       .validate;
     expect(validate("fine")).toBeNull();
     expect(validate("a".repeat(MAX_TEXTAREA_LENGTH))).toBeNull();
-    assertStringIncludes(
-      validate("a".repeat(MAX_TEXTAREA_LENGTH + 1)) ?? "",
+    says(
+      validate("a".repeat(MAX_TEXTAREA_LENGTH + 1)),
       String(MAX_TEXTAREA_LENGTH),
     );
   });

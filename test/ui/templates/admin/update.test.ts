@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { GITHUB_RELEASES_URL } from "#shared/update.ts";
 import {
@@ -6,6 +6,7 @@ import {
   type UpdatePageState,
 } from "#templates/admin/update.tsx";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 
 const baseState = (): UpdatePageState => ({
   buildCommit: "",
@@ -20,16 +21,13 @@ describe("adminUpdatePage", () => {
   test("renders build commit when present", () => {
     const state = { ...baseState(), buildCommit: "abc123def456" };
     const html = adminUpdatePage(OWNER_SESSION, state);
-    assertStringIncludes(html, "abc123def456");
-    assertStringIncludes(html, "<code>");
+    says(html, "abc123def456");
+    says(html, "<code>");
   });
 
   test("hides commit section when buildCommit is empty", () => {
     const html = adminUpdatePage(OWNER_SESSION, baseState());
-    assert(
-      !html.includes("<code>"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<code>"));
   });
 
   test("renders update available with Bunny configured", () => {
@@ -41,11 +39,8 @@ describe("adminUpdatePage", () => {
       updateAvailable: true,
     };
     const html = adminUpdatePage(OWNER_SESSION, state);
-    assertStringIncludes(html, "Update Now");
-    assert(
-      !html.includes("Cannot update automatically"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Update Now");
+    assert(!html.includes("Cannot update automatically"));
   });
 
   test("renders cannot update when Bunny not configured", () => {
@@ -57,11 +52,8 @@ describe("adminUpdatePage", () => {
       updateAvailable: true,
     };
     const html = adminUpdatePage(OWNER_SESSION, state);
-    assertStringIncludes(html, "Cannot update automatically");
-    assert(
-      !html.includes("Update Now"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Cannot update automatically");
+    assert(!html.includes("Update Now"));
   });
 
   test("renders up to date with checked version", () => {
@@ -70,27 +62,18 @@ describe("adminUpdatePage", () => {
       latestVersion: "v2026-01-01-000000",
     };
     const html = adminUpdatePage(OWNER_SESSION, state);
-    assertStringIncludes(html, "No Update Available");
-    assertStringIncludes(html, "v2026-01-01-000000");
+    says(html, "No Update Available");
+    says(html, "v2026-01-01-000000");
   });
 
   test("does not show update sections when no check performed", () => {
     const html = adminUpdatePage(OWNER_SESSION, baseState());
-    assert(
-      !html.includes("No Update Available"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Update Available"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("No Update Available"));
+    assert(!html.includes("Update Available"));
   });
 
   test("includes release notes link", () => {
     const html = adminUpdatePage(OWNER_SESSION, baseState());
-    assertStringIncludes(
-      html,
-      `<a href="${GITHUB_RELEASES_URL}">Read the release notes</a>`,
-    );
+    says(html, `<a href="${GITHUB_RELEASES_URL}">Read the release notes</a>`);
   });
 });

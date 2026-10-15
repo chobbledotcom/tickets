@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
@@ -6,6 +6,7 @@ import {
   AvailabilityChecker,
   type AvailabilityRow,
 } from "#templates/admin/availability-checker.tsx";
+import { says } from "#test-utils/says.ts";
 
 const render = (rows: AvailabilityRow[], date: string | null): string =>
   String(<AvailabilityChecker date={date} rows={rows} />);
@@ -50,42 +51,27 @@ describe("AvailabilityChecker", () => {
       "2027-03-14",
     );
 
-    assertStringIncludes(
+    says(
       html,
       '<form action="/admin/attendees/new" class="selectable-form" method="get">',
     );
-    assertStringIncludes(
-      html,
-      '<input name="start_date" type="hidden" value="2027-03-14">',
-    );
-    assertStringIncludes(html, '<table class="availability-table">');
+    says(html, '<input name="start_date" type="hidden" value="2027-03-14">');
+    says(html, '<table class="availability-table">');
     expect(html.indexOf(">Alpha</a>")).toBeLessThan(html.indexOf(">Bravo</a>"));
     expect(html.indexOf(">Bravo</a>")).toBeLessThan(html.indexOf(">Zulu</a>"));
-    assertStringIncludes(
+    says(
       html,
       '<input aria-label="Select Alpha" class="order-select" id="select_10" name="select_10" type="checkbox" value="1">',
     );
-    assertStringIncludes(html, '<label class="row-select">');
-    assertStringIncludes(
-      html,
-      '<span aria-hidden="true" class="row-select-tick"></span>',
-    );
-    assertStringIncludes(
-      html,
-      '<th><span class="visually-hidden">Select</span></th>',
-    );
-    assertStringIncludes(html, '<td class="col-quantity">3/5</td>');
-    assertStringIncludes(html, '<td class="col-quantity">1/2</td>');
-    assertStringIncludes(html, '<td class="col-quantity danger">0/4</td>');
-    assertStringIncludes(html, '<td class="col-amount">Free</td>');
-    assertStringIncludes(
-      html,
-      `<td class="col-amount">From ${formatCurrency(1)}</td>`,
-    );
-    assertStringIncludes(
-      html,
-      `<td class="col-amount">${formatCurrency(1250)}</td>`,
-    );
+    says(html, '<label class="row-select">');
+    says(html, '<span aria-hidden="true" class="row-select-tick"></span>');
+    says(html, '<th><span class="visually-hidden">Select</span></th>');
+    says(html, '<td class="col-quantity">3/5</td>');
+    says(html, '<td class="col-quantity">1/2</td>');
+    says(html, '<td class="col-quantity danger">0/4</td>');
+    says(html, '<td class="col-amount">Free</td>');
+    says(html, `<td class="col-amount">From ${formatCurrency(1)}</td>`);
+    says(html, `<td class="col-amount">${formatCurrency(1250)}</td>`);
   });
 
   test("renders both create actions for selected listings", () => {
@@ -103,24 +89,15 @@ describe("AvailabilityChecker", () => {
       null,
     );
 
-    assert(
-      !html.includes('name="start_date"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, '<div class="order-actions">');
-    assertStringIncludes(html, '<button class="order-cart" type="submit">');
-    assertStringIncludes(
+    assert(!html.includes('name="start_date"'));
+    says(html, '<div class="order-actions">');
+    says(html, '<button class="order-cart" type="submit">');
+    says(
       html,
       '<button class="order-cart" formaction="/admin/servicing/new" type="submit">',
     );
-    assertStringIncludes(
-      html,
-      '<span class="order-cart-label">Create Attendee</span>',
-    );
-    assertStringIncludes(
-      html,
-      '<span class="order-cart-label">Create Service Event</span>',
-    );
+    says(html, '<span class="order-cart-label">Create Attendee</span>');
+    says(html, '<span class="order-cart-label">Create Service Event</span>');
     expect(html.match(/class="order-cart-count"/g)).toHaveLength(2);
   });
 });

@@ -1,6 +1,5 @@
 /** Adding listings to a group from the admin page. */
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingsByGroupId } from "#db/groups.ts";
@@ -9,6 +8,7 @@ import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 const expectRejectedListingBatch = async (
@@ -127,7 +127,7 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
       (listing) => listing.id,
     );
     expect(memberIds).toHaveLength(1);
-    assertArrayIncludes([standard.id, daily.id], [memberIds[0]]);
+    has([standard.id, daily.id], memberIds[0]);
   });
 
   test("refuses a listing whose customisable-days setting differs from the group's", async () => {

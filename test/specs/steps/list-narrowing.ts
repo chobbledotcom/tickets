@@ -12,6 +12,7 @@ import {
   whatTheCustomerSees,
 } from "#test/specs/support/list-narrowing.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -61,8 +62,8 @@ Then(
   "the customer is shown both the {word} and the {word}",
   function (this: TicketsWorld, first: string, second: string): void {
     const shown = whatTheCustomerSees(this);
-    expect(shown).toContain(first);
-    expect(shown).toContain(second);
+    says(shown, first);
+    says(shown, second);
   },
 );
 

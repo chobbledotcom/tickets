@@ -250,10 +250,7 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
         "SELECT item_type FROM image_uses",
       );
       expect(use?.item_type).toBe("listing");
-      assert(
-        !(await listingColumnNames()).includes("image_url"),
-        "the value should not contain the searched item",
-      );
+      assert(!(await listingColumnNames()).includes("image_url"));
     });
   });
 
@@ -287,10 +284,7 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
       const holidayColumns = await queryAll<{ name: string }>(
         "SELECT name FROM pragma_table_info('holidays')",
       );
-      assert(
-        !holidayColumns.map((c) => c.name).includes("stray_col"),
-        "the value should not contain the searched item",
-      );
+      assert(!holidayColumns.map((c) => c.name).includes("stray_col"));
     });
   });
 });

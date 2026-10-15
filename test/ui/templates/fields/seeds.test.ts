@@ -1,9 +1,9 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_SEED_LISTINGS, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
 import { seedsForm } from "#templates/fields/seeds.ts";
 import { inputNamed } from "#test-utils/assertions.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("seeds form", () => {
   test("offers the two number boxes between their bounds", () => {
@@ -27,12 +27,12 @@ describe("seeds form", () => {
     expect(attendees!.id).toBe("attendees_per_listing");
     const html = seedsForm.render();
     const listingBox = inputNamed(html, "listing_count");
-    assertStringIncludes(listingBox, 'min="1"');
-    assertStringIncludes(listingBox, `max="${MAX_SEED_LISTINGS}"`);
-    assertStringIncludes(listingBox, "required");
+    says(listingBox, 'min="1"');
+    says(listingBox, `max="${MAX_SEED_LISTINGS}"`);
+    says(listingBox, "required");
     const attendeeBox = inputNamed(html, "attendees_per_listing");
-    assertStringIncludes(attendeeBox, 'min="0"');
-    assertStringIncludes(attendeeBox, `max="${SEED_MAX_ATTENDEES}"`);
-    assertStringIncludes(attendeeBox, "required");
+    says(attendeeBox, 'min="0"');
+    says(attendeeBox, `max="${SEED_MAX_ATTENDEES}"`);
+    says(attendeeBox, "required");
   });
 });

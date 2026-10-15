@@ -17,6 +17,7 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { linePlacesOnPage, openAttendeeEditor } from "#test-utils/e2e.ts";
+import { says } from "#test-utils/says.ts";
 import { ALL_CHECKBOXES } from "#test-utils/test-browser/pressing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -80,7 +81,7 @@ const askSizeQuestion = async (
     expect(browser.containsText(size)).toBe(true);
   }
   await browser.visit(`/admin/listing/${id}/questions`);
-  expect(browser.currentHtml).toContain('name="question_ids"');
+  says(browser.currentHtml, 'name="question_ids"');
   await browser.submitForm({ question_ids: ALL_CHECKBOXES }, "Save");
   expect(browser.containsText("Questions updated")).toBe(true);
 };
@@ -91,7 +92,7 @@ const groupTheListing = async (browser: TestBrowser): Promise<string> => {
   expect(browser.containsText("Add Group")).toBe(true);
   await browser.submitForm({ name: GROUP }, "Create Group");
   expect(browser.containsText(GROUP)).toBe(true);
-  expect(browser.currentHtml).toContain('name="listing_ids"');
+  says(browser.currentHtml, 'name="listing_ids"');
   await browser.submitForm(
     { listing_ids: ALL_CHECKBOXES },
     "Add selected listings",

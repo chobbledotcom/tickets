@@ -10,6 +10,7 @@ import {
 import { queryOne } from "#db/client.ts";
 import { isScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { saysNot } from "#test-utils/says.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 
 describeWithEnv("built-site scheduler keys", { db: true }, () => {
@@ -31,14 +32,12 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
       "SELECT site_data FROM built_sites WHERE id = ?",
       [row.id],
     );
-    assert(
-      raw?.site_data?.includes(TEST_SCHEDULED_KEY) === false,
+    saysNot(
+      raw?.site_data,
+      TEST_SCHEDULED_KEY,
       "the value should not contain the searched item",
     );
-    assert(
-      !JSON.stringify(raw).includes(TEST_SCHEDULED_KEY),
-      "the value should not contain the searched item",
-    );
+    assert(!JSON.stringify(raw).includes(TEST_SCHEDULED_KEY));
     expect(
       (await builtSitesCrudTable.read.one({ id: row.id }))?.scheduledTaskKey,
     ).toBe(TEST_SCHEDULED_KEY);

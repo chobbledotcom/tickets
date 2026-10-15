@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -7,6 +7,7 @@ import {
   getListingEditForm,
   getListingForm,
 } from "#templates/fields/listing.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("listing form schema", () => {
   test("parses month fields as numbers", () => {
@@ -57,26 +58,14 @@ describe("listing form schema", () => {
       webhook: false,
     });
 
-    assertStringIncludes(visible.section("basics"), 'name="attachment"');
-    assertStringIncludes(visible.section("options"), 'name="uses_logistics"');
-    assertStringIncludes(visible.section("advanced"), 'name="months_per_unit"');
-    assertStringIncludes(visible.section("advanced"), 'name="webhook_url"');
-    assert(
-      !hidden.section("basics").includes('name="attachment"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !hidden.section("options").includes('name="uses_logistics"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !hidden.section("advanced").includes('name="months_per_unit"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !hidden.section("advanced").includes('name="webhook_url"'),
-      "the value should not contain the searched item",
-    );
+    says(visible.section("basics"), 'name="attachment"');
+    says(visible.section("options"), 'name="uses_logistics"');
+    says(visible.section("advanced"), 'name="months_per_unit"');
+    says(visible.section("advanced"), 'name="webhook_url"');
+    assert(!hidden.section("basics").includes('name="attachment"'));
+    assert(!hidden.section("options").includes('name="uses_logistics"'));
+    assert(!hidden.section("advanced").includes('name="months_per_unit"'));
+    assert(!hidden.section("advanced").includes('name="webhook_url"'));
   });
 
   test("pairs customisable days with pay more so only one can hold", () => {
@@ -87,12 +76,12 @@ describe("listing form schema", () => {
     expect(html).toMatch(
       /name="customisable_days"[^>]*data-exclusive-with="can_pay_more"/,
     );
-    assertStringIncludes(html, why);
+    says(html, why);
 
     const payMore = getListingEditForm().section("tickets");
     expect(payMore).toMatch(
       /name="can_pay_more"[^>]*data-exclusive-with="customisable_days"/,
     );
-    assertStringIncludes(payMore, why);
+    says(payMore, why);
   });
 });

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { listingAggregates } from "#db/listings/aggregates.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
@@ -7,6 +6,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => {
@@ -40,10 +40,10 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
-      assertStringIncludes(html, "Attendees");
-      assertStringIncludes(html, "Checked In");
-      assertStringIncludes(html, "0 / 2");
-      assertStringIncludes(html, "2 remain");
+      says(html, "Attendees");
+      says(html, "Checked In");
+      says(html, "0 / 2");
+      says(html, "2 remain");
     });
 
     test("shows stored-total mismatches on the group detail page", async () => {
@@ -107,11 +107,11 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
-      assertStringIncludes(html, "Attendees Checked In");
-      assertStringIncludes(html, "Tickets Checked In");
+      says(html, "Attendees Checked In");
+      says(html, "Tickets Checked In");
       // 0 / 2 tickets checked in, 0 / 4 attendees checked in
-      assertStringIncludes(html, "0 / 2");
-      assertStringIncludes(html, "0 / 4");
+      says(html, "0 / 2");
+      says(html, "0 / 4");
     });
 
     test("shows attendees table with listing name column", async () => {
@@ -135,9 +135,9 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}/attendees`);
       expectStatus(200)(response);
       const html = await response.text();
-      assertStringIncludes(html, "Charlie");
-      assertStringIncludes(html, "Table Listing");
-      assertStringIncludes(html, `/admin/listing/${listing.id}`);
+      says(html, "Charlie");
+      says(html, "Table Listing");
+      says(html, `/admin/listing/${listing.id}`);
     });
 
     test("Attendees tab renders the roster's answers column when a listing has questions", async () => {
@@ -177,9 +177,9 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const html = await (
         await adminGet(`/admin/groups/${group.id}/attendees`)
       ).text();
-      assertStringIncludes(html, "Quentin");
+      says(html, "Quentin");
       // The Answers column only renders when the roster carries question data.
-      assertStringIncludes(html, "<th>Answers</th>");
+      says(html, "<th>Answers</th>");
     });
 
     test("shows question answer summary in group details", async () => {
@@ -216,8 +216,8 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
-      assertStringIncludes(html, "<th>Color</th>");
-      assertStringIncludes(html, "Red (0)");
+      says(html, "<th>Color</th>");
+      says(html, "Red (0)");
     });
 
     test("shows total revenue for paid listings", async () => {
@@ -241,7 +241,7 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
-      assertStringIncludes(html, "Total income earned");
+      says(html, "Total income earned");
     });
   });
 });

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as bddTest, describe } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -15,6 +15,7 @@ import {
 } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 const test = (name: string, body: () => void | Promise<void>): void => {
   bddTest(name, async () => {
@@ -70,15 +71,15 @@ describe("activity log templates", () => {
         logEntry({ id: 2, listing_id: 1, message: "Payment received" }),
       ];
       const html = adminListingActivityLogPage(listing, entries, OWNER_SESSION);
-      assertStringIncludes(html, "Ticket reserved");
-      assertStringIncludes(html, "Payment received");
-      assertStringIncludes(html, "Log");
+      says(html, "Ticket reserved");
+      says(html, "Payment received");
+      says(html, "Log");
     });
 
     test("renders empty state when no entries", () => {
       const listing = testListingWithCount();
       const html = adminListingActivityLogPage(listing, [], OWNER_SESSION);
-      assertStringIncludes(html, "No activity recorded yet");
+      says(html, "No activity recorded yet");
     });
   });
 
@@ -91,8 +92,8 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      assertStringIncludes(html, "System started");
-      assertStringIncludes(html, "Log");
+      says(html, "System started");
+      says(html, "Log");
     });
 
     test("renders empty state when no entries", () => {
@@ -102,7 +103,7 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      assertStringIncludes(html, "No activity recorded yet");
+      says(html, "No activity recorded yet");
     });
 
     test("shows truncation message when truncated", () => {
@@ -113,7 +114,7 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      assertStringIncludes(html, "Showing the most recent 200 entries");
+      says(html, "Showing the most recent 200 entries");
     });
 
     test("does not show truncation message when not truncated", () => {
@@ -124,10 +125,7 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      assert(
-        !html.includes("Showing the most recent 200 entries"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Showing the most recent 200 entries"));
     });
 
     test("prefixes Square signature errors with a link to re-do settings", () => {
@@ -145,13 +143,10 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      assertStringIncludes(
-        html,
-        'href="/admin/settings#settings-square-webhook"',
-      );
-      assertStringIncludes(html, "Re-enter your Square settings");
+      says(html, 'href="/admin/settings#settings-square-webhook"');
+      says(html, "Re-enter your Square settings");
       // The original error message is still shown after the link
-      assertStringIncludes(html, "Square signature verification failed");
+      says(html, "Square signature verification failed");
     });
 
     test("does not add the Square settings link to unrelated messages", () => {
@@ -162,10 +157,7 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      assert(
-        !html.includes("Re-enter your Square settings"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Re-enter your Square settings"));
     });
   });
 
@@ -188,10 +180,10 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      assertStringIncludes(html, "<th>Attendee</th>");
-      assertStringIncludes(html, "<th>Listing</th>");
+      says(html, "<th>Attendee</th>");
+      says(html, "<th>Listing</th>");
       // The empty-state row spans all four columns.
-      assertStringIncludes(html, 'colspan="4"');
+      says(html, 'colspan="4"');
     });
 
     test("links an entry to its attendee and listing by name", () => {
@@ -209,14 +201,8 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         refs,
       );
-      assertStringIncludes(
-        html,
-        '<a href="/admin/attendees/7">Ada Lovelace</a>',
-      );
-      assertStringIncludes(
-        html,
-        '<a href="/admin/listing/3">Summer Concert</a>',
-      );
+      says(html, '<a href="/admin/attendees/7">Ada Lovelace</a>');
+      says(html, '<a href="/admin/listing/3">Summer Concert</a>');
     });
 
     test("escapes attendee names so stored PII cannot inject markup", () => {
@@ -228,11 +214,8 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         refs,
       );
-      assertStringIncludes(html, "&lt;script&gt;alert(1)&lt;/script&gt;");
-      assert(
-        !html.includes("<script>alert(1)</script>"),
-        "the value should not contain the searched item",
-      );
+      says(html, "&lt;script&gt;alert(1)&lt;/script&gt;");
+      assert(!html.includes("<script>alert(1)</script>"));
     });
 
     test("leaves both link cells empty when an entry references neither", () => {
@@ -250,16 +233,10 @@ describe("activity log templates", () => {
         html.indexOf("<tbody>"),
         html.indexOf("</tbody>"),
       );
-      assert(
-        !tbody.includes('href="/admin/attendees/'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !tbody.includes('href="/admin/listing/'),
-        "the value should not contain the searched item",
-      );
+      assert(!tbody.includes('href="/admin/attendees/'));
+      assert(!tbody.includes('href="/admin/listing/'));
       // The two reference columns are still rendered, just empty.
-      assertStringIncludes(tbody, "<td></td><td></td>");
+      says(tbody, "<td></td><td></td>");
     });
 
     test("renders no link when the referenced attendee no longer exists", () => {
@@ -273,11 +250,8 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      assert(
-        !html.includes('href="/admin/attendees/42"'),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, "Attendee deleted");
+      assert(!html.includes('href="/admin/attendees/42"'));
+      says(html, "Attendee deleted");
     });
 
     // Render the global log with one attendee-referencing entry and return just
@@ -308,14 +282,8 @@ describe("activity log templates", () => {
         kinds: new Map(),
         names: new Map([[8, "Grace Hopper"]]),
       });
-      assert(
-        !tbody.includes('href="/admin/attendees/8"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !tbody.includes("Grace Hopper"),
-        "the value should not contain the searched item",
-      );
+      assert(!tbody.includes('href="/admin/attendees/8"'));
+      assert(!tbody.includes("Grace Hopper"));
     });
 
     test("renders no attendee link when only the kind is loaded (name missing)", () => {
@@ -323,10 +291,7 @@ describe("activity log templates", () => {
         kinds: new Map([[9, "attendee"]]),
         names: new Map(),
       });
-      assert(
-        !tbody.includes('href="/admin/attendees/9"'),
-        "the value should not contain the searched item",
-      );
+      assert(!tbody.includes('href="/admin/attendees/9"'));
     });
 
     test("renders no link when the referenced listing no longer exists", () => {
@@ -339,11 +304,8 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      assert(
-        !html.includes('href="/admin/listing/99"'),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, "Listing deleted");
+      assert(!html.includes('href="/admin/listing/99"'));
+      says(html, "Listing deleted");
     });
   });
 
@@ -358,14 +320,8 @@ describe("activity log templates", () => {
         }),
       ];
       const html = adminListingActivityLogPage(listing, entries, OWNER_SESSION);
-      assert(
-        !html.includes("<th>Attendee</th>"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('href="/admin/attendees/7"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("<th>Attendee</th>"));
+      assert(!html.includes('href="/admin/attendees/7"'));
     });
   });
 });

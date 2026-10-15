@@ -9,13 +9,11 @@
  * write, so these tests pin that claim.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decryptWithKey } from "#crypto/encryption.ts";
 import { importPrivateKey } from "#crypto/hybrid.ts";
 import { deriveKEKFromPassword, unwrapKey } from "#crypto/keys.ts";
-
 import type { KeyEncrypted, PasswordHash, WrappedKey } from "#crypto/sealed.ts";
 import { getDb } from "#db/client.ts";
 import { SetupAlreadyCompleteError } from "#db/settings/setup.ts";
@@ -26,6 +24,7 @@ import {
   verifyUserPassword,
 } from "#db/users.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 
 const emptySite = async (): Promise<void> => {
   await getDb().execute("DELETE FROM users");
@@ -154,7 +153,7 @@ describeWithEnv("db > settings > setup ceremony", { db: true }, () => {
       expect(user).not.toBeNull();
       const hash = await verifyUserPassword(user!, "mypassword");
       expect(hash).toBeTruthy();
-      assertStringIncludes(hash ?? "", "pbkdf2:");
+      says(hash, "pbkdf2:");
       expect(settings.currency).toBe("USD");
 
       expect(settings.publicKey).toBeTruthy();

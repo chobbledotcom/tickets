@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
 import { moveTickets } from "#db/attendees/update.ts";
@@ -11,6 +11,7 @@ import {
   createTestAttendeeDirect,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has, says } from "#test-utils/says.ts";
 import { adminGet, withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("the listing CSV export", { db: true }, () => {
@@ -39,11 +40,8 @@ describeWithEnv("the listing CSV export", { db: true }, () => {
       `/admin/listing/${listing.id}/export?filter=in`,
     );
     const csv = await response.text();
-    assertStringIncludes(csv, "AliceIn");
-    assert(
-      !csv.includes("BobOut"),
-      "the value should not contain the searched item",
-    );
+    says(csv, "AliceIn");
+    assert(!csv.includes("BobOut"));
   });
 
   test("?filter=out exports only checked-out attendees", async () => {
@@ -52,28 +50,25 @@ describeWithEnv("the listing CSV export", { db: true }, () => {
       `/admin/listing/${listing.id}/export?filter=out`,
     );
     const csv = await response.text();
-    assertStringIncludes(csv, "BobOut");
-    assert(
-      !csv.includes("AliceIn"),
-      "the value should not contain the searched item",
-    );
+    says(csv, "BobOut");
+    assert(!csv.includes("AliceIn"));
   });
 
   test("no check-in filter exports everyone", async () => {
     const listing = await setup();
     const response = await adminGet(`/admin/listing/${listing.id}/export`);
     const csv = await response.text();
-    assertStringIncludes(csv, "AliceIn");
-    assertStringIncludes(csv, "BobOut");
+    says(csv, "AliceIn");
+    says(csv, "BobOut");
   });
 
   test("notes the export in the record of what was done", async () => {
     const listing = await setup();
     await adminGet(`/admin/listing/${listing.id}/export`);
     const entries = await withTestSession(() => getAllActivityLog(20));
-    assertArrayIncludes(
+    has(
       entries.map((entry) => entry.message),
-      ["CSV exported for 'Gala'"],
+      "CSV exported for 'Gala'",
     );
   });
 
@@ -86,9 +81,9 @@ describeWithEnv("the listing CSV export", { db: true }, () => {
     );
     await adminGet(`/admin/listing/${listing.id}/export?date=2026-08-01`);
     const entries = await withTestSession(() => getAllActivityLog(20));
-    assertArrayIncludes(
+    has(
       entries.map((entry) => entry.message),
-      ["CSV exported for 'Day Export' (date: 2026-08-01)"],
+      "CSV exported for 'Day Export' (date: 2026-08-01)",
     );
   });
 
@@ -147,14 +142,14 @@ describeWithEnv("the listing CSV export", { db: true }, () => {
     const listing = await setupFreeText();
     const response = await adminGet(`/admin/listing/${listing.id}/export`);
     const csv = await response.text();
-    assertStringIncludes(csv, "Dietary needs?");
-    assertStringIncludes(csv, "Coeliac");
+    says(csv, "Dietary needs?");
+    says(csv, "Coeliac");
   });
 
   test("shows the decrypted free-text answer on the roster tab", async () => {
     const listing = await setupFreeText();
     const response = await adminGet(`/admin/listing/${listing.id}/attendees`);
     const html = await response.text();
-    assertStringIncludes(html, "Coeliac");
+    says(html, "Coeliac");
   });
 });

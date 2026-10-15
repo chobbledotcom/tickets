@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -9,6 +9,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
+import { says } from "#test-utils/says.ts";
 import { createTestManagerSession } from "#test-utils/session.ts";
 
 type RefundSurface = {
@@ -105,11 +106,8 @@ describeWithEnv("refund authorization", { db: true }, () => {
       expect(managerResponse.status).toBe(200);
       const ownerHtml = await ownerResponse.text();
       const managerHtml = await managerResponse.text();
-      assertStringIncludes(ownerHtml, url);
-      assert(
-        !managerHtml.includes(url),
-        "the value should not contain the searched item",
-      );
+      says(ownerHtml, url);
+      assert(!managerHtml.includes(url));
     }
   });
 });

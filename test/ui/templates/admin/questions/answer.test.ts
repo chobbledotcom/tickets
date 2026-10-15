@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   adminAnswerEditPage,
@@ -7,6 +7,7 @@ import {
 import { resetFeaturePageTest } from "#test/ui/templates/admin/feature-page-test.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { testAnswer, testQuestion } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import { setupQuestionPageTest, tShirtQuestion } from "./fixtures.ts";
 
 describe("adminAnswerEditPage", () => {
@@ -38,12 +39,12 @@ describe("adminAnswerEditPage", () => {
   afterAll(resetFeaturePageTest);
 
   test("renders the editable text pre-filled and the form action", () => {
-    assertStringIncludes(html, 'action="/admin/questions/1/answers/11/edit"');
-    assertStringIncludes(html, 'value="Large"');
-    assertStringIncludes(html, 'class="active" href="/admin/questions"');
+    says(html, 'action="/admin/questions/1/answers/11/edit"');
+    says(html, 'value="Large"');
+    says(html, 'class="active" href="/admin/questions"');
     // An active answer renders the box checked, as a checkbox valued "on", with
     // one space between the input and its "Active" label.
-    assertStringIncludes(
+    says(
       html,
       '<input checked name="active" type="checkbox" value="on"> Active',
     );
@@ -59,35 +60,26 @@ describe("adminAnswerEditPage", () => {
       modifiers,
       null,
     );
-    assertStringIncludes(html, 'name="active"');
-    assert(
-      !html.includes("checked"),
-      "the value should not contain the searched item",
-    );
+    says(html, 'name="active"');
+    assert(!html.includes("checked"));
   });
 
   test("renders the editable selection total field with the stored value", () => {
-    assertStringIncludes(html, 'name="times_selected"');
-    assertStringIncludes(html, 'value="7"');
+    says(html, 'name="times_selected"');
+    says(html, 'value="7"');
   });
 
   test("links back to the question", () => {
-    assertStringIncludes(html, 'href="/admin/questions/1"');
-    assertStringIncludes(html, "Back to question");
+    says(html, 'href="/admin/questions/1"');
+    says(html, "Back to question");
   });
 
   test("links to the recalculate flow", () => {
-    assertStringIncludes(
-      html,
-      'href="/admin/questions/1/answers/11/recalculate"',
-    );
+    says(html, 'href="/admin/questions/1/answers/11/recalculate"');
   });
 
   test("shows no drift warning when the total matches attendee answers", () => {
-    assert(
-      !html.includes("expected-actual-notice"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("expected-actual-notice"));
   });
 
   test("warns and shows expected/actual when the total has drifted", () => {
@@ -100,10 +92,10 @@ describe("adminAnswerEditPage", () => {
       modifiers,
       null,
     );
-    assertStringIncludes(html, "expected-actual-notice");
+    says(html, "expected-actual-notice");
     // Expected (rebuilt from attendee answers) then got (stored).
-    assertStringIncludes(html, "<strong>5</strong>");
-    assertStringIncludes(html, "<strong>7</strong>");
+    says(html, "<strong>5</strong>");
+    says(html, "<strong>7</strong>");
   });
 
   test("lists modifier options and marks the linked one selected", () => {
@@ -116,25 +108,25 @@ describe("adminAnswerEditPage", () => {
       modifiers,
       5,
     );
-    assertStringIncludes(html, '<select id="modifier_id" name="modifier_id">');
-    assertStringIncludes(html, "Large surcharge");
-    assertStringIncludes(html, "Tiny discount");
-    assertStringIncludes(html, '<option selected value="5">');
+    says(html, '<select id="modifier_id" name="modifier_id">');
+    says(html, "Large surcharge");
+    says(html, "Tiny discount");
+    says(html, '<option selected value="5">');
   });
 
   test("says beside the selector that only answer-triggered modifiers appear here", () => {
     // The selector omits Automatic and add-on modifiers; the hint is the
     // affordance that stops an operator reading that as a bug. The rendered
     // page escapes the copy's quotes, so match the quoteless sentence tail.
-    assertStringIncludes(html, "Create one on the Modifiers page first.");
+    says(html, "Create one on the Modifiers page first.");
   });
 
   test("selects the none option when no modifier is linked", () => {
-    assertStringIncludes(html, '<option selected value="">');
+    says(html, '<option selected value="">');
   });
 
   test("moves the delete action onto the edit page", () => {
-    assertStringIncludes(
+    says(
       html,
       '<a class="danger" href="/admin/questions/1/answers/11/delete">',
     );
@@ -150,7 +142,7 @@ describe("adminAnswerEditPage", () => {
       modifiers,
       null,
     );
-    assertStringIncludes(html, "Invalid modifier");
+    says(html, "Invalid modifier");
   });
 });
 
@@ -173,20 +165,17 @@ describe("adminAnswerRecalculatePage", () => {
       snapshot,
       OWNER_SESSION,
     );
-    assertStringIncludes(
-      html,
-      'action="/admin/questions/1/answers/11/recalculate"',
-    );
-    assertStringIncludes(html, 'class="active" href="/admin/questions"');
-    assertStringIncludes(html, '<div class="table-scroll">');
+    says(html, 'action="/admin/questions/1/answers/11/recalculate"');
+    says(html, 'class="active" href="/admin/questions"');
+    says(html, '<div class="table-scroll">');
     // Current (stored) and recalculated (from attendee answers) columns.
-    assertStringIncludes(html, "<td>7</td>");
-    assertStringIncludes(html, "<td>5</td>");
-    assertStringIncludes(html, 'name="recalculate_fields"');
+    says(html, "<td>7</td>");
+    says(html, "<td>5</td>");
+    says(html, 'name="recalculate_fields"');
   });
 
   test("renders an error flash", () => {
-    assertStringIncludes(
+    says(
       adminAnswerRecalculatePage(
         question,
         answer,
@@ -199,7 +188,7 @@ describe("adminAnswerRecalculatePage", () => {
   });
 
   test("renders a success flash", () => {
-    assertStringIncludes(
+    says(
       adminAnswerRecalculatePage(
         question,
         answer,

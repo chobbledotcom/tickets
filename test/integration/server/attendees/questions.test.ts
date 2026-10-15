@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
@@ -17,6 +17,7 @@ import {
   submitAttendeeEdit,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -51,7 +52,7 @@ describeWithEnv(
         const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
         const html = await response.text();
         // The radio for the previously-saved answer is pre-checked.
-        assertStringIncludes(
+        says(
           html,
           `<input checked name="question_${q.id}" type="radio" value="${a1.id}">`,
         );
@@ -67,10 +68,7 @@ describeWithEnv(
         );
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await response.text();
-        assert(
-          !html.includes("custom-question"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("custom-question"));
       });
 
       test("saves selected answer on edit", async () => {

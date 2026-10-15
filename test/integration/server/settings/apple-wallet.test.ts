@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
@@ -24,6 +24,7 @@ import {
 } from "#test-utils/der.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 /** Reuse cached certs for all wallet configuration */
@@ -146,8 +147,8 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
 
     const response = await fetchPkpassResponse(token);
     const cacheControl = response.headers.get("Cache-Control");
-    assertStringIncludes(cacheControl ?? "", "public");
-    assertStringIncludes(cacheControl ?? "", "s-maxage=3600");
+    says(cacheControl, "public");
+    says(cacheControl, "s-maxage=3600");
   });
 
   test("returns pkpass with inline content-disposition for iOS compatibility", async () => {
@@ -159,8 +160,8 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
 
     const response = await fetchPkpassResponse(token);
     const disposition = getHeader(response, "Content-Disposition");
-    assertStringIncludes(disposition ?? "", "inline");
-    assertStringIncludes(disposition ?? "", "ticket.pkpass");
+    says(disposition, "inline");
+    says(disposition, "ticket.pkpass");
   });
 
   test("returns pkpass with Content-Length header for iOS compatibility", async () => {
@@ -241,14 +242,8 @@ describeWithEnv("ticket view wallet link", { db: true }, () => {
       "alice@test.com",
     );
     const body = await fetchWalletTicketBody(token);
-    assert(
-      !body.includes("wallet-link"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !body.includes("Apple Wallet"),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes("wallet-link"));
+    assert(!body.includes("Apple Wallet"));
   });
 
   test("shows wallet link when Apple Wallet is configured", async () => {
@@ -258,9 +253,9 @@ describeWithEnv("ticket view wallet link", { db: true }, () => {
       "alice@test.com",
     );
     const body = await fetchWalletTicketBody(token);
-    assertStringIncludes(body, "wallet-link");
-    assertStringIncludes(body, "Apple Wallet");
-    assertStringIncludes(body, `/wallet/${token}.pkpass`);
+    says(body, "wallet-link");
+    says(body, "Apple Wallet");
+    says(body, `/wallet/${token}.pkpass`);
   });
 });
 
@@ -556,13 +551,13 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     const response = await adminGet("/admin/settings-advanced");
     const body = await response.text();
     // Section exists
-    assertStringIncludes(body, "Apple Wallet");
-    assertStringIncludes(body, "apple_wallet_pass_type_id");
+    says(body, "Apple Wallet");
+    says(body, "apple_wallet_pass_type_id");
     // Configured values shown
-    assertStringIncludes(body, "pass.com.test.tickets");
-    assertStringIncludes(body, "TESTTEAM01");
+    says(body, "pass.com.test.tickets");
+    says(body, "TESTTEAM01");
     // Secrets are masked
-    assertStringIncludes(body, "••••••••");
+    says(body, "••••••••");
   });
 });
 
@@ -604,9 +599,9 @@ describeWithEnv(
       expect(config).not.toBeNull();
       expect(config!.passTypeId).toBe("pass.com.env.tickets");
       expect(config!.teamId).toBe("ENVTEAM001");
-      assertStringIncludes(config!.signingCert, "BEGIN CERTIFICATE");
-      assertStringIncludes(config!.signingKey, "BEGIN RSA PRIVATE KEY");
-      assertStringIncludes(config!.wwdrCert, "BEGIN CERTIFICATE");
+      says(config!.signingCert, "BEGIN CERTIFICATE");
+      says(config!.signingKey, "BEGIN RSA PRIVATE KEY");
+      says(config!.wwdrCert, "BEGIN CERTIFICATE");
     });
   },
 );
@@ -663,16 +658,16 @@ describeWithEnv(
         "alice@test.com",
       );
       const body = await fetchWalletTicketBody(token);
-      assertStringIncludes(body, "wallet-link");
-      assertStringIncludes(body, "Apple Wallet");
+      says(body, "wallet-link");
+      says(body, "Apple Wallet");
     });
 
     test("settings page shows host Apple Wallet label when env vars configured", async () => {
       using _env = setWalletEnvVars();
       const response = await adminGet("/admin/settings-advanced");
       const body = await response.text();
-      assertStringIncludes(body, "Host env (pass.com.env.tickets)");
-      assertStringIncludes(body, "Currently using");
+      says(body, "Host env (pass.com.env.tickets)");
+      says(body, "Currently using");
     });
 
     test("settings page shows overriding label when both DB and env configured", async () => {
@@ -680,8 +675,8 @@ describeWithEnv(
       await configureAppleWallet();
       const response = await adminGet("/admin/settings-advanced");
       const body = await response.text();
-      assertStringIncludes(body, "Host env (pass.com.env.tickets)");
-      assertStringIncludes(body, "Overriding");
+      says(body, "Host env (pass.com.env.tickets)");
+      says(body, "Overriding");
     });
   },
 );

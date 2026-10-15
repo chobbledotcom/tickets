@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { findIssues } from "#scripts/check-empty-catch/rules.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("check-empty-catch rules", () => {
   test("flags a catch block that holds nothing", () => {
@@ -125,7 +126,7 @@ describe("check-empty-catch rules", () => {
   test("reports the finding with the rule's fix", () => {
     const [issue] = findIssues("six.ts", "try {\n} catch (e) {}\n");
     expect(issue?.rule).toBe("empty-catch");
-    expect(issue?.problem).toContain("no statement");
-    expect(issue?.fix).toContain("re-raise");
+    says(issue?.problem, "no statement");
+    says(issue?.fix, "re-raise");
   });
 });

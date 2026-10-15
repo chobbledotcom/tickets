@@ -7,7 +7,6 @@
  * be updated — a single source of truth, not a hand-maintained second copy.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
@@ -18,6 +17,7 @@ import {
   CATALOG_LISTING_EXAMPLE,
   CATALOG_LISTING_EXAMPLE_JSON,
 } from "#shared/catalog-transfer-example.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("catalog transfer example", () => {
   test("the listing example parses as a valid catalog transfer blob", () => {
@@ -48,7 +48,7 @@ describe("catalog transfer example", () => {
     expect(CATALOG_GROUP_EXAMPLE_JSON).toBe(
       JSON.stringify(CATALOG_GROUP_EXAMPLE, null, 2),
     );
-    assertStringIncludes(CATALOG_LISTING_EXAMPLE_JSON, '\n  "kind": "listing"');
+    says(CATALOG_LISTING_EXAMPLE_JSON, '\n  "kind": "listing"');
   });
 
   test("the package-member listing carries no parents (not an add-on child)", () => {
@@ -70,10 +70,7 @@ describe("catalog transfer example", () => {
     // The guide's group example exists to show the package flags on; if either
     // flipped off it would document a plain group, not the package/privacy
     // feature it is meant to illustrate.
-    assertStringIncludes(CATALOG_GROUP_EXAMPLE_JSON, '"isPackage": true');
-    assertStringIncludes(
-      CATALOG_GROUP_EXAMPLE_JSON,
-      '"hidePackageListings": true',
-    );
+    says(CATALOG_GROUP_EXAMPLE_JSON, '"isPackage": true');
+    says(CATALOG_GROUP_EXAMPLE_JSON, '"hidePackageListings": true');
   });
 });

@@ -4,13 +4,14 @@
  * link that renders is always one the viewer can follow.
  */
 
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { has, says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -31,8 +32,8 @@ describeWithEnv("the listing page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, "<h1>Listing: Castle Hire</h1>");
-    assertArrayIncludes(tabsOf(html, listing.id) ?? [], ["attendees"]);
+    says(html, "<h1>Listing: Castle Hire</h1>");
+    has(tabsOf(html, listing.id), "attendees");
   });
 
   test("marks the listings list as the section it belongs to", async () => {
@@ -40,7 +41,7 @@ describeWithEnv("the listing page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/listing/${listing.id}`)).text();
 
-    assertStringIncludes(html, `<a class="active" href="/admin/listings">`);
+    says(html, `<a class="active" href="/admin/listings">`);
   });
 
   test("opens an editor on edit and keeps the attendee tabs shut", async () => {
@@ -56,7 +57,7 @@ describeWithEnv("the listing page", { db: true }, () => {
     );
 
     expect(page.status).toBe(200);
-    assertStringIncludes(
+    says(
       await page.text(),
       `<a aria-current="page" class="active" href="/admin/listing/${listing.id}/edit">Edit</a>`,
     );
@@ -75,26 +76,14 @@ describeWithEnv("the listing page", { db: true }, () => {
     });
     const dead = await actions();
 
-    assertStringIncludes(
-      live,
-      `href="/admin/listing/${listing.id}/deactivate"`,
-    );
-    assert(
-      !live.includes(`href="/admin/listing/${listing.id}/reactivate"`),
-      "the value should not contain the searched item",
-    );
+    says(live, `href="/admin/listing/${listing.id}/deactivate"`);
+    assert(!live.includes(`href="/admin/listing/${listing.id}/reactivate"`));
     expect(
       (await listingsTable.read.pick(["active"]).one({ id: listing.id }))!
         .active,
     ).toBe(false);
-    assertStringIncludes(
-      dead,
-      `href="/admin/listing/${listing.id}/reactivate"`,
-    );
-    assert(
-      !dead.includes(`href="/admin/listing/${listing.id}/deactivate"`),
-      "the value should not contain the searched item",
-    );
+    says(dead, `href="/admin/listing/${listing.id}/reactivate"`);
+    assert(!dead.includes(`href="/admin/listing/${listing.id}/deactivate"`));
   });
 
   test("keeps delete and refund from an editor, and offers them export", async () => {
@@ -105,19 +94,10 @@ describeWithEnv("the listing page", { db: true }, () => {
       await awaitTestRequest(`/admin/listing/${listing.id}/actions`, { cookie })
     ).text();
 
-    assertStringIncludes(
-      html,
-      `href="/admin/listing/${listing.id}/export.json"`,
-    );
-    assertStringIncludes(html, `href="/admin/listing/${listing.id}/duplicate"`);
-    assert(
-      !html.includes(`href="/admin/listing/${listing.id}/delete"`),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes(`href="/admin/listing/${listing.id}/refund-all"`),
-      "the value should not contain the searched item",
-    );
+    says(html, `href="/admin/listing/${listing.id}/export.json"`);
+    says(html, `href="/admin/listing/${listing.id}/duplicate"`);
+    assert(!html.includes(`href="/admin/listing/${listing.id}/delete"`));
+    assert(!html.includes(`href="/admin/listing/${listing.id}/refund-all"`));
   });
 
   test("keeps the owner-only actions from a manager", async () => {
@@ -130,15 +110,9 @@ describeWithEnv("the listing page", { db: true }, () => {
       await awaitTestRequest(`/admin/listing/${listing.id}/actions`, { cookie })
     ).text();
 
-    assertStringIncludes(html, `href="/admin/listing/${listing.id}/delete"`);
-    assert(
-      !html.includes(`href="/admin/listing/${listing.id}/refund-all"`),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("/admin/emails?"),
-      "the value should not contain the searched item",
-    );
+    says(html, `href="/admin/listing/${listing.id}/delete"`);
+    assert(!html.includes(`href="/admin/listing/${listing.id}/refund-all"`));
+    assert(!html.includes("/admin/emails?"));
   });
 
   test("answers 404 for a listing that is not there", async () => {

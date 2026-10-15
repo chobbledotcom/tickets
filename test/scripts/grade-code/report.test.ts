@@ -10,6 +10,7 @@ import {
   type UngradedCode,
   worstFirst,
 } from "#scripts/grade-code/report.ts";
+import { has, says } from "#test-utils/says.ts";
 
 const row = (parts: Partial<ReportRow>): ReportRow => ({
   critical: false,
@@ -117,23 +118,21 @@ describe("singleReportLines", () => {
 
   test("prints every check, the score, the call, and the critical failure", () => {
     const lines = singleReportLines(result);
-    expect(lines[0]).toContain(
-      "src/features/admin/a.ts (feature, 10 lines, 2 checks)",
-    );
-    expect(lines.join("\n")).toContain("  [+] PASS Fine check");
-    expect(lines.join("\n")).toContain("(code w2) all good");
-    expect(lines.join("\n")).toContain("  [X] FAIL Broken check");
-    expect(lines.join("\n")).toContain("(jev  w2) two imports [CRITICAL]");
-    expect(lines).toContain("Score: 50/100 (F) - 1 pass, 0 warn, 1 fail");
-    expect(lines).toContain("Jev: model=jev-1.13, 10 in / 5 out tokens, 1.25s");
-    expect(lines).toContain("CRITICAL: Broken check: two imports");
+    says(lines[0], "src/features/admin/a.ts (feature, 10 lines, 2 checks)");
+    says(lines.join("\n"), "  [+] PASS Fine check");
+    says(lines.join("\n"), "(code w2) all good");
+    says(lines.join("\n"), "  [X] FAIL Broken check");
+    says(lines.join("\n"), "(jev  w2) two imports [CRITICAL]");
+    has(lines, "Score: 50/100 (F) - 1 pass, 0 warn, 1 fail");
+    has(lines, "Jev: model=jev-1.13, 10 in / 5 out tokens, 1.25s");
+    has(lines, "CRITICAL: Broken check: two imports");
   });
 
   test("prints the call without token counts when jev reports none", () => {
     const lines = singleReportLines(
       graded({ jev: { model: "jev-1.13", seconds: 1 }, score: 100 }),
     );
-    expect(lines).toContain("Jev: model=jev-1.13, 1.00s");
+    has(lines, "Jev: model=jev-1.13, 1.00s");
   });
 });
 
@@ -160,12 +159,13 @@ describe("batchReportLines", () => {
     expect(files.findIndex((line) => line.includes("src/b.ts"))).toBe(0);
     expect(files.findIndex((line) => line.includes("admin/a.ts"))).toBe(1);
     expect(files.findIndex((line) => line.includes("src/c.ts"))).toBe(2);
-    expect(lines).toContain(
+    has(
+      lines,
       "2 graded, 1 errored, 0 Jev failed | median 70 | A:1 F:1 | 3s total",
     );
-    expect(lines).toContain("Most-failed checks across the batch:");
-    expect(lines).toContain("Most-warned checks across the batch:");
-    expect(lines).toContain("  x1    Check");
+    has(lines, "Most-failed checks across the batch:");
+    has(lines, "Most-warned checks across the batch:");
+    has(lines, "  x1    Check");
   });
 
   test("ranks a file Jev failed on apart from complete grades", () => {
@@ -183,15 +183,14 @@ describe("batchReportLines", () => {
       { model: "jev-1.13", seconds: 3 },
     );
     const files = fileRows(lines);
-    expect(files[0]).toContain("src/full.ts");
-    expect(files[1]).toContain(
-      "src/partial.ts - Jev failed: HTTP 429: slow down",
-    );
-    expect(files[2]).toContain("src/c.ts");
-    expect(lines).toContain(
+    says(files[0], "src/full.ts");
+    says(files[1], "src/partial.ts - Jev failed: HTTP 429: slow down");
+    says(files[2], "src/c.ts");
+    has(
+      lines,
       "1 graded, 1 errored, 1 Jev failed | median 60 | C:1 | 3s total",
     );
-    expect(lines).toContain("  x1    Alpha");
+    has(lines, "  x1    Alpha");
   });
 
   test("prints no median when Jev failed on every file", () => {
@@ -199,7 +198,7 @@ describe("batchReportLines", () => {
       [graded({ jevError: "HTTP 402: no credits" })],
       { model: "jev-1.13", seconds: 3 },
     );
-    expect(lines).toContain("0 graded, 0 errored, 1 Jev failed | 3s total");
+    has(lines, "0 graded, 0 errored, 1 Jev failed | 3s total");
   });
 
   test("stops after the table when no file could be graded", () => {
@@ -208,7 +207,7 @@ describe("batchReportLines", () => {
       { model: "jev-1.13", seconds: 3 },
     );
     expect(lines).toHaveLength(4);
-    expect(lines.join("\n")).toContain("src/c.ts - nope");
+    says(lines.join("\n"), "src/c.ts - nope");
   });
 
   test("breaks a score tie by file path", () => {
@@ -220,8 +219,8 @@ describe("batchReportLines", () => {
       { model: "jev-1.13", seconds: 3 },
     );
     const files = fileRows(lines);
-    expect(files[0]).toContain("src/a.ts");
-    expect(files[1]).toContain("src/z.ts");
+    says(files[0], "src/a.ts");
+    says(files[1], "src/z.ts");
   });
 
   test("names the model the rows report", () => {
@@ -233,7 +232,7 @@ describe("batchReportLines", () => {
       ],
       { model: "jev-1.13", seconds: 3 },
     );
-    expect(lines[0]).toContain("model=jev-1.13-free");
+    says(lines[0], "model=jev-1.13-free");
   });
 });
 
@@ -251,7 +250,7 @@ describe("csvLines", () => {
     expect(lines[0]).toBe(
       "score,letter,kind,file,pass,warn,fail,failed_checks,jev_error,error",
     );
-    expect(lines[2]).toContain('"weird,name.ts"');
-    expect(lines[3]).toContain('"boom ""today"""');
+    says(lines[2], '"weird,name.ts"');
+    says(lines[3], '"boom ""today"""');
   });
 });

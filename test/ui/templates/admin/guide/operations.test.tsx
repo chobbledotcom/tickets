@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -11,6 +11,7 @@ import {
 import { operationsSections } from "#templates/admin/guide/operations.tsx";
 import { listingTable } from "#templates/admin/listing-table.tsx";
 import { attendeeTable } from "#templates/attendee-table/columns.tsx";
+import { says } from "#test-utils/says.ts";
 
 const sections = operationsSections();
 
@@ -29,10 +30,7 @@ const imagesSection = (): GuideSection => {
 describe("operations guide schema", () => {
   test("states the image size limit the site actually uses", () => {
     const html = String(renderGuideSections([imagesSection()]));
-    assertStringIncludes(
-      html,
-      `up to <strong>${formatBytes(MAX_IMAGE_SIZE)}</strong>`,
-    );
+    says(html, `up to <strong>${formatBytes(MAX_IMAGE_SIZE)}</strong>`);
   });
 
   test("says the custom CSS change appears when you save it", () => {
@@ -41,12 +39,9 @@ describe("operations guide schema", () => {
         sections.find(({ titleKey }) => titleKey === "customising_your_site")!,
       ]),
     );
-    assertStringIncludes(html, "Saving gives every visitor a fresh copy");
-    assertStringIncludes(html, "your change appears at once");
-    assert(
-      !html.includes("cached for up to an hour"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Saving gives every visitor a fresh copy");
+    says(html, "your change appears at once");
+    assert(!html.includes("cached for up to an hour"));
   });
 
   test("keeps every operations section in its intended order", () => {
@@ -91,23 +86,14 @@ describe("operations guide schema", () => {
 
     const listingAnswer = html.slice(listingStart, attendeeStart);
     const attendeeAnswer = html.slice(attendeeStart, filtersStart);
-    assertStringIncludes(
-      listingAnswer,
-      `<code>${listingTable.layout.defaultTemplate}</code>`,
-    );
-    assertStringIncludes(
+    says(listingAnswer, `<code>${listingTable.layout.defaultTemplate}</code>`);
+    says(
       attendeeAnswer,
       `<code>${attendeeTable.layout.defaultTemplate}</code>`,
     );
-    assert(
-      !listingAnswer.includes(t("guide.table_columns.attendee_hidden")),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(
-      attendeeAnswer,
-      t("guide.table_columns.attendee_hidden"),
-    );
-    assertStringIncludes(listingAnswer, "<code>{{name}}</code>");
-    assertStringIncludes(attendeeAnswer, "<code>{{email}}</code>");
+    assert(!listingAnswer.includes(t("guide.table_columns.attendee_hidden")));
+    says(attendeeAnswer, t("guide.table_columns.attendee_hidden"));
+    says(listingAnswer, "<code>{{name}}</code>");
+    says(attendeeAnswer, "<code>{{email}}</code>");
   });
 });

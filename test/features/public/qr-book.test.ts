@@ -12,7 +12,6 @@
  * token the organiser's page would never produce.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -34,6 +33,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   bookToken,
   expectStripeRedirect,
@@ -74,8 +74,8 @@ describeWithEnv("QR booking", { db: true }, () => {
       );
       expect(response.status).toBe(400);
       const body = await response.text();
-      assertStringIncludes(body, "expired or invalid");
-      assertStringIncludes(body, `/ticket/${listing.slug}`);
+      says(body, "expired or invalid");
+      says(body, `/ticket/${listing.slug}`);
     });
 
     test("unknown listing slug renders the error page", async () => {
@@ -197,7 +197,7 @@ describeWithEnv("QR booking", { db: true }, () => {
         // The visitor must choose a day count, so the form renders instead.
         expect(response.status).toBe(200);
         expect(stripe.calls()).toBe(0);
-        assertStringIncludes(await response.text(), 'name="day_count"');
+        says(await response.text(), 'name="day_count"');
       });
     });
 
@@ -225,7 +225,7 @@ describeWithEnv("QR booking", { db: true }, () => {
           qrBookPath(listing.slug, token),
         );
         expect(response.status).toBe(200);
-        assertStringIncludes(await response.text(), 'name="day_count"');
+        says(await response.text(), 'name="day_count"');
       });
     });
 
@@ -237,7 +237,7 @@ describeWithEnv("QR booking", { db: true }, () => {
       });
       const response = await scanWithCheckoutResult(listing, null);
       expect(response.status).toBe(500);
-      assertStringIncludes(
+      says(
         await response.text(),
         "Failed to create payment session. Please try again.",
       );
@@ -255,7 +255,7 @@ describeWithEnv("QR booking", { db: true }, () => {
         error: refusal,
       });
       expect(response.status).toBe(400);
-      assertStringIncludes(await response.text(), refusal);
+      says(await response.text(), refusal);
     });
 
     test("falls through when name is missing even though value is set", async () => {

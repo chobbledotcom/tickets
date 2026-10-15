@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -7,6 +6,7 @@ import {
   siteHomeForm,
   siteOrderForm,
 } from "#templates/fields/site.ts";
+import { says } from "#test-utils/says.ts";
 
 /** The box names each site form offers, in order. */
 const fieldNames = (form: { fields: ReadonlyArray<{ name: string }> }) =>
@@ -21,11 +21,11 @@ describe("site editor forms", () => {
     const title = siteHomeForm.fields[0]!;
     expect(title.maxlength).toBe(MAX_INPUT_LENGTH);
     const html = siteHomeForm.render();
-    assertStringIncludes(html, "Website title");
+    says(html, "Website title");
     // The id ties the label to the box, and the browser must not offer
     // saved site-login values for a page title.
-    assertStringIncludes(html, 'id="website_title"');
-    assertStringIncludes(html, 'autocomplete="off"');
+    says(html, 'id="website_title"');
+    says(html, 'autocomplete="off"');
   });
 
   test("the contact and order forms each offer their one markdown text box", () => {
@@ -34,7 +34,7 @@ describe("site editor forms", () => {
     for (const form of [siteContactForm, siteOrderForm]) {
       expect(form.fields[0]!.maxlength).toBe(MAX_TEXTAREA_LENGTH);
       // Markdown boxes carry the live preview control plain text areas lack.
-      assertStringIncludes(form.render(), "data-markdown-preview");
+      says(form.render(), "data-markdown-preview");
     }
   });
 });

@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import listingPricesMigration from "#db/migrations/2026-07-01_listing_prices.ts";
@@ -9,6 +8,7 @@ import {
   appliedMigrationIds,
   buildMigrationContext,
 } from "#test-utils/migrations.ts";
+import { has } from "#test-utils/says.ts";
 
 // The migration reaches exactly these two sync members (newTables and indexes
 // are both non-empty); every other member would throw by default.
@@ -34,9 +34,7 @@ describeWithEnv(
   () => {
     test("up() rebuilds every listing's base row from its unit_price", async () => {
       // The migration's own id, as the stored marker rows will say it.
-      assertArrayIncludes((await appliedMigrationIds()) ?? [], [
-        "2026-07-01_listing_prices",
-      ]);
+      has(await appliedMigrationIds(), "2026-07-01_listing_prices");
       await expectBackfillRebuildsBaseRows(() =>
         listingPricesMigration(context).up(),
       );

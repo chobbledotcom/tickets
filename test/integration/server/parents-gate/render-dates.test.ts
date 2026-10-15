@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -19,6 +19,7 @@ import {
   makeDailyChildFilledOnDayA,
   selectOptionsFromHtml,
 } from "#test-utils/parents-gate/helpers.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -46,9 +47,9 @@ describeWithEnv(
       // The parent's quantity selector still offers a bookable quantity (the
       // date-less sold-out child did NOT clamp it to 0).
       const options = selectOptionsFromHtml(html, `quantity_${parent.id}`);
-      assertStringIncludes(options, 'value="1"');
+      says(options, 'value="1"');
       // The sole daily child renders informational (auto-selected), not disabled.
-      assertStringIncludes(html, `data-sole-child="${child.id}"`);
+      says(html, `data-sole-child="${child.id}"`);
       expect(html).not.toMatch(
         new RegExp(
           `<select name="child_qty_${parent.id}_${child.id}"[^>]*\\sdisabled`,
@@ -78,12 +79,9 @@ describeWithEnv(
       const html = await bookingPageHtml(parent.slug);
       // Every child date is offered; a parent-only date is not.
       for (const d of childDates) {
-        assertStringIncludes(html, `<option value="${d}"`);
+        says(html, `<option value="${d}"`);
       }
-      assert(
-        !html.includes(`<option value="${otherDate}"`),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes(`<option value="${otherDate}"`));
     });
 
     test("a daily parent with a dateless child keeps all its dates", async () => {
@@ -95,7 +93,7 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       for (const d of parentDates) {
-        assertStringIncludes(html, `<option value="${d}"`);
+        says(html, `<option value="${d}"`);
       }
     });
 
@@ -125,12 +123,9 @@ describeWithEnv(
       await deactivateTestListing(inactiveChild.id);
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(html, `<option value="${mondayDate}"`);
+      says(html, `<option value="${mondayDate}"`);
       // The inactive child's Tuesday must NOT be offered.
-      assert(
-        !html.includes(`<option value="${tuesdayDate}"`),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes(`<option value="${tuesdayDate}"`));
     });
 
     test("a fixed-span daily parent drops a child date with no valid full-span start", async () => {
@@ -160,10 +155,7 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       // No Monday→Wednesday span is valid for the child, so Monday is not offered.
-      assert(
-        !html.includes(`<option value="${mondayDate}"`),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes(`<option value="${mondayDate}"`));
     });
 
     test("a customisable daily parent offers a fixed daily child's full-span starts, not single days", async () => {
@@ -208,13 +200,10 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       // Monday (a valid full 3-day child start) is offered.
-      assertStringIncludes(html, `<option value="${mondayDate}"`);
+      says(html, `<option value="${mondayDate}"`);
       // Tuesday is bookable single-day but starts no full 3-day span, so the
       // customisable parent must NOT offer it.
-      assert(
-        !html.includes(`<option value="${tuesdayDate}"`),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes(`<option value="${tuesdayDate}"`));
     });
 
     test("a daily child full on one date does not make its parent render sold out", async () => {
@@ -230,14 +219,11 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       // The parent renders a normal bookable form, not the sold-out message.
-      assertStringIncludes(html, `name="quantity_${parent.id}"`);
+      says(html, `name="quantity_${parent.id}"`);
       // The daily child is the sole bookable option, rendered
       // informational — never as a disabled control.
-      assertStringIncludes(html, `data-sole-child="${child.id}"`);
-      assert(
-        !html.includes("Sorry, this listing is full."),
-        "the value should not contain the searched item",
-      );
+      says(html, `data-sole-child="${child.id}"`);
+      assert(!html.includes("Sorry, this listing is full."));
     });
   },
 );

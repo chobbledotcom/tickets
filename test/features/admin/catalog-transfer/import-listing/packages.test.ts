@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
@@ -7,6 +6,7 @@ import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { says } from "#test-utils/says.ts";
 
 // Package day-price override validation lives in its own file: importing a
 // customisable member exercises the read-heavy create helpers, and folding
@@ -79,7 +79,7 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
     const result = await importListingOverride("Custom Joiner", "Host Pkg", 5);
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, "5-day");
+    says(result.error, "5-day");
   });
 
   test("accepts a listing-import package day-override for an offered span", async () => {

@@ -112,14 +112,8 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
         entry.message.includes("Signed payment's booking could not be read"),
       ),
     ).toBe(true);
-    assert(
-      !JSON.stringify(log).includes("cs_unreadable_booking"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !JSON.stringify(log).includes("unreadable@example.com"),
-      "the value should not contain the searched item",
-    );
+    assert(!JSON.stringify(log).includes("cs_unreadable_booking"));
+    assert(!JSON.stringify(log).includes("unreadable@example.com"));
   });
 
   test("webhook ignores unrecognized session via fallback retrieval path", async () => {

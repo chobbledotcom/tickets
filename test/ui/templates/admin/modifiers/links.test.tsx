@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -10,6 +10,7 @@ import {
 } from "#templates/admin/modifiers/links.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testModifier } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 const MODIFIER = testModifier({ id: 1 });
 
@@ -38,9 +39,9 @@ describe("ScopeLinksForm", () => {
       options: [{ active: true, id: 7, name: "VIP Pass" }],
       selected: [7],
     });
-    assertStringIncludes(html, 'action="/admin/modifiers/1/links"');
-    assertStringIncludes(html, "/icons.svg#save");
-    assertStringIncludes(html, "Save scope");
+    says(html, 'action="/admin/modifiers/1/links"');
+    says(html, "/icons.svg#save");
+    says(html, "Save scope");
   });
 
   test("renders listing checkboxes under the listings field, current links checked", () => {
@@ -52,16 +53,10 @@ describe("ScopeLinksForm", () => {
       ],
       selected: [7],
     });
-    assertStringIncludes(html, "<strong>Linked listings (1):</strong>");
-    assertStringIncludes(
-      html,
-      'checked name="listing_ids" type="checkbox" value="7"',
-    );
-    assertStringIncludes(
-      html,
-      '<label><input name="listing_ids" type="checkbox" value="8"',
-    );
-    assertStringIncludes(html, "VIP Pass");
+    says(html, "<strong>Linked listings (1):</strong>");
+    says(html, 'checked name="listing_ids" type="checkbox" value="7"');
+    says(html, '<label><input name="listing_ids" type="checkbox" value="8"');
+    says(html, "VIP Pass");
   });
 
   test("renders group checkboxes under the groups field", () => {
@@ -70,13 +65,10 @@ describe("ScopeLinksForm", () => {
       options: [{ active: true, id: 3, name: "Weekend" }],
       selected: [],
     });
-    assertStringIncludes(html, "<strong>Linked groups (0):</strong>");
-    assertStringIncludes(html, 'name="group_ids" type="checkbox" value="3"');
-    assertStringIncludes(html, "Weekend");
-    assert(
-      !html.includes('name="listing_ids"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "<strong>Linked groups (0):</strong>");
+    says(html, 'name="group_ids" type="checkbox" value="3"');
+    says(html, "Weekend");
+    assert(!html.includes('name="listing_ids"'));
   });
 
   test("sorts a deactivated listing last and renders it muted", () => {
@@ -98,15 +90,9 @@ describe("ScopeLinksForm", () => {
 
   test("shows the empty note (and no checkboxes) when nothing is linkable", () => {
     const html = render({ kind: "listings", options: [], selected: [] });
-    assertStringIncludes(html, "Nothing available to link yet");
-    assert(
-      !html.includes('type="checkbox"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Linked listings"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Nothing available to link yet");
+    assert(!html.includes('type="checkbox"'));
+    assert(!html.includes("Linked listings"));
   });
 });
 
@@ -121,13 +107,10 @@ describe("AnswerLinksForm", () => {
       options: [{ id: 10, name: "Size — Large" }],
       selected: [10],
     });
-    assertStringIncludes(html, 'action="/admin/modifiers/1/answers"');
-    assertStringIncludes(
-      html,
-      "when a buyer selects any of the ticked answers",
-    );
-    assertStringIncludes(html, "/icons.svg#save");
-    assertStringIncludes(html, "Save answers");
+    says(html, 'action="/admin/modifiers/1/answers"');
+    says(html, "when a buyer selects any of the ticked answers");
+    says(html, "/icons.svg#save");
+    says(html, "Save answers");
   });
 
   test("checks linked answers and leaves unlinked ones unchecked", () => {
@@ -138,15 +121,9 @@ describe("AnswerLinksForm", () => {
       ],
       selected: [10],
     });
-    assertStringIncludes(html, "<strong>Linked answers (1):</strong>");
-    assertStringIncludes(
-      html,
-      'checked name="answer_ids" type="checkbox" value="10"',
-    );
-    assertStringIncludes(
-      html,
-      '<label><input name="answer_ids" type="checkbox" value="11"',
-    );
+    says(html, "<strong>Linked answers (1):</strong>");
+    says(html, 'checked name="answer_ids" type="checkbox" value="10"');
+    says(html, '<label><input name="answer_ids" type="checkbox" value="11"');
   });
 
   test("renders answers active (never muted), since answers have no deactivated state", () => {
@@ -154,18 +131,12 @@ describe("AnswerLinksForm", () => {
       options: [{ id: 10, name: "Size — Large" }],
       selected: [],
     });
-    assert(
-      !html.includes('<label class="muted"><input name="answer_ids"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('<label class="muted"><input name="answer_ids"'));
   });
 
   test("shows the empty note when there are no answers to link", () => {
     const html = render({ options: [], selected: [] });
-    assertStringIncludes(html, "No question answers to link yet");
-    assert(
-      !html.includes('type="checkbox"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "No question answers to link yet");
+    assert(!html.includes('type="checkbox"'));
   });
 });

@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -7,6 +6,7 @@ import {
   stubPaidSession,
   submitBuyerOrder,
 } from "#test-utils/reservation/helpers.ts";
+import { has } from "#test-utils/says.ts";
 
 /** The shape every balance test asserts against — the newest booking's
  * plaintext reservation columns, as read back by `latestAttendee`. */
@@ -29,7 +29,7 @@ export const bookPaidReservation = async (
     const response = await handleRequest(
       mockRequest(`/payment/success?session_id=${sessionId}`),
     );
-    assertArrayIncludes([200, 302, 303], [response.status]);
+    has([200, 302, 303], response.status);
     return await latestAttendee();
   } finally {
     session.restore();

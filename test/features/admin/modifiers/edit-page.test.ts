@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -8,6 +8,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -42,12 +43,12 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "Actions",
         "/admin/guide#modifiers",
       );
-      assertStringIncludes(
+      says(
         html,
         `aria-current="page" class="active" href="/admin/modifiers/${id}/edit"`,
       );
-      assertStringIncludes(html, '<a class="active" href="/admin/modifiers">');
-      assertStringIncludes(html, `href="/admin/modifiers/${id}/actions"`);
+      says(html, '<a class="active" href="/admin/modifiers">');
+      says(html, `href="/admin/modifiers/${id}/actions"`);
     });
 
     test("returns 404 for an unknown tab", async () => {
@@ -92,10 +93,10 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
-      assertStringIncludes(html, "Adjust revenue");
-      assertStringIncludes(html, `action="/admin/modifiers/${id}/revenue"`);
-      assertStringIncludes(html, 'name="total_revenue"');
-      assertStringIncludes(html, "This adds a correction to Money.");
+      says(html, "Adjust revenue");
+      says(html, `action="/admin/modifiers/${id}/revenue"`);
+      says(html, 'name="total_revenue"');
+      says(html, "This adds a correction to Money.");
     });
 
     test("shows the owner-only modifier ledger section", async () => {
@@ -106,13 +107,10 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
-      assertStringIncludes(html, "Money");
-      assert(
-        !html.includes("Money history"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, "Add money change");
-      assertStringIncludes(
+      says(html, "Money");
+      assert(!html.includes("Money history"));
+      says(html, "Add money change");
+      says(
         html,
         `/admin/ledger/modifier/${id}/add?return_url=%2Fadmin%2Fmodifiers%2F${id}%2Fedit`,
       );
@@ -129,15 +127,9 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       });
       const html = await response.text();
       expect(response.status).toBe(200);
-      assertStringIncludes(html, "Manager visible");
-      assert(
-        !html.includes("<h2>Money</h2>"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes(`/admin/ledger/modifier/${id}/add`),
-        "the value should not contain the searched item",
-      );
+      says(html, "Manager visible");
+      assert(!html.includes("<h2>Money</h2>"));
+      assert(!html.includes(`/admin/ledger/modifier/${id}/add`));
     });
 
     test("shows delete only on the Actions tab", async () => {
@@ -147,10 +139,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         await adminGet(`/admin/modifiers/${id}/edit`)
       ).text();
       const actions = await adminGet(`/admin/modifiers/${id}/actions`);
-      assert(
-        !editHtml.includes(`/admin/modifiers/${id}/delete`),
-        "the value should not contain the searched item",
-      );
+      assert(!editHtml.includes(`/admin/modifiers/${id}/delete`));
       await expectHtmlResponse(
         actions,
         200,

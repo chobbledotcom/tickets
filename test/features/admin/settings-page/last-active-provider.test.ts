@@ -1,10 +1,10 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -21,13 +21,10 @@ describeWithEnv(
         BUNNY_SCRIPT_ID: undefined,
       });
       const html = await (await adminGet("/admin/settings-advanced")).text();
-      assertStringIncludes(
-        html,
-        "Changing your domain changes your payment webhook",
-      );
-      assertStringIncludes(html, 'href="/admin/settings#settings-stripe"');
+      says(html, "Changing your domain changes your payment webhook");
+      says(html, 'href="/admin/settings#settings-stripe"');
       const settingsHtml = await (await adminGet("/admin/settings")).text();
-      assertStringIncludes(settingsHtml, 'id="settings-stripe"');
+      says(settingsHtml, 'id="settings-stripe"');
     });
 
     test("requires a provider choice when stored credentials are ambiguous", async () => {
@@ -44,17 +41,14 @@ describeWithEnv(
       );
       expect(form).not.toBeNull();
       if (form === null) return;
-      assertStringIncludes(
-        form[0] ?? "",
-        'id="settings-payment-provider-recovery"',
-      );
+      says(form[0], 'id="settings-payment-provider-recovery"');
       for (const provider of ["stripe", "square"]) {
         const input = inputTagWithValue(
           form[0],
           provider,
           "existing_payment_provider",
         );
-        assertStringIncludes(input, "required");
+        says(input, "required");
       }
       expect(hasCheckedInput(html, "payment_provider", "none")).toBe(true);
     });

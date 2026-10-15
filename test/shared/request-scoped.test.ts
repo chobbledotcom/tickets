@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -6,6 +5,7 @@ import {
   createScope,
   createScopedValue,
 } from "#shared/request-scoped.ts";
+import { has } from "#test-utils/says.ts";
 
 describe("shared > request scoped > createBooleanScope", () => {
   test("reads false outside any scope", () => {
@@ -34,8 +34,8 @@ describe("shared > request scoped > createBooleanScope", () => {
     });
     reads.push(flag.read());
 
-    assertArrayIncludes(reads ?? [], [true]);
-    assertArrayIncludes(reads ?? [], [false]);
+    has(reads, true);
+    has(reads, false);
   });
 
   test("a scoped value answers its own false, not the fallback", () => {

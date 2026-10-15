@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -24,6 +24,7 @@ import {
   mockRequestWithHost,
   withMockBunnyCdnApi,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   testCookie,
@@ -58,16 +59,15 @@ describeWithEnv(
     test("hides the section when DNS is not configured", async () => {
       assert(
         !(await advancedPageHtml()).includes('id="settings-host-subdomain"'),
-        "the value should not contain the searched item",
       );
     });
 
     test("shows the section when DNS is configured", async () => {
       enable();
       const html = await advancedPageHtml();
-      assertStringIncludes(html, 'id="settings-host-subdomain"');
-      assertStringIncludes(html, "Host subdomain");
-      assertStringIncludes(html, "Check if the name is free");
+      says(html, 'id="settings-host-subdomain"');
+      says(html, "Host subdomain");
+      says(html, "Check if the name is free");
     });
 
     test("shows a registered subdomain on its secure host", async () => {
@@ -86,9 +86,9 @@ describeWithEnv(
       );
       const html = await response.text();
       expect(response.status).toBe(200);
-      assertStringIncludes(html, "mylisting.tickets.example.com");
-      assertStringIncludes(html, "permanent and cannot be changed");
-      assertStringIncludes(html, "keeps working at the same time");
+      says(html, "mylisting.tickets.example.com");
+      says(html, "permanent and cannot be changed");
+      says(html, "keeps working at the same time");
     });
 
     test("rejects registration when DNS is not configured", async () => {
@@ -153,7 +153,7 @@ describeWithEnv(
         const html = await (
           await followRedirectWithFlash(response, handleRequest, cookie)
         ).text();
-        assertStringIncludes(html, "mylisting.tickets.example.com");
+        says(html, "mylisting.tickets.example.com");
       });
     });
 

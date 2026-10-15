@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
@@ -8,6 +8,7 @@ import {
 } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("ticketPage day-count selector", () => {
   beforeAll(setupAdminPageTest);
@@ -26,11 +27,11 @@ describe("ticketPage day-count selector", () => {
       listings: [buildTicketListing(listing, false, undefined)],
       slugs: ["ab12c"],
     });
-    assertStringIncludes(html, 'name="day_count"');
-    assertStringIncludes(html, '<option value="1">1 day');
-    assertStringIncludes(html, '<option value="2">2 days');
+    says(html, 'name="day_count"');
+    says(html, '<option value="1">1 day');
+    says(html, '<option value="2">2 days');
     // The single-listing page annotates each option with its price.
-    assertStringIncludes(html, "2 days —");
+    says(html, "2 days —");
   });
 
   test("shows an unavailable message when grouped listings share no day count", () => {
@@ -55,11 +56,8 @@ describe("ticketPage day-count selector", () => {
       slug: "cd34e",
     });
     const html = ticketPage({ listings: [a, b], slugs: ["ab12c", "cd34e"] });
-    assertStringIncludes(html, "No booking lengths are currently available.");
-    assert(
-      !html.includes('<option value="1">1 day'),
-      "the value should not contain the searched item",
-    );
+    says(html, "No booking lengths are currently available.");
+    assert(!html.includes('<option value="1">1 day'));
   });
 
   test("renders shared day counts without per-option prices across a group", () => {
@@ -84,9 +82,9 @@ describe("ticketPage day-count selector", () => {
       slug: "cd34e",
     });
     const html = ticketPage({ listings: [a, b], slugs: ["ab12c", "cd34e"] });
-    assertStringIncludes(html, 'name="day_count"');
-    assertStringIncludes(html, '<option value="1">1 day</option>');
-    assertStringIncludes(html, '<option value="2">2 days</option>');
+    says(html, 'name="day_count"');
+    says(html, '<option value="1">1 day</option>');
+    says(html, '<option value="2">2 days</option>');
   });
 
   test("omits the day-count selector for non-customisable listings", () => {
@@ -99,9 +97,6 @@ describe("ticketPage day-count selector", () => {
       listings: [buildTicketListing(listing, false, undefined)],
       slugs: ["ab12c"],
     });
-    assert(
-      !html.includes('name="day_count"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('name="day_count"'));
   });
 });

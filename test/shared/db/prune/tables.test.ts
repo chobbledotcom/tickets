@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -17,6 +17,7 @@ import {
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { has } from "#test-utils/says.ts";
 import {
   attendeeExists,
   contactPreferenceExists,
@@ -145,7 +146,6 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       const remaining = await getAllSessions();
       assert(
         !remaining.map((session) => session.csrf_token).includes("csrf-stale"),
-        "the value should not contain the searched item",
       );
     });
 
@@ -161,9 +161,9 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       await runDatabasePruning();
 
       const remaining = await getAllSessions();
-      assertArrayIncludes(
+      has(
         remaining.map((session) => session.csrf_token),
-        ["csrf-active"],
+        "csrf-active",
       );
     });
 
@@ -179,9 +179,9 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       await runDatabasePruning();
 
       const remaining = await getAllSessions();
-      assertArrayIncludes(
+      has(
         remaining.map((session) => session.csrf_token),
-        ["csrf-fresh-expired"],
+        "csrf-fresh-expired",
       );
     });
   });

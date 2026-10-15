@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, requireOne } from "#db/client.ts";
@@ -21,6 +20,7 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 const repointPaymentRow = async (
   sessionId: string,
@@ -231,8 +231,8 @@ describeWithEnv(
       });
 
       expect(result).toEqual({ kind: "too_many_reference_holders" });
-      assertStringIncludes(
-        queries.find((sql) => sql.includes("attendee_id NOT IN")) ?? "",
+      says(
+        queries.find((sql) => sql.includes("attendee_id NOT IN")),
         `LIMIT ${FIRST_REFUSED_SHARING_ROW_COUNT}`,
       );
       const state = await execute(

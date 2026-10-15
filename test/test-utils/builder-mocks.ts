@@ -11,6 +11,7 @@ import {
 } from "#shared/site-support-message.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 type CreateResult = Awaited<ReturnType<typeof bunnyCdnApi.createEdgeScript>>;
 type BunnyResult = Awaited<ReturnType<typeof bunnyCdnApi.publishEdgeScript>>;
@@ -221,7 +222,7 @@ export const expectBuildError = (
   substring: string,
 ): void => {
   expect(result.ok).toBe(false);
-  if (!result.ok) expect(result.error).toContain(substring);
+  if (!result.ok) says(result.error, substring);
 };
 
 interface DenoBuilderMockOptions {
@@ -274,6 +275,6 @@ export const testCreateDatabaseReturnsErrorOn403 = async (api: {
   const result = await api.createDatabase("Bad");
   expect(result.ok).toBe(false);
   if (!result.ok) {
-    expect(result.error).toContain("Create database failed (403)");
+    says(result.error, "Create database failed (403)");
   }
 };

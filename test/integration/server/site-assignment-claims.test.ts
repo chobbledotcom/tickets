@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
@@ -10,6 +9,7 @@ import { nowIso } from "#shared/now.ts";
 /* jscpd:ignore-start -- imports */
 import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import {
   forbidBuildDuringAssignment,
   insertSitesAAndB,
@@ -56,7 +56,7 @@ describeWithEnv(
         for (const call of suite.fetchStub.calls) {
           const body = JSON.parse(call.args[1].body);
           expect(body.to).toEqual(["jane@example.com"]);
-          assertStringIncludes(body.html, "https://a.test.net/setup/");
+          says(body.html, "https://a.test.net/setup/");
         }
       });
 
@@ -86,7 +86,7 @@ describeWithEnv(
         await expectOneSiteServed();
         expect(suite.fetchStub.calls.length).toBe(1);
         const body = JSON.parse(suite.fetchStub.calls[0]!.args[1].body);
-        assertStringIncludes(body.html, "https://a.test.net/setup/");
+        says(body.html, "https://a.test.net/setup/");
       });
 
       test("a repair resend grants the term the plan states today", async () => {

@@ -52,10 +52,7 @@ describe("sumup recovery machine", () => {
     ]);
     for (const node of unaccountedNodes) {
       expect(node.prunable, `${node.id} must not be prunable`).toBe(false);
-      assert(
-        !RECOVERY_PRUNABLE_NODES.includes(node.id),
-        "the value should not contain the searched item",
-      );
+      assert(!RECOVERY_PRUNABLE_NODES.includes(node.id));
     }
   });
 

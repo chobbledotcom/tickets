@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createInvitedUser, getUserByUsername } from "#db/users.ts";
@@ -23,6 +22,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("the join form", () => {
@@ -31,17 +31,17 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("serves both password boxes with their labels, hints, and bounds", async () => {
       const { joinForm } = await import("#routes/join.ts");
       const html = joinForm.render();
-      assertStringIncludes(html, "Password");
-      assertStringIncludes(html, "Confirm password");
-      assertStringIncludes(html, "Minimum 8 characters");
+      says(html, "Password");
+      says(html, "Confirm password");
+      says(html, "Minimum 8 characters");
       const password = inputNamed(html, "password");
-      assertStringIncludes(password, 'minlength="8"');
-      assertStringIncludes(password, 'autocomplete="new-password"');
-      assertStringIncludes(password, "required");
+      says(password, 'minlength="8"');
+      says(password, 'autocomplete="new-password"');
+      says(password, "required");
       const confirm = inputNamed(html, "password_confirm");
-      assertStringIncludes(confirm, 'minlength="8"');
-      assertStringIncludes(confirm, 'autocomplete="new-password"');
-      assertStringIncludes(confirm, "required");
+      says(confirm, 'minlength="8"');
+      says(confirm, 'autocomplete="new-password"');
+      says(confirm, "required");
     });
   });
 
@@ -103,8 +103,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
       expect(joinResponse.status).toBe(200);
       const joinHtml = await joinResponse.text();
-      assertStringIncludes(joinHtml, "joiner");
-      assertStringIncludes(joinHtml, "password");
+      says(joinHtml, "joiner");
+      says(joinHtml, "password");
     });
 
     test("GET /join/complete shows confirmation page", async () => {

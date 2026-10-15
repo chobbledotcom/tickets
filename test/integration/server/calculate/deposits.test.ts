@@ -2,13 +2,14 @@
  * provider a paid order surfaces the full value as owed, a free order owes
  * nothing, and a reservation status prices each line as its deposit. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
 import { postRunningTotal } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setPublicReservation } from "#test-utils/reservation/helpers.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv("server (/calculate deposit quotes)", { db: true }, () => {
@@ -28,8 +29,8 @@ describeWithEnv("server (/calculate deposit quotes)", { db: true }, () => {
       })
     ).text();
     // The smallest paid value must remain distinct from a free booking.
-    assertStringIncludes(html, "you'll owe");
-    assertStringIncludes(html, formatCurrency(1));
+    says(html, "you'll owe");
+    says(html, formatCurrency(1));
   });
 
   test("shows no amount owed for a free booking when payments are disabled", async () => {
@@ -45,11 +46,8 @@ describeWithEnv("server (/calculate deposit quotes)", { db: true }, () => {
         [`quantity_${listing.id}`]: "1",
       })
     ).text();
-    assertStringIncludes(html, "No payment required");
-    assert(
-      !html.includes("you'll owe"),
-      "the value should not contain the searched item",
-    );
+    says(html, "No payment required");
+    assert(!html.includes("you'll owe"));
   });
 
   test("shows the deposit charged now for a reservation, not the full list price", async () => {
@@ -69,12 +67,9 @@ describeWithEnv("server (/calculate deposit quotes)", { db: true }, () => {
 
     // A deposit summary shows what's due now (10% of £20.00 = £2.00), not the
     // full £20.00 list price — the deposit already reflects the reservation.
-    assertStringIncludes(html, "Weekend Pass");
-    assertStringIncludes(html, formatCurrency(200));
-    assert(
-      !html.includes(formatCurrency(2000)),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "order-summary-total");
+    says(html, "Weekend Pass");
+    says(html, formatCurrency(200));
+    assert(!html.includes(formatCurrency(2000)));
+    says(html, "order-summary-total");
   });
 });

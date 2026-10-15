@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -20,6 +20,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { has, says } from "#test-utils/says.ts";
 
 const buildSite = (overrides: Partial<BuiltSite> = {}): BuiltSite =>
   testBuiltSite({
@@ -75,10 +76,7 @@ describeWithEnv(
       const pairs = collectHostSecrets();
       expect(pairs).toContainEqual(["NTFY_URL", "https://ntfy.example.com/t"]);
       // STORAGE_ZONE_KEY is not set in this env, so it must be absent.
-      assert(
-        !pairs.map(([name]) => name).includes("STORAGE_ZONE_KEY"),
-        "the value should not contain the searched item",
-      );
+      assert(!pairs.map(([name]) => name).includes("STORAGE_ZONE_KEY"));
     });
   },
 );
@@ -103,13 +101,10 @@ describeWithEnv(
 
     test("skips the support message for a Bunny hosting provider", () => {
       const names = collectHostSecrets("bunny").map(([name]) => name);
-      assertArrayIncludes(names ?? [], ["BUNNY_API_KEY"]);
-      assertArrayIncludes(names ?? [], ["BUNNY_DNS_ZONE_ID"]);
-      assertArrayIncludes(names ?? [], ["BUNNY_DNS_SUBDOMAIN_SUFFIX"]);
-      assert(
-        !names.includes("SUPPORT_PAGE_TEXT"),
-        "the value should not contain the searched item",
-      );
+      has(names, "BUNNY_API_KEY");
+      has(names, "BUNNY_DNS_ZONE_ID");
+      has(names, "BUNNY_DNS_SUBDOMAIN_SUFFIX");
+      assert(!names.includes("SUPPORT_PAGE_TEXT"));
     });
   },
 );
@@ -149,51 +144,30 @@ describeWithEnv(
       const names = expectedNamesFor(
         buildSite({ hostingId: "app_abc", hostingProvider: "deno" }),
       );
-      assert(
-        !names.includes("BUNNY_SCRIPT_ID"),
-        "the value should not contain the searched item",
-      );
+      assert(!names.includes("BUNNY_SCRIPT_ID"));
     });
 
     test("never includes DB_ENCRYPTION_KEY (it cannot be reproduced)", () => {
-      assert(
-        !expectedNamesFor(buildSite()).includes("DB_ENCRYPTION_KEY"),
-        "the value should not contain the searched item",
-      );
+      assert(!expectedNamesFor(buildSite()).includes("DB_ENCRYPTION_KEY"));
     });
 
     test("omits base credentials the site has no value for", () => {
       const names = expectedNamesFor(
         buildSite({ dbToken: "", dbUrl: "", hostingId: "555" }),
       );
-      assert(
-        !names.includes("DB_URL"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !names.includes("DB_TOKEN"),
-        "the value should not contain the searched item",
-      );
-      assertArrayIncludes(names ?? [], ["BUNNY_SCRIPT_ID"]);
+      assert(!names.includes("DB_URL"));
+      assert(!names.includes("DB_TOKEN"));
+      has(names, "BUNNY_SCRIPT_ID");
     });
 
     test("includes only host secrets when the site has no base values", () => {
       const names = expectedNamesFor(
         buildSite({ dbToken: "", dbUrl: "", hostingId: "" }),
       );
-      assert(
-        !names.includes("BUNNY_SCRIPT_ID"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !names.includes("DB_URL"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !names.includes("DB_TOKEN"),
-        "the value should not contain the searched item",
-      );
-      assertArrayIncludes(names ?? [], ["NTFY_URL"]);
+      assert(!names.includes("BUNNY_SCRIPT_ID"));
+      assert(!names.includes("DB_URL"));
+      assert(!names.includes("DB_TOKEN"));
+      has(names, "NTFY_URL");
     });
   },
 );
@@ -217,12 +191,9 @@ describeWithEnv(
           if (!view.ok) return;
           expect(view.missing).toEqual(["NTFY_URL"]);
           // A live secret outside the expected set is never flagged as missing.
-          assert(
-            !view.missing.includes("DB_ENCRYPTION_KEY"),
-            "the value should not contain the searched item",
-          );
-          assertArrayIncludes(view.present ?? [], ["DB_ENCRYPTION_KEY"]);
-          assertArrayIncludes(view.expected ?? [], ["NTFY_URL"]);
+          assert(!view.missing.includes("DB_ENCRYPTION_KEY"));
+          has(view.present, "DB_ENCRYPTION_KEY");
+          has(view.expected, "NTFY_URL");
         },
       );
     });
@@ -291,7 +262,7 @@ describeWithEnv(
     test("refuses when BUNNY_API_KEY is not configured", async () => {
       const view = await loadSiteSecretsStatus(buildSite());
       expect(view.ok).toBe(false);
-      if (!view.ok) assertStringIncludes(view.error, "BUNNY_API_KEY");
+      if (!view.ok) says(view.error, "BUNNY_API_KEY");
     });
   },
 );
@@ -305,7 +276,7 @@ describeWithEnv(
         buildSite({ hostingId: "app_abc", hostingProvider: "deno" }),
       );
       expect(view.ok).toBe(false);
-      if (!view.ok) assertStringIncludes(view.error, "DENO_DEPLOY_TOKEN");
+      if (!view.ok) says(view.error, "DENO_DEPLOY_TOKEN");
     });
   },
 );
@@ -325,8 +296,8 @@ describeWithEnv(
           const view = await loadSiteSecretsStatus(site);
           expect(view.ok).toBe(true);
           if (view.ok) {
-            assertArrayIncludes(view.present ?? [], ["DB_URL"]);
-            assertArrayIncludes(view.present ?? [], ["DB_TOKEN"]);
+            has(view.present, "DB_URL");
+            has(view.present, "DB_TOKEN");
           }
         },
       );
@@ -422,7 +393,7 @@ describeWithEnv(
         false,
       );
       expect(result.ok).toBe(false);
-      if (!result.ok) assertStringIncludes(result.error ?? "", "no hosting ID");
+      if (!result.ok) says(result.error, "no hosting ID");
     });
   },
 );

@@ -26,6 +26,7 @@ import {
 } from "#test/specs/support/form-controls/reading.ts";
 import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Listing } from "#types";
 // jscpd:ignore-end
@@ -120,7 +121,7 @@ export const visitorFillsInOrder: FillsInOrder<FilledOrder> = async (
 ) => {
   const browser = await openAsNewcomer(path);
   for (const { listing } of lines) {
-    expect(browser.pageText).toContain(listing.name);
+    says(browser.pageText, listing.name);
   }
   const quantities = Object.fromEntries(
     lines.map(({ listing, places }) => [
@@ -235,9 +236,7 @@ export const expectRefusedForWantOfRoom = (
   attempt: BookingAttempt,
   listingName: string,
 ): void => {
-  expect(expectNotBooked(attempt).pageText).toContain(
-    bookingError.withName(listingName),
-  );
+  says(expectNotBooked(attempt).pageText, bookingError.withName(listingName));
 };
 
 /** The page one listing is booked from, as a customer opening it fresh. */

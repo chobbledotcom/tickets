@@ -1,4 +1,3 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -15,13 +14,13 @@ import {
   updateNewsPost,
 } from "#db/news-posts.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
-
 import { insertBrokenImage, makeImage } from "#test-utils/admin-images.ts";
 import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { saysNot } from "#test-utils/says.ts";
 
 describeWithEnv("db > news-posts", { db: true }, () => {
   const errors = setupErrorSpy();
@@ -52,8 +51,9 @@ describeWithEnv("db > news-posts", { db: true }, () => {
         raw[0]?.snippet,
         raw[0]?.content,
       );
-      assert(
-        raw[0]?.name?.includes("Launch day") === false,
+      saysNot(
+        raw[0]?.name,
+        "Launch day",
         "the value should not contain the searched item",
       );
       // `created` stays plaintext ISO so SQL can order newest-first.
@@ -206,8 +206,9 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       expectEncryptedAtRest(raw[0]?.slug);
       // The index is the plaintext HMAC of the slug, not the slug itself.
       expect(raw[0]?.slug_index).not.toBe("");
-      assert(
-        raw[0]?.slug_index?.includes("2026-07-06-indexed") === false,
+      saysNot(
+        raw[0]?.slug_index,
+        "2026-07-06-indexed",
         "the value should not contain the searched item",
       );
     });

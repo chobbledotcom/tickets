@@ -7,6 +7,7 @@ import {
   formatUnreadFieldProblem,
   reconcileUnreadFields,
 } from "#scripts/unread-fields/reconcile.ts";
+import { says } from "#test-utils/says.ts";
 
 const identity = (field = "total"): FindingIdentity => ({
   exportedFrom: "src/sum.ts",
@@ -115,7 +116,8 @@ describe("unread-field reconciliation", () => {
   test("keeps the exemption reason in a stale diagnostic", () => {
     const [problem] = reconcileUnreadFields([], [exemption()])([]);
 
-    expect(formatUnreadFieldProblem(problem!)).toContain(
+    says(
+      formatUnreadFieldProblem(problem!),
       "external-output: sendSum serialises the complete value",
     );
   });

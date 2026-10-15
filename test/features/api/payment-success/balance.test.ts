@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
@@ -16,6 +16,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { stubPaidCheckout } from "#test-utils/payment-session.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
@@ -57,15 +58,9 @@ describeWithEnv("the paid success balance page", { db: true }, () => {
 
     expect(response.status).toBe(200);
     const page = await response.text();
-    assertStringIncludes(page, 'data-payment-result="success"');
-    assert(
-      !page.includes("secret-member"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !page.includes('http-equiv="refresh"'),
-      "the value should not contain the searched item",
-    );
+    says(page, 'data-payment-result="success"');
+    assert(!page.includes("secret-member"));
+    assert(!page.includes('http-equiv="refresh"'));
     expect((await getAttendeeBalanceState(attendee.id))?.remainingBalance).toBe(
       0,
     );
@@ -90,15 +85,9 @@ describeWithEnv("the paid success balance page", { db: true }, () => {
 
     expect(response.status).toBe(200);
     const page = await response.text();
-    assertStringIncludes(page, 'data-payment-result="success"');
-    assert(
-      !page.includes("example.com"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !page.includes('http-equiv="refresh"'),
-      "the value should not contain the searched item",
-    );
+    says(page, 'data-payment-result="success"');
+    assert(!page.includes("example.com"));
+    assert(!page.includes('http-equiv="refresh"'));
     expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
       0,
     );
@@ -113,11 +102,8 @@ describeWithEnv("the paid success balance page", { db: true }, () => {
     );
     const html = await getPayPage(attendeeId);
 
-    assert(
-      !html.includes("Secret Contents"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "Mystery Box");
-    assertStringIncludes(html, "Workshop Ticket");
+    assert(!html.includes("Secret Contents"));
+    says(html, "Mystery Box");
+    says(html, "Workshop Ticket");
   });
 });

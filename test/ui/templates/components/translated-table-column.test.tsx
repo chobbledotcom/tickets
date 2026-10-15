@@ -1,10 +1,10 @@
-import { assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { resetI18nForTest } from "#i18n";
 import { defineTable } from "#shared/tables/definition.ts";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 
 const nameColumn = translatedTableColumn<{ value: string }, "name">(
   "name",
@@ -30,11 +30,8 @@ test("carries the extras a column with more than a heading needs", () => {
       context: 5,
     }),
   );
-  assertStringIncludes(html, '<th class="col-quantity">Name</th>');
-  assertStringIncludes(
-    html,
-    '<td class="col-quantity" data-remaining="2">2/5</td>',
-  );
+  says(html, '<th class="col-quantity">Name</th>');
+  says(html, '<td class="col-quantity" data-remaining="2">2/5</td>');
 });
 
 const headerWith = (replacement: string): string => {
@@ -45,8 +42,8 @@ const headerWith = (replacement: string): string => {
 
 test("resolves translated table headings for each render", () => {
   try {
-    assertStringIncludes(headerWith("first"), "<th>First</th>");
-    assertStringIncludes(headerWith("second"), "<th>Second</th>");
+    says(headerWith("first"), "<th>First</th>");
+    says(headerWith("second"), "<th>Second</th>");
   } finally {
     resetI18nForTest();
   }

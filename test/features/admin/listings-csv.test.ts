@@ -1,9 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("generateListingsCsv", () => {
   beforeAll(setupAdminPageTest);
@@ -39,8 +40,8 @@ describe("generateListingsCsv", () => {
     const csv = generateListingsCsv([
       testListingWithCount({ active: false, name: "Freebie", unit_price: 0 }),
     ]);
-    assertStringIncludes(csv, "Freebie,Inactive,");
-    assertStringIncludes(csv, ",Free,");
+    says(csv, "Freebie,Inactive,");
+    says(csv, ",Free,");
   });
 
   test("shows the day-price range for a paid customisable-days listing", () => {
@@ -53,11 +54,8 @@ describe("generateListingsCsv", () => {
         unit_price: 0,
       }),
     ]);
-    assertStringIncludes(csv, "10.00–30.00");
-    assert(
-      !csv.includes("Free"),
-      "the value should not contain the searched item",
-    );
+    says(csv, "10.00–30.00");
+    assert(!csv.includes("Free"));
   });
 
   test("shows a single day price when only one duration is offered", () => {
@@ -69,11 +67,8 @@ describe("generateListingsCsv", () => {
         unit_price: 0,
       }),
     ]);
-    assertStringIncludes(csv, ",15.00,");
-    assert(
-      !csv.includes("Free"),
-      "the value should not contain the searched item",
-    );
+    says(csv, ",15.00,");
+    assert(!csv.includes("Free"));
   });
 
   test("shows the pay-what-you-want range instead of Free for can_pay_more", () => {
@@ -87,11 +82,8 @@ describe("generateListingsCsv", () => {
         unit_price: 0,
       }),
     ]);
-    assertStringIncludes(csv, "0.00–50.00");
-    assert(
-      !csv.includes("Free"),
-      "the value should not contain the searched item",
-    );
+    says(csv, "0.00–50.00");
+    assert(!csv.includes("Free"));
   });
 
   test("shows the pay-what-you-want range from a non-zero base price", () => {
@@ -102,7 +94,7 @@ describe("generateListingsCsv", () => {
         unit_price: 2000,
       }),
     ]);
-    assertStringIncludes(csv, "20.00–50.00");
+    says(csv, "20.00–50.00");
   });
 
   test("uses day prices for a customisable listing with a non-zero base price", () => {
@@ -115,36 +107,33 @@ describe("generateListingsCsv", () => {
         unit_price: 5000,
       }),
     ]);
-    assertStringIncludes(csv, "10.00–18.00");
-    assert(
-      !csv.includes("50.00"),
-      "the value should not contain the searched item",
-    );
+    says(csv, "10.00–18.00");
+    assert(!csv.includes("50.00"));
   });
 
   test("labels a daily listing's type", () => {
     const csv = generateListingsCsv([
       testListingWithCount({ listing_type: "daily", name: "Day Pass" }),
     ]);
-    assertStringIncludes(csv.split("\n")[1] ?? "", "Day Pass,Active,Daily,");
+    says(csv.split("\n")[1], "Day Pass,Active,Daily,");
   });
 
   test("escapes a listing name containing a comma", () => {
     const csv = generateListingsCsv([
       testListingWithCount({ name: "Wine, Cheese" }),
     ]);
-    assertStringIncludes(csv, '"Wine, Cheese"');
+    says(csv, '"Wine, Cheese"');
   });
 
   test("renders the Date column (with time) in the configured timezone", () => {
     // 23:30 UTC is 00:30 the next calendar day in Europe/London (BST, UTC+1).
     const listing = testListingWithCount({ date: "2026-06-15T23:30:00Z" });
-    assertStringIncludes(
-      generateListingsCsv([listing], "Europe/London").split("\n")[1] ?? "",
+    says(
+      generateListingsCsv([listing], "Europe/London").split("\n")[1],
       ",2026-06-16 00:30,",
     );
-    assertStringIncludes(
-      generateListingsCsv([listing], "UTC").split("\n")[1] ?? "",
+    says(
+      generateListingsCsv([listing], "UTC").split("\n")[1],
       ",2026-06-15 23:30,",
     );
   });

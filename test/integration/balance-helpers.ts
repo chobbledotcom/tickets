@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { type Stub, stub } from "@std/testing/mock";
 import { requirePaidDefaultStatus } from "#db/attendee-statuses.ts";
@@ -15,6 +14,7 @@ import {
 import { signMeta, webhookMeta } from "#test-utils/factories.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { testCsrfToken } from "#test-utils/session.ts";
 
 /** A settle identity (session id + business time) for settleAttendeeBalance. */
@@ -77,9 +77,9 @@ export const createNonReservation = async (
 
 /** Assert the pay page rendered the recap: title, listing name and amount due. */
 export const expectRecap = (html: string): void => {
-  assertStringIncludes(html, "Pay your balance");
-  assertStringIncludes(html, "Workshop Ticket");
-  assertStringIncludes(html, "Balance due");
+  says(html, "Pay your balance");
+  says(html, "Workshop Ticket");
+  says(html, "Balance due");
 };
 
 /** GET /pay for an attendee's signed token; assert 200 and return the html. */

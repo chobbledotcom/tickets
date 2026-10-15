@@ -9,7 +9,7 @@
  * organiser narrows a long list down to what they are looking for".
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
@@ -20,6 +20,7 @@ import {
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -42,12 +43,9 @@ describeWithEnv("listings type filter", { db: true }, () => {
       });
       const response = await adminGet("/admin?type=purchase-only");
       const html = await response.text();
-      assertStringIncludes(html, `href="/admin/listing/${merch.id}"`);
-      assert(
-        !html.includes(`href="/admin/listing/${standard.id}"`),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, "No check-in");
+      says(html, `href="/admin/listing/${merch.id}"`);
+      assert(!html.includes(`href="/admin/listing/${standard.id}"`));
+      says(html, "No check-in");
     });
 
     test("treats an unknown type as 'all'", async () => {
@@ -55,9 +53,9 @@ describeWithEnv("listings type filter", { db: true }, () => {
       const daily = await createTestListing({ name: "Daily One", ...DAILY });
       const response = await adminGet("/admin?type=bogus");
       const html = await response.text();
-      assertStringIncludes(html, `href="/admin/listing/${standard.id}"`);
-      assertStringIncludes(html, `href="/admin/listing/${daily.id}"`);
-      assertStringIncludes(html, "<strong><u>All</u></strong>");
+      says(html, `href="/admin/listing/${standard.id}"`);
+      says(html, `href="/admin/listing/${daily.id}"`);
+      says(html, "<strong><u>All</u></strong>");
     });
 
     // Only reading the link itself tells this apart: dropping the kind from a
@@ -78,10 +76,7 @@ describeWithEnv("listings type filter", { db: true }, () => {
         }`,
       );
 
-      assertStringIncludes(
-        await response.text(),
-        `href="/admin/?type=daily">All`,
-      );
+      says(await response.text(), `href="/admin/?type=daily">All`);
     });
   });
 
@@ -115,11 +110,8 @@ describeWithEnv("listings type filter", { db: true }, () => {
       );
       const html = await response.text();
 
-      assertStringIncludes(html, `href="/admin/listing/${shown.id}"`);
-      assert(
-        !html.includes(`href="/admin/listing/${hidden.id}"`),
-        "the value should not contain the searched item",
-      );
+      says(html, `href="/admin/listing/${shown.id}"`);
+      assert(!html.includes(`href="/admin/listing/${hidden.id}"`));
     });
 
     test("CSV export link carries the active attribute filter", async () => {
@@ -136,7 +128,7 @@ describeWithEnv("listings type filter", { db: true }, () => {
       const filterParam = `attribute_${difficulty.id}=${
         difficulty.options[0]!.id
       }`;
-      assertStringIncludes(html, `href="/admin/listings/csv?${filterParam}"`);
+      says(html, `href="/admin/listings/csv?${filterParam}"`);
     });
 
     test("CSV export respects attribute filter", async () => {
@@ -154,11 +146,8 @@ describeWithEnv("listings type filter", { db: true }, () => {
       );
       const csv = await response.text();
 
-      assertStringIncludes(csv, "CSV Shown");
-      assert(
-        !csv.includes("CSV Hidden"),
-        "the value should not contain the searched item",
-      );
+      says(csv, "CSV Shown");
+      assert(!csv.includes("CSV Hidden"));
     });
   });
 
@@ -182,10 +171,7 @@ describeWithEnv("listings type filter", { db: true }, () => {
         "Difficulty",
         "Easy",
       );
-      assert(
-        !html.includes("Showing:"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Showing:"));
     });
 
     test("shows selected listing attributes on a single ticket page", async () => {

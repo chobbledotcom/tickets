@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
@@ -15,6 +15,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withPoisonedWrite } from "#test-utils/db-poison.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { addAnswer, createQuestion } from "#test-utils/questions/helpers.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -92,7 +93,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "assigned to all listings");
+      says(body, "assigned to all listings");
     });
 
     test("rolls back assign-all when saving listing links fails", async () => {
@@ -128,11 +129,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "assigned to 1 listing");
-      assert(
-        !body.includes("assigned to 1 listings"),
-        "the value should not contain the searched item",
-      );
+      says(body, "assigned to 1 listing");
+      assert(!body.includes("assigned to 1 listings"));
       // Exact message: the singular suffix is "" (not "s" and not anything
       // else), so `toContain` alone can't catch a corrupted empty suffix.
       const log = await getAllActivityLog(10);
@@ -148,7 +146,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "assigned to 0 listings");
+      says(body, "assigned to 0 listings");
     });
   });
 
@@ -208,8 +206,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Dietary needs?",
       );
       // Each question's checkbox summarises its answers, pluralised by count.
-      assertStringIncludes(body, "(2 options: Vegetarian, Vegan)");
-      assertStringIncludes(body, "(1 option: Yes)");
+      says(body, "(2 options: Vegetarian, Vegan)");
+      says(body, "(1 option: Yes)");
     });
 
     test("shows no error box on a plain page load", async () => {
@@ -224,14 +222,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       // The tab loader once received the framework's page-context object in
       // its `error` parameter, so every load showed an error box reading
       // "[object Object]".
-      assert(
-        !body.includes("[object Object]"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes('class="error"'),
-        "the value should not contain the searched item",
-      );
+      assert(!body.includes("[object Object]"));
+      assert(!body.includes('class="error"'));
     });
 
     test("shows assigned questions as checked", async () => {
@@ -353,7 +345,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "1 question)");
+      says(body, "1 question)");
     });
 
     test("logs activity with plural when multiple questions assigned", async () => {
@@ -369,7 +361,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "0 questions)");
+      says(body, "0 questions)");
     });
   });
 
@@ -378,8 +370,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await createQuestion("Logged Question");
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "Logged Question");
-      assertStringIncludes(body, "created");
+      says(body, "Logged Question");
+      says(body, "created");
     });
 
     test("logs question update", async () => {
@@ -390,8 +382,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       });
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "After Update Q");
-      assertStringIncludes(body, "updated");
+      says(body, "After Update Q");
+      says(body, "updated");
     });
 
     test("logs question deletion", async () => {
@@ -401,8 +393,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       });
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "Deleted Question");
-      assertStringIncludes(body, "deleted");
+      says(body, "Deleted Question");
+      says(body, "deleted");
     });
 
     test("logs answer addition", async () => {
@@ -410,8 +402,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await addAnswer(id, "Logged Answer");
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "Logged Answer");
-      assertStringIncludes(body, "added");
+      says(body, "Logged Answer");
+      says(body, "added");
     });
 
     test("logs answer deletion", async () => {
@@ -422,8 +414,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       });
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "Deleted Answer");
-      assertStringIncludes(body, "deleted");
+      says(body, "Deleted Answer");
+      says(body, "deleted");
     });
   });
 });

@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { ORGANISER } from "#test/specs/support/browser.ts";
 import {
@@ -22,6 +23,7 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
+import { has, says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -125,15 +127,13 @@ Then(
     const page = whatTheyWereTold(this, ORGANISER);
     // The section named, and every box it offers. A heading with no form
     // under it is a page that says the site can send email and cannot.
-    expect(page).toContain(
-      await settingsCopy("settings.advanced.email_notifications"),
-    );
+    says(page, await settingsCopy("settings.advanced.email_notifications"));
     for (const label of [
       "settings.advanced.email_provider",
       "settings.advanced.api_key",
       "settings.advanced.from_address",
     ]) {
-      expect(page).toContain(await settingsCopy(label));
+      says(page, await settingsCopy(label));
     }
   },
 );
@@ -141,7 +141,8 @@ Then(
 Then(
   "the owner is told the email settings were updated",
   async function (this: TicketsWorld): Promise<void> {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    says(
+      whatTheyWereTold(this, ORGANISER),
       await settingsCopy("success.email_settings_updated"),
     );
   },
@@ -150,7 +151,8 @@ Then(
 Then(
   "the owner is told the email provider was disabled",
   async function (this: TicketsWorld): Promise<void> {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    says(
+      whatTheyWereTold(this, ORGANISER),
       await settingsCopy("success.email_provider_disabled"),
     );
   },
@@ -191,7 +193,8 @@ Then(
 Then(
   "the activity log says the email settings were updated",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await activityMessages()).toContain(
+    has(
+      await activityMessages(),
       await settingsCopy("success.email_settings_updated"),
     );
   },
@@ -231,7 +234,8 @@ Then(
 Then(
   "the owner is told no business email is set",
   async function (this: TicketsWorld): Promise<void> {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    says(
+      whatTheyWereTold(this, ORGANISER),
       await settingsCopy("error.no_business_email"),
     );
   },
@@ -240,7 +244,8 @@ Then(
 Then(
   "the owner is told the test email was sent",
   async function (this: TicketsWorld): Promise<void> {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    says(
+      whatTheyWereTold(this, ORGANISER),
       await settingsCopy("success.test_email_sent", { status: 200 }),
     );
   },
@@ -253,7 +258,8 @@ Then(
     status: number,
     reason: string,
   ): Promise<void> {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    says(
+      whatTheyWereTold(this, ORGANISER),
       await settingsCopy("error.test_email_failed_reason", { reason, status }),
     );
   },
@@ -263,19 +269,18 @@ Then(
   "the owner is told the test failed with {int}, and no reason",
   async function (this: TicketsWorld, status: number): Promise<void> {
     const told = whatTheyWereTold(this, ORGANISER);
-    expect(told).toContain(
-      await settingsCopy("error.test_email_failed", { status }),
-    );
+    says(told, await settingsCopy("error.test_email_failed", { status }));
     // The bare wording only means something beside its absence: the sentence
     // that carries a reason contains this one as a prefix.
-    expect(told).not.toContain("provider said");
+    assert(!told.includes("provider said"));
   },
 );
 
 Then(
   "the owner is told the test failed with no response",
   async function (this: TicketsWorld): Promise<void> {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    says(
+      whatTheyWereTold(this, ORGANISER),
       await settingsCopy("error.test_email_no_response"),
     );
   },

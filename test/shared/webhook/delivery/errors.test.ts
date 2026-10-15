@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -32,6 +32,7 @@ import { configureTestEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { has, says } from "#test-utils/says.ts";
 import { resetSentry } from "#test-utils/sentry.ts";
 
 const registrationLogs = (
@@ -49,7 +50,7 @@ const expectOneError = (logs: string[], code: string): string => {
   expect(logs).toHaveLength(1);
   const [log] = logs;
   if (!log) throw new Error("Expected one error log");
-  assertStringIncludes(log, code);
+  says(log, code);
   return log;
 };
 
@@ -69,7 +70,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     const expected = await withMessageGroups(["activity-log"], () =>
       t("admin.log.registration_delivery_failed"),
     );
-    assertArrayIncludes((await activityMessages()) ?? [], [expected]);
+    has(await activityMessages(), expected);
   });
 
   test("reports an unexpected failure from pending registration work", async () => {
@@ -82,7 +83,6 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     assert(
       !expectOneError(logs, "E_REGISTRATION_DELIVERY").includes("private"),
-      "the value should not contain the searched item",
     );
   });
 
@@ -161,7 +161,6 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     assert(
       !expectOneError(logs, "E_REGISTRATION_DELIVERY").includes(privateValue),
-      "the value should not contain the searched item",
     );
     expect(
       (await activityMessages()).filter(
@@ -187,9 +186,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       ),
     );
 
-    assertArrayIncludes((await activityMessages()) ?? [], [
-      "Registration notification delivery failed.",
-    ]);
+    has(await activityMessages(), "Registration notification delivery failed.");
   });
 
   test("records a refused sibling when another webhook throws", async () => {
@@ -248,16 +245,9 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
       assert(
         !expectOneError(logs, "E_REGISTRATION_DELIVERY").includes(privateValue),
-        "the value should not contain the searched item",
       );
-      assertStringIncludes(
-        sentryBody,
-        "Registration notification delivery failed",
-      );
-      assert(
-        !sentryBody.includes(privateValue),
-        "the value should not contain the searched item",
-      );
+      says(sentryBody, "Registration notification delivery failed");
+      assert(!sentryBody.includes(privateValue));
       expect(
         fetchSpy.calls.filter(({ args }) =>
           String(args[0]).includes("ntfy.example.test"),
@@ -351,7 +341,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     // The detail names the write that failed, so an operator can tell a
     // broken delivery write from every other database error.
-    assertStringIncludes(
+    says(
       expectOneError(logs, "E_DB_QUERY"),
       "Registration delivery failure activity write",
     );

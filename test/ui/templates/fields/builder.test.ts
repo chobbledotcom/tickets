@@ -1,16 +1,16 @@
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { builderForm } from "#templates/fields/builder.ts";
 import { byName } from "#test-utils/fields.ts";
+import { has, says } from "#test-utils/says.ts";
 
 describe("builder form", () => {
   test("offers the site name, provider choices, and both db boxes", () => {
     const names = builderForm.fields.map((field) => field.name);
-    assertArrayIncludes(names, ["site_name"]);
-    assertArrayIncludes(names, ["db_url"]);
-    assertArrayIncludes(names, ["db_token"]);
+    has(names, "site_name");
+    has(names, "db_url");
+    has(names, "db_token");
     const name = byName(builderForm.fields, "site_name");
     expect(name.required).toBe(true);
     expect(name.maxlength).toBe(MAX_INPUT_LENGTH);
@@ -27,12 +27,12 @@ describe("builder form", () => {
   test("renders every provider choice with the value its route reads", () => {
     const html = builderForm.render();
     for (const value of ["bunny", "turso", "manual"]) {
-      assertStringIncludes(html, `value="${value}"`);
+      says(html, `value="${value}"`);
     }
     // Bunny appears once per choice list — database and hosting — and both
     // must carry the value, or one route arm reads nothing.
     expect(html.match(/value="bunny"/g)).toHaveLength(2);
     // The name box refuses to submit empty, so the route never sees "".
-    assertStringIncludes(html, 'name="site_name"');
+    says(html, 'name="site_name"');
   });
 });

@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingAttributeOptions } from "#db/attributes.ts";
@@ -13,6 +12,7 @@ import {
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 /** Duplicate a group under a new name, renaming its members so every clone
@@ -120,12 +120,12 @@ describeWithEnv(
 
       expect(response.status).toBe(302);
       const message = parseFlashCookie(response).error;
-      assertArrayIncludes(
+      has(
         [
           dropWarning(`${first}; ${second}`),
           dropWarning(`${second}; ${first}`),
         ],
-        [message],
+        message,
       );
     });
 

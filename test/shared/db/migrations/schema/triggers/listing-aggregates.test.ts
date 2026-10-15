@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { allTransfers } from "#accounting/queries.ts";
@@ -20,12 +19,12 @@ import {
 } from "#db/migrations/schema/listing-aggregates.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 import { BACKFILL_LISTING_AGGREGATES_SQL } from "#db/migrations/schema-sync.ts";
-
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import { readListingAggregates as aggregates } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
+import { says } from "#test-utils/says.ts";
 
 const MIGRATIONS = await loadMigrations();
 const refundPostedSale = async (
@@ -47,7 +46,7 @@ describe("LISTING_AGGREGATE_WRITE_COLUMNS matches the trigger SQL", () => {
     );
     expect(updateTrigger).toBeDefined();
     const expectedCols = [...LISTING_AGGREGATE_WRITE_COLUMNS].join(", ");
-    assertStringIncludes(
+    says(
       updateTrigger!.sql,
       `AFTER UPDATE OF ${expectedCols} ON listing_attendees`,
     );
@@ -70,7 +69,7 @@ describe("tickets_count shared predicate guard", () => {
 
   for (const [name, sql] of ticketCountSites) {
     test(`${name} references the shared quantity predicate`, () => {
-      assertStringIncludes(sql, TICKET_COUNTS_PREDICATE);
+      says(sql, TICKET_COUNTS_PREDICATE);
     });
   }
 });

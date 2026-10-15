@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -16,6 +15,7 @@ import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 import {
   deactivateAllTierListings,
   failingRenewalUrlPush,
@@ -72,7 +72,7 @@ describeWithEnv(
 
         const renewalUrlCall = secretCalls.find((c) => c[1] === "RENEWAL_URL");
         expect(renewalUrlCall).toBeDefined();
-        assertStringIncludes(renewalUrlCall![2] ?? "", "/renew/?t=");
+        says(renewalUrlCall![2], "/renew/?t=");
       });
 
       test("skips assignment and logs DATA_INVALID when initial_site_months is 0", async () => {

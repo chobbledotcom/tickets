@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -15,6 +14,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
@@ -189,10 +189,7 @@ describeWithEnv(
         // The payment has a reference but the refund couldn't go through (no
         // provider), so it is retryable: 5xx for the provider to re-deliver once
         // reconfigured, rather than ack a still-charged customer.
-        assertStringIncludes(
-          await postWebhookForRetry(),
-          "no longer accepting",
-        );
+        says(await postWebhookForRetry(), "no longer accepting");
       } finally {
         mockVerify.restore();
       }

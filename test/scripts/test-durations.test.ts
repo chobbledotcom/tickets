@@ -11,6 +11,7 @@ import {
   type TestDuration,
 } from "#scripts/test-durations.ts";
 import { withTempFile } from "#test-utils/files.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Build a minimal JUnit document wrapping the given `<testcase>` fragments. */
 const junit = (cases: string): string =>
@@ -305,9 +306,7 @@ describe("formatSlowTestsReport", () => {
     const durations: TestDuration[] = [
       { durationMs: 1000, file: "", name: "x" },
     ];
-    expect(formatSlowTestsReport(durations, 999)).toContain(
-      "Slow tests (>999ms)",
-    );
+    says(formatSlowTestsReport(durations, 999), "Slow tests (>999ms)");
   });
 });
 

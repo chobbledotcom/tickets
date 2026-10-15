@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups } from "#i18n";
@@ -6,6 +6,7 @@ import { FormParams } from "#shared/form-data.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { renderField } from "#shared/forms/rendering.tsx";
+import { says } from "#test-utils/says.ts";
 
 const singleActionSelect = (invalidMessage?: string) =>
   defineForm({
@@ -38,11 +39,8 @@ describe("form field schema", () => {
       ] as const,
     });
     const html = form.render();
-    assertStringIncludes(html, "<strong>Payment:</strong> Use cash.");
-    assert(
-      !html.includes("<strong>Charge:</strong>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<strong>Payment:</strong> Use cash.");
+    assert(!html.includes("<strong>Charge:</strong>"));
   });
 
   test("rejects a select value outside its declared options", () => {
@@ -125,7 +123,7 @@ describe("form field schema", () => {
       options: [{ label: "Pay", value: "pay" }],
       type: "select",
     } as const satisfies Field;
-    assertStringIncludes(renderField(valid), "<select");
+    says(renderField(valid), "<select");
   });
 
   test("throws when defining a select with an empty option list", () => {
@@ -227,15 +225,9 @@ describe("form field schema", () => {
     };
 
     expect(form.sections).toEqual(["main", "advanced"]);
-    assertStringIncludes(form.section("main"), 'name="name"');
-    assert(
-      !form.section("main").includes('name="summary"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !form.section("advanced").includes('name="private"'),
-      "the value should not contain the searched item",
-    );
+    says(form.section("main"), 'name="name"');
+    assert(!form.section("main").includes('name="summary"'));
+    assert(!form.section("advanced").includes('name="private"'));
     expect(rejectUnknownSection).toThrow("Unknown section: missing");
   });
 
@@ -256,9 +248,6 @@ describe("form field schema", () => {
       fields: [{ label: "Name", name: "name", type: "text" }] as const,
     });
 
-    assert(
-      !form.renderField("name").includes("value="),
-      "the value should not contain the searched item",
-    );
+    assert(!form.renderField("name").includes("value="));
   });
 });

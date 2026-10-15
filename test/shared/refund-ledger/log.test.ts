@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+// jscpd:ignore-start
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { logRefundLedgerError } from "#shared/refund-ledger/log.ts";
 import { initSentry } from "#shared/sentry.ts";
@@ -6,7 +6,10 @@ import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import { resetSentry, sentryRequestBody } from "#test-utils/sentry.ts";
+
+// jscpd:ignore-end
 
 describe("refund ledger diagnostics", () => {
   const errors = setupErrorSpy();
@@ -31,20 +34,18 @@ describe("refund ledger diagnostics", () => {
       return Promise.resolve();
     });
 
-    assertStringIncludes(
-      errors.lastMessage() ?? "",
-      "Refund ledger post failed",
-    );
-    assertStringIncludes(errors.lastMessage() ?? "", "attendee=17");
-    assert(
-      errors.lastMessage()?.includes(failure.message) === false,
+    says(errors.lastMessage(), "Refund ledger post failed");
+    says(errors.lastMessage(), "attendee=17");
+    saysNot(
+      errors.lastMessage(),
+      failure.message,
       "the value should not contain the searched item",
     );
 
     const body = sentryRequestBody(fetchStub.calls);
-    assertStringIncludes(body, '"value":"ledger backend failed"');
-    assertStringIncludes(body, "stacktrace");
-    assertStringIncludes(body, '"detail":"Refund ledger post failed"');
-    assertStringIncludes(body, '"attendeeId":"17"');
+    says(body, '"value":"ledger backend failed"');
+    says(body, "stacktrace");
+    says(body, '"detail":"Refund ledger post failed"');
+    says(body, '"attendeeId":"17"');
   });
 });

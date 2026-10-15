@@ -1,9 +1,9 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { PAYMENT_REVIEW_RETIREMENT } from "#payment/review.ts";
 import { paymentReviewAtlas } from "#shared/schema-atlas/payment-review.ts";
 import { indexMachine } from "#test/shared/schema-atlas/helpers.ts";
+import { has } from "#test-utils/says.ts";
 
 const { byId, edgeIds, machine } = indexMachine(paymentReviewAtlas);
 
@@ -85,8 +85,8 @@ describe("the payment review atlas", () => {
 
   test("every declared retirement evidence appears from both open and seen", () => {
     for (const evidence of Object.values(PAYMENT_REVIEW_RETIREMENT)) {
-      assertArrayIncludes(edgeIds("open") ?? [], [`${evidence}=>none`]);
-      assertArrayIncludes(edgeIds("seen") ?? [], [`${evidence}=>none`]);
+      has(edgeIds("open"), `${evidence}=>none`);
+      has(edgeIds("seen"), `${evidence}=>none`);
     }
   });
 });

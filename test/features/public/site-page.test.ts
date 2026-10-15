@@ -1,10 +1,10 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createSitePage } from "#db/site-pages.ts";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 const makePage = (slug: string, name: string) =>
@@ -23,8 +23,8 @@ describeWithEnv("public /page/:slug route", { db: true }, () => {
     const response = await handleRequest(mockRequest("/page/about-us"));
     expect(response.status).toBe(200);
     const body = await response.text();
-    assertStringIncludes(body, "About Us");
-    assertStringIncludes(body, "Everything about About Us.");
+    says(body, "About Us");
+    says(body, "Everything about About Us.");
   });
 
   test("an unknown slug 404s", async () => {

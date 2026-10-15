@@ -1,10 +1,11 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
@@ -17,8 +18,8 @@ describeWithEnv("server (listing logistics field)", { db: true }, () => {
 
     const response = await adminGet(`/admin/listing/${listing.id}/edit`);
     const html = await response.text();
-    assertStringIncludes(html, 'name="uses_logistics"');
-    assertStringIncludes(html, "Needs logistics");
+    says(html, 'name="uses_logistics"');
+    says(html, "Needs logistics");
   });
 
   test("the new and duplicate forms include the logistics field", async () => {
@@ -26,19 +27,16 @@ describeWithEnv("server (listing logistics field)", { db: true }, () => {
     const listing = await createTestListing({ name: "Original" });
 
     const newForm = await adminGet("/admin/listing/new?template=custom");
-    assertStringIncludes(await newForm.text(), 'name="uses_logistics"');
+    says(await newForm.text(), 'name="uses_logistics"');
 
     const dupForm = await adminGet(`/admin/listing/${listing.id}/duplicate`);
-    assertStringIncludes(await dupForm.text(), 'name="uses_logistics"');
+    says(await dupForm.text(), 'name="uses_logistics"');
   });
 
   test("the new form omits the logistics field when logistics is off", async () => {
     settings.setForTest(featureSetting());
     const newForm = await adminGet("/admin/listing/new?template=custom");
-    assert(
-      !(await newForm.text()).includes('name="uses_logistics"'),
-      "the value should not contain the searched item",
-    );
+    assert(!(await newForm.text()).includes('name="uses_logistics"'));
   });
 
   test("ignores the Delivered field when logistics is off", async () => {
@@ -50,9 +48,6 @@ describeWithEnv("server (listing logistics field)", { db: true }, () => {
 
     const response = await adminGet(`/admin/listing/${listing.id}/edit`);
     const html = await response.text();
-    assert(
-      !html.includes('name="uses_logistics"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('name="uses_logistics"'));
   });
 });

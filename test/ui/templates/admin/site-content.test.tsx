@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -6,6 +5,7 @@ import {
   contentGuideFooter,
 } from "#templates/admin/site-content.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("contentEntityEditPanel", () => {
   setupAdminPageTest();
@@ -23,15 +23,15 @@ describe("contentEntityEditPanel", () => {
     );
 
     const html = String(panel({ id: 17, name: "Launch &amp; Learn" }));
-    assertStringIncludes(html, 'action="/admin/site/news/17/edit"');
-    assertStringIncludes(html, 'value="Launch &amp; Learn"');
-    assertStringIncludes(html, "Save Changes");
+    says(html, 'action="/admin/site/news/17/edit"');
+    says(html, 'value="Launch &amp; Learn"');
+    says(html, "Save Changes");
   });
 
   test("the site content guide footer links staff and hides from editors", () => {
     const owner = String(contentGuideFooter("built-sites", "owner"));
-    assertStringIncludes(owner, 'href="/admin/guide#built-sites"');
-    assertStringIncludes(owner, "Guide: pages, news &amp; images");
+    says(owner, 'href="/admin/guide#built-sites"');
+    says(owner, "Guide: pages, news &amp; images");
     // Editors cannot open the staff-only guide, so the footer renders nothing
     // rather than a link that 403s.
     expect(String(contentGuideFooter("built-sites", "editor"))).toBe("");

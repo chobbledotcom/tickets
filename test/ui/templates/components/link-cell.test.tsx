@@ -1,7 +1,8 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { linkCell } from "#templates/components/link-cell.tsx";
+import { says } from "#test-utils/says.ts";
 
 type Row = { active: boolean; id: number; name: string };
 
@@ -21,10 +22,7 @@ describe("linkCell", () => {
       (r: Row) => `/x/${r.id}`,
       (r) => r.name,
     );
-    assert(
-      !String(cell(row)).includes("class"),
-      "the value should not contain the searched item",
-    );
+    assert(!String(cell(row)).includes("class"));
   });
 
   test("dims a row its class rule turns down", () => {
@@ -33,14 +31,8 @@ describe("linkCell", () => {
       (r) => r.name,
       (r) => (r.active ? undefined : "muted"),
     );
-    assertStringIncludes(
-      String(cell({ ...row, active: false })),
-      'class="muted"',
-    );
-    assert(
-      !String(cell(row)).includes("class"),
-      "the value should not contain the searched item",
-    );
+    says(String(cell({ ...row, active: false })), 'class="muted"');
+    assert(!String(cell(row)).includes("class"));
   });
 
   test("escapes a name that carries markup characters", () => {
@@ -48,6 +40,6 @@ describe("linkCell", () => {
       (r: Row) => `/x/${r.id}`,
       (r) => r.name,
     );
-    assertStringIncludes(String(cell({ ...row, name: "A & B" })), "A &amp; B");
+    says(String(cell({ ...row, name: "A & B" })), "A &amp; B");
   });
 });

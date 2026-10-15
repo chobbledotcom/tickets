@@ -8,10 +8,7 @@ import { adminGet } from "#test-utils/session.ts";
 describeWithEnv("integration: header image in layout", { db: true }, () => {
   test("no header image rendered by default", async () => {
     const html = await assertAdminHtml("/admin/settings");
-    assert(
-      !html.includes('class="header-image"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('class="header-image"'));
   });
 
   test("header image rendered in page when set via DB", async () => {
@@ -31,9 +28,6 @@ describeWithEnv("integration: header image in layout", { db: true }, () => {
     await settings.update.headerImageUrl("");
 
     const html = await assertAdminHtml("/admin/settings");
-    assert(
-      !html.includes('class="header-image"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('class="header-image"'));
   });
 });

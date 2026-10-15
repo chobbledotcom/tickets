@@ -1,5 +1,4 @@
 import type { InStatement } from "@libsql/client";
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -13,7 +12,6 @@ import {
   resetDatabase,
   SCHEMA_HASH,
 } from "#db/migrations.ts";
-
 import { runWithSubrequestBudget } from "#shared/subrequest-budget.ts";
 import { setBuildCommitForTest } from "#shared/update.ts";
 import {
@@ -28,6 +26,7 @@ import {
 } from "#test-utils/migrations.ts";
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { has, says } from "#test-utils/says.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
 describeWithEnv(
@@ -125,9 +124,7 @@ describeWithEnv(
       await initDb();
 
       expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
-      assertArrayIncludes(debugLines() ?? [], [
-        "[Migration] Updating version marker...",
-      ]);
+      has(debugLines(), "[Migration] Updating version marker...");
     });
 
     test("a fresh database says it is starting from the current schema", async () => {
@@ -136,9 +133,10 @@ describeWithEnv(
 
       await initDb({ allowMissingSettings: true });
 
-      assertArrayIncludes(debugLines() ?? [], [
+      has(
+        debugLines(),
         "[Migration] Initializing fresh database from current schema",
-      ]);
+      );
     });
 
     test("outside a request, the build's own commit is stored before boot returns", async () => {
@@ -166,9 +164,10 @@ describeWithEnv(
       // does not leave the tests after this one on a half-built schema.
       await initDb();
 
-      assertArrayIncludes(debugLines() ?? [], [
+      has(
+        debugLines(),
         "[Migration] Rebuilding wiped database from current schema",
-      ]);
+      );
     });
 
     test("migrations are batched across requests when the request budget applies", async () => {
@@ -253,14 +252,11 @@ describeWithEnv(
     test("a held lock says so, and how long it is honoured", async () => {
       const { error } = await bootWithLockHeld(undefined);
 
-      assertStringIncludes(
+      says(
         String(error),
         "Database migration is already in progress (migration_lock held).",
       );
-      assertStringIncludes(
-        String(error),
-        "reclaimed automatically after 2 minutes",
-      );
+      says(String(error), "reclaimed automatically after 2 minutes");
     });
 
     test("a held lock names an unset database as unknown", async () => {

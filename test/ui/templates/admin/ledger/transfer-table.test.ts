@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { KIND } from "#accounting/kinds.ts";
@@ -14,6 +14,7 @@ import {
 } from "#accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 import { names, renderLedger, transfer } from "./helpers.ts";
 
 describe("LedgerTable", () => {
@@ -29,34 +30,28 @@ describe("LedgerTable", () => {
       refs,
       "dual",
     );
-    assertStringIncludes(html, "table-scroll");
-    assertStringIncludes(html, "<th>Time</th>");
-    assertStringIncludes(html, "Booking made");
-    assert(
-      !html.includes(">sale<"),
-      "the value should not contain the searched item",
-    );
+    says(html, "table-scroll");
+    says(html, "<th>Time</th>");
+    says(html, "Booking made");
+    assert(!html.includes(">sale<"));
     // Both legs resolve to links, joined by an arrow (rendered as the glyph).
-    assertStringIncludes(html, '<a href="/admin/ledger/attendee/1">Ada</a>');
-    assertStringIncludes(html, '<a href="/admin/ledger?listing=1">Concert</a>');
-    assertStringIncludes(html, "→");
-    assertStringIncludes(html, formatCurrency(2500));
+    says(html, '<a href="/admin/ledger/attendee/1">Ada</a>');
+    says(html, '<a href="/admin/ledger?listing=1">Concert</a>');
+    says(html, "→");
+    says(html, formatCurrency(2500));
   });
 
   test("explains a money change with no event type", () => {
     const html = renderLedger([transfer({})], names(), "dual");
-    assertStringIncludes(html, "<td>No event type</td>");
+    says(html, "<td>No event type</td>");
   });
 
   test("treats a synthetic empty event type as absent", () => {
     // The store maps a kindless stored row back to an omitted kind, so "" only
     // arises synthetically — it must still read as "no kind", never a blank cell.
     const html = renderLedger([transfer({ kind: "" })], names(), "dual");
-    assertStringIncludes(html, "<td>No event type</td>");
-    assert(
-      !html.includes("<td></td>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<td>No event type</td>");
+    assert(!html.includes("<td></td>"));
   });
 
   test("uses a safe translated label for an unknown opaque event type", () => {
@@ -65,11 +60,8 @@ describe("LedgerTable", () => {
       names(),
       "dual",
     );
-    assertStringIncludes(html, "<td>Other money change</td>");
-    assert(
-      !html.includes("future_money_change"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<td>Other money change</td>");
+    assert(!html.includes("future_money_change"));
   });
 
   test("has a translated detailed-view label for every known event type", () => {
@@ -99,28 +91,22 @@ describe("LedgerTable", () => {
     ]);
     for (const [kind, label] of cases) {
       const html = renderLedger([transfer({ kind })], names(), "dual");
-      assert(
-        !html.includes(`>${kind}<`),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, `>${label}<`);
+      assert(!html.includes(`>${kind}<`));
+      says(html, `>${label}<`);
     }
   });
 
   test("renders the empty state row spanning all four columns", () => {
     const html = renderLedger([], names(), "dual");
-    assertStringIncludes(html, 'colspan="4"');
-    assertStringIncludes(html, "No money changes yet.");
+    says(html, 'colspan="4"');
+    says(html, "No money changes yet.");
   });
 
   test("escapes a stored name so PII cannot inject markup", () => {
     const refs = names({ attendees: new Map([[1, "<script>x</script>"]]) });
     const html = renderLedger([transfer()], refs, "dual");
-    assertStringIncludes(html, "&lt;script&gt;x&lt;/script&gt;");
-    assert(
-      !html.includes("<script>x</script>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "&lt;script&gt;x&lt;/script&gt;");
+    assert(!html.includes("<script>x</script>"));
   });
 
   test("links manual-entry amounts to the edit page when a return URL is supplied", () => {
@@ -130,11 +116,11 @@ describe("LedgerTable", () => {
       "dual",
       "/admin/ledger?listing=1",
     );
-    assertStringIncludes(
+    says(
       html,
       'href="/admin/ledger/entries/77/edit?return_url=%2Fadmin%2Fledger%3Flisting%3D1"',
     );
-    assertStringIncludes(html, formatCurrency(5000));
+    says(html, formatCurrency(5000));
   });
 
   test("does not link manual-entry amounts without a return URL", () => {
@@ -144,10 +130,7 @@ describe("LedgerTable", () => {
       "dual",
       "",
     );
-    assert(
-      !html.includes("/admin/ledger/entries/77/edit"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, `>${formatCurrency(5000)}<`);
+    assert(!html.includes("/admin/ledger/entries/77/edit"));
+    says(html, `>${formatCurrency(5000)}<`);
   });
 });

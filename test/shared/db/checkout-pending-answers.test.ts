@@ -3,7 +3,6 @@
  * booking's create batch, and replaced when the same checkout is created
  * again. */
 
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -22,6 +21,7 @@ import {
 import { DAY_MS, nowMs } from "#shared/now.ts";
 import { SQUARE_NATIVE_LIFETIME_MS } from "#shared/square/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { saysNot } from "#test-utils/says.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 /** The row's lookup key, the way the module itself computes it. */
@@ -45,8 +45,9 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
       [await sessionIndexOf("cs_sealed")],
     );
     expect(row).not.toBeNull();
-    assert(
-      row?.sealed?.includes("Coming by bus") === false,
+    saysNot(
+      row?.sealed,
+      "Coming by bus",
       "the value should not contain the searched item",
     );
   });

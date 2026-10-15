@@ -1,10 +1,8 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { ENCRYPTION_PREFIX } from "#crypto/encryption.ts";
 import { HYBRID_PREFIX } from "#crypto/hybrid.ts";
-
 import { getAllActivityLog, logActivity } from "#db/activity-log.ts";
 import {
   backfillActivityLogBatch,
@@ -22,6 +20,7 @@ import {
 } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import { has } from "#test-utils/says.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 const captureBackfillLogs = async (
@@ -61,8 +60,8 @@ describeWithEnv("db > activity log backfill", { db: true }, () => {
     const messages = (await withTestSession(() => getAllActivityLog())).map(
       (e) => e.message,
     );
-    assertArrayIncludes(messages ?? [], ["legacy one"]);
-    assertArrayIncludes(messages ?? [], ["legacy two"]);
+    has(messages, "legacy one");
+    has(messages, "legacy two");
   });
 
   test("leaves owner-key rows untouched", async () => {

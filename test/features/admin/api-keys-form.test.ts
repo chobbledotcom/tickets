@@ -1,14 +1,14 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { apiKeyForm } from "#routes/admin/api-keys-form.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { inputNamed } from "#test-utils/assertions.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("API key form name box", () => {
   test("renders the shared single-line limit", () => {
-    assertStringIncludes(
+    says(
       inputNamed(apiKeyForm.render(), "name"),
       `maxlength="${MAX_INPUT_LENGTH}"`,
     );

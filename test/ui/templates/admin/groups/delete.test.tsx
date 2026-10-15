@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
 import {
@@ -6,6 +6,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { testGroup } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 const group = testGroup({ id: 5, name: "Autumn Tours", slug: "autumn-tours" });
 
@@ -15,24 +16,18 @@ describe("adminGroupDeletePage", () => {
   test("renders the heading, confirm copy, note, and prompt", () => {
     const html = adminGroupDeletePage(group, OWNER_SESSION);
 
-    assertStringIncludes(html, 'action="/admin/groups/5/delete"');
-    assertStringIncludes(html, "<h1>Delete Group</h1>");
-    assertStringIncludes(
+    says(html, 'action="/admin/groups/5/delete"');
+    says(html, "<h1>Delete Group</h1>");
+    says(
       html,
       "Are you sure you want to delete the group <strong>Autumn Tours</strong> (autumn-tours)?",
     );
-    assertStringIncludes(
+    says(
       html,
       "<p>Listings in this group will not be deleted. They will be moved out of the group.</p>",
     );
-    assertStringIncludes(
-      html,
-      "Type the group name &quot;Autumn Tours&quot; to confirm.",
-    );
-    assertStringIncludes(
-      html,
-      'name="confirm_identifier" placeholder="Autumn Tours" required',
-    );
+    says(html, "Type the group name &quot;Autumn Tours&quot; to confirm.");
+    says(html, 'name="confirm_identifier" placeholder="Autumn Tours" required');
   });
 
   test("escapes the group name inside the confirm copy", () => {
@@ -44,22 +39,16 @@ describe("adminGroupDeletePage", () => {
 
     const html = adminGroupDeletePage(tricky, OWNER_SESSION);
 
-    assertStringIncludes(html, "<strong>Fish &amp; Chips &lt;b&gt;</strong>");
-    assert(
-      !html.includes("Chips <b>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<strong>Fish &amp; Chips &lt;b&gt;</strong>");
+    assert(!html.includes("Chips <b>"));
   });
 
   test("renders a non-dangerous submit button", () => {
     const html = adminGroupDeletePage(group, OWNER_SESSION);
 
-    assert(
-      !html.includes('<button class="danger" type="submit">'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "/icons.svg#check");
-    assertStringIncludes(html, "Delete Group");
+    assert(!html.includes('<button class="danger" type="submit">'));
+    says(html, "/icons.svg#check");
+    says(html, "Delete Group");
   });
 
   test("renders a rejected-submit error", () => {
@@ -69,6 +58,6 @@ describe("adminGroupDeletePage", () => {
       "Group Name does not match.",
     );
 
-    assertStringIncludes(html, "Group Name does not match.");
+    says(html, "Group Name does not match.");
   });
 });

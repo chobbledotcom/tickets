@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
-import { expect } from "@std/expect";
+import { assert } from "@std/assert";
 import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
 import {
   ownerKeepsDetail,
@@ -10,6 +10,7 @@ import {
   visitorReadsListingPage,
 } from "#test/specs/support/listing-details.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -45,8 +46,8 @@ Then(
     wording: string,
   ): Promise<void> {
     const said = await visitorReadsListingPage(this, listingName);
-    expect(said).toContain(detailName);
-    expect(said).toContain(wording);
+    says(said, detailName);
+    says(said, wording);
   },
 );
 
@@ -57,9 +58,7 @@ Then(
     listingName: string,
     words: string,
   ): Promise<void> {
-    expect(await visitorReadsListingPage(this, listingName)).not.toContain(
-      words,
-    );
+    assert(!(await visitorReadsListingPage(this, listingName)).includes(words));
   },
 );
 
@@ -73,13 +72,13 @@ When(
 Then(
   "the owner is told the detail's name does not match",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("Attribute name does not match");
+    says(ownerLastTold(this), "Attribute name does not match");
   },
 );
 
 Then(
   "the owner is told the detail is deleted",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("Attribute deleted");
+    says(ownerLastTold(this), "Attribute deleted");
   },
 );

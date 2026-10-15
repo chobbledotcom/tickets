@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { runWithSiteBuildScope } from "#shared/builder-dry-run.ts";
@@ -6,6 +5,7 @@ import { bunnyDbProvider as bunnyDbApi } from "#shared/bunny-db.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Bunny's live region config, as returned by GET /database/v1/config. */
 const CONFIG_RESPONSE = {
@@ -95,7 +95,7 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
     }
 
     expect(fetchCalls.length).toBe(4);
-    assertStringIncludes(fetchCalls[0] ?? "", "/v1/config");
+    says(fetchCalls[0], "/v1/config");
   });
 
   test("createDatabase rejects a token response with no token", async () => {
@@ -220,15 +220,12 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
     const result = await bunnyDbApi.createDatabase("Bad");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      assertStringIncludes(
-        result.error ?? "",
-        "Get database config failed (403)",
-      );
+      says(result.error, "Get database config failed (403)");
     }
 
     // A failed config lookup must not go on to create anything.
     expect(fetchStub.calls.length).toBe(1);
-    assertStringIncludes(String(fetchStub.calls[0]!.args[0]), "/v1/config");
+    says(String(fetchStub.calls[0]!.args[0]), "/v1/config");
   });
 
   test("createDatabase answers from canned bodies in a dry run", async () => {
@@ -256,7 +253,7 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
     const result = await bunnyDbApi.createDatabase("Bad");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      assertStringIncludes(result.error ?? "", "Create database failed (403)");
+      says(result.error, "Create database failed (403)");
     }
   });
 
@@ -271,8 +268,8 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
     const result = await bunnyDbApi.createDatabase("Err");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      assertStringIncludes(result.error ?? "", "Get database failed (404)");
-      assertStringIncludes(result.error ?? "", "Database not found");
+      says(result.error, "Get database failed (404)");
+      says(result.error, "Database not found");
     }
   });
 
@@ -290,10 +287,7 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
     const result = await bunnyDbApi.createDatabase("T");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      assertStringIncludes(
-        result.error ?? "",
-        "Generate database token failed (401)",
-      );
+      says(result.error, "Generate database token failed (401)");
     }
   });
 });

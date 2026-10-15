@@ -32,10 +32,7 @@ describeWithEnv(
           "T&amp;Cs",
         );
         // The login footer is a homepage-only affordance (#69).
-        assert(
-          !html.includes('href="/admin/login"'),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes('href="/admin/login"'));
       });
 
       test("returns 404 when terms not configured", async () => {
@@ -66,10 +63,7 @@ describeWithEnv(
           "Contact",
         );
         // The login footer is a homepage-only affordance (#69).
-        assert(
-          !html.includes('href="/admin/login"'),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes('href="/admin/login"'));
       });
 
       test("returns 404 when contact text not configured", async () => {

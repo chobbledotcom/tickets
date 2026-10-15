@@ -11,7 +11,7 @@
  */
 
 /* jscpd:ignore-start */
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
@@ -24,6 +24,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { has, says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -44,11 +45,8 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     test("links status names to their canonical entity pages", async () => {
       const seed = await seedStatus();
       const html = await (await adminGet(PATH)).text();
-      assertStringIncludes(html, `href="${PATH}/${seed.id}"`);
-      assert(
-        !html.includes(`href="${PATH}/${seed.id}/edit"`),
-        "the value should not contain the searched item",
-      );
+      says(html, `href="${PATH}/${seed.id}"`);
+      assert(!html.includes(`href="${PATH}/${seed.id}/edit"`));
     });
 
     test("shows status names without links in read-only mode", async () => {
@@ -57,11 +55,8 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       });
       const seed = await seedStatus();
       const html = await (await adminGet(PATH)).text();
-      assertStringIncludes(html, seed.name);
-      assert(
-        !html.includes(`href="${PATH}/${seed.id}"`),
-        "the value should not contain the searched item",
-      );
+      says(html, seed.name);
+      assert(!html.includes(`href="${PATH}/${seed.id}"`));
     });
   });
 
@@ -70,9 +65,9 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       await adminFormPost(PATH, { name: "Invited" });
 
       const entries = await withTestSession(() => getAllActivityLog());
-      assertArrayIncludes(
+      has(
         entries.map((entry) => entry.message),
-        ["Attendee status 'Invited' created"],
+        "Attendee status 'Invited' created",
       );
     });
 

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { tursoDbProvider as tursoApi } from "#shared/turso-api.ts";
@@ -6,6 +5,7 @@ import { testCreateDatabaseReturnsErrorOn403 } from "#test-utils/builder-mocks.t
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { createReplyingWith, TEST_TURSO_ENV } from "./fixtures.ts";
 
 /**
@@ -145,11 +145,8 @@ describeWithEnv("turso-api", { env: TEST_TURSO_ENV }, () => {
         const result = await tursoApi.createDatabase("Bad");
         expect(result.ok).toBe(false);
         if (!result.ok) {
-          assertStringIncludes(
-            result.error ?? "",
-            "Create database failed (422)",
-          );
-          assertStringIncludes(result.error ?? "", "quota exceeded");
+          says(result.error, "Create database failed (422)");
+          says(result.error, "quota exceeded");
         }
       },
     );
@@ -179,11 +176,8 @@ describeWithEnv("turso-api", { env: TEST_TURSO_ENV }, () => {
         const result = await tursoApi.createDatabase("t");
         expect(result.ok).toBe(false);
         if (!result.ok) {
-          assertStringIncludes(
-            result.error ?? "",
-            "Generate database token failed (401)",
-          );
-          assertStringIncludes(result.error ?? "", "Unauthorized");
+          says(result.error, "Generate database token failed (401)");
+          says(result.error, "Unauthorized");
         }
       },
     );
@@ -197,7 +191,7 @@ describeWithEnv("turso-api", { env: TEST_TURSO_ENV }, () => {
         expect(result.ok).toBe(true);
         if (result.ok) {
           expect(result.value.dbUrl).toMatch(/^libsql:\/\//);
-          assertStringIncludes(result.value.dbUrl, "my-app.turso.io");
+          says(result.value.dbUrl, "my-app.turso.io");
         }
       },
     );
@@ -226,10 +220,7 @@ describeWithEnv("turso-api", { env: TEST_TURSO_ENV }, () => {
           const result = await tursoApi.createDatabase("Ported");
           expect(result.ok, hostname).toBe(false);
           if (!result.ok) {
-            assertStringIncludes(
-              result.error ?? "",
-              "Create database returned an invalid response",
-            );
+            says(result.error, "Create database returned an invalid response");
           }
         },
       );
@@ -249,10 +240,7 @@ describeWithEnv("turso-api", { env: TEST_TURSO_ENV }, () => {
         const result = await tursoApi.createDatabase("HalfBroken");
         expect(result.ok).toBe(false);
         if (!result.ok) {
-          assertStringIncludes(
-            result.error ?? "",
-            "Generate database token returned invalid JSON",
-          );
+          says(result.error, "Generate database token returned invalid JSON");
         }
       },
     );

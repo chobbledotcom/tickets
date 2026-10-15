@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -15,6 +15,7 @@ import type { AuthSession } from "#routes/auth.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestManagerSession,
   withTestSession,
@@ -169,30 +170,21 @@ describe("defineEntityPage", () => {
     const response = await page.renderPage(SESSION, 7, "");
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "<h1>Widget: Widget</h1>");
+    says(html, "<h1>Widget: Widget</h1>");
     // Summary row + activity preview with a view-all link into the full tab.
-    assertStringIncludes(html, '<th scope="row">Name</th>');
-    assertStringIncludes(html, "made");
-    assertStringIncludes(html, 'href="/admin/holidays/7/activity"');
+    says(html, '<th scope="row">Name</th>');
+    says(html, "made");
+    says(html, 'href="/admin/holidays/7/activity"');
     // The hidden tab is absent from the strip; the actions tab's content is
     // not rendered on this tab (per-tab loading).
-    assert(
-      !html.includes("/admin/holidays/7/hidden"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("/admin/holidays/7/refund"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("/admin/holidays/7/hidden"));
+    assert(!html.includes("/admin/holidays/7/refund"));
   });
 
   test("the full activity tab renders without a view-all link", async () => {
     const html = await (await page.renderPage(SESSION, 7, "activity")).text();
-    assertStringIncludes(html, "No activity recorded yet");
-    assert(
-      !html.includes("View all activity"),
-      "the value should not contain the searched item",
-    );
+    says(html, "No activity recorded yet");
+    assert(!html.includes("View all activity"));
   });
 
   test("active sections load concurrently without changing their declared order", async () => {
@@ -243,26 +235,17 @@ describe("defineEntityPage", () => {
   test("actions filter on their visible predicate and custom sections get ctx", async () => {
     const html = await (await page.renderPage(SESSION, 7, "actions")).text();
     // paid=false hides the refund action but keeps the danger delete.
-    assert(
-      !html.includes("/admin/holidays/7/refund"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, 'href="/admin/holidays/7/delete"');
-    assertStringIncludes(html, "entity-danger-zone");
+    assert(!html.includes("/admin/holidays/7/refund"));
+    says(html, 'href="/admin/holidays/7/delete"');
+    says(html, "entity-danger-zone");
     // The custom section received the tab's canonical URL as returnUrl.
-    assertStringIncludes(
-      html,
-      '<p data-from="">Widget @ /admin/holidays/7/actions from </p>',
-    );
+    says(html, '<p data-from="">Widget @ /admin/holidays/7/actions from </p>');
   });
 
   test("read-only mode hides write-form tabs and actions", async () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const actions = await page.renderPage(SESSION, 7, "actions");
-    assert(
-      !(await actions.text()).includes("/admin/holidays/7/delete"),
-      "the value should not contain the searched item",
-    );
+    assert(!(await actions.text()).includes("/admin/holidays/7/delete"));
     expect((await page.renderPage(SESSION, 7, "edit")).status).toBe(404);
   });
 
@@ -295,14 +278,11 @@ describe("defineEntityPage", () => {
     });
     expect(response.status).toBe(400);
     const html = await response.text();
-    assertStringIncludes(html, "<p>override</p>");
-    assert(
-      !html.includes("<p>section</p>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<p>override</p>");
+    assert(!html.includes("<p>section</p>"));
     expect(loaded).toEqual(["panel"]);
     // The shell (title + strip) still renders around the override.
-    assertStringIncludes(html, "<h1>Widget: Widget</h1>");
+    says(html, "<h1>Widget: Widget</h1>");
   });
 
   test("an invalid response status fails instead of becoming a success", async () => {
@@ -313,13 +293,10 @@ describe("defineEntityPage", () => {
 
   test("tab labels render translated, never as raw locale keys", async () => {
     const html = await (await page.renderPage(SESSION, 7, "")).text();
-    assertStringIncludes(html, ">Overview</a>");
-    assertStringIncludes(html, ">Activity</a>");
-    assertStringIncludes(html, ">Actions</a>");
-    assert(
-      !html.includes("entity.tab."),
-      "the value should not contain the searched item",
-    );
+    says(html, ">Overview</a>");
+    says(html, ">Activity</a>");
+    says(html, ">Actions</a>");
+    assert(!html.includes("entity.tab."));
   });
 
   test("deleteActionTab renders one write-only danger action", async () => {
@@ -333,9 +310,9 @@ describe("defineEntityPage", () => {
       ],
     });
     const html = await (await deletePage.renderPage(SESSION, 7, "")).text();
-    assertStringIncludes(html, 'href="/admin/holidays/7/delete"');
-    assertStringIncludes(html, "Delete");
-    assertStringIncludes(html, "entity-danger-zone");
+    says(html, 'href="/admin/holidays/7/delete"');
+    says(html, "Delete");
+    says(html, "entity-danger-zone");
     expect((await deletePage.renderPage(SESSION, 7, "actions")).status).toBe(
       200,
     );
@@ -365,7 +342,7 @@ describe("defineEntityPage", () => {
       "Invalid",
     );
     expect(response.status).toBe(400);
-    assertStringIncludes(
+    says(
       await response.text(),
       "<p>Widget|/admin/holidays/7|Submitted|Invalid</p>",
     );
@@ -386,7 +363,7 @@ describeWithEnv("an entity page serving a request", { db: true }, () => {
       ),
     );
     expect(response.status).toBe(200);
-    assertStringIncludes(
+    says(
       await response.text(),
       '<p data-from="queue">Widget @ /admin/holidays/7/actions from https://tickets.example</p>',
     );

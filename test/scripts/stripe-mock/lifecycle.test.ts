@@ -6,6 +6,7 @@ import {
   startStripeMock,
 } from "#scripts/stripe-mock.ts";
 import { pathExists } from "#test-utils/files.ts";
+import { says } from "#test-utils/says.ts";
 import {
   type StartOptions,
   testEnv,
@@ -206,8 +207,8 @@ describe("starting stripe-mock", () => {
         startAttempts: 2,
       });
 
-      expect(message).toContain(STRIPE_MOCK_FAILED_TO_START);
-      expect(message).toContain("Failed to spawn");
+      says(message, STRIPE_MOCK_FAILED_TO_START);
+      says(message, "Failed to spawn");
     });
   });
 
@@ -322,7 +323,7 @@ describe("starting stripe-mock", () => {
         });
 
         // Without the fetch it would fail later, on a binary that is not there.
-        expect(message).toContain("no network");
+        says(message, "no network");
       });
     });
   });

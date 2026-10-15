@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -16,6 +16,7 @@ import {
   parentField,
   postCalculate,
 } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 import type { Listing } from "#types";
 
 // jscpd:ignore-end
@@ -107,11 +108,8 @@ describeWithEnv(
       });
       // Tight match: the folded child adds £30 to the quote, but a regression
       // that doubled it (e.g. £300) must not slip through as a substring hit.
-      assertStringIncludes(html, "£30");
-      assert(
-        !html.includes("£300"),
-        "the value should not contain the searched item",
-      );
+      says(html, "£30");
+      assert(!html.includes("£300"));
     });
 
     test("a shared pay-more child with mismatched prices is rejected", async () => {

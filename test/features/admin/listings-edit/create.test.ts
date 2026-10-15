@@ -7,7 +7,6 @@
  * details are posted.
  */
 
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAllListings } from "#db/listings/records.ts";
@@ -18,6 +17,7 @@ import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts"
 import { testListingInput } from "#test-utils/factories.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 import { mockMultipartRequest } from "#test-utils/mocks.ts";
+import { has, says } from "#test-utils/says.ts";
 import {
   adminMultipartPost,
   createTestEditorSession,
@@ -44,7 +44,7 @@ describeWithEnv("creating a one-off event", { db: true }, () => {
     );
 
     expect(response.status).toBe(400);
-    assertStringIncludes(await response.text(), DATE_REQUIRED);
+    says(await response.text(), DATE_REQUIRED);
     expect(await storedListing("No Date")).toBeUndefined();
   });
 
@@ -82,7 +82,7 @@ describeWithEnv("a rejected create", { db: true }, () => {
     });
 
     expect(response.status).toBe(400);
-    assertStringIncludes(
+    says(
       await response.text(),
       '<input checked id="customise-listing" name="customise"',
     );
@@ -94,7 +94,7 @@ describeWithEnv("a rejected create", { db: true }, () => {
       template_id: "weekly-event",
     });
 
-    assertStringIncludes(
+    says(
       await response.text(),
       '<input id="customise-listing" name="customise"',
     );
@@ -108,9 +108,7 @@ describeWithEnv("what a create writes down", { db: true }, () => {
       buildCreateListingForm(testListingInput({ name: "Logged Create" })),
     );
 
-    assertArrayIncludes((await activityMessages()) ?? [], [
-      "Listing 'Logged Create' created",
-    ]);
+    has(await activityMessages(), "Listing 'Logged Create' created");
   });
 });
 

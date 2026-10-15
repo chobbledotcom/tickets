@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
@@ -24,6 +23,7 @@ import {
   parsedBase,
 } from "#test/features/admin/attendee-form-model/fixtures.ts";
 import { bookingRow, testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("toLedgerOrder", () => {
   test("a zero package override keeps the leg at zero, not the listing price", () => {
@@ -465,8 +465,7 @@ describe("validateParsedForm", () => {
       }),
     );
     expect(result.valid).toBe(false);
-    if (!result.valid)
-      assertStringIncludes(result.lineErrors.get(0) ?? "", "at most 5");
+    if (!result.valid) says(result.lineErrors.get(0), "at most 5");
   });
 
   test("treats a 0-quantity line as not booked, not an error", () => {
@@ -506,8 +505,7 @@ describe("validateParsedForm", () => {
       }),
     );
     expect(result.valid).toBe(false);
-    if (!result.valid)
-      assertStringIncludes(result.dateError ?? "", "start date");
+    if (!result.valid) says(result.dateError, "start date");
   });
 
   test("passes a booked daily listing with a valid start date", () => {

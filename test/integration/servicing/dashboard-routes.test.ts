@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -8,6 +8,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createServicingHold,
   createTestServicingEvent,
@@ -44,16 +45,13 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
 
     const html = await renderAdminPage("/admin/servicing");
 
-    assertStringIncludes(html, 'class="servicing-event"');
-    assertStringIncludes(html, `/admin/servicing/${event.id}`);
-    assertStringIncludes(html, "Route Service");
-    assertStringIncludes(html, "Route Room");
-    assertStringIncludes(html, "<td>2</td>");
-    assertStringIncludes(html, "Undated Route Service");
-    assert(
-      !html.includes("Deleted Route Listing"),
-      "the value should not contain the searched item",
-    );
+    says(html, 'class="servicing-event"');
+    says(html, `/admin/servicing/${event.id}`);
+    says(html, "Route Service");
+    says(html, "Route Room");
+    says(html, "<td>2</td>");
+    says(html, "Undated Route Service");
+    assert(!html.includes("Deleted Route Listing"));
   });
 
   test("the servicing update route updates name and booking quantity", async () => {
@@ -70,10 +68,7 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       [`quantity_${listing.id}`]: "1",
     });
 
-    assertStringIncludes(
-      response.headers.get("location") ?? "",
-      `/admin/servicing/${id}`,
-    );
+    says(response.headers.get("location"), `/admin/servicing/${id}`);
     // Read the row the route itself wrote — the next helper call would
     // overwrite it, and a rejected POST must not pass this assertion.
     const saved = await getServicingEvent(id);
@@ -100,10 +95,7 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       target_listing_id: String(listing.id),
     });
 
-    assertStringIncludes(
-      response.headers.get("location") ?? "",
-      `/admin/servicing/${id}`,
-    );
+    says(response.headers.get("location"), `/admin/servicing/${id}`);
   });
 
   test("servicing mutation routes return not found for missing events", async () => {
@@ -141,10 +133,7 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       },
     );
     expect(noQtyResponse.status).toBe(302);
-    assertStringIncludes(
-      noQtyResponse.headers.get("location") ?? "",
-      "/admin/servicing/new",
-    );
+    says(noQtyResponse.headers.get("location"), "/admin/servicing/new");
     noQtyResponse.body?.cancel();
 
     await expect(

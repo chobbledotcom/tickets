@@ -1,4 +1,3 @@
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -21,6 +20,7 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { has, says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -68,7 +68,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       });
       const response = await adminGet(`/admin/groups/${group.id}/edit`);
       const html = await expectHtmlResponse(response, 200, "Hidden Editable");
-      assertStringIncludes(html, "checked");
+      says(html, "checked");
     });
 
     test("returns 404 for non-existent group", async () => {
@@ -244,9 +244,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
         groupId: group.id,
         name: "Grouped Listing",
       });
-      assertArrayIncludes((await listingGroups.getIds(listing.id)) ?? [], [
-        group.id,
-      ]);
+      has(await listingGroups.getIds(listing.id), group.id);
 
       await deleteTestGroup(group.id);
 

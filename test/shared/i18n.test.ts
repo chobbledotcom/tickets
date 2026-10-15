@@ -1,4 +1,3 @@
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { IntlMessageFormat } from "intl-messageformat";
@@ -16,6 +15,7 @@ import {
 } from "#locales/manifest.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { allEnglishMessages, withColdMessages } from "#test-utils/i18n.ts";
+import { has, says } from "#test-utils/says.ts";
 
 const en = await allEnglishMessages();
 
@@ -162,8 +162,8 @@ describe("i18n", () => {
         const out = t("admin.attendees.refund_all_confirm", {
           name: "Attendee Gala",
         });
-        assertStringIncludes(out, '"Attendee Gala"'); // data untouched
-        assertStringIncludes(out, "all guests"); // copy rebranded
+        says(out, '"Attendee Gala"'); // data untouched
+        says(out, "all guests"); // copy rebranded
       });
     });
 
@@ -180,7 +180,7 @@ describe("i18n", () => {
 
   describe("getRegisteredLocales", () => {
     test("includes en by default", () => {
-      assertArrayIncludes(getRegisteredLocales() ?? [], ["en"]);
+      has(getRegisteredLocales(), "en");
     });
   });
 

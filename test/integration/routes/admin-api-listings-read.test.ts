@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -7,6 +6,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { bookingPageHtml } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 import {
   apiRequest,
   createTestApiKeyToken,
@@ -132,7 +132,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         },
       );
 
-      assertStringIncludes(await bookingPageHtml(parentSlug), "First child");
+      says(await bookingPageHtml(parentSlug), "First child");
     });
   });
 });

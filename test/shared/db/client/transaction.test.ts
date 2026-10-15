@@ -1,5 +1,4 @@
 import { LibsqlError, type ResultSet, type Transaction } from "@libsql/client";
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -18,6 +17,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { stubTransaction } from "#test-utils/db-helpers/stub-transaction.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 /**
  * Interactive-transaction internals: the per-transaction statement budget (the
@@ -258,20 +258,14 @@ describeWithEnv("db > client transaction", { db: true }, () => {
   test("writeRowInTransaction rejects an INSERT that returns no row", async () => {
     const { error, persistedIds } = await insertReturningRows([]);
 
-    assertStringIncludes(
-      String(error),
-      "did not return the id of the row it wrote",
-    );
+    says(String(error), "did not return the id of the row it wrote");
     expect(persistedIds).toEqual([]);
   });
 
   test("writeRowInTransaction rejects a returned row whose id is 0", async () => {
     const { error, persistedIds } = await insertReturningRows([{ id: 0 }]);
 
-    assertStringIncludes(
-      String(error),
-      "did not return the id of the row it wrote",
-    );
+    says(String(error), "did not return the id of the row it wrote");
     expect(persistedIds).toEqual([]);
   });
 

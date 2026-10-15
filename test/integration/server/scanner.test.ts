@@ -7,7 +7,7 @@
  * these own the branch cover, and the requests only a crafted POST can make.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -23,6 +23,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { expectLoginRedirectWithReturn } from "#test-utils/login-redirect.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminGet,
   requestAsSession,
@@ -276,11 +277,11 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     test("includes manual check-in form with combobox", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const body = await getScannerBody(listing.id);
-      assertStringIncludes(body, "Manual Check-in");
-      assertStringIncludes(body, "data-manual-checkin");
-      assertStringIncludes(body, 'id="ticket-options"');
-      assertStringIncludes(body, 'role="listbox"');
-      assertStringIncludes(body, 'role="combobox"');
+      says(body, "Manual Check-in");
+      says(body, "data-manual-checkin");
+      says(body, 'id="ticket-options"');
+      says(body, 'role="listbox"');
+      says(body, 'role="combobox"');
     });
 
     test("datalist shows the tickets each person still owes", async () => {
@@ -291,7 +292,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
         3,
       );
       const body = await getScannerBody(listing.id);
-      assertStringIncludes(body, "Dave Multi (3 tickets)");
+      says(body, "Dave Multi (3 tickets)");
     });
 
     test("datalist shows a single ticket in the singular", async () => {
@@ -300,7 +301,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
         "eve-single@test.com",
       );
       const body = await getScannerBody(listing.id);
-      assertStringIncludes(body, "Eve Single (1 ticket)");
+      says(body, "Eve Single (1 ticket)");
     });
   });
 
@@ -523,13 +524,13 @@ describeWithEnv("QR Scanner", { db: true }, () => {
   describe("scanner template", () => {
     test("contains CSRF token in meta tag", async () => {
       const { body } = await createListingAndGetScannerBody();
-      assertStringIncludes(body, 'name="csrf-token"');
+      says(body, 'name="csrf-token"');
     });
 
     test("contains back link to listing page", async () => {
       const { listing, body } = await createListingAndGetScannerBody();
-      assertStringIncludes(body, `/admin/listing/${listing.id}`);
-      assertStringIncludes(body, listing.name);
+      says(body, `/admin/listing/${listing.id}`);
+      says(body, listing.name);
     });
   });
 
@@ -538,10 +539,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       const response = await awaitTestRequest("/scanner.js");
 
       expect(response.status).toBe(200);
-      assertStringIncludes(
-        response.headers.get("content-type") ?? "",
-        "application/javascript",
-      );
+      says(response.headers.get("content-type"), "application/javascript");
     });
   });
 
@@ -552,8 +550,8 @@ describeWithEnv("QR Scanner", { db: true }, () => {
 
       const overview = await adminGet(`/admin/listing/${listing.id}`);
       const overviewBody = await overview.text();
-      assertStringIncludes(overviewBody, scannerHref);
-      assertStringIncludes(overviewBody, "Scanner");
+      says(overviewBody, scannerHref);
+      says(overviewBody, "Scanner");
 
       // The tab strip renders on every tab (so the actions page still carries
       // ONE occurrence, the strip link) — but the Actions section's own
@@ -566,7 +564,6 @@ describeWithEnv("QR Scanner", { db: true }, () => {
         !actionsBody.includes(
           `<div class="entity-action"><a class="btn secondary" href="${scannerHref}"`,
         ),
-        "the value should not contain the searched item",
       );
     });
 
@@ -577,10 +574,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       });
       const response = await adminGet(`/admin/listing/${listing.id}`);
       const body = await response.text();
-      assert(
-        !body.includes(`/admin/listing/${listing.id}/scanner`),
-        "the value should not contain the searched item",
-      );
+      assert(!body.includes(`/admin/listing/${listing.id}/scanner`));
     });
   });
 
@@ -607,11 +601,11 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       const response = await adminGet("/admin/guide");
       const body = await response.text();
 
-      assertStringIncludes(body, 'id="modifiers"');
-      assertStringIncludes(body, "What are modifiers?");
-      assertStringIncludes(body, "Fixed amount");
-      assertStringIncludes(body, "10%");
-      assertStringIncludes(body, "10x");
+      says(body, 'id="modifiers"');
+      says(body, "What are modifiers?");
+      says(body, "Fixed amount");
+      says(body, "10%");
+      says(body, "10x");
     });
 
     test("footer contains guide link", async () => {

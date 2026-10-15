@@ -2,7 +2,6 @@
 // page (groups.ts). Kept in the mutation gate's changed set so groups.ts's
 // whole-file mutants meet their real covering tests.
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
@@ -14,6 +13,7 @@ import { assertApiDeleteOk, assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import {
   apiRequest,
   createTestAgentSession,
@@ -64,7 +64,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         400,
         (body) => {
-          assertStringIncludes(body.error, "does not match");
+          says(body.error, "does not match");
         },
       );
 

@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -29,6 +29,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { has, says, saysNot } from "#test-utils/says.ts";
 import { expectTemporaryError } from "#test-utils/temporary-error.ts";
 
 // jscpd:ignore-end
@@ -83,8 +84,8 @@ describeWithEnv("route responses", { db: true }, () => {
       const result = await withCookie(response, "second=two; Path=/");
       const cookies = result.headers.getSetCookie();
       expect(cookies.length).toBe(2);
-      assertArrayIncludes(cookies, ["first=one; Path=/"]);
-      assertArrayIncludes(cookies, ["second=two; Path=/"]);
+      has(cookies, "first=one; Path=/");
+      has(cookies, "second=two; Path=/");
     });
 
     test("preserves response status", async () => {
@@ -139,8 +140,9 @@ describeWithEnv("route responses", { db: true }, () => {
       withRequestContext(() => {
         const response = redirect("/admin/settings", "Saved", true);
         expectRedirectWithFlash("/admin/settings", "Saved")(response);
-        assert(
-          response.headers.get("location")?.includes("success=") === false,
+        saysNot(
+          response.headers.get("location"),
+          "success=",
           "the value should not contain the searched item",
         );
       }));
@@ -186,9 +188,7 @@ describeWithEnv("route responses", { db: true }, () => {
         const response = redirect("/admin", "Done", true, {
           cookie: "session=abc; Path=/",
         });
-        assertArrayIncludes(response.headers.getSetCookie(), [
-          "session=abc; Path=/",
-        ]);
+        has(response.headers.getSetCookie(), "session=abc; Path=/");
         expectRedirectWithFlash("/admin", "Done")(response);
       }));
   });
@@ -239,8 +239,8 @@ describeWithEnv("route responses", { db: true }, () => {
         "application/zip",
       );
       expect(response.headers.get("content-type")).toBe("application/zip");
-      assertStringIncludes(
-        response.headers.get("content-disposition") ?? "",
+      says(
+        response.headers.get("content-disposition"),
         'filename="backup-2024-01-15T12-00-00-000Z.zip"',
       );
       const body = new Uint8Array(await response.arrayBuffer());
@@ -287,11 +287,8 @@ describeWithEnv("route responses", { db: true }, () => {
         503,
         "Please go back and try again",
       );
-      assertStringIncludes(retry, 'http-equiv="refresh"');
-      assert(
-        !noRetry.includes('http-equiv="refresh"'),
-        "the value should not contain the searched item",
-      );
+      says(retry, 'http-equiv="refresh"');
+      assert(!noRetry.includes('http-equiv="refresh"'));
     });
 
     test("renders the not-activated page without reloading", async () => {
@@ -300,10 +297,7 @@ describeWithEnv("route responses", { db: true }, () => {
         503,
         "This site has not been activated yet",
       );
-      assert(
-        !html.includes('http-equiv="refresh"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('http-equiv="refresh"'));
     });
 
     test("renders the migration page with reloading", async () => {
@@ -314,10 +308,7 @@ describeWithEnv("route responses", { db: true }, () => {
         "backing up and updating the database",
         'http-equiv="refresh"',
       );
-      assert(
-        !html.includes("Temporary error"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Temporary error"));
     });
 
     test("sets Retry-After to the page refresh interval on temporary errors", () => {

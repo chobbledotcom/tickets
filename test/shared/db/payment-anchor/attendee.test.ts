@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decrypt } from "#crypto/encryption.ts";
@@ -20,6 +20,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
+import { has } from "#test-utils/says.ts";
 
 type StoredAnchor = {
   failure_data: EnvKeyEncrypted | "";
@@ -86,12 +87,13 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
       const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
       const anchor = await prepared.forAttendee(attendeeId);
       expect(anchor.statement.args).toHaveLength(8);
-      assertArrayIncludes(anchor.statement.args ?? [], [
+      has(
+        anchor.statement.args,
         await paymentReferenceIndex({
           kind: "untagged",
           reference: payment.reference,
         }),
-      ]);
+      );
 
       for (const _attempt of [1, 2]) {
         await execute(anchor.statement.sql, anchor.statement.args);

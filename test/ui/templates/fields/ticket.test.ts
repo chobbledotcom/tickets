@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -19,6 +19,7 @@ import {
   validatePhone,
   validateSpecialInstructions,
 } from "#templates/fields/validators.ts";
+import { says } from "#test-utils/says.ts";
 import { expectInvalid, expectValid } from "#test-utils/validation.ts";
 
 // Helper: get the names of fields in order
@@ -100,7 +101,7 @@ describe("getTicketFields — field composition", () => {
       settingsAny.addressLookup = { ...original, provider: "easypostcodes" };
       const withPanel = getTicketFields("address", false)[1]!;
       expect(typeof withPanel.beforeHtml).toBe("string");
-      assertStringIncludes(withPanel.beforeHtml ?? "", "<fieldset");
+      says(withPanel.beforeHtml, "<fieldset");
       // The panel never attaches to a non-address field.
       const email = getTicketFields("email", false)[1]!;
       expect(email.beforeHtml).toBeUndefined();
@@ -195,10 +196,10 @@ describe("getTicketFields — field validation", () => {
 
   test("renders with correct autocomplete attributes for HTML", () => {
     const html = renderFields(getTicketFields("email,phone,address", false));
-    assertStringIncludes(html, 'autocomplete="name"');
-    assertStringIncludes(html, 'autocomplete="email"');
-    assertStringIncludes(html, 'autocomplete="tel"');
-    assertStringIncludes(html, 'autocomplete="street-address"');
+    says(html, 'autocomplete="name"');
+    says(html, 'autocomplete="email"');
+    says(html, 'autocomplete="tel"');
+    says(html, 'autocomplete="street-address"');
   });
 });
 
@@ -216,18 +217,9 @@ describe("getAddAttendeeFields — autocomplete", () => {
       expect(field.autocomplete).toBe("off");
     }
     const html = renderFields(fields);
-    assert(
-      !html.includes('autocomplete="email"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('autocomplete="tel"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('autocomplete="street-address"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('autocomplete="email"'));
+    assert(!html.includes('autocomplete="tel"'));
+    assert(!html.includes('autocomplete="street-address"'));
   });
 });
 

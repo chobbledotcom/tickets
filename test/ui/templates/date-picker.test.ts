@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -8,6 +8,7 @@ import {
   selectableDates,
 } from "#templates/date-picker.tsx";
 import { selectOptionLabels } from "#test-utils/assertions.ts";
+import { says } from "#test-utils/says.ts";
 
 const baseProps: DatePickerProps = {
   ariaLabel: "Select a date",
@@ -58,9 +59,9 @@ describe("DatePicker month select", () => {
 
   test("the month label is a nav-select that reads as plain text", () => {
     const html = render();
-    assertStringIncludes(html, 'class="calendar-month-select"');
+    says(html, 'class="calendar-month-select"');
     expect(monthSelect(html)).toBeDefined();
-    assertStringIncludes(html, "data-nav-select");
+    says(html, "data-nav-select");
   });
 
   test("lists every month from five years before to five years after", () => {
@@ -74,26 +75,26 @@ describe("DatePicker month select", () => {
 
   test("each month option navigates via monthHref", () => {
     // April 2026 option carries the monthHref value (the arrows use href=).
-    assertStringIncludes(render(), 'value="/m/2026-04"');
+    says(render(), 'value="/m/2026-04"');
   });
 });
 
 describe("DatePicker month navigation", () => {
   test("links to the previous and next months", () => {
     const html = render();
-    assertStringIncludes(html, 'href="/m/2026-02"');
-    assertStringIncludes(html, 'href="/m/2026-04"');
+    says(html, 'href="/m/2026-02"');
+    says(html, 'href="/m/2026-04"');
   });
 
   test("navigation arrows have accessible labels", () => {
     const html = render();
-    assertStringIncludes(html, 'aria-label="Previous month"');
-    assertStringIncludes(html, 'aria-label="Next month"');
+    says(html, 'aria-label="Previous month"');
+    says(html, 'aria-label="Next month"');
   });
 
   test("crosses the year boundary when paging forward from December", () => {
     const html = render({ viewMonth: "2026-12" });
-    assertStringIncludes(html, 'href="/m/2027-01"');
+    says(html, 'href="/m/2027-01"');
   });
 });
 
@@ -108,27 +109,24 @@ describe("DatePicker grid", () => {
 
   test("renders selectable dates as links", () => {
     const html = render({ dates: [date({ value: "2026-03-12" })] });
-    assertStringIncludes(html, 'href="/go/2026-03-12"');
+    says(html, 'href="/go/2026-03-12"');
   });
 
   test("renders non-selectable dates as plain text, not links", () => {
     const html = render({
       dates: [date({ selectable: false, value: "2026-03-12" })],
     });
-    assertStringIncludes(html, '<span class="cal-day">12</span>');
-    assert(
-      !html.includes("/go/2026-03-12"),
-      "the value should not contain the searched item",
-    );
+    says(html, '<span class="cal-day">12</span>');
+    assert(!html.includes("/go/2026-03-12"));
   });
 
   test("dates absent from the list are plain text", () => {
     // 2026-03-12 is in the grid but not in `dates`, so it is not a link.
-    assertStringIncludes(render(), '<span class="cal-day">12</span>');
+    says(render(), '<span class="cal-day">12</span>');
   });
 
   test("marks today within the grid", () => {
-    assertStringIncludes(render(), 'class="cal-day cal-day-today">10</span>');
+    says(render(), 'class="cal-day cal-day-today">10</span>');
   });
 
   test("marks the selected date as a link with aria-current", () => {
@@ -136,36 +134,33 @@ describe("DatePicker grid", () => {
       dates: [date({ value: "2026-03-15" })],
       selected: "2026-03-15",
     });
-    assertStringIncludes(html, 'aria-current="date"');
-    assertStringIncludes(html, "cal-day-selected");
+    says(html, 'aria-current="date"');
+    says(html, "cal-day-selected");
   });
 
   test("selectable but unselected days omit aria-current", () => {
     const html = render({ dates: [date({ value: "2026-03-12" })] });
-    assert(
-      !html.includes("aria-current"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("aria-current"));
   });
 
   test("shows one extra week of adjacent-month context either side", () => {
     // March 2026: grid runs Mon 16 Feb → Sun 12 Apr (whole weeks + a week each side).
     const html = render();
-    assertStringIncludes(html, 'class="cal-day cal-day-muted">16</span>'); // 16 Feb
-    assertStringIncludes(html, 'class="cal-day cal-day-muted">12</span>'); // 12 Apr
+    says(html, 'class="cal-day cal-day-muted">16</span>'); // 16 Feb
+    says(html, 'class="cal-day cal-day-muted">12</span>'); // 12 Apr
   });
 });
 
 describe("DatePicker dropdown", () => {
   test("renders a navigable select with a clear option", () => {
     const html = render();
-    assertStringIncludes(html, "data-nav-select");
-    assertStringIncludes(html, "Select a date");
+    says(html, "data-nav-select");
+    says(html, "Select a date");
   });
 
   test("the clear option is selected when nothing is chosen", () => {
     const html = render();
-    assertStringIncludes(html, '<option selected value="/clear">Select a date');
+    says(html, '<option selected value="/clear">Select a date');
   });
 
   test("the clear option is not selected when a date is chosen", () => {
@@ -173,17 +168,14 @@ describe("DatePicker dropdown", () => {
       dates: [date({ label: "Pick", value: "2026-03-15" })],
       selected: "2026-03-15",
     });
-    assertStringIncludes(html, '<option value="/clear">Select a date');
+    says(html, '<option value="/clear">Select a date');
   });
 
   test("selectable dates are options linking to their day href", () => {
     const html = render({
       dates: [date({ label: "Pick me", value: "2026-03-15" })],
     });
-    assertStringIncludes(
-      html,
-      '<option value="/go/2026-03-15">Pick me</option>',
-    );
+    says(html, '<option value="/go/2026-03-15">Pick me</option>');
   });
 
   test("the chosen date's option is marked selected", () => {
@@ -191,14 +183,14 @@ describe("DatePicker dropdown", () => {
       dates: [date({ label: "Pick", value: "2026-03-15" })],
       selected: "2026-03-15",
     });
-    assertStringIncludes(html, '<option selected value="/go/2026-03-15">Pick');
+    says(html, '<option selected value="/go/2026-03-15">Pick');
   });
 
   test("non-selectable dates are disabled options", () => {
     const html = render({
       dates: [date({ label: "Closed", selectable: false })],
     });
-    assertStringIncludes(html, "<option disabled>Closed</option>");
+    says(html, "<option disabled>Closed</option>");
   });
 
   test("inserts the clear option between past and future dates", () => {

@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -25,6 +24,7 @@ import {
   settingsValueOrNull,
   takeMigrationLock,
 } from "#test-utils/migrations.ts";
+import { has } from "#test-utils/says.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 describe("db > migrations > runner", () => {
@@ -264,9 +264,10 @@ describeWithEnv(
 
         await baselineCurrentSchemaIfNeeded();
 
-        assertArrayIncludes(debugLines() ?? [], [
+        has(
+          debugLines(),
           "[Migration] Baselining 1 already-applied migration(s)",
-        ]);
+        );
         expect(await missingMigrations()).toEqual([]);
       } finally {
         await baselineCurrentSchemaIfNeeded();
@@ -305,9 +306,10 @@ describeWithEnv(
           lockToken,
         );
 
-        assertArrayIncludes(debugLines() ?? [], [
+        has(
+          debugLines(),
           "[Migration] Running runner-test-migration: runner test migration",
-        ]);
+        );
       } finally {
         await releaseMigrationLock(lockToken);
       }
@@ -388,9 +390,10 @@ describeWithEnv(
       await restoreStaleSchemaMarkers();
 
       expect(await settingsValueOrNull(DB_SCHEMA_HASH_KEY)).toBe(SCHEMA_HASH);
-      assertArrayIncludes(debugLines() ?? [], [
+      has(
+        debugLines(),
         "[Migration] Schema verified; restoring stale schema markers",
-      ]);
+      );
     });
 
     test("stale markers are left alone when the schema does not match", async () => {

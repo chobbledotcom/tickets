@@ -16,6 +16,7 @@ import {
   expectStoredOrder,
   openEditorFromRoster,
 } from "#test-utils/order-journey.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -91,7 +92,7 @@ Then(
     const cabin = catalog.listing("Cabin").id;
     await openEditorFromRoster(browser, cabin, BUYER);
     const editor = browser.currentHtml;
-    expect(editor).toContain("via Deluxe Kit");
+    says(editor, "via Deluxe Kit");
     expect(
       attendeeLineIndex(editor, cabin, catalog.group("Deluxe Kit").id),
     ).not.toBeNull();

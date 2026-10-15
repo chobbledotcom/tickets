@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
@@ -11,21 +11,22 @@ import {
 } from "#test/ui/templates/attendee-table/shared.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 attendeeTableSuite(() => {
   describe("check-in button", () => {
     test("shows Check in for an unchecked attendee", () => {
       const attendee = testAttendee({ checked_in: 0 });
       const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
-      assertStringIncludes(html, "Check in");
-      assertStringIncludes(html, 'class="link-button checkin"');
+      says(html, "Check in");
+      says(html, 'class="link-button checkin"');
     });
 
     test("shows Check out for a checked-in attendee", () => {
       const attendee = testAttendee({ checked_in: 1 });
       const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
-      assertStringIncludes(html, "Check out");
-      assertStringIncludes(html, 'class="link-button checkout"');
+      says(html, "Check out");
+      says(html, 'class="link-button checkout"');
     });
 
     test("includes the current CSRF token", () => {
@@ -40,10 +41,7 @@ attendeeTableSuite(() => {
 
     test("acts on the row's own listing", () => {
       const rows = [makeRow({ listings: [{ id: 42, name: "Test Listing" }] })];
-      assertStringIncludes(
-        render(makeOpts({ rows })),
-        "/admin/listing/42/attendee/1/checkin",
-      );
+      says(render(makeOpts({ rows })), "/admin/listing/42/attendee/1/checkin");
     });
 
     test("rejects a check-in row without a listing", () => {
@@ -67,10 +65,7 @@ attendeeTableSuite(() => {
     });
 
     test("omits return_url when not provided", () => {
-      assert(
-        !render(makeOpts()).includes("return_url"),
-        "the value should not contain the searched item",
-      );
+      assert(!render(makeOpts()).includes("return_url"));
     });
   });
 
@@ -78,19 +73,13 @@ attendeeTableSuite(() => {
     test("does not render moved refund or delete actions", () => {
       const attendee = testAttendee({ payment_id: "pay_123" });
       const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
-      assert(
-        !html.includes("/refund"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("/delete"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("/refund"));
+      assert(!html.includes("/delete"));
     });
 
     test("shows Refunded for a refunded attendee", () => {
       const attendee = testAttendee({ refunded: true });
-      assertStringIncludes(
+      says(
         render(makeOpts({ rows: [makeRow({ attendee })] })),
         '<span class="badge-alert">Refunded</span>',
       );
@@ -98,7 +87,7 @@ attendeeTableSuite(() => {
 
     test("marks servicing attendee rows", () => {
       const attendee = testAttendee({ kind: "servicing" });
-      assertStringIncludes(
+      says(
         render(makeOpts({ rows: [makeRow({ attendee })] })),
         '<tr class="servicing-event" data-servicing="true">',
       );
@@ -107,24 +96,15 @@ attendeeTableSuite(() => {
     test("does not show check-in actions for a refunded attendee", () => {
       const attendee = testAttendee({ refunded: true });
       const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
-      assert(
-        !html.includes("Check in"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("Check out"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Check in"));
+      assert(!html.includes("Check out"));
     });
 
     test("shows Check in for a non-refunded attendee", () => {
       const attendee = testAttendee({ refunded: false });
       const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
-      assertStringIncludes(html, "Check in");
-      assert(
-        !html.includes("Refunded"),
-        "the value should not contain the searched item",
-      );
+      says(html, "Check in");
+      assert(!html.includes("Refunded"));
     });
 
     test("shows No quantity instead of live actions and ticket link", () => {
@@ -133,25 +113,19 @@ attendeeTableSuite(() => {
         ticket_token: "ghost-token",
       });
       const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
-      assertStringIncludes(html, "No quantity");
-      assert(
-        !html.includes("/attendee/1/checkin"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("/t/ghost-token"),
-        "the value should not contain the searched item",
-      );
+      says(html, "No quantity");
+      assert(!html.includes("/attendee/1/checkin"));
+      assert(!html.includes("/t/ghost-token"));
     });
   });
 
   describe("empty state", () => {
     test("shows the default empty message", () => {
-      assertStringIncludes(render(makeOpts({ rows: [] })), "No attendees yet");
+      says(render(makeOpts({ rows: [] })), "No attendees yet");
     });
 
     test("shows a custom empty message", () => {
-      assertStringIncludes(
+      says(
         render(makeOpts({ emptyMessage: "Select a date", rows: [] })),
         "Select a date",
       );
@@ -161,38 +135,35 @@ attendeeTableSuite(() => {
       const html = render(
         makeOpts({ rows: [], showDate: false, showListing: false }),
       );
-      assertStringIncludes(html, 'colspan="5"');
+      says(html, 'colspan="5"');
     });
 
     test("counts optional visible columns", () => {
       const html = render(
         makeOpts({ rows: [], showDate: true, showListing: true }),
       );
-      assertStringIncludes(html, 'colspan="7"');
+      says(html, 'colspan="7"');
     });
   });
 
   describe("showCheckin option", () => {
     test("hides check-in when false", () => {
-      assert(
-        !render(makeOpts({ showCheckin: false })).includes("Check in"),
-        "the value should not contain the searched item",
-      );
+      assert(!render(makeOpts({ showCheckin: false })).includes("Check in"));
     });
 
     test("retains data columns when false", () => {
       const html = render(makeOpts({ showCheckin: false }));
-      assertStringIncludes(html, "John Doe");
-      assertStringIncludes(html, "test-token-1");
+      says(html, "John Doe");
+      says(html, "test-token-1");
     });
 
     test("shows check-in by default", () => {
-      assertStringIncludes(render(makeOpts()), "Check in");
+      says(render(makeOpts()), "Check in");
     });
 
     test("drops the status column from empty colspan when false", () => {
       const html = render(makeOpts({ rows: [], showCheckin: false }));
-      assertStringIncludes(html, 'colspan="4"');
+      says(html, 'colspan="4"');
     });
   });
 

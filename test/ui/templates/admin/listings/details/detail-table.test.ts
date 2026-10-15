@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   registerListingTemplateHooks,
@@ -10,6 +10,7 @@ import {
   testGroup,
   testListingWithCount,
 } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 /** One checked-in (qty 2) and one not-checked-in (qty 3) attendee — the mix the
  *  dual checked-in row tests share. */
@@ -34,8 +35,8 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Booking duration");
-    assertStringIncludes(html, "3 day(s)");
+    says(html, "Booking duration");
+    says(html, "3 day(s)");
   });
 
   test("omits booking duration row for standard listings", () => {
@@ -49,10 +50,7 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    assert(
-      !html.toLowerCase().includes("booking duration"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.toLowerCase().includes("booking duration"));
   });
 
   test("shows the customisable-days prices on a customisable listing", () => {
@@ -67,9 +65,9 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Customisable days");
-    assertStringIncludes(html, "1 day:");
-    assertStringIncludes(html, "2 days:");
+    says(html, "Customisable days");
+    says(html, "1 day:");
+    says(html, "2 days:");
   });
 
   test("offers a day-count selector when adding to a customisable daily listing", () => {
@@ -85,8 +83,8 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, 'name="day_count"');
-    assertStringIncludes(html, "Number of days");
+    says(html, 'name="day_count"');
+    says(html, "Number of days");
   });
 
   test("notes when a customisable listing has no day prices set", () => {
@@ -101,7 +99,7 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "No day prices set");
+    says(html, "No day prices set");
   });
 
   test("omits the customisable-days row for a fixed-duration listing", () => {
@@ -114,10 +112,7 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    assert(
-      !html.toLowerCase().includes("customisable days"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.toLowerCase().includes("customisable days"));
   });
 });
 
@@ -142,7 +137,7 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Test Listing");
+    says(html, "Test Listing");
   });
 
   test("shows the listing ticket price in the details table", () => {
@@ -152,8 +147,8 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing: paidListing,
     });
-    assertStringIncludes(html, "Ticket Price");
-    assertStringIncludes(html, "£12.50");
+    says(html, "Ticket Price");
+    says(html, "£12.50");
   });
 
   test("shows pay-more price bounds in the details table", () => {
@@ -167,9 +162,9 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing: payMoreListing,
     });
-    assertStringIncludes(html, "Ticket Price");
-    assertStringIncludes(html, "£10");
-    assertStringIncludes(html, "pay more: £10–£25");
+    says(html, "Ticket Price");
+    says(html, "£10");
+    says(html, "pay more: £10–£25");
   });
 
   test("shows pay-more enabled when no higher maximum is configured", () => {
@@ -183,9 +178,9 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing: payMoreListing,
     });
-    assertStringIncludes(html, "Ticket Price");
-    assertStringIncludes(html, "Free");
-    assertStringIncludes(html, "pay more enabled");
+    says(html, "Ticket Price");
+    says(html, "Free");
+    says(html, "pay more enabled");
   });
 
   test("shows free when the listing has no ticket price", () => {
@@ -195,8 +190,8 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing: freeListing,
     });
-    assertStringIncludes(html, "Ticket Price");
-    assertStringIncludes(html, "Free");
+    says(html, "Ticket Price");
+    says(html, "Free");
   });
 
   test("shows attendees row with count and remaining", () => {
@@ -205,31 +200,25 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Listing Attendees");
-    assertStringIncludes(html, "2 / 100");
-    assertStringIncludes(html, "98 remain");
+    says(html, "Listing Attendees");
+    says(html, "2 / 100");
+    says(html, "98 remain");
   });
 
   test("shows a running-total mismatch in the details table", () => {
     const html = renderMismatch();
-    assertStringIncludes(html, "Running total check");
-    assertStringIncludes(html, "expected <strong>1</strong>, got");
-    assertStringIncludes(html, "Mismatch");
-    assert(
-      !html.includes("Click for info"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, `/admin/listings/recalculate/${listing.id}`);
+    says(html, "Running total check");
+    says(html, "expected <strong>1</strong>, got");
+    says(html, "Mismatch");
+    assert(!html.includes("Click for info"));
+    says(html, `/admin/listings/recalculate/${listing.id}`);
   });
 
   test("shows a running-total mismatch without its repair link in read-only mode", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = renderMismatch();
-    assertStringIncludes(html, "Running total check");
-    assert(
-      !html.includes(`/admin/listings/recalculate/${listing.id}`),
-      "the value should not contain the searched item",
-    );
+    says(html, "Running total check");
+    assert(!html.includes(`/admin/listings/recalculate/${listing.id}`));
   });
 
   test("renders no Group Attendees row when groupContext is omitted", () => {
@@ -238,10 +227,7 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing,
     });
-    assert(
-      !html.includes("Group Attendees"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Group Attendees"));
   });
 
   test("shows Group Attendees row with count, cap, remaining, and link", () => {
@@ -256,12 +242,12 @@ describe("adminListingPage details table", () => {
       groupContext: { attendeeCount: 30, group },
       listing,
     });
-    assertStringIncludes(html, "Group Attendees");
-    assertStringIncludes(html, "30 / 50");
-    assertStringIncludes(html, "20 remain");
-    assertStringIncludes(html, 'href="/admin/groups/7"');
-    assertStringIncludes(html, "Summer Festival");
-    assertStringIncludes(html, "across all listings");
+    says(html, "Group Attendees");
+    says(html, "30 / 50");
+    says(html, "20 remain");
+    says(html, 'href="/admin/groups/7"');
+    says(html, "Summer Festival");
+    says(html, "across all listings");
   });
 
   test("Group Attendees row gets danger-text when at or near cap", () => {
@@ -272,9 +258,9 @@ describe("adminListingPage details table", () => {
       groupContext: { attendeeCount: 10, group },
       listing,
     });
-    assertStringIncludes(html, "danger-text");
-    assertStringIncludes(html, "10 / 10");
-    assertStringIncludes(html, "0 remain");
+    says(html, "danger-text");
+    says(html, "10 / 10");
+    says(html, "0 remain");
   });
 
   test("shows checked in row with 0 of 0 when no attendees", () => {
@@ -283,9 +269,9 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Checked In");
-    assertStringIncludes(html, "0 / 0");
-    assertStringIncludes(html, "0 remain");
+    says(html, "Checked In");
+    says(html, "0 / 0");
+    says(html, "0 remain");
   });
 
   test("shows checked in count and remaining", () => {
@@ -299,9 +285,9 @@ describe("adminListingPage details table", () => {
       attendees,
       listing,
     });
-    assertStringIncludes(html, "Checked In");
-    assertStringIncludes(html, "1 / 3");
-    assertStringIncludes(html, "2 remain");
+    says(html, "Checked In");
+    says(html, "1 / 3");
+    says(html, "2 remain");
   });
 
   test("roster keeps one row per booking line, with no Listings column", () => {
@@ -313,14 +299,8 @@ describe("adminListingPage details table", () => {
     });
     // The roster is scoped to one listing, so the Listings column stays off
     // and each line keeps its own per-listing check-in action.
-    assert(
-      !html.includes("<th>Listings</th>"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(
-      html,
-      `/admin/listing/${listing.id}/attendee/8/checkin`,
-    );
+    assert(!html.includes("<th>Listings</th>"));
+    says(html, `/admin/listing/${listing.id}/attendee/8/checkin`);
   });
 
   test("shows dual checked-in rows when attendees have multi-quantity", () => {
@@ -330,13 +310,13 @@ describe("adminListingPage details table", () => {
       listing,
     });
     // Tickets Checked In: 1 row / 2 rows, 1 remain
-    assertStringIncludes(html, "Tickets Checked In");
-    assertStringIncludes(html, "1 / 2");
-    assertStringIncludes(html, "1 remain");
+    says(html, "Tickets Checked In");
+    says(html, "1 / 2");
+    says(html, "1 remain");
     // Attendees Checked In: 2 qty / 5 total qty, 3 remain
-    assertStringIncludes(html, "Attendees Checked In");
-    assertStringIncludes(html, "2 / 5");
-    assertStringIncludes(html, "3 remain");
+    says(html, "Attendees Checked In");
+    says(html, "2 / 5");
+    says(html, "3 remain");
   });
 
   test("dual checked-in rows show daily suffix when daily listing with dateFilter", () => {
@@ -346,8 +326,8 @@ describe("adminListingPage details table", () => {
       dateFilter: "2026-03-15",
       listing: dailyListingFive(),
     });
-    assertStringIncludes(html, "Attendees Checked In (Sunday 15 March 2026)");
-    assertStringIncludes(html, "Tickets Checked In (Sunday 15 March 2026)");
+    says(html, "Attendees Checked In (Sunday 15 March 2026)");
+    says(html, "Tickets Checked In (Sunday 15 March 2026)");
   });
 
   test("dual checked-in rows show total suffix when daily listing without dateFilter", () => {
@@ -356,7 +336,7 @@ describe("adminListingPage details table", () => {
       attendees: multiQtyPair(),
       listing: dailyListingFive(),
     });
-    assertStringIncludes(html, "Attendees Checked In (total)");
-    assertStringIncludes(html, "Tickets Checked In (total)");
+    says(html, "Attendees Checked In (total)");
+    says(html, "Tickets Checked In (total)");
   });
 });

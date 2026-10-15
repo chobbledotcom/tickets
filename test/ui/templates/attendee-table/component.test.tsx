@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
@@ -10,6 +10,7 @@ import {
   zaraAliceRows,
 } from "#test/ui/templates/attendee-table/shared.ts";
 import { testAttendee, testRadioQuestion } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 attendeeTableSuite(() => {
   describe("component", () => {
@@ -31,30 +32,27 @@ attendeeTableSuite(() => {
         }),
       );
 
-      assertStringIncludes(
+      says(
         html,
         "<thead><tr><th>Registered</th><th>Phone</th><th>Ticket</th></tr></thead>",
       );
-      assertStringIncludes(html, "<td>2026</td>");
-      assertStringIncludes(html, 'href="tel:+12345678900"');
-      assertStringIncludes(
+      says(html, "<td>2026</td>");
+      says(html, 'href="tel:+12345678900"');
+      says(
         html,
         '<a href="https://tickets.example.test/t/custom-token">custom-token</a>',
       );
-      assert(
-        !html.includes("Check in"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Check in"));
     });
 
     test("uses the saved default layout and default phone prefix", () => {
       const attendee = testAttendee({ phone: "07700 900000" });
       const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
 
-      assertStringIncludes(html, 'class="link-button checkin"');
-      assertStringIncludes(html, "<th>Name</th>");
-      assertStringIncludes(html, "<th>Phone</th>");
-      assertStringIncludes(html, 'href="tel:+447700900000"');
+      says(html, 'class="link-button checkin"');
+      says(html, "<th>Name</th>");
+      says(html, "<th>Phone</th>");
+      says(html, 'href="tel:+447700900000"');
     });
 
     test("sorts rows unless the caller marks them as presorted", () => {
@@ -90,15 +88,9 @@ attendeeTableSuite(() => {
         }),
       );
 
-      assert(
-        !empty.includes("<th>Answers</th>"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(populated, "<th>Answers</th>");
-      assertStringIncludes(
-        populated,
-        '<span title="Meal?: Vegan">Vegan</span>',
-      );
+      assert(!empty.includes("<th>Answers</th>"));
+      says(populated, "<th>Answers</th>");
+      says(populated, '<span title="Meal?: Vegan">Vegan</span>');
     });
 
     test("marks only servicing rows with servicing attributes", () => {
@@ -119,11 +111,8 @@ attendeeTableSuite(() => {
         }),
       );
 
-      assertStringIncludes(html, "<tbody><tr><td>");
-      assertStringIncludes(
-        html,
-        '<tr class="servicing-event" data-servicing="true"><td>',
-      );
+      says(html, "<tbody><tr><td>");
+      says(html, '<tr class="servicing-event" data-servicing="true"><td>');
       expect(html.match(/data-servicing="true"/g)).toHaveLength(1);
     });
 
@@ -138,12 +127,9 @@ attendeeTableSuite(() => {
         }),
       );
 
-      assertStringIncludes(translated, '<td colspan="1">No attendees yet</td>');
-      assertStringIncludes(custom, '<td colspan="1">Pick a day</td>');
-      assert(
-        !custom.includes("No attendees yet"),
-        "the value should not contain the searched item",
-      );
+      says(translated, '<td colspan="1">No attendees yet</td>');
+      says(custom, '<td colspan="1">Pick a day</td>');
+      assert(!custom.includes("No attendees yet"));
     });
   });
 });

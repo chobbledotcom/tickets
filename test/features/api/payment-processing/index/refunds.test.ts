@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -15,6 +14,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
@@ -173,10 +173,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     );
     expect(result.success).toBe(false);
     if (result.success) throw new Error("Expected a capacity failure");
-    assertStringIncludes(
-      result.detail ?? "",
-      "sold out while you were completing payment",
-    );
+    says(result.detail, "sold out while you were completing payment");
     expect(
       (await getAttendeesRaw(listing.id)).map((row) => row.quantity).toSorted(),
     ).toEqual([0, 1]);

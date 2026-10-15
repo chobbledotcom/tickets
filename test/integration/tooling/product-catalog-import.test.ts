@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { cliErrorFromUnknown, exitCodeFor } from "#cli/errors.ts";
@@ -18,6 +17,7 @@ import {
   storedTicketsId,
   withTicketsMeta,
 } from "#cli/product-plan.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("product catalog import", () => {
   const productFrontmatter = `---
@@ -64,10 +64,7 @@ Body text that the importer never reads.
       id: 42,
       slug: "9zz9z",
     });
-    assertStringIncludes(
-      withMeta,
-      "tickets_id: 42\ntickets_slug: 9zz9z\n---\n",
-    );
+    says(withMeta, "tickets_id: 42\ntickets_slug: 9zz9z\n---\n");
     // A rerun with the same ids leaves the block as it is.
     expect(withTicketsMeta(withMeta, { id: 42, slug: "9zz9z" })).toBe(withMeta);
   });

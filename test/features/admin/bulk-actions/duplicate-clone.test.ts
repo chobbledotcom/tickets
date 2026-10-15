@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -17,6 +16,7 @@ import {
   getTestPackagePrices,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
@@ -46,9 +46,10 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         response,
         "Duplicated 'Priced Source' to 'Priced Copy' (x1 listings)",
       );
-      assertArrayIncludes((await activityMessages()) ?? [], [
+      has(
+        await activityMessages(),
         "Group 'Priced Source' duplicated to 'Priced Copy' with x1 listings",
-      ]);
+      );
 
       const newGroup = (await groups.cache.getAll()).find(
         (g) => g.name === "Priced Copy",

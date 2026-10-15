@@ -6,8 +6,9 @@
  * checkbox is required — so it lives in the direct suite.
  */
 
-// jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
+// jscpd:ignore-start
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
@@ -26,6 +27,7 @@ import {
 import { sentOrder, THE_CUSTOMER } from "#test/specs/support/refused-orders.ts";
 import { combinedPath } from "#test/specs/support/sales-pages.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -56,9 +58,9 @@ Then(
     const html = (await openBookingPage(listingNamed(this, name))).currentHtml;
     // The site's own terms, exactly as the organiser wrote them, and the box
     // that carries the agreement — one is no good without the other.
-    expect(html).toContain(await settings.terms);
-    expect(html).toContain(agreeBoxLabel());
-    expect(html).toContain('name="agree_terms"');
+    says(html, await settings.terms);
+    says(html, agreeBoxLabel());
+    says(html, 'name="agree_terms"');
   },
 );
 
@@ -66,9 +68,9 @@ Then(
   "the page selling both shows the terms and a box to agree to them",
   async function (this: TicketsWorld): Promise<void> {
     const { currentHtml } = await openTicketAndMugPage(this);
-    expect(currentHtml).toContain(await settings.terms);
-    expect(currentHtml).toContain(agreeBoxLabel());
-    expect(currentHtml).toContain('name="agree_terms"');
+    says(currentHtml, await settings.terms);
+    says(currentHtml, agreeBoxLabel());
+    says(currentHtml, 'name="agree_terms"');
   },
 );
 
@@ -76,7 +78,7 @@ Then(
   "the {word} page offers no box to agree to",
   async function (this: TicketsWorld, name: string): Promise<void> {
     const html = (await openBookingPage(listingNamed(this, name))).currentHtml;
-    expect(html).not.toContain('name="agree_terms"');
+    assert(!html.includes('name="agree_terms"'));
   },
 );
 
@@ -145,6 +147,6 @@ Then(
   function (this: TicketsWorld): void {
     const attempt = sentOrder(this);
     expect(attempt.wasBooked).toBe(true);
-    expect(attempt.browser.pageText).toContain(THANK_YOU);
+    says(attempt.browser.pageText, THANK_YOU);
   },
 );

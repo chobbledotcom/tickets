@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
@@ -10,6 +10,7 @@ import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 import { withSuccessfulStripeWebhook } from "#test-utils/settings.ts";
 
@@ -36,11 +37,8 @@ const postSettings = async (
 const expectMaskedAt = async (path: string, secret: string): Promise<void> => {
   const response = await adminGet(path);
   const html = await response.text();
-  assertStringIncludes(html, MASK_SENTINEL);
-  assert(
-    !html.includes(secret),
-    "the value should not contain the searched item",
-  );
+  says(html, MASK_SENTINEL);
+  assert(!html.includes(secret));
 };
 
 /** Assert a redirect with the "unchanged" flash (a preserved secret). */

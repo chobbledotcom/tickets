@@ -4,11 +4,12 @@
  * shows and who it shows it to.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("the news post page", { db: true }, () => {
@@ -19,9 +20,9 @@ describeWithEnv("the news post page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, `action="/admin/site/news/${post.id}/edit"`);
-    assertStringIncludes(html, "Summer opening");
-    assertStringIncludes(html, 'href="/admin/guide#public-site"');
+    says(html, `action="/admin/site/news/${post.id}/edit"`);
+    says(html, "Summer opening");
+    says(html, 'href="/admin/guide#public-site"');
   });
 
   test("titles the page with the post's own name", async () => {
@@ -29,7 +30,7 @@ describeWithEnv("the news post page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/site/news/${post.id}`)).text();
 
-    assertStringIncludes(html, "<h1>Winter hours</h1>");
+    says(html, "<h1>Winter hours</h1>");
   });
 
   test("opens the edit tab and leaves out pictures with no storage", async () => {
@@ -39,15 +40,12 @@ describeWithEnv("the news post page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/site/news/${post.id}`)).text();
 
-    assertStringIncludes(
+    says(
       html,
       `<a aria-current="page" class="active" href="/admin/site/news/${post.id}/edit">Edit</a>`,
     );
-    assertStringIncludes(html, `href="/admin/site/news/${post.id}/actions"`);
-    assert(
-      !html.includes(`href="/admin/site/news/${post.id}/images"`),
-      "the value should not contain the searched item",
-    );
+    says(html, `href="/admin/site/news/${post.id}/actions"`);
+    assert(!html.includes(`href="/admin/site/news/${post.id}/images"`));
   });
 
   test("offers deleting the post on its actions tab", async () => {
@@ -57,7 +55,7 @@ describeWithEnv("the news post page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, `href="/admin/site/news/${post.id}/delete"`);
+    says(html, `href="/admin/site/news/${post.id}/delete"`);
   });
 
   test("answers 404 for a post that is not there", async () => {

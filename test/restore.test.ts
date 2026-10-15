@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { RESTORE_USAGE } from "#scripts/restore-lib.ts";
 import { runRestoreTask } from "#src/restore.ts";
 import { TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";
+import { says } from "#test-utils/says.ts";
 
 test("uses only file database settings when running the restore CLI", async () => {
   const env: Record<string, string> = {
@@ -68,5 +69,5 @@ test("default restore dependencies read the requested backup path", async () => 
   );
 
   expect(result).toBe(1);
-  expect(stderr[0]).toContain(`Could not read ${path}`);
+  says(stderr[0], `Could not read ${path}`);
 });

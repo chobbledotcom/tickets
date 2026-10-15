@@ -54,22 +54,10 @@ describe("readStatement", () => {
   test("omits every part the read does not ask for", () => {
     const { sql } = readStatement({ columns: "id", from: "listings" });
 
-    assert(
-      !sql.includes("WHERE"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !sql.includes("GROUP BY"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !sql.includes("ORDER BY"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !sql.includes("LIMIT"),
-      "the value should not contain the searched item",
-    );
+    assert(!sql.includes("WHERE"));
+    assert(!sql.includes("GROUP BY"));
+    assert(!sql.includes("ORDER BY"));
+    assert(!sql.includes("LIMIT"));
   });
 
   test("an empty filter list adds no WHERE", () => {

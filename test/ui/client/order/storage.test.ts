@@ -1,9 +1,9 @@
 // test-groups: run-alone
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
+import { has } from "#test-utils/says.ts";
 import {
   addLink,
   cartButton,
@@ -102,9 +102,9 @@ describe("order widget storage and lifecycle", {
     mountOpenListing(h, true);
 
     expect(logHas(h, "discarding corrupt stored cart")).toBe(true);
-    assertArrayIncludes(
+    has(
       removeSpy.calls.map((c) => c.args[0]),
-      [key],
+      key,
     );
     expect(JSON.parse(h.window.sessionStorage.getItem(key)!)).toEqual([]);
 

@@ -1,5 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
-import { expect } from "@std/expect";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type {
   ProviderRefundCase,
@@ -17,6 +16,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 
 const captured = money(2_500, "GBP")!;
 const queue: ProviderRefundCasePage = {
@@ -69,39 +69,30 @@ describe("provider refund recovery templates", () => {
   test("renders a bounded blind queue with a detail link and opaque cursor", () => {
     const html = String(<ProviderRefundCaseQueue page={queue} />);
 
-    assertStringIncludes(html, "Refunds needing attention");
-    assertStringIncludes(html, '<section class="prose" id="refund-recovery">');
-    assertStringIncludes(html, "SumUp");
-    assertStringIncludes(html, "£25");
-    assertStringIncludes(html, 'href="/admin/privacy/refunds/17"');
-    assertStringIncludes(
-      html,
-      'href="/admin/privacy?refund_after=opaque-next-page"',
-    );
-    assert(
-      !html.includes("charge-17"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Refunds needing attention");
+    says(html, '<section class="prose" id="refund-recovery">');
+    says(html, "SumUp");
+    says(html, "£25");
+    says(html, 'href="/admin/privacy/refunds/17"');
+    says(html, 'href="/admin/privacy?refund_after=opaque-next-page"');
+    assert(!html.includes("charge-17"));
   });
 
   test("requires an explicit owner choice and posts the seen revision", () => {
     const html = adminProviderRefundCasePage(OWNER_SESSION, detail, {});
 
-    assertStringIncludes(html, "charge-17");
-    assertStringIncludes(html, 'action="/admin/privacy/refunds/17"');
-    assertStringIncludes(html, 'name="revision" type="hidden" value="4"');
-    assertStringIncludes(
+    says(html, "charge-17");
+    says(html, 'action="/admin/privacy/refunds/17"');
+    says(html, 'name="revision" type="hidden" value="4"');
+    says(
       html,
       'name="choice" required type="radio" value="provider_confirmed_returned"',
     );
-    assertStringIncludes(
+    says(
       html,
       'name="choice" required type="radio" value="provider_confirmed_not_sent"',
     );
-    assert(
-      !html.includes("checked"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("checked"));
   });
 
   test("shows the returned part and the missing part before an owner acts", () => {
@@ -133,11 +124,11 @@ describe("provider refund recovery templates", () => {
         adminProviderRefundCasePage(OWNER_SESSION, awaitingMoney, {}),
       ],
     ] as const) {
-      expect(html, name).toContain("£25 GBP");
-      expect(html, name).toContain("Provider returned");
-      expect(html, name).toContain("£4 GBP");
-      expect(html, name).toContain("Not returned");
-      expect(html, name).toContain("£21 GBP");
+      says(html, "£25 GBP", name);
+      says(html, "Provider returned", name);
+      says(html, "£4 GBP", name);
+      says(html, "Not returned", name);
+      says(html, "£21 GBP", name);
     }
 
     const nothingReturned = adminProviderRefundCasePage(
@@ -145,15 +136,9 @@ describe("provider refund recovery templates", () => {
       detail,
       {},
     );
-    assertStringIncludes(nothingReturned, "£25 GBP");
-    assert(
-      !nothingReturned.includes("Provider returned"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !nothingReturned.includes("Not returned"),
-      "the value should not contain the searched item",
-    );
+    says(nothingReturned, "£25 GBP");
+    assert(!nothingReturned.includes("Provider returned"));
+    assert(!nothingReturned.includes("Not returned"));
   });
 
   test("separates a partial provider check from conclusive owner choices", () => {
@@ -196,29 +181,14 @@ describe("provider refund recovery templates", () => {
       {},
     );
 
-    assertStringIncludes(
-      partial,
-      'name="choice" type="hidden" value="check_again"',
-    );
-    assert(
-      !partial.includes('type="radio"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(returned, 'value="provider_confirmed_returned"');
-    assert(
-      !returned.includes('value="provider_confirmed_not_sent"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(returned, "Provider returned");
-    assert(
-      !returned.includes("Not returned"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(notSent, 'value="provider_confirmed_not_sent"');
-    assert(
-      !notSent.includes('value="provider_confirmed_returned"'),
-      "the value should not contain the searched item",
-    );
+    says(partial, 'name="choice" type="hidden" value="check_again"');
+    assert(!partial.includes('type="radio"'));
+    says(returned, 'value="provider_confirmed_returned"');
+    assert(!returned.includes('value="provider_confirmed_not_sent"'));
+    says(returned, "Provider returned");
+    assert(!returned.includes("Not returned"));
+    says(notSent, 'value="provider_confirmed_not_sent"');
+    assert(!notSent.includes('value="provider_confirmed_returned"'));
   });
 
   test("makes inconclusive conflict evidence reachable only by rechecking", () => {
@@ -234,16 +204,10 @@ describe("provider refund recovery templates", () => {
       {},
     );
 
-    assertStringIncludes(html, 'id="refund-check-conflict"');
-    assertStringIncludes(
-      html,
-      'name="choice" type="hidden" value="check_again"',
-    );
-    assertStringIncludes(html, "Check the provider again");
-    assert(
-      !html.includes('type="radio"'),
-      "the value should not contain the searched item",
-    );
+    says(html, 'id="refund-check-conflict"');
+    says(html, 'name="choice" type="hidden" value="check_again"');
+    says(html, "Check the provider again");
+    assert(!html.includes('type="radio"'));
   });
 
   test("shows the charge's own currency beside an irreversible choice", () => {
@@ -258,12 +222,9 @@ describe("provider refund recovery templates", () => {
     );
     const detailHtml = adminProviderRefundCasePage(OWNER_SESSION, yenCase, {});
 
-    assertStringIncludes(queueHtml, "¥1,000 JPY");
-    assertStringIncludes(detailHtml, "¥1,000 JPY");
-    assert(
-      !detailHtml.includes("£10"),
-      "the value should not contain the searched item",
-    );
+    says(queueHtml, "¥1,000 JPY");
+    says(detailHtml, "¥1,000 JPY");
+    assert(!detailHtml.includes("£10"));
   });
 
   test("labels provider checks as checks without offering another send", () => {
@@ -274,21 +235,12 @@ describe("provider refund recovery templates", () => {
         {},
       );
 
-      assertStringIncludes(html, 'action="/admin/privacy/refunds/17"');
-      assertStringIncludes(html, 'name="revision" type="hidden" value="4"');
-      assertStringIncludes(
-        html,
-        'name="choice" type="hidden" value="check_again"',
-      );
-      assertStringIncludes(html, "Check the provider again");
-      assert(
-        !html.includes("Send this refund"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('type="radio"'),
-        "the value should not contain the searched item",
-      );
+      says(html, 'action="/admin/privacy/refunds/17"');
+      says(html, 'name="revision" type="hidden" value="4"');
+      says(html, 'name="choice" type="hidden" value="check_again"');
+      says(html, "Check the provider again");
+      assert(!html.includes("Send this refund"));
+      assert(!html.includes('type="radio"'));
     }
   });
 
@@ -299,22 +251,16 @@ describe("provider refund recovery templates", () => {
       {},
     );
 
-    assertStringIncludes(html, 'id="refund-send-ready"');
-    assertStringIncludes(
-      html,
-      'name="choice" type="hidden" value="check_again"',
-    );
-    assertStringIncludes(html, '<button class="danger" type="submit">');
-    assertStringIncludes(html, "Send this refund");
-    assert(
-      !html.includes("Check the provider again"),
-      "the value should not contain the searched item",
-    );
+    says(html, 'id="refund-send-ready"');
+    says(html, 'name="choice" type="hidden" value="check_again"');
+    says(html, '<button class="danger" type="submit">');
+    says(html, "Send this refund");
+    assert(!html.includes("Check the provider again"));
   });
 
   test("marks a choice as a money action only when it can re-queue a send", () => {
     const withNotSent = adminProviderRefundCasePage(OWNER_SESSION, detail, {});
-    assertStringIncludes(withNotSent, '<button class="danger" type="submit">');
+    says(withNotSent, '<button class="danger" type="submit">');
 
     // Confirming money that already came back sends nothing, so the machine
     // says this settled-return decision is not a money action.
@@ -329,11 +275,8 @@ describe("provider refund recovery templates", () => {
       },
       {},
     );
-    assertStringIncludes(returnedOnly, '<button type="submit">');
-    assert(
-      !returnedOnly.includes('<button class="danger" type="submit">'),
-      "the value should not contain the searched item",
-    );
+    says(returnedOnly, '<button type="submit">');
+    assert(!returnedOnly.includes('<button class="danger" type="submit">'));
   });
 
   test("requires a specific Money-recorded confirmation for returned cash", () => {
@@ -343,33 +286,18 @@ describe("provider refund recovery templates", () => {
       {},
     );
 
-    assertStringIncludes(html, "matching entry in Money is still due");
-    assertStringIncludes(
-      html,
-      'name="choice" required type="radio" value="money_recorded"',
-    );
-    assert(
-      !html.includes("provider_confirmed_returned"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("check_again"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Why this needs attention"),
-      "the value should not contain the searched item",
-    );
+    says(html, "matching entry in Money is still due");
+    says(html, 'name="choice" required type="radio" value="money_recorded"');
+    assert(!html.includes("provider_confirmed_returned"));
+    assert(!html.includes("check_again"));
+    assert(!html.includes("Why this needs attention"));
   });
 
   test("renders the queue link as plain text in read-only mode", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = String(<ProviderRefundCaseQueue page={queue} />);
 
-    assertStringIncludes(html, "Open refund 17");
-    assert(
-      !html.includes('href="/admin/privacy/refunds/17"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "Open refund 17");
+    assert(!html.includes('href="/admin/privacy/refunds/17"'));
   });
 });

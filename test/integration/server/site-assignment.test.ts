@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
@@ -11,6 +11,7 @@ import { nowIso } from "#shared/now.ts";
 import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 import {
   forbidBuildDuringAssignment,
   insertSitesAAndB,
@@ -33,8 +34,8 @@ describeWithEnv(
     const expectSetupEmailBody = async (setupUrl: string) => {
       await assignAndNotifyBuiltSites([siteEntry()]);
       const body = JSON.parse(suite.fetchStub.calls[0]!.args[1].body);
-      assertStringIncludes(body.html, `href="${setupUrl}"`);
-      assertStringIncludes(body.text, setupUrl);
+      says(body.html, `href="${setupUrl}"`);
+      says(body.text, setupUrl);
       return body;
     };
 
@@ -103,8 +104,8 @@ describeWithEnv(
         expect(assigned.assignedListingId).toBe(1);
         const body = JSON.parse(suite.fetchStub.calls[0]!.args[1].body);
         expect(body.subject).toBe("Your new site is ready");
-        assertStringIncludes(body.html, "12 Month Plan + 3 Month Plan");
-        assertStringIncludes(body.html, "https://a.test.net/setup/");
+        says(body.html, "12 Month Plan + 3 Month Plan");
+        says(body.html, "https://a.test.net/setup/");
       });
 
       test("a no-quantity plan line beside a booked one adds no site and no months", async () => {
@@ -249,7 +250,7 @@ describeWithEnv(
 
         expect(suite.fetchStub.calls.length).toBe(1);
         const body = JSON.parse(suite.fetchStub.calls[0]!.args[1].body);
-        assertStringIncludes(body.subject, "2 new sites");
+        says(body.subject, "2 new sites");
       });
 
       test("sends email with singular subject for one site", async () => {
@@ -264,7 +265,7 @@ describeWithEnv(
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
 
         const body = await expectSetupEmailBody("https://a.test.net/setup/");
-        assertStringIncludes(body.html, "activate your site");
+        says(body.html, "activate your site");
       });
 
       test("email setup link keeps the scheme when the site URL already has one", async () => {

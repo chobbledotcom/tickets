@@ -2,7 +2,6 @@
  * Tests for ticket QR code route
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -11,13 +10,14 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("ticket QR code", { db: true }, () => {
   const expectQrCode = async (response: Response) => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/svg+xml");
     const body = await response.text();
-    assertStringIncludes(body, "<svg");
+    says(body, "<svg");
     return body;
   };
 
@@ -37,8 +37,8 @@ describeWithEnv("ticket QR code", { db: true }, () => {
         mockRequest(`/ticket/${listing.slug}/qr`),
       );
       const body = await response.text();
-      assertStringIncludes(body, "<svg");
-      assertStringIncludes(body, "</svg>");
+      says(body, "<svg");
+      says(body, "</svg>");
     });
 
     test("returns 404 for non-existent listing", async () => {
@@ -76,7 +76,7 @@ describeWithEnv("ticket QR code", { db: true }, () => {
         mockRequest(`/ticket/${group.slug}/qr`),
       );
       const body = await expectQrCode(response);
-      assertStringIncludes(body, "</svg>");
+      says(body, "</svg>");
     });
 
     test("handleTicketQrGet returns QR code for group slug", async () => {

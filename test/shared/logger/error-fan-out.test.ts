@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Spy, spy } from "@std/testing/mock";
@@ -11,6 +11,7 @@ import {
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 
 const NTFY_URL = "https://ntfy.example.test/errors";
 
@@ -43,12 +44,14 @@ describe("error fan-out", () => {
   } as const;
   const firstErrorLine = (): string => String(errorSpy.calls[0]?.args[0]);
   const expectOperatorDetailHidden = (line: string): void => {
-    assert(
-      line?.includes("Suppressed") === false,
+    saysNot(
+      line,
+      "Suppressed",
       "the value should not contain the searched item",
     );
-    assert(
-      line?.includes("boss@example.com") === false,
+    saysNot(
+      line,
+      "boss@example.com",
       "the value should not contain the searched item",
     );
   };
@@ -73,9 +76,10 @@ describe("error fan-out", () => {
     logError(operatorError);
 
     const line = firstErrorLine();
-    assertStringIncludes(line, 'detail="provider=postmark status=422"');
-    assert(
-      line?.includes("operatorDetail") === false,
+    says(line, 'detail="provider=postmark status=422"');
+    saysNot(
+      line,
+      "operatorDetail",
       "the value should not contain the searched item",
     );
     expectOperatorDetailHidden(line);
@@ -86,7 +90,7 @@ describe("error fan-out", () => {
       logError(operatorError);
 
       const line = firstErrorLine();
-      assertStringIncludes(line, 'operatorDetail="(activity log)"');
+      says(line, 'operatorDetail="(activity log)"');
       expectOperatorDetailHidden(line);
     });
   });
@@ -94,20 +98,14 @@ describe("error fan-out", () => {
   test("does not mark operator detail for local-only errors", async () => {
     await withRequestContext(async () => {
       logErrorLocal(operatorError);
-      assert(
-        !firstErrorLine().includes("operatorDetail"),
-        "the value should not contain the searched item",
-      );
+      assert(!firstErrorLine().includes("operatorDetail"));
     });
   });
 
   test("omits the operator marker when there is no operator-only detail", () => {
     logError({ code: ErrorCode.DB_QUERY, detail: "boom" });
 
-    assert(
-      !String(errorSpy.calls[0]?.args[0]).includes("operatorDetail"),
-      "the value should not contain the searched item",
-    );
+    assert(!String(errorSpy.calls[0]?.args[0]).includes("operatorDetail"));
   });
 
   test("sends the report out from inside a request", async () => {

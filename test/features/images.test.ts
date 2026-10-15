@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptBytes } from "#crypto/encryption.ts";
@@ -17,6 +16,7 @@ import {
   withExpectedError,
   withStorageDisabled,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Reusable proxy route test path */
 const PROXY_PATH = "/image/abc123-def4-5678-9abc-def012345678";
@@ -48,10 +48,7 @@ describeWithEnv(
             const response = await proxyRequest();
             expect(response.status).toBe(200);
             expect(response.headers.get("content-type")).toBe("image/jpeg");
-            assertStringIncludes(
-              response.headers.get("cache-control") ?? "",
-              "immutable",
-            );
+            says(response.headers.get("cache-control"), "immutable");
             const body = new Uint8Array(await response.arrayBuffer());
             expect(body).toEqual(imageData);
           },
@@ -63,9 +60,9 @@ describeWithEnv(
           () => new Response("Not Found", { status: 404 }),
           async () => {
             await expectBrokenImageResponse(await proxyRequest());
-            assertStringIncludes(errors.lastMessage() ?? "", "E_IMAGE_BROKEN");
-            assertStringIncludes(
-              errors.lastMessage() ?? "",
+            says(errors.lastMessage(), "E_IMAGE_BROKEN");
+            says(
+              errors.lastMessage(),
               "abc123-def4-5678-9abc-def012345678.jpg is missing from storage",
             );
           },
@@ -77,9 +74,9 @@ describeWithEnv(
           () => new Response("not encrypted bytes", { status: 200 }),
           async () => {
             await expectBrokenImageResponse(await proxyRequest());
-            assertStringIncludes(errors.lastMessage() ?? "", "E_IMAGE_BROKEN");
-            assertStringIncludes(
-              errors.lastMessage() ?? "",
+            says(errors.lastMessage(), "E_IMAGE_BROKEN");
+            says(
+              errors.lastMessage(),
               "abc123-def4-5678-9abc-def012345678.jpg could not be decrypted",
             );
           },

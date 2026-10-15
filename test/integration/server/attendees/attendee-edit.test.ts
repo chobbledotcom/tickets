@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -27,6 +26,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -101,7 +101,7 @@ describeWithEnv(
         // Validation failure re-renders the form (200) with the error inline.
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "Name is required");
+        says(html, "Name is required");
       });
 
       test("preserves return_url on edit validation error", async () => {
@@ -114,8 +114,8 @@ describeWithEnv(
         });
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "Name is required");
-        assertStringIncludes(html, returnUrl);
+        says(html, "Name is required");
+        says(html, returnUrl);
       });
 
       test("rejects whitespace-only name", async () => {
@@ -125,7 +125,7 @@ describeWithEnv(
         });
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "Name is required");
+        says(html, "Name is required");
       });
 
       test("updates attendee with new data", async () => {
@@ -149,11 +149,11 @@ describeWithEnv(
         );
         expect(editResponse.status).toBe(200);
         const html = await editResponse.text();
-        assertStringIncludes(html, "Jane Doe");
-        assertStringIncludes(html, "jane@example.com");
-        assertStringIncludes(html, "555-9999");
-        assertStringIncludes(html, "456 Oak Ave");
-        assertStringIncludes(html, "Wheelchair access");
+        says(html, "Jane Doe");
+        says(html, "jane@example.com");
+        says(html, "555-9999");
+        says(html, "456 Oak Ave");
+        says(html, "Wheelchair access");
       });
 
       test("editing an unrelated field keeps every path of a dual-path booking", async () => {

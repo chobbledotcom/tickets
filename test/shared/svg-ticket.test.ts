@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -9,6 +9,7 @@ import {
   type SvgTicketData,
 } from "#shared/svg-ticket.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { has, says } from "#test-utils/says.ts";
 
 const makeTicketData = (
   overrides: Partial<SvgTicketData> = {},
@@ -71,14 +72,14 @@ describeWithEnv("svg-ticket", { db: true }, () => {
         makeTicketData({ listingDate: "2026-06-15T18:00:00.000Z" }),
       );
       expect(lines.length).toBeGreaterThan(1);
-      assertStringIncludes(lines[0] ?? "", "June");
+      says(lines[0], "June");
     });
 
     test("includes location when provided", () => {
       const lines = buildInfoLines(
         makeTicketData({ listingLocation: "The Venue" }),
       );
-      assertArrayIncludes(lines ?? [], ["The Venue"]);
+      has(lines, "The Venue");
     });
 
     test("includes booking date for daily listings", () => {
@@ -98,32 +99,29 @@ describeWithEnv("svg-ticket", { db: true }, () => {
     test("returns valid SVG document with XML declaration", async () => {
       const svg = await generateSvgTicket(makeTicketData());
       expect(svg).toMatch(/^<\?xml version="1\.0" encoding="UTF-8"\?>/);
-      assertStringIncludes(svg, '<svg xmlns="http://www.w3.org/2000/svg"');
-      assertStringIncludes(svg, "</svg>");
+      says(svg, '<svg xmlns="http://www.w3.org/2000/svg"');
+      says(svg, "</svg>");
     });
 
     test("includes listing name", async () => {
       const svg = await generateSvgTicket(
         makeTicketData({ listingName: "Jazz Night" }),
       );
-      assertStringIncludes(svg, "Jazz Night");
+      says(svg, "Jazz Night");
     });
 
     test("escapes HTML in listing name", async () => {
       const svg = await generateSvgTicket(
         makeTicketData({ listingName: "A <B> & C" }),
       );
-      assertStringIncludes(svg, "A &lt;B&gt; &amp; C");
-      assert(
-        !svg.includes("<B>"),
-        "the value should not contain the searched item",
-      );
+      says(svg, "A &lt;B&gt; &amp; C");
+      assert(!svg.includes("<B>"));
     });
 
     test("includes QR code content", async () => {
       const svg = await generateSvgTicket(makeTicketData());
       // QR code generates path elements
-      assertStringIncludes(svg, "<path");
+      says(svg, "<path");
     });
 
     test("different checkin URLs produce different SVGs", async () => {
@@ -138,43 +136,37 @@ describeWithEnv("svg-ticket", { db: true }, () => {
 
     test("includes quantity in output", async () => {
       const svg = await generateSvgTicket(makeTicketData({ quantity: 3 }));
-      assertStringIncludes(svg, "Qty: 3");
+      says(svg, "Qty: 3");
     });
 
     test("includes price for paid tickets", async () => {
       const svg = await generateSvgTicket(
         makeTicketData({ pricePaid: "1500" }),
       );
-      assertStringIncludes(svg, "Price:");
+      says(svg, "Price:");
     });
 
     test("includes location when provided", async () => {
       const svg = await generateSvgTicket(
         makeTicketData({ listingLocation: "Main Hall" }),
       );
-      assertStringIncludes(svg, "Main Hall");
+      says(svg, "Main Hall");
     });
 
     test("includes listing date when provided", async () => {
       const svg = await generateSvgTicket(
         makeTicketData({ listingDate: "2026-06-15T18:00:00.000Z" }),
       );
-      assertStringIncludes(svg, "June");
+      says(svg, "June");
     });
 
     test("omits QR code when purchaseOnly is true", async () => {
       const svg = await generateSvgTicket(
         makeTicketData({ purchaseOnly: true }),
       );
-      assertStringIncludes(svg, "Summer Concert");
-      assert(
-        !svg.includes("<path"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !svg.includes("checkin"),
-        "the value should not contain the searched item",
-      );
+      says(svg, "Summer Concert");
+      assert(!svg.includes("<path"));
+      assert(!svg.includes("checkin"));
     });
 
     test("includes listing name and info lines when purchaseOnly is true", async () => {
@@ -185,9 +177,9 @@ describeWithEnv("svg-ticket", { db: true }, () => {
           purchaseOnly: true,
         }),
       );
-      assertStringIncludes(svg, "Summer Concert");
-      assertStringIncludes(svg, "Online");
-      assertStringIncludes(svg, "Price:");
+      says(svg, "Summer Concert");
+      says(svg, "Online");
+      says(svg, "Price:");
     });
   });
 });

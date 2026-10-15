@@ -3,7 +3,6 @@
  * newest-first and oldest-first registration order a click away.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -11,6 +10,7 @@ import {
   registerListingTemplateHooks,
 } from "#test/ui/templates/admin/listings/helpers.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 const listing = () => testListingWithCount({ attendee_count: 3 });
 
@@ -38,15 +38,12 @@ describe("adminListingPage roster sort", () => {
 
   test("offers its own order plus the two registration orders", () => {
     const html = detailHtml(listing(), { attendees: trio() });
-    assertStringIncludes(
-      html,
-      "Sort: <strong><u>By date and name</u></strong>",
-    );
-    assertStringIncludes(
+    says(html, "Sort: <strong><u>By date and name</u></strong>");
+    says(
       html,
       'href="/admin/listing/1/attendees?sort=newest">Newest first</a>',
     );
-    assertStringIncludes(
+    says(
       html,
       'href="/admin/listing/1/attendees?sort=oldest">Oldest first</a>',
     );
@@ -68,7 +65,7 @@ describe("adminListingPage roster sort", () => {
       "Alpha Person",
       "Mid Person",
     ]);
-    assertStringIncludes(html, "<strong><u>Newest first</u></strong>");
+    says(html, "<strong><u>Newest first</u></strong>");
   });
 
   test("oldest first puts the earliest registration on top", () => {
@@ -85,9 +82,6 @@ describe("adminListingPage roster sort", () => {
       attendees: [testAttendee({ id: 1 })],
       sort: "newest",
     });
-    assertStringIncludes(
-      html,
-      'value="/admin/listing/1/attendees?sort=newest"',
-    );
+    says(html, 'value="/admin/listing/1/attendees?sort=newest"');
   });
 });

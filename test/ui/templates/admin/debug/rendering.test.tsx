@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -8,6 +7,7 @@ import {
   SENTRY_TEST_FORM_ID,
 } from "#templates/admin/debug.tsx";
 import { debugOwnerSession, makeDebugState } from "#test-utils/debug.ts";
+import { says } from "#test-utils/says.ts";
 
 const rowValues = (html: string, label: string): string[] => {
   const marker = `<tr><th>${label}</th><td>`;
@@ -29,15 +29,15 @@ const expectBadgeRow = (
 ): void => {
   const values = rowValues(html, rowLabel);
   expect(values).toHaveLength(1);
-  assertStringIncludes(values[0] ?? "", `class="badge-${variant}"`);
-  assertStringIncludes(values[0] ?? "", `>${badgeLabel}</span>`);
+  says(values[0], `class="badge-${variant}"`);
+  says(values[0], `>${badgeLabel}</span>`);
 };
 
 describe("admin debug template rendering", () => {
   test("keeps the debug navigation and every section heading", () => {
     const html = adminDebugPage(debugOwnerSession, makeDebugState());
 
-    assertStringIncludes(html, 'href="/admin/debug"');
+    says(html, 'href="/admin/debug"');
     // An independent literal list — deliberately not derived from the
     // template's own section table, so a dropped or renamed section fails
     // here instead of shifting both sides in lockstep.
@@ -226,7 +226,7 @@ describe("admin debug template rendering", () => {
       "2.5%",
     ];
 
-    for (const value of values) assertStringIncludes(html, value);
+    for (const value of values) says(html, value);
     expect(rowValues(html, t("debug.field.os_architecture"))).toEqual([
       "os-marker / arch-marker",
     ]);
@@ -234,10 +234,10 @@ describe("admin debug template rendering", () => {
     expectBadgeRow(html, t("debug.field.public_api"), "ok", "Enabled");
     expectBadgeRow(html, t("debug.field.contact_form"), "ok", "Enabled");
     expectBadgeRow(html, t("debug.field.schema_status"), "ok", "Up to date");
-    assertStringIncludes(html, `action="/admin/debug/sentry"`);
-    assertStringIncludes(html, `class="inline"`);
-    assertStringIncludes(html, `id="${SENTRY_TEST_FORM_ID}"`);
-    assertStringIncludes(html, `>${t("debug.test_sentry")}</button>`);
+    says(html, `action="/admin/debug/sentry"`);
+    says(html, `class="inline"`);
+    says(html, `id="${SENTRY_TEST_FORM_ID}"`);
+    says(html, `>${t("debug.test_sentry")}</button>`);
   });
 
   test("renders the disabled site and database states", () => {
@@ -318,13 +318,10 @@ describe("admin debug template rendering", () => {
       }),
     );
 
-    assertStringIncludes(html, "<td><span>100B</span></td>");
-    assertStringIncludes(
-      html,
-      `<td><strong>200B ${t("debug.overridden")}</strong></td>`,
-    );
-    assertStringIncludes(html, "DEFAULT_LIMIT");
-    assertStringIncludes(html, "OVERRIDDEN_LIMIT");
+    says(html, "<td><span>100B</span></td>");
+    says(html, `<td><strong>200B ${t("debug.overridden")}</strong></td>`);
+    says(html, "DEFAULT_LIMIT");
+    says(html, "OVERRIDDEN_LIMIT");
   });
 
   test("uses the stable Sentry test form id", () => {

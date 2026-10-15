@@ -18,6 +18,7 @@ import {
   uploadScriptCode,
 } from "#scripts/deploy-edge-lib.ts";
 import type { FetchText, FetchTextResult } from "#scripts/fetch-text.ts";
+import { says } from "#test-utils/says.ts";
 
 interface FetchCall {
   init: RequestInit;
@@ -332,8 +333,8 @@ describe("runDeployEdge", () => {
 
     await expect(runDeployEdge(deps)).resolves.toBe(1);
 
-    expect(stderr[0]).toContain("Failed to read /repo/bunny-script.ts");
-    expect(stderr[0]).toContain("Error: missing");
+    says(stderr[0], "Failed to read /repo/bunny-script.ts");
+    says(stderr[0], "Error: missing");
     expect(fetchCalled).toBe(false);
   });
 

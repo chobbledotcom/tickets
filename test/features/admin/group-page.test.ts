@@ -4,13 +4,14 @@
  * route enforces, so a role never meets a link it cannot follow.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, withStorageEnabled } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, createTestEditorSession } from "#test-utils/session.ts";
 
 /** One editor session, reused across the requests of a single test. */
@@ -25,7 +26,7 @@ describeWithEnv("the group page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, "<h1>Summer Fete</h1>");
+    says(html, "<h1>Summer Fete</h1>");
   });
 
   test("marks the groups list as the section it belongs to", async () => {
@@ -33,7 +34,7 @@ describeWithEnv("the group page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
 
-    assertStringIncludes(html, `<a class="active" href="/admin/groups">`);
+    says(html, `<a class="active" href="/admin/groups">`);
   });
 
   test("offers staff the export, bulk actions, and delete", async () => {
@@ -43,9 +44,9 @@ describeWithEnv("the group page", { db: true }, () => {
       await adminGet(`/admin/groups/${group.id}/actions`)
     ).text();
 
-    assertStringIncludes(html, `href="/admin/groups/${group.id}/export.json"`);
-    assertStringIncludes(html, `href="/admin/groups/${group.id}/bulk-actions"`);
-    assertStringIncludes(html, `href="/admin/groups/${group.id}/delete"`);
+    says(html, `href="/admin/groups/${group.id}/export.json"`);
+    says(html, `href="/admin/groups/${group.id}/bulk-actions"`);
+    says(html, `href="/admin/groups/${group.id}/delete"`);
   });
 
   test("offers an editor the export alone", async () => {
@@ -58,15 +59,9 @@ describeWithEnv("the group page", { db: true }, () => {
       await awaitTestRequest(`/admin/groups/${group.id}/actions`, { cookie })
     ).text();
 
-    assertStringIncludes(html, `href="/admin/groups/${group.id}/export.json"`);
-    assert(
-      !html.includes(`href="/admin/groups/${group.id}/bulk-actions"`),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes(`href="/admin/groups/${group.id}/delete"`),
-      "the value should not contain the searched item",
-    );
+    says(html, `href="/admin/groups/${group.id}/export.json"`);
+    assert(!html.includes(`href="/admin/groups/${group.id}/bulk-actions"`));
+    assert(!html.includes(`href="/admin/groups/${group.id}/delete"`));
   });
 
   test("opens an editor on edit and keeps the attendee tabs shut", async () => {
@@ -85,7 +80,7 @@ describeWithEnv("the group page", { db: true }, () => {
     );
 
     expect(page.status).toBe(200);
-    assertStringIncludes(
+    says(
       await page.text(),
       `<a aria-current="page" class="active" href="/admin/groups/${group.id}/edit">Edit</a>`,
     );
@@ -97,23 +92,11 @@ describeWithEnv("the group page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
 
-    assertStringIncludes(html, `href="/admin/groups/${group.id}">Overview</a>`);
-    assertStringIncludes(
-      html,
-      `href="/admin/groups/${group.id}/attendees">Attendees</a>`,
-    );
-    assertStringIncludes(
-      html,
-      `href="/admin/groups/${group.id}/scanner">Scanner</a>`,
-    );
-    assertStringIncludes(
-      html,
-      `href="/admin/groups/${group.id}/edit">Edit</a>`,
-    );
-    assertStringIncludes(
-      html,
-      `href="/admin/groups/${group.id}/actions">Actions</a>`,
-    );
+    says(html, `href="/admin/groups/${group.id}">Overview</a>`);
+    says(html, `href="/admin/groups/${group.id}/attendees">Attendees</a>`);
+    says(html, `href="/admin/groups/${group.id}/scanner">Scanner</a>`);
+    says(html, `href="/admin/groups/${group.id}/edit">Edit</a>`);
+    says(html, `href="/admin/groups/${group.id}/actions">Actions</a>`);
   });
 
   test("keeps an editor off the scanner tab", async () => {
@@ -127,10 +110,7 @@ describeWithEnv("the group page", { db: true }, () => {
       })
     ).text();
 
-    assert(
-      !html.includes("/scanner"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("/scanner"));
   });
 
   test("adds the images tab once a storage zone is configured", async () => {
@@ -145,14 +125,8 @@ describeWithEnv("the group page", { db: true }, () => {
       (await adminGet(`/admin/groups/${group.id}`)).text(),
     );
 
-    assert(
-      !withoutStorage.includes(`href="/admin/groups/${group.id}/images"`),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(
-      withStorage,
-      `href="/admin/groups/${group.id}/images">Images</a>`,
-    );
+    assert(!withoutStorage.includes(`href="/admin/groups/${group.id}/images"`));
+    says(withStorage, `href="/admin/groups/${group.id}/images">Images</a>`);
   });
 
   test("keeps the delete apart, in the danger zone", async () => {
@@ -163,19 +137,13 @@ describeWithEnv("the group page", { db: true }, () => {
     ).text();
     const [beforeZone, insideZone] = html.split('class="entity-danger-zone"');
 
-    assertStringIncludes(
-      beforeZone ?? "",
-      `href="/admin/groups/${group.id}/export.json"`,
-    );
+    says(beforeZone, `href="/admin/groups/${group.id}/export.json"`);
     assert(
       beforeZone !== undefined &&
         !beforeZone.includes(`href="/admin/groups/${group.id}/delete"`),
       "the value should not contain the searched item",
     );
-    assertStringIncludes(
-      insideZone ?? "",
-      `href="/admin/groups/${group.id}/delete"`,
-    );
+    says(insideZone, `href="/admin/groups/${group.id}/delete"`);
   });
 
   test("keeps a hidden member in the roster while its group withholds the public share links", async () => {
@@ -194,12 +162,9 @@ describeWithEnv("the group page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
 
-    assertStringIncludes(html, "Fan Club Tier");
-    assert(
-      !html.includes(`href="/ticket/${group.slug}"`),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "404s");
+    says(html, "Fan Club Tier");
+    assert(!html.includes(`href="/ticket/${group.slug}"`));
+    says(html, "404s");
   });
 
   test("answers 404 for a group that is not there", async () => {

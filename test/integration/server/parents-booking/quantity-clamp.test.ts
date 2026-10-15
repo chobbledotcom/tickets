@@ -1,9 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { makeParent, ticketGet } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 import type { Listing } from "#types";
 
 /** Slice the `<select>` options substring for `marker` out of a rendered
@@ -153,12 +154,9 @@ describeWithEnv(
         const { parent } = await c.setup();
         const body = await (await ticketGet(parent.slug)).text();
         const options = selectOptions(body, `name="quantity_${parent.id}"`);
-        assertStringIncludes(options, `value=${c.contains}`);
+        says(options, `value=${c.contains}`);
         for (const value of c.notContains) {
-          assert(
-            !options.includes(`value=${value}`),
-            "the value should not contain the searched item",
-          );
+          assert(!options.includes(`value=${value}`));
         }
       });
     }
@@ -182,11 +180,8 @@ describeWithEnv(
         body,
         `name="child_qty_${parent.id}_${shared.id}"`,
       );
-      assertStringIncludes(options, 'value="1"');
-      assert(
-        !options.includes('value="2"'),
-        "the value should not contain the searched item",
-      );
+      says(options, 'value="1"');
+      assert(!options.includes('value="2"'));
     });
   },
 );

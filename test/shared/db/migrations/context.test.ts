@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -16,6 +15,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { indexExists } from "#test-utils/migrations.ts";
+import { has } from "#test-utils/says.ts";
 
 describe("db > migrations > context", () => {
   test("builds one migration per registry entry, in run order", async () => {
@@ -58,21 +58,11 @@ describeWithEnv(
         expect(tables.has("listing_attendees")).toBe(true);
         expect(tables.has("listing_questions")).toBe(true);
 
-        assertArrayIncludes((await columnNames("listings")) ?? [], [
-          "listing_type",
-        ]);
-        assertArrayIncludes((await columnNames("listing_attendees")) ?? [], [
-          "listing_id",
-        ]);
-        assertArrayIncludes((await columnNames("listing_questions")) ?? [], [
-          "listing_id",
-        ]);
-        assertArrayIncludes((await columnNames("activity_log")) ?? [], [
-          "listing_id",
-        ]);
-        assertArrayIncludes((await columnNames("built_sites")) ?? [], [
-          "assigned_listing_id",
-        ]);
+        has(await columnNames("listings"), "listing_type");
+        has(await columnNames("listing_attendees"), "listing_id");
+        has(await columnNames("listing_questions"), "listing_id");
+        has(await columnNames("activity_log"), "listing_id");
+        has(await columnNames("built_sites"), "assigned_listing_id");
 
         const listings = await getAllListings();
         expect(listings.length).toBe(1);
@@ -86,9 +76,7 @@ describeWithEnv(
 
         const tables = await tableNames();
         expect(tables.has("listings")).toBe(true);
-        assertArrayIncludes((await columnNames("built_sites")) ?? [], [
-          "assigned_listing_id",
-        ]);
+        has(await columnNames("built_sites"), "assigned_listing_id");
       });
 
       test("is a no-op when listing tables already exist", async () => {
@@ -110,9 +98,7 @@ describeWithEnv(
 
       await renameEventsToListings();
 
-      assertArrayIncludes((await columnNames("listings")) ?? [], [
-        "thank_you_url",
-      ]);
+      has(await columnNames("listings"), "thank_you_url");
     });
 
     test("the rename puts back an index the current schema declares", async () => {

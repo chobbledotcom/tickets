@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
@@ -9,6 +8,7 @@ import { rawListingsTable } from "#db/listings/table.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { says } from "#test-utils/says.ts";
 import { type DayPrices, MAX_DURATION_DAYS } from "#types";
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
@@ -62,12 +62,9 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   test("names each projected image when its stored filename is broken", async () => {
     const stored = await encrypt("");
     await rawListingsTable.readColumn("image_thumb_url", stored, 8);
-    assertStringIncludes(
-      errors.lastMessage() ?? "",
-      "listing 8 thumbnail image",
-    );
+    says(errors.lastMessage(), "listing 8 thumbnail image");
     await rawListingsTable.readColumn("image_url", stored, 9);
-    assertStringIncludes(errors.lastMessage() ?? "", "listing 9 image");
+    says(errors.lastMessage(), "listing 9 image");
   });
 
   describe("listing date read transform", () => {

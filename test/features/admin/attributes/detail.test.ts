@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -16,6 +16,7 @@ import {
   createTestAttributeWithOptions,
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import type { Listing } from "#types";
 
@@ -45,23 +46,23 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         200,
         '<th class="col-quantity">Listings</th>',
       );
-      assertStringIncludes(
+      says(
         html,
         `<a href="/admin/attributes/${attribute.id}/options/${
           easy!.id
         }/edit">Easy</a>`,
       );
-      assertStringIncludes(
+      says(
         html,
         `<a href="/admin/attributes/${attribute.id}/options/${
           hard!.id
         }/edit">Hard</a>`,
       );
       // Easy is set on one listing; Hard on none.
-      assertStringIncludes(html, '<td class="col-quantity">1</td>');
-      assertStringIncludes(html, '<td class="col-quantity">0</td>');
+      says(html, '<td class="col-quantity">1</td>');
+      says(html, '<td class="col-quantity">0</td>');
       // The attribute's own delete action stays on its detail page.
-      assertStringIncludes(
+      says(
         html,
         `<a class="danger" href="/admin/attributes/${attribute.id}/delete">`,
       );
@@ -77,17 +78,11 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         200,
         "Listings using this attribute",
       );
-      assertStringIncludes(
-        html,
-        `<a href="/admin/listing/${listing.id}">Climbing</a>`,
-      );
-      assertStringIncludes(html, "<td>Easy</td>");
+      says(html, `<a href="/admin/listing/${listing.id}">Climbing</a>`);
+      says(html, "<td>Easy</td>");
       // A listing with several options appears once, options in option order.
-      assertStringIncludes(
-        html,
-        `<a href="/admin/listing/${bothListing.id}">Both options</a>`,
-      );
-      assertStringIncludes(html, "<td>Easy, Hard</td>");
+      says(html, `<a href="/admin/listing/${bothListing.id}">Both options</a>`);
+      says(html, "<td>Easy, Hard</td>");
       // Rows are ordered by listing id (creation order).
       const climbingIndex = html.indexOf(">Climbing</a>");
       const bothOptionsIndex = html.indexOf(">Both options</a>");
@@ -106,7 +101,7 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         await adminGet(`/admin/attributes/${attribute.id}`),
         200,
       );
-      assertStringIncludes(
+      says(
         html,
         `<a class="muted" href="/admin/listing/${listing.id}">Climbing</a>`,
       );
@@ -155,13 +150,10 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         "Listings using this option",
         "Set on 1 listing.",
       );
-      assertStringIncludes(html, 'value="Easy"');
-      assertStringIncludes(
-        html,
-        `<a href="/admin/listing/${listing.id}">Climbing</a>`,
-      );
-      assertStringIncludes(html, `href="/admin/attributes/${attribute.id}"`);
-      assertStringIncludes(
+      says(html, 'value="Easy"');
+      says(html, `<a href="/admin/listing/${listing.id}">Climbing</a>`);
+      says(html, `href="/admin/attributes/${attribute.id}"`);
+      says(
         html,
         `<a class="danger" href="/admin/attributes/${attribute.id}/options/${easy.id}/delete">Delete option</a>`,
       );
@@ -180,10 +172,7 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         200,
         "Hard only",
       );
-      assert(
-        !html.includes("Climbing"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Climbing"));
     });
 
     test("shows the empty state and plural count when no listings use the option", async () => {

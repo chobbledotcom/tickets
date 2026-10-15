@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -35,6 +35,7 @@ import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withRandomBytes } from "#test-utils/random.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 const captureConsoleErrors = <T>(
   body: () => T,
@@ -504,32 +505,17 @@ describe("generateSuperuserPassword", () => {
       samplePasswords(10)(100).flatMap((pw) => pw.split("")),
     );
     for (const c of allChars) {
-      assertStringIncludes(ALPHABET, c);
+      says(ALPHABET, c);
     }
   });
 
   test("excludes ambiguous characters (0, O, I, l, 1)", () => {
     for (const pw of samplePasswords(20)(100)) {
-      assert(
-        !pw.includes("0"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !pw.includes("O"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !pw.includes("I"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !pw.includes("l"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !pw.includes("1"),
-        "the value should not contain the searched item",
-      );
+      assert(!pw.includes("0"));
+      assert(!pw.includes("O"));
+      assert(!pw.includes("I"));
+      assert(!pw.includes("l"));
+      assert(!pw.includes("1"));
     }
   });
 
@@ -556,7 +542,7 @@ describe("generateSuperuserPassword", () => {
   test("handles length 1 correctly", () => {
     const result = generateSuperuserPassword(1);
     expect(result.length).toBe(1);
-    assertStringIncludes(ALPHABET, result);
+    says(ALPHABET, result);
   });
 
   test("uses Web Crypto API (crypto.getRandomValues), not Math.random", () => {
@@ -713,7 +699,7 @@ describe("sendSuperuserCredentialsEmail", () => {
     async (): Promise<void> => {
       const { body } = await sendAndCapture();
       const content = String(body[field]);
-      for (const value of values) assertStringIncludes(content, value);
+      for (const value of values) says(content, value);
     };
 
   test("calls sendEmail with the provided config and a correctly structured message", async () => {
@@ -757,11 +743,8 @@ describe("sendSuperuserCredentialsEmail", () => {
   test("email html body escapes an apostrophe in the username", async () => {
     const { body } = await sendAndCapture({ username: "o'brien" });
     const html = String(body.html);
-    assertStringIncludes(html, "o&#39;brien");
-    assert(
-      !html.includes("o'brien"),
-      "the value should not contain the searched item",
-    );
+    says(html, "o&#39;brien");
+    assert(!html.includes("o'brien"));
   });
 
   test("email text body contains a security warning", async () => {
@@ -777,12 +760,9 @@ describe("sendSuperuserCredentialsEmail", () => {
 
   test("HTML body escapes special characters in password", async () => {
     const { body } = await sendAndCapture({ password: "abc<foo>&bar" });
-    assertStringIncludes(String(body.html), "&lt;");
-    assertStringIncludes(String(body.html), "&amp;");
-    assert(
-      !String(body.html).includes("abc<foo>"),
-      "the value should not contain the searched item",
-    );
+    says(String(body.html), "&lt;");
+    says(String(body.html), "&amp;");
+    assert(!String(body.html).includes("abc<foo>"));
   });
 
   const STATUS_RESULTS: { status: number; expected: boolean }[] = [

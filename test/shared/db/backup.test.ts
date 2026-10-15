@@ -1,5 +1,4 @@
 import type { ResultSet } from "@libsql/client";
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -33,6 +32,7 @@ import {
   createTestListing,
   storedListingNames,
 } from "#test-utils/db-helpers/listings.ts";
+import { has, says } from "#test-utils/says.ts";
 
 /** backupBudget under a request-style allowance of `total` calls. */
 const budgetWithAllowance = (total: number) =>
@@ -144,7 +144,7 @@ describeWithEnv("backup", { db: true }, () => {
 
       // All tables present
       for (const table of SCHEMA_TABLE_NAMES) {
-        assertArrayIncludes(Object.keys(files), [`${table}.sql`]);
+        has(Object.keys(files), `${table}.sql`);
       }
 
       // Manifest has correct schema hash
@@ -158,7 +158,7 @@ describeWithEnv("backup", { db: true }, () => {
         manifest.timestamp,
       );
       expect(manifest.tables.listings).toBe(1);
-      assertStringIncludes(
+      says(
         new TextDecoder().decode(files["manifest.json"]!),
         '\n  "latestUpdate"',
       );

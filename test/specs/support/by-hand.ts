@@ -5,7 +5,6 @@
  */
 
 // jscpd:ignore-start
-import { expect } from "@std/expect";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { openAdminPage, withAdminPage } from "#test/specs/support/browser.ts";
 import {
@@ -18,6 +17,7 @@ import type {
   ReadAboutOneThing,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -37,7 +37,7 @@ export const organiserAddsBooking = (
     // The form must offer a day, or the organiser could not say when the stay
     // starts and the booking would silently land on the wrong days.
     if (booking.day !== undefined) {
-      expect(browser.currentHtml).toContain('name="date"');
+      says(browser.currentHtml, 'name="date"');
     }
     await browser.submitForm(
       {

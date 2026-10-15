@@ -1,5 +1,5 @@
 /* jscpd:ignore-start -- imports */
-import { assertArrayIncludes } from "@std/assert";
+
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import type { ProviderRead } from "#payment/provider-read.ts";
@@ -10,6 +10,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { foundCharge, fullyRefundedMoney } from "#test-utils/payment-state.ts";
+import { has } from "#test-utils/says.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 /* jscpd:ignore-end */
 
@@ -69,9 +70,9 @@ export const expectProviderCheck = async (
   expect(provider.read.calls).toHaveLength(1);
   expect(provider.send.calls).toHaveLength(0);
   if (activityMessage) {
-    assertArrayIncludes(
+    has(
       (await getAllActivityLog()).map(({ message }) => message),
-      [activityMessage],
+      activityMessage,
     );
   }
 };

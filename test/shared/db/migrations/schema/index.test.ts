@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -14,6 +13,7 @@ import { contentTables } from "#db/migrations/schema/tables-content.ts";
 import { coreTables } from "#db/migrations/schema/tables-core.ts";
 import { questionTables } from "#db/migrations/schema/tables-questions.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "#db/migrations/schema/version.ts";
+import { has } from "#test-utils/says.ts";
 
 describe("db > migrations > schema assembly", () => {
   test("puts every group in the order the foreign keys need", () => {
@@ -36,7 +36,7 @@ describe("db > migrations > schema assembly", () => {
   test("leaves the migrations bookkeeping table out of the app schema", () => {
     // The bookkeeping table is the app's own record of what it has run, so a
     // site's schema is compared without it.
-    assertArrayIncludes(SCHEMA_TABLE_NAMES ?? [], [SCHEMA_MIGRATIONS_TABLE]);
+    has(SCHEMA_TABLE_NAMES, SCHEMA_MIGRATIONS_TABLE);
     // Compared whole rather than by name and count, so a table swapped for
     // another, or listed twice, cannot slip through.
     expect(APP_SCHEMA).toEqual(

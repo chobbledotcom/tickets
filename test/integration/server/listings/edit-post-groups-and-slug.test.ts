@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
@@ -15,6 +14,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -115,7 +115,7 @@ describeWithEnv(
           400,
           "Direct rejection",
         );
-        assertStringIncludes(
+        says(
           html,
           `checked name="group_ids" type="checkbox" value="${group.id}"`,
         );
@@ -146,7 +146,7 @@ describeWithEnv(
         );
         // The rejected edit re-renders the group the operator ticked as checked,
         // so their selection isn't silently dropped on the next submit.
-        assertStringIncludes(
+        says(
           html,
           `checked name="group_ids" type="checkbox" value="${group.id}"`,
         );

@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { WalletPassData } from "#routes/tickets/token-utils.ts";
@@ -9,6 +8,7 @@ import {
   signJwt,
 } from "#shared/google-wallet.ts";
 import { generateGoogleTestCreds } from "#test-utils/crypto.ts";
+import { has } from "#test-utils/says.ts";
 
 const makePassData = (
   overrides: Partial<WalletPassData> = {},
@@ -171,7 +171,7 @@ describe("google-wallet", () => {
       expect(payload.iss).toBe("test@test-project.iam.gserviceaccount.com");
       expect(payload.aud).toBe("google");
       expect(payload.typ).toBe("savetowallet");
-      assertArrayIncludes([before, after], [payload.iat]);
+      has([before, after], payload.iat);
     });
 
     test("includes listing ticket class and object in payload", async () => {

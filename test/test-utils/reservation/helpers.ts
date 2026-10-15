@@ -18,6 +18,7 @@ import {
   insertModifierUsage,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
@@ -231,7 +232,7 @@ export const expectRefundedPlaceholder = async (
   paymentIntentId: string,
   responseText: string,
 ): Promise<Array<{ id: number }>> => {
-  expect(responseText).toContain("saved your details");
+  says(responseText, "saved your details");
   const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listing.id);
   expect(attendees.length).toBe(1);

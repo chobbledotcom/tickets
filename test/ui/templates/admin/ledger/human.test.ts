@@ -1,8 +1,9 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { KIND } from "#accounting/kinds.ts";
 import { account } from "#shared/ledger/account.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 import { ledgerRows, names, renderLedger, transfer } from "./helpers.ts";
 
 describe("HumanLedgerTable", () => {
@@ -153,24 +154,24 @@ describe("HumanLedgerTable", () => {
       "Service event cost added for",
       "Service event cost reduced for",
     ]) {
-      assertStringIncludes(html, phrase);
+      says(html, phrase);
     }
-    assertStringIncludes(html, "Ada");
-    assertStringIncludes(html, "Concert");
-    assertStringIncludes(html, "Helmet hire");
-    assertStringIncludes(
+    says(html, "Ada");
+    says(html, "Concert");
+    says(html, "Helmet hire");
+    says(
       html,
       'Payment received for <a href="/admin/ledger/attendee/1">Ada</a>',
     );
-    assertStringIncludes(
+    says(
       html,
       'Correction reduced <a href="/admin/ledger?listing=1">Concert</a>',
     );
     const rows = ledgerRows(html);
-    assertStringIncludes(rows[2] ?? "", "+£50");
-    assertStringIncludes(rows[4] ?? "", "−£50");
-    assertStringIncludes(rows[18] ?? "", "−£50");
-    assertStringIncludes(rows[19] ?? "", "+£50");
+    says(rows[2], "+£50");
+    says(rows[4], "−£50");
+    says(rows[18], "−£50");
+    says(rows[19], "+£50");
   });
 
   test("uses attendee-balance wording for adjustment legs against writeoff", () => {
@@ -192,20 +193,14 @@ describe("HumanLedgerTable", () => {
       ],
       refs,
     );
-    assertStringIncludes(html, "Extra amount now owed by");
-    assertStringIncludes(html, "Amount no longer owed by");
-    assertStringIncludes(html, "Ada");
-    assert(
-      !html.includes("Correction reduced"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Correction increased"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Extra amount now owed by");
+    says(html, "Amount no longer owed by");
+    says(html, "Ada");
+    assert(!html.includes("Correction reduced"));
+    assert(!html.includes("Correction increased"));
     const rows = ledgerRows(html);
-    assertStringIncludes(rows[2] ?? "", "+£50");
-    assertStringIncludes(rows[3] ?? "", "−£50");
+    says(rows[2], "+£50");
+    says(rows[3], "−£50");
   });
 
   test("shows modifier income and refund directions with matching signs", () => {
@@ -240,9 +235,9 @@ describe("HumanLedgerTable", () => {
       names({ modifiers: new Map([[1, "Helmet hire"]]) }),
     );
     const rows = ledgerRows(html);
-    assertStringIncludes(rows[2] ?? "", "+£50");
-    assertStringIncludes(rows[3] ?? "", "−£50");
-    assertStringIncludes(rows[4] ?? "", "−£50");
-    assertStringIncludes(rows[5] ?? "", "+£50");
+    says(rows[2], "+£50");
+    says(rows[3], "−£50");
+    says(rows[4], "−£50");
+    says(rows[5], "+£50");
   });
 });

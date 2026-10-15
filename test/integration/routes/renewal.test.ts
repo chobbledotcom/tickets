@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -18,6 +18,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 const setupRenewalSite = async () => {
@@ -90,29 +91,23 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         "Renew Renewal Test Site",
       );
       // Both tiers must appear as separately-selectable picker rows.
-      assertStringIncludes(html, `quantity_${monthly.id}`);
-      assertStringIncludes(html, `quantity_${annual.id}`);
-      assertStringIncludes(html, "Monthly tier");
-      assertStringIncludes(html, "Annual tier");
+      says(html, `quantity_${monthly.id}`);
+      says(html, `quantity_${annual.id}`);
+      says(html, "Monthly tier");
+      says(html, "Annual tier");
       // Counts price months per unit, not tickets.
-      assertStringIncludes(html, '<option value="1">1 month</option>');
-      assertStringIncludes(html, '<option value="1">12 months</option>');
+      says(html, '<option value="1">1 month</option>');
+      says(html, '<option value="1">12 months</option>');
       // The form posts back to /renew/?t=… so the token survives submission.
-      assertStringIncludes(html, `/renew/?t=${encodeURIComponent(token)}`);
-      assertStringIncludes(html, "csrf_token");
+      says(html, `/renew/?t=${encodeURIComponent(token)}`);
+      says(html, "csrf_token");
     });
 
     test("does not show terms and conditions or agreement checkbox", async () => {
       const { response } = await visitRenewalPicker();
       const html = await response.text();
-      assert(
-        !html.includes("agree_terms"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("terms-agree"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("agree_terms"));
+      assert(!html.includes("terms-agree"));
     });
 
     test("marks renewal picker as noindex", async () => {
@@ -124,7 +119,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     test("shows the current deadline in the page", async () => {
       const { response } = await visitRenewalPicker();
       const html = await response.text();
-      assertStringIncludes(html, "Tuesday 1 January 2030");
+      says(html, "Tuesday 1 January 2030");
     });
 
     test("omits the 'current deadline' wording when no deadline is set", async () => {
@@ -147,11 +142,8 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
       );
       const html = await response.text();
-      assertStringIncludes(html, "Pick a tier and quantity below");
-      assert(
-        !html.includes("Current deadline:"),
-        "the value should not contain the searched item",
-      );
+      says(html, "Pick a tier and quantity below");
+      assert(!html.includes("Current deadline:"));
     });
 
     test("renders the postcode search for an address-collecting tier", async () => {
@@ -177,7 +169,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
 
       const html = await response.text();
       expect(response.status).toBe(200);
-      assertStringIncludes(html, "data-address-lookup");
+      says(html, "data-address-lookup");
     });
 
     test("returns 404 for unknown token", async () => {
@@ -204,10 +196,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         "Renewal Unavailable",
         "no longer valid",
       );
-      assert(
-        !html.includes("quantity_"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("quantity_"));
     });
 
     test("excludes inactive tier listings from the picker", async () => {
@@ -232,11 +221,8 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
       );
       const html = await response.text();
-      assertStringIncludes(html, `quantity_${active.id}`);
-      assert(
-        !html.includes(`quantity_${stale.id}`),
-        "the value should not contain the searched item",
-      );
+      says(html, `quantity_${active.id}`);
+      assert(!html.includes(`quantity_${stale.id}`));
     });
   });
 

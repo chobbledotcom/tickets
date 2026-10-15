@@ -12,7 +12,6 @@
  * `test/features/public/listing-date-availability.test.ts`.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -34,6 +33,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
@@ -95,7 +95,7 @@ describePublicApi(() => {
     // least 3 per purchase, so the fold refuses before any booking lands.
     const below = await apiBookPackage(group.slug, { quantity: 2 });
     expect(below.response.status).toBe(400);
-    assertStringIncludes(below.body.error ?? "", "sells at least 3");
+    says(below.body.error, "sells at least 3");
     expect((await getAttendeesRaw(member.id)).length).toBe(0);
 
     // At the fold's cap: five of ten spots go, and the booking lands as one

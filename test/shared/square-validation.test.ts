@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -6,6 +5,7 @@ import {
   validateSquareLocationId,
   validateSquareWebhookSignatureKey,
 } from "#shared/square-validation.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("validateSquareAccessToken", () => {
   test("accepts a current-style token with the EAAA prefix", () => {
@@ -30,17 +30,17 @@ describe("validateSquareAccessToken", () => {
 
   test("rejects a production application ID", () => {
     const error = validateSquareAccessToken("sq0idp-EXAMPLE");
-    assertStringIncludes(error ?? "", "application ID or secret");
+    says(error, "application ID or secret");
   });
 
   test("rejects a production application secret", () => {
     const error = validateSquareAccessToken("sq0csp-EXAMPLE");
-    assertStringIncludes(error ?? "", "application ID or secret");
+    says(error, "application ID or secret");
   });
 
   test("rejects a sandbox application ID", () => {
     const error = validateSquareAccessToken("sandbox-sq0idb-EXAMPLE");
-    assertStringIncludes(error ?? "", "application ID or secret");
+    says(error, "application ID or secret");
   });
 
   test("rejects a sandbox application secret with the exact app-credential message", () => {
@@ -57,7 +57,7 @@ describe("validateSquareAccessToken", () => {
 
   test("rejects a value with a valid prefix that is not anchored at the start", () => {
     const error = validateSquareAccessToken("junk-EAAAtoken");
-    assertStringIncludes(error ?? "", "EAAA");
+    says(error, "EAAA");
   });
 });
 

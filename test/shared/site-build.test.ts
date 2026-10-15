@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -13,6 +12,7 @@ import { buildRetainedSite } from "#shared/site-build.ts";
 import { withBuildSiteMocks } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 
 const BUILD_RESULT = {
@@ -123,7 +123,7 @@ describeWithEnv("site build", { db: true }, () => {
         });
         expect(result.ok).toBe(false);
         if (result.ok) return;
-        assertStringIncludes(result.error ?? "", "seed refused");
+        says(result.error, "seed refused");
         expect(await builtSites.getAll()).toEqual([]);
       },
       { supportSeedResult: { error: "seed refused", ok: false } },

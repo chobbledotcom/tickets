@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -8,6 +8,7 @@ import {
 } from "#db/capacity.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
+import { says } from "#test-utils/says.ts";
 import { flatSql, occurrences } from "#test-utils/sql-text.ts";
 
 /**
@@ -56,14 +57,11 @@ describe("buildCapacityCondition", () => {
   test("date-less with exclusion: the group count carries a real exclusion subquery", () => {
     const cond = capacityStatement(LISTING, QTY, null, EXCLUDE);
     expect(occurrences(cond.sql, "- COALESCE((")).toBe(2);
-    assertStringIncludes(
+    says(
       flatSql(cond.sql),
       "FROM listing_attendees AS attendee JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id WHERE groupListing.group_id = groupRow.id AND attendee.attendee_id = ?3",
     );
-    assert(
-      !cond.sql.includes("undefined"),
-      "the value should not contain the searched item",
-    );
+    assert(!cond.sql.includes("undefined"));
   });
 
   test("date-less with exclusion: both counts subtract the attendee's rows", () => {
@@ -73,27 +71,18 @@ describe("buildCapacityCondition", () => {
 
   test("dated: every listing-type predicate comes from the rule table", () => {
     const cond = capacityStatement(LISTING, QTY, DAY);
-    assertStringIncludes(
-      cond.sql,
-      capacityRuleTypeSql("perDateCap", "listing.listing_type"),
-    );
-    assertStringIncludes(
+    says(cond.sql, capacityRuleTypeSql("perDateCap", "listing.listing_type"));
+    says(
       cond.sql,
       capacityRuleTypeSql("dateLessCap", "memberListing.listing_type"),
     );
-    assertStringIncludes(
+    says(
       cond.sql,
       capacityRuleTypeSql("perDateCap", "memberListing.listing_type"),
     );
     // No hand-written type comparison survives anywhere in the guard.
-    assert(
-      !cond.sql.includes("!= 'daily'"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !cond.sql.includes("= 'daily'"),
-      "the value should not contain the searched item",
-    );
+    assert(!cond.sql.includes("!= 'daily'"));
+    assert(!cond.sql.includes("= 'daily'"));
     expect(cond.args).toEqual([LISTING, QTY, ...dayRangeArgs(DAY)]);
   });
 
@@ -116,10 +105,7 @@ describe("buildCapacityCondition", () => {
         capacityRuleTypeSql("dateLessCap", "memberListing.listing_type"),
       ),
     ).toBe(2);
-    assert(
-      !cond.sql.includes("undefined"),
-      "the value should not contain the searched item",
-    );
+    assert(!cond.sql.includes("undefined"));
     expect(cond.args).toEqual([LISTING, QTY, EXCLUDE, endAt, startAt]);
   });
 

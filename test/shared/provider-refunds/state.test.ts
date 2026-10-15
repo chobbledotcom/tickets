@@ -1,4 +1,3 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
@@ -21,6 +20,7 @@ import {
   gbp,
   refundObservation,
 } from "#test-utils/payment-state.ts";
+import { saysNot } from "#test-utils/says.ts";
 import {
   completingRefundProvider,
   fakeRefundProvider,
@@ -45,8 +45,9 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
       await paymentReferenceIndex(payment),
     );
     expect(stored?.provider_reference.startsWith("hyb:1:")).toBe(true);
-    assert(
-      stored?.provider_reference?.includes(payment.reference) === false,
+    saysNot(
+      stored?.provider_reference,
+      payment.reference,
       "the value should not contain the searched item",
     );
   });

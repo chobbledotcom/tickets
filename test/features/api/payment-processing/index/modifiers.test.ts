@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { modifiersTable } from "#db/modifiers.ts";
@@ -7,6 +6,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { expectModifierUsage } from "#test-utils/modifiers.ts";
+import { has } from "#test-utils/says.ts";
 import { bookingIntent, trustedPayment } from "./helpers.ts";
 
 describeWithEnv("payment processing modifiers", { db: true }, () => {
@@ -35,9 +35,9 @@ describeWithEnv("payment processing modifiers", { db: true }, () => {
       totalUses: 1,
       usageCount: 1,
     });
-    assertArrayIncludes(
+    has(
       (await getAllActivityLog()).map((entry) => entry.message),
-      ["Promo code 'DIRECT' used: \u00a31 off"],
+      "Promo code 'DIRECT' used: \u00a31 off",
     );
   });
 });

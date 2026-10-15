@@ -1,9 +1,9 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeLogisticsData } from "#routes/admin/attendee-logistics.ts";
 import { LogisticsSection } from "#templates/admin/attendee-form/logistics.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 
 const logistics: AttendeeLogisticsData = {
   agents: [
@@ -41,30 +41,18 @@ describe("LogisticsSection", () => {
   test("renders shared and per-listing assignments", () => {
     const html = String(LogisticsSection({ logistics }));
 
-    assertStringIncludes(
+    says(
       html,
       'checked class="split-agents-toggle" name="split_logistics_agents"',
     );
-    assertStringIncludes(
-      html,
-      'name="logistics_start_time" type="time" value="09:00"',
-    );
-    assertStringIncludes(
-      html,
-      'name="logistics_end_time" type="time" value="17:00"',
-    );
-    assertStringIncludes(html, "Morning van");
-    assertStringIncludes(html, "Evening van");
-    assertStringIncludes(html, "Boat trip");
-    assertStringIncludes(
-      html,
-      'name="logistics_start_time_42" type="time" value="10:15"',
-    );
-    assertStringIncludes(
-      html,
-      'name="logistics_end_time_42" type="time" value="18:30"',
-    );
-    assertStringIncludes(html, 'name="logistics_start_42"');
-    assertStringIncludes(html, 'name="logistics_end_42"');
+    says(html, 'name="logistics_start_time" type="time" value="09:00"');
+    says(html, 'name="logistics_end_time" type="time" value="17:00"');
+    says(html, "Morning van");
+    says(html, "Evening van");
+    says(html, "Boat trip");
+    says(html, 'name="logistics_start_time_42" type="time" value="10:15"');
+    says(html, 'name="logistics_end_time_42" type="time" value="18:30"');
+    says(html, 'name="logistics_start_42"');
+    says(html, 'name="logistics_end_42"');
   });
 });

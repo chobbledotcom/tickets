@@ -3,12 +3,12 @@
  * totals read afterwards. The route suite beside these proves the guards and
  * the stored every-listing rule. */
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { has } from "#test-utils/says.ts";
 import { groupDoor, pickTicketsAtDoor, scanAtDoor } from "./support.ts";
 
 describeWithEnv("group scanner multi-ticket scans", { db: true }, () => {
@@ -76,12 +76,8 @@ describeWithEnv("group scanner multi-ticket scans", { db: true }, () => {
       const messages = (await getListingActivityLog(members[0]!.id)).map(
         (entry) => entry.message,
       );
-      assertArrayIncludes(messages, [
-        "Attendee checked in 2 tickets via scanner for 'Standard'",
-      ]);
-      assertArrayIncludes(messages, [
-        "Attendee checked in 1 ticket via scanner for 'Standard'",
-      ]);
+      has(messages, "Attendee checked in 2 tickets via scanner for 'Standard'");
+      has(messages, "Attendee checked in 1 ticket via scanner for 'Standard'");
     });
 
     test("walks a several-listing ticket one listing per scan", async () => {

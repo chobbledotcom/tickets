@@ -2,7 +2,7 @@
  * work, the state badges it sees per row, and the staff affordances it must
  * never see. The admin view lives in rendering.test.ts beside it. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -17,6 +17,7 @@ import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts
 import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
+import { says } from "#test-utils/says.ts";
 import { testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -35,16 +36,13 @@ describeWithEnv(
       // The working bulk check-in stays; the per-row forms POST to a
       // staff-only admin endpoint, so a scanner is never shown one. Each
       // row's state reads as a badge instead.
-      assertStringIncludes(body, "Check In All");
-      assertStringIncludes(body, 'class="bulk-checkin"');
+      says(body, "Check In All");
+      says(body, 'class="bulk-checkin"');
       // The hidden field's value is what the POST reads; the admit button
       // must submit the true spelling, not any falsy stand-in.
-      assertStringIncludes(body, 'type="hidden" value="true"');
-      assertStringIncludes(body, "Not checked in");
-      assert(
-        !body.includes(`/admin/listing/${listing.id}/attendee/`),
-        "the value should not contain the searched item",
-      );
+      says(body, 'type="hidden" value="true"');
+      says(body, "Not checked in");
+      assert(!body.includes(`/admin/listing/${listing.id}/attendee/`));
     });
 
     test("still admits the live row of a partly refunded attended ticket", async () => {
@@ -65,13 +63,10 @@ describeWithEnv(
       const beforeBody = await readTicketPage(token, cookie);
       // The checked refunded row must not flip the bulk action to checkout
       // while the live row still waits at the door.
-      assertStringIncludes(beforeBody, "Check In All");
-      assert(
-        !beforeBody.includes("Check Out All"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(beforeBody, "Refunded");
-      assertStringIncludes(beforeBody, "Not checked in");
+      says(beforeBody, "Check In All");
+      assert(!beforeBody.includes("Check Out All"));
+      says(beforeBody, "Refunded");
+      says(beforeBody, "Not checked in");
 
       const went = await postCheckin(token, session, "true");
       expect(went.status).toBe(302);
@@ -80,16 +75,12 @@ describeWithEnv(
       );
 
       const afterBody = await readTicketPage(token, cookie);
-      assertStringIncludes(afterBody, "Checked in");
-      assert(
-        !afterBody.includes("Not checked in"),
-        "the value should not contain the searched item",
-      );
+      says(afterBody, "Checked in");
+      assert(!afterBody.includes("Not checked in"));
       assert(
         !afterBody.includes(
           `/admin/listing/${first.id}/attendee/${attendee.id}/checkin`,
         ),
-        "the value should not contain the searched item",
       );
     });
 
@@ -110,15 +101,9 @@ describeWithEnv(
       const body = await readTicketPage(token, cookie);
       // The page keeps the row's refunded badge but advertises no action
       // that the POST could never honour.
-      assertStringIncludes(body, "Refunded");
-      assert(
-        !body.includes("Check In All"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes('name="check_in"'),
-        "the value should not contain the searched item",
-      );
+      says(body, "Refunded");
+      assert(!body.includes("Check In All"));
+      assert(!body.includes('name="check_in"'));
     });
 
     test("keeps both bulk actions on a partly checked ticket", async () => {
@@ -139,10 +124,10 @@ describeWithEnv(
       const body = await response.text();
       // The checked leg can be undone and the waiting leg can be admitted:
       // neither intent is hidden behind the other.
-      assertStringIncludes(body, "Check In All");
-      assertStringIncludes(body, "Check Out All");
-      assertStringIncludes(body, "Checked in");
-      assertStringIncludes(body, "Not checked in");
+      says(body, "Check In All");
+      says(body, "Check Out All");
+      says(body, "Checked in");
+      says(body, "Not checked in");
     });
 
     test("offers checkout once a row is checked, with no per-row controls", async () => {
@@ -153,14 +138,11 @@ describeWithEnv(
 
       const body = await readTicketPage(token, cookie);
       // The one bulk action can undo the check-in the door just made.
-      assertStringIncludes(body, "Check Out All");
-      assertStringIncludes(body, 'class="bulk-checkout"');
-      assertStringIncludes(body, 'name="check_in"');
-      assertStringIncludes(body, 'value="false"');
-      assert(
-        !body.includes("/attendee/"),
-        "the value should not contain the searched item",
-      );
+      says(body, "Check Out All");
+      says(body, 'class="bulk-checkout"');
+      says(body, 'name="check_in"');
+      says(body, 'value="false"');
+      assert(!body.includes("/attendee/"));
     });
 
     test("reads the door facts and none of the contact details", async () => {
@@ -174,23 +156,11 @@ describeWithEnv(
       const scanner = await createTestScannerSession();
 
       const body = await readTicketPage(token, scanner.cookie);
-      assertStringIncludes(body, "Rae");
-      assert(
-        !body.includes("rae@test.com"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("555-1234"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("<th>Email</th>"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("<th>Phone</th>"),
-        "the value should not contain the searched item",
-      );
+      says(body, "Rae");
+      assert(!body.includes("rae@test.com"));
+      assert(!body.includes("555-1234"));
+      assert(!body.includes("<th>Email</th>"));
+      assert(!body.includes("<th>Phone</th>"));
     });
 
     test("keeps its table intact under a contact-only staff column order", async () => {
@@ -204,12 +174,9 @@ describeWithEnv(
 
       const body = await readTicketPage(token, scanner.cookie);
       // The fixed door-safe columns carry the door facts regardless.
-      assertStringIncludes(body, "Fay");
-      assertStringIncludes(body, ">Qty</th>");
-      assert(
-        !body.includes("<th>Email</th>"),
-        "the value should not contain the searched item",
-      );
+      says(body, "Fay");
+      says(body, ">Qty</th>");
+      assert(!body.includes("<th>Email</th>"));
     });
   },
 );

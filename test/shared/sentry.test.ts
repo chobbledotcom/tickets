@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/deno";
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -19,6 +19,7 @@ import {
 } from "#shared/sentry.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { has, says } from "#test-utils/says.ts";
 import { resetSentry } from "#test-utils/sentry.ts";
 
 const DSN = "https://abc123@bugs.example.test/2";
@@ -174,17 +175,17 @@ describe("sentry", () => {
 
       expect(fetchStub.calls.length).toBe(1);
       const [url, options] = fetchStub.calls[0]!.args as [string, RequestInit];
-      assertStringIncludes(url, "bugs.example.test");
-      assertStringIncludes(url, "/api/2/envelope/");
+      says(url, "bugs.example.test");
+      says(url, "/api/2/envelope/");
       expect(options.method).toBe("POST");
       expect(options.referrerPolicy).toBe("strict-origin");
       const body = bodyText(options.body);
       // Real exception with a stack trace, not just a flat message.
-      assertStringIncludes(body, "kaboom");
-      assertStringIncludes(body, "stacktrace");
+      says(body, "kaboom");
+      says(body, "stacktrace");
       // Classified code travels as a tag, detail as extra context.
-      assertStringIncludes(body, ErrorCode.CDN_REQUEST);
-      assertStringIncludes(body, "GET /thing: kaboom");
+      says(body, ErrorCode.CDN_REQUEST);
+      says(body, "GET /thing: kaboom");
     });
 
     test("sends the formatted message when no exception is attached", async () => {
@@ -196,7 +197,7 @@ describe("sentry", () => {
 
       expect(fetchStub.calls.length).toBe(1);
       const body = firstFetchBody();
-      assertStringIncludes(body, formatErrorMessage(context));
+      says(body, formatErrorMessage(context));
     });
 
     test("tags the event with listing and attendee ids", async () => {
@@ -210,8 +211,8 @@ describe("sentry", () => {
       });
 
       const body = firstFetchBody();
-      assertStringIncludes(body, '"listingId":"42"');
-      assertStringIncludes(body, '"attendeeId":"99"');
+      says(body, '"listingId":"42"');
+      says(body, '"attendeeId":"99"');
     });
 
     test("carries the detail as structured extra context, not just prose", async () => {
@@ -226,10 +227,7 @@ describe("sentry", () => {
         error: new Error("kaboom"),
       });
 
-      assertStringIncludes(
-        firstFetchBody(),
-        '"extra":{"detail":"structured-detail-marker"}',
-      );
+      says(firstFetchBody(), '"extra":{"detail":"structured-detail-marker"}');
     });
 
     test("keeps the operator-only detail out of the report", async () => {
@@ -243,29 +241,17 @@ describe("sentry", () => {
       });
 
       const body = firstFetchBody();
-      assertStringIncludes(body, "provider=postmark status=422");
-      assert(
-        !body.includes("Suppressed recipient"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("boss@example.com"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("operatorDetail"),
-        "the value should not contain the searched item",
-      );
+      says(body, "provider=postmark status=422");
+      assert(!body.includes("Suppressed recipient"));
+      assert(!body.includes("boss@example.com"));
+      assert(!body.includes("operatorDetail"));
     });
 
     test("marks the event as level error", async () => {
       const levels =
         (await captureDbErrorBody()).match(/"level":"[^"]*"/g) ?? [];
-      assertArrayIncludes(levels ?? [], ['"level":"error"']);
-      assert(
-        (levels as string[]).includes('"level":"info"') === false,
-        "the value should not contain the searched item",
-      );
+      has(levels, '"level":"error"');
+      assert(!(levels as string[]).includes('"level":"info"'));
     });
 
     // Regression: an error's cause was dropped, so every database failure was
@@ -281,8 +267,8 @@ describe("sentry", () => {
       });
 
       const body = firstFetchBody();
-      assertStringIncludes(body, "libsql execute failed");
-      assertStringIncludes(body, "connection reset by peer");
+      says(body, "libsql execute failed");
+      says(body, "connection reset by peer");
     });
 
     test("keeps the console lines printed before the error", async () => {
@@ -292,7 +278,7 @@ describe("sentry", () => {
       console.debug("a line worth keeping");
       await captureServerError({ code: ErrorCode.DB_QUERY });
 
-      assertStringIncludes(firstFetchBody(), "a line worth keeping");
+      says(firstFetchBody(), "a line worth keeping");
     });
 
     test("names the site and the route the error happened on", async () => {
@@ -302,12 +288,9 @@ describe("sentry", () => {
       await captureListingsError({ code: ErrorCode.DB_QUERY });
 
       const body = firstFetchBody();
-      assertStringIncludes(body, '"transaction":"GET /admin/listings/[id]"');
-      assertStringIncludes(body, '"site":"venue.example.com"');
-      assertStringIncludes(
-        body,
-        '"url":"https://venue.example.com/admin/listings/[id]"',
-      );
+      says(body, '"transaction":"GET /admin/listings/[id]"');
+      says(body, '"site":"venue.example.com"');
+      says(body, '"url":"https://venue.example.com/admin/listings/[id]"');
     });
 
     // The ticket token is the whole credential for that ticket. It must never
@@ -323,15 +306,9 @@ describe("sentry", () => {
       );
 
       const body = firstFetchBody();
-      assert(
-        !body.includes("9D5F57B232"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("a@b.test"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(body, '"transaction":"GET /t/[redacted]"');
+      assert(!body.includes("9D5F57B232"));
+      assert(!body.includes("a@b.test"));
+      says(body, '"transaction":"GET /t/[redacted]"');
     });
 
     // A blank tag is worse than a missing one: it shows up in the tag list and
@@ -343,23 +320,11 @@ describe("sentry", () => {
       await captureServerError({ code: ErrorCode.DB_QUERY });
 
       const body = firstFetchBody();
-      assert(
-        !body.includes("requestId"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes('"url"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("listingId"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("attendeeId"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(body, '"code":"E_DB_QUERY"');
+      assert(!body.includes("requestId"));
+      assert(!body.includes('"url"'));
+      assert(!body.includes("listingId"));
+      assert(!body.includes("attendeeId"));
+      says(body, '"code":"E_DB_QUERY"');
     });
 
     // Boot and scheduled runs report outside any request, and still have to say
@@ -370,10 +335,7 @@ describe("sentry", () => {
 
       await captureServerError({ code: ErrorCode.DB_QUERY });
 
-      assertStringIncludes(
-        firstFetchBody(),
-        `"site":${JSON.stringify(getEffectiveDomain())}`,
-      );
+      says(firstFetchBody(), `"site":${JSON.stringify(getEffectiveDomain())}`);
     });
 
     test("carries the request id the console lines carry", async () => {
@@ -398,7 +360,7 @@ describe("sentry", () => {
         detail: "image 4821 missing",
       });
 
-      assertStringIncludes(
+      says(
         firstFetchBody(),
         '"fingerprint":["E_IMAGE_BROKEN","GET","/admin/listings/[id]"]',
       );
@@ -415,17 +377,11 @@ describe("sentry", () => {
         error: new Error("kaboom"),
       });
 
-      assert(
-        !firstFetchBody().includes('"fingerprint"'),
-        "the value should not contain the searched item",
-      );
+      assert(!firstFetchBody().includes('"fingerprint"'));
     });
 
     test("does not add empty extra context", async () => {
-      assert(
-        !(await captureDbErrorBody()).includes('"extra"'),
-        "the value should not contain the searched item",
-      );
+      assert(!(await captureDbErrorBody()).includes('"extra"'));
     });
 
     test("honours the endpoint retry-after limit", async () => {
@@ -485,13 +441,13 @@ describe("sentry", () => {
       expect(await sendSentryTest()).toBe(true);
       expect(fetchStub.calls.length).toBe(1);
       const body = firstFetchBody();
-      assertStringIncludes(
+      says(
         body,
         '"value":"Test Sentry notification from the admin debug page."',
       );
-      assertStringIncludes(body, '"source":"admin-debug"');
-      assertStringIncludes(body, '"test":"true"');
-      assertStringIncludes(body, "stacktrace");
+      says(body, '"source":"admin-debug"');
+      says(body, '"test":"true"');
+      says(body, "stacktrace");
     });
 
     test("accepts only a 2xx Sentry response", async () => {

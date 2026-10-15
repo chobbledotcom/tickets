@@ -1,4 +1,3 @@
-import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -10,6 +9,7 @@ import {
   scopeIsChildDeadEnd,
   scopeReachesPage,
 } from "#shared/listing-parents-rules.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import { edgeListing as listing } from "./listing-parents-rules/helpers.ts";
 
 /** The i18n message a broken edge rule reports for the named listing — the
@@ -31,10 +31,11 @@ const cabin = (over: Partial<EdgeListing> = {}): EdgeListing =>
 describe("childAddOnError", () => {
   test("resolves to real copy naming the add-on and the child, not a raw key", () => {
     const message = childAddOnError("Face Paint", "Bouncy Castle");
-    assertStringIncludes(message ?? "", "Face Paint");
-    assertStringIncludes(message ?? "", "Bouncy Castle");
-    assert(
-      message?.includes("children_err") === false,
+    says(message, "Face Paint");
+    says(message, "Bouncy Castle");
+    saysNot(
+      message,
+      "children_err",
       "the value should not contain the searched item",
     );
   });
@@ -257,9 +258,10 @@ describe("edgeFieldError", () => {
   for (const [rule, parent, child, blamed] of blamedNameCases) {
     test(`the ${rule} error resolves to real copy naming '${blamed}', not a raw i18n key`, () => {
       const message = edgeFieldError(parent, child);
-      assertStringIncludes(message ?? "", `'${blamed}'`);
-      assert(
-        message?.includes("children_err") === false,
+      says(message, `'${blamed}'`);
+      saysNot(
+        message,
+        "children_err",
         "the value should not contain the searched item",
       );
     });

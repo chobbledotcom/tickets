@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
@@ -21,6 +22,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockWebhookRequest, withExpectedError } from "#test-utils/mocks.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
@@ -190,12 +192,13 @@ Then(
       await getTestPrivateKey(),
     );
     expect(notes).toHaveLength(1);
-    expect(notes[0]?.note).toContain(
+    says(
+      notes[0]?.note,
       "the provider reported the payment in a form the site could not read",
     );
-    expect(notes[0]?.note).toContain("Refund code: malformed_charge");
-    expect(notes[0]?.note).toContain(`/admin/ledger/attendee/${attendeeId}`);
-    expect(notes[0]?.note).not.toContain(UNREADABLE.paymentIntent);
+    says(notes[0]?.note, "Refund code: malformed_charge");
+    says(notes[0]?.note, `/admin/ledger/attendee/${attendeeId}`);
+    saysNot(notes[0]?.note, UNREADABLE.paymentIntent);
   },
 );
 
@@ -214,6 +217,6 @@ Then(
 Then(
   "no returned payment is waiting in refund recovery",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await adminPageHtml("/admin/privacy")).not.toContain("Open refund ");
+    assert(!(await adminPageHtml("/admin/privacy")).includes("Open refund "));
   },
 );

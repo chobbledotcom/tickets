@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -29,6 +29,7 @@ import {
   mockFormRequest,
   mockMultipartRequest,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestEditorSession,
   createTestManagerSession,
@@ -107,10 +108,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         }),
       );
       expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
-        "/admin/listings",
-      );
+      says(response.headers.get("location"), "/admin/listings");
       const { getAllListings } = await import("#db/listings/records.ts");
       expect(
         (await getAllListings()).some((l) => l.name === "Editor Import"),
@@ -136,10 +134,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         slug: "by-editor",
       });
       expect(created.status).toBe(302);
-      assertStringIncludes(
-        created.headers.get("location") ?? "",
-        "/admin/site/pages/",
-      );
+      says(created.headers.get("location"), "/admin/site/pages/");
       // …while a manager — content is not their remit (role downgrade removes
       // access) — is 403 on every screen and on the write.
       const managerCookie = await createTestManagerSession();
@@ -188,7 +183,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       // says who can open it, instead of the bare word "Forbidden".
       const usersResponse = await getAs("/admin/users", cookie);
       const usersBody = await usersResponse.text();
-      assertStringIncludes(usersBody, t("auth.forbidden_owner_only"));
+      says(usersBody, t("auth.forbidden_owner_only"));
 
       // On the tabbed listing page the staff-only tabs (roster, activity) are
       // hidden — visibility IS authorization, so naming one 404s rather than
@@ -211,7 +206,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const base = await getAs(`/admin/listing/${listing.id}`, cookie);
       const baseHtml = await base.text();
       expect(base.status).toBe(200);
-      assertStringIncludes(baseHtml, "listing-edit-form");
+      says(baseHtml, "listing-edit-form");
 
       // The listing Actions tab IS open to an editor, but only Duplicate and
       // Export — every staff-only action (email/refund/deactivate/delete) is
@@ -222,26 +217,15 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       );
       expect(listingActions.status).toBe(200);
       const listingActionsHtml = await listingActions.text();
-      assertStringIncludes(
-        listingActionsHtml,
-        `/admin/listing/${listing.id}/duplicate`,
-      );
-      assertStringIncludes(
-        listingActionsHtml,
-        `/admin/listing/${listing.id}/export.json`,
-      );
+      says(listingActionsHtml, `/admin/listing/${listing.id}/duplicate`);
+      says(listingActionsHtml, `/admin/listing/${listing.id}/export.json`);
       assert(
         !listingActionsHtml.includes(`/admin/listing/${listing.id}/deactivate`),
-        "the value should not contain the searched item",
       );
       assert(
         !listingActionsHtml.includes(`/admin/listing/${listing.id}/delete`),
-        "the value should not contain the searched item",
       );
-      assert(
-        !listingActionsHtml.includes("/admin/emails"),
-        "the value should not contain the searched item",
-      );
+      assert(!listingActionsHtml.includes("/admin/emails"));
 
       // Groups are the same tabbed shape: the staff-only tabs (Overview,
       // Attendees) 404 for an editor, and the base URL resolves to the
@@ -252,10 +236,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       }
       const groupBase = await getAs(`/admin/groups/${group.id}`, cookie);
       expect(groupBase.status).toBe(200);
-      assertStringIncludes(
-        await groupBase.text(),
-        `action="/admin/groups/${group.id}/edit"`,
-      );
+      says(await groupBase.text(), `action="/admin/groups/${group.id}/edit"`);
 
       // The group Actions tab is open to an editor too, but only Export —
       // Bulk actions and Delete are staff-only.
@@ -265,18 +246,11 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       );
       expect(groupActions.status).toBe(200);
       const groupActionsHtml = await groupActions.text();
-      assertStringIncludes(
-        groupActionsHtml,
-        `/admin/groups/${group.id}/export.json`,
-      );
+      says(groupActionsHtml, `/admin/groups/${group.id}/export.json`);
       assert(
         !groupActionsHtml.includes(`/admin/groups/${group.id}/bulk-actions`),
-        "the value should not contain the searched item",
       );
-      assert(
-        !groupActionsHtml.includes(`/admin/groups/${group.id}/delete`),
-        "the value should not contain the searched item",
-      );
+      assert(!groupActionsHtml.includes(`/admin/groups/${group.id}/delete`));
     });
 
     test("editor POSTs to forbidden actions are rejected", async () => {
@@ -346,10 +320,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         },
       );
       expect(editResp.status).toBe(302);
-      assertStringIncludes(
-        editResp.headers.get("location") ?? "",
-        `/admin/groups/${group.id}`,
-      );
+      says(editResp.headers.get("location"), `/admin/groups/${group.id}`);
     });
   });
 
@@ -417,15 +388,9 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const listing = await createTestListing();
       const html = await (await getAs("/admin/listings", cookie)).text();
 
-      assertStringIncludes(html, `href="/admin/listing/${listing.id}/edit"`);
-      assert(
-        !html.includes(`href="/admin/listing/${listing.id}"`),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("/admin/listings/csv"),
-        "the value should not contain the searched item",
-      );
+      says(html, `href="/admin/listing/${listing.id}/edit"`);
+      assert(!html.includes(`href="/admin/listing/${listing.id}"`));
+      assert(!html.includes("/admin/listings/csv"));
     });
 
     test("listing edit page hides the income/ledger sections", async () => {
@@ -436,14 +401,8 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       ).text();
 
       // The income-adjust form and the running-totals aggregate inputs are gone.
-      assert(
-        !html.includes(`/admin/listing/${listing.id}/income`),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('name="booked_quantity"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes(`/admin/listing/${listing.id}/income`));
+      assert(!html.includes('name="booked_quantity"'));
     });
 
     test("groups list links editors to the group's own page", async () => {
@@ -451,7 +410,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const { cookie } = await createTestEditorSession();
       const group = await createTestGroup();
       const html = await (await getAs("/admin/groups", cookie)).text();
-      assertStringIncludes(html, `href="/admin/groups/${group.id}"`);
+      says(html, `href="/admin/groups/${group.id}"`);
     });
 
     test("nav shows only the editor's reachable sections", async () => {
@@ -459,9 +418,9 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const { cookie } = await createTestEditorSession();
       const html = await (await getAs("/admin/listings", cookie)).text();
 
-      assertStringIncludes(html, 'href="/admin/listings"');
-      assertStringIncludes(html, 'href="/admin/groups"');
-      assertStringIncludes(html, 'href="/admin/site"');
+      says(html, 'href="/admin/listings"');
+      says(html, 'href="/admin/groups"');
+      says(html, 'href="/admin/site"');
       for (const forbidden of [
         '"/admin/users"',
         '"/admin/ledger"',
@@ -483,19 +442,13 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const listingsHtml = await (
         await getAs("/admin/listings", cookie)
       ).text();
-      assertStringIncludes(listingsHtml, 'href="/admin/listing/new"');
-      assert(
-        !listingsHtml.includes('href="/admin/groups/new"'),
-        "the value should not contain the searched item",
-      );
+      says(listingsHtml, 'href="/admin/listing/new"');
+      assert(!listingsHtml.includes('href="/admin/groups/new"'));
 
       // ...and the reverse on the Groups section.
       const groupsHtml = await (await getAs("/admin/groups", cookie)).text();
-      assertStringIncludes(groupsHtml, 'href="/admin/groups/new"');
-      assert(
-        !groupsHtml.includes('href="/admin/listing/new"'),
-        "the value should not contain the searched item",
-      );
+      says(groupsHtml, 'href="/admin/groups/new"');
+      assert(!groupsHtml.includes('href="/admin/listing/new"'));
     });
   });
 
@@ -507,10 +460,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         website_title: "Editor Site",
       });
       expect(editorSave.status).toBe(302);
-      assertStringIncludes(
-        editorSave.headers.get("location") ?? "",
-        "/admin/site",
-      );
+      says(editorSave.headers.get("location"), "/admin/site");
 
       const managerCookie = await createTestManagerSession(
         "site-mgr-session",
@@ -619,7 +569,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         content: "# Hello",
       });
       expect(response.status).toBe(200);
-      assertStringIncludes(await response.text(), "<h1>Hello</h1>");
+      says(await response.text(), "<h1>Hello</h1>");
     });
 
     test("the admin guide stays staff-only (its body links to staff pages)", async () => {
@@ -634,7 +584,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       expect(response.status).toBe(200);
       // The editor-safe formatting section, not the full staff guide.
       const html = await response.text();
-      assertStringIncludes(html, "Markdown");
+      says(html, "Markdown");
       // The markdown field hint on the editor's listing edit form points here,
       // so "Formatting help" never dead-ends on the staff-only guide.
       const editHtml = await (
@@ -643,25 +593,16 @@ describeWithEnv("server (editor role)", { db: true }, () => {
           cookie,
         )
       ).text();
-      assertStringIncludes(editHtml, 'href="/admin/formatting"');
-      assert(
-        !editHtml.includes('href="/admin/guide#text-formatting"'),
-        "the value should not contain the searched item",
-      );
+      says(editHtml, 'href="/admin/formatting"');
+      assert(!editHtml.includes('href="/admin/guide#text-formatting"'));
     });
 
     test("editor footer shows only logout (no staff-only log or guide links)", async () => {
       const { cookie } = await createTestEditorSession();
       const html = await (await getAs("/admin/listings", cookie)).text();
-      assertStringIncludes(html, 'href="/admin/logout"');
-      assert(
-        !html.includes('href="/admin/log"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('href="/admin/guide"'),
-        "the value should not contain the searched item",
-      );
+      says(html, 'href="/admin/logout"');
+      assert(!html.includes('href="/admin/log"'));
+      assert(!html.includes('href="/admin/guide"'));
     });
 
     test("editors do not get the staff SQL/cache debug footer", async () => {
@@ -672,15 +613,12 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const ownerHtml = await (
         await getAs("/admin/listings", ownerCookie)
       ).text();
-      assertStringIncludes(ownerHtml, "debug-menu");
+      says(ownerHtml, "debug-menu");
       // …but the editor's identical page must not (the unlock is staff-only).
       const editorHtml = await (
         await getAs("/admin/listings", editorCookie)
       ).text();
-      assert(
-        !editorHtml.includes("debug-menu"),
-        "the value should not contain the searched item",
-      );
+      assert(!editorHtml.includes("debug-menu"));
     });
   });
 
@@ -702,14 +640,8 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         }),
       );
       expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
-        "/admin/listings",
-      );
-      assertStringIncludes(
-        response.headers.get("set-cookie") ?? "",
-        getSessionCookieName(),
-      );
+      says(response.headers.get("location"), "/admin/listings");
+      says(response.headers.get("set-cookie"), getSessionCookieName());
     });
 
     test("inviting an editor stores no DATA_KEY handoff", async () => {
@@ -743,10 +675,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         }),
       );
       expect(joinPost.status).toBe(302);
-      assertStringIncludes(
-        joinPost.headers.get("location") ?? "",
-        "/join/complete",
-      );
+      says(joinPost.headers.get("location"), "/join/complete");
 
       invalidateUsersCache();
       const user = await getUserByUsername("joinEditor");
@@ -758,8 +687,8 @@ describeWithEnv("server (editor role)", { db: true }, () => {
 
       // The owner's users page shows the activated editor as Active.
       const usersHtml = await (await adminUsersHtml()).text();
-      assertStringIncludes(usersHtml, "joineditor");
-      assertStringIncludes(usersHtml, "Active");
+      says(usersHtml, "joineditor");
+      says(usersHtml, "Active");
     });
   });
 });

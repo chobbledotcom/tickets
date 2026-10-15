@@ -1,10 +1,10 @@
 import type { Config } from "@libsql/client";
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { createDatabaseClient, databaseFetch } from "#db/database-client.ts";
 import { hranaTestFetch } from "#test-utils/hrana.ts";
+import { says } from "#test-utils/says.ts";
 
 /** The engine hands the configured fetch its own Request object; the client
  *  rebuilds it as a native request and forwards the engine's call arguments.
@@ -133,10 +133,7 @@ describe("database request conversion", () => {
     const sent = firstSent(boundary);
     expect(sent.request.url).toBe("https://pipeline.test/v2/pipeline");
     expect(sent.request.method).toBe("POST");
-    assertStringIncludes(
-      sent.request.headers.get("content-type") ?? "",
-      "application/json",
-    );
+    says(sent.request.headers.get("content-type"), "application/json");
     const envelope = JSON.parse(await sent.request.text()) as {
       requests: { stmt?: { sql?: string }; type?: string }[];
     };

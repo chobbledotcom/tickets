@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -19,6 +18,7 @@ import {
 } from "#test/shared/accounting/mappers/fixtures.ts";
 import { rejectionMessage } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
   const theModifierLeg = soleLegOf("modifier");
@@ -103,7 +103,7 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
   });
 
   test("rejects a negative line gross", async () => {
-    assertStringIncludes(
+    says(
       await rejectionMessage(
         mapBooking(facts({ lines: [{ gross: -100, listingId: 1 }] })),
       ),
@@ -112,21 +112,21 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
   });
 
   test("rejects a negative booking fee", async () => {
-    assertStringIncludes(
+    says(
       await rejectionMessage(mapBooking(facts({ bookingFee: -10 }))),
       "negative bookingFee",
     );
   });
 
   test("rejects a negative amount paid", async () => {
-    assertStringIncludes(
+    says(
       await rejectionMessage(mapBooking(facts({ amountPaid: -50 }))),
       "negative amountPaid",
     );
   });
 
   test("rejects a non-finite (NaN) gross", async () => {
-    assertStringIncludes(
+    says(
       await rejectionMessage(
         mapBooking(facts({ lines: [{ gross: Number.NaN, listingId: 1 }] })),
       ),
@@ -135,7 +135,7 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
   });
 
   test("rejects a fractional line gross (minor units must be integers)", async () => {
-    assertStringIncludes(
+    says(
       await rejectionMessage(
         mapBooking(facts({ lines: [{ gross: 10.5, listingId: 1 }] })),
       ),
@@ -144,7 +144,7 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
   });
 
   test("rejects a fractional modifier delta", async () => {
-    assertStringIncludes(
+    says(
       await rejectionMessage(
         mapBooking(facts({ modifiers: [{ delta: -2.5, modifierId: 7 }] })),
       ),
@@ -153,7 +153,7 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
   });
 
   test("rejects a non-finite modifier delta", async () => {
-    assertStringIncludes(
+    says(
       await rejectionMessage(
         mapBooking(
           facts({ modifiers: [{ delta: Number.NaN, modifierId: 7 }] }),
@@ -164,14 +164,14 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
   });
 
   test("rejects an empty event id", async () => {
-    assertStringIncludes(
+    says(
       await rejectionMessage(mapBooking(facts({ eventId: "" }))),
       "empty eventId",
     );
   });
 
   test("rejects a whitespace-only event id", async () => {
-    assertStringIncludes(
+    says(
       await rejectionMessage(mapBooking(facts({ eventId: "   " }))),
       "empty eventId",
     );

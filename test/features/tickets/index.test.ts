@@ -1,6 +1,5 @@
 /** Direct tests for the ticket view route's own dispatch. */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
@@ -9,6 +8,7 @@ import { generateQrSvg } from "#shared/qr.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("routeTicketView", () => {
   test("claims no route for a method other than GET", async () => {
@@ -41,7 +41,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(response).toBeInstanceOf(Response);
     expect(response!.status).toBe(200);
     // The signed attachment link renders only for a listing that has one.
-    assertStringIncludes(await response!.text(), "/attachment/");
+    says(await response!.text(), "/attachment/");
   });
 
   test("serves the QR SVG with a full-year cache", async () => {

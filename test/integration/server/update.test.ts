@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -28,6 +27,7 @@ import {
   stubReleaseFetch,
   withMocks,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
 /** GitHub release API response with no assets */
@@ -118,20 +118,20 @@ describeWithEnv("server (admin update)", { db: true }, () => {
     test("shows Development build in dev mode", async () => {
       const response = await adminGet("/admin/update");
       const html = await response.text();
-      assertStringIncludes(html, "Development build");
+      says(html, "Development build");
     });
 
     test("shows update available when latest version is newer", async () => {
       await setLatestVersion("v2099-01-01-120000", "2099-01-01 - Big Update");
       const html = await getUpdatePageHtml();
-      assertStringIncludes(html, "Update Available");
-      assertStringIncludes(html, "2099-01-01 - Big Update");
+      says(html, "Update Available");
+      says(html, "2099-01-01 - Big Update");
     });
 
     test("shows no update available when version is current", async () => {
       await setLatestVersion("v2025-01-01-000000", "2025-01-01 - Old");
       const html = await getUpdatePageHtml();
-      assertStringIncludes(html, "No Update Available");
+      says(html, "No Update Available");
     });
 
     test("displays success flash message", async () => {
@@ -143,7 +143,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
         },
       );
       const html = await response.text();
-      assertStringIncludes(html, "Update available: v1");
+      says(html, "Update available: v1");
     });
 
     test("displays error flash message", async () => {
@@ -155,7 +155,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
         },
       );
       const html = await response.text();
-      assertStringIncludes(html, "Failed to check");
+      says(html, "Failed to check");
     });
   });
 

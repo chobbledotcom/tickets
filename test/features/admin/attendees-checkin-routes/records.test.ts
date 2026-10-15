@@ -3,7 +3,7 @@
  * sends the operator back to, and the one row it refuses.
  */
 
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { activityMessages } from "#test-utils/activity-log.ts";
@@ -14,6 +14,7 @@ import {
   setupListingAndAttendee,
 } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { has, says } from "#test-utils/says.ts";
 
 describeWithEnv("what a check-in writes down", { db: true }, () => {
   test("records the direction in the listing's history", async () => {
@@ -26,12 +27,8 @@ describeWithEnv("what a check-in writes down", { db: true }, () => {
     await checkIn(listing.id, attendee.id, { check_in: "false" });
 
     const history = await activityMessages();
-    assertArrayIncludes(history, [
-      "Attendee checked in 1 ticket for 'Sports Day'",
-    ]);
-    assertArrayIncludes(history, [
-      "Attendee checked out 1 ticket for 'Sports Day'",
-    ]);
+    has(history, "Attendee checked in 1 ticket for 'Sports Day'");
+    has(history, "Attendee checked out 1 ticket for 'Sports Day'");
   });
 
   test("says which way round it went", async () => {
@@ -109,8 +106,8 @@ describeWithEnv("where a check-in lands", { db: true }, () => {
       return_filter: "in",
     });
 
-    assertStringIncludes(
-      response.headers.get("location") ?? "",
+    says(
+      response.headers.get("location"),
       `/admin/listing/${listing.id}/attendees?filter=in`,
     );
   });
@@ -125,11 +122,8 @@ describeWithEnv("where a check-in lands", { db: true }, () => {
     });
 
     const location = response.headers.get("location")!;
-    assertStringIncludes(location, `/admin/listing/${listing.id}/attendees`);
-    assert(
-      !location.includes("filter="),
-      "the value should not contain the searched item",
-    );
+    says(location, `/admin/listing/${listing.id}/attendees`);
+    assert(!location.includes("filter="));
   });
 });
 

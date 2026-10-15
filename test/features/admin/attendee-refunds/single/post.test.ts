@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
@@ -34,6 +34,7 @@ import {
   submitRefund,
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
+import { has } from "#test-utils/says.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin refunds)", { db: true }, () => {
@@ -128,17 +129,16 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         },
         { charge: observed },
       );
-      assertArrayIncludes(
+      has(
         (await getAttendeeActivityLog(ctx.attendee.id)).map(
           (entry) => entry.message,
         ),
-        ["Refund issued"],
+        "Refund issued",
       );
       assert(
         !(await getAttendeeActivityLog(ctx.attendee.id))
           .map((entry) => entry.message)
           .includes("Refund issued for attendee 'John Doe'"),
-        "the value should not contain the searched item",
       );
     });
 

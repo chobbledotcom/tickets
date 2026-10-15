@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -22,6 +21,7 @@ import {
 import { runDeps, testTable } from "#test-utils/cli-table.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withTempDir } from "#test-utils/files.ts";
+import { has, says } from "#test-utils/says.ts";
 
 describe("CLI config", () => {
   test("loads and normalizes environment config", async () => {
@@ -126,12 +126,12 @@ describe("CLI curl", () => {
   });
 
   test("builds JSON body args for mutating requests", () => {
-    assertArrayIncludes(
+    has(
       buildCurlArgs(
         { apiHostname: "http://localhost:3000", apiKey: "secret" },
         { body: { name: "Demo" }, method: "POST", path: "/api/admin/listings" },
       ),
-      [JSON.stringify({ name: "Demo" })],
+      JSON.stringify({ name: "Demo" }),
     );
   });
 
@@ -202,7 +202,7 @@ describe("CLI curl", () => {
     try {
       const failure = await curlJsonFailure(port);
       expect(failure).toBeInstanceOf(CliError);
-      assertStringIncludes((failure as CliError).message, "not JSON");
+      says((failure as CliError).message, "not JSON");
       expect((failure as CliError).status).toBe(200);
     } finally {
       await server.shutdown();
@@ -249,7 +249,7 @@ describe("CLI curl", () => {
     );
     expect(error.kind).toBe("server");
     expect(error.status).toBe(502);
-    assertStringIncludes(error.message, "admin api request failed");
+    says(error.message, "admin api request failed");
   });
 
   test("maps an HTML 401 reply to the not-allowed kind", async () => {
@@ -393,7 +393,7 @@ describe("CLI io", () => {
       }).catch((error: unknown) => error);
       expect(failure).toBeInstanceOf(CliError);
       expect((failure as CliError).kind).toBe("usage");
-      assertStringIncludes((failure as Error).message, "stdin is a terminal");
+      says((failure as Error).message, "stdin is a terminal");
     });
   });
 });

@@ -8,7 +8,6 @@
  * - every GET route has a destination declaring who may reach it.
  */
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { requiredMapValue } from "#fp";
@@ -17,6 +16,7 @@ import { adminPathSegment } from "#shared/admin-surface/definitions.ts";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
 import { oneServedPath } from "#test-utils/admin-surface.ts";
+import { has } from "#test-utils/says.ts";
 
 const loadAreaRoutes = async (): Promise<Map<string, string[]>> => {
   const routesByArea = new Map<string, string[]>();
@@ -46,17 +46,13 @@ describe("admin route manifest", () => {
     for (const [area, routes] of routesByArea) {
       for (const route of routes) {
         const [method, path] = routeParts(route);
-        assertArrayIncludes(
-          ["DELETE", "GET", "PATCH", "POST", "PUT"],
-          [method],
-          route,
-        );
+        has(["DELETE", "GET", "PATCH", "POST", "PUT"], method, route);
         expect(path === "/admin" || path.startsWith("/admin/"), route).toBe(
           true,
         );
-        assertArrayIncludes(
+        has(
           ADMIN_SURFACE.areas[area as keyof typeof ADMIN_SURFACE.areas] ?? [],
-          [adminPathSegment(path)],
+          adminPathSegment(path),
           route,
         );
       }
@@ -69,11 +65,7 @@ describe("admin route manifest", () => {
         .get(name)!
         .map((route) => adminPathSegment(routeParts(route)[1]));
       for (const segment of segments) {
-        assertArrayIncludes(
-          served,
-          [segment],
-          `${name}: stale segment "${segment}"`,
-        );
+        has(served, segment, `${name}: stale segment "${segment}"`);
       }
     }
   });

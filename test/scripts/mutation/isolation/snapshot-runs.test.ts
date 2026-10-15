@@ -18,6 +18,7 @@ import {
   writeFakeMutationScript,
 } from "#test/scripts/mutation/isolation-helpers.ts";
 import { pathExists } from "#test-utils/files.ts";
+import { says } from "#test-utils/says.ts";
 import {
   capturePlainSnapshotFailure,
   captureSimpleSnapshotMutation,
@@ -267,7 +268,7 @@ describe("running mutation inside a snapshot", () => {
 
       expect(run.result).toBe(1);
       expect(run.errors).toHaveLength(1);
-      expect(run.errors[0]).toContain("missing-deno");
+      says(run.errors[0], "missing-deno");
       expect(record.status).toBe("failed");
       expect(record.exitCode).toBe(1);
     });

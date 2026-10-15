@@ -19,6 +19,7 @@ import {
   resetDb,
 } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("test-utils — csrf & form helpers", () => {
   afterEach(() => {
@@ -34,14 +35,14 @@ describe("test-utils — csrf & form helpers", () => {
       const response = await awaitTestRequest("/admin/");
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Login");
+      says(html, "Login");
     });
 
     test("accepts token as second argument", async () => {
       const response = await awaitTestRequest("/admin/", "nonexistent-token");
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Login");
+      says(html, "Login");
     });
 
     test("accepts options object as second argument", async () => {
@@ -58,7 +59,7 @@ describe("test-utils — csrf & form helpers", () => {
       });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Login");
+      says(html, "Login");
     });
   });
 

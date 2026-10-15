@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -6,6 +6,7 @@ import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { expectStripeRedirect, qrBookPath, withStripe } from "./helpers.ts";
 
 interface ParentChildToken {
@@ -54,11 +55,8 @@ describeWithEnv("QR booking parent gate", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(404);
-    assertStringIncludes(html, "QR code expired or invalid");
-    assert(
-      !html.includes(`href="/ticket/${child.slug}"`),
-      "the value should not contain the searched item",
-    );
+    says(html, "QR code expired or invalid");
+    assert(!html.includes(`href="/ticket/${child.slug}"`));
   });
 
   test("a childless listing still skips to checkout", async () => {

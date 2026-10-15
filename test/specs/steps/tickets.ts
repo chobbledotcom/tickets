@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { type DataTable, Given, Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
@@ -30,6 +31,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -217,30 +219,28 @@ Then(
     _who: string,
     count: number,
   ): Promise<void> {
-    expect(await ticketWords(this)).toContain(headingForTickets(count));
+    says(await ticketWords(this), headingForTickets(count));
   },
 );
 
 Then(
   "the ticket names the {word}",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    expect(await ticketWords(this)).toContain(name);
+    says(await ticketWords(this), name);
   },
 );
 
 Then(
   "the ticket never names the {word}",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    expect(await ticketWords(this)).not.toContain(name);
+    assert(!(await ticketWords(this)).includes(name));
   },
 );
 
 Then(
   "the ticket says {int} place(s) was/were taken",
   async function (this: TicketsWorld, places: number): Promise<void> {
-    expect(await ticketWords(this)).toContain(
-      `${t("tickets.quantity")} ${places}`,
-    );
+    says(await ticketWords(this), `${t("tickets.quantity")} ${places}`);
   },
 );
 
@@ -249,7 +249,7 @@ Then(
   async function (this: TicketsWorld, howMany: number): Promise<void> {
     // A private bundle counts what was bought without naming a single part,
     // so the whole bundle carries one count rather than a quantity per part.
-    expect(await ticketWords(this)).toContain(`\u00d7${howMany}`);
+    says(await ticketWords(this), `\u00d7${howMany}`);
   },
 );
 
@@ -261,22 +261,22 @@ Then(
     place: string,
   ): Promise<void> {
     const words = await ticketWords(this);
-    expect(words).toContain(day);
-    expect(words).toContain(place);
+    says(words, day);
+    says(words, place);
   },
 );
 
 Then(
   "the ticket describes it as {string}",
   async function (this: TicketsWorld, description: string): Promise<void> {
-    expect(await ticketWords(this)).toContain(description);
+    says(await ticketWords(this), description);
   },
 );
 
 Then(
   "the ticket says it may not be passed on",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await ticketWords(this)).toContain(t("tickets.non_transferable"));
+    says(await ticketWords(this), t("tickets.non_transferable"));
   },
 );
 
@@ -284,7 +284,7 @@ Then(
   "the ticket offers {string} to download",
   async function (this: TicketsWorld, file: string): Promise<void> {
     const browser = await openTicket(this);
-    expect(browser.pageText).toContain(`${t("tickets.download")} ${file}`);
+    says(browser.pageText, `${t("tickets.download")} ${file}`);
     // A name with no link behind it is a file nobody can open, so the way in
     // has to be there too.
     const toFile = browser.links.find(({ href }) =>
@@ -301,7 +301,7 @@ const expectNoBlock = async (
   world: TicketsWorld,
   block: string,
 ): Promise<void> => {
-  expect((await openTicket(world)).currentHtml).not.toContain(block);
+  assert(!(await openTicket(world)).currentHtml.includes(block));
 };
 
 Then(
@@ -322,23 +322,22 @@ Then(
 Then(
   "the ticket says nothing about being passed on",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await ticketWords(this)).not.toContain(
-      t("tickets.non_transferable"),
-    );
+    assert(!(await ticketWords(this)).includes(t("tickets.non_transferable")));
   },
 );
 
 Then(
   "the ticket offers nothing to download",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await ticketWords(this)).not.toContain(t("tickets.download"));
+    assert(!(await ticketWords(this)).includes(t("tickets.download")));
   },
 );
 
 Then(
   "the ticket says {float} was paid",
   async function (this: TicketsWorld, pounds: number): Promise<void> {
-    expect(await ticketWords(this)).toContain(
+    says(
+      await ticketWords(this),
       `${t("tickets.price")} ${formatCurrency(minorUnits(pounds.toFixed(2)))}`,
     );
   },
@@ -347,14 +346,15 @@ Then(
 Then(
   "the ticket says nothing about a price",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await ticketWords(this)).not.toContain(t("tickets.price"));
+    assert(!(await ticketWords(this)).includes(t("tickets.price")));
   },
 );
 
 Then(
   "the ticket says it is booked for the day they picked",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await ticketWords(this)).toContain(
+    says(
+      await ticketWords(this),
       `${t("tickets.booking_date")} ${formatDateLabel(theDayTheyPicked(this))}`,
     );
   },
@@ -363,14 +363,14 @@ Then(
 Then(
   "the ticket gives no booked day",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await ticketWords(this)).not.toContain(t("tickets.booking_date"));
+    assert(!(await ticketWords(this)).includes(t("tickets.booking_date")));
   },
 );
 
 Then(
   "the ticket prints the code {word} was given",
   async function (this: TicketsWorld, _who: string): Promise<void> {
-    expect(await ticketWords(this)).toContain(theOneCodeTheyHold(this));
+    says(await ticketWords(this), theOneCodeTheyHold(this));
   },
 );
 
@@ -379,7 +379,8 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     // The picture is fetched from an address of its own, so the ticket page
     // stays small and the door's code can be cached like any other image.
-    expect((await openTicket(this)).currentHtml).toContain(
+    says(
+      (await openTicket(this)).currentHtml,
       `src="/t/${theOneCodeTheyHold(this)}/svg"`,
     );
   },
@@ -391,7 +392,8 @@ Then(
     expect(requiredWorldValue(this.firstStatus, "what the site answered")).toBe(
       404,
     );
-    expect(requiredWorldValue(this.firstBody, "what the site said")).toContain(
+    says(
+      requiredWorldValue(this.firstBody, "what the site said"),
       t("public.not_found.heading"),
     );
   },

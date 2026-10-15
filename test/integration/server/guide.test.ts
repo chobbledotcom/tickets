@@ -26,10 +26,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Check-in &amp; QR scanner",
       );
 
-      assert(
-        !html.includes("Data &amp;amp; privacy"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Data &amp;amp; privacy"));
     });
 
     test("contains booking questions section", async () => {

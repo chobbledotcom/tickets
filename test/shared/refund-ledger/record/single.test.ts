@@ -1,4 +1,3 @@
-import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
@@ -13,6 +12,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 
 describeWithEnv("refund ledger > record one attendee", { db: true }, () => {
   const errors = setupErrorSpy();
@@ -37,13 +37,11 @@ describeWithEnv("refund ledger > record one attendee", { db: true }, () => {
         recordAttendeeRefund(ATTENDEE, [reference]),
       ),
     ).toEqual(refundLedgerResult([], [reference]));
-    assertStringIncludes(
-      errors.lastMessage() ?? "",
-      "Refund ledger preparation failed",
-    );
-    assertStringIncludes(errors.lastMessage() ?? "", "attendee=3");
-    assert(
-      errors.lastMessage()?.includes("ledger read failed") === false,
+    says(errors.lastMessage(), "Refund ledger preparation failed");
+    says(errors.lastMessage(), "attendee=3");
+    saysNot(
+      errors.lastMessage(),
+      "ledger read failed",
       "the value should not contain the searched item",
     );
   });

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
@@ -14,6 +13,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   getBulkActionForm,
@@ -29,7 +29,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
 
       const html = await getDuplicateForm(group.id);
 
-      assertStringIncludes(html, "This group has no listings");
+      says(html, "This group has no listings");
     });
 
     test("renders the duplicate form with listing preview data", async () => {
@@ -44,8 +44,8 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
 
       const html = await getDuplicateForm(group.id);
 
-      assertStringIncludes(html, "Spring Workshop");
-      assertStringIncludes(html, "Original (copy)");
+      says(html, "Spring Workshop");
+      says(html, "Original (copy)");
     });
   });
 
@@ -169,11 +169,11 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
 
       // Every field must still show what the owner submitted, so a failed
       // duplicate costs no retyping.
-      assertStringIncludes(html, 'value="Summer Tour"');
-      assertStringIncludes(html, 'value="First"');
-      assertStringIncludes(html, 'value="Second"');
-      assertStringIncludes(html, 'value="2026-03-02"');
-      assertStringIncludes(html, 'value="2026-03-09"');
+      says(html, 'value="Summer Tour"');
+      says(html, 'value="First"');
+      says(html, 'value="Second"');
+      says(html, 'value="2026-03-02"');
+      says(html, 'value="2026-03-09"');
     });
 
     test("rebuilds the preview from the restored replacements", async () => {

@@ -44,7 +44,6 @@ describe("the A-L admin areas", () => {
     );
     assert(
       !(AREAS_A_L.attendees.audience as readonly string[]).includes("scanner"),
-      "the value should not contain the searched item",
     );
   });
 });

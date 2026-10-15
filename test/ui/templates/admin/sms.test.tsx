@@ -9,7 +9,7 @@
  * reads the markup rather than the words.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { formatDatetimeShort } from "#shared/dates.ts";
@@ -20,6 +20,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 const PHONE = "+447700900123";
 
@@ -61,35 +62,26 @@ describe("admin sms page", () => {
       queueCount: 2,
     });
 
-    assertStringIncludes(html, "<title>Text messages</title>");
-    assertStringIncludes(html, "Messages awaiting delivery: 2");
-    assertStringIncludes(html, 'href="/admin/guide#sms"');
-    assert(
-      !html.includes(COMPOSE_FORM),
-      "the value should not contain the searched item",
-    );
+    says(html, "<title>Text messages</title>");
+    says(html, "Messages awaiting delivery: 2");
+    says(html, 'href="/admin/guide#sms"');
+    assert(!html.includes(COMPOSE_FORM));
     // Nobody is chosen, so there is no history to show. One shown here would
     // be somebody's messages on a page that never says whose.
-    assert(
-      !html.includes("Message history"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Ignored"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Message history"));
+    assert(!html.includes("Ignored"));
   });
 
   test("offers the compose form for somebody with a number", () => {
     const html = render();
 
-    assertStringIncludes(html, "<title>Contact: Nina</title>");
-    assertStringIncludes(html, "Contact Nina");
-    assertStringIncludes(html, `<strong>Phone:</strong> ${PHONE}`);
+    says(html, "<title>Contact: Nina</title>");
+    says(html, "Contact Nina");
+    says(html, `<strong>Phone:</strong> ${PHONE}`);
     // The way back to the person this page is about.
-    assertStringIncludes(html, 'href="/admin/attendees/3"');
-    assertStringIncludes(html, COMPOSE_FORM);
-    assertStringIncludes(html, "Send a text message");
+    says(html, 'href="/admin/attendees/3"');
+    says(html, COMPOSE_FORM);
+    says(html, "Send a text message");
     // The box's own limit: the route refuses the same count, so a send past
     // it fails even from a crafted POST.
     expect(html).toMatch(
@@ -120,25 +112,19 @@ describe("admin sms page", () => {
       ],
     });
 
-    assert(
-      !html.includes("<script>alert(1)</script>"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "&lt;script&gt;");
+    assert(!html.includes("<script>alert(1)</script>"));
+    says(html, "&lt;script&gt;");
   });
 
   test("warns and offers no form when the gateway is not configured", () => {
     const html = render({ configured: false });
 
-    assertStringIncludes(html, 'class="warning"');
-    assertStringIncludes(html, "The SMS gateway is not configured.");
+    says(html, 'class="warning"');
+    says(html, "The SMS gateway is not configured.");
     // The warning says what to put right, so it has to carry the way to do
     // it. A warning with no route out leaves the owner told and stuck.
-    assertStringIncludes(html, GATEWAY_SETTINGS);
-    assert(
-      !html.includes(COMPOSE_FORM),
-      "the value should not contain the searched item",
-    );
+    says(html, GATEWAY_SETTINGS);
+    assert(!html.includes(COMPOSE_FORM));
   });
 
   test("says the number is not on file and offers no form without one", () => {
@@ -146,28 +132,19 @@ describe("admin sms page", () => {
       target: { attendee: attendeeWith(""), listing: LISTING },
     });
 
-    assertStringIncludes(html, "<strong>Phone:</strong> (none on file)");
-    assert(
-      !html.includes(COMPOSE_FORM),
-      "the value should not contain the searched item",
-    );
+    says(html, "<strong>Phone:</strong> (none on file)");
+    assert(!html.includes(COMPOSE_FORM));
     // A missing number is not a missing gateway. Warning about the gateway
     // here would send the owner to settings that are already right.
-    assert(
-      !html.includes('class="warning"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes(GATEWAY_SETTINGS),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('class="warning"'));
+    assert(!html.includes(GATEWAY_SETTINGS));
   });
 
   test("says so plainly when nothing has been sent yet", () => {
     const html = render();
 
-    assertStringIncludes(html, "<h3>Message history</h3>");
-    assertStringIncludes(html, "No text messages yet.");
+    says(html, "<h3>Message history</h3>");
+    says(html, "No text messages yet.");
   });
 
   test("lists what was sent, newest first, with when it went", () => {
@@ -180,22 +157,16 @@ describe("admin sms page", () => {
       ],
     });
 
-    assert(
-      !html.includes("No text messages yet."),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "Later");
-    assertStringIncludes(html, "Earlier");
+    assert(!html.includes("No text messages yet."));
+    says(html, "Later");
+    says(html, "Earlier");
     expect(html.indexOf("Later")).toBeLessThan(html.indexOf("Earlier"));
     // When each one went, under its own heading. The message alone leaves the
     // organiser unable to tell a text sent this morning from one sent a year
     // ago, and the site's own short format is what the other tables use.
-    assertStringIncludes(html, "<th>When</th><th>Message</th>");
-    assertStringIncludes(html, formatDatetimeShort(later));
-    assertStringIncludes(html, formatDatetimeShort(earlier));
-    assert(
-      !html.includes(later),
-      "the value should not contain the searched item",
-    );
+    says(html, "<th>When</th><th>Message</th>");
+    says(html, formatDatetimeShort(later));
+    says(html, formatDatetimeShort(earlier));
+    assert(!html.includes(later));
   });
 });

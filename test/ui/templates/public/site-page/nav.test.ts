@@ -1,8 +1,9 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { buildForest, buildNavModel } from "#shared/site-pages/core.ts";
 import { sitePagePage } from "#templates/public/site-page.tsx";
+import { says } from "#test-utils/says.ts";
 import {
   navKey,
   navPage as page,
@@ -41,15 +42,12 @@ describe("sitePagePage (nav-model race)", () => {
       },
       "",
     );
-    assertStringIncludes(html, "<h1>Racy Page</h1>");
-    assertStringIncludes(
+    says(html, "<h1>Racy Page</h1>");
+    says(
       html,
       '</nav></div><div class="page-regions public-page"><h1>Racy Page</h1>',
     );
-    assertStringIncludes(html, "<strong>here</strong>");
-    assert(
-      !html.includes('class="page-items"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "<strong>here</strong>");
+    assert(!html.includes('class="page-items"'));
   });
 });

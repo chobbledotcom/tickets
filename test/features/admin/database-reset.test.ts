@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { imagesTable } from "#db/images.ts";
@@ -28,6 +28,7 @@ import {
   mockRequest,
   withFetchMock,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
@@ -228,18 +229,15 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
     test("does not show reset link when demo mode is off", async () => {
       const response = await handleRequest(mockRequest("/admin/login"));
       const html = await response.text();
-      assert(
-        !html.includes("/demo/reset"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("/demo/reset"));
     });
 
     test("shows reset link when demo mode is on", async () => {
       setDemoModeForTest(true);
       const response = await handleRequest(mockRequest("/admin/login"));
       const html = await response.text();
-      assertStringIncludes(html, 'href="/demo/reset"');
-      assertStringIncludes(html, "Reset database");
+      says(html, 'href="/demo/reset"');
+      says(html, "Reset database");
     });
   });
 
@@ -247,8 +245,8 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
     test("admin settings page uses shared reset form", async () => {
       const response = await adminGet("/admin/settings-advanced");
       const html = await expectHtmlResponse(response, 200, "Reset Database");
-      assertStringIncludes(html, RESET_DATABASE_PHRASE);
-      assertStringIncludes(html, "confirm_phrase");
+      says(html, RESET_DATABASE_PHRASE);
+      says(html, "confirm_phrase");
     });
 
     test("demo reset page uses shared reset form", async () => {

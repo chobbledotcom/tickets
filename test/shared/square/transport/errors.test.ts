@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -15,6 +15,7 @@ import {
   jsonResponse,
 } from "#test/shared/square/mock-fetch.ts";
 import { providerReadHttpCases } from "#test-utils/provider-failure-cases.ts";
+import { says } from "#test-utils/says.ts";
 import { describeSquare } from "#test-utils/square/harness.ts";
 
 const failedResponse = (status: number) => ({
@@ -98,11 +99,8 @@ describeSquare(() => {
         }),
       );
 
-      assertStringIncludes(error.message, "Status code: 400");
-      assert(
-        !error.message.includes("PRIVATE_REFERENCE"),
-        "the value should not contain the searched item",
-      );
+      says(error.message, "Status code: 400");
+      assert(!error.message.includes("PRIVATE_REFERENCE"));
       expect(rejectedBuyerFieldOf(error)).toBeNull();
       expect("responseBody" in error).toBe(false);
     });
@@ -126,14 +124,8 @@ describeSquare(() => {
         );
 
         expect(rejectedBuyerFieldOf(error)).toBe(invalidField);
-        assert(
-          !error.message.includes("PRIVATE_REFERENCE"),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !error.message.includes(providerField),
-          "the value should not contain the searched item",
-        );
+        assert(!error.message.includes("PRIVATE_REFERENCE"));
+        assert(!error.message.includes(providerField));
       });
     }
 
@@ -154,10 +146,7 @@ describeSquare(() => {
       const error = await transportFailureFrom((client) =>
         client.payments.get({ paymentId: "pay_json" }),
       );
-      assert(
-        !error.message.includes(privateBody),
-        "the value should not contain the searched item",
-      );
+      assert(!error.message.includes(privateBody));
     });
 
     test("reports a malformed payment body as malformed provider data", async () => {
@@ -183,10 +172,7 @@ describeSquare(() => {
         client.payments.get({ paymentId: "pay_network" }),
       );
       expect(error.facts.connectionReason).toBe("network_error");
-      assert(
-        !error.message.includes(privateDetail),
-        "the value should not contain the searched item",
-      );
+      assert(!error.message.includes(privateDetail));
     });
 
     test("does not disguise an internal transport failure as a network outage", async () => {
@@ -206,10 +192,7 @@ describeSquare(() => {
           client.payments.get({ paymentId: "pay_timeout" }),
         );
         expect(error.facts.connectionReason).toBe("timeout");
-        assert(
-          !error.message.includes(privateDetail),
-          "the value should not contain the searched item",
-        );
+        assert(!error.message.includes(privateDetail));
       });
     }
 

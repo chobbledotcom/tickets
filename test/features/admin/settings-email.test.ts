@@ -11,7 +11,6 @@
  * cover, because a Cucumber run does not count towards coverage.
  */
 
-import { assertStringIncludes } from "@std/assert";
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -21,6 +20,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -202,7 +202,7 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
     settings.invalidateCache();
 
     const html = await (await adminGet("/admin/settings-advanced")).text();
-    assertStringIncludes(html, 'id="settings-email"');
-    assertStringIncludes(html, 'id="settings-email-test"');
+    says(html, 'id="settings-email"');
+    says(html, 'id="settings-email-test"');
   });
 });

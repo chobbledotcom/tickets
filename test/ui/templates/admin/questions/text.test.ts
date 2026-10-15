@@ -29,10 +29,7 @@ describe("questionTextFlat", () => {
 
   test("flattens multi-line markdown to a single line", () => {
     const result = questionTextFlat("# Heading\n\nSome **bold** text");
-    assert(
-      !result.includes("\n"),
-      "the value should not contain the searched item",
-    );
+    assert(!result.includes("\n"));
     expect(result).toBe("# Heading /  / Some **bold** text");
   });
 });

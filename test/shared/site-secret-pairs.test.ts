@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -13,6 +12,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 const buildSite = (): ReturnType<typeof testBuiltSite> =>
   testBuiltSite({
@@ -88,9 +88,9 @@ describeWithEnv(
       const { calls, result } = await backfillHalfPair(false);
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        assertStringIncludes(result.error ?? "", "The site already holds");
-        assertStringIncludes(result.error ?? "", "the two keys match");
-        assertStringIncludes(result.error ?? "", "Tick the confirm box");
+        says(result.error, "The site already holds");
+        says(result.error, "the two keys match");
+        says(result.error, "Tick the confirm box");
       }
       // Nothing is copied while the conflict stands.
       expect(calls).toEqual([]);

@@ -1,10 +1,11 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import {
   featureSetting,
   useSetting,
@@ -34,9 +35,9 @@ describeWithEnv("AdminNav visibility", {}, () => {
         "/admin/modifiers",
         "/admin/ledger",
       ]) {
-        expect(html, href).not.toContain(`href="${href}"`);
+        saysNot(html, `href="${href}"`, href);
       }
-      assertStringIncludes(html, 'href="/admin/attendees"');
+      says(html, 'href="/admin/attendees"');
     });
   });
 
@@ -51,22 +52,10 @@ describeWithEnv("AdminNav visibility", {}, () => {
           session: { adminLevel: "owner" },
         }),
       );
-      assert(
-        !users.includes('href="/admin/api-keys"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !settings.includes('href="/admin/attributes"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !settings.includes('href="/admin/logistics"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !settings.includes('href="/admin/questions"'),
-        "the value should not contain the searched item",
-      );
+      assert(!users.includes('href="/admin/api-keys"'));
+      assert(!settings.includes('href="/admin/attributes"'));
+      assert(!settings.includes('href="/admin/logistics"'));
+      assert(!settings.includes('href="/admin/questions"'));
     });
   });
 
@@ -74,26 +63,20 @@ describeWithEnv("AdminNav visibility", {}, () => {
     const ownerHtml = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
     );
-    assertStringIncludes(ownerHtml, 'href="/admin/ledger"');
-    assertStringIncludes(ownerHtml, "Money");
-    assert(
-      !ownerHtml.includes("Money history"),
-      "the value should not contain the searched item",
-    );
+    says(ownerHtml, 'href="/admin/ledger"');
+    says(ownerHtml, "Money");
+    assert(!ownerHtml.includes("Money history"));
     const managerHtml = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "manager" } }),
     );
-    assert(
-      !managerHtml.includes('href="/admin/ledger"'),
-      "the value should not contain the searched item",
-    );
+    assert(!managerHtml.includes('href="/admin/ledger"'));
   });
 
   test("owner sees a top-level Site link when Site is enabled", () => {
     const html = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
     );
-    assertStringIncludes(html, 'href="/admin/site"');
+    says(html, 'href="/admin/site"');
   });
 
   test("owner does not see Site when Site is disabled", () =>
@@ -101,10 +84,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
       );
-      assert(
-        !html.includes('href="/admin/site"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('href="/admin/site"'));
     }));
 
   test("Site routes stay out of the nav while Site is disabled", () =>
@@ -113,8 +93,8 @@ describeWithEnv("AdminNav visibility", {}, () => {
         const html = String(
           AdminNav({ active, session: { adminLevel: "owner" } }),
         );
-        expect(html, active).not.toContain('href="/admin/site"');
-        expect(html, active).not.toContain('href="/admin/site/contact"');
+        saysNot(html, 'href="/admin/site"', active);
+        saysNot(html, 'href="/admin/site/contact"', active);
       }
     }));
 
@@ -123,7 +103,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/", session: { adminLevel } }),
       );
-      expect(html, adminLevel).not.toContain('href="/admin/site"');
+      saysNot(html, 'href="/admin/site"', adminLevel);
     }
   });
 
@@ -132,8 +112,8 @@ describeWithEnv("AdminNav visibility", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/site", session: { adminLevel } }),
       );
-      assertStringIncludes(html, 'href="/admin/site/contact"');
-      assertStringIncludes(html, 'href="/admin/site/order"');
+      says(html, 'href="/admin/site/contact"');
+      says(html, 'href="/admin/site/order"');
     }
   });
 
@@ -144,18 +124,15 @@ describeWithEnv("AdminNav visibility", {}, () => {
     const html = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
     );
-    assertStringIncludes(html, 'href="/admin/built-sites"');
-    assertStringIncludes(html, "Builds");
+    says(html, 'href="/admin/built-sites"');
+    says(html, "Builds");
   });
 
   test("Builds is absent on a site that cannot build", () => {
     const html = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
     );
-    assert(
-      !html.includes('href="/admin/built-sites"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('href="/admin/built-sites"'));
   });
 
   test("Builds no longer sits in the Settings sub-nav", () => {
@@ -167,10 +144,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
       }),
     );
     const sub = subNav(html);
-    assert(
-      !sub.includes('href="/admin/built-sites"'),
-      "the value should not contain the searched item",
-    );
+    assert(!sub.includes('href="/admin/built-sites"'));
   });
 
   test("editors get no section sub-nav away from the Site editor", () => {
@@ -180,10 +154,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
         session: { adminLevel: "editor" },
       }),
     );
-    assert(
-      !html.includes('href="/admin/site/contact"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('href="/admin/site/contact"'));
   });
 
   test("the Images section sub-nav offers an Add link when storage is enabled", () =>
@@ -191,10 +162,10 @@ describeWithEnv("AdminNav visibility", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/images", session: { adminLevel: "owner" } }),
       );
-      assertStringIncludes(html, 'href="/admin/images/new"');
+      says(html, 'href="/admin/images/new"');
       const sub = subNav(html);
-      assertStringIncludes(sub, 'href="/admin/images/new"');
-      assertStringIncludes(sub, "Add");
+      says(sub, 'href="/admin/images/new"');
+      says(sub, "Add");
     }));
 
   test("editors see the Images Add sub-nav link too when storage is enabled", () =>
@@ -205,7 +176,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
           session: { adminLevel: "editor" },
         }),
       );
-      assertStringIncludes(html, 'href="/admin/images/new"');
+      says(html, 'href="/admin/images/new"');
     }));
 
   test("the Images section is absent when storage is disabled", () =>
@@ -213,10 +184,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/images", session: { adminLevel: "owner" } }),
       );
-      assert(
-        !html.includes('href="/admin/images/new"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('href="/admin/images/new"'));
     }));
 
   test("Guide stays hidden from editors, scanners, and agents", () => {
@@ -224,7 +192,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/", session: { adminLevel } }),
       );
-      expect(html, adminLevel).not.toContain('href="/admin/guide"');
+      saysNot(html, 'href="/admin/guide"', adminLevel);
     }
   });
 
@@ -234,8 +202,8 @@ describeWithEnv("AdminNav visibility", {}, () => {
       AdminNav({ active: "/admin/guide", session: { adminLevel: "owner" } }),
     );
     const sub = subNav(html);
-    assertStringIncludes(sub, 'href="/admin/support"');
-    assertStringIncludes(sub, "Support");
+    says(sub, 'href="/admin/support"');
+    says(sub, "Support");
   });
 
   test("Support is hidden from managers even when the host offers it", () => {
@@ -243,11 +211,8 @@ describeWithEnv("AdminNav visibility", {}, () => {
     const html = String(
       AdminNav({ active: "/admin/guide", session: { adminLevel: "manager" } }),
     );
-    assertStringIncludes(html, 'href="/admin/guide"');
-    assert(
-      !html.includes('href="/admin/support"'),
-      "the value should not contain the searched item",
-    );
+    says(html, 'href="/admin/guide"');
+    assert(!html.includes('href="/admin/support"'));
   });
 
   test("Support is hidden when the host has no admin contact address", () => {
@@ -255,11 +220,8 @@ describeWithEnv("AdminNav visibility", {}, () => {
     const html = String(
       AdminNav({ active: "/admin/guide", session: { adminLevel: "owner" } }),
     );
-    assert(
-      !html.includes('href="/admin/support"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, 'href="/admin/guide"');
+    assert(!html.includes('href="/admin/support"'));
+    says(html, 'href="/admin/guide"');
   });
 
   test("Support is gone from the Settings sub-nav", () => {
@@ -270,10 +232,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
         session: { adminLevel: "owner" },
       }),
     );
-    assert(
-      !html.includes('href="/admin/support"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('href="/admin/support"'));
   });
 
   test("the Support page highlights Guide and its own sub-nav link", () => {
@@ -281,7 +240,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
     const html = String(
       AdminNav({ active: "/admin/support", session: { adminLevel: "owner" } }),
     );
-    assertStringIncludes(html, 'class="active" href="/admin/guide"');
-    assertStringIncludes(html, 'class="active" href="/admin/support"');
+    says(html, 'class="active" href="/admin/guide"');
+    says(html, 'class="active" href="/admin/support"');
   });
 });

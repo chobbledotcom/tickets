@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { MANUAL_LISTING_COST } from "#accounting/manual-entries.ts";
 import { postTransfers } from "#accounting/store.ts";
@@ -16,6 +16,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { tx } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import { adminGet, createTestManagerSession } from "#test-utils/session.ts";
 import { findForms } from "#test-utils/test-browser/pressing.ts";
 
@@ -50,7 +51,6 @@ describeWithEnv(
         expectStatus(200)(response);
         assert(
           !(await response.text()).includes(`/admin/ledger?group=${group.id}`),
-          "the value should not contain the searched item",
         );
       });
 
@@ -114,8 +114,8 @@ describeWithEnv(
         const response = await adminGet(`/admin/groups/${group.id}`);
         const html = await response.text();
         // The embed/share affordances render despite the member being sold out.
-        assertStringIncludes(html, "Embed Script");
-        assertStringIncludes(html, "/ticket/sold-out-group");
+        says(html, "Embed Script");
+        says(html, "/ticket/sold-out-group");
       });
 
       test("a bookable package is shareable — public URL, QR, and embed render", async () => {
@@ -137,8 +137,8 @@ describeWithEnv(
         ]);
 
         const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
-        assertStringIncludes(html, "/ticket/bookable-pkg");
-        assertStringIncludes(html, `embed-script-${group.id}`);
+        says(html, "/ticket/bookable-pkg");
+        says(html, `embed-script-${group.id}`);
       });
 
       test("a sold-out package hides its share affordances", async () => {
@@ -166,11 +166,8 @@ describeWithEnv(
         );
 
         const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
-        assertStringIncludes(html, "isn't currently bookable");
-        assert(
-          !html.includes("/ticket/sold-out-pkg"),
-          "the value should not contain the searched item",
-        );
+        says(html, "isn't currently bookable");
+        assert(!html.includes("/ticket/sold-out-pkg"));
       });
 
       test("add-listings form offers listings from other groups, not this group's own members", async () => {
@@ -203,10 +200,11 @@ describeWithEnv(
           (form) => form.action === `/admin/groups/${target.id}/add-listings`,
         );
         // The listing already in Group A is offered as an add candidate…
-        assertStringIncludes(addForm?.body ?? "", `value="${inOtherGroup.id}"`);
+        says(addForm?.body, `value="${inOtherGroup.id}"`);
         // …while the target's own member is not (no add-form checkbox for it).
-        assert(
-          addForm?.body?.includes(`value="${ownMember.id}"`) === false,
+        saysNot(
+          addForm?.body,
+          `value="${ownMember.id}"`,
           "the value should not contain the searched item",
         );
       });
@@ -257,9 +255,9 @@ describeWithEnv(
 
         const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
 
-        assertStringIncludes(html, "Costs paid outside checkout");
-        assertStringIncludes(html, "−£30");
-        assertStringIncludes(html, `href="/admin/ledger?group=${group.id}"`);
+        says(html, "Costs paid outside checkout");
+        says(html, "−£30");
+        says(html, `href="/admin/ledger?group=${group.id}"`);
       });
 
       test("shows hidden status on detail page when group is hidden", async () => {
@@ -284,10 +282,7 @@ describeWithEnv(
         });
         const response = await adminGet(`/admin/groups/${group.id}`);
         const html = await response.text();
-        assert(
-          !html.includes("not shown in public listings list"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("not shown in public listings list"));
       });
 
       test("shows empty listings message when group has no listings", async () => {
@@ -304,14 +299,8 @@ describeWithEnv(
           "No listings in this group",
           "isn't currently bookable",
         );
-        assert(
-          !html.includes(`/ticket/${group.slug}`),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes(`embed-script-${group.id}`),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes(`/ticket/${group.slug}`));
+        assert(!html.includes(`embed-script-${group.id}`));
       });
 
       test("shows ungrouped listings for adding to group", async () => {
@@ -343,10 +332,7 @@ describeWithEnv(
         const response = await adminGet(`/admin/groups/${group.id}`);
         expectStatus(200)(response);
         const html = await response.text();
-        assert(
-          !html.includes("Add listings:"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Add listings:"));
       });
     });
   },

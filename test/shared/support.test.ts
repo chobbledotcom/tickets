@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -18,6 +17,7 @@ import {
   expectSendNoop,
   validEmail,
 } from "#test-utils/email.ts";
+import { says } from "#test-utils/says.ts";
 
 const ADMIN_ENV = { ADMIN_EMAIL_ADDRESS: "host@support.test" };
 
@@ -217,9 +217,9 @@ describe("sendSupportMessage", () => {
     expect(captured.body.subject).toBe(
       "Support message from Chobble Tickets site tickets.example.com",
     );
-    assertStringIncludes(String(captured.body.text), "Please help");
-    assertStringIncludes(String(captured.body.text), "tickets.example.com");
-    assertStringIncludes(String(captured.body.html), "owner@example.com");
+    says(String(captured.body.text), "Please help");
+    says(String(captured.body.text), "tickets.example.com");
+    says(String(captured.body.html), "owner@example.com");
   });
 
   test("returns false when the email provider responds with an error", async () => {

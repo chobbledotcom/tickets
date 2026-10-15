@@ -36,6 +36,7 @@ import type {
   AsksAboutOneThing,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { has, says } from "#test-utils/says.ts";
 import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
@@ -127,7 +128,7 @@ export const organiserDeletesListing: ActOnOneThing = async (world, name) => {
   });
   // A delete the site refused would leave every later reading unchanged, and
   // "nothing was left behind" would look like a pass.
-  expect(told).toContain(t("success.listing_deleted"));
+  says(told, t("success.listing_deleted"));
 };
 
 /** Whether the listing still lists Ada. Read from the organiser's own attendee
@@ -179,7 +180,7 @@ const pressesOnOrphansForm =
     const tick = checkboxValueOffered(browser.currentHtml, BY_ITSELF);
     // The box starts ticked, so a story that clears it is really changing
     // something. A page that came back already clear would make that a no-op.
-    expect(tickedCheckboxes(browser.currentHtml, BY_ITSELF)).toContain(tick);
+    has(tickedCheckboxes(browser.currentHtml, BY_ITSELF), tick);
     await organiserSendsAndIsTold(
       world,
       browser,

@@ -26,17 +26,8 @@ describe("ErrorNote", () => {
     const html = String(ErrorNote({ children: "A standing caution" }));
     expect(html).toBe(`<div class="error">A standing caution</div>`);
     // Never announced assertively, animated, or focused.
-    assert(
-      !html.includes("role="),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("autofocus"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("tabindex"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("role="));
+    assert(!html.includes("autofocus"));
+    assert(!html.includes("tabindex"));
   });
 });

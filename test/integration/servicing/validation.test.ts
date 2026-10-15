@@ -13,7 +13,6 @@
  */
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -23,6 +22,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
+import { says } from "#test-utils/says.ts";
 import {
   assertRedirectTo,
   createDatedServicingScenario,
@@ -80,10 +80,7 @@ describeWithEnv(
         // Deliberately omitting start_date.
       });
       expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
-        "/admin/servicing/new",
-      );
+      says(response.headers.get("location"), "/admin/servicing/new");
       response.body?.cancel();
     });
 

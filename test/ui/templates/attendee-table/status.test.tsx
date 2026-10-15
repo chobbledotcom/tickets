@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
@@ -9,6 +9,7 @@ import {
 import type { AttendeeTableOptions } from "#templates/attendee-table/types.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import type { Attendee, AttendeeTableRow } from "#types";
 import { makeOpts, makeRow } from "./shared.ts";
 
@@ -44,24 +45,15 @@ describe("attendee status cells", () => {
     const html = renderStatus({ quantity: 0, refunded: true });
 
     expect(html).toBe('<span class="muted small">No quantity</span>');
-    assert(
-      !html.includes("Refunded"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("/checkin"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Refunded"));
+    assert(!html.includes("/checkin"));
   });
 
   test("renders refunded tickets as an alert without a form", () => {
     const html = renderStatus({ refunded: true });
 
     expect(html).toBe('<span class="badge-alert">Refunded</span>');
-    assert(
-      !html.includes("<form"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<form"));
   });
 
   test("renders read-only state badges when the toggle form is refused", () => {
@@ -70,20 +62,14 @@ describe("attendee status cells", () => {
       { showCheckin: false, showCheckinState: true },
     );
     expect(checked).toBe('<span class="badge-ok">Checked in</span>');
-    assert(
-      !checked.includes("<form"),
-      "the value should not contain the searched item",
-    );
+    assert(!checked.includes("<form"));
 
     const unchecked = renderStatus(
       { checked_in: 0 },
       { showCheckin: false, showCheckinState: true },
     );
     expect(unchecked).toBe('<span class="muted small">Not checked in</span>');
-    assert(
-      !unchecked.includes("<form"),
-      "the value should not contain the searched item",
-    );
+    assert(!unchecked.includes("<form"));
   });
 
   test("a part-admitted booking's badge says how many are in", () => {
@@ -106,20 +92,14 @@ describe("attendee status cells", () => {
   test("keeps the toggle form when showCheckinState is not requested", () => {
     const html = renderStatus({ checked_in: 1, id: 8 });
 
-    assertStringIncludes(html, 'class="link-button checkout"');
-    assert(
-      !html.includes("badge-ok"),
-      "the value should not contain the searched item",
-    );
+    says(html, 'class="link-button checkout"');
+    assert(!html.includes("badge-ok"));
   });
 
   test("keeps a supplied empty active filter instead of the default", () => {
     const html = renderStatus({ checked_in: 1, id: 8 }, { activeFilter: "" });
 
-    assertStringIncludes(
-      html,
-      '<input name="return_filter" type="hidden" value="">',
-    );
+    says(html, '<input name="return_filter" type="hidden" value="">');
   });
 
   test("renders an unchecked attendee with default return state", () => {
@@ -141,16 +121,13 @@ describe("attendee status cells", () => {
       { activeFilter: "in", returnUrl: "/admin/checkin/today" },
     );
 
-    assertStringIncludes(html, 'action="/admin/listing/9/attendee/8/checkin"');
-    assertStringIncludes(
-      html,
-      '<input name="return_filter" type="hidden" value="in">',
-    );
-    assertStringIncludes(
+    says(html, 'action="/admin/listing/9/attendee/8/checkin"');
+    says(html, '<input name="return_filter" type="hidden" value="in">');
+    says(
       html,
       '<input name="return_url" type="hidden" value="/admin/checkin/today">',
     );
-    assertStringIncludes(
+    says(
       html,
       '<button class="link-button checkout" type="submit">Check out</button>',
     );
@@ -162,16 +139,13 @@ describe("attendee status cells", () => {
       { activeFilter: "out", returnUrl: "/admin/checkin/today" },
     );
 
-    assertStringIncludes(
+    says(
       html,
       'href="/admin/listing/9/attendee/11/checkin' +
         '?return_url=%2Fadmin%2Fcheckin%2Ftoday&amp;return_filter=out"',
     );
-    assertStringIncludes(html, '<a class="link-button checkin"');
-    assert(
-      !html.includes("Check out"),
-      "the value should not contain the searched item",
-    );
+    says(html, '<a class="link-button checkin"');
+    assert(!html.includes("Check out"));
   });
 
   test("a partly admitted multi-ticket line offers one Check in/out link", () => {
@@ -204,11 +178,8 @@ describe("attendee status cells", () => {
       ),
     );
 
-    assertStringIncludes(html, '<a class="link-button checkin"');
-    assert(
-      !html.includes("<form"),
-      "the value should not contain the searched item",
-    );
+    says(html, '<a class="link-button checkin"');
+    assert(!html.includes("<form"));
   });
 
   test("a pair holding one ticket keeps the direct toggle", () => {
@@ -222,7 +193,7 @@ describe("attendee status cells", () => {
       ),
     );
 
-    assertStringIncludes(html, '<button class="link-button checkin"');
+    says(html, '<button class="link-button checkin"');
   });
 
   test("throws when a check-in row has no listing", () => {

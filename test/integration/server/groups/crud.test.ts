@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -18,6 +18,7 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -46,7 +47,7 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
     test("shows empty list when no groups exist", async () => {
       const response = await adminGet("/admin/groups");
       const html = await expectHtmlResponse(response, 200, "Groups");
-      assertStringIncludes(html, "<p>No groups configured.</p>");
+      says(html, "<p>No groups configured.</p>");
     });
 
     test("shows groups in table when present", async () => {
@@ -88,10 +89,7 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
         "Description (optional)",
         "Terms and Conditions",
       );
-      assert(
-        !html.includes('name="slug"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('name="slug"'));
     });
   });
 

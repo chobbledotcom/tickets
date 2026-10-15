@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
@@ -11,6 +11,7 @@ import {
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 /** An edit-panel render with both always-open URLs cleared, so only the field
  *  named in `overrides` can force the Advanced disclosure open. */
@@ -38,9 +39,9 @@ describe("adminListingEditPage group select", () => {
         session: OWNER_SESSION,
       }),
     );
-    assertStringIncludes(html, 'name="group_ids"');
-    assertStringIncludes(html, 'value="2"');
-    assertStringIncludes(html, "checked");
+    says(html, 'name="group_ids"');
+    says(html, 'value="2"');
+    says(html, "checked");
   });
 
   test("does not link to the JSON export (that now lives on the Actions tab)", () => {
@@ -50,10 +51,7 @@ describe("adminListingEditPage group select", () => {
     );
     // The Actions tab is now editor-visible too, so the export link lives
     // only there — the Edit panel no longer duplicates it.
-    assert(
-      !html.includes(`/admin/listing/${listing.id}/export.json`),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes(`/admin/listing/${listing.id}/export.json`));
   });
 });
 
@@ -68,19 +66,16 @@ describe("adminListingEditPage duration warning", () => {
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
-    assertStringIncludes(
-      html,
-      "Changing booking duration will update existing bookings",
-    );
-    assertStringIncludes(html, 'id="duration-warning"');
-    assertStringIncludes(html, 'id="duration-warning-confirm"');
+    says(html, "Changing booking duration will update existing bookings");
+    says(html, 'id="duration-warning"');
+    says(html, 'id="duration-warning-confirm"');
     // The current duration is exposed via a data attribute so the bundled
     // admin script can compare against the form's input.
-    assertStringIncludes(html, 'data-duration-original="3"');
+    says(html, 'data-duration-original="3"');
     // Every other element initDurationWarning() hooks into must be present —
     // if any of these IDs change, the client-side gate silently no-ops.
-    assertStringIncludes(html, 'id="listing-edit-form"');
-    assertStringIncludes(html, 'id="listing-edit-submit"');
+    says(html, 'id="listing-edit-form"');
+    says(html, 'id="listing-edit-submit"');
     // The duration input the script reads is pre-filled with the stored value.
     expect(html).toMatch(/name="duration_days"[^>]*value="3"/);
   });
@@ -99,23 +94,20 @@ describe("adminListingEditPage day prices", () => {
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
     // One input per day up to the maximum duration, pre-filled from day_prices.
-    assertStringIncludes(html, 'name="day_price_1"');
-    assertStringIncludes(html, 'value="10.00"');
-    assertStringIncludes(html, 'name="day_price_2"');
-    assertStringIncludes(html, 'value="18.00"');
+    says(html, 'name="day_price_1"');
+    says(html, 'value="10.00"');
+    says(html, 'name="day_price_2"');
+    says(html, 'value="18.00"');
     // The customisable-days checkbox is rendered checked for such a listing.
-    assertStringIncludes(html, 'name="customisable_days"');
-    assertStringIncludes(html, "Day Prices (customisable days)");
+    says(html, 'name="customisable_days"');
+    says(html, "Day Prices (customisable days)");
   });
 
   test("renders a single blank day-price row on the new-listing form", () => {
     const html = adminListingNewPage([], OWNER_SESSION);
-    assertStringIncludes(html, 'name="day_price_1"');
+    says(html, 'name="day_price_1"');
     // The maximum defaults to 1 day for a new listing, so only one row shows.
-    assert(
-      !html.includes('name="day_price_2"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('name="day_price_2"'));
   });
 });
 
@@ -151,15 +143,12 @@ describe("adminListingEditPage form sections", () => {
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
-    assertStringIncludes(html, "<legend>Basics</legend>");
-    assertStringIncludes(html, "<legend>Tickets &amp; Pricing</legend>");
-    assertStringIncludes(html, "<legend>Daily Scheduling</legend>");
-    assertStringIncludes(
-      html,
-      "<legend>Booking duration &amp; day prices</legend>",
-    );
-    assertStringIncludes(html, "<legend>Options &amp; Visibility</legend>");
-    assertStringIncludes(html, "<summary>Advanced settings</summary>");
+    says(html, "<legend>Basics</legend>");
+    says(html, "<legend>Tickets &amp; Pricing</legend>");
+    says(html, "<legend>Daily Scheduling</legend>");
+    says(html, "<legend>Booking duration &amp; day prices</legend>");
+    says(html, "<legend>Options &amp; Visibility</legend>");
+    says(html, "<summary>Advanced settings</summary>");
   });
 
   test("renders the day-prices block immediately after the customisable-days checkbox", () => {
@@ -201,23 +190,20 @@ describe("adminListingEditPage form sections", () => {
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
-    assertStringIncludes(html, "<legend>Running totals</legend>");
-    assertStringIncludes(html, "Accuracy is not guaranteed");
-    assertStringIncludes(html, 'name="booked_quantity"');
-    assertStringIncludes(html, 'value="7"');
-    assertStringIncludes(html, 'name="tickets_count"');
-    assertStringIncludes(html, 'value="3"');
+    says(html, "<legend>Running totals</legend>");
+    says(html, "Accuracy is not guaranteed");
+    says(html, 'name="booked_quantity"');
+    says(html, 'value="7"');
+    says(html, 'name="tickets_count"');
+    says(html, 'value="3"');
     // Income is not a count override in the running-totals form — that form keeps
     // only the two count aggregates, which post to the recalculate route.
     const totalsForm = html.slice(
       html.indexOf("<legend>Running totals</legend>"),
       html.indexOf("Adjust income"),
     );
-    assert(
-      !totalsForm.includes('name="income"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, `/admin/listings/recalculate/${listing.id}`);
+    assert(!totalsForm.includes('name="income"'));
+    says(html, `/admin/listings/recalculate/${listing.id}`);
   });
 
   test("renders the separate income-correction form (decision 14)", () => {
@@ -226,10 +212,10 @@ describe("adminListingEditPage form sections", () => {
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
     // Income correction stays in a dedicated warned form, apart from counts.
-    assertStringIncludes(html, "<h2>Adjust income</h2>");
-    assertStringIncludes(html, `action="/admin/listing/${listing.id}/income"`);
-    assertStringIncludes(html, 'name="income"');
-    assertStringIncludes(html, "This adds a correction to Money.");
+    says(html, "<h2>Adjust income</h2>");
+    says(html, `action="/admin/listing/${listing.id}/income"`);
+    says(html, 'name="income"');
+    says(html, "This adds a correction to Money.");
   });
 
   test("links from the income form to the detail page's money breakdown", () => {
@@ -239,15 +225,15 @@ describe("adminListingEditPage form sections", () => {
     );
     // A compact pointer beside the adjust-income form to the full reconciliation
     // section on the detail page, so the two figures are explained in one place.
-    assertStringIncludes(html, 'href="/admin/listing/4#income-ledger"');
-    assertStringIncludes(html, "Money in and out");
+    says(html, 'href="/admin/listing/4#income-ledger"');
+    says(html, "Money in and out");
   });
 
   test("shows a running-total mismatch on the edit page", () => {
     const { html, listing } = renderMismatchPanel();
-    assertStringIncludes(html, "Mismatch");
-    assertStringIncludes(html, "expected <strong>4</strong>, got");
-    assertStringIncludes(html, `/admin/listings/recalculate/${listing.id}`);
+    says(html, "Mismatch");
+    says(html, "expected <strong>4</strong>, got");
+    says(html, `/admin/listings/recalculate/${listing.id}`);
   });
 
   test("hides the recalculate link in read-only mode", () => {
@@ -255,11 +241,8 @@ describe("adminListingEditPage form sections", () => {
     const { html, listing } = renderMismatchPanel();
     // The mismatch is still surfaced, but the recalculate action would route
     // to a write page blocked in read-only mode, so its link is dropped.
-    assertStringIncludes(html, "Mismatch");
-    assert(
-      !html.includes(`/admin/listings/recalculate/${listing.id}`),
-      "the value should not contain the searched item",
-    );
+    says(html, "Mismatch");
+    assert(!html.includes(`/admin/listings/recalculate/${listing.id}`));
   });
 });
 
@@ -269,30 +252,27 @@ describe("adminListingEditPage Advanced section auto-open", () => {
   test("stays collapsed when only the slug is set", () => {
     // Slug is always populated; on its own it must not force the section open.
     const html = advancedPanelHtml({});
-    assertStringIncludes(html, '<details class="listing-advanced">');
-    assert(
-      !html.includes(ADVANCED_OPEN),
-      "the value should not contain the searched item",
-    );
+    says(html, '<details class="listing-advanced">');
+    assert(!html.includes(ADVANCED_OPEN));
   });
 
   test("opens when a thank-you URL is set", () => {
     const html = advancedPanelHtml({
       thank_you_url: "https://example.com/thanks",
     });
-    assertStringIncludes(html, ADVANCED_OPEN);
+    says(html, ADVANCED_OPEN);
   });
 
   test("opens when a webhook URL is set", () => {
     const html = advancedPanelHtml({
       webhook_url: "https://hooks.example.com/notify",
     });
-    assertStringIncludes(html, ADVANCED_OPEN);
+    says(html, ADVANCED_OPEN);
   });
 
   test("opens on a validation error so hidden fields stay reachable", () => {
     const html = advancedPanelHtml({}, { error: "Bad input" });
-    assertStringIncludes(html, ADVANCED_OPEN);
+    says(html, ADVANCED_OPEN);
   });
 });
 
@@ -301,16 +281,13 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
 
   test("opens when a renewal tier (months per unit) is set", () => {
     withBuilder(() => {
-      assertStringIncludes(
-        advancedPanelHtml({ months_per_unit: 3 }),
-        ADVANCED_OPEN,
-      );
+      says(advancedPanelHtml({ months_per_unit: 3 }), ADVANCED_OPEN);
     });
   });
 
   test("opens when initial site months is set", () => {
     withBuilder(() => {
-      assertStringIncludes(
+      says(
         advancedPanelHtml({ initial_site_months: 6, months_per_unit: 0 }),
         ADVANCED_OPEN,
       );
@@ -319,7 +296,7 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
 
   test("opens when a built site is assigned on booking", () => {
     withBuilder(() => {
-      assertStringIncludes(
+      says(
         advancedPanelHtml({
           assign_built_site: true,
           initial_site_months: 0,
@@ -337,11 +314,8 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
         initial_site_months: 0,
         months_per_unit: 0,
       });
-      assertStringIncludes(html, '<details class="listing-advanced">');
-      assert(
-        !html.includes(ADVANCED_OPEN),
-        "the value should not contain the searched item",
-      );
+      says(html, '<details class="listing-advanced">');
+      assert(!html.includes(ADVANCED_OPEN));
     });
   });
 });

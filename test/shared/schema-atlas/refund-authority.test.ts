@@ -1,8 +1,9 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { refundAuthorityAtlas } from "#shared/schema-atlas/refund-authority.ts";
 import { indexMachine } from "#test/shared/schema-atlas/helpers.ts";
+import { has } from "#test-utils/says.ts";
 
 const { byId, edgeIds, machine } = indexMachine(refundAuthorityAtlas);
 
@@ -106,16 +107,11 @@ describe("the refund authority atlas", () => {
       "conflict_not_sent=>choice_not_sent",
       "conflict_wait=>check",
     ]);
-    assertArrayIncludes(edgeIds("send_armed") ?? [], ["observe=>observing"]);
-    assertArrayIncludes(edgeIds("send_armed") ?? [], ["replay=>send_armed"]);
-    assertArrayIncludes(edgeIds("send_armed") ?? [], ["expired=>choice_open"]);
-    assertArrayIncludes(edgeIds("send_armed") ?? [], [
-      "possibly_sent=>choice_open",
-    ]);
-    assert(
-      !edgeIds("ready").includes("replay=>send_armed"),
-      "the value should not contain the searched item",
-    );
+    has(edgeIds("send_armed"), "observe=>observing");
+    has(edgeIds("send_armed"), "replay=>send_armed");
+    has(edgeIds("send_armed"), "expired=>choice_open");
+    has(edgeIds("send_armed"), "possibly_sent=>choice_open");
+    assert(!edgeIds("ready").includes("replay=>send_armed"));
   });
 
   test("a settled partial return is an owner decision with one exit", () => {
@@ -143,13 +139,9 @@ describe("the refund authority atlas", () => {
   });
 
   test("the open owner choice admits both answers and fresh evidence", () => {
-    assertArrayIncludes(edgeIds("choice_open") ?? [], [
-      "owner_confirms_returned=>returned",
-    ]);
-    assertArrayIncludes(edgeIds("choice_open") ?? [], [
-      "owner_confirms_not_sent=>ready",
-    ]);
-    assertArrayIncludes(edgeIds("choice_open") ?? [], ["conflict_wait=>check"]);
+    has(edgeIds("choice_open"), "owner_confirms_returned=>returned");
+    has(edgeIds("choice_open"), "owner_confirms_not_sent=>ready");
+    has(edgeIds("choice_open"), "conflict_wait=>check");
   });
 
   test("money back ends at recorded, which is terminal", () => {

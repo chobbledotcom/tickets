@@ -1,9 +1,7 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { contentWriteOrError } from "#routes/admin/site-content.ts";
-
 import { errorResult, okResult } from "#shared/result.ts";
 import {
   expectErrorFlash,
@@ -13,6 +11,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describe("admin site content write outcomes", () => {
@@ -52,10 +51,7 @@ describeWithEnv("the routes a site content type gets", { db: true }, () => {
     const response = await adminGet(`/admin/site/news/${post.id}`);
 
     expect(response.status).toBe(200);
-    assertStringIncludes(
-      await response.text(),
-      `action="/admin/site/news/${post.id}/edit"`,
-    );
+    says(await response.text(), `action="/admin/site/news/${post.id}/edit"`);
   });
 
   test("says plainly that a new record was created", async () => {

@@ -1,10 +1,11 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   detailHtml,
   registerListingTemplateHooks,
 } from "#test/ui/templates/admin/listings/helpers.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("adminListingPage total revenue", () => {
   registerListingTemplateHooks();
@@ -19,8 +20,8 @@ describe("adminListingPage total revenue", () => {
         ],
       },
     );
-    assertStringIncludes(html, "Total Revenue");
-    assertStringIncludes(html, "£30");
+    says(html, "Total Revenue");
+    says(html, "£30");
   });
 
   test("does not show total revenue for free listings", () => {
@@ -28,17 +29,14 @@ describe("adminListingPage total revenue", () => {
       testListingWithCount({ attendee_count: 1, unit_price: 0 }),
       { attendees: [testAttendee()] },
     );
-    assert(
-      !html.includes("Total Revenue"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Total Revenue"));
   });
 
   test("shows zero revenue for paid listing with no attendees", () => {
     const html = detailHtml(
       testListingWithCount({ attendee_count: 0, unit_price: 1000 }),
     );
-    assertStringIncludes(html, "Total Revenue");
-    assertStringIncludes(html, "£0");
+    says(html, "Total Revenue");
+    says(html, "£0");
   });
 });

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
@@ -14,6 +14,7 @@ import {
   createTestHoliday,
   deleteTestHoliday,
 } from "#test-utils/db-helpers/holidays.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("holiday entity page", { db: true }, () => {
@@ -40,10 +41,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         "2026-12-25",
         "2026-12-26",
       );
-      assertStringIncludes(
-        html,
-        '<a class="active" href="/admin/holidays">Holidays</a>',
-      );
+      says(html, '<a class="active" href="/admin/holidays">Holidays</a>');
     });
 
     test("returns 404 for an unknown tab", async () => {
@@ -74,10 +72,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         "2026-12-25",
         "2026-12-26",
       );
-      assert(
-        !html.includes(`/admin/holidays/${holiday.id}/delete`),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes(`/admin/holidays/${holiday.id}/delete`));
     });
 
     test("returns 404 for non-existent holiday", async () => {

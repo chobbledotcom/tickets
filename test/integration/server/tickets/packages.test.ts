@@ -9,7 +9,7 @@
  * package id the public free checkout must stamp.
  */
 
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -25,6 +25,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { submitPackageBooking } from "#test-utils/packages.ts";
+import { has, says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -81,11 +82,8 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
         [{ listingId: widget.id, quantity: 1 }],
         "standalone",
       );
-      assertStringIncludes(body, "Widget");
-      assert(
-        !body.includes("Kit Bag"),
-        "the value should not contain the searched item",
-      );
+      says(body, "Widget");
+      assert(!body.includes("Kit Bag"));
     });
 
     test("collapses the package half of a mixed token and leaves the rest", async () => {
@@ -110,12 +108,9 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       });
 
       const body = await fetchTicketBody(token);
-      assertStringIncludes(body, "Kit Bag");
-      assertStringIncludes(body, "Standalone Ticket");
-      assert(
-        !body.includes("Widget"),
-        "the value should not contain the searched item",
-      );
+      says(body, "Kit Bag");
+      says(body, "Standalone Ticket");
+      assert(!body.includes("Widget"));
     });
   });
 
@@ -132,14 +127,11 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
     const tokenB = await bookedToken(asPackage, "b");
 
     const body = await fetchTicketBody(`${tokenA}+${tokenB}`);
-    assertStringIncludes(body, "2 Tickets");
-    assertStringIncludes(body, `/t/${tokenA}/svg`);
-    assertStringIncludes(body, `/t/${tokenB}/svg`);
-    assertStringIncludes(body, "Kit Bag");
-    assert(
-      !body.includes("Widget"),
-      "the value should not contain the searched item",
-    );
+    says(body, "2 Tickets");
+    says(body, `/t/${tokenA}/svg`);
+    says(body, `/t/${tokenB}/svg`);
+    says(body, "Kit Bag");
+    assert(!body.includes("Widget"));
   });
 
   describe("the date a dated package card carries", () => {
@@ -206,10 +198,7 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
         ],
         "tripper",
       );
-      assertStringIncludes(
-        body,
-        formatDateRangeLabelCompactEn(date, addDays(date, 1)),
-      );
+      says(body, formatDateRangeLabelCompactEn(date, addDays(date, 1)));
     });
 
     test("shows the stay that was booked, not the longest one on offer", async () => {
@@ -247,13 +236,9 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
         ],
         "flexer",
       );
-      assertStringIncludes(
-        body,
-        formatDateRangeLabelCompactEn(date, addDays(date, 2)),
-      );
+      says(body, formatDateRangeLabelCompactEn(date, addDays(date, 2)));
       assert(
         !body.includes(formatDateRangeLabelCompactEn(date, addDays(date, 6))),
-        "the value should not contain the searched item",
       );
     });
   });
@@ -301,7 +286,7 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       );
 
       const submit = await buyOnePackage(group, "freepkg");
-      assertArrayIncludes([302, 303], [submit.status]);
+      has([302, 303], submit.status);
 
       const row = (
         await getDb().execute({
@@ -322,13 +307,10 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       });
 
       const submit = await buyOnePackage(group, "secret");
-      assertArrayIncludes([302, 303], [submit.status]);
+      has([302, 303], submit.status);
       const location = submit.headers.get("location") ?? "";
-      assert(
-        !location.includes("concealed-member"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(location ?? "", "/ticket/reserved");
+      assert(!location.includes("concealed-member"));
+      says(location, "/ticket/reserved");
     });
   });
 });

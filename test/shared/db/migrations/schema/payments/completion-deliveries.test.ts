@@ -1,8 +1,8 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { paymentCompletionDeliveriesTable } from "#db/migrations/schema/payments/completion-deliveries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { expectAccepted, expectRefused } from "./refuses.ts";
 
 const [name, table] = paymentCompletionDeliveriesTable;
@@ -24,8 +24,8 @@ describe("the messages sent after a payment", () => {
   test("demands the message be hidden, because it holds the buyer's details", () => {
     // Name, email, phone and address travel in here, so the table refuses a
     // plain one rather than trusting every writer to hide it.
-    assertStringIncludes(column("data"), "GLOB 'enc:1:?*:?*'");
-    assertStringIncludes(column("data"), "TEXT NOT NULL");
+    says(column("data"), "GLOB 'enc:1:?*:?*'");
+    says(column("data"), "TEXT NOT NULL");
   });
 
   test("lets a message wait until it has been sent", () => {

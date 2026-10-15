@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { nonEmptyString } from "#shared/validation/string.ts";
@@ -15,6 +15,7 @@ import {
 } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import type { Image } from "#types";
 
 const image = (id: number, name: string): Image => ({
@@ -32,99 +33,66 @@ describe("admin image templates", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     withStorageEnabled(() => {
       const html = adminImagesPage([image(7, "Hero")], OWNER_SESSION);
-      assertStringIncludes(html, "Hero");
-      assertStringIncludes(html, "/image/hero-thumb.webp");
-      assert(
-        !html.includes('href="/admin/images/7/edit"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('href="/admin/images/new"'),
-        "the value should not contain the searched item",
-      );
+      says(html, "Hero");
+      says(html, "/image/hero-thumb.webp");
+      assert(!html.includes('href="/admin/images/7/edit"'));
+      assert(!html.includes('href="/admin/images/new"'));
     });
   });
 
   test("renders the thumbnail from the image thumbnail filename", () => {
     withStorageEnabled(() => {
       const html = adminImagesPage([image(8, "Poster")], OWNER_SESSION);
-      assertStringIncludes(
+      says(
         html,
         '<img alt="Alt Poster" class="image-library-thumb" src="/image/poster-thumb.webp">',
       );
-      assert(
-        !html.includes("/image/poster.webp"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, '<a class="active" href="/admin/images">');
+      assert(!html.includes("/image/poster.webp"));
+      says(html, '<a class="active" href="/admin/images">');
     });
   });
 
   test("renders the empty-library message when there are no images", () => {
     withStorageEnabled(() => {
       const html = adminImagesPage([], OWNER_SESSION);
-      assertStringIncludes(html, "No images yet.");
+      says(html, "No images yet.");
     });
   });
 
   test("hides the image library table and actions when storage is disabled", () => {
     withStorageDisabled(() => {
       const html = adminImagesPage([image(8, "Poster")], OWNER_SESSION);
-      assertStringIncludes(
-        html,
-        '<p class="notice">File storage is not configured.</p>',
-      );
-      assert(
-        !html.includes('href="/admin/images/new"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("/image/poster-thumb.webp"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("Poster"),
-        "the value should not contain the searched item",
-      );
+      says(html, '<p class="notice">File storage is not configured.</p>');
+      assert(!html.includes('href="/admin/images/new"'));
+      assert(!html.includes("/image/poster-thumb.webp"));
+      assert(!html.includes("Poster"));
     });
   });
 
   test("renders the new image upload form", () => {
     withStorageEnabled(() => {
       const html = adminImageNewPage(OWNER_SESSION, "Upload failed");
-      assertStringIncludes(html, "Upload failed");
-      assertStringIncludes(html, 'action="/admin/images"');
-      assertStringIncludes(html, 'enctype="multipart/form-data"');
-      assertStringIncludes(html, '<a class="active" href="/admin/images">');
-      assertStringIncludes(
-        html,
-        '<input maxlength="250" name="name" required type="text">',
-      );
-      assertStringIncludes(
-        html,
-        '<input maxlength="250" name="alt_text" type="text">',
-      );
-      assertStringIncludes(
+      says(html, "Upload failed");
+      says(html, 'action="/admin/images"');
+      says(html, 'enctype="multipart/form-data"');
+      says(html, '<a class="active" href="/admin/images">');
+      says(html, '<input maxlength="250" name="name" required type="text">');
+      says(html, '<input maxlength="250" name="alt_text" type="text">');
+      says(
         html,
         '<input accept="image/jpeg,image/png,image/webp" name="image" type="file">',
       );
-      assertStringIncludes(html, "/icons.svg#save");
+      says(html, "/icons.svg#save");
     });
   });
 
   test("renders the new image disabled state when storage is disabled", () => {
     withStorageDisabled(() => {
       const html = adminImageNewPage(OWNER_SESSION, "Upload failed");
-      assertStringIncludes(html, "Upload failed");
-      assertStringIncludes(html, "File storage is not configured.");
-      assert(
-        !html.includes('enctype="multipart/form-data"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('name="image"'),
-        "the value should not contain the searched item",
-      );
+      says(html, "Upload failed");
+      says(html, "File storage is not configured.");
+      assert(!html.includes('enctype="multipart/form-data"'));
+      assert(!html.includes('name="image"'));
     });
   });
 
@@ -141,28 +109,19 @@ describe("admin image templates", () => {
       }),
     );
 
-    assertStringIncludes(html, "Edit Poster");
-    assertStringIncludes(html, '<div class="image-library-preview">');
-    assertStringIncludes(html, 'value="Poster"');
-    assertStringIncludes(html, "<strong>Linked items (1):</strong>");
-    assertStringIncludes(
-      html,
-      '<li class="checkboxes"><strong>Listings:</strong>',
-    );
-    assertStringIncludes(
-      html,
-      '<li class="checkboxes"><strong>Groups:</strong>',
-    );
-    assertStringIncludes(html, 'value="listing:4"');
-    assertStringIncludes(
-      html,
-      'checked name="image_items" type="checkbox" value="group:5"',
-    );
-    assertStringIncludes(html, '<a class="active" href="/admin/images">');
-    assertStringIncludes(html, '<p class="prose">');
-    assertStringIncludes(html, 'class="btn secondary"');
-    assertStringIncludes(html, "/icons.svg#trash-2");
-    assertStringIncludes(html, 'href="/admin/images/3/delete"');
+    says(html, "Edit Poster");
+    says(html, '<div class="image-library-preview">');
+    says(html, 'value="Poster"');
+    says(html, "<strong>Linked items (1):</strong>");
+    says(html, '<li class="checkboxes"><strong>Listings:</strong>');
+    says(html, '<li class="checkboxes"><strong>Groups:</strong>');
+    says(html, 'value="listing:4"');
+    says(html, 'checked name="image_items" type="checkbox" value="group:5"');
+    says(html, '<a class="active" href="/admin/images">');
+    says(html, '<p class="prose">');
+    says(html, 'class="btn secondary"');
+    says(html, "/icons.svg#trash-2");
+    says(html, 'href="/admin/images/3/delete"');
   });
 
   test("groups news and page targets under their own labelled rows", () => {
@@ -178,16 +137,10 @@ describe("admin image templates", () => {
       }),
     );
 
-    assertStringIncludes(html, '<li class="checkboxes"><strong>News:</strong>');
-    assertStringIncludes(
-      html,
-      '<li class="checkboxes"><strong>Pages:</strong>',
-    );
-    assertStringIncludes(html, 'value="news:1"');
-    assertStringIncludes(
-      html,
-      'checked name="image_items" type="checkbox" value="page:2"',
-    );
+    says(html, '<li class="checkboxes"><strong>News:</strong>');
+    says(html, '<li class="checkboxes"><strong>Pages:</strong>');
+    says(html, 'value="news:1"');
+    says(html, 'checked name="image_items" type="checkbox" value="page:2"');
   });
 
   test("renders a listings-only image as a single linked-listings line", () => {
@@ -201,16 +154,13 @@ describe("admin image templates", () => {
       session: OWNER_SESSION,
     });
 
-    assertStringIncludes(html, "<strong>Linked listings (1):</strong>");
-    assert(
-      !html.includes("Linked items"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<strong>Linked listings (1):</strong>");
+    assert(!html.includes("Linked items"));
     const active = html.indexOf('value="listing:4"');
     const retired = html.indexOf('value="listing:7"');
     expect(active).toBeGreaterThan(-1);
     expect(retired).toBeGreaterThan(active);
-    assertStringIncludes(
+    says(
       html,
       '<label class="muted"><input name="image_items" type="checkbox" value="listing:7"',
     );
@@ -223,19 +173,19 @@ describe("admin image templates", () => {
       selected: new Set(),
       session: OWNER_SESSION,
     });
-    assertStringIncludes(html, "No listings or groups yet.");
+    says(html, "No listings or groups yet.");
   });
 
   test("renders the delete confirmation page", () => {
     const html = withStorageEnabled(() =>
       adminImageDeletePage(image(2, "Remove me"), OWNER_SESSION, "Nope"),
     );
-    assertStringIncludes(html, "Delete Remove me");
-    assertStringIncludes(html, "Nope");
-    assertStringIncludes(html, 'action="/admin/images/2/delete"');
-    assertStringIncludes(html, '<a class="active" href="/admin/images">');
-    assertStringIncludes(html, '<button class="danger" type="submit">');
-    assertStringIncludes(html, "Type the image name to confirm");
+    says(html, "Delete Remove me");
+    says(html, "Nope");
+    says(html, 'action="/admin/images/2/delete"');
+    says(html, '<a class="active" href="/admin/images">');
+    says(html, '<button class="danger" type="submit">');
+    says(html, "Type the image name to confirm");
   });
 
   test("renders item image storage-disabled state", () =>
@@ -249,23 +199,11 @@ describe("admin image templates", () => {
         }),
       );
 
-      assertStringIncludes(html, "File storage is not configured.");
-      assert(
-        !html.includes("Current images"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('action="/admin/listing/1/images"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('name="image_ids"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('type="file"'),
-        "the value should not contain the searched item",
-      );
+      says(html, "File storage is not configured.");
+      assert(!html.includes("Current images"));
+      assert(!html.includes('action="/admin/listing/1/images"'));
+      assert(!html.includes('name="image_ids"'));
+      assert(!html.includes('type="file"'));
     }));
 
   test("renders empty item image selection and enabled upload form", () =>
@@ -279,10 +217,10 @@ describe("admin image templates", () => {
         }),
       );
 
-      assertStringIncludes(html, "No images linked.");
-      assertStringIncludes(html, "No images yet.");
-      assertStringIncludes(html, 'enctype="multipart/form-data"');
-      assertStringIncludes(html, 'name="image"');
+      says(html, "No images linked.");
+      says(html, "No images yet.");
+      says(html, 'enctype="multipart/form-data"');
+      says(html, 'name="image"');
     }));
 
   test("renders selected item image checkboxes in current item order", () =>
@@ -300,11 +238,8 @@ describe("admin image templates", () => {
         }),
       );
 
-      assertStringIncludes(
-        html,
-        '<fieldset class="checkboxes image-picker-checkboxes">',
-      );
-      assertStringIncludes(html, "/icons.svg#plus");
+      says(html, '<fieldset class="checkboxes image-picker-checkboxes">');
+      says(html, "/icons.svg#plus");
       const first = html.indexOf('name="image_ids" type="checkbox" value="1"');
       const second = html.indexOf('name="image_ids" type="checkbox" value="2"');
       const library = html.indexOf(

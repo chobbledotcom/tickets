@@ -1,10 +1,11 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { advancedDefaultState } from "#test/ui/templates/admin/settings-advanced/state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 
 const availableTags = (keys: readonly string[]): string =>
   `Available tags: ${keys.map((key) => `{{${key}}}`).join(", ")}`;
@@ -22,18 +23,15 @@ describe("column order settings forms", () => {
       }),
     );
 
-    assertStringIncludes(html, 'action="/admin/settings/listing-column-order"');
-    assertStringIncludes(html, "<h2>Listing table columns</h2>");
-    assertStringIncludes(html, 'name="column_order"');
-    assertStringIncludes(html, `placeholder="${definition.defaultTemplate}"`);
-    assertStringIncludes(html, `value="${definition.defaultTemplate}"`);
-    assert(
-      !html.includes('value="{{phone}}"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, availableTags(definition.keys));
-    assertStringIncludes(html, 'href="/admin/guide#column-order"');
-    assertStringIncludes(html, "Save listing columns");
+    says(html, 'action="/admin/settings/listing-column-order"');
+    says(html, "<h2>Listing table columns</h2>");
+    says(html, 'name="column_order"');
+    says(html, `placeholder="${definition.defaultTemplate}"`);
+    says(html, `value="${definition.defaultTemplate}"`);
+    assert(!html.includes('value="{{phone}}"'));
+    says(html, availableTags(definition.keys));
+    says(html, 'href="/admin/guide#column-order"');
+    says(html, "Save listing columns");
   });
 
   test("shows the saved attendee template without replacing its placeholder", () => {
@@ -48,19 +46,13 @@ describe("column order settings forms", () => {
       }),
     );
 
-    assertStringIncludes(
-      html,
-      'action="/admin/settings/attendee-column-order"',
-    );
-    assertStringIncludes(html, "<h2>Attendee table columns</h2>");
-    assertStringIncludes(html, `placeholder="${definition.defaultTemplate}"`);
-    assertStringIncludes(html, `value="${saved}"`);
-    assert(
-      !html.includes('value="{{profit}}"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, availableTags(definition.keys));
-    assertStringIncludes(html, "A column is hidden when no attendee has data");
-    assertStringIncludes(html, "Save attendee columns");
+    says(html, 'action="/admin/settings/attendee-column-order"');
+    says(html, "<h2>Attendee table columns</h2>");
+    says(html, `placeholder="${definition.defaultTemplate}"`);
+    says(html, `value="${saved}"`);
+    assert(!html.includes('value="{{profit}}"'));
+    says(html, availableTags(definition.keys));
+    says(html, "A column is hidden when no attendee has data");
+    says(html, "Save attendee columns");
   });
 });

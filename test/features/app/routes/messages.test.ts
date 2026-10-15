@@ -1,7 +1,6 @@
 // test-groups: run-alone - grouped route imports can mask the cold module
 // evaluation this suite verifies.
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -10,6 +9,7 @@ import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withColdMessages } from "#test-utils/i18n.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { enablePublicApi, enablePublicSite } from "#test-utils/settings.ts";
 
@@ -102,7 +102,7 @@ describeWithEnv("route message loading", { db: true }, () => {
       const response = await handleRequest(mockRequest(`/t/${token}`));
 
       expect(response.status).toBe(200);
-      assertStringIncludes(await response.text(), 'alt="QR code"');
+      says(await response.text(), 'alt="QR code"');
     });
   });
 

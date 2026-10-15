@@ -2,7 +2,6 @@
  * Posting a payload: the direct request made and its typed delivery result.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -21,6 +20,7 @@ import {
   withErrorSpy,
 } from "#test/shared/webhook/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("sendWebhook", { db: true }, () => {
   const fetchSpy = stubWebhookFetch();
@@ -88,7 +88,7 @@ describeWithEnv("sendWebhook", { db: true }, () => {
       ];
       expect(firstUrl).toBe("https://example.com/webhook");
       expect(firstOptions.redirect).toBe("manual");
-      assertStringIncludes(String(firstOptions.body ?? ""), privacySentinel);
+      says(String(firstOptions.body ?? ""), privacySentinel);
       expect(redirectedBody).toBeNull();
     });
   }

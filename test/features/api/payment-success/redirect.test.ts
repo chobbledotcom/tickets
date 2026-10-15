@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
@@ -13,6 +13,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubPaidCheckout } from "#test-utils/payment-session.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv("the paid success redirect", { db: true }, () => {
@@ -57,9 +58,9 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
 
     expect(response.status).toBe(200);
     const page = await response.text();
-    assertStringIncludes(page, 'data-payment-result="success"');
-    assertStringIncludes(page, "https://example.com/parent-thanks");
-    assertStringIncludes(page, 'href="/t/');
+    says(page, 'data-payment-result="success"');
+    says(page, "https://example.com/parent-thanks");
+    says(page, 'href="/t/');
   });
 
   test("replays an already-processed checkout from the listing's thank-you URL", async () => {
@@ -78,8 +79,8 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
 
     expect(replay.status).toBe(200);
     const page = await replay.text();
-    assertStringIncludes(page, 'data-payment-result="success"');
-    assertStringIncludes(page, "url=https://example.com/listing-thanks");
+    says(page, 'data-payment-result="success"');
+    says(page, "url=https://example.com/listing-thanks");
   });
 
   test("keeps the intent's thank-you URL when a single-listing replay recomputes", async () => {
@@ -102,11 +103,8 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
     const replay = await visit("cs_paid_parent_replay");
 
     const page = await replay.text();
-    assertStringIncludes(page, "url=https://example.com/parent-thanks");
-    assert(
-      !page.includes("listing-thanks"),
-      "the value should not contain the searched item",
-    );
+    says(page, "url=https://example.com/parent-thanks");
+    assert(!page.includes("listing-thanks"));
   });
 
   test("hides an explicit thank-you URL for a concealing package", async () => {
@@ -158,18 +156,12 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
       const first = await visit(sessionId);
       expect(first.status).toBe(explicit ? 200 : 302);
       if (explicit) {
-        assertStringIncludes(
-          await first.text(),
-          "url=https://example.com/mixed-thanks",
-        );
+        says(await first.text(), "url=https://example.com/mixed-thanks");
       }
       await clearSessionTokens(sessionId);
       const replay = await visit(sessionId);
       expect(replay.status).toBe(200);
-      assertStringIncludes(
-        await replay.text(),
-        "url=https://example.com/mixed-thanks",
-      );
+      says(await replay.text(), "url=https://example.com/mixed-thanks");
     });
   }
 
@@ -224,11 +216,8 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
 
     expect(replay.status).toBe(200);
     const page = await replay.text();
-    assertStringIncludes(page, 'data-payment-result="success"');
-    assert(
-      !page.includes('http-equiv="refresh"'),
-      "the value should not contain the searched item",
-    );
+    says(page, 'data-payment-result="success"');
+    assert(!page.includes('http-equiv="refresh"'));
   });
 
   test("renders a replay without a thank-you URL when the listing was deleted", async () => {
@@ -248,15 +237,9 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
 
     expect(replay.status).toBe(200);
     const page = await replay.text();
-    assertStringIncludes(page, 'data-payment-result="success"');
-    assert(
-      !page.includes("gone-thanks"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !page.includes('http-equiv="refresh"'),
-      "the value should not contain the searched item",
-    );
+    says(page, 'data-payment-result="success"');
+    assert(!page.includes("gone-thanks"));
+    assert(!page.includes('http-equiv="refresh"'));
   });
 
   test("accepts Square's orderId redirect parameter", async () => {

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -23,6 +22,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -243,8 +243,8 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     test("holidays link visible to owners", async () => {
       const response = await adminGet("/admin/holidays");
       const body = await response.text();
-      assertStringIncludes(body, "/admin/holidays");
-      assertStringIncludes(body, "Holidays");
+      says(body, "/admin/holidays");
+      says(body, "Holidays");
     });
   });
 

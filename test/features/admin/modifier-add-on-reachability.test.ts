@@ -2,13 +2,13 @@
  * route to the buyer is a suppressed child earns the refusal, and reaching a
  * serving page of its own resolves the save. */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { childAddOnSaveError } from "#routes/admin/modifier-add-on-reachability.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { optInAddOnForListings } from "#test-utils/modifiers.ts";
 import { makeParent } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("db > modifier child-add-on reachability", { db: true }, () => {
   /** The candidate for an opt-in add-on linked to the named listings. The
@@ -27,10 +27,7 @@ describeWithEnv("db > modifier child-add-on reachability", { db: true }, () => {
     const { child } = await makeParent();
     await optInAddOnForListings("Link extra", [child.id]);
 
-    assertStringIncludes(
-      (await saveFor("Link extra", [child.id])) ?? "",
-      "Link extra",
-    );
+    says(await saveFor("Link extra", [child.id]), "Link extra");
   });
 
   test("a bookable_alone child serves its own page and resolves the save", async () => {

@@ -11,11 +11,11 @@
  * one-at-a-time rule that keeps a single click answering one prompt.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { showConfirm } from "#src/ui/client/confirm-dialog.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 import {
   el,
   forcedNoDoorScan,
@@ -135,7 +135,7 @@ describe("scanner confirmations", {
     await done;
 
     expect(h.statusEl.textContent).toBe("ID does not match Ada");
-    assertStringIncludes(h.statusEl.className, "scanner-status-error");
+    says(h.statusEl.className, "scanner-status-error");
     // The refusal is the end: no verified rescan went out.
     expect(fetchStub.calls.length).toBe(2);
   });
@@ -146,7 +146,7 @@ describe("scanner confirmations", {
     using _fetch = fetchStub;
 
     await whenTextShows(h.statusEl, "This ticket has no door to check in at.");
-    assertStringIncludes(h.statusEl.className, "scanner-status-error");
+    says(h.statusEl.className, "scanner-status-error");
     await done;
     expect(fetchStub.calls.length).toBe(2);
   });
@@ -167,7 +167,7 @@ describe("scanner confirmations", {
 
     expect(bodies).toEqual([{ token: "tok" }]);
     expect(h.statusEl.textContent).toBe("Skipped Ada");
-    assertStringIncludes(h.statusEl.className, "scanner-status-warning");
+    says(h.statusEl.className, "scanner-status-warning");
   });
 
   test("declining the quantity ask skips the person with a warning", async () => {
@@ -191,7 +191,7 @@ describe("scanner confirmations", {
 
     expect(bodies).toEqual([{ token: "tok" }, { force: true, token: "tok" }]);
     expect(h.statusEl.textContent).toBe("Skipped Ada");
-    assertStringIncludes(h.statusEl.className, "scanner-status-warning");
+    says(h.statusEl.className, "scanner-status-warning");
   });
 
   test("keeps the override on every later ask, so a forced ticket can pick a count", async () => {

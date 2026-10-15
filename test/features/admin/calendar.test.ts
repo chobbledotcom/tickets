@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { formatDateLabel } from "#shared/date-labels.ts";
@@ -18,6 +18,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import {
   bookDailyTicket,
   fetchCalendarHtml,
@@ -103,21 +104,21 @@ describeWithEnv(
       test("shows empty dropdown when no daily listings exist", async () => {
         await createTestListing({ name: "Standard Listing" });
         const html = await fetchCalendarHtml();
-        assertStringIncludes(html, "Select a date");
+        says(html, "Select a date");
       });
 
       test("shows available dates from daily listings", async () => {
         await createDailyTestListing();
         const html = await fetchCalendarHtml();
         // Should contain at least one date option
-        assertStringIncludes(html, "disabled");
+        says(html, "disabled");
       });
 
       test("includes attendee dates in dropdown", async () => {
         const { date } = await setupDailyBooking();
         const html = await fetchCalendarHtml();
         // The date with a booking should be selectable (not disabled)
-        assertStringIncludes(html, `date=${date}`);
+        says(html, `date=${date}`);
       });
 
       test("marks every day of a multi-day booking as selectable", async () => {
@@ -134,13 +135,12 @@ describeWithEnv(
         const html = await fetchCalendarHtml();
         // Both the start day and the second day must be selectable links,
         // not disabled options — the booking occupies both days.
-        assertStringIncludes(html, `date=${start}`);
-        assertStringIncludes(html, `date=${secondDay}`);
+        says(html, `date=${start}`);
+        says(html, `date=${secondDay}`);
         assert(
           !html.includes(
             `<option disabled>${formatDateLabel(secondDay)}</option>`,
           ),
-          "the value should not contain the searched item",
         );
       });
 
@@ -160,37 +160,34 @@ describeWithEnv(
         });
 
         const html = await fetchCalendarHtml(`/admin/calendar?date=${date1}`);
-        assertStringIncludes(html, "User A");
-        assert(
-          !html.includes("User B"),
-          "the value should not contain the searched item",
-        );
+        says(html, "User A");
+        assert(!html.includes("User B"));
       });
 
       test("shows attendees from multiple daily listings for same date", async () => {
         const { listing1, listing2, date } = await setupTwoDailyBookings();
 
         const html = await fetchCalendarHtml(`/admin/calendar?date=${date}`);
-        assertStringIncludes(html, "User A");
-        assertStringIncludes(html, "User B");
+        says(html, "User A");
+        says(html, "User B");
         // Both listing names should appear
-        assertStringIncludes(html, listing1.name);
-        assertStringIncludes(html, listing2.name);
+        says(html, listing1.name);
+        says(html, listing2.name);
       });
 
       test("links listing name to listing page", async () => {
         const { listing, date } = await setupDailyBooking();
 
         const html = await fetchCalendarHtml(`/admin/calendar?date=${date}`);
-        assertStringIncludes(html, `href="/admin/listing/${listing.id}"`);
+        says(html, `href="/admin/listing/${listing.id}"`);
       });
 
       test("shows Export CSV link when attendees exist for date", async () => {
         const { date } = await setupDailyBooking();
 
         const html = await fetchCalendarHtml(`/admin/calendar?date=${date}`);
-        assertStringIncludes(html, "Export CSV");
-        assertStringIncludes(html, `/admin/calendar/export?date=${date}`);
+        says(html, "Export CSV");
+        says(html, `/admin/calendar/export?date=${date}`);
       });
 
       test("does not show Export CSV link when no attendees for date", async () => {
@@ -200,10 +197,7 @@ describeWithEnv(
         const html = await fetchCalendarHtml(
           `/admin/calendar?date=${validDate}`,
         );
-        assert(
-          !html.includes("Export CSV"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Export CSV"));
       });
 
       test("ignores invalid date parameter", async () => {
@@ -221,37 +215,31 @@ describeWithEnv(
         await createTestListing({ name: "Standard Listing" });
         const html = await fetchCalendarHtml();
         // A dateless standard listing contributes no selectable date…
-        assert(
-          !html.includes("?date="),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("?date="));
         // …but it is still bookable, so the availability checker lists it.
-        assertStringIncludes(html, "Standard Listing");
+        says(html, "Standard Listing");
       });
 
       test("shows standard listing date in dropdown", async () => {
         await createTestListing({ date: "2026-06-15T14:00", name: "Concert" });
         const html = await fetchCalendarHtml();
         // Standard listing date appears as a formatted label in the dropdown
-        assertStringIncludes(html, "Monday 15 June 2026");
+        says(html, "Monday 15 June 2026");
       });
 
       test("shows standard listing attendees when date is selected", async () => {
         await setupStandardConcertBooking();
 
         const html = await fetchCalendarHtml("/admin/calendar?date=2026-06-15");
-        assertStringIncludes(html, "Concert Fan");
-        assertStringIncludes(html, "Concert");
+        says(html, "Concert Fan");
+        says(html, "Concert");
       });
 
       test("does not show standard listing attendees on wrong date", async () => {
         await setupStandardConcertBooking();
 
         const html = await fetchCalendarHtml("/admin/calendar?date=2026-06-16");
-        assert(
-          !html.includes("Concert Fan"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Concert Fan"));
       });
 
       test("shows mixed daily and standard listing attendees for same date", async () => {
@@ -261,10 +249,10 @@ describeWithEnv(
         const html = await fetchCalendarHtml(
           `/admin/calendar?date=${listingDate}`,
         );
-        assertStringIncludes(html, "Daily User");
-        assertStringIncludes(html, "Standard User");
-        assertStringIncludes(html, dailyListing.name);
-        assertStringIncludes(html, "Workshop");
+        says(html, "Daily User");
+        says(html, "Standard User");
+        says(html, dailyListing.name);
+        says(html, "Workshop");
       });
 
       test("marks standard listing date as having bookings when attendees exist", async () => {
@@ -279,7 +267,7 @@ describeWithEnv(
 
         const html = await fetchCalendarHtml();
         // Date with bookings should be a clickable link (not disabled)
-        assertStringIncludes(html, "date=2026-06-15");
+        says(html, "date=2026-06-15");
       });
 
       test("shows multiple standard listings on same date", async () => {
@@ -301,10 +289,10 @@ describeWithEnv(
         });
 
         const html = await fetchCalendarHtml("/admin/calendar?date=2026-06-15");
-        assertStringIncludes(html, "Morning Fan");
-        assertStringIncludes(html, "Evening Fan");
-        assertStringIncludes(html, "Morning Concert");
-        assertStringIncludes(html, "Evening Concert");
+        says(html, "Morning Fan");
+        says(html, "Evening Fan");
+        says(html, "Morning Concert");
+        says(html, "Evening Concert");
       });
 
       test("does not show standard attendees when no standard listings match date", async () => {
@@ -319,10 +307,7 @@ describeWithEnv(
 
         // Request a completely different date
         const html = await fetchCalendarHtml("/admin/calendar?date=2026-07-01");
-        assert(
-          !html.includes("Concert Fan"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Concert Fan"));
       });
 
       test("standard listing date without attendees shows as disabled", async () => {
@@ -333,16 +318,13 @@ describeWithEnv(
 
         const html = await fetchCalendarHtml();
         // The date should appear as a disabled option (no bookings)
-        assertStringIncludes(
-          html,
-          "<option disabled>Monday 15 June 2026</option>",
-        );
+        says(html, "<option disabled>Monday 15 June 2026</option>");
       });
 
       test("renders the calendar grid", async () => {
         const html = await fetchCalendarHtml();
-        assertStringIncludes(html, 'class="calendar"');
-        assertStringIncludes(html, "calendar-grid");
+        says(html, 'class="calendar"');
+        says(html, "calendar-grid");
       });
 
       test("the cal parameter sets the displayed month", async () => {
@@ -361,10 +343,7 @@ describeWithEnv(
       test("a booked date is a clickable day link in the grid", async () => {
         const { date } = await setupDailyBooking();
         const html = await fetchCalendarHtml(`/admin/calendar?date=${date}`);
-        assertStringIncludes(
-          html,
-          `href="/admin/calendar?date=${date}#attendees"`,
-        );
+        says(html, `href="/admin/calendar?date=${date}#attendees"`);
       });
 
       test("paging months keeps the selected date's attendees", async () => {
@@ -374,7 +353,7 @@ describeWithEnv(
         const html = await fetchCalendarHtml(
           `/admin/calendar?date=${date}&cal=2030-01`,
         );
-        assertStringIncludes(html, "User A");
+        says(html, "User A");
         expect(html).toMatch(/<option selected[^>]*>January 2030<\/option>/);
       });
     });
@@ -411,10 +390,10 @@ describeWithEnv(
         expect(lines[0]).toBe(
           "Listing,Type,Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
         );
-        assertStringIncludes(lines[1] ?? "", listing.name);
-        assertStringIncludes(lines[1] ?? "", date);
-        assertStringIncludes(lines[1] ?? "", "User A");
-        assertStringIncludes(lines[1] ?? "", "Attendee");
+        says(lines[1], listing.name);
+        says(lines[1], date);
+        says(lines[1], "User A");
+        says(lines[1], "Attendee");
       });
 
       test("includes attendees from multiple listings", async () => {
@@ -424,10 +403,10 @@ describeWithEnv(
           `/admin/calendar/export?date=${tomorrow()}`,
         );
         const csv = await response.text();
-        assertStringIncludes(csv, "User A");
-        assertStringIncludes(csv, "User B");
-        assertStringIncludes(csv, listing1.name);
-        assertStringIncludes(csv, listing2.name);
+        says(csv, "User A");
+        says(csv, "User B");
+        says(csv, listing1.name);
+        says(csv, listing2.name);
       });
 
       test("returns empty CSV when no attendees for date", async () => {
@@ -440,7 +419,7 @@ describeWithEnv(
         const csv = await response.text();
         const lines = csv.split("\n");
         expect(lines).toHaveLength(1);
-        assertStringIncludes(lines[0] ?? "", "Listing,Type,Date,Name");
+        says(lines[0], "Listing,Type,Date,Name");
       });
 
       test("includes standard listing attendees in CSV export", async () => {
@@ -457,8 +436,8 @@ describeWithEnv(
           "/admin/calendar/export?date=2026-06-15",
         );
         const csv = await response.text();
-        assertStringIncludes(csv, "Concert");
-        assertStringIncludes(csv, "CSV Fan");
+        says(csv, "Concert");
+        says(csv, "CSV Fan");
       });
 
       test("includes mixed daily and standard attendees in CSV export", async () => {
@@ -473,10 +452,10 @@ describeWithEnv(
           `/admin/calendar/export?date=${listingDate}`,
         );
         const csv = await response.text();
-        assertStringIncludes(csv, "Daily CSV");
-        assertStringIncludes(csv, "Standard CSV");
-        assertStringIncludes(csv, dailyListing.name);
-        assertStringIncludes(csv, "Workshop");
+        says(csv, "Daily CSV");
+        says(csv, "Standard CSV");
+        says(csv, dailyListing.name);
+        says(csv, "Workshop");
       });
     });
   },

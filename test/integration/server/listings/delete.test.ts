@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -18,6 +17,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -132,7 +132,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
         cookie,
       );
       const html = await page.text();
-      assertStringIncludes(html, "does not match");
+      says(html, "does not match");
     });
 
     test("deletes listing with matching identifier (case insensitive)", async () => {

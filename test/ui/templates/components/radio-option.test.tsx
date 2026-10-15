@@ -1,7 +1,8 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { RadioOption } from "#templates/components/radio-option.tsx";
+import { says } from "#test-utils/says.ts";
 
 describe("RadioOption", () => {
   test("labels a radio input with its children", () => {
@@ -23,7 +24,7 @@ describe("RadioOption", () => {
       </RadioOption>,
     );
 
-    assertStringIncludes(html, "checked");
+    says(html, "checked");
   });
 
   test("switches the input off when disabled", () => {
@@ -33,7 +34,7 @@ describe("RadioOption", () => {
       </RadioOption>,
     );
 
-    assertStringIncludes(html, "disabled");
+    says(html, "disabled");
   });
 
   test("leaves the input on when not disabled", () => {
@@ -43,9 +44,6 @@ describe("RadioOption", () => {
       </RadioOption>,
     );
 
-    assert(
-      !html.includes("disabled"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("disabled"));
   });
 });

@@ -5,7 +5,6 @@
  * ticket-payment.test.ts so both files stay small.
  */
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing, type TicketListing } from "#booking/model.ts";
@@ -25,6 +24,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { makeParent } from "#test-utils/parents.ts";
+import { has } from "#test-utils/says.ts";
 import type { ListingWithCount } from "#types";
 import { ticketListingFor } from "./helpers.ts";
 
@@ -283,8 +283,8 @@ describeWithEnv("routes > public > ticket-payment dates", { db: true }, () => {
       // Two allocations: one per (child, parent) pair.
       expect(fold.allocations).toHaveLength(2);
       const parentIds = fold.allocations.map((a) => a.parentId);
-      assertArrayIncludes(parentIds, [parentA.id]);
-      assertArrayIncludes(parentIds, [parentB.id]);
+      has(parentIds, parentA.id);
+      has(parentIds, parentB.id);
       // Every allocation is for the shared child with qty 1.
       expect(fold.allocations.every((a) => a.childId === child.id)).toBe(true);
       expect(fold.allocations.every((a) => a.qty === 1)).toBe(true);

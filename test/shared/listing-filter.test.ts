@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups } from "#i18n";
@@ -17,6 +17,7 @@ import {
   renderGroupFilter,
   renderTypeFilter,
 } from "#shared/listing-filter.ts";
+import { says } from "#test-utils/says.ts";
 import type { ListingType } from "#types";
 
 // The filter labels resolve through the catalog, so it must be loaded first.
@@ -178,14 +179,8 @@ describe("renderTypeFilter", () => {
         ' / <a href="/admin/listings?type=standard">Standard</a>' +
         "</div>",
     );
-    assert(
-      !html.includes("?type=daily"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("No check-in"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("?type=daily"));
+    assert(!html.includes("No check-in"));
   });
 
   test("does not duplicate 'All' when 'all' is itself passed in categories", () => {
@@ -330,11 +325,8 @@ describe("renderGroupFilter", () => {
       [{ id: 4, name: "<img src=x onerror=alert(1)>" }],
       href,
     );
-    assertStringIncludes(html, "&lt;img src=x onerror=alert(1)&gt;");
-    assert(
-      !html.includes("<img"),
-      "the value should not contain the searched item",
-    );
+    says(html, "&lt;img src=x onerror=alert(1)&gt;");
+    assert(!html.includes("<img"));
   });
 
   test("renders nothing when the site stores no groups", () => {

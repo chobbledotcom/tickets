@@ -7,13 +7,14 @@
  * operator submitted, or one worked out from what they typed.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
 import { testListingInput } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, adminMultipartPost } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
@@ -42,11 +43,8 @@ describeWithEnv("opening the new listing form", { db: true }, () => {
   test("offers the type picker when no template is named", async () => {
     const html = await (await adminGet("/admin/listing/new")).text();
 
-    assertStringIncludes(html, PICKER_HEADING);
-    assert(
-      !html.includes(FORM_HEADING),
-      "the value should not contain the searched item",
-    );
+    says(html, PICKER_HEADING);
+    assert(!html.includes(FORM_HEADING));
   });
 
   test("opens the form for a named template and remembers it", async () => {
@@ -54,11 +52,8 @@ describeWithEnv("opening the new listing form", { db: true }, () => {
       await adminGet("/admin/listing/new?template=one-off-event")
     ).text();
 
-    assertStringIncludes(html, FORM_HEADING);
-    assert(
-      !html.includes(PICKER_HEADING),
-      "the value should not contain the searched item",
-    );
+    says(html, FORM_HEADING);
+    assert(!html.includes(PICKER_HEADING));
     expect(carriedTemplate(html)).toBe("one-off-event");
   });
 
@@ -67,7 +62,7 @@ describeWithEnv("opening the new listing form", { db: true }, () => {
       await adminGet("/admin/listing/new?template=custom")
     ).text();
 
-    assertStringIncludes(html, FORM_HEADING);
+    says(html, FORM_HEADING);
     expect(carriedTemplate(html)).toBe("custom");
   });
 
@@ -76,11 +71,8 @@ describeWithEnv("opening the new listing form", { db: true }, () => {
       await adminGet("/admin/listing/new?template=hireable-item")
     ).text();
 
-    assertStringIncludes(html, PICKER_HEADING);
-    assert(
-      !html.includes(FORM_HEADING),
-      "the value should not contain the searched item",
-    );
+    says(html, PICKER_HEADING);
+    assert(!html.includes(FORM_HEADING));
   });
 
   test("opens the same logistics template once the feature is on", async () => {
@@ -90,7 +82,7 @@ describeWithEnv("opening the new listing form", { db: true }, () => {
         await adminGet("/admin/listing/new?template=hireable-item")
       ).text();
 
-      assertStringIncludes(html, FORM_HEADING);
+      says(html, FORM_HEADING);
       expect(carriedTemplate(html)).toBe("hireable-item");
     } finally {
       settings.clearTestOverride("enabled_features");

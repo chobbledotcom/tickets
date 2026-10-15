@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
@@ -13,6 +12,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("validateListingInput boundaries", { db: true }, () => {
   test("accepts a maximum price at least one currency unit above the ticket price", async () => {
@@ -89,7 +89,7 @@ describeWithEnv("validateListingInput boundaries", { db: true }, () => {
     const error = await validateListingInput(
       inputFor({ groupIds: [group.id], name: "Standard Candidate" }),
     );
-    assertStringIncludes(error ?? "", "same type");
+    says(error, "same type");
   });
 
   test("defaults an omitted customisable-days flag to false for group checks", async () => {

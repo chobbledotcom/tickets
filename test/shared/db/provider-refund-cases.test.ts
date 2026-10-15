@@ -1,4 +1,3 @@
-import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, queryOne } from "#db/client.ts";
@@ -35,6 +34,7 @@ import {
   readyRefundTestState,
 } from "#test-utils/provider-refund-cases.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import type { PaymentProviderType } from "#types";
 
 const taggedReference = (
@@ -158,20 +158,22 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
     const queueQuery = queries.find((query) =>
       query.includes("FROM payment_charges AS charge"),
     );
-    assertStringIncludes(queueQuery ?? "", "LIMIT ?");
-    assert(
-      queueQuery?.includes("provider_reference") === false,
+    says(queueQuery, "LIMIT ?");
+    saysNot(
+      queueQuery,
+      "provider_reference",
       "the value should not contain the searched item",
     );
-    assert(
-      queueQuery?.includes("refund_state,") === false,
+    saysNot(
+      queueQuery,
+      "refund_state,",
       "the value should not contain the searched item",
     );
     const plan = await getDb().execute({
       args: [21],
       sql: `EXPLAIN QUERY PLAN ${queueQuery}`,
     });
-    assertStringIncludes(
+    says(
       plan.rows.map((row) => String(row.detail)).join(" "),
       "idx_payment_charges_refund_state",
     );
@@ -213,8 +215,8 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
     const detailQuery = queries.find((query) =>
       query.includes("FROM payment_charges AS charge"),
     );
-    assertStringIncludes(detailQuery ?? "", "WHERE charge.id = ?");
-    assertStringIncludes(detailQuery ?? "", "LIMIT 1");
+    says(detailQuery, "WHERE charge.id = ?");
+    says(detailQuery, "LIMIT 1");
   });
 
   test("does not expose returned money whose local recording is finished", async () => {

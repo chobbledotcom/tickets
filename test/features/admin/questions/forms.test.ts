@@ -1,7 +1,7 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups } from "#i18n";
+import { says } from "#test-utils/says.ts";
 
 // The question form's hint renders copy at module load, so the group must be
 // in place before the route module is imported — as the area loader
@@ -17,11 +17,11 @@ const { answerTextForm, questionTextForm } = await import(
 describe("question/answer form field rendering", () => {
   test("questionTextForm renders the markdown text field with its placeholder", () => {
     const html = questionTextForm.render();
-    assertStringIncludes(html, "Question text");
-    assertStringIncludes(html, "<textarea");
-    assertStringIncludes(html, 'placeholder="e.g. What is your T-shirt size?"');
+    says(html, "Question text");
+    says(html, "<textarea");
+    says(html, 'placeholder="e.g. What is your T-shirt size?"');
     // markdown: true enables the in-editor preview hook
-    assertStringIncludes(html, "data-markdown-preview");
+    says(html, "data-markdown-preview");
   });
 
   test("questionTextForm requires both of its fields", () => {
@@ -34,19 +34,19 @@ describe("question/answer form field rendering", () => {
 
   test("questionTextForm renders the display-type select with mapped labels", () => {
     const html = questionTextForm.render();
-    assertStringIncludes(html, "Display as");
-    assertStringIncludes(html, "<select");
+    says(html, "Display as");
+    says(html, "<select");
     // Each stored value maps to its own human label; a swapped ternary arm or
     // flipped === would mislabel one of these.
-    assertStringIncludes(html, '<option value="radio">Radio buttons</option>');
-    assertStringIncludes(html, '<option value="select">Select box</option>');
-    assertStringIncludes(html, '<option value="free_text">Free text</option>');
+    says(html, '<option value="radio">Radio buttons</option>');
+    says(html, '<option value="select">Select box</option>');
+    says(html, '<option value="free_text">Free text</option>');
   });
 
   test("answerTextForm renders a text input with its placeholder", () => {
     const html = answerTextForm.render();
-    assertStringIncludes(html, "Answer text");
-    assertStringIncludes(html, 'type="text"');
-    assertStringIncludes(html, 'placeholder="e.g. Medium"');
+    says(html, "Answer text");
+    says(html, 'type="text"');
+    says(html, 'placeholder="e.g. Medium"');
   });
 });

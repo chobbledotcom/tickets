@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { MANUAL_ATTENDEE_CHARGE } from "#accounting/manual-entries.ts";
@@ -12,6 +12,7 @@ import {
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
@@ -24,22 +25,19 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "Edit money change");
-    assertStringIncludes(html, 'name="amount"');
-    assertStringIncludes(html, 'value="12.34"');
-    assertStringIncludes(html, 'name="occurred_at"');
-    assertStringIncludes(html, 'value="2026-06-22T09:30"');
-    assertStringIncludes(html, "Delete money change");
-    assertStringIncludes(
-      html,
-      "Warning: This permanently deletes this money change.",
-    );
-    assertStringIncludes(
+    says(html, "Edit money change");
+    says(html, 'name="amount"');
+    says(html, 'value="12.34"');
+    says(html, 'name="occurred_at"');
+    says(html, 'value="2026-06-22T09:30"');
+    says(html, "Delete money change");
+    says(html, "Warning: This permanently deletes this money change.");
+    says(
       html,
       `Type the exact amount &quot;${formatCurrency(1234)}&quot; to confirm.`,
     );
-    assertStringIncludes(html, formatCurrency(1234));
-    assertStringIncludes(html, 'name="confirm_identifier"');
+    says(html, formatCurrency(1234));
+    says(html, 'name="confirm_identifier"');
   });
 
   test("edit pages without a return_url fall back to the ledger", async () => {
@@ -49,14 +47,8 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     const response = await adminGet(`/admin/ledger/entries/${entry!.id}/edit`);
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(
-      html,
-      'name="return_url" type="hidden" value="/admin/ledger"',
-    );
-    assert(
-      !html.includes('value="/null"'),
-      "the value should not contain the searched item",
-    );
+    says(html, 'name="return_url" type="hidden" value="/admin/ledger"');
+    assert(!html.includes('value="/null"'));
   });
 
   test("404s edit and delete maintenance routes for checkout-event transfers", async () => {
@@ -134,8 +126,8 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
         },
       );
       expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
+      says(
+        response.headers.get("location"),
         `/admin/ledger/entries/${entry!.id}/edit`,
       );
       const [unchanged] = await allTransfers();
@@ -174,8 +166,8 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
       confirm_identifier: "£0.01",
       return_url: `/admin/attendees/${attendeeId}`,
     });
-    assertStringIncludes(
-      wrong.response.headers.get("location") ?? "",
+    says(
+      wrong.response.headers.get("location"),
       `/admin/ledger/entries/${entry!.id}/edit`,
     );
     expect(await allTransfers()).toHaveLength(1);
@@ -214,15 +206,12 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     const response = await adminGet(filteredPath);
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(
+    says(
       html,
       `/admin/ledger/entries/${entry!.id}/edit?return_url=${encodeURIComponent(
         filteredPath,
       )}`,
     );
-    assert(
-      !html.includes("return_url=NaN"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("return_url=NaN"));
   });
 });

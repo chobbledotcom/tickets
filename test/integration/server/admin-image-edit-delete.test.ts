@@ -1,4 +1,3 @@
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -31,6 +30,7 @@ import {
   withStorageDisabled,
   withStorageMock,
 } from "#test-utils/mocks.ts";
+import { has, says } from "#test-utils/says.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -69,7 +69,7 @@ describeWithEnv(
         const response = await adminGet(`/admin/images/${image.id}/edit`);
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "<strong>Linked listings (0):</strong>");
+        says(html, "<strong>Linked listings (0):</strong>");
         const liveIndex = html.indexOf(`value="listing:${live.id}"`);
         const retiredIndex = html.indexOf(
           `<label class="muted"><input name="image_items" type="checkbox" value="listing:${retired.id}"`,
@@ -163,7 +163,7 @@ describeWithEnv(
         const messages = (await getAllActivityLog()).map(
           (entry) => entry.message,
         );
-        assertArrayIncludes(messages, ["Image 'Updated' updated"]);
+        has(messages, "Image 'Updated' updated");
       });
 
       test("keeps an existing item image order during metadata-only saves", async () => {
@@ -313,7 +313,7 @@ describeWithEnv(
         const messages = (await getAllActivityLog()).map(
           (entry) => entry.message,
         );
-        assertArrayIncludes(messages, ["Image 'Discard' deleted"]);
+        has(messages, "Image 'Discard' deleted");
       });
 
       test("keeps the image row when storage cleanup fails", async () => {

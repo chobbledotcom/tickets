@@ -4,7 +4,7 @@
  * with a stand-in record rather than one of them.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -13,6 +13,7 @@ import { defineSiteContentPage } from "#routes/admin/site-content-page.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { withStorageEnabled } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { getTestAuthSession } from "#test-utils/session.ts";
 
 type Leaflet = { id: number; name: string };
@@ -44,8 +45,8 @@ describeWithEnv("a site content page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, "<h1>Opening times</h1>");
-    assertStringIncludes(html, "<p>Edit Opening times</p>");
+    says(html, "<h1>Opening times</h1>");
+    says(html, "<p>Edit Opening times</p>");
   });
 
   test("puts the extra tabs between edit and actions", async () => {
@@ -66,10 +67,7 @@ describeWithEnv("a site content page", { db: true }, () => {
 
     const html = await (await page.renderPage(session, 3, "")).text();
 
-    assert(
-      !html.includes('href="/admin/site/pages/3/images"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('href="/admin/site/pages/3/images"'));
   });
 
   test("adds the images tab once a storage zone is configured", async () => {
@@ -79,7 +77,7 @@ describeWithEnv("a site content page", { db: true }, () => {
       (await page.renderPage(session, 3, "")).text(),
     );
 
-    assertStringIncludes(html, 'href="/admin/site/pages/3/images">Images</a>');
+    says(html, 'href="/admin/site/pages/3/images">Images</a>');
   });
 
   test("links the guide section the page belongs to", async () => {
@@ -87,7 +85,7 @@ describeWithEnv("a site content page", { db: true }, () => {
 
     const html = await (await page.renderPage(session, 3, "")).text();
 
-    assertStringIncludes(html, 'href="/admin/guide#public-site"');
+    says(html, 'href="/admin/guide#public-site"');
   });
 
   test("offers deleting the record on the actions tab", async () => {
@@ -95,7 +93,7 @@ describeWithEnv("a site content page", { db: true }, () => {
 
     const html = await (await page.renderPage(session, 3, "actions")).text();
 
-    assertStringIncludes(html, 'href="/admin/site/pages/3/delete"');
+    says(html, 'href="/admin/site/pages/3/delete"');
   });
 
   test("answers 404 for a record that is not there", async () => {

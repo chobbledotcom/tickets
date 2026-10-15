@@ -1,5 +1,5 @@
-import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { says } from "#test-utils/says.ts";
 
 const DEVENV_NIX_PATH = "devenv.nix";
 
@@ -12,6 +12,6 @@ describe("CI devenv profile", () => {
     const nix = await Deno.readTextFile(DEVENV_NIX_PATH);
     const fromCiProfile = nix.slice(nix.indexOf("profiles.ci.module"));
 
-    expect(fromCiProfile).toContain("git-hooks.enable = false;");
+    says(fromCiProfile, "git-hooks.enable = false;");
   });
 });

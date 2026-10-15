@@ -12,8 +12,6 @@
  * because a Cucumber run does not count towards coverage.
  */
 
-import { assert } from "@std/assert";
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { MAX_EMAIL_TEMPLATE_LENGTH } from "#db/settings/constants.ts";
@@ -27,6 +25,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { saysNot } from "#test-utils/says.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -111,10 +110,9 @@ describeWithEnv("admin email templates", { db: true }, () => {
       expect(raw?.startsWith("enc:1:")).toBe(true);
     }
     // Not merely prefixed: the plaintext must not be sitting there beside it.
-    assert(
-      settings
-        .getCachedRaw(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT)
-        ?.includes("listing_names") === false,
+    saysNot(
+      settings.getCachedRaw(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT),
+      "listing_names",
       "the value should not contain the searched item",
     );
 

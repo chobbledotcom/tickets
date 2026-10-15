@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { imagesTable } from "#db/images.ts";
@@ -21,6 +21,7 @@ import {
   mockRequest,
   withBunnyDeleteCapture,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -175,21 +176,15 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const homeResponse = await handleRequest(mockRequest("/"));
       const html = await homeResponse.text();
       expect(homeResponse.status).toBe(503);
-      assertStringIncludes(html, "Not Activated");
-      assert(
-        !html.includes("refresh"),
-        "the value should not contain the searched item",
-      );
+      says(html, "Not Activated");
+      assert(!html.includes("refresh"));
     });
 
     test("advanced settings page shows reset database section", async () => {
       const response = await adminGet("/admin/settings-advanced");
       const html = await expectHtmlResponse(response, 200, "Reset Database");
-      assertStringIncludes(
-        html,
-        "The site will be fully reset and all data will be lost.",
-      );
-      assertStringIncludes(html, "confirm_phrase");
+      says(html, "The site will be fully reset and all data will be lost.");
+      says(html, "confirm_phrase");
     });
   });
 

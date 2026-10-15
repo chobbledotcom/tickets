@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
@@ -13,6 +13,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { TEST_STORAGE_ZONE } from "#test-utils/internal.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { setupListingAndLogin } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -66,10 +67,7 @@ describeWithEnv("server listings > hidden listings", { db: true }, () => {
     test("admin listing detail page does not show Hidden row when disabled", async () => {
       const { listing } = await setupListingAndLogin();
       const html = await assertAdminHtml(`/admin/listing/${listing.id}`);
-      assert(
-        !html.includes("not shown in public listings list"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("not shown in public listings list"));
     });
 
     test("admin listing edit page pre-fills hidden checkbox", async () => {
@@ -83,7 +81,7 @@ describeWithEnv("server listings > hidden listings", { db: true }, () => {
         },
       );
       const html = await response.text();
-      assertStringIncludes(html, "hidden");
+      says(html, "hidden");
     });
 
     test("admin listing edit page shows attachment info when listing has attachment", async () => {
@@ -99,9 +97,9 @@ describeWithEnv("server listings > hidden listings", { db: true }, () => {
           { cookie },
         );
         const html = await response.text();
-        assertStringIncludes(html, "attachment-info");
-        assertStringIncludes(html, "Listing Guide.pdf");
-        assertStringIncludes(html, "Remove Attachment");
+        says(html, "attachment-info");
+        says(html, "Listing Guide.pdf");
+        says(html, "Remove Attachment");
       });
     });
 
@@ -114,14 +112,8 @@ describeWithEnv("server listings > hidden listings", { db: true }, () => {
           { cookie },
         );
         const html = await response.text();
-        assert(
-          !html.includes("attachment-info"),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes("Remove Attachment"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("attachment-info"));
+        assert(!html.includes("Remove Attachment"));
       });
     });
   });

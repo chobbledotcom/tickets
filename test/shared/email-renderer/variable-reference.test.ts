@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { TemplateData } from "#shared/email-renderer.ts";
@@ -8,6 +7,7 @@ import {
   TEMPLATE_VARIABLES,
 } from "#templates/components/email-template-reference.tsx";
 import { makeTestEntry } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import { buildTestData, describeEmailRenderer } from "./test-helpers.ts";
 
 /** An entry whose every template field carries a visible value, so a path
@@ -162,10 +162,10 @@ describeEmailRenderer(() => {
       const engine = createBaseLiquidEngine();
       const loop = await engine.parseAndRender(LOOP_EXAMPLE, data);
       const dates = data.entries[0]!.attendee.date_range_label;
-      assertStringIncludes(loop, "Summer Fete: 3 tickets");
-      assertStringIncludes(loop, "Bake Off: 1 ticket");
-      assertStringIncludes(loop, dates);
-      assertStringIncludes(loop, "£25");
+      says(loop, "Summer Fete: 3 tickets");
+      says(loop, "Bake Off: 1 ticket");
+      says(loop, dates);
+      says(loop, "£25");
     });
   });
 });

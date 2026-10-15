@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -21,6 +21,7 @@ import {
   saleLegPredicate,
   signedSumCase,
 } from "#accounting/projection-sql.ts";
+import { says } from "#test-utils/says.ts";
 
 // Constants are imported (never hardcoded) so a rename of the kind/account
 // vocabulary updates the expected SQL here too. The SQL *structure* — column
@@ -168,10 +169,7 @@ describe("attendeeOwedSubquery", () => {
   test("scopes to the attendee account type, not revenue", () => {
     const sql = attendeeOwedSubquery("a.id");
     expect(sql.startsWith("-(SELECT")).toBe(true);
-    assertStringIncludes(sql, `dest_type = '${ATTENDEE}'`);
-    assert(
-      !sql.includes(`'${REVENUE}'`),
-      "the value should not contain the searched item",
-    );
+    says(sql, `dest_type = '${ATTENDEE}'`);
+    assert(!sql.includes(`'${REVENUE}'`));
   });
 });

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
@@ -11,6 +10,7 @@ import {
 } from "#shared/currency.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 import { testWithSetting } from "#test-utils/settings.ts";
 
 describe("currency", () => {
@@ -76,8 +76,8 @@ describe("currency", () => {
 
     testWithSetting("formats EUR with euro symbol", { currency: "EUR" }, () => {
       const result = formatCurrency(1050);
-      assertStringIncludes(result, "10.50");
-      assertStringIncludes(result, "€");
+      says(result, "10.50");
+      says(result, "€");
     });
 
     testWithSetting(
@@ -93,7 +93,7 @@ describe("currency", () => {
       { currency: "KWD" },
       () => {
         const result = formatCurrency(1050);
-        assertStringIncludes(result, "1.050");
+        says(result, "1.050");
       },
     );
 

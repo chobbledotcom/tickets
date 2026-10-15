@@ -8,7 +8,6 @@
  * own the branch cover, and the invariants that have no journey behind them.
  */
 
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";
@@ -18,6 +17,7 @@ import { assertJson, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has, says } from "#test-utils/says.ts";
 // jscpd:ignore-start
 import { adminFormPost, apiRequest } from "#test-utils/session.ts";
 import {
@@ -113,7 +113,7 @@ describeWithEnv(
         }),
         400,
         (body) => {
-          assertStringIncludes(body.error, "Packages cannot contain");
+          says(body.error, "Packages cannot contain");
         },
       );
     });
@@ -154,7 +154,7 @@ describeWithEnv(
         }),
         400,
         (body) => {
-          assertStringIncludes(body.error, "Packages cannot contain");
+          says(body.error, "Packages cannot contain");
         },
       );
     });
@@ -350,9 +350,9 @@ describeWithEnv(
       );
       expect(response.status).toBe(302);
       const prices = await getGroupPackagePrices(group.id);
-      assertArrayIncludes(
+      has(
         prices.map((r) => r.listing_id),
-        [flexible.id],
+        flexible.id,
       );
     });
 

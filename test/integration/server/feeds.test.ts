@@ -2,7 +2,7 @@
  * Tests for ICS and RSS feed endpoints
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -21,6 +21,7 @@ import {
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** Fetch a feed URL and return the body text */
@@ -38,14 +39,8 @@ const expectExcludesInactive = async (feedPath: string, absentTag: string) => {
   });
   await deactivateTestListing(listing.id);
   const body = await fetchFeedBody(feedPath);
-  assert(
-    !body.includes("Hidden"),
-    "the value should not contain the searched item",
-  );
-  assert(
-    !body.includes(absentTag),
-    "the value should not contain the searched item",
-  );
+  assert(!body.includes("Hidden"));
+  assert(!body.includes(absentTag));
 };
 
 /** Assert an listing with closed registration is excluded from a feed */
@@ -60,14 +55,8 @@ const expectExcludesClosedRegistration = async (
     name: "Closed Listing",
   });
   const body = await fetchFeedBody(feedPath);
-  assert(
-    !body.includes("Closed Listing"),
-    "the value should not contain the searched item",
-  );
-  assert(
-    !body.includes(absentTag),
-    "the value should not contain the searched item",
-  );
+  assert(!body.includes("Closed Listing"));
+  assert(!body.includes(absentTag));
 };
 
 const feedExclusionTests = (feedPath: string, emptyMarker: string) => {
@@ -164,14 +153,11 @@ describeWithEnv("feeds", { db: true }, () => {
       await enablePublicSite();
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      assertStringIncludes(body, "BEGIN:VCALENDAR");
-      assertStringIncludes(body, "VERSION:2.0");
-      assertStringIncludes(body, "PRODID:-//Chobble Tickets//EN");
-      assertStringIncludes(body, "END:VCALENDAR");
-      assert(
-        !body.includes("BEGIN:VLISTING"),
-        "the value should not contain the searched item",
-      );
+      says(body, "BEGIN:VCALENDAR");
+      says(body, "VERSION:2.0");
+      says(body, "PRODID:-//Chobble Tickets//EN");
+      says(body, "END:VCALENDAR");
+      assert(!body.includes("BEGIN:VLISTING"));
     });
 
     test("uses website title as calendar name", async () => {
@@ -179,14 +165,14 @@ describeWithEnv("feeds", { db: true }, () => {
       await settings.update.websiteTitle("My Listings");
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      assertStringIncludes(body, "X-WR-CALNAME:My Listings");
+      says(body, "X-WR-CALNAME:My Listings");
     });
 
     test("defaults calendar name to Listings when no title set", async () => {
       await enablePublicSite();
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      assertStringIncludes(body, "X-WR-CALNAME:Listings");
+      says(body, "X-WR-CALNAME:Listings");
     });
 
     test("includes VLISTING for active listings", async () => {
@@ -197,10 +183,10 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      assertStringIncludes(body, "BEGIN:VLISTING");
-      assertStringIncludes(body, "SUMMARY:Concert");
-      assertStringIncludes(body, `/ticket/${listing.slug}`);
-      assertStringIncludes(body, "END:VLISTING");
+      says(body, "BEGIN:VLISTING");
+      says(body, "SUMMARY:Concert");
+      says(body, `/ticket/${listing.slug}`);
+      says(body, "END:VLISTING");
     });
 
     test("includes UID and DTSTAMP", async () => {
@@ -211,8 +197,8 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      assertStringIncludes(body, `UID:listing-${listing.id}@`);
-      assertStringIncludes(body, "DTSTAMP:");
+      says(body, `UID:listing-${listing.id}@`);
+      says(body, "DTSTAMP:");
     });
 
     test("includes DTSTART when listing has a date", async () => {
@@ -224,7 +210,7 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      assertStringIncludes(body, "DTSTART:20260615T140000Z");
+      says(body, "DTSTART:20260615T140000Z");
     });
 
     test("includes DESCRIPTION when listing has a description", async () => {
@@ -236,7 +222,7 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      assertStringIncludes(body, "DESCRIPTION:A great listing");
+      says(body, "DESCRIPTION:A great listing");
     });
 
     test("includes LOCATION when listing has a location", async () => {
@@ -248,7 +234,7 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      assertStringIncludes(body, "LOCATION:Town Hall");
+      says(body, "LOCATION:Town Hall");
     });
 
     test("excludes inactive listings", async () => {
@@ -274,9 +260,9 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      assertStringIncludes(body, "SUMMARY:Rock\\, Paper\\; Scissors");
-      assertStringIncludes(body, "DESCRIPTION:Fun\\, games\\; and more");
-      assertStringIncludes(body, "LOCATION:Hall A\\, Floor 2");
+      says(body, "SUMMARY:Rock\\, Paper\\; Scissors");
+      says(body, "DESCRIPTION:Fun\\, games\\; and more");
+      says(body, "LOCATION:Hall A\\, Floor 2");
     });
   });
 
@@ -300,15 +286,12 @@ describeWithEnv("feeds", { db: true }, () => {
       await enablePublicSite();
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, '<?xml version="1.0"');
-      assertStringIncludes(body, '<rss version="2.0">');
-      assertStringIncludes(body, "<channel>");
-      assertStringIncludes(body, "</channel>");
-      assertStringIncludes(body, "</rss>");
-      assert(
-        !body.includes("<item>"),
-        "the value should not contain the searched item",
-      );
+      says(body, '<?xml version="1.0"');
+      says(body, '<rss version="2.0">');
+      says(body, "<channel>");
+      says(body, "</channel>");
+      says(body, "</rss>");
+      assert(!body.includes("<item>"));
     });
 
     test("uses website title in channel", async () => {
@@ -316,18 +299,15 @@ describeWithEnv("feeds", { db: true }, () => {
       await settings.update.websiteTitle("My Listings");
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, "<title>My Listings</title>");
-      assertStringIncludes(
-        body,
-        "<description>Listings from My Listings</description>",
-      );
+      says(body, "<title>My Listings</title>");
+      says(body, "<description>Listings from My Listings</description>");
     });
 
     test("defaults title to Listings when no title set", async () => {
       await enablePublicSite();
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, "<title>Listings</title>");
+      says(body, "<title>Listings</title>");
     });
 
     test("includes items for active listings", async () => {
@@ -338,11 +318,11 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, "<item>");
-      assertStringIncludes(body, "<title>Concert</title>");
-      assertStringIncludes(body, `/ticket/${listing.slug}`);
-      assertStringIncludes(body, "<pubDate>");
-      assertStringIncludes(body, "</item>");
+      says(body, "<item>");
+      says(body, "<title>Concert</title>");
+      says(body, `/ticket/${listing.slug}`);
+      says(body, "<pubDate>");
+      says(body, "</item>");
     });
 
     test("includes guid as permalink", async () => {
@@ -353,8 +333,8 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, `<guid isPermaLink="true">`);
-      assertStringIncludes(body, `/ticket/${listing.slug}</guid>`);
+      says(body, `<guid isPermaLink="true">`);
+      says(body, `/ticket/${listing.slug}</guid>`);
     });
 
     test("includes description when listing has one", async () => {
@@ -366,7 +346,7 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, "A great listing");
+      says(body, "A great listing");
     });
 
     test("includes date in description when listing has a date", async () => {
@@ -378,8 +358,8 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, "Date:");
-      assertStringIncludes(body, "15 Jun 2026");
+      says(body, "Date:");
+      says(body, "15 Jun 2026");
     });
 
     test("includes location in description when listing has a location", async () => {
@@ -391,7 +371,7 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, "Location: Town Hall");
+      says(body, "Location: Town Hall");
     });
 
     test("includes description, date, and location together", async () => {
@@ -405,9 +385,9 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, "A great listing");
-      assertStringIncludes(body, "Date:");
-      assertStringIncludes(body, "Location: Town Hall");
+      says(body, "A great listing");
+      says(body, "Date:");
+      says(body, "Location: Town Hall");
     });
 
     test("excludes inactive listings", async () => {
@@ -429,8 +409,8 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, "<title>Rock &amp; Roll &lt;Live&gt;</title>");
-      assertStringIncludes(body, "He said &quot;hello&quot; &amp; goodbye");
+      says(body, "<title>Rock &amp; Roll &lt;Live&gt;</title>");
+      says(body, "He said &quot;hello&quot; &amp; goodbye");
     });
   });
 

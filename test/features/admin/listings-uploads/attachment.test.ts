@@ -3,7 +3,6 @@
  * record an upload writes, the file it clears away, and how a rejection reads.
  */
 
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
@@ -24,6 +23,7 @@ import {
   withCdnRejecting,
   withStorageMock,
 } from "#test-utils/mocks.ts";
+import { has, says } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 const RETURN_PATH = "/admin/listing/1";
@@ -89,9 +89,7 @@ describeWithEnv("uploading a listing's attachment", { db: true }, () => {
     await withStorageMock(async () => {
       await upload(leaflet());
 
-      assertArrayIncludes((await activityMessages()) ?? [], [
-        "Attachment uploaded for listing",
-      ]);
+      has(await activityMessages(), "Attachment uploaded for listing");
     });
   });
 
@@ -172,10 +170,7 @@ describeWithEnv("uploading a listing's attachment", { db: true }, () => {
         undefined,
         false,
       )(response);
-      assertStringIncludes(
-        flash.headers.get("set-cookie") ?? "",
-        "Attachment%20upload%20failed",
-      );
+      says(flash.headers.get("set-cookie"), "Attachment%20upload%20failed");
       expect(stored.url).toBe("");
     });
   });
@@ -197,7 +192,7 @@ describeWithEnv("uploading a listing's attachment", { db: true }, () => {
         undefined,
         false,
       )(response);
-      assertStringIncludes(
+      says(
         decodeURIComponent(flash.headers.get("set-cookie")!),
         "its required child was left off; Attachment upload failed",
       );
@@ -227,9 +222,7 @@ describeWithEnv("removing a listing's attachment", { db: true }, () => {
         storageCalls.some((url) => url.endsWith("/stored-leaflet.pdf")),
       ).toBe(true);
       expect(await storedAttachment(listing.id)).toEqual({ name: "", url: "" });
-      assertArrayIncludes((await activityMessages()) ?? [], [
-        "Attachment removed for 'Had A Leaflet'",
-      ]);
+      has(await activityMessages(), "Attachment removed for 'Had A Leaflet'");
     });
   });
 });

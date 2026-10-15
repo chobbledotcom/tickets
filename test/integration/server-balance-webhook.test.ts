@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -16,6 +15,7 @@ import {
 } from "#test/integration/balance-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
@@ -50,7 +50,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_balance_unsigned"),
       );
-      assertStringIncludes(await response.text(), "belongs to this site");
+      says(await response.text(), "belongs to this site");
       // The balance is untouched — nothing was settled.
       const state = await getAttendeeBalanceState(attendeeId);
       expect(state?.remainingBalance).toBe(1500);
@@ -205,7 +205,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
         stripeRefundRequestShape("pi_bal_stale", 1500),
       ]);
       const html = await response.text();
-      assertStringIncludes(html, "balance for this booking changed");
+      says(html, "balance for this booking changed");
       // The live balance is untouched — still outstanding.
       const state = await getAttendeeBalanceState(attendeeId);
       expect(state?.remainingBalance).toBe(500);
@@ -231,10 +231,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
       expect(refund.calls[0]!.args).toEqual([
         stripeRefundRequestShape("pi_bal_amt", 1000),
       ]);
-      assertStringIncludes(
-        await response.text(),
-        "price for this listing changed",
-      );
+      says(await response.text(), "price for this listing changed");
       const state = await getAttendeeBalanceState(attendeeId);
       expect(state?.remainingBalance).toBe(1500);
     } finally {

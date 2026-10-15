@@ -1,4 +1,3 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -22,6 +21,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
+import { saysNot } from "#test-utils/says.ts";
 
 /** Create a listing + attendee and return the attendee id. */
 const makeAttendee = async (name = "Note Target"): Promise<number> => {
@@ -128,8 +128,9 @@ describeWithEnv("db > notes", { db: true }, () => {
     // The symmetric encryption format is the enc:1: envelope, not the plaintext.
     const stored = await rawNote(attendeeId);
     expect(stored?.note.startsWith("enc:")).toBe(true);
-    assert(
-      stored?.note?.includes("system secret") === false,
+    saysNot(
+      stored?.note,
+      "system secret",
       "the value should not contain the searched item",
     );
 
@@ -138,8 +139,9 @@ describeWithEnv("db > notes", { db: true }, () => {
     const ownerStored = await rawNote(ownerAttendee);
     // The owner hybrid-RSA envelope is hyb:1:, again never the plaintext.
     expect(ownerStored?.note.startsWith("hyb:")).toBe(true);
-    assert(
-      ownerStored?.note?.includes("owner secret") === false,
+    saysNot(
+      ownerStored?.note,
+      "owner secret",
       "the value should not contain the searched item",
     );
   });

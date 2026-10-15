@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { base64ToBase64Url } from "#crypto/utils.ts";
@@ -16,6 +15,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const seededRecord = (overrides: Record<string, unknown> = {}) => ({
@@ -139,7 +139,7 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       );
       // Re-rendered in place with an error, not redirected.
       expect(response.status).toBe(200);
-      assertStringIncludes(await response.text(), "characters or fewer");
+      says(await response.text(), "characters or fewer");
       // The rejected submission wrote nothing.
       expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(0);
     });

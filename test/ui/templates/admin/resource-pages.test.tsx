@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { escapeHtml } from "#jsx/escape-html.ts";
@@ -12,6 +12,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 
 type SyntheticResource = {
   code: string;
@@ -113,8 +114,8 @@ describe("admin resource page factory", () => {
     // hidden keys, filters), so an empty key would break those silently.
     expect(column.key).toBe("name");
     const cell = String(column.cell(entity, undefined, 0, [entity]));
-    assertStringIncludes(cell, "/edit/17");
-    assertStringIncludes(cell, "Widget &amp; One");
+    says(cell, "/edit/17");
+    says(cell, "Widget &amp; One");
   });
 
   test("renders the synthetic list schema and writable row link", () => {
@@ -125,82 +126,46 @@ describe("admin resource page factory", () => {
       "Widgets loaded.",
     );
 
-    assertStringIncludes(html, "Could not load widgets.");
-    assertStringIncludes(html, "Widgets loaded.");
-    assertStringIncludes(
-      html,
-      '<p data-list-intro="true">Manage synthetic widgets.</p>',
-    );
-    assertStringIncludes(
-      html,
-      '<th class="col-reorder">Order</th><th>Name</th><th>Code</th>',
-    );
-    assertStringIncludes(
-      html,
-      '<a href="/admin/widgets/17/edit">Widget &amp; One</a>',
-    );
-    assertStringIncludes(html, "<td>W-17</td>");
-    assertStringIncludes(html, 'action="/admin/widgets/17/move-down"');
-    assertStringIncludes(html, 'action="/admin/widgets/18/move-up"');
-    assertStringIncludes(
-      html,
-      '<a href="/admin/widgets/new">Add synthetic widget</a>',
-    );
-    assertStringIncludes(
-      html,
-      '<p data-guide-footer="true">Synthetic widget guide</p>',
-    );
+    says(html, "Could not load widgets.");
+    says(html, "Widgets loaded.");
+    says(html, '<p data-list-intro="true">Manage synthetic widgets.</p>');
+    says(html, '<th class="col-reorder">Order</th><th>Name</th><th>Code</th>');
+    says(html, '<a href="/admin/widgets/17/edit">Widget &amp; One</a>');
+    says(html, "<td>W-17</td>");
+    says(html, 'action="/admin/widgets/17/move-down"');
+    says(html, 'action="/admin/widgets/18/move-up"');
+    says(html, '<a href="/admin/widgets/new">Add synthetic widget</a>');
+    says(html, '<p data-guide-footer="true">Synthetic widget guide</p>');
   });
 
   test("renders the configured empty state instead of a table", () => {
     const html = listPage([], false);
 
-    assertStringIncludes(html, "<p>No synthetic widgets.</p>");
-    assert(
-      !html.includes("<table"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("W-17"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<p>No synthetic widgets.</p>");
+    assert(!html.includes("<table"));
+    assert(!html.includes("W-17"));
   });
 
   test("turns the name into text and hides actions in read-only mode", () => {
     const html = listPage([entity], true);
 
-    assertStringIncludes(html, "<span>Widget &amp; One</span>");
-    assert(
-      !html.includes('href="/admin/widgets/17/edit"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('href="/admin/widgets/new"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('class="col-reorder"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("/move-"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "Synthetic widget guide");
+    says(html, "<span>Widget &amp; One</span>");
+    assert(!html.includes('href="/admin/widgets/17/edit"'));
+    assert(!html.includes('href="/admin/widgets/new"'));
+    assert(!html.includes('class="col-reorder"'));
+    assert(!html.includes("/move-"));
+    says(html, "Synthetic widget guide");
   });
 
   test("renders the create form from the synthetic field callback", () => {
     const html = pages.newPage(OWNER_SESSION, "Widget name is required.");
 
-    assertStringIncludes(html, 'action="/admin/widgets"');
-    assertStringIncludes(html, "Widget name is required.");
-    assertStringIncludes(html, "<h1>Add synthetic widget</h1>");
-    assertStringIncludes(
-      html,
-      '<input name="widget_name" type="text" value="new widget">',
-    );
-    assertStringIncludes(html, "Create synthetic widget");
-    assertStringIncludes(html, "/icons.svg#plus");
+    says(html, 'action="/admin/widgets"');
+    says(html, "Widget name is required.");
+    says(html, "<h1>Add synthetic widget</h1>");
+    says(html, '<input name="widget_name" type="text" value="new widget">');
+    says(html, "Create synthetic widget");
+    says(html, "/icons.svg#plus");
   });
 
   test("renders every configured delete detail and the dangerous submit", () => {
@@ -210,23 +175,20 @@ describe("admin resource page factory", () => {
       "Widget did not match.",
     );
 
-    assertStringIncludes(html, 'action="/admin/widgets/17/delete"');
-    assertStringIncludes(html, "Widget did not match.");
-    assertStringIncludes(html, "<h1>Delete synthetic widget</h1>");
-    assertStringIncludes(
-      html,
-      'Type the status name "Widget &amp; One" to confirm deletion:',
-    );
-    assertStringIncludes(
+    says(html, 'action="/admin/widgets/17/delete"');
+    says(html, "Widget did not match.");
+    says(html, "<h1>Delete synthetic widget</h1>");
+    says(html, 'Type the status name "Widget &amp; One" to confirm deletion:');
+    says(
       html,
       "Type the post name &quot;Widget &amp; One&quot; to confirm deletion.",
     );
-    assertStringIncludes(html, '<p data-delete-extra="true">Code: W-17</p>');
-    assertStringIncludes(
+    says(html, '<p data-delete-extra="true">Code: W-17</p>');
+    says(
       html,
       'name="confirm_identifier" placeholder="Widget &amp; One" required',
     );
-    assertStringIncludes(html, '<button class="danger" type="submit">');
-    assertStringIncludes(html, "Delete synthetic widget");
+    says(html, '<button class="danger" type="submit">');
+    says(html, "Delete synthetic widget");
   });
 });

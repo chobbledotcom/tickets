@@ -9,6 +9,7 @@ import {
   SPEC_REPORT_DIR,
   SPEC_SUPPORT_GLOBS,
 } from "#scripts/specs/paths.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("Cucumber paths", () => {
   test("recognises project-relative and absolute spec paths", () => {
@@ -55,7 +56,7 @@ describe("where a spec run reads and writes", () => {
   test("loads the world before the steps that lean on it", () => {
     const [world, steps] = SPEC_SUPPORT_GLOBS;
 
-    expect(world).toContain("support");
-    expect(steps).toContain("steps");
+    says(world, "support");
+    says(steps, "steps");
   });
 });

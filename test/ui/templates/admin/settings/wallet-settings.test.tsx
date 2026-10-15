@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
@@ -8,6 +7,7 @@ import {
   WalletSettingsForm,
 } from "#templates/admin/settings/wallet-settings.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("hostOverrideHint", () => {
   test("says nothing when the host provides no wallet config", () => {
@@ -66,29 +66,29 @@ describe("WalletSettingsForm", () => {
   test("renders the section shell around the field lists", () => {
     const html = probe(false);
 
-    assertStringIncludes(html, 'action="/admin/settings/probe-wallet"');
-    assertStringIncludes(html, 'id="settings-probe-wallet"');
-    assertStringIncludes(html, "<h2>Probe Wallet</h2>");
-    assertStringIncludes(html, "Probe description.");
-    assertStringIncludes(html, "Save the wallet");
+    says(html, 'action="/admin/settings/probe-wallet"');
+    says(html, 'id="settings-probe-wallet"');
+    says(html, "<h2>Probe Wallet</h2>");
+    says(html, "Probe description.");
+    says(html, "Save the wallet");
   });
 
   test("renders each text field with its translated label and value", () => {
     const html = probe(false);
 
-    assertStringIncludes(html, "<label>Issuer ID<input");
-    assertStringIncludes(
+    says(html, "<label>Issuer ID<input");
+    says(
       html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="google_wallet_issuer_id" placeholder="3388000000012345678" type="text" value="3388000000012345678">`,
     );
   });
 
   test("masks the secret textarea only once the site saves credentials", () => {
-    assertStringIncludes(
+    says(
       probe(false),
       `<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="google_wallet_service_account_key" placeholder="-----BEGIN PRIVATE KEY-----" rows="4"></textarea>`,
     );
 
-    assertStringIncludes(probe(true), `rows="4">${MASK_SENTINEL}</textarea>`);
+    says(probe(true), `rows="4">${MASK_SENTINEL}</textarea>`);
   });
 });

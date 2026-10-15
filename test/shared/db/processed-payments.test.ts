@@ -262,14 +262,8 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         await reserveSession("sess_error");
         throw new Error("should not reach here");
       } catch (e) {
-        assert(
-          !String(e).includes("should not reach here"),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !String(e).includes("UNIQUE constraint"),
-          "the value should not contain the searched item",
-        );
+        assert(!String(e).includes("should not reach here"));
+        assert(!String(e).includes("UNIQUE constraint"));
       }
 
       // Rebuild it from the real schema rather than a copy of it. A

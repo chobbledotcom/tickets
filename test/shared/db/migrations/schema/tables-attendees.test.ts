@@ -1,10 +1,10 @@
 /* jscpd:ignore-start -- imports */
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeTables } from "#db/migrations/schema/tables-attendees.ts";
 import { RECOVERY_NODES } from "#payment/sumup-recovery-machine-spec.ts";
+import { has } from "#test-utils/says.ts";
 
 /* jscpd:ignore-end */
 
@@ -26,9 +26,9 @@ describe("attendee schema tables", () => {
     // before the migration derives them, so it has to be the start node.
     const declared = columnNamed("sumup_checkouts", "recovery_state");
     expect(declared).toBe("TEXT NOT NULL DEFAULT 'staged'");
-    assertArrayIncludes(
+    has(
       RECOVERY_NODES.map((node) => node.id),
-      ["staged"],
+      "staged",
     );
   });
 

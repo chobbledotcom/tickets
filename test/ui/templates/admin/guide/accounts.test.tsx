@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -10,6 +9,7 @@ import {
 } from "#shared/limits.ts";
 import { accountsSections } from "#templates/admin/guide/accounts.tsx";
 import { renderGuideSections } from "#templates/admin/guide/components.tsx";
+import { says } from "#test-utils/says.ts";
 
 const sections = accountsSections();
 
@@ -58,58 +58,43 @@ describe("accounts guide schema", () => {
       html.indexOf(t("guide.q.invite_admin")),
     );
     // What the role is for, and the line past which it cannot go.
-    assertStringIncludes(answer, t("guide.a.scanner_role"));
-    assertStringIncludes(answer, "<strong>Scanners</strong>");
+    says(answer, t("guide.a.scanner_role"));
+    says(answer, "<strong>Scanners</strong>");
   });
 
   test("renders the webhook answer with its developer framing", () => {
     const html = String(renderGuideSections([sectionById("webhooks")]));
-    assertStringIncludes(html, "sent as JSON — a text shape");
+    says(html, "sent as JSON — a text shape");
     // A re-send with no stored contact history reports "unknown".
-    assertStringIncludes(
-      html,
-      "<code>unknown</code> means no stored contact history",
-    );
+    says(html, "<code>unknown</code> means no stored contact history");
   });
 
   test("renders the lockout answer with the attempt count and the minutes", () => {
     const html = String(renderGuideSections([sectionById("login")]));
-    assertStringIncludes(
-      html,
-      `After <strong>${MAX_LOGIN_ATTEMPTS} wrong tries</strong>`,
-    );
-    assertStringIncludes(
+    says(html, `After <strong>${MAX_LOGIN_ATTEMPTS} wrong tries</strong>`);
+    says(
       html,
       `blocked for <strong>${durationWords(LOGIN_LOCKOUT_MS / 1000)}</strong>`,
     );
-    assertStringIncludes(
-      html,
-      "Because there is <strong>no password recovery</strong>",
-    );
-    assertStringIncludes(html, "(see <strong>Data &amp; privacy</strong>)");
+    says(html, "Because there is <strong>no password recovery</strong>");
+    says(html, "(see <strong>Data &amp; privacy</strong>)");
   });
 
   test("states the session length the site actually uses", () => {
     const html = String(renderGuideSections([sectionById("login")]));
-    assertStringIncludes(
-      html,
-      `Sessions expire after ${durationWords(SESSION_MAX_AGE_S)}.`,
-    );
+    says(html, `Sessions expire after ${durationWords(SESSION_MAX_AGE_S)}.`);
   });
 
   test("states the login security lengths the site actually uses", () => {
     const html = String(renderGuideSections([sectionById("login-security")]));
-    assertStringIncludes(
+    says(
       html,
       `blocked from logging in for <strong>${durationWords(
         LOGIN_LOCKOUT_MS / 1000,
       )}</strong>`,
     );
-    assertStringIncludes(
-      html,
-      `Wait ${durationWords(LOGIN_LOCKOUT_MS / 1000)} and try again`,
-    );
-    assertStringIncludes(
+    says(html, `Wait ${durationWords(LOGIN_LOCKOUT_MS / 1000)} and try again`);
+    says(
       html,
       `expires after <strong>${durationWords(SESSION_MAX_AGE_S)}</strong>`,
     );

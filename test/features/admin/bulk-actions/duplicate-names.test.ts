@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
@@ -7,6 +6,7 @@ import { expectErrorFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 /** POST a duplicate that must be rejected on name uniqueness: assert it
@@ -25,8 +25,8 @@ const expectDuplicateRejected = async (
     body,
   );
   expect(response.status).toBe(302);
-  assertStringIncludes(
-    response.headers.get("location") ?? "",
+  says(
+    response.headers.get("location"),
     `/admin/groups/${groupId}/bulk-actions/duplicate`,
   );
   expectErrorFlash(response, refusal);
@@ -130,8 +130,8 @@ describeWithEnv(
 
       expect(response.status).toBe(302);
       // Redirect back to the form, not on to a new group page
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
+      says(
+        response.headers.get("location"),
         `/admin/groups/${group.id}/bulk-actions/duplicate`,
       );
       // The refusal names the missing field.

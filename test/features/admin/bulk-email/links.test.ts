@@ -1,10 +1,11 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { seedListingWithAttendees } from "#test/integration/server/bulk-email/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, createTestManagerSession } from "#test-utils/session.ts";
 
 describeWithEnv("server bulk email > links", { db: true }, () => {
@@ -22,11 +23,8 @@ describeWithEnv("server bulk email > links", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/attendees/${attendee.id}`)
       ).text();
-      assertStringIncludes(
-        html,
-        `/admin/emails?attendee=${encodeURIComponent(token)}`,
-      );
-      assertStringIncludes(html, "Send an email to this attendee");
+      says(html, `/admin/emails?attendee=${encodeURIComponent(token)}`);
+      says(html, "Send an email to this attendee");
     });
 
     test("managers do not see the email link", async () => {
@@ -47,10 +45,7 @@ describeWithEnv("server bulk email > links", { db: true }, () => {
           cookie,
         })
       ).text();
-      assert(
-        !html.includes("/admin/emails?attendee="),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("/admin/emails?attendee="));
     });
 
     test("the link is disabled when the attendee has no email", async () => {
@@ -66,13 +61,10 @@ describeWithEnv("server bulk email > links", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/attendees/${attendee.id}`)
       ).text();
-      assertStringIncludes(html, "No email address on file.");
+      says(html, "No email address on file.");
       // Rendered as an inert span, not a clickable link to the email page.
-      assertStringIncludes(html, "btn--disabled");
-      assert(
-        !html.includes("/admin/emails?attendee="),
-        "the value should not contain the searched item",
-      );
+      says(html, "btn--disabled");
+      assert(!html.includes("/admin/emails?attendee="));
     });
   });
 
@@ -91,10 +83,7 @@ describeWithEnv("server bulk email > links", { db: true }, () => {
           cookie,
         })
       ).text();
-      assert(
-        !html.includes("/admin/emails?listing="),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("/admin/emails?listing="));
     });
   });
 });

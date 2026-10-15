@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { shapeOf } from "#scripts/typescript-lex.ts";
+import { has } from "#test-utils/says.ts";
 
 describe("shapeOf slash basics", () => {
   test("gives two patterns that differ only in what they match one shape", () => {
@@ -171,6 +172,6 @@ describe("shapeOf slash basics", () => {
   });
 
   test("still divides inside a braced control body", () => {
-    expect(shapeOf("if (a) { b = c() / 2; }")).toContain("/");
+    has(shapeOf("if (a) { b = c() / 2; }"), "/");
   });
 });

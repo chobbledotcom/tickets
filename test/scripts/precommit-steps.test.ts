@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getSteps } from "#scripts/precommit/steps.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("precommit steps", () => {
   test("lists every task the CI workflow must also run", async () => {
@@ -15,7 +16,7 @@ describe("precommit steps", () => {
 
     expect(tasks.length).toBeGreaterThan(0);
     for (const task of tasks) {
-      expect(workflow).toContain(`run: deno task ${task}`);
+      says(workflow, `run: deno task ${task}`);
     }
   });
 

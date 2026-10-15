@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { parse } from "@std/csv";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -16,6 +15,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -71,14 +71,14 @@ describeWithEnv("server listings > export", { db: true }, () => {
       );
 
       const csv = await fetchListingExportCsv(listing.id, cookie);
-      assertStringIncludes(
+      says(
         csv,
         "Name,Email,Phone,Address,Special Instructions,Quantity,Registered",
       );
-      assertStringIncludes(csv, "John Doe");
-      assertStringIncludes(csv, "john@example.com");
-      assertStringIncludes(csv, "Jane Smith");
-      assertStringIncludes(csv, "jane@example.com");
+      says(csv, "John Doe");
+      says(csv, "john@example.com");
+      says(csv, "Jane Smith");
+      says(csv, "jane@example.com");
     });
 
     test("returns CSV with Checked In column", async () => {
@@ -168,8 +168,8 @@ describeWithEnv("server listings > export", { db: true }, () => {
           cookie,
         },
       );
-      assertStringIncludes(
-        response.headers.get("content-disposition") ?? "",
+      says(
+        response.headers.get("content-disposition"),
         'attachment; filename="Roster_Order_attendees.csv"',
       );
     });
@@ -186,7 +186,7 @@ describeWithEnv("server listings > export", { db: true }, () => {
       });
       const disposition = response.headers.get("content-disposition");
       // Non-alphanumeric characters are replaced with underscores in filename sanitization
-      assertStringIncludes(disposition ?? "", "Test_Listing_Special");
+      says(disposition, "Test_Listing_Special");
     });
 
     test("CSV export includes question columns when listing has questions", async () => {
@@ -222,8 +222,8 @@ describeWithEnv("server listings > export", { db: true }, () => {
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
       const csv = await fetchListingExportCsv(listing.id, cookie);
-      assertStringIncludes(csv, "Shirt Size");
-      assertStringIncludes(csv, "Small");
+      says(csv, "Shirt Size");
+      says(csv, "Small");
     });
   });
 });

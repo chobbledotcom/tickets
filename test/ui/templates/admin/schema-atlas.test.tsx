@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups, t } from "#i18n";
@@ -6,6 +6,7 @@ import { MESSAGE_GROUPS } from "#locales/manifest.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import { adminSchemaAtlasPage } from "#templates/admin/schema-atlas.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 
 const NO_UNANSWERED = { rows: [], total: 0 };
 
@@ -19,16 +20,16 @@ describe("the system map page", () => {
   });
 
   test("renders under the settings nav with its own title", () => {
-    assertStringIncludes(html(), "<h1>System map</h1>");
-    assertStringIncludes(html(), 'href="/admin/schema"');
+    says(html(), "<h1>System map</h1>");
+    says(html(), 'href="/admin/schema"');
   });
 
   test("the legend names each actor with its own colour class", () => {
     const page = html();
     expect(page).toMatch(/<div class="prose">\s*<p class="schema-legend">/);
-    assertStringIncludes(page, "</strong> <span");
+    says(page, "</strong> <span");
     for (const actor of ["system", "provider", "owner"]) {
-      assertStringIncludes(
+      says(
         page,
         `class="schema-actor schema-actor-${actor}">${t(`schema.legend.${actor}`)}`,
       );
@@ -40,20 +41,14 @@ describe("the system map page", () => {
   test("every atlas label resolves to catalog copy, not to a raw key", () => {
     const page = html();
     for (const machine of SCHEMA_ATLAS_MACHINES) {
-      assert(
-        !page.includes(machine.titleKey),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(page, t(machine.titleKey));
+      assert(!page.includes(machine.titleKey));
+      says(page, t(machine.titleKey));
       for (const state of machine.states) {
-        assert(
-          !page.includes(`>${state.labelKey}<`),
-          "the value should not contain the searched item",
-        );
-        assertStringIncludes(page, t(state.labelKey));
-        assertStringIncludes(page, t(state.detailKey));
+        assert(!page.includes(`>${state.labelKey}<`));
+        says(page, t(state.labelKey));
+        says(page, t(state.detailKey));
         for (const edge of state.edges) {
-          assertStringIncludes(page, t(edge.labelKey));
+          says(page, t(edge.labelKey));
         }
       }
     }
@@ -62,22 +57,22 @@ describe("the system map page", () => {
   test("the static list answers the map question for a partial return", () => {
     const page = html();
     // The one-exit owner decision, in plain words, with its way forward.
-    assertStringIncludes(page, "Your decision needed: some money is back");
-    assertStringIncludes(page, "You confirm the money came back → Money back");
+    says(page, "Your decision needed: some money is back");
+    says(page, "You confirm the money came back → Money back");
     // A terminal state says so.
-    assertStringIncludes(page, "Recorded: done");
-    assertStringIncludes(page, "Nothing. This state is an ending.");
+    says(page, "Recorded: done");
+    says(page, "Nothing. This state is an ending.");
   });
 
   test("marks the start states and carries each machine's section", () => {
     const page = html();
-    assertStringIncludes(page, "Ready to send · where every record starts");
-    assertStringIncludes(page, 'id="refund"');
-    assertStringIncludes(page, 'id="review"');
-    assertStringIncludes(page, 'id="row"');
-    assertStringIncludes(page, "A refund at the payment provider");
-    assertStringIncludes(page, "A payment row kept for review");
-    assertStringIncludes(page, "One payment row's held work");
+    says(page, "Ready to send · where every record starts");
+    says(page, 'id="refund"');
+    says(page, 'id="review"');
+    says(page, 'id="row"');
+    says(page, "A refund at the payment provider");
+    says(page, "A payment row kept for review");
+    says(page, "One payment row's held work");
   });
 
   test("keeps every static and interactive schema hook", () => {
@@ -100,8 +95,8 @@ describe("the system map page", () => {
 
   test("the live check answers clean when the scan found nothing", () => {
     const page = html();
-    assertStringIncludes(page, 'id="schema-check"');
-    assertStringIncludes(page, "All stored records fit the system rules.");
+    says(page, 'id="schema-check"');
+    says(page, "All stored records fit the system rules.");
   });
 
   test("the live check lists each flagged record in plain words", () => {
@@ -111,14 +106,11 @@ describe("the system map page", () => {
       [{ key: "armed_without_claim", recordId: "cs_seam" }],
       NO_UNANSWERED,
     );
-    assertStringIncludes(
+    says(
       page,
       "A refund is set to send, but no job holds this row. <code>cs_seam</code>",
     );
-    assert(
-      !page.includes("All stored records fit the system rules."),
-      "the value should not contain the searched item",
-    );
+    assert(!page.includes("All stored records fit the system rules."));
   });
 
   test("the live check names a payment with no charge record", () => {
@@ -128,7 +120,7 @@ describe("the system map page", () => {
       [{ key: "claim_without_charge", recordId: "cs_without_charge" }],
       NO_UNANSWERED,
     );
-    assertStringIncludes(
+    says(
       page,
       "A job holds this row, but its payment has no charge record. " +
         "<code>cs_without_charge</code>",
@@ -148,14 +140,8 @@ describe("the system map page", () => {
       ],
       NO_UNANSWERED,
     );
-    assertStringIncludes(
-      page,
-      "A SumUp recovery record has a state this site does not know.",
-    );
-    assertStringIncludes(
-      page,
-      "<code>idx_unknown</code> <code>abandoned</code>",
-    );
+    says(page, "A SumUp recovery record has a state this site does not know.");
+    says(page, "<code>idx_unknown</code> <code>abandoned</code>");
   });
 
   test("the live check names a SumUp checkout id mismatch", () => {
@@ -171,11 +157,8 @@ describe("the system map page", () => {
       ],
       NO_UNANSWERED,
     );
-    assertStringIncludes(
-      page,
-      "A SumUp recovery record's state and checkout ID do not match.",
-    );
-    assertStringIncludes(page, "<code>idx_mismatch</code> <code>staged</code>");
+    says(page, "A SumUp recovery record's state and checkout ID do not match.");
+    says(page, "<code>idx_mismatch</code> <code>staged</code>");
   });
 
   test("the live check names a SumUp check time mismatch", () => {
@@ -191,18 +174,18 @@ describe("the system map page", () => {
       ],
       NO_UNANSWERED,
     );
-    assertStringIncludes(
+    says(
       page,
       "A SumUp recovery record's state and next check time do not match.",
     );
-    assertStringIncludes(page, "<code>idx_clock</code> <code>waiting</code>");
+    says(page, "<code>idx_clock</code> <code>waiting</code>");
   });
 
   test("the unanswered section answers clean when nothing is waiting", () => {
     const page = html();
-    assertStringIncludes(page, 'id="schema-unanswered"');
-    assertStringIncludes(page, "Money nobody has answered for");
-    assertStringIncludes(page, "No SumUp checkout needs your attention.");
+    says(page, 'id="schema-unanswered"');
+    says(page, "Money nobody has answered for");
+    says(page, "No SumUp checkout needs your attention.");
   });
 
   test("the unanswered section counts and lists the oldest rows", () => {
@@ -216,14 +199,11 @@ describe("the system map page", () => {
       ],
       total: 3,
     });
-    assertStringIncludes(page, "3 checkouts need an answer.");
-    assertStringIncludes(page, "Showing the oldest 1.");
-    assertStringIncludes(page, "Money not accounted for");
-    assertStringIncludes(page, "<code>idx_owed_row</code>");
-    assert(
-      !page.includes("No SumUp checkout needs your attention."),
-      "the value should not contain the searched item",
-    );
+    says(page, "3 checkouts need an answer.");
+    says(page, "Showing the oldest 1.");
+    says(page, "Money not accounted for");
+    says(page, "<code>idx_owed_row</code>");
+    assert(!page.includes("No SumUp checkout needs your attention."));
   });
 
   test("the unanswered section falls back to the stored time on clock skew", () => {
@@ -242,7 +222,7 @@ describe("the system map page", () => {
     });
     // The exact joined row: label, separator, stored time, then the code —
     // deterministic here because the fallback shows the raw stored time.
-    assertStringIncludes(
+    says(
       page,
       "Money not accounted for · 2999-01-01T00:00:00.000Z " +
         "<code>idx_skewed_row</code>",
@@ -260,13 +240,10 @@ describe("the system map page", () => {
       ],
       total: 1,
     });
-    assertStringIncludes(page, "1 checkout needs an answer.");
-    assert(
-      !page.includes("Showing the oldest"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(page, "Waiting for an answer");
-    assertStringIncludes(page, "<code>idx_waiting_row</code>");
+    says(page, "1 checkout needs an answer.");
+    assert(!page.includes("Showing the oldest"));
+    says(page, "Waiting for an answer");
+    says(page, "<code>idx_waiting_row</code>");
   });
 
   test("embeds the resolved diagram data as safe JSON", () => {
@@ -275,10 +252,7 @@ describe("the system map page", () => {
     const end = page.indexOf("</script>", start);
     expect(start).toBeGreaterThan(-1);
     const body = page.slice(page.indexOf(">", start) + 1, end);
-    assert(
-      !body.includes("<"),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes("<"));
     const parsed = JSON.parse(body) as {
       machines: {
         states: {

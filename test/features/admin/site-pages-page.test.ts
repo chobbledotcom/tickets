@@ -4,11 +4,11 @@
  * what the GET surface shows.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("the site page's page", { db: true }, () => {
@@ -19,9 +19,9 @@ describeWithEnv("the site page's page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, `action="/admin/site/pages/${page.id}/edit"`);
-    assertStringIncludes(html, "About us");
-    assertStringIncludes(html, 'href="/admin/guide#public-site"');
+    says(html, `action="/admin/site/pages/${page.id}/edit"`);
+    says(html, "About us");
+    says(html, 'href="/admin/guide#public-site"');
   });
 
   test("titles the page with the page's own name", async () => {
@@ -29,7 +29,7 @@ describeWithEnv("the site page's page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/site/pages/${page.id}`)).text();
 
-    assertStringIncludes(html, "<h1>Find us</h1>");
+    says(html, "<h1>Find us</h1>");
   });
 
   test("carries the contents manager as its own tab", async () => {
@@ -40,7 +40,7 @@ describeWithEnv("the site page's page", { db: true }, () => {
     const strip = await (await adminGet(`/admin/site/pages/${page.id}`)).text();
     const response = await adminGet(`/admin/site/pages/${page.id}/items`);
 
-    assertStringIncludes(strip, `href="/admin/site/pages/${page.id}/items"`);
+    says(strip, `href="/admin/site/pages/${page.id}/items"`);
     expect(response.status).toBe(200);
   });
 
@@ -51,7 +51,7 @@ describeWithEnv("the site page's page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, `href="/admin/site/pages/${page.id}/delete"`);
+    says(html, `href="/admin/site/pages/${page.id}/delete"`);
   });
 
   test("answers 404 for a page that is not there", async () => {

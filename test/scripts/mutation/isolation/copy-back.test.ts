@@ -7,6 +7,7 @@ import {
   withTempDir,
   writeFakeScript,
 } from "#test/scripts/mutation/isolation-helpers.ts";
+import { has, says } from "#test-utils/says.ts";
 import { readOnlyRunRecord } from "./helpers.ts";
 
 const ENTRY = "keeper.ts";
@@ -38,7 +39,7 @@ describe("keeping a snapshot run's file edits", () => {
       const run = await runKeeper(root, REWRITE_KEPT);
 
       expect(run.result).toBe(0);
-      expect(run.logs).toContain(`Updated ${KEPT}`);
+      has(run.logs, `Updated ${KEPT}`);
       expect(await Deno.readTextFile(join(root, KEPT))).toBe("first\n");
     });
   });
@@ -61,7 +62,8 @@ ${REWRITE_KEPT}`;
       const run = await runKeeper(root, changeItMidRun);
 
       expect(run.result).toBe(1);
-      expect(run.errors.join("\n")).toContain(
+      says(
+        run.errors.join("\n"),
         `${KEPT} changed while the isolated run was going`,
       );
       expect(await Deno.readTextFile(join(root, KEPT))).toBe(

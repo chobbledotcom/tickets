@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -12,6 +12,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { BASE, create, findPage } from "./helpers.ts";
 
@@ -29,26 +30,23 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         200,
       );
       // The page's own name is the heading; the form carries the editable slug.
-      assertStringIncludes(html, `<h1>${page.name}</h1>`);
-      assertStringIncludes(html, 'name="slug"');
-      assertStringIncludes(html, `value="${page.slug}"`);
+      says(html, `<h1>${page.name}</h1>`);
+      says(html, 'name="slug"');
+      says(html, `value="${page.slug}"`);
       // The public link sits under the slug field, opening in a new tab.
-      assertStringIncludes(
+      says(
         html,
         `Public link: <a href="/page/${page.slug}" rel="noopener" target="_blank">/page/${page.slug}</a>`,
       );
       // A guide footer sits at the bottom of the body.
-      assertStringIncludes(html, 'class="guide-footer"');
-      assertStringIncludes(html, 'href="/admin/guide#public-site"');
+      says(html, 'class="guide-footer"');
+      says(html, 'href="/admin/guide#public-site"');
       // The tabbed strip carries Edit, Items and Actions (Images hidden while
       // storage is off). The item manager lives on the Items tab, not here.
-      assertStringIncludes(html, 'class="entity-tabs"');
-      assertStringIncludes(html, `href="${BASE}/${page.id}/items"`);
-      assertStringIncludes(html, `href="${BASE}/${page.id}/actions"`);
-      assert(
-        !html.includes("Add to this page"),
-        "the value should not contain the searched item",
-      );
+      says(html, 'class="entity-tabs"');
+      says(html, `href="${BASE}/${page.id}/items"`);
+      says(html, `href="${BASE}/${page.id}/actions"`);
+      assert(!html.includes("Add to this page"));
     });
 
     test("the items tab renders the add-item manager when something can be added", async () => {
@@ -59,8 +57,8 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
-      assertStringIncludes(html, "Add to this page");
-      assertStringIncludes(html, ">Addable<");
+      says(html, "Add to this page");
+      says(html, ">Addable<");
     });
 
     test("the items tab hides the add section (and any 'nothing available') when nothing can be added", async () => {
@@ -72,19 +70,10 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       );
       // No listings/groups/sub-pages to offer, so the whole add section — and
       // the old confusing "nothing available" line — is gone.
-      assert(
-        !html.includes("Add to this page"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("nothing available"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Add to this page"));
+      assert(!html.includes("nothing available"));
       // The page still shows its empty-contents message.
-      assertStringIncludes(
-        html,
-        "This page has no listings, groups, or sub-pages yet.",
-      );
+      says(html, "This page has no listings, groups, or sub-pages yet.");
     });
 
     test("a bare /:id lands on the edit tab", async () => {
@@ -94,8 +83,8 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}`),
         200,
       );
-      assertStringIncludes(html, `<h1>${page.name}</h1>`);
-      assertStringIncludes(html, 'name="slug"');
+      says(html, `<h1>${page.name}</h1>`);
+      says(html, 'name="slug"');
     });
 
     test("an image POST with storage disabled bounces to the edit tab, not the hidden images tab", async () => {

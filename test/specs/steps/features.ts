@@ -25,6 +25,7 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
+import { has, says } from "#test-utils/says.ts";
 import { saveAModifier } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -87,7 +88,7 @@ Then(
       // The row has to name the feature too. A row that kept its address and
       // its status while losing its words is not a feature listed.
       const row = await featureRowOn(list, name);
-      expect(row).toContain(name);
+      says(row, name);
       expect(statusIn(row, name)).toBe(t("features.status.disabled"));
     }
   },
@@ -98,7 +99,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const list = whatTheyWereTold(this, ORGANISER);
     for (const name of await everyFeatureName()) {
-      expect(list).toContain(linkToFeature(await featureNamed(name)));
+      says(list, linkToFeature(await featureNamed(name)));
     }
   },
 );
@@ -119,14 +120,14 @@ Then(
     const feature = await featureNamed(printed);
     // Named as well as described: a correctly explained page with no name on
     // it leaves the owner guessing which feature they are about to change.
-    expect(page).toContain(t(feature.labelKey));
-    const says = t(feature.descriptionKey);
-    expect(page).toContain(says);
+    says(page, t(feature.labelKey));
+    const description = t(feature.descriptionKey);
+    says(page, description);
     // Where each sits, not merely that both are there: a page that offered
     // the choice first would ask the owner to decide before reading.
     const choice = page.indexOf(`name="${CHOICE_FIELD}"`);
     expect(choice).toBeGreaterThan(-1);
-    expect(page.indexOf(says)).toBeLessThan(choice);
+    expect(page.indexOf(description)).toBeLessThan(choice);
   },
 );
 
@@ -145,14 +146,14 @@ Then("they are offered no choice", function (this: TicketsWorld): void {
 Then(
   "the owner is told {string}",
   function (this: TicketsWorld, message: string): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(message);
+    says(whatTheyWereTold(this, ORGANISER), message);
   },
 );
 
 Then(
   "the activity log says {string}",
   async function (this: TicketsWorld, message: string): Promise<void> {
-    expect(await activityMessages()).toContain(message);
+    has(await activityMessages(), message);
   },
 );
 
@@ -174,8 +175,8 @@ Then("the {string} page comes back offering No", comesBackOffering("false"));
 const pageAboutFeatureSays = (...keys: string[]) =>
   async function (this: TicketsWorld, printed: string): Promise<void> {
     const page = whatTheyWereTold(this, ORGANISER);
-    expect(page).toContain(t((await featureNamed(printed)).labelKey));
-    for (const key of keys) expect(page).toContain(t(key));
+    says(page, t((await featureNamed(printed)).labelKey));
+    for (const key of keys) says(page, t(key));
   };
 
 Then(
@@ -191,9 +192,7 @@ Then(
 Then(
   "they are told to remove its saved items first",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
-      t("features.in_use_help"),
-    );
+    says(whatTheyWereTold(this, ORGANISER), t("features.in_use_help"));
   },
 );
 

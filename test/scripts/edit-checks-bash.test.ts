@@ -5,6 +5,7 @@ import {
   createPipeline,
   scansFor,
 } from "#scripts/edit-checks/pipeline.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("Bash post-edit checks", () => {
   test("includes Bash in the zero-duplication source gate", async () => {
@@ -45,7 +46,7 @@ describe("Bash post-edit checks", () => {
         "bash",
       ],
     ]);
-    expect(result).toContain("jscpd: duplicated code found");
-    expect(result).toContain("duplicate shell commands");
+    says(result, "jscpd: duplicated code found");
+    says(result, "duplicate shell commands");
   });
 });

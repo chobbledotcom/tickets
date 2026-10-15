@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -12,6 +11,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
@@ -83,16 +83,16 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         expect(response.status).toBe(200);
 
         // Should have ticket link with verified token
-        assertStringIncludes(html, "View your ticket");
-        assertStringIncludes(html, 'target="_blank"');
-        assertStringIncludes(html, "/t/");
+        says(html, "View your ticket");
+        says(html, 'target="_blank"');
+        says(html, "/t/");
 
         // Should have thank_you_url for single-listing purchase
-        assertStringIncludes(html, "https://example.com/verified-thanks");
+        says(html, "https://example.com/verified-thanks");
 
         // Token in the link should match the one in the redirect URL
         const tokenFromUrl = decodeURIComponent(location.split("tokens=")[1]!);
-        assertStringIncludes(html, `/t/${tokenFromUrl}`);
+        says(html, `/t/${tokenFromUrl}`);
       } finally {
         mockRetrieve.restore();
       }
@@ -127,7 +127,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         ),
       );
       const html = await expectHtmlResponse(response, 200, "Junk/Spam");
-      assertStringIncludes(html, "noreply@tickets.com");
+      says(html, "noreply@tickets.com");
     });
   });
 });

@@ -5,7 +5,7 @@
  * quantity-0 lines, while admin record views keep them.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -21,6 +21,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Make the attendee's single line a quantity-0 sentinel (price 0, invariant). */
 const ghostLine = (attendeeId: number): Promise<unknown> =>
@@ -65,11 +66,8 @@ describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
     const body = await (
       await awaitTestRequest(`/t/${result.attendees[0]!.ticket_token}`)
     ).text();
-    assertStringIncludes(body, "RealShow");
-    assert(
-      !body.includes("GhostShow"),
-      "the value should not contain the searched item",
-    );
+    says(body, "RealShow");
+    assert(!body.includes("GhostShow"));
   });
 
   test("the reservation success page drops the CTA for a ghost-only token", async () => {
@@ -83,10 +81,7 @@ describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
       await awaitTestRequest(`/ticket/reserved?tokens=${token}`)
     ).text();
     // No "booking confirmed" CTA linking to a /t URL that would 404.
-    assert(
-      !body.includes(`/t/${token}`),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes(`/t/${token}`));
   });
 
   test("the reservation success page keeps the CTA for a real-line token", async () => {
@@ -100,7 +95,7 @@ describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
     const body = await (
       await awaitTestRequest(`/ticket/reserved?tokens=${token}`)
     ).text();
-    assertStringIncludes(body, `/t/${token}`);
+    says(body, `/t/${token}`);
   });
 
   test("the payment success page rejects a ghost-only token", async () => {
@@ -113,10 +108,7 @@ describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
     const body = await (
       await awaitTestRequest(`/payment/success?tokens=${token}`)
     ).text();
-    assert(
-      !body.includes(`/t/${token}`),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes(`/t/${token}`));
   });
 });
 

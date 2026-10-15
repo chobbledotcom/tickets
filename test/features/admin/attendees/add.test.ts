@@ -7,7 +7,6 @@
  * rather than as anything else.
  */
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryOne } from "#db/client.ts";
@@ -20,6 +19,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { has } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 const addTo = (listingId: number, fields: Record<string, string>) =>
@@ -134,9 +134,7 @@ describeWithEnv("adding to a listing with no dates", { db: true }, () => {
       quantity: "1",
     });
 
-    assertArrayIncludes((await activityMessages()) ?? [], [
-      "Attendee 'Written Down' added manually",
-    ]);
+    has(await activityMessages(), "Attendee 'Written Down' added manually");
   });
 });
 

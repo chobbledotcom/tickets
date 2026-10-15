@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, getDb, queryAll } from "#db/client.ts";
@@ -9,6 +9,7 @@ import type { Migration, MigrationContext } from "#db/migrations/types.ts";
 import { columnNames } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext, indexExists } from "#test-utils/migrations.ts";
+import { has, says } from "#test-utils/says.ts";
 
 /** Put system_notes back the way it was before this migration: a note belonged
  *  to an attendee and nothing else. */
@@ -89,10 +90,7 @@ describeWithEnv(
           type: "owner",
         },
       ]);
-      assert(
-        !(await columnNames("system_notes")).includes("attendee_id"),
-        "the value should not contain the searched item",
-      );
+      assert(!(await columnNames("system_notes")).includes("attendee_id"));
       expect(await indexExists("idx_system_notes_entity")).toBe(true);
       expect(await indexExists("idx_system_notes_attendee_id")).toBe(false);
     });
@@ -230,9 +228,9 @@ describeWithEnv(
 
       // The id is what the applied-marker is written under: a mismatch with the
       // registry would run the migration again on every boot.
-      assertArrayIncludes(MIGRATION_IDS ?? [], [id]);
-      assertStringIncludes(description, "entity_type");
-      assertStringIncludes(description, "entity_id");
+      has(MIGRATION_IDS, id);
+      says(description, "entity_type");
+      says(description, "entity_id");
     });
 
     test("refuses a note about a kind of record it does not know", async () => {

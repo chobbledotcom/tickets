@@ -5,6 +5,7 @@ import {
   publishStaticCdnAssets,
   type StaticCdnAsset,
 } from "#scripts/static-cdn.ts";
+import { says } from "#test-utils/says.ts";
 import {
   assetResponse,
   CONFIG,
@@ -291,7 +292,7 @@ describe("publishStaticCdnAssets", () => {
       [STYLE_ASSET],
       fetcher,
     );
-    expect(published.urls[STYLE_ASSET.filename]).toContain("/style.css");
+    says(published.urls[STYLE_ASSET.filename], "/style.css");
   });
 
   for (const { method: stalledMethod, stage } of STALLED_REQUESTS) {

@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
@@ -15,6 +16,7 @@ import {
 } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createServicingEvent,
   renderAdminPage,
@@ -167,7 +169,7 @@ Then(
   "the admin dashboard shows the Studio floor treatment hold",
   async function (this: TicketsWorld): Promise<void> {
     const body = await renderAdminPage("/admin/");
-    expect(body).toContain(STUDIO_HOLD);
+    says(body, STUDIO_HOLD);
   },
 );
 
@@ -186,7 +188,7 @@ Then(
     await enablePublicSite();
     const response = await awaitTestRequest("/");
     expect(response.status).toBe(200);
-    expect(await response.text()).not.toContain(STUDIO_HOLD);
+    assert(!(await response.text()).includes(STUDIO_HOLD));
   },
 );
 
@@ -194,7 +196,7 @@ Then(
   "the admin dashboard no longer shows Boiler Service",
   async function (this: TicketsWorld): Promise<void> {
     const body = await renderAdminPage("/admin/");
-    expect(body).not.toContain(BOILER_SERVICE);
+    assert(!body.includes(BOILER_SERVICE));
   },
 );
 
@@ -206,8 +208,8 @@ Then(
     // The page carrying the cost this story just recorded, for a screenshot.
     leaveEvidencePage(this, ["maintenance-cost-on-a-room"], path);
     const body = await renderAdminPage(path);
-    expect(body).toContain(">£90<");
-    expect(body).toContain("Boiler part");
+    says(body, ">£90<");
+    says(body, "Boiler part");
   },
 );
 

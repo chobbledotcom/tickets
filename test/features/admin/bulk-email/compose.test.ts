@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -13,6 +13,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -34,18 +35,15 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
 
     test("shows the disabled notice when no own provider is configured", async () => {
       const html = await (await adminGet("/admin/emails")).text();
-      assertStringIncludes(html, "Heads up");
+      says(html, "Heads up");
       // The notice must say why, not just that something is wrong.
-      assertStringIncludes(html, "configured your own email provider");
+      says(html, "configured your own email provider");
     });
 
     test("hides the disabled notice when a bulk provider is configured", async () => {
       useResend();
       const html = await (await adminGet("/admin/emails")).text();
-      assert(
-        !html.includes("Heads up"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Heads up"));
     });
 
     test("targets a single listing via ?listing", async () => {
@@ -53,7 +51,7 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/emails?listing=${listing.id}`)
       ).text();
-      assertStringIncludes(html, "Recipients:</strong> Attendees of Gig");
+      says(html, "Recipients:</strong> Attendees of Gig");
     });
 
     test("404s for a non-existent listing", async () => {
@@ -78,7 +76,7 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
       const html = await (
         await adminGet("/admin/emails?audience=upcoming")
       ).text();
-      assertStringIncludes(html, '<option selected value="upcoming">');
+      says(html, '<option selected value="upcoming">');
     });
 
     test("prefills a saved draft and counts a single recipient", async () => {
@@ -92,13 +90,10 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/emails?listing=${listing.id}`)
       ).text();
-      assertStringIncludes(html, 'value="Saved subject"');
-      assertStringIncludes(html, "checked");
-      assertStringIncludes(html, "recipient. That's everyone");
-      assert(
-        !html.includes("recipients"),
-        "the value should not contain the searched item",
-      );
+      says(html, 'value="Saved subject"');
+      says(html, "checked");
+      says(html, "recipient. That's everyone");
+      assert(!html.includes("recipients"));
     });
 
     test("targets one day of a listing via ?listing&day", async () => {
@@ -106,7 +101,7 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/emails?listing=${listing.id}&day=2026-03-02`)
       ).text();
-      assertStringIncludes(
+      says(
         html,
         "Recipients:</strong> Attendees of Term on Monday 2 March 2026",
       );

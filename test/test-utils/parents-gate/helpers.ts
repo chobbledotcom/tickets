@@ -10,6 +10,7 @@
  * db-helpers/listings.ts) instead.
  */
 
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -21,6 +22,7 @@ import {
   createDailyTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { bookingPageHtml, makeParent } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 import type { Listing } from "#types";
 
 /** The first date a listing can be booked for — the common single-date need.
@@ -126,9 +128,9 @@ export const runContainsCases = (cases: readonly ContainsCase[]): void => {
     test(c.name, async () => {
       const { parent } = await makeParent(c.spec);
       const html = await bookingPageHtml(parent.slug);
-      for (const needle of c.contains) expect(html).toContain(needle);
+      for (const needle of c.contains) says(html, needle);
       for (const needle of c.notContains) {
-        expect(html).not.toContain(needle);
+        assert(!html.includes(needle));
       }
     });
   }
@@ -178,8 +180,8 @@ export const expectSelectOffers = async (
   notAvailable: string,
 ): Promise<void> => {
   const options = await selectOptionsHtml(slug, selectName);
-  expect(options).toContain(available);
-  expect(options).not.toContain(notAvailable);
+  says(options, available);
+  assert(!options.includes(notAvailable));
 };
 
 /** Assert a parent's booking page renders its sold-out message and emits no
@@ -191,7 +193,7 @@ export const expectRendersSoldOut = async (
   parentId: number,
 ): Promise<string> => {
   const html = await bookingPageHtml(slug);
-  expect(html).toContain("Sorry, this listing is full.");
-  expect(html).not.toContain(`name="quantity_${parentId}"`);
+  says(html, "Sorry, this listing is full.");
+  assert(!html.includes(`name="quantity_${parentId}"`));
   return html;
 };

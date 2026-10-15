@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -15,6 +14,7 @@ import {
   updateTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestManagerSession,
   testCookie,
@@ -163,7 +163,7 @@ describeWithEnv(
         });
         expectStatus(200)(response);
         const html = await response.text();
-        assertStringIncludes(html, "/admin/groups");
+        says(html, "/admin/groups");
       });
     });
   },

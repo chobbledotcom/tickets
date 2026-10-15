@@ -1,10 +1,10 @@
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import paymentRecords from "#db/migrations/2026-07-26_payment_records.ts";
 import { MIGRATION_IDS } from "#db/migrations/registry.ts";
 import { paymentTables } from "#db/migrations/schema/payments/index.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { has, says } from "#test-utils/says.ts";
 
 const migration = paymentRecords(buildMigrationContext());
 
@@ -12,7 +12,7 @@ describe("db > migrations > payment records", () => {
   test("is registered under the id it declares", () => {
     // The id is what the applied-marker is written under: a mismatch with the
     // registry would run the migration again on every boot.
-    assertArrayIncludes(MIGRATION_IDS ?? [], [migration.id]);
+    has(MIGRATION_IDS, migration.id);
     expect(migration.id).toBe("2026-07-26_payment_records");
   });
 
@@ -30,6 +30,6 @@ describe("db > migrations > payment records", () => {
   });
 
   test("says what it does", () => {
-    assertStringIncludes(migration.description, "payment record");
+    says(migration.description, "payment record");
   });
 });

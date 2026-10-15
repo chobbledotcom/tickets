@@ -18,6 +18,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -129,9 +130,7 @@ Then(
   function (this: TicketsWorld): void {
     // Taken from the site's own setting, so shortening the life of a code
     // without telling the organiser fails the story.
-    expect(onScreen(this).page).toContain(
-      `${Math.round(QR_TOKEN_MAX_AGE_S / 60)} minutes`,
-    );
+    says(onScreen(this).page, `${Math.round(QR_TOKEN_MAX_AGE_S / 60)} minutes`);
   },
 );
 
@@ -184,7 +183,7 @@ Then(
   function (this: TicketsWorld): void {
     const led = whereItLed(this);
     expect(led.paying).toBeNull();
-    expect(led.page).toContain("expired or invalid");
+    says(led.page, "expired or invalid");
     // Anything reading the site rather than the page — a cache, a monitor —
     // goes by the answer's own code, so a refusal has to say it is one.
     expect(led.status).toBe(400);

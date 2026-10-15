@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { attendeeAccount, WRITEOFF } from "#accounting/accounts.ts";
 import { accountBalance } from "#accounting/queries.ts";
@@ -25,6 +26,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -76,7 +78,7 @@ Then(
   function (this: TicketsWorld): void {
     const outcome = requiredWorldValue(this.mergeOutcome, "the merge outcome");
     expect(outcome.applied).toBe(false);
-    expect(outcome.message).toContain("money decision");
+    says(outcome.message, "money decision");
   },
 );
 
@@ -125,7 +127,7 @@ Then(
     const page = await adminPageHtml(
       `/admin/attendees/${survivorId(this)}/ledger`,
     );
-    expect(page).toContain(formatCurrency(await owedBy(survivorId(this))));
+    says(page, formatCurrency(await owedBy(survivorId(this))));
   },
 );
 
@@ -148,9 +150,9 @@ Then(
   function (this: TicketsWorld): void {
     const html = requiredWorldValue(this.mergePreviewHtml, "the merge page");
     // The conflicting booking is offered, but no money question comes with it.
-    expect(html).toContain('name="booking_');
-    expect(html).not.toContain("merge-money-decision");
-    expect(html).not.toContain("Discarded payment");
+    says(html, 'name="booking_');
+    assert(!html.includes("merge-money-decision"));
+    assert(!html.includes("Discarded payment"));
   },
 );
 

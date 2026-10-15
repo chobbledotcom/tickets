@@ -1,5 +1,5 @@
 import type { InStatement } from "@libsql/client";
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -35,6 +35,7 @@ import {
   statementSql,
   wrapDbClient,
 } from "#test-utils/record-queries.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import { reloginAsAdmin } from "#test-utils/session.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
@@ -202,10 +203,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
           503,
           "This site has not been activated yet",
         );
-        assert(
-          !html.includes('http-equiv="refresh"'),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes('http-equiv="refresh"'));
 
         expect(await settingsTableExists()).toBe(false);
       });
@@ -254,10 +252,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const response = await handleRequest(mockRequest("/style.css"));
 
         expect(response.status).toBe(200);
-        assertStringIncludes(
-          response.headers.get("content-type") ?? "",
-          "text/css",
-        );
+        says(response.headers.get("content-type"), "text/css");
         expect(await settingsTableExists()).toBe(false);
       });
 
@@ -267,12 +262,10 @@ describeWithEnv("server (setup)", { db: true }, () => {
         // the browser's strict MIME check.
         const response = await handleRequest(mockRequest("/custom.css"));
 
-        assertStringIncludes(
-          response.headers.get("content-type") ?? "",
-          "text/css",
-        );
-        assert(
-          response.headers.get("content-type")?.includes("text/html") === false,
+        says(response.headers.get("content-type"), "text/css");
+        saysNot(
+          response.headers.get("content-type"),
+          "text/html",
           "the value should not contain the searched item",
         );
         expect(await response.text()).toBe("");
@@ -291,10 +284,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
           const response = await handleRequest(mockRequest("/style.css"));
           expect(response.status).toBe(200);
-          assertStringIncludes(
-            response.headers.get("content-type") ?? "",
-            "text/css",
-          );
+          says(response.headers.get("content-type"), "text/css");
         } finally {
           executeStub.restore();
         }

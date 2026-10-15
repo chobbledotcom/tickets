@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryOne } from "#db/client.ts";
@@ -19,6 +19,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 const getUnsubscribe = (query = ""): Promise<Response> =>
   handleRequest(mockRequest(`/unsubscribe${query}`));
@@ -111,11 +112,8 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
         200,
         t("unsubscribe.unsubscribed_flash"),
       );
-      assertStringIncludes(html, 'class="info"');
-      assert(
-        !html.includes('class="success"'),
-        "the value should not contain the searched item",
-      );
+      says(html, 'class="info"');
+      assert(!html.includes('class="success"'));
     });
 
     test("resubscribes the hash and confirms with a success flash", async () => {
@@ -138,11 +136,8 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
         200,
         t("unsubscribe.resubscribed_flash"),
       );
-      assertStringIncludes(html, 'class="success"');
-      assert(
-        !html.includes('class="info"'),
-        "the value should not contain the searched item",
-      );
+      says(html, 'class="success"');
+      assert(!html.includes('class="info"'));
     });
 
     test("forgetting deletes the contact row outright", async () => {

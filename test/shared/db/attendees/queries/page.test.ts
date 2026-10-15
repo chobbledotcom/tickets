@@ -69,7 +69,6 @@ describeWithEnv("db > attendees > getAttendeesPage", { db: true }, () => {
       !page.rows
         .map((row) => row.id)
         .includes(distinctIds(page.rows)[0]! - ATTENDEES_PAGE_SIZE),
-      "the value should not contain the searched item",
     );
   });
 
@@ -150,14 +149,8 @@ describeWithEnv("db > attendees > getAttendeesPage", { db: true }, () => {
 
     expect(ids[0]).toBe(newest);
     // The page size caps the page, so the two oldest ids fall off the end.
-    assert(
-      !ids.includes(newest - ATTENDEES_PAGE_SIZE),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !ids.includes(newest - ATTENDEES_PAGE_SIZE - 1),
-      "the value should not contain the searched item",
-    );
+    assert(!ids.includes(newest - ATTENDEES_PAGE_SIZE));
+    assert(!ids.includes(newest - ATTENDEES_PAGE_SIZE - 1));
   });
 
   test("newest sorts attendee ids falling; oldest rising", async () => {

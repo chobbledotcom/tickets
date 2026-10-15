@@ -4,7 +4,6 @@
  * listings-form.ts with its own suite.
  */
 
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
@@ -18,6 +17,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 import { awaitTestRequest, mockMultipartRequest } from "#test-utils/mocks.ts";
+import { has, says } from "#test-utils/says.ts";
 import {
   adminGet,
   adminMultipartPost,
@@ -41,9 +41,9 @@ describeWithEnv("creating a listing", { db: true }, () => {
       adminLandingPath("owner"),
     );
     const { getAllListings } = await import("#db/listings/records.ts");
-    assertArrayIncludes(
+    has(
       (await getAllListings()).map((one) => one.name),
-      ["Made By Staff"],
+      "Made By Staff",
     );
   });
 
@@ -75,10 +75,7 @@ describeWithEnv("editing a listing", { db: true }, () => {
       buildUpdateListingForm({ name: "After" }, listing),
     );
 
-    assertStringIncludes(
-      expectRedirect(response),
-      `/admin/listing/${listing.id}`,
-    );
+    says(expectRedirect(response), `/admin/listing/${listing.id}`);
     const after = await listingsTable.read.pick(["name"]).one({
       id: listing.id,
     });
@@ -115,7 +112,7 @@ describeWithEnv("duplicating a listing", { db: true }, () => {
     const response = await adminGet(`/admin/listing/${listing.id}/duplicate`);
 
     expect(response.status).toBe(200);
-    assertStringIncludes(await response.text(), "Copy Me");
+    says(await response.text(), "Copy Me");
   });
 
   test("answers 404 duplicating a listing that is not there", async () => {

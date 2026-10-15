@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -12,6 +11,7 @@ import {
   expectLongCacheHeaders,
   expectStaticFile,
 } from "#test-utils/public/static-route-checks.ts";
+import { says } from "#test-utils/says.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -155,8 +155,8 @@ describeWithEnv(
     describe("GET /favicon.ico", () => {
       test("returns SVG favicon", async () => {
         await expectStaticFile("/favicon.ico", "image/svg+xml", (svg) => {
-          assertStringIncludes(svg, "<svg");
-          assertStringIncludes(svg, "viewBox");
+          says(svg, "<svg");
+          says(svg, "viewBox");
         });
       });
 
@@ -172,8 +172,8 @@ describeWithEnv(
     describe("GET /icons.svg", () => {
       test("returns SVG icon sprite", async () => {
         await expectStaticFile("/icons.svg", "image/svg+xml", (svg) => {
-          assertStringIncludes(svg, "<svg");
-          assertStringIncludes(svg, 'id="plus"');
+          says(svg, "<svg");
+          says(svg, 'id="plus"');
         });
       });
 
@@ -192,8 +192,8 @@ describeWithEnv(
           "/style.css",
           "text/css; charset=utf-8",
           (css) => {
-            assertStringIncludes(css, ":root");
-            assertStringIncludes(css, "--color-link");
+            says(css, ":root");
+            says(css, "--color-link");
           },
         );
       });
@@ -255,8 +255,8 @@ describeWithEnv(
           "/admin.js",
           "application/javascript; charset=utf-8",
           (js) => {
-            assertStringIncludes(js, "data-select-on-click");
-            assertStringIncludes(js, "data-nav-select");
+            says(js, "data-select-on-click");
+            says(js, "data-nav-select");
           },
         );
       });
@@ -299,7 +299,7 @@ describeWithEnv(
         const response = await handleRequest(mockRequest("/admin.js"));
         const js = await response.text();
         for (const marker of moduleMarkers) {
-          assertStringIncludes(js, marker);
+          says(js, marker);
         }
       });
 
@@ -325,7 +325,7 @@ describeWithEnv(
         await expectStaticFile(
           "/markdown-editor.js",
           "application/javascript; charset=utf-8",
-          (js) => assertStringIncludes(js, "md-editor"),
+          (js) => says(js, "md-editor"),
         );
         await expectLongCacheHeaders("/markdown-editor.js");
       });
@@ -336,7 +336,7 @@ describeWithEnv(
         await expectStaticFile(
           "/logistics-map.js",
           "application/javascript; charset=utf-8",
-          (js) => assertStringIncludes(js, "logistics-map-pin"),
+          (js) => says(js, "logistics-map-pin"),
         );
         await expectLongCacheHeaders("/logistics-map.js");
       });
@@ -345,7 +345,7 @@ describeWithEnv(
         await expectStaticFile(
           "/logistics-map.css",
           "text/css; charset=utf-8",
-          (css) => assertStringIncludes(css, ".leaflet-pane"),
+          (css) => says(css, ".leaflet-pane"),
         );
       });
     });

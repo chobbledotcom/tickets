@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
@@ -8,6 +8,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertPublicHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -19,8 +20,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("owner sees all nav links", async () => {
       const response = await adminGet("/admin/");
       const html = await response.text();
-      assertStringIncludes(html, "Settings");
-      assertStringIncludes(html, "Users");
+      says(html, "Settings");
+      says(html, "Users");
     });
 
     test("manager does not see owner-only nav links", async () => {
@@ -30,14 +31,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
       const dashboardResponse = await awaitTestRequest("/admin/", { cookie });
       const html = await dashboardResponse.text();
-      assert(
-        !html.includes("Settings"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("Users"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Settings"));
+      assert(!html.includes("Users"));
     });
 
     test("manager sees log nav link", async () => {
@@ -47,7 +42,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
       const dashboardResponse = await awaitTestRequest("/admin/", { cookie });
       const html = await dashboardResponse.text();
-      assertStringIncludes(html, "/admin/log");
+      says(html, "/admin/log");
     });
   });
 
@@ -74,7 +69,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const response = await adminGet("/admin/users");
       const html = await response.text();
-      assertStringIncludes(html, "Invited");
+      says(html, "Invited");
     });
 
     test("shows Invite Expired status for expired invite", async () => {
@@ -94,7 +89,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const response = await adminGet("/admin/users");
       const html = await response.text();
-      assertStringIncludes(html, "Invite Expired");
+      says(html, "Invite Expired");
     });
   });
 
@@ -120,7 +115,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         "#templates/fields/validators.ts"
       );
       const result = validateUsername("user name");
-      assertStringIncludes(result ?? "", "letters, numbers");
+      says(result, "letters, numbers");
     });
 
     test("validateUsername accepts valid username", async () => {

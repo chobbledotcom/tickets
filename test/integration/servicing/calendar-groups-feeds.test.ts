@@ -17,7 +17,7 @@
  */
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeeKindsByIds } from "#db/attendees/queries.ts";
@@ -29,6 +29,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createServicingHold,
   expectServicingLink,
@@ -62,7 +63,7 @@ describeWithEnv("servicing §8 — calendar, groups & feeds", { db: true }, () =
   test("servicing events appear on the admin calendar for their date", async () => {
     await createCalendarHold();
     const body = await renderAdminPage(`/admin/calendar?date=${CALENDAR_DATE}`);
-    assertStringIncludes(body, "Boiler Service");
+    says(body, "Boiler Service");
   });
 
   test("calendar links a servicing event to /admin/servicing/:id, not /admin/attendees/:id", async () => {
@@ -144,15 +145,9 @@ describeWithEnv("servicing §8 — calendar, groups & feeds", { db: true }, () =
       const body = await (
         await awaitTestRequest("/caldav/events.ics", { cookie })
       ).text();
-      assertStringIncludes(body, "BEGIN:VCALENDAR");
-      assert(
-        !body.includes("Boiler Service"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.includes("SUMMARY:Boiler Service"),
-        "the value should not contain the searched item",
-      );
+      says(body, "BEGIN:VCALENDAR");
+      assert(!body.includes("Boiler Service"));
+      assert(!body.includes("SUMMARY:Boiler Service"));
     } finally {
       settings.clearTestOverride("calendar_feeds_enabled");
     }

@@ -1,11 +1,11 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookingPageHtml, makeParent } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -27,7 +27,7 @@ describeWithEnv(
         });
 
         const html = await bookingPageHtml(parent.slug);
-        assertStringIncludes(html, 'name="email"');
+        says(html, 'name="email"');
         expect(html).not.toMatch(/name="email"[^>]*\srequired/);
       } finally {
         await settings.update.setPaymentProviderNone();
@@ -44,7 +44,7 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(html, 'name="phone"');
+      says(html, 'name="phone"');
       // The child-only field is present but not HTML-required.
       expect(html).not.toMatch(/name="phone"[^>]*\srequired/);
     });

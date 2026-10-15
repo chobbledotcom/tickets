@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -9,6 +9,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { optInAddOnForListings } from "#test-utils/modifiers.ts";
+import { has, says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -34,11 +35,8 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
 
       const html = await getDeactivateForm(group.id);
 
-      assertStringIncludes(html, "deactivate 1 active listing");
-      assert(
-        !html.includes("deactivate 1 active listings"),
-        "the value should not contain the searched item",
-      );
+      says(html, "deactivate 1 active listing");
+      assert(!html.includes("deactivate 1 active listings"));
     });
 
     test("renders the confirmation form with plural listing count", async () => {
@@ -48,7 +46,7 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
 
       const html = await getDeactivateForm(group.id);
 
-      assertStringIncludes(html, "deactivate 2 active listings");
+      says(html, "deactivate 2 active listings");
     });
   });
 
@@ -67,16 +65,14 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
-        `/admin/groups/${group.id}`,
-      );
+      says(response.headers.get("location"), `/admin/groups/${group.id}`);
       // The success flash and the activity row both name the action and the
       // member count.
       expectFlash(response, "Group deactivated (x2 listings)");
-      assertArrayIncludes((await activityMessages()) ?? [], [
+      has(
+        await activityMessages(),
         "Group 'Shutdown' deactivated (x2 listings)",
-      ]);
+      );
       expect((await getListingWithCount(a.id))?.active).toBe(false);
       expect((await getListingWithCount(b.id))?.active).toBe(false);
     });
@@ -108,8 +104,8 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
+      says(
+        response.headers.get("location"),
         `/admin/groups/${group.id}/bulk-actions/deactivate`,
       );
       // No listing was deactivated — the batch was blocked entirely.

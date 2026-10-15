@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { bookingError } from "#booking/form.ts";
@@ -7,6 +7,7 @@ import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { submitPackageBooking } from "#test-utils/packages.ts";
+import { says } from "#test-utils/says.ts";
 import {
   bookingRows,
   capAddonsAtThree,
@@ -23,11 +24,11 @@ describeWithEnv("package child availability", { db: true }, () => {
     const body = await (
       await handleRequest(mockRequest(`/ticket/${group.slug}`))
     ).text();
-    assertStringIncludes(body, `name="child_qty_${parent.id}_${child.id}"`);
-    assertStringIncludes(body, `name="child_qty_${parent.id}_${childB.id}"`);
-    assertStringIncludes(body, "Kit Addon");
-    assertStringIncludes(body, `name="package_quantity_${group.id}"`);
-    assertStringIncludes(body, `data-parent-id="${parent.id}"`);
+    says(body, `name="child_qty_${parent.id}_${child.id}"`);
+    says(body, `name="child_qty_${parent.id}_${childB.id}"`);
+    says(body, "Kit Addon");
+    says(body, `name="package_quantity_${group.id}"`);
+    says(body, `data-parent-id="${parent.id}"`);
     expect(body).toMatch(
       new RegExp(`data-package-members="[^"]*${parent.id}:1`),
     );
@@ -43,11 +44,8 @@ describeWithEnv("package child availability", { db: true }, () => {
     const body = await (
       await handleRequest(mockRequest(`/ticket/${group.slug}`))
     ).text();
-    assertStringIncludes(body, '<option value="3">3</option>');
-    assert(
-      !body.includes('<option value="4">4</option>'),
-      "the value should not contain the searched item",
-    );
+    says(body, '<option value="3">3</option>');
+    assert(!body.includes('<option value="4">4</option>'));
   });
 
   test("a crafted POST above the bundle ceiling refuses and books nothing", async () => {
@@ -118,6 +116,6 @@ describeWithEnv("package child availability", { db: true }, () => {
       [`child_qty_${parent.id}_${childB.id}`]: "1",
       [`package_quantity_${group.id}`]: "2",
     });
-    assertStringIncludes(fragment, "£37");
+    says(fragment, "£37");
   });
 });

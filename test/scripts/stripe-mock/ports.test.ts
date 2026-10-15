@@ -9,6 +9,7 @@ import {
   stripeMockPortFromEnv,
 } from "#scripts/stripe-mock.ts";
 import { stripeMock } from "#shared/stripe/mock.ts";
+import { says } from "#test-utils/says.ts";
 import {
   testEnv,
   withTempStripeMockPaths,
@@ -253,9 +254,7 @@ describe("startStripeMock ports", () => {
         stdout: "null",
       }).output();
       expect(success).toBe(false);
-      expect(new TextDecoder().decode(stderr)).toContain(
-        "without a -http-port value",
-      );
+      says(new TextDecoder().decode(stderr), "without a -http-port value");
     });
   });
 

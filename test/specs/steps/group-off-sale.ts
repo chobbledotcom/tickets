@@ -24,6 +24,7 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -173,9 +174,7 @@ const outsiderIdsOf = (world: TicketsWorld, groupName: string): number[] => {
 Then(
   "the organiser is told the group name does not match",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
-      "Group name does not match",
-    );
+    says(whatTheyWereTold(this, ORGANISER), "Group name does not match");
   },
 );
 

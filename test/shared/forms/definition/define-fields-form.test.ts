@@ -1,10 +1,10 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { resetI18nForTest, t } from "#i18n";
 import { FormParams } from "#shared/form-data.ts";
 import { defineFieldsForm, type FormValues } from "#shared/forms/definition.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("defineFieldsForm", () => {
   const getLabelForm = defineFieldsForm(
@@ -18,11 +18,11 @@ describe("defineFieldsForm", () => {
       return getLabelForm().render();
     };
     try {
-      assertStringIncludes(labelWith("Nickname"), "Nickname");
+      says(labelWith("Nickname"), "Nickname");
     } finally {
       resetI18nForTest();
     }
-    assertStringIncludes(getLabelForm().render(), "Name");
+    says(getLabelForm().render(), "Name");
   });
 
   test("passes the caller's arguments through to the fields builder", () => {
@@ -32,7 +32,7 @@ describe("defineFieldsForm", () => {
           { label: `Visitors ${count}`, name: "count", type: "number" },
         ] as const,
     );
-    assertStringIncludes(getViewForm(3).render(), "Visitors 3");
+    says(getViewForm(3).render(), "Visitors 3");
   });
 
   test("keeps the field types the FormValues type reads", () => {

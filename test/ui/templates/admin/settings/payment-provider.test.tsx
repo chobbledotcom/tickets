@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
@@ -9,6 +9,7 @@ import { defaultSettingsState } from "#test/ui/templates/admin/settings-state.ts
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 const render = (
   form: (s: SettingsPageState) => JSX.Element | null,
@@ -24,30 +25,24 @@ describe("settings payment provider forms", () => {
         paymentProvider: null,
         paymentProviderRecoveryChoices: ["stripe", "square"],
       });
-      assertStringIncludes(
-        html,
-        'action="/admin/settings/payment-provider-recovery"',
-      );
-      assertStringIncludes(html, 'id="settings-payment-provider-recovery"');
-      assertStringIncludes(html, '<div class="prose">');
-      assertStringIncludes(html, '<fieldset class="radios">');
+      says(html, 'action="/admin/settings/payment-provider-recovery"');
+      says(html, 'id="settings-payment-provider-recovery"');
+      says(html, '<div class="prose">');
+      says(html, '<fieldset class="radios">');
       for (const provider of ["stripe", "square"]) {
         const input = inputTagWithValue(html, provider);
-        assertStringIncludes(input, 'name="existing_payment_provider"');
-        assertStringIncludes(input, "required");
-        assert(
-          !input.includes("checked"),
-          "the value should not contain the searched item",
-        );
+        says(input, 'name="existing_payment_provider"');
+        says(input, "required");
+        assert(!input.includes("checked"));
       }
-      assertStringIncludes(html, "New sales will stay off.");
+      says(html, "New sales will stay off.");
     });
 
     test("shows the recovery form for one configured provider", () => {
       const html = render(ExistingPaymentProviderForm, {
         paymentProviderRecoveryChoices: ["sumup"],
       });
-      assertStringIncludes(
+      says(
         inputTagWithValue(html, "sumup"),
         'name="existing_payment_provider"',
       );

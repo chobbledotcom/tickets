@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   afterEach,
@@ -32,6 +31,7 @@ import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { has } from "#test-utils/says.ts";
 
 // Outer describe ensures sequential execution — createTestListing() calls
 // handleRequest which sets a request-scoped ID via AsyncLocalStorage.
@@ -239,9 +239,10 @@ describe("log-error", () => {
         const messages = (await getAllActivityLog()).map(
           ({ message }) => message,
         );
-        assertArrayIncludes(messages, [
+        has(
+          messages,
           "Error: Email send failed (provider=resend status=422) — provider-activity-marker",
-        ]);
+        );
       });
 
       test("persists every independent error in one request", async () => {
@@ -284,7 +285,7 @@ describe("log-error", () => {
         const messages = (await getAllActivityLog()).map(
           ({ message }) => message,
         );
-        assertArrayIncludes(messages, ["Error: Database connection failed"]);
+        has(messages, "Error: Database connection failed");
         expect(messages.some((message) => message.includes("N+1 query"))).toBe(
           false,
         );
@@ -309,8 +310,8 @@ describe("log-error", () => {
         const messages = (await getAllActivityLog()).map(
           ({ message }) => message,
         );
-        assertArrayIncludes(messages, ["Error: Database connection failed"]);
-        assertArrayIncludes(messages, ["Error: Database query failed"]);
+        has(messages, "Error: Database connection failed");
+        has(messages, "Error: Database query failed");
       });
     });
   });

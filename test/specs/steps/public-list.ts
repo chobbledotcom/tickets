@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { browserSeenBy, CUSTOMER } from "#test/specs/support/browser.ts";
@@ -19,6 +20,7 @@ import {
   takeOffSale,
 } from "#test/specs/support/public-list.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -163,7 +165,7 @@ Then(
 Then(
   "the list says the {word} can be booked",
   function (this: TicketsWorld, _name: string): void {
-    expect(whatTheCustomerSees(this)).toContain(t("public.book_now"));
+    says(whatTheCustomerSees(this), t("public.book_now"));
   },
 );
 
@@ -171,33 +173,33 @@ Then(
   "the list says the {word} can be bought, not booked",
   function (this: TicketsWorld, _name: string): void {
     const page = whatTheCustomerSees(this);
-    expect(page).toContain(t("public.buy_now"));
-    expect(page).not.toContain(t("public.book_now"));
+    says(page, t("public.buy_now"));
+    assert(!page.includes(t("public.book_now")));
   },
 );
 
 Then(
   "the list says the {word} is {string}",
   function (this: TicketsWorld, _name: string, words: string): void {
-    expect(whatTheCustomerSees(this)).toContain(words);
+    says(whatTheCustomerSees(this), words);
   },
 );
 
 Then("the list is empty", function (this: TicketsWorld): void {
-  expect(whatTheCustomerSees(this)).toContain(t("public.no_listings_listed"));
+  says(whatTheCustomerSees(this), t("public.no_listings_listed"));
 });
 
 Then(
   "the list is headed {string}",
   function (this: TicketsWorld, title: string): void {
-    expect(whatTheCustomerSees(this)).toContain(title);
+    says(whatTheCustomerSees(this), title);
   },
 );
 
 Then(
   "a customer given the {word} link can still open it",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    expect(await openedFromALinkTheyWereGiven(this, name)).toContain(name);
+    says(await openedFromALinkTheyWereGiven(this, name), name);
   },
 );
 

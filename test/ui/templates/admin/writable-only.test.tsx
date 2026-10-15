@@ -38,10 +38,7 @@ test("WritableOnly renders nothing (not literal 'null') in read-only mode", () =
     </WritableOnly>,
   );
   expect(html).toBe("");
-  assert(
-    !html.includes("null"),
-    "the value should not contain the searched item",
-  );
+  assert(!html.includes("null"));
 });
 
 // Regression (same root cause): WritableDangerLink wraps content in
@@ -52,8 +49,5 @@ test("WritableDangerLink renders nothing in read-only mode", () => {
     <WritableDangerLink href="/delete">Delete</WritableDangerLink>,
   );
   expect(html).toBe("");
-  assert(
-    !html.includes("null"),
-    "the value should not contain the searched item",
-  );
+  assert(!html.includes("null"));
 });

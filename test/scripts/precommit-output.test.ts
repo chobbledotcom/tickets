@@ -4,6 +4,7 @@ import {
   filterTestOutput,
   testProgressFromLine,
 } from "#scripts/precommit/output.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("precommit test output", () => {
   test("keeps everything from the first failure section onward", () => {
@@ -17,7 +18,7 @@ describe("precommit test output", () => {
 
   test("keeps a section that starts with either summary table row", () => {
     for (const row of ["FAILED | file", "ok   | file"]) {
-      expect(filterTestOutput(`${row}\ncontext`, "")).toContain("context");
+      says(filterTestOutput(`${row}\ncontext`, ""), "context");
     }
   });
 

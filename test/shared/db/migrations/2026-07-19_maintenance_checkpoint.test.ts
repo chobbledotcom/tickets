@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -6,6 +5,7 @@ import maintenanceCheckpointMigration from "#db/migrations/2026-07-19_maintenanc
 import { applySchemaChanges } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { has } from "#test-utils/says.ts";
 
 const context = buildMigrationContext({ applySchemaChanges });
 
@@ -37,9 +37,9 @@ describeWithEnv(
       const columns = await getDb().execute(
         "PRAGMA table_info(maintenance_tasks)",
       );
-      assertArrayIncludes(
+      has(
         columns.rows.map((row) => row.name),
-        ["checkpoint"],
+        "checkpoint",
       );
     });
   },

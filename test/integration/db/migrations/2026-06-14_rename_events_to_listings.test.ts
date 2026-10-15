@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -15,6 +15,7 @@ import {
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has } from "#test-utils/says.ts";
 
 describeWithEnv(
   "db > migrations > 2026-06-14_rename_events_to_listings",
@@ -64,13 +65,9 @@ describeWithEnv(
 
         await rerunMigrationsAndExpectListingDomainRestored(listingId);
 
-        assert(
-          !(await columnNames("activity_log")).includes("event_id"),
-          "the value should not contain the searched item",
-        );
+        assert(!(await columnNames("activity_log")).includes("event_id"));
         assert(
           !(await columnNames("built_sites")).includes("assigned_event_id"),
-          "the value should not contain the searched item",
         );
         expect(await schemaHashMarker()).toBe(SCHEMA_HASH);
       });
@@ -91,13 +88,8 @@ describeWithEnv(
         await markMigrationsForRerun();
         await initDb();
 
-        assertArrayIncludes((await columnNames("activity_log")) ?? [], [
-          "listing_id",
-        ]);
-        assert(
-          !(await columnNames("activity_log")).includes("event_id"),
-          "the value should not contain the searched item",
-        );
+        has(await columnNames("activity_log"), "listing_id");
+        assert(!(await columnNames("activity_log")).includes("event_id"));
         const row = await getDb().execute(
           "SELECT listing_id FROM activity_log WHERE message = 'duplicate listing activity'",
         );
@@ -127,12 +119,9 @@ describeWithEnv(
         await initDb();
 
         const cols = await columnNames("activity_log");
-        assertArrayIncludes(cols, ["listing_id"]);
-        assertArrayIncludes(cols, ["attendee_id"]);
-        assert(
-          !cols.includes("event_id"),
-          "the value should not contain the searched item",
-        );
+        has(cols, "listing_id");
+        has(cols, "attendee_id");
+        assert(!cols.includes("event_id"));
         const row = await getDb().execute(
           "SELECT listing_id FROM activity_log WHERE message = 'stale fk listing activity'",
         );

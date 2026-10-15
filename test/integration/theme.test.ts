@@ -1,9 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -11,7 +12,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
   test("default theme is light", async () => {
     const response = await adminGet("/admin/settings");
     const html = await response.text();
-    assertStringIncludes(html, 'data-theme="light"');
+    says(html, 'data-theme="light"');
   });
 
   test("changing theme to dark via admin settings", async () => {
@@ -29,7 +30,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
 
     const response = await adminGet("/admin/settings");
     const html = await response.text();
-    assertStringIncludes(html, 'data-theme="dark"');
+    says(html, 'data-theme="dark"');
   });
 
   test("dark theme is reflected on public pages", async () => {
@@ -38,7 +39,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
 
     const response = await handleRequest(mockRequest("/"));
     const html = await response.text();
-    assertStringIncludes(html, 'data-theme="dark"');
+    says(html, 'data-theme="dark"');
   });
 
   test("switching back to light theme", async () => {
@@ -47,16 +48,13 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
 
     const response = await adminGet("/admin/settings");
     const html = await response.text();
-    assertStringIncludes(html, 'data-theme="light"');
+    says(html, 'data-theme="light"');
   });
 
   test("links are not underlined by default (no data-underline-links)", async () => {
     const response = await adminGet("/admin/settings");
     const html = await response.text();
-    assert(
-      !html.includes("data-underline-links"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("data-underline-links"));
   });
 
   test("enabling underline links adds data-underline-links to the page", async () => {
@@ -67,7 +65,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
 
     const response = await adminGet("/admin/settings");
     const html = await response.text();
-    assertStringIncludes(html, "data-underline-links");
+    says(html, "data-underline-links");
   });
 
   test("underline links setting is reflected on public pages", async () => {
@@ -79,6 +77,6 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
 
     const response = await handleRequest(mockRequest("/"));
     const html = await response.text();
-    assertStringIncludes(html, "data-underline-links");
+    says(html, "data-underline-links");
   });
 });

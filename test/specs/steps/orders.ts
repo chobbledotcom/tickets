@@ -18,6 +18,7 @@ import {
   lineQty,
   openEditorFromRoster,
 } from "#test-utils/order-journey.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -133,11 +134,11 @@ Then(
   "each booking says which bundle or parent it came from",
   async function (this: TicketsWorld): Promise<void> {
     const editor = await openOrder(this, "Tent");
-    expect(editor).toContain("via Mega Kit");
-    expect(editor).toContain("add-on under Marquee");
+    says(editor, "via Mega Kit");
+    says(editor, "add-on under Marquee");
     // The day the customer picked rides with the order.
-    expect(editor).toContain('name="start_date"');
-    expect(editor).toContain(`value="${this.orderDay}"`);
+    says(editor, 'name="start_date"');
+    says(editor, `value="${this.orderDay}"`);
   },
 );
 
@@ -206,7 +207,7 @@ Then(
     const { catalog } = placedOrder(this);
     const tent = catalog.listing("Tent").id;
     for (const bundle of ["Camp Kit", "Glamp Kit"]) {
-      expect(editor).toContain(`via ${bundle}`);
+      says(editor, `via ${bundle}`);
       expect(
         attendeeLineIndex(editor, tent, catalog.group(bundle).id),
       ).not.toBeNull();

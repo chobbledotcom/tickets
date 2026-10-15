@@ -20,6 +20,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestInvite } from "#test-utils/db-helpers/misc.ts";
 import { setTestSession } from "#test-utils/internal.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { loginAsAdmin } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -194,7 +195,7 @@ describe("test-utils — ticket & join flows", () => {
       const { inviteCode, cookie, csrfToken } =
         await createTestInvite("invitee1");
       expect(inviteCode).toBeTruthy();
-      expect(cookie).toContain(`${getSessionCookieName()}=`);
+      says(cookie, `${getSessionCookieName()}=`);
       expect(csrfToken).toMatch(/^s1\./);
     });
 
@@ -253,7 +254,7 @@ describe("test-utils — ticket & join flows", () => {
 
     test("returns cookie and CSRF token after successful login", async () => {
       const session = await loginAsAdmin();
-      expect(session.cookie).toContain(`${getSessionCookieName()}=`);
+      says(session.cookie, `${getSessionCookieName()}=`);
       expect(session.csrfToken).toBeTruthy();
       expect(typeof session.csrfToken).toBe("string");
     });

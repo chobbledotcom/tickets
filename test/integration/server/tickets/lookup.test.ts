@@ -8,7 +8,6 @@
  * and the blind index that makes a token findable without decrypting it.
  */
 
-import { assertStringIncludes } from "@std/assert";
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -22,6 +21,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -119,18 +119,12 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
       const response = await awaitTestRequest(`/t/${token}/svg`);
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe("image/svg+xml");
-      assertStringIncludes(
-        response.headers.get("cache-control") ?? "",
-        "immutable",
-      );
-      assertStringIncludes(
-        response.headers.get("cache-control") ?? "",
-        "public",
-      );
+      says(response.headers.get("cache-control"), "immutable");
+      says(response.headers.get("cache-control"), "public");
 
       const body = await response.text();
-      assertStringIncludes(body, "<svg");
-      assertStringIncludes(body, "</svg>");
+      says(body, "<svg");
+      says(body, "</svg>");
     });
   });
 });

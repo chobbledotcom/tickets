@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -29,6 +29,7 @@ import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { refundBookedOrder } from "#test-utils/ledger.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
 /** A paid listing (`unitPrice: 1000`, 100 spots) — the shared setup for the
@@ -64,10 +65,7 @@ describeWithEnv(
           "pi_test_123",
           "Not refunded",
         );
-        assert(
-          !html.includes("Refresh payment status"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Refresh payment status"));
       });
 
       test("does not guess a provider for an untagged payment id", async () => {
@@ -92,14 +90,8 @@ describeWithEnv(
             200,
             "pi_untagged_123",
           );
-          assert(
-            !html.includes("https://me.sumup.com"),
-            "the value should not contain the searched item",
-          );
-          assert(
-            !html.includes('target="_blank"'),
-            "the value should not contain the searched item",
-          );
+          assert(!html.includes("https://me.sumup.com"));
+          assert(!html.includes('target="_blank"'));
         } finally {
           settings.clearTestOverrides();
         }
@@ -141,8 +133,8 @@ describeWithEnv(
         const html = await response.text();
         expect(response.status).toBe(200);
         // Both badges render, separated by the space between them.
-        assertStringIncludes(html, "Checked in");
-        assertStringIncludes(html, "Refunded");
+        says(html, "Checked in");
+        says(html, "Refunded");
       });
 
       test("shows success message when flash cookie present", async () => {
@@ -164,10 +156,7 @@ describeWithEnv(
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         expect(response.status).toBe(200);
         const html = await response.text();
-        assert(
-          !html.includes("Payment Details"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Payment Details"));
       });
     });
 
@@ -255,8 +244,8 @@ describeWithEnv(
           true,
         );
         expect(response.status).toBe(302);
-        assertStringIncludes(
-          response.headers.get("location") ?? "",
+        says(
+          response.headers.get("location"),
           `/admin/attendees/${attendee.id}`,
         );
         expectFlash(response, expect.stringContaining("refunded"));
@@ -309,8 +298,8 @@ describeWithEnv(
         );
         const { response } = await refreshPaymentAsStripe(attendee.id, false);
         expect(response.status).toBe(302);
-        assertStringIncludes(
-          response.headers.get("location") ?? "",
+        says(
+          response.headers.get("location"),
           `/admin/attendees/${attendee.id}`,
         );
         expectFlash(response, expect.stringContaining("up to date"));

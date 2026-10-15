@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
@@ -30,6 +29,7 @@ import {
   setupReservationListing,
   stubPaidSession,
 } from "#test-utils/reservation/helpers.ts";
+import { has, says } from "#test-utils/says.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
 // jscpd:ignore-end
@@ -61,7 +61,7 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_discount_dep"),
         );
-        assertArrayIncludes([200, 302, 303], [response.status]);
+        has([200, 302, 303], response.status);
 
         const attendee = await latestAttendee();
         expect(attendee.remainingBalance).toBe(810);
@@ -76,9 +76,9 @@ describeWithEnv(
         const html = await (
           await handleRequest(mockRequest(`/pay/${token}`))
         ).text();
-        assertStringIncludes(html, "Full order price:</strong> £9");
-        assertStringIncludes(html, "Already paid:</strong> £0.90");
-        assertStringIncludes(html, "Balance due:</strong> £8.10");
+        says(html, "Full order price:</strong> £9");
+        says(html, "Already paid:</strong> £0.90");
+        says(html, "Balance due:</strong> £8.10");
       } finally {
         session.restore();
       }

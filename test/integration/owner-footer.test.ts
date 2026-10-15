@@ -4,7 +4,7 @@
  * as a unit in test/lib/footer.test.ts.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { isFooterDebugEnabled } from "#db/query-log.ts";
@@ -19,6 +19,7 @@ import {
   mockRequest,
 } from "#test-utils/mocks.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminGet,
   createTestManagerSession,
@@ -41,16 +42,13 @@ describeWithEnv("admin debug footer injection", { db: true }, () => {
       cookie: managerCookie,
     });
     const html = await response.text();
-    assertStringIncludes(html, FOOTER_MARKER);
+    says(html, FOOTER_MARKER);
   });
 
   test("is NOT injected for unauthenticated requests to admin paths", async () => {
     const response = await handleRequest(mockRequest("/admin/"));
     const html = await response.text();
-    assert(
-      !html.includes(FOOTER_MARKER),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes(FOOTER_MARKER));
   });
 
   test("stays disabled during an unauthenticated admin GET", async () =>
@@ -63,10 +61,7 @@ describeWithEnv("admin debug footer injection", { db: true }, () => {
     await enablePublicSite();
     const response = await handleRequest(mockRequest("/"));
     const html = await response.text();
-    assert(
-      !html.includes(FOOTER_MARKER),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes(FOOTER_MARKER));
   });
 
   test("is NOT injected for POST responses (no query log on mutations)", async () => {
@@ -78,24 +73,15 @@ describeWithEnv("admin debug footer injection", { db: true }, () => {
       ),
     );
     const body = await response.text();
-    assert(
-      !body.includes(FOOTER_MARKER),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes(FOOTER_MARKER));
   });
 
   test("is NOT injected into non-HTML responses (e.g. CSV export)", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
     const response = await adminGet(`/admin/listing/${listing.id}/export`);
-    assertStringIncludes(
-      response.headers.get("content-type") ?? "",
-      "text/csv",
-    );
+    says(response.headers.get("content-type"), "text/csv");
     const body = await response.text();
-    assert(
-      !body.includes(FOOTER_MARKER),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes(FOOTER_MARKER));
   });
 });
 
@@ -119,7 +105,7 @@ describeWithEnv("admin debug footer contents", { db: true }, () => {
   test("lists the SQL statements executed while rendering the page", async () => {
     // The page must run at least one SELECT; assert it appears in the log.
     const html = await assertAdminHtml("/admin/", FOOTER_MARKER);
-    assertStringIncludes(html, "SQL queries");
+    says(html, "SQL queries");
     expect(html).toMatch(/<li>SELECT[^<]*&mdash;\s*\d+\.\d+ms<\/li>/);
   });
 

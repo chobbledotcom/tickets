@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { formatAtomicError } from "#booking/form.ts";
@@ -10,6 +10,7 @@ import { prepareOrder } from "#routes/public/ticket-submit/prepare.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import {
   prepareTestOrder,
   quantityForm,
@@ -185,11 +186,8 @@ describeWithEnv("selected package names", { db: true }, () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected a child quantity refusal");
-    assertStringIncludes(result.error, group.name);
-    assert(
-      !result.error.includes(parent.name),
-      "the value should not contain the searched item",
-    );
+    says(result.error, group.name);
+    assert(!result.error.includes(parent.name));
   });
 
   for (const namedFirst of [false, true]) {

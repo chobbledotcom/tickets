@@ -177,14 +177,8 @@ describeWithEnv(
               "no longer accepting registrations",
               "refunded",
             );
-            assert(
-              !html.includes("being processed"),
-              "the value should not contain the searched item",
-            );
-            assert(
-              !html.includes("not configured"),
-              "the value should not contain the searched item",
-            );
+            assert(!html.includes("being processed"));
+            assert(!html.includes("not configured"));
             expect(mockRefund.calls.length).toBe(1);
           },
         );

@@ -24,7 +24,6 @@ import {
   rememberListing,
   setBoxOnListing,
 } from "#test/specs/support/listings.ts";
-
 import type {
   ActOnOneThing,
   ChangeOneThing,
@@ -33,6 +32,7 @@ import type {
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { makeParent, ticketPageStatus } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
@@ -88,7 +88,7 @@ export const bookingLinkFor = (world: TicketsWorld, name: string): string =>
 export const expectCustomerCanOpen: ActOnOneThing = async (world, name) => {
   await expectTicketPageAnswers(200)(world, name);
   const browser = await openAsNewcomer(bookingLinkFor(world, name));
-  expect(browser.pageText).toContain(name);
+  says(browser.pageText, name);
 };
 
 /** What the site answers when a customer asks for this thing's own page. */

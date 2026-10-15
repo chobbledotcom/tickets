@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -6,6 +5,7 @@ import {
   packageBundleMembers,
   packageBundleMinError,
 } from "#booking/min-refusal.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("belowMinError", () => {
   test("answers the caller's message for a count below the minimum", () => {
@@ -63,8 +63,8 @@ describe("packageBundleMinError", () => {
 
   test("refuses the first member whose units the bundles cannot serve", () => {
     // One bundle gives a fixed-1 member 1 unit against a minimum of 2.
-    assertStringIncludes(
-      packageBundleMinError([member(1, 2), member(3, 3)], 1) ?? "",
+    says(
+      packageBundleMinError([member(1, 2), member(3, 3)], 1),
       "Member 1 sells at least 2 tickets per booking.",
     );
   });
@@ -73,8 +73,8 @@ describe("packageBundleMinError", () => {
     // Three units per bundle serve a minimum of 2 from the first bundle; a
     // subtraction instead of a product would read 1 and refuse.
     expect(packageBundleMinError([member(3, 2)], 2)).toBeNull();
-    assertStringIncludes(
-      packageBundleMinError([member(3, 7)], 2) ?? "",
+    says(
+      packageBundleMinError([member(3, 7)], 2),
       "Member 3 sells at least 7 tickets per booking.",
     );
   });

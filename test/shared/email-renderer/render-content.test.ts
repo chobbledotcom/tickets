@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -6,6 +6,7 @@ import { Liquid } from "liquidjs";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { renderEmailContent } from "#shared/email-renderer.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import {
   buildTestData,
   describeEmailRenderer,
@@ -17,11 +18,11 @@ describeEmailRenderer(() => {
     test("uses default templates when no custom templates are set", async () => {
       const { result } = await renderConfirmation();
 
-      assertStringIncludes(result.subject, "Test Listing");
-      assertStringIncludes(result.html, "Test Listing");
-      assertStringIncludes(result.html, "https://example.com/t/ABC");
-      assertStringIncludes(result.text, "Test Listing");
-      assertStringIncludes(result.text, "https://example.com/t/ABC");
+      says(result.subject, "Test Listing");
+      says(result.html, "Test Listing");
+      says(result.html, "https://example.com/t/ABC");
+      says(result.text, "Test Listing");
+      says(result.text, "https://example.com/t/ABC");
     });
 
     test("uses custom templates when set", async () => {
@@ -55,7 +56,7 @@ describeEmailRenderer(() => {
       );
       const { result } = await renderConfirmation();
 
-      assertStringIncludes(result.subject, "Test Listing");
+      says(result.subject, "Test Listing");
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0]).toBeInstanceOf(Error);
     });
@@ -64,10 +65,10 @@ describeEmailRenderer(() => {
       const data = await buildTestData([makeEntry()]);
       const result = await renderEmailContent("admin", data);
 
-      assertStringIncludes(result.subject, "Jane Doe");
-      assertStringIncludes(result.subject, "Test Listing");
-      assertStringIncludes(result.html, "Jane Doe");
-      assertStringIncludes(result.text, "Name: Jane Doe");
+      says(result.subject, "Jane Doe");
+      says(result.subject, "Test Listing");
+      says(result.html, "Jane Doe");
+      says(result.text, "Name: Jane Doe");
     });
 
     test("renders admin notification with contact details", async () => {
@@ -83,9 +84,9 @@ describeEmailRenderer(() => {
       ]);
       const result = await renderEmailContent("admin", data);
 
-      assertStringIncludes(result.text, "Phone: 555-1234");
-      assertStringIncludes(result.text, "Address: 123 Main St");
-      assertStringIncludes(result.text, "Notes: Wheelchair");
+      says(result.text, "Phone: 555-1234");
+      says(result.text, "Address: 123 Main St");
+      says(result.text, "Notes: Wheelchair");
     });
 
     test("escapes HTML and script-like values in booking fields", async () => {
@@ -104,36 +105,15 @@ describeEmailRenderer(() => {
       const admin = await renderEmailContent("admin", data);
 
       const { html } = admin;
-      assert(
-        !html.includes("<script>"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("<img"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("<iframe>"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(
-        html,
-        "Jane &lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt; Doe",
-      );
-      assertStringIncludes(html, "&lt;img src=x onerror=alert(1)&gt;");
-      assertStringIncludes(
-        html,
-        "7 &lt;b&gt;Elm&lt;/b&gt; St &amp; &#34;Sign&#34;",
-      );
-      assertStringIncludes(html, "&lt;iframe&gt;&lt;/iframe&gt;");
-      assertStringIncludes(
-        admin.subject,
-        `Jane <script>alert("x")</script> Doe`,
-      );
-      assertStringIncludes(
-        admin.text,
-        `Name: Jane <script>alert("x")</script> Doe`,
-      );
+      assert(!html.includes("<script>"));
+      assert(!html.includes("<img"));
+      assert(!html.includes("<iframe>"));
+      says(html, "Jane &lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt; Doe");
+      says(html, "&lt;img src=x onerror=alert(1)&gt;");
+      says(html, "7 &lt;b&gt;Elm&lt;/b&gt; St &amp; &#34;Sign&#34;");
+      says(html, "&lt;iframe&gt;&lt;/iframe&gt;");
+      says(admin.subject, `Jane <script>alert("x")</script> Doe`);
+      says(admin.text, `Name: Jane <script>alert("x")</script> Doe`);
     });
 
     test("escapes booking fields in a custom HTML template", async () => {
@@ -163,11 +143,8 @@ describeEmailRenderer(() => {
       ]);
       const result = await renderEmailContent("admin", data);
 
-      assert(
-        !result.html.includes("<b>Hostile</b>"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(result.html, "&lt;b&gt;Hostile&lt;/b&gt;");
+      assert(!result.html.includes("<b>Hostile</b>"));
+      says(result.html, "&lt;b&gt;Hostile&lt;/b&gt;");
       expect(result.errors).toHaveLength(1);
     });
 
@@ -177,18 +154,9 @@ describeEmailRenderer(() => {
       ]);
       const result = await renderEmailContent("admin", data);
 
-      assert(
-        !result.text.includes("Phone:"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !result.text.includes("Address:"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !result.text.includes("Notes:"),
-        "the value should not contain the searched item",
-      );
+      assert(!result.text.includes("Phone:"));
+      assert(!result.text.includes("Address:"));
+      assert(!result.text.includes("Notes:"));
     });
 
     test("renders paid listing with currency in confirmation", async () => {
@@ -197,8 +165,8 @@ describeEmailRenderer(() => {
       ]);
       const result = await renderEmailContent("confirmation", data);
 
-      assertStringIncludes(result.html, "£20");
-      assertStringIncludes(result.text, "£20");
+      says(result.html, "£20");
+      says(result.text, "£20");
     });
 
     test("shows the amount owed when a balance is outstanding", async () => {
@@ -211,10 +179,10 @@ describeEmailRenderer(() => {
       const confirmation = await renderEmailContent("confirmation", data);
       const admin = await renderEmailContent("admin", data);
 
-      assertStringIncludes(confirmation.html, "Amount owed");
-      assertStringIncludes(confirmation.html, "£20");
-      assertStringIncludes(confirmation.text, "Amount owed: £20");
-      assertStringIncludes(admin.html, "Amount owed");
+      says(confirmation.html, "Amount owed");
+      says(confirmation.html, "£20");
+      says(confirmation.text, "Amount owed: £20");
+      says(admin.html, "Amount owed");
     });
 
     test("omits the amount owed when the booking is fully paid", async () => {
@@ -226,22 +194,16 @@ describeEmailRenderer(() => {
       ]);
       const result = await renderEmailContent("confirmation", data);
 
-      assert(
-        !result.html.includes("Amount owed"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !result.text.includes("Amount owed"),
-        "the value should not contain the searched item",
-      );
+      assert(!result.html.includes("Amount owed"));
+      assert(!result.text.includes("Amount owed"));
     });
 
     test("shows date when attendee has date", async () => {
       const data = await buildTestData([makeEntry({}, { date: "2026-07-15" })]);
       const result = await renderEmailContent("confirmation", data);
 
-      assertStringIncludes(result.html, "2026-07-15");
-      assertStringIncludes(result.text, "2026-07-15");
+      says(result.html, "2026-07-15");
+      says(result.text, "2026-07-15");
     });
 
     test("uses mix of custom and default parts", async () => {
@@ -253,8 +215,8 @@ describeEmailRenderer(() => {
       const { result } = await renderConfirmation();
 
       expect(result.subject).toBe("Custom Subject: Test Listing");
-      assertStringIncludes(result.html, "Thanks for registering!");
-      assertStringIncludes(result.text, "Thanks for registering!");
+      says(result.html, "Thanks for registering!");
+      says(result.text, "Thanks for registering!");
     });
 
     test("collects non-Error thrown values", async () => {
@@ -301,7 +263,7 @@ describeEmailRenderer(() => {
       await settings.update.email.template("confirmation", "subject", "");
       const { result } = await renderConfirmation();
 
-      assertStringIncludes(result.subject, "Test Listing");
+      says(result.subject, "Test Listing");
     });
   });
 });

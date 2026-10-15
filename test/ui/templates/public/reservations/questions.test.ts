@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
@@ -11,6 +11,7 @@ import {
   testRadioQuestion,
 } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Two single-answer radio questions — the shared fixture for the
  *  "multiple questions" and "data-listing-ids" tests. */
@@ -44,14 +45,14 @@ describe("renderQuestions", () => {
   test("renders radio buttons for each answer", () => {
     const html = renderQuestions(colourQuestion()).toString();
 
-    assertStringIncludes(html, "Favourite colour?");
-    assertStringIncludes(html, 'name="question_1"');
-    assertStringIncludes(html, 'value="10"');
-    assertStringIncludes(html, "Red");
-    assertStringIncludes(html, 'value="11"');
-    assertStringIncludes(html, "Blue");
-    assertStringIncludes(html, "required");
-    assertStringIncludes(html, "<fieldset");
+    says(html, "Favourite colour?");
+    says(html, 'name="question_1"');
+    says(html, 'value="10"');
+    says(html, "Red");
+    says(html, 'value="11"');
+    says(html, "Blue");
+    says(html, "required");
+    says(html, "<fieldset");
   });
 
   test("omits a choice question whose answers are all deactivated", () => {
@@ -90,15 +91,9 @@ describe("renderQuestions", () => {
 
     const html = renderQuestions(questions).toString();
 
-    assertStringIncludes(html, "Red");
-    assert(
-      !html.includes("Blue</label>"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('value="11"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "Red");
+    assert(!html.includes("Blue</label>"));
+    assert(!html.includes('value="11"'));
   });
 
   test("renders select boxes when configured", () => {
@@ -106,17 +101,11 @@ describe("renderQuestions", () => {
 
     // The question text labels the <select> via a wrapping <label>, so the
     // control has an accessible name without a separate screen-reader element.
-    assertStringIncludes(
-      html,
-      '<label class="custom-question">Favourite colour?<select',
-    );
-    assertStringIncludes(html, '<select name="question_1" required>');
-    assertStringIncludes(html, '<option value="">Select an answer</option>');
-    assertStringIncludes(html, '<option value="10">Red</option>');
-    assert(
-      !html.includes('type="radio"'),
-      "the value should not contain the searched item",
-    );
+    says(html, '<label class="custom-question">Favourite colour?<select');
+    says(html, '<select name="question_1" required>');
+    says(html, '<option value="">Select an answer</option>');
+    says(html, '<option value="10">Red</option>');
+    assert(!html.includes('type="radio"'));
   });
 
   test("renders a free-text input when configured", () => {
@@ -133,21 +122,12 @@ describe("renderQuestions", () => {
 
     // The question text labels the text input via a wrapping <label>, matching
     // the select case, so the control has an accessible name on its own.
-    assertStringIncludes(
-      html,
-      '<label class="custom-question">Your name?<input',
-    );
-    assertStringIncludes(html, 'name="question_1"');
-    assertStringIncludes(html, 'type="text"');
-    assertStringIncludes(html, "required");
-    assert(
-      !html.includes("<select"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('type="radio"'),
-      "the value should not contain the searched item",
-    );
+    says(html, '<label class="custom-question">Your name?<input');
+    says(html, 'name="question_1"');
+    says(html, 'type="text"');
+    says(html, "required");
+    assert(!html.includes("<select"));
+    assert(!html.includes('type="radio"'));
   });
 
   test("restores a saved free-text answer from saved form data", async () => {
@@ -163,7 +143,7 @@ describe("renderQuestions", () => {
       ]).toString();
     });
 
-    assertStringIncludes(html, 'value="Ada Lovelace"');
+    says(html, 'value="Ada Lovelace"');
   });
 
   test("restores selected select answers from saved form data", async () => {
@@ -172,18 +152,15 @@ describe("renderQuestions", () => {
       return renderQuestions(colourQuestion("select")).toString();
     });
 
-    assertStringIncludes(html, '<option selected value="11">Blue</option>');
-    assert(
-      !html.includes('<option selected value="10">Red</option>'),
-      "the value should not contain the searched item",
-    );
+    says(html, '<option selected value="11">Blue</option>');
+    assert(!html.includes('<option selected value="10">Red</option>'));
   });
 
   test("renders multiple questions", () => {
     const html = renderQuestions(twoRadioQuestions()).toString();
 
-    assertStringIncludes(html, 'name="question_1"');
-    assertStringIncludes(html, 'name="question_2"');
+    says(html, 'name="question_1"');
+    says(html, 'name="question_2"');
   });
 
   test("escapes HTML in question and answer text", () => {
@@ -200,12 +177,9 @@ describe("renderQuestions", () => {
 
     const html = renderQuestions(questions).toString();
 
-    assertStringIncludes(html, "&lt;b&gt;");
-    assertStringIncludes(html, "S&amp;M");
-    assert(
-      !html.includes("<b>size</b>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "&lt;b&gt;");
+    says(html, "S&amp;M");
+    assert(!html.includes("<b>size</b>"));
   });
 
   test("adds data-listing-ids when questionListingMap is provided", () => {
@@ -216,8 +190,8 @@ describe("renderQuestions", () => {
 
     const html = renderQuestions(twoRadioQuestions(), listingMap).toString();
 
-    assertStringIncludes(html, 'data-listing-ids="100 200"');
-    assertStringIncludes(html, 'data-listing-ids="200"');
+    says(html, 'data-listing-ids="100 200"');
+    says(html, 'data-listing-ids="200"');
   });
 
   test("omits data-listing-ids when no map provided", () => {
@@ -234,10 +208,7 @@ describe("renderQuestions", () => {
 
     const html = renderQuestions(questions).toString();
 
-    assert(
-      !html.includes("data-listing-ids"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("data-listing-ids"));
   });
 
   test("wraps simple question text in a label for free-text questions", () => {
@@ -250,12 +221,9 @@ describe("renderQuestions", () => {
       },
     ]).toString();
 
-    assertStringIncludes(html, '<label class="custom-question">');
-    assertStringIncludes(html, "Your name?");
-    assert(
-      !html.includes('<div class="prose">'),
-      "the value should not contain the searched item",
-    );
+    says(html, '<label class="custom-question">');
+    says(html, "Your name?");
+    assert(!html.includes('<div class="prose">'));
   });
 
   test("renders complex markdown as a prose div for free-text questions", () => {
@@ -268,24 +236,18 @@ describe("renderQuestions", () => {
       },
     ]).toString();
 
-    assertStringIncludes(html, '<div class="custom-question">');
-    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
-    assertStringIncludes(html, 'aria-labelledby="question-1-prose"');
-    assertStringIncludes(html, "<strong>more</strong>");
-    assert(
-      !html.includes("**more**"),
-      "the value should not contain the searched item",
-    );
+    says(html, '<div class="custom-question">');
+    says(html, '<div class="prose" id="question-1-prose">');
+    says(html, 'aria-labelledby="question-1-prose"');
+    says(html, "<strong>more</strong>");
+    assert(!html.includes("**more**"));
   });
 
   test("wraps simple question text in a label for select questions", () => {
     const html = renderQuestions(colourQuestion("select")).toString();
 
-    assertStringIncludes(html, '<label class="custom-question">');
-    assert(
-      !html.includes('<div class="prose">'),
-      "the value should not contain the searched item",
-    );
+    says(html, '<label class="custom-question">');
+    assert(!html.includes('<div class="prose">'));
   });
 
   test("renders complex markdown as a prose div for select questions", () => {
@@ -300,20 +262,17 @@ describe("renderQuestions", () => {
       },
     ]).toString();
 
-    assertStringIncludes(html, '<div class="custom-question">');
-    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
-    assertStringIncludes(html, 'aria-labelledby="question-1-prose"');
-    assertStringIncludes(html, '<a href="https://example.com">a colour</a>');
+    says(html, '<div class="custom-question">');
+    says(html, '<div class="prose" id="question-1-prose">');
+    says(html, 'aria-labelledby="question-1-prose"');
+    says(html, '<a href="https://example.com">a colour</a>');
   });
 
   test("wraps simple question text in a legend for radio questions", () => {
     const html = renderQuestions(colourQuestion()).toString();
 
-    assertStringIncludes(html, "<legend>Favourite colour?</legend>");
-    assert(
-      !html.includes('<div class="prose">'),
-      "the value should not contain the searched item",
-    );
+    says(html, "<legend>Favourite colour?</legend>");
+    assert(!html.includes('<div class="prose">'));
   });
 
   test("renders complex markdown as a prose div for radio questions", () => {
@@ -328,15 +287,12 @@ describe("renderQuestions", () => {
       },
     ]).toString();
 
-    assertStringIncludes(
+    says(
       html,
       '<fieldset aria-labelledby="question-1-prose" class="custom-question">',
     );
-    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
-    assertStringIncludes(html, "<h1>Heading</h1>");
-    assert(
-      !html.includes("<legend>"),
-      "the value should not contain the searched item",
-    );
+    says(html, '<div class="prose" id="question-1-prose">');
+    says(html, "<h1>Heading</h1>");
+    assert(!html.includes("<legend>"));
   });
 });

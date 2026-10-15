@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { FetchText, FetchTextResult } from "#scripts/fetch-text.ts";
 import { runUpdateMode, type UpdateModeIo } from "#scripts/update-mode-lib.ts";
 import { updateBuildTagMeta, updatePageMeta } from "#shared/update-guard.ts";
+import { says } from "#test-utils/says.ts";
 
 const UPDATE_SECRET_URL = "https://api.bunny.net/compute/script/42/secrets";
 const READ_ONLY_URL = "https://site.example/read-only";
@@ -74,7 +75,7 @@ describe("runUpdateMode", () => {
       log: (line) => logged.push(line),
     });
     expect(code).toBe(1);
-    expect(logged.join("\n")).toContain("Usage:");
+    says(logged.join("\n"), "Usage:");
     return { calls };
   };
 

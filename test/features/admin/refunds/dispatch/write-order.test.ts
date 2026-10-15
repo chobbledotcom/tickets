@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -12,6 +11,7 @@ import { recordEveryRefund } from "#test/features/admin/refunds/provider/ledger-
 import { describeWithEnv } from "#test-utils/db.ts";
 import { markProviderRefundsReturned } from "#test-utils/payment-references.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
+import { has } from "#test-utils/says.ts";
 
 const isProviderAnswer = (event: string): boolean =>
   event.startsWith("send:end:");
@@ -153,7 +153,7 @@ describeWithEnv(
       ).rejects.toThrow("provider call broke");
 
       expect(claim.unrecorded).toEqual([[returnedSession]]);
-      assertArrayIncludes(claim.released[0] ?? [], [returnedSession]);
+      has(claim.released[0], returnedSession);
     });
   },
 );

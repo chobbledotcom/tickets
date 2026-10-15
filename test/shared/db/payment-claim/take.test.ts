@@ -243,10 +243,7 @@ describeWithEnv(
         expect(stored).toBe(
           await paymentReferenceIndex(taggedPaymentReference("pi_secret")),
         );
-        assert(
-          !stored.includes("pi_secret"),
-          "the value should not contain the searched item",
-        );
+        assert(!stored.includes("pi_secret"));
       });
     });
 

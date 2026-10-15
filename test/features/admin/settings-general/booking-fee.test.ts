@@ -97,10 +97,7 @@ describeAdminSettings(() => {
     test("settings page hides booking fee form when no payment provider", async () => {
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      assert(
-        !html.includes('id="settings-booking-fee"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('id="settings-booking-fee"'));
     });
 
     test("rejects missing booking_fee field", async () => {

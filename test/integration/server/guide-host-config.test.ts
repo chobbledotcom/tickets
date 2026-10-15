@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { hostEmail } from "#shared/email.ts";
@@ -7,6 +7,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { guide } from "#test-utils/guide.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("server (admin guide host config)", { db: true }, () => {
   describe("GET /admin/guide", () => {
@@ -14,7 +15,6 @@ describeWithEnv("server (admin guide host config)", { db: true }, () => {
       const html = await guide("Choose your email company from the dropdown");
       assert(
         !html.includes("already set up by the company that runs your site"),
-        "the value should not contain the searched item",
       );
     });
 
@@ -41,7 +41,6 @@ describeWithEnv("server (admin guide host config)", { db: true }, () => {
       const html = await guide("You need three values from");
       assert(
         !html.includes("already set up by the company that runs your site"),
-        "the value should not contain the searched item",
       );
     });
 
@@ -67,7 +66,6 @@ describeWithEnv("server (admin guide host config)", { db: true }, () => {
       const html = await guide("You need five values from");
       assert(
         !html.includes("already set up by the company that runs your site"),
-        "the value should not contain the searched item",
       );
     });
 
@@ -94,21 +92,15 @@ describeWithEnv("server (admin guide host config)", { db: true }, () => {
     test("hides built sites section when builder is disabled", async () => {
       using _env = withEnv({ CAN_BUILD_SITES: undefined });
       const html = await assertAdminHtml("/admin/guide");
-      assert(
-        !html.includes('id="built-sites"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('id="built-sites"'));
     });
 
     test("cached guide is pinned to builder-off even under ambient CAN_BUILD_SITES=true", async () => {
       using _ambient = withEnv({ CAN_BUILD_SITES: "true" });
       const live = await assertAdminHtml("/admin/guide", 'id="built-sites"');
-      assertStringIncludes(live, 'id="built-sites"');
+      says(live, 'id="built-sites"');
       const cached = await guide();
-      assert(
-        !cached.includes('id="built-sites"'),
-        "the value should not contain the searched item",
-      );
+      assert(!cached.includes('id="built-sites"'));
     });
 
     test("shows built sites section when builder is enabled", async () => {

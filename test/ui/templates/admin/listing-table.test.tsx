@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
@@ -15,6 +15,7 @@ import {
 import { AttendeeTable } from "#templates/attendee-table/component.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import type { ListingWithCount } from "#types";
 
 const rawValue = (
@@ -126,12 +127,9 @@ describe("listingTable", () => {
       }),
     );
 
-    assertStringIncludes(html, "<th>Location</th>");
-    assertStringIncludes(html, "<td>Town Hall</td>");
-    assert(
-      !html.includes("Listing name"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<th>Location</th>");
+    says(html, "<td>Town Hall</td>");
+    assert(!html.includes("Listing name"));
   });
 
   test("renders a supported editor column", () => {
@@ -144,11 +142,8 @@ describe("listingTable", () => {
       }),
     );
 
-    assertStringIncludes(html, '<a href="/admin/listing/7/edit">Gala</a>');
-    assert(
-      !html.includes("Revenue"),
-      "the value should not contain the searched item",
-    );
+    says(html, '<a href="/admin/listing/7/edit">Gala</a>');
+    assert(!html.includes("Revenue"));
   });
 
   test("marks inactive listing rows", () => {
@@ -159,7 +154,7 @@ describe("listingTable", () => {
       }),
     );
 
-    assertStringIncludes(html, '<tr class="inactive-row">');
+    says(html, '<tr class="inactive-row">');
   });
 
   test("keeps the linked thumbnail when a name filter is present", () => {
@@ -178,12 +173,9 @@ describe("listingTable", () => {
       }),
     );
 
-    assertStringIncludes(html, "listing-thumbnail");
-    assertStringIncludes(html, '<a href="/admin/listing/7">Gala</a>');
-    assert(
-      !html.includes(">GALA<"),
-      "the value should not contain the searched item",
-    );
+    says(html, "listing-thumbnail");
+    says(html, '<a href="/admin/listing/7">Gala</a>');
+    assert(!html.includes(">GALA<"));
   });
 
   test("uses the requested CSV export path", () => {
@@ -195,16 +187,13 @@ describe("listingTable", () => {
       }),
     );
 
-    assertStringIncludes(html, 'href="/custom.csv"');
-    assert(
-      !html.includes('href="/admin/listings/csv"'),
-      "the value should not contain the searched item",
-    );
+    says(html, 'href="/custom.csv"');
+    assert(!html.includes('href="/admin/listings/csv"'));
   });
 
   test("uses the default CSV export path", () => {
     const html = String(ListingsTableBlock({ csvExport: true, listings: [] }));
 
-    assertStringIncludes(html, 'href="/admin/listings/csv"');
+    says(html, 'href="/admin/listings/csv"');
   });
 });

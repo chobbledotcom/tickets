@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getSitePageById, sitePages } from "#db/site-pages.ts";
@@ -9,6 +8,7 @@ import {
   expectRedirect,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { BASE, create, findPage } from "./helpers.ts";
 
@@ -21,7 +21,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}/delete`),
         200,
       );
-      assertStringIncludes(getHtml, "Delete Page");
+      says(getHtml, "Delete Page");
 
       const wrong = await adminFormPost(`${BASE}/${page.id}/delete`, {
         confirm_identifier: "nope",

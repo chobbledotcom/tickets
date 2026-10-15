@@ -1,9 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { parseListingDefaultsForm } from "#routes/admin/settings-listing-defaults.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { says } from "#test-utils/says.ts";
 
 const parse = (query: string, hasLogistics = true) =>
   parseListingDefaultsForm(new FormParams(query), hasLogistics);
@@ -98,9 +99,9 @@ describe("admin > listing defaults form parse > bookable days", () => {
     const error = parse(
       "default_bookable_days_enabled=1&default_bookable_days=Funday&default_bookable_days=Monday",
     ).error;
-    assertStringIncludes(error ?? "", "Invalid day: Funday");
-    assertStringIncludes(
-      error ?? "",
+    says(error, "Invalid day: Funday");
+    says(
+      error,
       "Use: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday",
     );
   });
@@ -109,7 +110,7 @@ describe("admin > listing defaults form parse > bookable days", () => {
     const error = parse(
       "default_bookable_days_enabled=1&default_bookable_days=Monday&default_bookable_days=Funday&default_bookable_days=Someday",
     ).error;
-    assertStringIncludes(error ?? "", "Invalid day: Funday");
+    says(error, "Invalid day: Funday");
     assert(
       error !== null && !error.includes("Invalid day: Someday"),
       "the value should not contain the searched item",

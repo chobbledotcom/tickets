@@ -62,10 +62,7 @@ describeWithEnv(
         { listing_id: 10, price_id: "3", unit_price: 1000 },
       ]);
       // The column is gone; the listing rows survive the rebuild.
-      assert(
-        !(await listingsColumns()).includes("day_prices"),
-        "the value should not contain the searched item",
-      );
+      assert(!(await listingsColumns()).includes("day_prices"));
       const ids = await queryAll<{ id: number }>(
         "SELECT id FROM listings ORDER BY id",
       );

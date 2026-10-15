@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -8,6 +8,7 @@ import {
   latestAttendee,
   submitBuyerOrder,
 } from "#test-utils/reservation/helpers.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("server previous bookings", { db: true }, () => {
@@ -33,14 +34,13 @@ describeWithEnv("server previous bookings", { db: true }, () => {
     }
 
     const html = await (await adminGet(`/admin/attendees/${viewer.id}`)).text();
-    assertStringIncludes(html, "Previous bookings shown:</strong> 100");
+    says(html, "Previous bookings shown:</strong> 100");
     // The oldest booking falls outside the cap window and is not linked.
     assert(
       !html.includes(`href="/admin/attendees/${previous[0]!.attendee.id}"`),
-      "the value should not contain the searched item",
     );
     // The newest booking is inside the cap window and is linked.
-    assertStringIncludes(
+    says(
       html,
       `href="/admin/attendees/${previous[previous.length - 1]!.attendee.id}"`,
     );
@@ -68,11 +68,8 @@ describeWithEnv("server previous bookings", { db: true }, () => {
     );
 
     const html = await (await adminGet(`/admin/attendees/${viewer.id}`)).text();
-    assertStringIncludes(html, `href="/admin/attendees/${previous.id}"`);
-    assertStringIncludes(html, '<td class="col-amount">£10</td>');
-    assert(
-      !html.includes('<td class="col-amount">£20</td>'),
-      "the value should not contain the searched item",
-    );
+    says(html, `href="/admin/attendees/${previous.id}"`);
+    says(html, '<td class="col-amount">£10</td>');
+    assert(!html.includes('<td class="col-amount">£20</td>'));
   });
 });

@@ -4,6 +4,7 @@ import {
   findCommentSteIssues,
   MAX_SENTENCE_WORDS,
 } from "#scripts/check-comments/ste.ts";
+import { has } from "#test-utils/says.ts";
 
 /** The rules one comment raises, failing loudly when it raises none. */
 const rulesOf = (comment: string): string[] => {
@@ -26,16 +27,12 @@ const findsOne = (comment: string, rule: string, line: number): void => {
 
 describe("comment language rules", () => {
   test("flags the mechanical patterns by rule name", () => {
-    expect(rulesOf("// We don't ship this yet.")).toContain("contraction");
-    expect(rulesOf("// The form should save itself.")).toContain(
-      "banned-modal",
-    );
-    expect(rulesOf("// Load the row; then act.")).toContain("semicolon");
-    expect(rulesOf("// The row saves, allowing a retry.")).toContain(
-      "participle",
-    );
-    expect(rulesOf("// The row has been saved.")).toContain("present-perfect");
-    expect(rulesOf("// The check simply passes.")).toContain("wordy");
+    has(rulesOf("// We don't ship this yet."), "contraction");
+    has(rulesOf("// The form should save itself."), "banned-modal");
+    has(rulesOf("// Load the row; then act."), "semicolon");
+    has(rulesOf("// The row saves, allowing a retry."), "participle");
+    has(rulesOf("// The row has been saved."), "present-perfect");
+    has(rulesOf("// The check simply passes."), "wordy");
   });
 
   test("leaves a possessive alone", () => {
@@ -57,9 +54,7 @@ describe("comment language rules", () => {
   });
 
   test("judges quoted prose", () => {
-    expect(rulesOf('// The path "should retry" after failure.')).toContain(
-      "banned-modal",
-    );
+    has(rulesOf('// The path "should retry" after failure.'), "banned-modal");
   });
 
   test("leaves a camelCase name that starts with a banned modal alone", () => {
@@ -68,19 +63,15 @@ describe("comment language rules", () => {
 
   test("finds a pattern wrapped across block-comment lines", () => {
     // "has been" spans two JSDoc lines, so a per-line match would miss it.
-    expect(rulesOf("/**\n * The row has\n * been saved.\n */")).toContain(
-      "present-perfect",
-    );
+    has(rulesOf("/**\n * The row has\n * been saved.\n */"), "present-perfect");
   });
 
   test("finds a phrase wrapped across neighbouring line comments", () => {
-    expect(rulesOf("// Do this in\n// order to proceed.")).toContain("wordy");
+    has(rulesOf("// Do this in\n// order to proceed."), "wordy");
   });
 
   test("finds a participle whose comma ends the line above", () => {
-    expect(rulesOf("// The row saves,\n// allowing a retry.")).toContain(
-      "participle",
-    );
+    has(rulesOf("// The row saves,\n// allowing a retry."), "participle");
   });
 
   test("flags a sentence past the word limit and names its length", () => {
@@ -401,7 +392,7 @@ describe("comment language rules", () => {
 
   test("a table follows the Markdown rules the policy check uses", () => {
     // A lone row reads as one paragraph, so its words face every rule.
-    expect(rulesOf("// | don't |")).toContain("contraction");
+    has(rulesOf("// | don't |"), "contraction");
     // A real table is not prose: marked leaves its rows out entirely.
     expect(
       findCommentSteIssues(

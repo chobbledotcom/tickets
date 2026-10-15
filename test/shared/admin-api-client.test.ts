@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -15,6 +14,7 @@ import {
   adminApiWrite,
 } from "#shared/admin-api-client.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import { says } from "#test-utils/says.ts";
 
 const ATTRIBUTE = {
   id: 3,
@@ -167,11 +167,11 @@ describe("admin api client", () => {
       ADMIN_API_RESOURCES.attributes,
     ).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(Error);
-    assertStringIncludes(
+    says(
       (failure as Error).message,
       "admin api attributes response failed validation",
     );
-    assertStringIncludes((failure as Error).message, "attributes.0.id");
+    says((failure as Error).message, "attributes.0.id");
   });
 
   test("a schema-invalid success keeps the served status", async () => {
@@ -182,7 +182,7 @@ describe("admin api client", () => {
     ).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(AdminApiSchemaError);
     expect((failure as AdminApiSchemaError).status).toBe(200);
-    assertStringIncludes(
+    says(
       (failure as Error).message,
       "admin api attributes response failed validation",
     );

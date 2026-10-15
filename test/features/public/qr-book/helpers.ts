@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import {
@@ -10,6 +9,7 @@ import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { stubCheckout } from "#test-utils/checkout.ts";
 import { awaitTestRequest, mockProviderType } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 export interface StripeStub {
   calls: () => number;
@@ -60,10 +60,7 @@ export const expectStripeRedirect = (
   stripe: StripeStub,
 ): void => {
   expect(response.status).toBe(302);
-  assertStringIncludes(
-    response.headers.get("location") ?? "",
-    "stripe.example",
-  );
+  says(response.headers.get("location"), "stripe.example");
   expect(stripe.calls()).toBe(1);
 };
 

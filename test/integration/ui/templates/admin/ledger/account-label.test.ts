@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { account } from "#shared/ledger/account.ts";
@@ -8,6 +8,7 @@ import {
   transfer,
 } from "#test/ui/templates/admin/ledger/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("money account labels", () => {
   beforeAll(setupAdminPageTest);
@@ -22,21 +23,12 @@ describe("money account labels", () => {
       names(),
       "dual",
     );
-    assertStringIncludes(html, "Card / bank");
-    assertStringIncludes(html, "Booking fees");
-    assertStringIncludes(html, "Corrections");
-    assert(
-      !html.includes("/admin/ledger/external/"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("/admin/ledger/fee_income/"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("/admin/ledger/writeoff/"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Card / bank");
+    says(html, "Booking fees");
+    says(html, "Corrections");
+    assert(!html.includes("/admin/ledger/external/"));
+    assert(!html.includes("/admin/ledger/fee_income/"));
+    assert(!html.includes("/admin/ledger/writeoff/"));
   });
 
   test("links each existing row-backed account by name", () => {
@@ -59,18 +51,9 @@ describe("money account labels", () => {
       refs,
       "dual",
     );
-    assertStringIncludes(
-      html,
-      '<a href="/admin/ledger/attendee/7">Ada Lovelace</a>',
-    );
-    assertStringIncludes(
-      html,
-      '<a href="/admin/ledger?listing=3">Summer Concert</a>',
-    );
-    assertStringIncludes(
-      html,
-      '<a href="/admin/ledger/modifier/5">Early bird</a>',
-    );
+    says(html, '<a href="/admin/ledger/attendee/7">Ada Lovelace</a>');
+    says(html, '<a href="/admin/ledger?listing=3">Summer Concert</a>');
+    says(html, '<a href="/admin/ledger/modifier/5">Early bird</a>');
   });
 
   test("throws when an account type has no presentation", () => {
@@ -98,16 +81,10 @@ describe("money account labels", () => {
       names(),
       "dual",
     );
-    assertStringIncludes(html, "Attendee #42");
-    assertStringIncludes(html, "Listing #9");
-    assertStringIncludes(html, "Modifier #8");
-    assert(
-      !html.includes("/admin/ledger/attendee/42"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("/admin/ledger/modifier/8"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Attendee #42");
+    says(html, "Listing #9");
+    says(html, "Modifier #8");
+    assert(!html.includes("/admin/ledger/attendee/42"));
+    assert(!html.includes("/admin/ledger/modifier/8"));
   });
 });

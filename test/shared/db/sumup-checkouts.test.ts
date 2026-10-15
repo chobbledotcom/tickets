@@ -7,7 +7,7 @@
  * alone cannot decrypt the staged metadata.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptWithKey } from "#crypto/encryption.ts";
@@ -24,6 +24,7 @@ import {
 import { SUMUP_FIRST_CHECK_MS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { rejectedError } from "#test-utils/errors.ts";
+import { says } from "#test-utils/says.ts";
 
 const REFERENCE = "9c1f7a52-1b3e-4f6d-8a2c-5e9d0b4c7a31";
 
@@ -88,11 +89,8 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
       );
 
       const error = await rejectedError(getSumupCheckout(REFERENCE));
-      assertStringIncludes(error.message, row.reference_index as string);
-      assert(
-        !error.message.includes(REFERENCE),
-        "the value should not contain the searched item",
-      );
+      says(error.message, row.reference_index as string);
+      assert(!error.message.includes(REFERENCE));
     });
 
     test("keeps rows isolated per reference", async () => {
@@ -191,22 +189,10 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
       const row = await rawRow();
       const atRest = JSON.stringify(row);
 
-      assert(
-        !atRest.includes(METADATA.email),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !atRest.includes(METADATA.name),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !atRest.includes(METADATA.phone),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !atRest.includes(METADATA.address),
-        "the value should not contain the searched item",
-      );
+      assert(!atRest.includes(METADATA.email));
+      assert(!atRest.includes(METADATA.name));
+      assert(!atRest.includes(METADATA.phone));
+      assert(!atRest.includes(METADATA.address));
     });
 
     test("stores no plaintext checkout reference in any column", async () => {
@@ -215,10 +201,7 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
 
       const row = await rawRow();
 
-      assert(
-        !JSON.stringify(row).includes(REFERENCE),
-        "the value should not contain the searched item",
-      );
+      assert(!JSON.stringify(row).includes(REFERENCE));
       expect(row.reference_index).not.toBe(REFERENCE);
     });
 

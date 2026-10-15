@@ -1,6 +1,5 @@
 // test-groups: run-alone - this suite verifies isolate-lived wake throttling.
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -13,6 +12,7 @@ import {
   shouldPrefetchSettings,
   trackingRedirectLocation,
 } from "#routes/app/rules.ts";
+import { says } from "#test-utils/says.ts";
 
 const request = (method: string, contentType?: string): Request =>
   new Request("https://example.com/path", {
@@ -156,10 +156,7 @@ describe("request rules", () => {
         headers: { "content-type": "text/html" },
       }),
     );
-    assertStringIncludes(
-      response.headers.get("content-type") ?? "",
-      "text/css",
-    );
+    says(response.headers.get("content-type"), "text/css");
     expect(await response.text()).toBe("");
   });
 

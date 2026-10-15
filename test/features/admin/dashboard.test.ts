@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { loginResponse } from "#routes/admin/dashboard.ts";
@@ -8,6 +8,7 @@ import { createGroupWithListings } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminGet,
   createTestAgentSession,
@@ -26,12 +27,9 @@ describeWithEnv("admin listings route", { db: true }, () => {
     const html = await (
       await adminGet(`/admin/listings?group=${group.id}`)
     ).text();
-    assertStringIncludes(html, "Fair Listing");
-    assert(
-      !html.includes("Outside Listing"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(
+    says(html, "Fair Listing");
+    assert(!html.includes("Outside Listing"));
+    says(
       html,
       'Group: <a href="/admin/listings">All groups</a> / <strong><u>Autumn fair</u></strong>',
     );
@@ -41,9 +39,9 @@ describeWithEnv("admin listings route", { db: true }, () => {
     await createGroupWithListings("Autumn fair", ["Fair Listing"]);
     await createTestListing({ name: "Outside Listing" });
     const html = await (await adminGet("/admin/listings?group=999999")).text();
-    assertStringIncludes(html, "Fair Listing");
-    assertStringIncludes(html, "Outside Listing");
-    assertStringIncludes(html, "Group: <strong><u>All groups</u></strong>");
+    says(html, "Fair Listing");
+    says(html, "Outside Listing");
+    says(html, "Group: <strong><u>All groups</u></strong>");
   });
 
   test("editor listings ignore an invalid owner column layout", async () => {
@@ -53,7 +51,7 @@ describeWithEnv("admin listings route", { db: true }, () => {
       () => awaitTestRequest("/admin/listings", { cookie }),
     );
     expect(response.status).toBe(200);
-    assertStringIncludes(await response.text(), "Listings");
+    says(await response.text(), "Listings");
   });
 
   test("owner listings use the saved column layout", async () => {
@@ -63,11 +61,8 @@ describeWithEnv("admin listings route", { db: true }, () => {
       async () =>
         (await awaitTestRequest("/admin/listings", { cookie })).text(),
     );
-    assertStringIncludes(html, "<th>Listing name</th>");
-    assert(
-      !html.includes("<th>Status</th>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<th>Listing name</th>");
+    assert(!html.includes("<th>Status</th>"));
   });
 
   test("dashboard redirects non-dashboard roles to their own landing pages", async () => {

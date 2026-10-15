@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import {
@@ -26,6 +25,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Flag a historical booking line refunded, the way a pre-ledger DB recorded a
  *  provider refund before the column was projected from the ledger. */
@@ -284,8 +284,8 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
       const ran = getQueryLog()
         .map((entry) => entry.sql)
         .join("\n");
-      assertStringIncludes(ran, "ORDER BY attendee.attendee_id LIMIT ?");
-      assertStringIncludes(
+      says(ran, "ORDER BY attendee.attendee_id LIMIT ?");
+      says(
         ran,
         "ORDER BY listingAttendee.attendee_id, listingAttendee.listing_id",
       );

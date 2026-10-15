@@ -8,7 +8,6 @@
  * own the branch cover, and the invariants that have no journey behind them.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -17,6 +16,7 @@ import { t } from "#i18n";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { says } from "#test-utils/says.ts";
 // jscpd:ignore-start
 import { adminFormPost, apiRequest } from "#test-utils/session.ts";
 import {
@@ -136,10 +136,7 @@ describeWithEnv(
         }),
         400,
         (body) => {
-          assertStringIncludes(
-            String(body.error),
-            "sold tickets that hide listing names",
-          );
+          says(String(body.error), "sold tickets that hide listing names");
         },
       );
       expect(await groups.table.read.one({ id: group.id })).not.toBeNull();

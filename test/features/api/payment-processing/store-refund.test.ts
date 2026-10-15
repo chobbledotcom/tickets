@@ -1,6 +1,6 @@
 /** Durable placeholder and recovery work after a paid booking cannot be kept. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decrypt } from "#crypto/encryption.ts";
@@ -30,6 +30,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withRefundLedgerFault } from "#test-utils/refund-ledger-fault.ts";
 import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
 import {
@@ -148,7 +149,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
            FROM system_notes WHERE entity_type = 'attendee'`,
       );
       expect(note?.total).toBe(1);
-      assertStringIncludes(note?.system_name ?? "", "refund_unreturned");
+      says(note?.system_name, "refund_unreturned");
 
       // With the claim free, the next delivery replays the stored words and
       // writes nothing new.
@@ -201,16 +202,13 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       }
       // The note's name is the once-only latch a resumed delivery checks; it
       // carries only the blind reference index, never the real reference.
-      assertStringIncludes(row.system_name ?? "", "refund_unreturned");
+      says(row.system_name, "refund_unreturned");
       assert(
         row.system_name !== null &&
           !row.system_name.includes("pi_cs_plain_explanation"),
         "the value should not contain the searched item",
       );
-      assert(
-        !(await decrypt(row.note)).includes("pi_cs_plain_explanation"),
-        "the value should not contain the searched item",
-      );
+      assert(!(await decrypt(row.note)).includes("pi_cs_plain_explanation"));
     });
 
     test("keeps the unresolved refund from being deleted", async () => {
@@ -317,7 +315,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       const attendeePage = await (
         await adminGet(`/admin/attendees/${attendee.id}`)
       ).text();
-      assertStringIncludes(
+      says(
         attendeePage,
         `action="/admin/attendees/${attendee.id}/refresh-payment"`,
       );

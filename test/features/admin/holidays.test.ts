@@ -4,7 +4,6 @@
  * mirror the mutation gate runs against holidays.ts.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
@@ -13,6 +12,7 @@ import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("holidays", { db: true }, () => {
@@ -24,10 +24,7 @@ describeWithEnv("holidays", { db: true }, () => {
     });
 
     await expectFlashRedirect("/admin/holidays/1", "Holiday created")(response);
-    assertStringIncludes(
-      await (await adminGet("/admin/holidays")).text(),
-      "New Year",
-    );
+    says(await (await adminGet("/admin/holidays")).text(), "New Year");
   });
 
   test("sends the operator to the holiday's own page after an edit", async () => {
@@ -56,7 +53,7 @@ describeWithEnv("holidays", { db: true }, () => {
     );
 
     expect(response.status).toBe(400);
-    assertStringIncludes(await response.text(), "2026-06-01");
+    says(await response.text(), "2026-06-01");
   });
 
   test("deletes a holiday and drops it from the list", async () => {

@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -15,6 +15,7 @@ import {
 } from "#db/modifiers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { insertModifier, insertModifierUsage } from "#test-utils/modifiers.ts";
+import { has } from "#test-utils/says.ts";
 
 describeWithEnv("db modifiers table", { db: true }, () => {
   describe("modifiersTable", () => {
@@ -61,11 +62,8 @@ describeWithEnv("db modifiers table", { db: true }, () => {
       await modifiersTable.update(inactive.id, { active: false });
 
       const names = (await getActiveModifiers()).map((m) => m.name);
-      assertArrayIncludes(names ?? [], ["Live"]);
-      assert(
-        !names.includes("Off"),
-        "the value should not contain the searched item",
-      );
+      has(names, "Live");
+      assert(!names.includes("Off"));
       expect(await getModifier(active.id)).not.toBeNull();
     });
 

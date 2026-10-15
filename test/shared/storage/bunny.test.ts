@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -15,6 +14,7 @@ import {
 } from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withBunnyStorageStub } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { STORAGE_TEST_ENV } from "./fixtures.ts";
 
 const noExternalRequests = {
@@ -58,7 +58,7 @@ describeWithEnv("Bunny storage", STORAGE_TEST_ENV, () => {
         expect(await uploadRaw(raw, "raw-upload.bin")).toBe("raw-upload.bin");
         expect(requests).toHaveLength(1);
         expect(requests[0]?.method).toBe("PUT");
-        assertStringIncludes(requests[0]?.url ?? "", "/raw-upload.bin");
+        says(requests[0]?.url, "/raw-upload.bin");
         expect(requests[0]?.headers.get("content-type")).toBe(
           "application/octet-stream",
         );
@@ -125,7 +125,7 @@ describeWithEnv("Bunny storage", STORAGE_TEST_ENV, () => {
       },
       async () => {
         expect(await listFiles("acme/")).toEqual(["acme/backup-2024.zip"]);
-        assertStringIncludes(listed.url, "/testzone/acme/");
+        says(listed.url, "/testzone/acme/");
       },
     );
   });

@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -12,6 +11,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { has } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
@@ -95,9 +95,9 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
         )
       ).get(attendeeId)!,
     );
-    assertArrayIncludes(
+    has(
       references.map((reference) => reference.reference),
-      [`pi_${sessionId}`],
+      `pi_${sessionId}`,
     );
   });
 });

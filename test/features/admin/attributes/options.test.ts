@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttributeWithOptions } from "#db/attributes.ts";
@@ -14,6 +13,7 @@ import {
   createTestAttributeWithOptions,
 } from "#test-utils/db-helpers/attributes.ts";
 import { withFailingOrderTrigger } from "#test-utils/db-helpers/failing-order.ts";
+import { has } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 /** The stored options of an attribute the test knows exists — a missing
@@ -59,9 +59,10 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
         200,
         "Easy",
       );
-      assertArrayIncludes((await activityMessages()) ?? [], [
+      has(
+        await activityMessages(),
         "Attribute option 'Easy' added to Difficulty",
-      ]);
+      );
     });
 
     test("a failed order write leaves no half-made option behind", async () => {
@@ -111,9 +112,10 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
         `/admin/attributes/${id}`,
         "Option updated",
       )(edited.response);
-      assertArrayIncludes((await activityMessages()) ?? [], [
+      has(
+        await activityMessages(),
         "Attribute option 'In-person' updated in Format",
-      ]);
+      );
       const moved = await adminFormPost(
         `/admin/attributes/${id}/options/${second.id}/move-up`,
       );
@@ -198,9 +200,10 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
         true,
       )(response);
       expect(await attributeOptions(attributeId)).toEqual([]);
-      assertArrayIncludes((await activityMessages()) ?? [], [
+      has(
+        await activityMessages(),
         "Attribute option 'Easy' deleted from Difficulty",
-      ]);
+      );
     });
 
     test("shows the confirmation page before deleting", async () => {

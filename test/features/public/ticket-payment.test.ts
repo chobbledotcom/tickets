@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
@@ -16,6 +16,7 @@ import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.t
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
+import { says } from "#test-utils/says.ts";
 import type { ContactInfo } from "#types";
 import { ticketListingFor } from "./ticket-payment/helpers.ts";
 
@@ -173,11 +174,8 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         modifierUsages: [],
       });
       if (result.success) throw new Error("expected a capacity failure");
-      assertStringIncludes(result.error, "Sellout Kit");
-      assert(
-        !result.error.includes("Secret Widget"),
-        "the value should not contain the searched item",
-      );
+      says(result.error, "Sellout Kit");
+      assert(!result.error.includes("Secret Widget"));
     });
   });
 

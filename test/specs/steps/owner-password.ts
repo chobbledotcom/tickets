@@ -3,7 +3,6 @@
  * refuses, and what a change does to every signed-in window.
  */
 
-// jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
@@ -24,6 +23,8 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
+// jscpd:ignore-start
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -71,7 +72,8 @@ When(
 Then(
   "the owner is told the current password is incorrect",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    says(
+      whatTheyWereTold(this, ORGANISER),
       t("error.current_password_incorrect"),
     );
   },
@@ -80,18 +82,14 @@ Then(
 Then(
   "the owner is told the new passwords do not match",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
-      t("error.new_passwords_mismatch"),
-    );
+    says(whatTheyWereTold(this, ORGANISER), t("error.new_passwords_mismatch"));
   },
 );
 
 Then(
   "the owner is told the password changed and to log in again",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
-      t("success.password_changed"),
-    );
+    says(whatTheyWereTold(this, ORGANISER), t("success.password_changed"));
   },
 );
 
@@ -111,7 +109,7 @@ Then(
     const browser = scenarioBrowser(this);
     const answered = await browser.visit("/admin/settings");
     expect(answered).toBe(200);
-    expect(browser.pageText).toContain("Login");
+    says(browser.pageText, "Login");
   },
 );
 

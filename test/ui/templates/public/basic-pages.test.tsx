@@ -1,13 +1,13 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { contactPage, publicSitePage } from "#templates/public/basic-pages.tsx";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 /** The nav a public page test needs: fixed links on, no operator pages. */
 const nav = (): PublicNavProps => ({
@@ -40,18 +40,18 @@ describe("the public contact page", () => {
       }),
     );
 
-    assertStringIncludes(html, "<title>Contact - Teeside Walks</title>");
-    assertStringIncludes(html, "<h2>Send us a message</h2>");
-    assertStringIncludes(html, 'action="/contact"');
-    assertStringIncludes(
+    says(html, "<title>Contact - Teeside Walks</title>");
+    says(html, "<h2>Send us a message</h2>");
+    says(html, 'action="/contact"');
+    says(
       html,
       `<label>Your email address<input autocomplete="email" maxlength="${MAX_INPUT_LENGTH}" name="email" required type="email"></label>`,
     );
-    assertStringIncludes(
+    says(
       html,
       `<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="message" required></textarea>`,
     );
-    assertStringIncludes(html, `<button type="submit">Send message</button>`);
+    says(html, `<button type="submit">Send message</button>`);
   });
 
   test("loads the contact script only when a botpoison key is configured", () => {
@@ -62,8 +62,8 @@ describe("the public contact page", () => {
       websiteTitle: "",
     });
 
-    assertStringIncludes(withKey, '<script defer src="/contact.js"></script>');
-    assertStringIncludes(withKey, 'data-botpoison-public-key="pk_example"');
+    says(withKey, '<script defer src="/contact.js"></script>');
+    says(withKey, 'data-botpoison-public-key="pk_example"');
 
     const withoutKey = contactPage({
       botpoisonPublicKey: "",
@@ -72,14 +72,8 @@ describe("the public contact page", () => {
       websiteTitle: "",
     });
 
-    assert(
-      !withoutKey.includes("/contact.js"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !withoutKey.includes("data-botpoison-public-key"),
-      "the value should not contain the searched item",
-    );
+    assert(!withoutKey.includes("/contact.js"));
+    assert(!withoutKey.includes("data-botpoison-public-key"));
   });
 
   test("keeps the form off when the contact form is disabled", () => {
@@ -90,15 +84,9 @@ describe("the public contact page", () => {
       websiteTitle: "",
     });
 
-    assertStringIncludes(html, "<title>Contact</title>");
-    assert(
-      !html.includes('action="/contact"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Send us a message"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<title>Contact</title>");
+    assert(!html.includes('action="/contact"'));
+    assert(!html.includes("Send us a message"));
   });
 
   test("shows the site's contact text as markdown prose", () => {
@@ -110,8 +98,8 @@ describe("the public contact page", () => {
       websiteTitle: "",
     });
 
-    assertStringIncludes(html, '<div class="prose"><h2>Find us</h2>');
-    assertStringIncludes(html, "Call first.");
+    says(html, '<div class="prose"><h2>Find us</h2>');
+    says(html, "Call first.");
   });
 });
 
@@ -127,31 +115,25 @@ describe("the public home page", () => {
       "# Welcome\nEnjoy.",
     );
 
-    assertStringIncludes(html, "<title>Home - Teeside Walks</title>");
-    assertStringIncludes(html, "<h1>Teeside Walks</h1>");
-    assertStringIncludes(html, "<h1>Welcome</h1>");
-    assertStringIncludes(html, "Enjoy.");
-    assertStringIncludes(html, 'href="/admin/login"');
+    says(html, "<title>Home - Teeside Walks</title>");
+    says(html, "<h1>Teeside Walks</h1>");
+    says(html, "<h1>Welcome</h1>");
+    says(html, "Enjoy.");
+    says(html, 'href="/admin/login"');
   });
 
   test("falls back to the bare title and the no-content note", () => {
     const html = publicSitePage("home", nav(), "", "");
 
-    assertStringIncludes(html, "<title>Home</title>");
-    assert(
-      !html.includes("<title>Home - "),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "<em>No content.</em>");
+    says(html, "<title>Home</title>");
+    assert(!html.includes("<title>Home - "));
+    says(html, "<em>No content.</em>");
     expect(html).not.toMatch(/<h1/);
   });
 
   test("labels the terms page by the site's dictionary title", () => {
     const html = publicSitePage("terms", nav(), "Teeside Walks", "Be kind.");
 
-    assertStringIncludes(
-      html,
-      "<title>Terms &amp; Conditions - Teeside Walks</title>",
-    );
+    says(html, "<title>Terms &amp; Conditions - Teeside Walks</title>");
   });
 });

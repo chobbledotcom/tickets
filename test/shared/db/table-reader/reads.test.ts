@@ -4,7 +4,6 @@
  * filters, so an ordinary single-table read needs no SQL of its own.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, resultRows } from "#db/client.ts";
@@ -13,6 +12,7 @@ import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("db > table reader > reads", { db: true }, () => {
   test("reads every row when nothing is asked of it", async () => {
@@ -77,7 +77,7 @@ describeWithEnv("db > table reader > reads", { db: true }, () => {
 
       // Only the selected columns count — the filter names the key too.
       const sql = getQueryLog()[0]?.sql ?? "";
-      assertStringIncludes(sql.slice(0, sql.indexOf(" FROM ")), "listing.id");
+      says(sql.slice(0, sql.indexOf(" FROM ")), "listing.id");
       expect(rows).toEqual([{ name: "Keyed" }]);
     });
   });

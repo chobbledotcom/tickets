@@ -2,6 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { says } from "#test-utils/says.ts";
 // jscpd:ignore-end
 
 import { t } from "#i18n";
@@ -104,17 +105,15 @@ Then(
     // The scanner's own window stands on the door's scanner page: the page
     // carries the door's scan target and answers with the door's own heading.
     const page = scannerBrowser(this).currentHtml;
-    expect(page).toContain("data-scan-path=");
-    expect(page).toContain(t("admin.scanner.title", { name: listing }));
+    says(page, "data-scan-path=");
+    says(page, t("admin.scanner.title", { name: listing }));
   },
 );
 
 Then(
   "the ticket page offers to check them out",
   function (this: TicketsWorld): void {
-    expect(scannerBrowser(this).currentHtml).toContain(
-      t("admin.checkin.check_out_all"),
-    );
+    says(scannerBrowser(this).currentHtml, t("admin.checkin.check_out_all"));
   },
 );
 
@@ -134,7 +133,7 @@ Then(
   function (this: TicketsWorld): void {
     // The check-in page answers with its own words, and the person it is
     // about is on the page underneath them.
-    expect(scannerBrowser(this).pageText).toContain("Checked out");
+    says(scannerBrowser(this).pageText, "Checked out");
   },
 );
 
@@ -184,7 +183,8 @@ When(
 Then(
   "the ticket page says {int} of {int} are checked in",
   function (this: TicketsWorld, admitted: number, total: number): void {
-    expect(scannerBrowser(this).pageText).toContain(
+    says(
+      scannerBrowser(this).pageText,
       t("attendee_form.checked_in_count", { count: admitted, total }),
     );
   },
@@ -194,7 +194,7 @@ Then(
   "the ticket page offers to check them in and out",
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
-    expect(page).toContain(t("admin.checkin.check_in_all"));
-    expect(page).toContain(t("admin.checkin.check_out_all"));
+    says(page, t("admin.checkin.check_in_all"));
+    says(page, t("admin.checkin.check_out_all"));
   },
 );

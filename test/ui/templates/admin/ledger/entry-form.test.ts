@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -13,6 +12,7 @@ import {
   ledgerEntryForm,
 } from "#templates/admin/ledger/entry-form.ts";
 import { inputNamed } from "#test-utils/assertions.ts";
+import { says } from "#test-utils/says.ts";
 import { testWithSetting } from "#test-utils/settings.ts";
 
 describe("ledger entry forms", () => {
@@ -21,9 +21,9 @@ describe("ledger entry forms", () => {
   test("serves the amount and date boxes as required, with a zero floor", () => {
     const html = ledgerEntryForm.render();
     const amount = inputNamed(html, "amount");
-    assertStringIncludes(amount, 'min="0"');
-    assertStringIncludes(amount, "required");
-    assertStringIncludes(inputNamed(html, "occurred_at"), "required");
+    says(amount, 'min="0"');
+    says(amount, "required");
+    says(inputNamed(html, "occurred_at"), "required");
   });
 
   test("preselects the posted entry type when redisplaying the add form", () => {
@@ -56,15 +56,12 @@ describe("ledger entry forms", () => {
       occurred_at: "2026-06-22T09:30",
     });
     // The type choice itself is a required control.
-    assertStringIncludes(inputNamed(html, "entry_type"), "required");
-    assertStringIncludes(
+    says(inputNamed(html, "entry_type"), "required");
+    says(
       html,
       '<option value="manual_attendee_charge" selected>Charge</option>',
     );
-    assertStringIncludes(
-      html,
-      '<option value="manual_attendee_payment">Payment</option>',
-    );
+    says(html, '<option value="manual_attendee_payment">Payment</option>');
   });
 
   test("uses the dynamic option schema to reject a type from another account", () => {

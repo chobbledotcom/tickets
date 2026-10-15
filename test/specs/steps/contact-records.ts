@@ -16,6 +16,7 @@ import {
   unreadableRecord,
 } from "#test/specs/support/contact-records.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -146,7 +147,7 @@ When(
     // Resubmitting what the page already showed, which is what an organiser
     // pressing Save on the repaired form actually sends.
     const page = recordPage(this);
-    expect(page.currentHtml).toContain('name="admin_notes"');
+    says(page.currentHtml, 'name="admin_notes"');
     rememberBrowser(
       this,
       CUSTOMER,
@@ -181,9 +182,7 @@ Then(
   function (this: TicketsWorld, who: string): void {
     // The note is kept as the organiser typed it and shown made-up, so bold
     // stays bold rather than arriving as raw markup.
-    expect(recordPage(this).currentHtml).toContain(
-      `<strong>VIP</strong> ${who}`,
-    );
+    says(recordPage(this).currentHtml, `<strong>VIP</strong> ${who}`);
   },
 );
 

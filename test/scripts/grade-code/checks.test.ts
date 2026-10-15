@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { LINE_LIMIT } from "#scripts/check-file-lengths/rules.ts";
@@ -9,6 +10,7 @@ import {
   runMechanical,
 } from "#scripts/grade-code/checks.ts";
 import { extractCode } from "#scripts/grade-code/extract.ts";
+import { has, says } from "#test-utils/says.ts";
 
 /** The alias table slice a file under test resolves through. */
 const ALIASES: Alias[] = [
@@ -56,16 +58,16 @@ describe("activeChecks", () => {
     const ids = activeChecks(factsOf("const a = 1;\n")).map(
       (check) => check.id,
     );
-    expect(ids).not.toContain("hard_coded_copy");
-    expect(ids).not.toContain("dead_links");
+    assert(!ids.includes("hard_coded_copy"));
+    assert(!ids.includes("dead_links"));
   });
 
   test("keeps template questions for a template file", () => {
     const ids = activeChecks(
       factsOf("const a = 1;\n", "src/ui/templates/a.tsx"),
     ).map((check) => check.id);
-    expect(ids).toContain("hard_coded_copy");
-    expect(ids).toContain("naming_matches_site");
+    has(ids, "hard_coded_copy");
+    has(ids, "naming_matches_site");
   });
 
   test("keeps copy questions for JSX outside the template folder", () => {
@@ -75,24 +77,24 @@ describe("activeChecks", () => {
         "src/shared/forms/message-fields.tsx",
       ),
     ).map((check) => check.id);
-    expect(ids).toContain("hard_coded_copy");
-    expect(ids).toContain("naming_matches_site");
+    has(ids, "hard_coded_copy");
+    has(ids, "naming_matches_site");
   });
 
   test("keeps evidence-gated questions only when the evidence exists", () => {
     const plain = activeChecks(factsOf("const a = 1;\n")).map(
       (check) => check.id,
     );
-    expect(plain).not.toContain("sql_needed_columns");
-    expect(plain).not.toContain("transaction_shape");
+    assert(!plain.includes("sql_needed_columns"));
+    assert(!plain.includes("transaction_shape"));
     const withSql = activeChecks(
       factsOf("const q = `SELECT id FROM t`;\n"),
     ).map((check) => check.id);
-    expect(withSql).toContain("sql_needed_columns");
+    has(withSql, "sql_needed_columns");
     const withWrites = activeChecks(factsOf("await executeBatch([]);\n")).map(
       (check) => check.id,
     );
-    expect(withWrites).toContain("transaction_shape");
+    has(withWrites, "transaction_shape");
   });
 });
 
@@ -142,7 +144,7 @@ describe("imports_one_way", () => {
     ].join("\n");
     const verdict = verdictOf(source, "imports_one_way");
     expect(verdict.status).toBe("FAIL");
-    expect(verdict.note).toContain("merge into one statement");
+    says(verdict.note, "merge into one statement");
   });
 
   test("fails a spelling longer than the shortest alias", () => {
@@ -151,7 +153,7 @@ describe("imports_one_way", () => {
       "imports_one_way",
     );
     expect(verdict.status).toBe("FAIL");
-    expect(verdict.note).toContain('write "#i18n"');
+    says(verdict.note, 'write "#i18n"');
   });
 
   test("passes the shortest spelling once", () => {
@@ -168,7 +170,7 @@ describe("alias_exports", () => {
       "alias_exports",
     );
     expect(verdict.status).toBe("FAIL");
-    expect(verdict.note).toContain("renames");
+    says(verdict.note, "renames");
   });
 });
 
@@ -181,7 +183,7 @@ describe("empty_catch", () => {
   test("names the first findings and counts the rest", () => {
     const four = "try { a(); } catch {}\n".repeat(4);
     const verdict = verdictOf(four, "empty_catch");
-    expect(verdict.note).toContain("+1 more");
+    says(verdict.note, "+1 more");
   });
 });
 
@@ -295,7 +297,7 @@ describe("i18n_catalog", () => {
       ctxOf(),
     ).i18n_catalog;
     expect(verdict?.status).toBe("FAIL");
-    expect(verdict?.note).toContain('text "Please enter your name"');
+    says(verdict?.note, 'text "Please enter your name"');
   });
 
   test("warns within an allowlisted budget and fails over it", () => {
@@ -323,7 +325,7 @@ describe("gate_citations", () => {
       "gate_citations",
     );
     expect(verdict.status).toBe("FAIL");
-    expect(verdict.note).toContain("cites the jscpd check");
+    says(verdict.note, "cites the jscpd check");
   });
 
   test("passes prose that names no check", () => {

@@ -4,7 +4,7 @@
  * window helpers. The tab's core GET/POST behaviour lives in `page.test.ts`.
  */
 
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
@@ -36,6 +36,7 @@ import {
   logisticsTabHtml,
   makeAttendee,
 } from "#test-utils/logistics-tab.ts";
+import { has, says } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 describeWithEnv("attendee Logistics tab — demo mode", { db: true }, () => {
@@ -55,7 +56,7 @@ describeWithEnv("attendee Logistics tab — demo mode", { db: true }, () => {
 
     const saved = (await getAttendeeOrNull(id, await getTestPrivateKey()))!;
     expect(saved.address).not.toBe("1 Real Street, Realtown");
-    assertArrayIncludes(DEMO_ADDRESSES, [saved.address]);
+    has(DEMO_ADDRESSES, saved.address);
     expect(saved.lat).toBe("");
     expect(saved.lng).toBe("");
   });
@@ -134,12 +135,9 @@ describeWithEnv(
       expect(response.status).toBe(400);
       const html = await response.text();
       // The form re-renders with the operator's submitted choices…
-      assertStringIncludes(html, 'value="10:30"');
-      assertStringIncludes(html, 'value="18:30"');
-      assert(
-        !html.includes('value="08:00"'),
-        "the value should not contain the searched item",
-      );
+      says(html, 'value="10:30"');
+      says(html, 'value="18:30"');
+      assert(!html.includes('value="08:00"'));
       // …while nothing was saved.
       expect((await getLogisticsAssignments(id)).get(listing.id)).toEqual({
         endAgentId: null,
@@ -168,17 +166,11 @@ describeWithEnv(
       ]);
 
       const html = await logisticsTabHtml(current);
-      assertStringIncludes(html, "Other attendees");
-      assertStringIncludes(html, "Overlap Person");
-      assertStringIncludes(html, `/admin/attendees/${overlapping}/logistics`);
-      assert(
-        !html.includes("Far Away Person"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes(`/admin/attendees/${elsewhere}/logistics`),
-        "the value should not contain the searched item",
-      );
+      says(html, "Other attendees");
+      says(html, "Overlap Person");
+      says(html, `/admin/attendees/${overlapping}/logistics`);
+      assert(!html.includes("Far Away Person"));
+      assert(!html.includes(`/admin/attendees/${elsewhere}/logistics`));
     });
 
     test("shows the overlapping bookings' leg times and quantity", async () => {
@@ -211,10 +203,10 @@ describeWithEnv(
       );
 
       const html = await logisticsTabHtml(current);
-      assertStringIncludes(html, "10:45");
-      assertStringIncludes(html, "15:30");
+      says(html, "10:45");
+      says(html, "15:30");
       // A multi-unit booking shows its quantity beside the listing name.
-      assertStringIncludes(html, "×2");
+      says(html, "×2");
     });
 
     test("a booking in the gap between two bookings is not listed", async () => {
@@ -231,11 +223,8 @@ describeWithEnv(
       ]);
 
       const html = await logisticsTabHtml(current);
-      assertStringIncludes(html, "Gap Edge Person");
-      assert(
-        !html.includes("Gap Middle Person"),
-        "the value should not contain the searched item",
-      );
+      says(html, "Gap Edge Person");
+      assert(!html.includes("Gap Middle Person"));
     });
 
     test("the section is hidden when nothing overlaps", async () => {
@@ -244,10 +233,7 @@ describeWithEnv(
         { date: "2030-01-10", durationDays: 1, listingId: daily.id },
       ]);
       const html = await logisticsTabHtml(alone);
-      assert(
-        !html.includes("Other attendees"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Other attendees"));
     });
 
     test("the section is hidden for a date-less booking", async () => {
@@ -260,10 +246,7 @@ describeWithEnv(
         { listingId: listing.id },
       ]);
       const html = await logisticsTabHtml(dateless);
-      assert(
-        !html.includes("Other attendees"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Other attendees"));
     });
   },
 );

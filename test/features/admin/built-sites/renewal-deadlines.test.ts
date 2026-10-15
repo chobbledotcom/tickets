@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BuiltSite } from "#db/built-sites/types.ts";
@@ -13,6 +13,7 @@ import {
 } from "#test-utils/db-helpers/built-sites.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { has } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import { renewalSuiteHelpers, reSyncDeadlineSecrets } from "./renewal-setup.ts";
 
@@ -38,11 +39,11 @@ describeWithEnv(
           true,
         );
 
-        assertArrayIncludes(secretNames, ["READ_ONLY_FROM"]);
-        assertArrayIncludes(secretNames, ["RENEWAL_URL"]);
-        assertArrayIncludes(
+        has(secretNames, "READ_ONLY_FROM");
+        has(secretNames, "RENEWAL_URL");
+        has(
           (await getAllActivityLog()).map(({ message }) => message),
-          ["Admin re-synced deadline for 'Resync Site'"],
+          "Admin re-synced deadline for 'Resync Site'",
         );
       });
 
@@ -55,11 +56,8 @@ describeWithEnv(
           false,
         );
 
-        assertArrayIncludes(secretNames, ["READ_ONLY_FROM"]);
-        assert(
-          !secretNames.includes("RENEWAL_URL"),
-          "the value should not contain the searched item",
-        );
+        has(secretNames, "READ_ONLY_FROM");
+        assert(!secretNames.includes("RENEWAL_URL"));
       });
 
       test("redirects when deadline is empty", async () => {
@@ -113,9 +111,9 @@ describeWithEnv(
           mockRequest(`/renew/?t=${encodeURIComponent(updated.renewalToken!)}`),
         );
         expect(renewResponse.status).toBe(200);
-        assertArrayIncludes(
+        has(
           (await getAllActivityLog()).map(({ message }) => message),
-          ["Admin provisioned renewals for 'Provision Site' (3mo)"],
+          "Admin provisioned renewals for 'Provision Site' (3mo)",
         );
       });
 

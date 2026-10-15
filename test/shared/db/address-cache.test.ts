@@ -64,14 +64,8 @@ describeWithEnv("address cache", { db: true }, () => {
 
   test("the search index is an HMAC, not the search text", async () => {
     const index = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
-    assert(
-      !index.includes("SW1A"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !index.includes("easypostcodes"),
-      "the value should not contain the searched item",
-    );
+    assert(!index.includes("SW1A"));
+    assert(!index.includes("easypostcodes"));
   });
 
   test("the same provider and search always produce the same index", async () => {

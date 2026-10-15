@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -11,6 +10,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 import { assignmentEntry, sendSetupEmail } from "./contracts-setup.ts";
 
 describeWithEnv(
@@ -102,10 +102,7 @@ describeWithEnv(
 
       expect(fetchStub.calls).toHaveLength(1);
       const body = JSON.parse(fetchStub.calls[0]!.args[1].body);
-      assertStringIncludes(
-        body.text,
-        "Bronze plan + Gold plan: https://j.test/setup/",
-      );
+      says(body.text, "Bronze plan + Gold plan: https://j.test/setup/");
     });
   },
 );

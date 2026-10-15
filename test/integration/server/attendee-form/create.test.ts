@@ -1,4 +1,3 @@
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -20,6 +19,7 @@ import {
   getAttendeesRaw,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has, says } from "#test-utils/says.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -113,8 +113,8 @@ describeWithEnv(
         );
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "Name is required");
-        assertStringIncludes(html, "preserve@example.com");
+        says(html, "Name is required");
+        says(html, "preserve@example.com");
         // No attendee was created
         await expectAttendeeLineCount(event.id, 0);
       });
@@ -380,9 +380,10 @@ describeWithEnv(
             .map(({ message }) => message)
             .filter((message) => message.includes("added manually")),
         ).toEqual(["Attendee 'Failing Hook' added manually"]);
-        assertArrayIncludes((await activityMessages()) ?? [], [
+        has(
+          await activityMessages(),
           "Registration notification delivery failed.",
-        ]);
+        );
       });
 
       test("a thrown webhook delivery still saves the attendee", async () => {
@@ -398,9 +399,10 @@ describeWithEnv(
         });
         expectRedirect(response, "/admin/attendees/");
         await expectAttendeeLineCount(listing.id, 1);
-        assertArrayIncludes((await activityMessages()) ?? [], [
+        has(
+          await activityMessages(),
           "Registration notification delivery failed.",
-        ]);
+        );
       });
     });
   },

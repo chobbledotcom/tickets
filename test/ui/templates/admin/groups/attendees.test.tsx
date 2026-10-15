@@ -1,6 +1,5 @@
 /** Direct tests for the group Attendees tab panel. */
 
-import { assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { GroupAttendeesPanel } from "#templates/admin/groups/attendees.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
@@ -10,6 +9,7 @@ import {
   testGroup,
   testListingWithCount,
 } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("GroupAttendeesPanel", () => {
   beforeAll(setupAdminPageTest);
@@ -37,10 +37,10 @@ describe("GroupAttendeesPanel", () => {
     );
     // Per-line check-in is the point of this roster: the attendee's two
     // bookings stay two rows, each acting on its own listing.
-    assertStringIncludes(html, "/admin/listing/1/attendee/9/checkin");
-    assertStringIncludes(html, "/admin/listing/2/attendee/9/checkin");
-    assertStringIncludes(html, 'title="First Listing"');
-    assertStringIncludes(html, 'title="Second Listing"');
+    says(html, "/admin/listing/1/attendee/9/checkin");
+    says(html, "/admin/listing/2/attendee/9/checkin");
+    says(html, 'title="First Listing"');
+    says(html, 'title="Second Listing"');
   });
 
   test("returns operator actions to the Attendees tab, not the old detail anchor", () => {
@@ -56,8 +56,8 @@ describe("GroupAttendeesPanel", () => {
         pairBookings: shownLineBookings([{ ...guest, listingId: 1 }]),
       }),
     );
-    assertStringIncludes(html, 'name="return_url"');
-    assertStringIncludes(html, 'value="/admin/groups/5/attendees"');
-    assertStringIncludes(html, '<h2 id="attendees">Attendees</h2>');
+    says(html, 'name="return_url"');
+    says(html, 'value="/admin/groups/5/attendees"');
+    says(html, '<h2 id="attendees">Attendees</h2>');
   });
 });

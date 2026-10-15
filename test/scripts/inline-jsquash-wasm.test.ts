@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { fromFileUrl } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
@@ -18,6 +19,7 @@ import {
 } from "#scripts/inline-jsquash-wasm.ts";
 import { ASSETS } from "#shared/images/wasm-assets.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 
 type ResolveCallback = Parameters<PluginBuild["onResolve"]>[1];
 type LoadCallback = Parameters<PluginBuild["onLoad"]>[1];
@@ -99,10 +101,10 @@ describe("buildModule", () => {
           ? new Uint8Array([1, 2, 3])
           : new Uint8Array([4, 5]),
     );
-    expect(source).toContain('const jpegDecBytes = b64ToBytes("AQID");');
-    expect(source).toContain("export const jpegDec = () => jpegDecBytes;");
-    expect(source).toContain('const webpEncBytes = b64ToBytes("BAU=");');
-    expect(source).toContain("export const webpEnc = () => webpEncBytes;");
+    says(source, 'const jpegDecBytes = b64ToBytes("AQID");');
+    says(source, "export const jpegDec = () => jpegDecBytes;");
+    says(source, 'const webpEncBytes = b64ToBytes("BAU=");');
+    says(source, "export const webpEnc = () => webpEncBytes;");
     const generated = await importGeneratedModule(source);
     expect([...(await generated.jpegDec())]).toEqual([1, 2, 3]);
     expect([...(await generated.webpEnc())]).toEqual([4, 5]);
@@ -111,9 +113,9 @@ describe("buildModule", () => {
   test("builds the real jSquash module with every expected export", () => {
     const source = buildPackageModule();
     for (const asset of ASSETS) {
-      expect(source).toContain(`export const ${asset.exportName} = () =>`);
+      says(source, `export const ${asset.exportName} = () =>`);
     }
-    expect(source).not.toContain("src/shared/images/wasm");
+    assert(!source.includes("src/shared/images/wasm"));
   });
 });
 

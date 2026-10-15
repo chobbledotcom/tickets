@@ -3,7 +3,7 @@
  * optional flash and action row it can carry, and the staff/agent variant.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { Flash } from "#shared/forms/flash.tsx";
@@ -17,6 +17,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 import type { AdminSession } from "#types";
 
 const AGENT_SESSION: AdminSession = { adminLevel: "agent" };
@@ -38,51 +39,45 @@ describe("the admin page shell", () => {
   test("titles the page and puts the body inside it", () => {
     const html = page();
 
-    assertStringIncludes(html, "<title>Page title</title>");
-    assertStringIncludes(html, "<p>Body</p>");
+    says(html, "<title>Page title</title>");
+    says(html, "<p>Body</p>");
   });
 
   test("names the content admin-page unless the caller names it", () => {
-    assertStringIncludes(page(), 'class="page-regions admin-page"');
-    assertStringIncludes(
+    says(page(), 'class="page-regions admin-page"');
+    says(
       page({ contentClassName: "wide-page" }),
       'class="page-regions wide-page"',
     );
   });
 
   test("leaves the body class alone unless a class is given", () => {
-    assertStringIncludes(page(), '<body data-page-family="admin">');
-    assertStringIncludes(
+    says(page(), '<body data-page-family="admin">');
+    says(
       page({ bodyClass: "ticket-body" }),
       '<body class="ticket-body" data-page-family="admin">',
     );
   });
 
   test("previews the theme it is given", () => {
-    assert(
-      !page().includes('data-theme="dark"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(page({ theme: "dark" }), 'data-theme="dark"');
+    assert(!page().includes('data-theme="dark"'));
+    says(page({ theme: "dark" }), 'data-theme="dark"');
   });
 
   test("shows the flash between the nav and the body", () => {
     const html = page({ flash: <Flash success="Saved" /> });
 
-    assertStringIncludes(html, "Saved");
+    says(html, "Saved");
     expect(html.indexOf("Saved")).toBeLessThan(html.indexOf("<p>Body</p>"));
     expect(html.indexOf("</nav>")).toBeLessThan(html.indexOf("Saved"));
   });
 
   test("wraps an action row, and renders none when there is none", () => {
-    assertStringIncludes(
+    says(
       page({ actions: <a href="/admin/new">Add</a> }),
       '<p class="actions"><a href="/admin/new">Add</a></p>',
     );
-    assert(
-      !page().includes('<p class="actions">'),
-      "the value should not contain the searched item",
-    );
+    assert(!page().includes('<p class="actions">'));
   });
 });
 
@@ -107,9 +102,9 @@ describe("rendering an admin page to a string", () => {
       <p>Plain body</p>,
     );
 
-    assertStringIncludes(html, "<title>Plain page</title>");
-    assertStringIncludes(html, '<a class="active" href="/admin/settings">');
-    assertStringIncludes(html, "<p>Plain body</p>");
+    says(html, "<title>Plain page</title>");
+    says(html, '<a class="active" href="/admin/settings">');
+    says(html, "<p>Plain body</p>");
   });
 });
 
@@ -128,18 +123,15 @@ describe("the page staff and agents share", () => {
   test("gives staff the heading the caller passed", () => {
     const html = staffPage(OWNER_SESSION);
 
-    assertStringIncludes(html, "<h1>For staff</h1>");
-    assertStringIncludes(html, "<p>Run sheet</p>");
+    says(html, "<h1>For staff</h1>");
+    says(html, "<p>Run sheet</p>");
   });
 
   test("gives an agent the bare agent header instead", () => {
     const html = staffPage(AGENT_SESSION);
 
-    assert(
-      !html.includes("<h1>For staff</h1>"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "Deliveries");
-    assertStringIncludes(html, "<p>Run sheet</p>");
+    assert(!html.includes("<h1>For staff</h1>"));
+    says(html, "Deliveries");
+    says(html, "<p>Run sheet</p>");
   });
 });

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -27,6 +27,7 @@ import {
 } from "#test-utils/email.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const setupAndSendRegistration = async (
@@ -111,7 +112,7 @@ describeWithEnv(
       expect(fetch.callCount()).toBe(1);
       const body = fetch.getFetchJsonBody();
       expect(body.to).toEqual(["jane@example.com"]);
-      assertStringIncludes(body.subject, "Test Listing");
+      says(body.subject, "Test Listing");
     });
 
     test("sends both confirmation and admin notification when business email set", async () => {
@@ -141,7 +142,7 @@ describeWithEnv(
       await setupAndSendRegistration();
 
       const decoded = expectSingleTicketSvg(fetch.getFetchJsonBody());
-      assertStringIncludes(decoded, "<svg");
+      says(decoded, "<svg");
     });
 
     test("does not attach tickets to admin notification", async () => {
@@ -166,15 +167,9 @@ describeWithEnv(
       await setupAndSendRegistration({}, entries);
 
       const decoded = expectSingleTicketSvg(fetch.getFetchJsonBody());
-      assertStringIncludes(decoded, "VIP Bundle");
-      assert(
-        !decoded.includes("Secret Seat"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !decoded.includes("Secret Meal"),
-        "the value should not contain the searched item",
-      );
+      says(decoded, "VIP Bundle");
+      assert(!decoded.includes("Secret Seat"));
+      assert(!decoded.includes("Secret Meal"));
     });
 
     test("keeps a hidden package's booked date in its ticket", async () => {
@@ -191,11 +186,8 @@ describeWithEnv(
       ]);
 
       const decoded = expectSingleTicketSvg(fetch.getFetchJsonBody());
-      assertStringIncludes(decoded, "1 August 2026");
-      assert(
-        !decoded.includes("Secret Stay"),
-        "the value should not contain the searched item",
-      );
+      says(decoded, "1 August 2026");
+      assert(!decoded.includes("Secret Stay"));
     });
 
     test("reads only the order's answers when package displays are supplied", async () => {
@@ -220,15 +212,9 @@ describeWithEnv(
         ),
       ).toBe(2);
       const body = fetch.getFetchJsonBody();
-      assertStringIncludes(body.subject, "Supplied package");
-      assert(
-        !body.html.includes("Test Listing"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !body.text.includes("Test Listing"),
-        "the value should not contain the searched item",
-      );
+      says(body.subject, "Supplied package");
+      assert(!body.html.includes("Test Listing"));
+      assert(!body.text.includes("Test Listing"));
     });
 
     test("sends the buyer's answers with their confirmation", async () => {
@@ -259,8 +245,8 @@ describeWithEnv(
       // notification went out first with no answers to show. The one sent
       // here is the second fetch.
       const body = fetch.getFetchJsonBody(1);
-      assertStringIncludes(body.text, "Choose one: Chosen");
-      assertStringIncludes(body.text, "Anything else?: Arriving late");
+      says(body.text, "Choose one: Chosen");
+      says(body.text, "Anything else?: Arriving late");
     });
 
     test("attaches numbered tickets for multi-listing registration", async () => {
@@ -310,7 +296,7 @@ describeWithEnv(
       if (!(error instanceof RegistrationDeliveryError)) throw error;
       expect(error.reasons).toHaveLength(1);
       expect(fetch.callCount()).toBe(1);
-      assertStringIncludes(fetch.getFetchJsonBody().subject, "Test Listing");
+      says(fetch.getFetchJsonBody().subject, "Test Listing");
     });
 
     test("throws when the email subrequest allowance is exhausted", async () => {
@@ -332,10 +318,7 @@ describeWithEnv(
       expect(error.reasons).toHaveLength(1);
       expect(error.reasons[0]).toBeInstanceOf(Error);
       if (!(error.reasons[0] instanceof Error)) throw error.reasons[0];
-      assertStringIncludes(
-        error.reasons[0].message,
-        "Subrequest allowance exceeded",
-      );
+      says(error.reasons[0].message, "Subrequest allowance exceeded");
       expect(fetch.callCount()).toBe(0);
     });
 

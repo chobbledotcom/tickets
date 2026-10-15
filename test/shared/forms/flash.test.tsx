@@ -1,15 +1,16 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { flashConsumed } from "#shared/flash-context.ts";
 import { Flash, renderError, renderSuccess } from "#shared/forms/flash.tsx";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("Flash", () => {
   test("renders a success message inside a success alert", () => {
     const html = String(Flash({ success: "Saved" }));
-    assertStringIncludes(html, 'class="success"');
-    assertStringIncludes(html, "Saved");
+    says(html, 'class="success"');
+    says(html, "Saved");
   });
 
   test("consumes the request flash for any single flash kind", () => {
@@ -18,7 +19,7 @@ describe("Flash", () => {
     for (const field of ["error", "success", "info"] as const) {
       withRequestContext(() => {
         const html = String(Flash({ [field]: "Message" }));
-        assertStringIncludes(html, "Message");
+        says(html, "Message");
         expect(flashConsumed()).toBe(true);
       });
     }
@@ -33,35 +34,26 @@ describe("Flash", () => {
 
   test("renders an info message inside an info alert", () => {
     const html = String(Flash({ info: "Heads up" }));
-    assertStringIncludes(html, 'class="info"');
-    assertStringIncludes(html, "Heads up");
+    says(html, 'class="info"');
+    says(html, "Heads up");
   });
 
   test("renders an error message inside the error alert", () => {
     const html = String(Flash({ error: "Bad" }));
-    assertStringIncludes(html, "Bad");
+    says(html, "Bad");
   });
 
   test("renders nothing when no field carries a message", () => {
     const html = String(Flash({}));
-    assert(
-      !html.includes('class="success"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('class="info"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("alert"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('class="success"'));
+    assert(!html.includes('class="info"'));
+    assert(!html.includes("alert"));
   });
 });
 
 describe("renderError", () => {
   test("renders the error message as text", () => {
-    assertStringIncludes(renderError("Payment refused"), "Payment refused");
+    says(renderError("Payment refused"), "Payment refused");
   });
 
   test("renders nothing when there is no error", () => {
@@ -72,8 +64,8 @@ describe("renderError", () => {
 describe("renderSuccess", () => {
   test("renders the success message inside a success alert", () => {
     const html = renderSuccess("Saved");
-    assertStringIncludes(html, 'class="success"');
-    assertStringIncludes(html, "Saved");
+    says(html, 'class="success"');
+    says(html, "Saved");
   });
 
   test("renders nothing when there is no message", () => {

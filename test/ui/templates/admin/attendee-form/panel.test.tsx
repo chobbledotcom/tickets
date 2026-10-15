@@ -1,6 +1,6 @@
 // jscpd:ignore-start -- fixtures mirror the sibling editor tests
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
@@ -17,6 +17,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { attendeeFormLine } from "#test-utils/attendee-form-factories.ts";
+import { says } from "#test-utils/says.ts";
 import { formData } from "./fixtures.ts";
 
 // jscpd:ignore-end
@@ -86,19 +87,13 @@ describe("attendee form panel", () => {
 
   test("renders the create form with its action, title, and section legends", () => {
     const html = render();
-    assertStringIncludes(html, 'id="attendee-form"');
-    assertStringIncludes(html, '<form action="/admin/attendees/new"');
-    assertStringIncludes(html, "<h1>Add new attendee</h1>");
-    assertStringIncludes(html, "<legend>Attendee Details</legend>");
-    assertStringIncludes(html, "<legend>Listing Registrations</legend>");
-    assert(
-      !html.includes("<legend>Dates</legend>"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("<legend>Custom Questions</legend>"),
-      "the value should not contain the searched item",
-    );
+    says(html, 'id="attendee-form"');
+    says(html, '<form action="/admin/attendees/new"');
+    says(html, "<h1>Add new attendee</h1>");
+    says(html, "<legend>Attendee Details</legend>");
+    says(html, "<legend>Listing Registrations</legend>");
+    assert(!html.includes("<legend>Dates</legend>"));
+    assert(!html.includes("<legend>Custom Questions</legend>"));
   });
 
   test("pins the contact inputs with their ids, limits, and types", () => {
@@ -111,49 +106,40 @@ describe("attendee form panel", () => {
         special_instructions: "Leave at the desk",
       }),
     });
-    assertStringIncludes(
+    says(
       html,
       '<label for="name">Name<input autocomplete="off" autofocus id="name" maxlength="250" name="name" required type="text" value="Ada Byron"></label>',
     );
-    assertStringIncludes(
+    says(
       html,
       '<label for="email">Email<input autocomplete="off" id="email" maxlength="250" name="email" type="email" value="ada@example.com"></label>',
     );
-    assertStringIncludes(
+    says(
       html,
       '<label for="phone">Phone<input autocomplete="off" id="phone" maxlength="32" name="phone" pattern="[+\\d][\\d\\s\\-\\(\\)]{5,}" title="Phone number (digits, spaces, hyphens, parentheses, optional leading +)" type="text" value="07946 123456"></label>',
     );
-    assertStringIncludes(
+    says(
       html,
       '<label for="special_instructions">Special Instructions<textarea autocomplete="off" id="special_instructions" maxlength="250" name="special_instructions" rows="3">',
     );
-    assertStringIncludes(html, "1 Road</textarea>");
-    assertStringIncludes(html, "Leave at the desk</textarea>");
+    says(html, "1 Road</textarea>");
+    says(html, "Leave at the desk</textarea>");
   });
 
   test("keeps an empty contact field from picking up placeholder text", () => {
     const html = render();
-    assertStringIncludes(
+    says(
       html,
       'id="email" maxlength="250" name="email" type="email" value="">',
     );
-    assertStringIncludes(
-      html,
-      'id="phone" maxlength="32" name="phone" pattern="',
-    );
-    assert(
-      !html.includes("mutated"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(
-      html,
-      'id="address" maxlength="250" name="address" rows="3">',
-    );
+    says(html, 'id="phone" maxlength="32" name="phone" pattern="');
+    assert(!html.includes("mutated"));
+    says(html, 'id="address" maxlength="250" name="address" rows="3">');
   });
 
   test("gives the name field autofocus only when the form has no error", () => {
     const clean = render();
-    assertStringIncludes(
+    says(
       clean,
       '<input autocomplete="off" autofocus id="name" maxlength="250" name="name" required type="text" value="Test">',
     );
@@ -175,26 +161,20 @@ describe("attendee form panel", () => {
     ] as Partial<AttendeeFormTemplateData>[];
     for (const single of singleErrors) {
       const withError = render(single);
-      assertStringIncludes(
-        withError,
-        'id="name" maxlength="250" name="name" required',
-      );
-      assert(
-        !withError.includes('autofocus id="name"'),
-        "the value should not contain the searched item",
-      );
+      says(withError, 'id="name" maxlength="250" name="name" required');
+      assert(!withError.includes('autofocus id="name"'));
     }
   });
 
   test("labels the contact fields, the date fields, and their hints", () => {
     const html = render({ hasDailyListings: true });
-    assertStringIncludes(html, "<legend>Attendee Details</legend>");
-    assertStringIncludes(html, "<legend>Dates</legend>");
-    assertStringIncludes(html, "Start date");
-    assertStringIncludes(html, "Length");
-    assertStringIncludes(html, "Phone");
-    assertStringIncludes(html, "Special Instructions");
-    assertStringIncludes(
+    says(html, "<legend>Attendee Details</legend>");
+    says(html, "<legend>Dates</legend>");
+    says(html, "Start date");
+    says(html, "Length");
+    says(html, "Phone");
+    says(html, "Special Instructions");
+    says(
       html,
       "Optional — the date only affects daily listings. A start date is required once you book a daily listing below.",
     );
@@ -202,9 +182,9 @@ describe("attendee form panel", () => {
 
   test("renders the status select with the public default selected", () => {
     const html = render({ statuses: statuses() });
-    assertStringIncludes(html, "<legend>Attendee Details</legend>");
-    assertStringIncludes(html, '<option selected value="4">Confirmed</option>');
-    assertStringIncludes(html, '<option value="9">Cancelled</option>');
+    says(html, "<legend>Attendee Details</legend>");
+    says(html, '<option selected value="4">Confirmed</option>');
+    says(html, '<option value="9">Cancelled</option>');
   });
 
   test("renders a hidden status input when one status or none is known", () => {
@@ -212,23 +192,14 @@ describe("attendee form panel", () => {
       parsed: parsed({ statusId: 4 }),
       statuses: [],
     });
-    assertStringIncludes(
-      html,
-      '<input name="status_id" type="hidden" value="4">',
-    );
+    says(html, '<input name="status_id" type="hidden" value="4">');
 
     const oneStatus = render({
       parsed: parsed({ statusId: 4 }),
       statuses: [statuses()[0]!],
     });
-    assertStringIncludes(
-      oneStatus,
-      '<input name="status_id" type="hidden" value="4">',
-    );
-    assert(
-      !oneStatus.includes('id="status_id"'),
-      "the value should not contain the searched item",
-    );
+    says(oneStatus, '<input name="status_id" type="hidden" value="4">');
+    assert(!oneStatus.includes('id="status_id"'));
   });
 
   test("shows the balance notice with its tone", () => {
@@ -238,7 +209,7 @@ describe("attendee form panel", () => {
         tone: "warning",
       },
     });
-    assertStringIncludes(
+    says(
       html,
       '<output class="warning">This attendee is in a paid status but still owes £5.00.</output>',
     );
@@ -246,30 +217,23 @@ describe("attendee form panel", () => {
 
   test("hides the availability notice once a start date is known", () => {
     const bare = render({ hasDailyListings: true });
-    assertStringIncludes(
-      bare,
-      "Availability is inaccurate until dates have been saved.",
-    );
+    says(bare, "Availability is inaccurate until dates have been saved.");
     assert(
       !bare.includes('<output class="warning" data-availability-notice hidden'),
-      "the value should not contain the searched item",
     );
 
     const dated = render({
       hasDailyListings: true,
       parsed: parsed({ startDate: "2026-06-05" }),
     });
-    assertStringIncludes(
-      dated,
-      '<output class="warning" data-availability-notice hidden>',
-    );
+    says(dated, '<output class="warning" data-availability-notice hidden>');
   });
 
   test("shows the dates section only for daily listings, with its hint", () => {
     const html = render({ hasDailyListings: true });
-    assertStringIncludes(html, "<legend>Dates</legend>");
-    assertStringIncludes(html, 'id="start_date"');
-    assertStringIncludes(
+    says(html, "<legend>Dates</legend>");
+    says(html, 'id="start_date"');
+    says(
       html,
       '<input id="start_date" name="start_date" type="date" value="">',
     );
@@ -278,7 +242,7 @@ describe("attendee form panel", () => {
       hasDailyListings: true,
       parsed: parsed({ startDate: "2026-06-05" }),
     });
-    assertStringIncludes(
+    says(
       dated,
       '<input id="start_date" name="start_date" type="date" value="2026-06-05">',
     );
@@ -289,15 +253,9 @@ describe("attendee form panel", () => {
       hasDailyListings: true,
       parsed: parsed({ startDate: "2026-06-05" }),
     });
-    assertStringIncludes(
-      html,
-      '<option selected value="1">1 day: Friday 5 June 2026</option>',
-    );
-    assertStringIncludes(
-      html,
-      '<option value="2">2 days: Saturday 6 June 2026</option>',
-    );
-    assertStringIncludes(
+    says(html, '<option selected value="1">1 day: Friday 5 June 2026</option>');
+    says(html, '<option value="2">2 days: Saturday 6 June 2026</option>');
+    says(
       html,
       '<option value="90">90 days: Wednesday 2 September 2026</option>',
     );
@@ -305,15 +263,12 @@ describe("attendee form panel", () => {
 
   test("labels day-count options as bare day counts without a start date", () => {
     const html = render({ hasDailyListings: true });
-    assertStringIncludes(html, '<option selected value="1">1 day</option>');
-    assertStringIncludes(html, '<option value="2">2 days</option>');
-    assertStringIncludes(html, '<option value="90">90 days</option>');
+    says(html, '<option selected value="1">1 day</option>');
+    says(html, '<option value="2">2 days</option>');
+    says(html, '<option value="90">90 days</option>');
     // The count is never 0: the select starts at one booked day.
-    assert(
-      !html.includes('<option value="0">'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(
+    assert(!html.includes('<option value="0">'));
+    says(
       html,
       '<p class="small">Optional — the date only affects daily listings.',
     );
@@ -324,12 +279,12 @@ describe("attendee form panel", () => {
       hasDailyListings: true,
       parsed: parsed({ dayCount: 2 }),
     });
-    assertStringIncludes(html, '<option selected value="2">2 days</option>');
+    says(html, '<option selected value="2">2 days</option>');
   });
 
   test("warns when daily timings disagree", () => {
     const html = render({ hasMixedTimings: true });
-    assertStringIncludes(
+    says(
       html,
       '<output class="warning">This attendee\'s existing daily listings have different start dates or lengths. Saving will put them all on the one date range above.</output>',
     );
@@ -340,23 +295,20 @@ describe("attendee form panel", () => {
       questions: [question()],
       selectedAnswerIds: [61],
     });
-    assertStringIncludes(html, "<legend>Custom Questions</legend>");
-    assertStringIncludes(html, "<legend>Meal preference</legend>");
-    assertStringIncludes(
+    says(html, "<legend>Custom Questions</legend>");
+    says(html, "<legend>Meal preference</legend>");
+    says(
       html,
       '<input checked name="question_6" type="radio" value="61"> Vegan',
     );
-    assertStringIncludes(
-      html,
-      '<input name="question_6" type="radio" value="62"> Standard',
-    );
+    says(html, '<input name="question_6" type="radio" value="62"> Standard');
   });
 
   test("lists the top warnings under the double-check heading", () => {
     const html = render({
       topWarnings: ["Daily listings have no start date."],
     });
-    assertStringIncludes(
+    says(
       html,
       '<output class="warning" role="alert"><strong>Please double-check:</strong><ul><li>Daily listings have no start date.</li></ul></output>',
     );
@@ -368,15 +320,15 @@ describe("attendee form panel", () => {
       formError: "Some answers were missing.",
       saveError: "The server refused the save.",
     });
-    assertStringIncludes(
+    says(
       html,
       '<div autofocus class="error" role="alert" tabindex="-1">The server refused the save.</div>',
     );
-    assertStringIncludes(
+    says(
       html,
       '<div autofocus class="error" role="alert" tabindex="-1">Some answers were missing.</div>',
     );
-    assertStringIncludes(
+    says(
       html,
       '<div autofocus class="error" role="alert" tabindex="-1">The attendee no longer exists.</div>',
     );
@@ -387,7 +339,7 @@ describe("attendee form panel", () => {
       dateError: "Start date is in the past.",
       hasDailyListings: true,
     });
-    assertStringIncludes(
+    says(
       html,
       '<div autofocus class="error" role="alert" tabindex="-1">Start date is in the past.</div>',
     );
@@ -398,13 +350,12 @@ describe("attendee form panel", () => {
       !render({ hasDailyListings: true }).includes(
         '<div autofocus class="error" role="alert" tabindex="-1"></div>',
       ),
-      "the value should not contain the searched item",
     );
   });
 
   test("carries the return URL as a hidden field", () => {
     const html = render({ returnUrl: "/admin/attendees" });
-    assertStringIncludes(
+    says(
       html,
       '<input name="return_url" type="hidden" value="/admin/attendees">',
     );
@@ -416,16 +367,10 @@ describe("attendee form panel", () => {
       mode: "edit",
       statuses: statuses(),
     });
-    assertStringIncludes(html, '<form action="/admin/attendees/42"');
-    assert(
-      !html.includes("<h1>Add new attendee</h1>"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "Save Attendee");
-    assert(
-      !html.includes("Create Attendee"),
-      "the value should not contain the searched item",
-    );
+    says(html, '<form action="/admin/attendees/42"');
+    assert(!html.includes("<h1>Add new attendee</h1>"));
+    says(html, "Save Attendee");
+    assert(!html.includes("Create Attendee"));
   });
 });
 
@@ -438,17 +383,14 @@ describe("attendee form page shells", () => {
       session: OWNER_SESSION,
       title: "Attendees",
     });
-    assertStringIncludes(html, '<a class="active" href="/admin/attendees">');
-    assertStringIncludes(html, "<h1>Attendees</h1>");
+    says(html, '<a class="active" href="/admin/attendees">');
+    says(html, "<h1>Attendees</h1>");
   });
 
   test("the create page carries the new-attendee section and tab title", () => {
     const html = attendeeFormPage(data(), OWNER_SESSION);
-    assertStringIncludes(
-      html,
-      '<a class="active" href="/admin/attendees/new">',
-    );
-    assertStringIncludes(html, "<title>Add new attendee</title>");
-    assertStringIncludes(html, "<h1>Add new attendee</h1>");
+    says(html, '<a class="active" href="/admin/attendees/new">');
+    says(html, "<title>Add new attendee</title>");
+    says(html, "<h1>Add new attendee</h1>");
   });
 });

@@ -2,7 +2,7 @@
  * boxes, a stored listing's field values, the defaults page's values, and the
  * templated form's class markers. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -17,18 +17,16 @@ import {
 } from "#templates/admin/listings/form-values.tsx";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("renderDayPricesFieldset", () => {
   test("offers one row per day of the listing's longest stay", () => {
     const html = renderDayPricesFieldset(
       testListingWithCount({ duration_days: 2 }),
     );
-    assertStringIncludes(html, 'name="day_price_1"');
-    assertStringIncludes(html, 'name="day_price_2"');
-    assert(
-      !html.includes('name="day_price_3"'),
-      "the value should not contain the searched item",
-    );
+    says(html, 'name="day_price_1"');
+    says(html, 'name="day_price_2"');
+    assert(!html.includes('name="day_price_3"'));
   });
 
   test("draws a stored override and leaves an unset day to its placeholder", () => {
@@ -45,23 +43,17 @@ describe("renderDayPricesFieldset", () => {
     const html = renderDayPricesFieldset(
       testListingWithCount({ duration_days: 2 }),
     );
-    assertStringIncludes(html, "</fieldset>");
+    says(html, "</fieldset>");
     // Every day's row is one label with its box inside it, labeled by the
     // day it prices and closed before the next day's row starts.
-    assertStringIncludes(html, "</label><label>");
-    assertStringIncludes(
-      html,
-      `${t("listings_table.day_price_row_label", { n: 1 })}<input`,
-    );
+    says(html, "</label><label>");
+    says(html, `${t("listings_table.day_price_row_label", { n: 1 })}<input`);
   });
 
   test("a fresh form offers a single day", () => {
     const html = renderDayPricesFieldset();
-    assertStringIncludes(html, 'name="day_price_1"');
-    assert(
-      !html.includes('name="day_price_2"'),
-      "the value should not contain the searched item",
-    );
+    says(html, 'name="day_price_1"');
+    assert(!html.includes('name="day_price_2"'));
   });
 });
 

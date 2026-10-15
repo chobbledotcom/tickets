@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { jsSiblingPath, runCommand } from "#scripts/sentry-debug-ids/run.ts";
+import { says } from "#test-utils/says.ts";
 
 const BUNDLE = "code;\n//# sourceMappingURL=bundle.ts.map";
 const MAP = '{"version":3,"sources":[],"mappings":""}';
@@ -40,7 +41,7 @@ describe("sentry debug ids", () => {
     test("writes a JavaScript copy of the bundle and its map", async () => {
       await runCommand("prepare", bundle);
 
-      expect(await Deno.readTextFile(`${dir}/bundle.js`)).toContain("code;");
+      says(await Deno.readTextFile(`${dir}/bundle.js`), "code;");
       expect(await Deno.readTextFile(`${dir}/bundle.js.map`)).toBe(MAP);
     });
 
@@ -50,7 +51,8 @@ describe("sentry debug ids", () => {
     test("points the copy at its own map, by name and not by path", async () => {
       await runCommand("prepare", bundle);
 
-      expect(await Deno.readTextFile(`${dir}/bundle.js`)).toContain(
+      says(
+        await Deno.readTextFile(`${dir}/bundle.js`),
         "//# sourceMappingURL=bundle.js.map",
       );
     });
@@ -68,8 +70,8 @@ describe("sentry debug ids", () => {
       await runCommand("adopt", bundle);
 
       const deployed = await Deno.readTextFile(bundle);
-      expect(deployed).toContain("//# debugId=abc");
-      expect(deployed).toContain("//# sourceMappingURL=bundle.ts.map");
+      says(deployed, "//# debugId=abc");
+      says(deployed, "//# sourceMappingURL=bundle.ts.map");
       expect(await Deno.readTextFile(`${bundle}.map`)).toBe(
         '{"debug_id":"abc"}',
       );

@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { formatCurrency } from "#shared/currency.ts";
@@ -9,6 +10,7 @@ import {
   safetyBooking,
 } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 import {
   expectOwnerWasTold,
   expectProviderSendCount,
@@ -68,7 +70,7 @@ Then(
   function (this: TicketsWorld, who: string, pounds: number): void {
     expect(safetyBooking(this, who).amount).toBe(Math.round(pounds * 100));
     const page = scenarioBrowser(this).pageText;
-    expect(page).toContain(formatCurrency(Math.round(pounds * 100)));
-    expect(page).toContain("Refunded");
+    says(page, formatCurrency(Math.round(pounds * 100)));
+    says(page, "Refunded");
   },
 );

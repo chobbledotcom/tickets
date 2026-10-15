@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -8,6 +7,7 @@ import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestEditorSession,
   testCookie,
@@ -39,12 +39,12 @@ describeWithEnv(
           },
         );
         const body = await viewResponse.text();
-        assertStringIncludes(body, "Check out");
-        assertStringIncludes(body, 'class="success"');
-        assertStringIncludes(body, "Checked in 1 ticket");
-        assertStringIncludes(body, 'class="bulk-checkout"');
-        assertStringIncludes(body, "Check Out All");
-        assertStringIncludes(body, 'value="false"');
+        says(body, "Check out");
+        says(body, 'class="success"');
+        says(body, "Checked in 1 ticket");
+        says(body, 'class="bulk-checkout"');
+        says(body, "Check Out All");
+        says(body, 'value="false"');
       });
 
       test("checks out attendee with check_in=false and shows success", async () => {
@@ -71,8 +71,8 @@ describeWithEnv(
           },
         );
         const body = await viewResponse.text();
-        assertStringIncludes(body, "Check in");
-        assertStringIncludes(body, "Checked out");
+        says(body, "Check in");
+        says(body, "Checked out");
       });
 
       test("duplicate check-in shows already checked in message", async () => {
@@ -95,8 +95,8 @@ describeWithEnv(
           { cookie: session.cookie },
         );
         const body = await viewResponse.text();
-        assertStringIncludes(body, "Check out");
-        assertStringIncludes(body, "Already checked in 1 ticket");
+        says(body, "Check out");
+        says(body, "Already checked in 1 ticket");
       });
 
       test("check-in with quantity > 1 shows plural ticket count", async () => {

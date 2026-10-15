@@ -6,7 +6,6 @@
  * told why.
  */
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -19,6 +18,7 @@ import {
   createTestAttendee,
   getAttendeesRaw,
 } from "#test-utils/db-helpers/attendees.ts";
+import { has } from "#test-utils/says.ts";
 import { getTestSession, setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv("clearing a stuck registration", { db: true }, () => {
@@ -49,9 +49,10 @@ describeWithEnv("clearing a stuck registration", { db: true }, () => {
       t("success.incomplete_removed"),
     )(response);
     expect(await getAttendeesRaw(listing.id)).toHaveLength(0);
-    assertArrayIncludes((await activityMessages()) ?? [], [
+    has(
+      await activityMessages(),
       "Incomplete attendee deleted from 'Paid Listing'",
-    ]);
+    );
   });
 
   test("leaves a registration that is not stuck, and says why", async () => {

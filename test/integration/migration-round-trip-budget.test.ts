@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, getDb, inPlaceholders } from "#db/client.ts";
@@ -16,7 +15,6 @@ import {
   LATEST_UPDATE,
   type Migration,
 } from "#db/migrations.ts";
-
 import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
@@ -24,6 +22,7 @@ import {
 import { restoreSchemaBeforeMigrations } from "#test/integration/db/migration-restore/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { has } from "#test-utils/says.ts";
 
 const LISTINGS_TAG_MIGRATION_ID = "2026-07-03_attendee_listings_tag";
 const LISTINGS_TAG_REVISION =
@@ -136,9 +135,9 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
     const oldListingColumns = await getDb().execute(
       "SELECT name FROM pragma_table_info('listings')",
     );
-    assertArrayIncludes(
+    has(
       oldListingColumns.rows.map((row) => String(row.name)),
-      ["image_url"],
+      "image_url",
     );
     const oldImagesTable = await getDb().execute(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'images'",

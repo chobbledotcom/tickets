@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -22,6 +21,7 @@ import {
 } from "#test/shared/accounting/mappers/fixtures.ts";
 import { rejectionMessage } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("accounting > mapRefund", { encryptionKey: true }, () => {
   const REFUND_AT = "2026-06-22T00:00:00.000Z";
@@ -200,7 +200,7 @@ describeWithEnv("accounting > mapRefund", { encryptionKey: true }, () => {
   });
 
   test("rejects an empty order", async () => {
-    assertStringIncludes(
+    says(
       await rejectionMessage(
         mapRefund({ occurredAt: REFUND_AT, orderLegs: [] }),
       ),
@@ -211,7 +211,7 @@ describeWithEnv("accounting > mapRefund", { encryptionKey: true }, () => {
   test("rejects legs spanning more than one event group", async () => {
     const a = await bookingOrder({ eventId: "a" });
     const b = await bookingOrder({ eventId: "b" });
-    assertStringIncludes(
+    says(
       await rejectionMessage(
         mapRefund({ occurredAt: REFUND_AT, orderLegs: [...a, ...b] }),
       ),

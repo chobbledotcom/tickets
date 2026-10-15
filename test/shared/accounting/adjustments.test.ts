@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -11,6 +10,7 @@ import {
   postWriteoffAdjustment,
   useTransactionalDb,
 } from "#test-utils/ledger.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("db > accounting > postWriteoffAdjustment", () => {
   useTransactionalDb();
@@ -155,7 +155,7 @@ describe("writeoffAdjustmentInserts (folded into a wider batch)", () => {
     );
     expect(inserts.length).toBe(2);
     for (const stmt of inserts) {
-      assertStringIncludes(stmt.sql, "INSERT OR IGNORE");
+      says(stmt.sql, "INSERT OR IGNORE");
     }
   });
 

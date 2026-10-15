@@ -1,8 +1,7 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
-
 import { base64ToBase64Url } from "#crypto/utils.ts";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { execute, queryOne } from "#db/client.ts";
@@ -28,6 +27,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("server bulk email > notes and history", { db: true }, () => {
@@ -97,7 +97,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       useResend();
       const listing = await seedListingWithAttendees();
       const html = await previewListing(listing);
-      assertStringIncludes(
+      says(
         html,
         "These attendees have never been contacted through this page.",
       );
@@ -122,7 +122,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       expect(stats.lastSubject).toBe("First");
 
       const html = await previewListing(listing);
-      assertStringIncludes(
+      says(
         html,
         "These attendees have been contacted through this page 1 times each.",
       );
@@ -151,17 +151,11 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       // Before any activity: the panel shows a labelled section per channel,
       // each linking to its own /admin/history editor.
       const before = await attendeePage();
-      assertStringIncludes(before, "Contact History");
-      assertStringIncludes(before, "Stats / notes for alice@example.com");
-      assertStringIncludes(before, "Stats / notes for 07700 900333");
-      assertStringIncludes(
-        before,
-        `/admin/history/${base64ToBase64Url(emailHash)}`,
-      );
-      assertStringIncludes(
-        before,
-        `/admin/history/${base64ToBase64Url(phoneHash)}`,
-      );
+      says(before, "Contact History");
+      says(before, "Stats / notes for alice@example.com");
+      says(before, "Stats / notes for 07700 900333");
+      says(before, `/admin/history/${base64ToBase64Url(emailHash)}`);
+      says(before, `/admin/history/${base64ToBase64Url(phoneHash)}`);
 
       // A bulk-email send gives the email contact outreach history...
       await adminFormPost("/admin/emails/preview", {
@@ -192,17 +186,14 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       const after = await attendeePage();
       // The shared summary lists previous bookings and each channel's messages;
       // the last-subject recap still surfaces the outreach send.
-      assertStringIncludes(after, "Previous bookings shown:");
-      assertStringIncludes(after, "Total email messages:");
-      assertStringIncludes(after, "Total phone messages:");
-      assertStringIncludes(after, "Newsletter");
+      says(after, "Previous bookings shown:");
+      says(after, "Total email messages:");
+      says(after, "Total phone messages:");
+      says(after, "Newsletter");
       // The private notes render as MARKDOWN (bold), never raw asterisks.
-      assertStringIncludes(after, "<strong>Email VIP</strong> customer");
-      assertStringIncludes(after, "<strong>Phone VIP</strong> customer");
-      assert(
-        !after.includes("**Email VIP** customer"),
-        "the value should not contain the searched item",
-      );
+      says(after, "<strong>Email VIP</strong> customer");
+      says(after, "<strong>Phone VIP</strong> customer");
+      assert(!after.includes("**Email VIP** customer"));
     });
 
     test("the Previous bookings table lists other bookings by the same contact", async () => {
@@ -239,16 +230,13 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       // Two previous bookings on file, each date-cell linking to its attendee,
       // the first's status name and the booked listing named in the items
       // column.
-      assertStringIncludes(html, "Previous bookings shown:</strong> 2");
-      assertStringIncludes(html, `/admin/attendees/${first.id}`);
-      assertStringIncludes(html, `/admin/attendees/${third.id}`);
-      assertStringIncludes(html, "Confirmed");
-      assertStringIncludes(html, "Repeat");
+      says(html, "Previous bookings shown:</strong> 2");
+      says(html, `/admin/attendees/${first.id}`);
+      says(html, `/admin/attendees/${third.id}`);
+      says(html, "Confirmed");
+      says(html, "Repeat");
       // The current attendee never links to itself in its own table.
-      assert(
-        !html.includes(`<a href="/admin/attendees/${second.id}">`),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes(`<a href="/admin/attendees/${second.id}">`));
     });
 
     test("a previous booking edited down to no real lines is not shown", async () => {
@@ -289,11 +277,8 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
 
       // Viewing the still-real booking, the emptied one neither counts nor links.
       const html = await (await adminGet(`/admin/attendees/${real.id}`)).text();
-      assertStringIncludes(html, "Previous bookings shown:</strong> 0");
-      assert(
-        !html.includes(`/admin/attendees/${emptied.id}`),
-        "the value should not contain the searched item",
-      );
+      says(html, "Previous bookings shown:</strong> 0");
+      assert(!html.includes(`/admin/attendees/${emptied.id}`));
     });
 
     test("changing an attendee's email moves its Previous bookings link", async () => {
@@ -316,7 +301,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
         (await adminGet(`/admin/attendees/${anchor.id}`)).text();
 
       // The anchor initially sees the mover as a previous booking.
-      assertStringIncludes(await anchorPage(), `/admin/attendees/${mover.id}`);
+      says(await anchorPage(), `/admin/attendees/${mover.id}`);
 
       // Move the mover to a different email via the edit form.
       const form = await buildAttendeeEditForm(mover.id, {
@@ -326,17 +311,14 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       await adminFormPost(`/admin/attendees/${mover.id}`, form);
 
       // The mover no longer shows against the shared email...
-      assert(
-        !(await anchorPage()).includes(`/admin/attendees/${mover.id}`),
-        "the value should not contain the searched item",
-      );
+      assert(!(await anchorPage()).includes(`/admin/attendees/${mover.id}`));
       // ...but does show against its new email's contact (via the new attendee).
       const { attendee: newContact } = await createTestAttendeeDirect(
         listing.id,
         "New Contact",
         "moved-away@example.com",
       );
-      assertStringIncludes(
+      says(
         await (await adminGet(`/admin/attendees/${newContact.id}`)).text(),
         `/admin/attendees/${mover.id}`,
       );
@@ -366,7 +348,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/attendees/${watcher.id}`)
       ).text();
-      assertStringIncludes(html, `/admin/attendees/${added.id}`);
+      says(html, `/admin/attendees/${added.id}`);
     });
 
     test("editing a placeholder into a real booking links its token", async () => {
@@ -389,7 +371,6 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
         (await adminGet(`/admin/attendees/${watcher.id}`)).text();
       assert(
         !(await watcherPage()).includes(`/admin/attendees/${placeholder.id}`),
-        "the value should not contain the searched item",
       );
 
       await editPlaceholderToRealBooking(
@@ -398,10 +379,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
         "first-real@example.com",
       );
 
-      assertStringIncludes(
-        await watcherPage(),
-        `/admin/attendees/${placeholder.id}`,
-      );
+      says(await watcherPage(), `/admin/attendees/${placeholder.id}`);
     });
 
     test("a placeholder edited to a real booking links its token when no contact row exists yet", async () => {
@@ -441,7 +419,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
         "Watcher",
         "fresh-contact@example.com",
       );
-      assertStringIncludes(
+      says(
         await (await adminGet(`/admin/attendees/${watcher.id}`)).text(),
         `/admin/attendees/${placeholder.id}`,
       );

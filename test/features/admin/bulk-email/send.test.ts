@@ -1,4 +1,4 @@
-import { assertRejects, assertStringIncludes } from "@std/assert";
+import { assertRejects } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -19,6 +19,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("server bulk email > send", { db: true }, () => {
@@ -284,14 +285,11 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/emails?attendee=${encodeURIComponent(token)}`)
       ).text();
-      assertStringIncludes(html, "Email an attendee");
-      assertStringIncludes(html, "alice@example.com");
+      says(html, "Email an attendee");
+      says(html, "alice@example.com");
       // The token round-trips through a hidden field so the POST keeps the target.
-      assertStringIncludes(html, 'name="attendee"');
-      assertStringIncludes(
-        html,
-        "Preview to confirm the message before sending.",
-      );
+      says(html, 'name="attendee"');
+      says(html, "Preview to confirm the message before sending.");
     });
 
     test("404s for an unknown attendee token", async () => {
@@ -330,7 +328,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
         target: { kind: "attendee", token: "gone" },
       });
       const html = await (await adminGet("/admin/emails/preview")).text();
-      assertStringIncludes(html, "the selected attendee");
+      says(html, "the selected attendee");
     });
 
     test("preview labels the recipient with their own address", async () => {
@@ -342,9 +340,9 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
         subject: "Hello Alice",
       });
       const html = await (await adminGet("/admin/emails/preview")).text();
-      assertStringIncludes(html, "Hello Alice");
-      assertStringIncludes(html, "alice@example.com");
-      assertStringIncludes(html, "1 recipient");
+      says(html, "Hello Alice");
+      says(html, "alice@example.com");
+      says(html, "1 recipient");
     });
 
     test("sends to only that attendee and logs against no listing", async () => {
@@ -370,7 +368,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       );
       expect(entry?.listing_id).toBe(null);
       // The log names one recipient in the singular, and says so exactly.
-      assertStringIncludes(entry?.message ?? "", "to 1 recipient.");
+      says(entry?.message, "to 1 recipient.");
     });
   });
 });

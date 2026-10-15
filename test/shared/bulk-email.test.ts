@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { summarizeProviderResponse } from "#shared/bulk-email.ts";
@@ -6,6 +6,7 @@ import type {
   BatchMessageOutcome,
   BulkBatchResponse,
 } from "#shared/email/bulk.ts";
+import { says } from "#test-utils/says.ts";
 
 const TOOK_ALL: BatchMessageOutcome = {
   reasons: [],
@@ -62,13 +63,10 @@ describe("summarizeProviderResponse", () => {
   test("truncates an over-long reply", () => {
     const long = "x".repeat(1000);
     const summary = summarizeProviderResponse([reply(200, long)]);
-    assertStringIncludes(summary, "...");
+    says(summary, "...");
     // Capped well below the raw body, which is never echoed in full.
     expect(summary.length).toBeLessThan(long.length);
-    assert(
-      !summary.includes(long),
-      "the value should not contain the searched item",
-    );
+    assert(!summary.includes(long));
   });
 
   test("names the messages an accepted batch refused anyway", () => {
@@ -87,7 +85,7 @@ describe("summarizeProviderResponse", () => {
   });
 
   test("counts one refused message in the singular", () => {
-    assertStringIncludes(
+    says(
       summarizeProviderResponse([
         reply(200, "[]", {
           reasons: ["Inactive recipient"],
@@ -148,15 +146,12 @@ describe("summarizeProviderResponse", () => {
       reply(200, "[]", { reasons: [], refused: 0, unconfirmed: 1 }),
     ]);
 
-    assertStringIncludes(summary, "It did not confirm 1 message.");
-    assert(
-      !summary.includes("refused"),
-      "the value should not contain the searched item",
-    );
+    says(summary, "It did not confirm 1 message.");
+    assert(!summary.includes("refused"));
   });
 
   test("separates two different refusal reasons", () => {
-    assertStringIncludes(
+    says(
       summarizeProviderResponse([
         reply(200, "[]", {
           reasons: ["Inactive recipient", "Hard bounce"],
@@ -174,11 +169,8 @@ describe("summarizeProviderResponse", () => {
       reply(200, "[]", { reasons, refused: 40, unconfirmed: 0 }),
     ]);
 
-    assertStringIncludes(summary, "It refused 40 messages.");
-    assertStringIncludes(summary, "...");
-    assert(
-      !summary.includes(reasons.join("; ")),
-      "the value should not contain the searched item",
-    );
+    says(summary, "It refused 40 messages.");
+    says(summary, "...");
+    assert(!summary.includes(reasons.join("; ")));
   });
 });

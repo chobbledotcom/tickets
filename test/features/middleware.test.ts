@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -23,6 +23,7 @@ import {
   providerCheckoutFormOrigins,
 } from "#shared/payment-providers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
 
 const BASE_CSP =
@@ -87,25 +88,19 @@ describe("buildCspHeader", () => {
       "https://assets.example.com",
       false,
     );
-    assert(
-      !csp.includes("fonts.bunny.net"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !csp.includes("font-src"),
-      "the value should not contain the searched item",
-    );
+    assert(!csp.includes("fonts.bunny.net"));
+    assert(!csp.includes("font-src"));
   });
 
   test("allows Stripe's hosted checkout", () => {
-    assertStringIncludes(
+    says(
       buildCspHeader(true, { provider: "stripe" }),
       "form-action 'self' https://checkout.stripe.com",
     );
   });
 
   test("allows SumUp's hosted checkout domains", () => {
-    assertStringIncludes(
+    says(
       buildCspHeader(true, { provider: "sumup" }),
       "form-action 'self' https://checkout.sumup.com https://pay.sumup.com",
     );
@@ -113,22 +108,16 @@ describe("buildCspHeader", () => {
 
   test("uses Square production domains", () => {
     const csp = buildCspHeader(true, { provider: "square", sandbox: false });
-    assertStringIncludes(csp, "https://connect.squareup.com");
-    assertStringIncludes(csp, "https://api.squareup.com");
-    assert(
-      !csp.includes("squareupsandbox.com"),
-      "the value should not contain the searched item",
-    );
+    says(csp, "https://connect.squareup.com");
+    says(csp, "https://api.squareup.com");
+    assert(!csp.includes("squareupsandbox.com"));
   });
 
   test("uses Square sandbox domains", () => {
     const csp = buildCspHeader(true, { provider: "square", sandbox: true });
-    assertStringIncludes(csp, "https://connect.squareupsandbox.com");
-    assertStringIncludes(csp, "https://api.squareupsandbox.com");
-    assert(
-      !csp.includes("https://connect.squareup.com"),
-      "the value should not contain the searched item",
-    );
+    says(csp, "https://connect.squareupsandbox.com");
+    says(csp, "https://api.squareupsandbox.com");
+    assert(!csp.includes("https://connect.squareup.com"));
   });
 
   // A provider the chain never learned about used to fall through to a bare
@@ -144,7 +133,7 @@ describe("buildCspHeader", () => {
           .find((directive) => directive.startsWith("form-action "));
         expect(formAction).toBeDefined();
         for (const origin of providerCheckoutFormOrigins(provider, sandbox)) {
-          assertStringIncludes(formAction ?? "", origin);
+          says(formAction, origin);
         }
       });
     }
@@ -429,8 +418,8 @@ describeWithEnv("applySecurityHeaders", { db: true }, () => {
     await settings.update.paymentProvider("square");
     await settings.update.square.sandbox(true);
     const response = await applySecurityHeaders(new Response("page"), "/admin");
-    assertStringIncludes(
-      response.headers.get("content-security-policy") ?? "",
+    says(
+      response.headers.get("content-security-policy"),
       "https://connect.squareupsandbox.com",
     );
   });
@@ -441,8 +430,8 @@ describeWithEnv("applySecurityHeaders", { db: true }, () => {
       new Response("page"),
       "/ticket/example",
     );
-    assertStringIncludes(
-      response.headers.get("content-security-policy") ?? "",
+    says(
+      response.headers.get("content-security-policy"),
       "frame-ancestors 'self' example.com",
     );
   });

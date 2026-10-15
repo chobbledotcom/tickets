@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -25,6 +24,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
+import { says } from "#test-utils/says.ts";
 
 const postBalancePayment = async (): Promise<void> => {
   await postTransfers([
@@ -154,10 +154,7 @@ describeWithEnv("refund ledger > partial returns", { db: true }, () => {
       refundLedgerResult([], [returned], [returned]),
     );
     expect(await refundCashAmounts()).toEqual([]);
-    assertStringIncludes(
-      errors.lastMessage() ?? "",
-      "Refund ledger post failed",
-    );
+    says(errors.lastMessage(), "Refund ledger post failed");
   });
 
   test("keeps an earlier exact reversal recorded when a sibling post fails", async () => {

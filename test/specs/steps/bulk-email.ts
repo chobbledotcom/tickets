@@ -3,6 +3,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { ORGANISER, scenarioBrowser } from "#test/specs/support/browser.ts";
@@ -31,6 +32,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
+import { has, says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -123,14 +125,14 @@ When(
 Then(
   "it was written to {string}",
   function (this: TicketsWorld, who: string): void {
-    expect(addressesWrittenTo(this)).toContain(addressOf(who));
+    has(addressesWrittenTo(this), addressOf(who));
   },
 );
 
 Then(
   "nothing was written to {string}",
   function (this: TicketsWorld, who: string): void {
-    expect(addressesWrittenTo(this)).not.toContain(addressOf(who));
+    assert(!addressesWrittenTo(this).includes(addressOf(who)));
   },
 );
 
@@ -198,15 +200,15 @@ Then(
     const shown = scenarioBrowser(this).pageText;
     // The words they wrote, under the heading that says this is a preview —
     // not the compose form they came from, which also holds those words.
-    expect(shown).toContain(t("bulk_email.message_preview_heading"));
-    expect(shown).toContain(wordsTheyWrote(this));
+    says(shown, t("bulk_email.message_preview_heading"));
+    says(shown, wordsTheyWrote(this));
   },
 );
 
 Then(
   "the owner is shown that it would reach {int} person/people",
   function (this: TicketsWorld, howMany: number): void {
-    expect(scenarioBrowser(this).pageText).toContain(`(${howMany} recipient`);
+    says(scenarioBrowser(this).pageText, `(${howMany} recipient`);
   },
 );
 
@@ -234,9 +236,7 @@ Then(
 Then(
   "the owner is told sending is switched off",
   function (this: TicketsWorld): void {
-    expect(scenarioBrowser(this).pageText).toContain(
-      t("bulk_email.sending_disabled"),
-    );
+    says(scenarioBrowser(this).pageText, t("bulk_email.sending_disabled"));
   },
 );
 
@@ -244,9 +244,9 @@ Then(
   "the owner is told it went to {int} people",
   function (this: TicketsWorld, howMany: number): void {
     const told = whatTheyWereTold(this, ORGANISER);
-    expect(told).toContain(`${howMany} recipient`);
+    says(told, `${howMany} recipient`);
     // Through their own provider, rather than by some other route.
-    expect(told).toContain("Resend");
+    says(told, "Resend");
   },
 );
 
@@ -262,7 +262,8 @@ Then(
 Then(
   "the owner is told {int} person will be left out",
   function (this: TicketsWorld, howMany: number): void {
-    expect(scenarioBrowser(this).pageText).toContain(
+    says(
+      scenarioBrowser(this).pageText,
       `${howMany} ${t("bulk_email.unsubscribed_skipped")}`,
     );
   },
@@ -285,9 +286,7 @@ Then(
 Then(
   "the owner is told everyone has asked not to hear",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
-      t("bulk_email.all_unsubscribed"),
-    );
+    says(whatTheyWereTold(this, ORGANISER), t("bulk_email.all_unsubscribed"));
   },
 );
 

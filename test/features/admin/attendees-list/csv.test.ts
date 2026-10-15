@@ -3,7 +3,7 @@
  * and the record it leaves behind.
  */
 
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
@@ -17,6 +17,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has, says } from "#test-utils/says.ts";
 import { adminGet, withTestSession } from "#test-utils/session.ts";
 import {
   makeListing,
@@ -35,35 +36,29 @@ describeWithEnv("the attendees CSV export", { db: true }, () => {
       const listing = await makeListing("Gala Night");
       await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
       const response = await adminGet("/admin/attendees/csv");
-      assertStringIncludes(
-        response.headers.get("content-type") ?? "",
-        "text/csv",
-      );
-      assertStringIncludes(
-        response.headers.get("content-disposition") ?? "",
+      says(response.headers.get("content-type"), "text/csv");
+      says(
+        response.headers.get("content-disposition"),
         'filename="attendees.csv"',
       );
       const csv = await response.text();
-      assertStringIncludes(csv, "Alice");
-      assertStringIncludes(csv, "alice@example.com");
-      assertStringIncludes(csv, "Gala Night");
+      says(csv, "Alice");
+      says(csv, "alice@example.com");
+      says(csv, "Gala Night");
     });
 
     test("includes every attendee when no listing is chosen", async () => {
       await seedListingFilterPair();
       const csv = await csvBody();
-      assertStringIncludes(csv, "AliceOne");
-      assertStringIncludes(csv, "BobTwo");
+      says(csv, "AliceOne");
+      says(csv, "BobTwo");
     });
 
     test("filters the export to a single listing", async () => {
       const { first } = await seedListingFilterPair();
       const csv = await csvBody(`?listing=${first.id}`);
-      assertStringIncludes(csv, "AliceOne");
-      assert(
-        !csv.includes("BobTwo"),
-        "the value should not contain the searched item",
-      );
+      says(csv, "AliceOne");
+      assert(!csv.includes("BobTwo"));
     });
 
     test("a filtered export omits a matched attendee's other-listing bookings", async () => {
@@ -77,12 +72,9 @@ describeWithEnv("the attendees CSV export", { db: true }, () => {
       const csv = await csvBody(`?listing=${wanted.id}`);
       // One row: the booking on the filtered listing only — the grouped
       // attendees PAGE shows their other listings, but the export must not.
-      assertStringIncludes(csv, "DoubleBooker");
-      assertStringIncludes(csv, "Wanted Show");
-      assert(
-        !csv.includes("Other Show"),
-        "the value should not contain the searched item",
-      );
+      says(csv, "DoubleBooker");
+      says(csv, "Wanted Show");
+      assert(!csv.includes("Other Show"));
       expect(csv.split("\n")).toHaveLength(2);
     });
 
@@ -90,25 +82,19 @@ describeWithEnv("the attendees CSV export", { db: true }, () => {
       const listing = await makeListing("Only Standard");
       await createTestAttendeeDirect(listing.id, "Lonely", "l@example.com");
       const csv = await csvBody("?type=daily");
-      assert(
-        !csv.includes("Lonely"),
-        "the value should not contain the searched item",
-      );
+      assert(!csv.includes("Lonely"));
       // No matching listings → no rows, so only the header line is emitted.
       expect(csv.split("\n")).toHaveLength(1);
-      assertStringIncludes(csv, "Listing");
+      says(csv, "Listing");
     });
 
     test("exports only the chosen group's member listings", async () => {
       const { group } = await seedGroupRoster();
 
       const csv = await csvBody(`?group=${group.id}`);
-      assertStringIncludes(csv, "FairOne");
-      assertStringIncludes(csv, "FairTwo");
-      assert(
-        !csv.includes("OutsidePerson"),
-        "the value should not contain the searched item",
-      );
+      says(csv, "FairOne");
+      says(csv, "FairTwo");
+      assert(!csv.includes("OutsidePerson"));
     });
 
     test("a group export omits a matched attendee's non-member bookings", async () => {
@@ -124,16 +110,10 @@ describeWithEnv("the attendees CSV export", { db: true }, () => {
       // Every member booking exports; the DoubleBooker's row is their booking
       // inside the group only — the export keeps every row within the
       // selected scope.
-      assertStringIncludes(csv, "DoubleBooker");
-      assertStringIncludes(csv, "Fair Door");
-      assert(
-        !csv.includes("Other Show"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !csv.includes("OutsidePerson"),
-        "the value should not contain the searched item",
-      );
+      says(csv, "DoubleBooker");
+      says(csv, "Fair Door");
+      assert(!csv.includes("Other Show"));
+      assert(!csv.includes("OutsidePerson"));
       expect(csv.split("\n")).toHaveLength(4);
     });
 
@@ -142,7 +122,7 @@ describeWithEnv("the attendees CSV export", { db: true }, () => {
       const group = await createTestGroup({ name: "Empty group" });
       const csv = await csvBody(`?group=${group.id}`);
       expect(csv.split("\n")).toHaveLength(1);
-      assertStringIncludes(csv, "Listing");
+      says(csv, "Listing");
     });
 
     test("keeps reading pages until it has every booking", async () => {
@@ -164,9 +144,9 @@ describeWithEnv("the attendees CSV export", { db: true }, () => {
       await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
       await csvBody();
       const entries = await withTestSession(() => getAllActivityLog(20));
-      assertArrayIncludes(
+      has(
         entries.map((entry) => entry.message),
-        ["Attendees CSV exported"],
+        "Attendees CSV exported",
       );
     });
   });

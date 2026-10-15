@@ -5,7 +5,7 @@
  * editable).
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -15,6 +15,7 @@ import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestEditorSession,
   getTestSession,
@@ -173,28 +174,22 @@ describeWithEnv("address lookup search panels", { db: true }, () => {
   test("the booking form has no panel while lookup is off", async () => {
     const { listing } = await setupListingAndLogin({ fields: "address" });
     const html = await bookingFormHtml(listing.slug);
-    assertStringIncludes(html, 'name="address"');
-    assert(
-      !html.includes("data-address-lookup"),
-      "the value should not contain the searched item",
-    );
+    says(html, 'name="address"');
+    assert(!html.includes("data-address-lookup"));
   });
 
   test("the booking form renders the panel when a provider is set", async () => {
     const { listing } = await setupListingAndLogin({ fields: "address" });
     await enableEasypostcodes();
     const html = await bookingFormHtml(listing.slug);
-    assertStringIncludes(html, "data-address-lookup");
+    says(html, "data-address-lookup");
     // The panel sits directly above the address textarea, hidden until the
     // client script reveals it.
     expect(html.indexOf("data-address-lookup")).toBeLessThan(
       html.indexOf('name="address"'),
     );
     // The textarea is always editable — no Edit button is rendered.
-    assert(
-      !html.includes("data-address-edit"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("data-address-edit"));
   });
 
   test("the admin attendee form renders the panel", async () => {
@@ -206,10 +201,7 @@ describeWithEnv("address lookup search panels", { db: true }, () => {
       mockRequest("/admin/attendees/new", { headers: { cookie } }),
     );
     const html = await response.text();
-    assertStringIncludes(html, "data-address-lookup");
-    assert(
-      !html.includes("data-address-edit"),
-      "the value should not contain the searched item",
-    );
+    says(html, "data-address-lookup");
+    assert(!html.includes("data-address-edit"));
   });
 });

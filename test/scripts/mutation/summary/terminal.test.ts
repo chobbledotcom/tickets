@@ -5,6 +5,7 @@ import {
   type MutantResult,
   summarize,
 } from "#scripts/mutation/summary.ts";
+import { says } from "#test-utils/says.ts";
 import { fakeResult, plain, timingSummary } from "./fixtures.ts";
 
 describe("the terminal mutation report", () => {
@@ -78,19 +79,18 @@ describe("the terminal mutation report", () => {
   test("formats phase timing work when all mutants are ignored", () => {
     const terminal = formatSummaryLines(timingSummary("ignored")).join("\n");
 
-    expect(terminal).toContain("phase timings (cumulative elapsed):");
-    expect(terminal).toContain("direct-tests: 10ms in 1 run(s)");
+    says(terminal, "phase timings (cumulative elapsed):");
+    says(terminal, "direct-tests: 10ms in 1 run(s)");
   });
 
   test("formats inconclusive and all-ignored terminal summaries", () => {
-    expect(formatSummaryLines(summarize([])).join("\n")).toContain(
-      "INCONCLUSIVE",
-    );
-    expect(
+    says(formatSummaryLines(summarize([])).join("\n"), "INCONCLUSIVE");
+    says(
       formatSummaryLines(
         summarize([fakeResult("ignored", 4, "??", "||")]),
       ).join("\n"),
-    ).toContain("suppressed as known-equivalent");
+      "suppressed as known-equivalent",
+    );
   });
 
   test("formats detected terminal summaries with ignored counts", () => {
@@ -101,8 +101,8 @@ describe("the terminal mutation report", () => {
       ]),
     ).join("\n");
 
-    expect(lines).toContain("ignored:");
-    expect(lines).toContain("All mutants were detected");
-    expect(lines).toContain("1 suppressed as known-equivalent");
+    says(lines, "ignored:");
+    says(lines, "All mutants were detected");
+    says(lines, "1 suppressed as known-equivalent");
   });
 });

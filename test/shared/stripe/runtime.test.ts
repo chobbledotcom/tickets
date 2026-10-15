@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -13,6 +12,7 @@ import { stripeApi } from "#shared/stripe.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withFetchMock, withMocks } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { stripeClient } from "#test-utils/stripe/fixtures.ts";
 import { describeStripe } from "#test-utils/stripe/harness.ts";
 
@@ -141,8 +141,8 @@ describeStripe("Stripe client configuration", () => {
     const debugSpy = spy(console, "debug");
     try {
       expect(await stripeClientRuntime.get()).toBeNull();
-      assertStringIncludes(
-        debugSpy.calls[0]?.args[0] ?? "",
+      says(
+        debugSpy.calls[0]?.args[0],
         "No secret key configured, cannot create client",
       );
     } finally {

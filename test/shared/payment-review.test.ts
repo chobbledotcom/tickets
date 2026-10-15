@@ -1,4 +1,5 @@
-import { assert, assertStringIncludes } from "@std/assert";
+// jscpd:ignore-start
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { WithheldRefund } from "#payment/admit-refund.ts";
@@ -8,7 +9,10 @@ import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import { resetSentry, sentryRequestBody } from "#test-utils/sentry.ts";
+
+// jscpd:ignore-end
 
 const PRIVATE_REFERENCE = "pi_private_refund_reference";
 const where = {
@@ -29,15 +33,13 @@ describe("reporting a withheld refund", () => {
     // The classified fan-out is what puts this in the activity log, the ntfy
     // ping and Sentry. Before this it was a debug line, which reaches nobody.
     expect(errors.calls).toHaveLength(1);
-    assert(
-      errors.lastMessage()?.includes(PRIVATE_REFERENCE) === false,
+    saysNot(
+      errors.lastMessage(),
+      PRIVATE_REFERENCE,
       "the value should not contain the searched item",
     );
-    assertStringIncludes(errors.lastMessage() ?? "", "partial_refund");
-    assertStringIncludes(
-      errors.lastMessage() ?? "",
-      "an owner needs to look at it",
-    );
+    says(errors.lastMessage(), "partial_refund");
+    says(errors.lastMessage(), "an owner needs to look at it");
   });
 
   test("keeps the raw reference out of Sentry and preserves typed ids", async () => {
@@ -57,12 +59,9 @@ describe("reporting a withheld refund", () => {
       });
 
       const body = sentryRequestBody(fetchStub.calls);
-      assert(
-        !body.includes(PRIVATE_REFERENCE),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(body, '"listingId":"3"');
-      assertStringIncludes(body, '"attendeeId":"7"');
+      assert(!body.includes(PRIVATE_REFERENCE));
+      says(body, '"listingId":"3"');
+      says(body, '"attendeeId":"7"');
     } finally {
       fetchStub.restore();
       resetSentry();
@@ -77,7 +76,7 @@ describe("reporting a withheld refund", () => {
 
     // A second kind, so the report is proved to carry the one it was given
     // rather than a fixed word.
-    assertStringIncludes(errors.lastMessage() ?? "", "refund_exceeds_capture");
+    says(errors.lastMessage(), "refund_exceeds_capture");
   });
 
   const ordinary: WithheldRefund[] = [
@@ -108,14 +107,11 @@ describe("reporting a withheld refund", () => {
       reportWithheldRefund({ kind: "read_failed", read }, where);
 
       expect(errors.calls).toHaveLength(1);
-      assertStringIncludes(
-        errors.lastMessage() ?? "",
+      says(
+        errors.lastMessage(),
         read.status === "missing" ? "does not exist" : "invalid",
       );
-      assertStringIncludes(
-        errors.lastMessage() ?? "",
-        "an owner needs to look at it",
-      );
+      says(errors.lastMessage(), "an owner needs to look at it");
     });
   }
 });

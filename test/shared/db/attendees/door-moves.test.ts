@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { moveTicketsAndLog, ticketsWord } from "#db/attendees/door-moves.ts";
@@ -6,6 +5,7 @@ import { activityMessages } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
+import { has } from "#test-utils/says.ts";
 
 describe("ticketsWord", () => {
   test("words one ticket and many tickets the way the log says them", () => {
@@ -33,9 +33,7 @@ describeWithEnv("moveTicketsAndLog", { db: true }, () => {
 
     expect(moved).toEqual([{ ...move, owedAfter: 1 }]);
     expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 2 }]);
-    assertArrayIncludes((await activityMessages()) ?? [], [
-      `moved 2 for ${attendee.id}`,
-    ]);
+    has(await activityMessages(), `moved 2 for ${attendee.id}`);
 
     // A move of a single ticket is still a move, and still logged.
     await moveTicketsAndLog(
@@ -43,9 +41,7 @@ describeWithEnv("moveTicketsAndLog", { db: true }, () => {
       [{ ...move, count: 1 }],
       (answer) => `moved ${answer.count} for ${answer.attendeeId}`,
     );
-    assertArrayIncludes((await activityMessages()) ?? [], [
-      `moved 1 for ${attendee.id}`,
-    ]);
+    has(await activityMessages(), `moved 1 for ${attendee.id}`);
   });
 
   test("writes no activity row for a move that moved nothing", async () => {

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { encryptBytes } from "#crypto/encryption.ts";
@@ -17,6 +17,7 @@ import {
   withFetchMock,
   withStorageDisabled,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv(
   "GET /attachment/:id",
@@ -288,12 +289,8 @@ describeWithEnv(
         const response = await fetchAttachment(setup);
         expect(response.status).toBe(200);
         const cd = response.headers.get("content-disposition")!;
-        for (const bad of notContains)
-          assert(
-            !cd.includes(bad),
-            "the value should not contain the searched item",
-          );
-        if (contains) assertStringIncludes(cd, contains);
+        for (const bad of notContains) assert(!cd.includes(bad));
+        if (contains) says(cd, contains);
         if (equals) expect(cd).toBe(equals);
 
         // Verify no duplicate Content-Disposition headers from injection

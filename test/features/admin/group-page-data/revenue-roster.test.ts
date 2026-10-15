@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
@@ -8,6 +8,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -53,10 +54,10 @@ describeWithEnv(
         const response = await adminGet(`/admin/groups/${group.id}`);
         expectStatus(200)(response);
         const html = await response.text();
-        assertStringIncludes(html, "Free-Standalone Member");
+        says(html, "Free-Standalone Member");
         // The override makes the package paid, so the page treats it as paid: the
         // revenue row shows (a non-package or no-override group would hide it).
-        assertStringIncludes(html, "Total income earned");
+        says(html, "Total income earned");
       });
 
       test("decrypts the roster for a package paid only via a per-day override", async () => {
@@ -104,7 +105,7 @@ describeWithEnv(
 
         const response = await adminGet(`/admin/groups/${group.id}`);
         expectStatus(200)(response);
-        assertStringIncludes(await response.text(), "Total income earned");
+        says(await response.text(), "Total income earned");
       });
 
       test("hides revenue for a package whose free member has no override", async () => {
@@ -132,15 +133,9 @@ describeWithEnv(
         const response = await adminGet(`/admin/groups/${group.id}`);
         expectStatus(200)(response);
         const html = await response.text();
-        assertStringIncludes(html, "Truly-Free Member");
-        assert(
-          !html.includes("Money in and out"),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes("Total income earned"),
-          "the value should not contain the searched item",
-        );
+        says(html, "Truly-Free Member");
+        assert(!html.includes("Money in and out"));
+        assert(!html.includes("Total income earned"));
       });
 
       const createGroupWithListing = async (
@@ -182,14 +177,8 @@ describeWithEnv(
           "Free Listing",
         );
         const html = await getGroupPageHtml(group.id);
-        assert(
-          !html.includes("Money in and out"),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes("Total income earned"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Money in and out"));
+        assert(!html.includes("Total income earned"));
       });
 
       test("shows attendees from multiple listings in group", async () => {
@@ -217,10 +206,10 @@ describeWithEnv(
         );
 
         const html = await getGroupAttendeesHtml(group.id);
-        assertStringIncludes(html, "Alice Alpha");
-        assertStringIncludes(html, "Bob Beta");
-        assertStringIncludes(html, "Listing Alpha");
-        assertStringIncludes(html, "Listing Beta");
+        says(html, "Alice Alpha");
+        says(html, "Bob Beta");
+        says(html, "Listing Alpha");
+        says(html, "Listing Beta");
       });
 
       test("shows no attendees message for group with listings but no registrations", async () => {
@@ -230,7 +219,7 @@ describeWithEnv(
           "Empty Listing",
         );
         const html = await getGroupAttendeesHtml(group.id);
-        assertStringIncludes(html, "No attendees yet");
+        says(html, "No attendees yet");
       });
     });
   },

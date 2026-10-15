@@ -3,7 +3,6 @@
  * scopes; the two `describeWithEnv` suites prove the same reads against a
  * real database write. */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -17,6 +16,7 @@ import { updateBusinessEmail } from "#shared/validation/email.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { says } from "#test-utils/says.ts";
 
 type SettingsOverrides = Parameters<typeof settings.setForTest>[0];
 
@@ -112,7 +112,7 @@ describe("email config resolution", () => {
       const logged = errors.calls
         .map((call) => String(call.args[0]))
         .join("\n");
-      assertStringIncludes(logged, 'invalid HOST_EMAIL_PROVIDER: "imap"');
+      says(logged, 'invalid HOST_EMAIL_PROVIDER: "imap"');
     });
   });
 

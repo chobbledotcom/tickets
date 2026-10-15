@@ -1,5 +1,5 @@
 import type { InStatement, TransactionMode } from "@libsql/client";
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -42,6 +42,7 @@ import {
   LONG_EXPIRED_LOCK_STAMP,
 } from "#test-utils/migrations.ts";
 import { expectNtfyNotification, stubNtfyFetch } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
 type BatchStatement = Parameters<ReturnType<typeof getDb>["batch"]>[0][number];
@@ -357,34 +358,13 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
         "SELECT name FROM sqlite_master WHERE type='table'",
       );
       const tableNames = tablesResult.rows.map((r) => r.name);
-      assert(
-        !tableNames.includes("listings"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !tableNames.includes("attendees"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !tableNames.includes("sessions"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !tableNames.includes("settings"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !tableNames.includes("login_attempts"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !tableNames.includes("processed_payments"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !tableNames.includes("activity_log"),
-        "the value should not contain the searched item",
-      );
+      assert(!tableNames.includes("listings"));
+      assert(!tableNames.includes("attendees"));
+      assert(!tableNames.includes("sessions"));
+      assert(!tableNames.includes("settings"));
+      assert(!tableNames.includes("login_attempts"));
+      assert(!tableNames.includes("processed_payments"));
+      assert(!tableNames.includes("activity_log"));
     });
 
     test("can reinitialize database after reset", async () => {
@@ -453,7 +433,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
         ),
       ).toBe(true);
       for (const sql of statements) {
-        assertStringIncludes(sql, "IF NOT EXISTS");
+        says(sql, "IF NOT EXISTS");
       }
     });
   });

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { CliError } from "#cli/errors.ts";
@@ -9,6 +8,7 @@ import {
   runDeps,
   testTable,
 } from "#test-utils/cli-table.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("CLI run", () => {
   test("writes one JSON document to stdout and nothing to stderr", async () => {
@@ -79,7 +79,7 @@ describe("CLI run", () => {
     expect(result.code).toBe(2);
     const error = JSON.parse(result.err ?? "").error;
     expect(error.kind).toBe("usage");
-    assertStringIncludes(error.message, message);
+    says(error.message, message);
     expect(error.status).toBeNull();
     expect(requests).toEqual([]);
   };
@@ -173,10 +173,7 @@ describe("CLI run", () => {
     );
     expect(result.code).toBe(3);
     expect(requests).toEqual([]);
-    assertStringIncludes(
-      JSON.parse(result.err ?? "").error.message,
-      "not valid JSON",
-    );
+    says(JSON.parse(result.err ?? "").error.message, "not valid JSON");
   });
 
   test("reads a '-' body through the default stdin side", async () => {
@@ -239,7 +236,7 @@ describe("CLI run", () => {
       const answer = JSON.parse(result.err ?? "");
       expect(answer.error.kind).toBe("validation");
       expect(answer.error.status).toBe(400);
-      assertStringIncludes(answer.error.message, "admin api request failed");
+      says(answer.error.message, "admin api request failed");
     }
   });
 
@@ -394,6 +391,6 @@ describe("CLI run", () => {
     expect(answer.error.kind).toBe("usage");
     expect(answer.error.status).toBeNull();
     expect(answer.error.fields).toBeNull();
-    assertStringIncludes(answer.error.message, "API_HOSTNAME");
+    says(answer.error.message, "API_HOSTNAME");
   });
 });

@@ -1,9 +1,3 @@
-/**
- * Shared helpers for the servicing §22 ledger tests (service costs & listing
- * profit). These are split across several `ledger-*.test.ts` files under
- * `test/shared/db/attendees/servicing/`; the fixtures and assertions they all
- * lean on live here so no two files carry their own copy.
- */
 import { expect } from "@std/expect";
 import { KIND } from "#accounting/kinds.ts";
 import { allTransfers } from "#accounting/queries.ts";
@@ -15,6 +9,7 @@ import type { Transfer } from "#shared/ledger/types.ts";
 import { expectFlashError } from "#test-utils/assertions.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createServicingHold,
   editServiceCost,
@@ -80,9 +75,7 @@ export const expectCostFormError = async (
   before: number,
 ): Promise<void> => {
   expect(response.status).toBe(302);
-  expect(response.headers.get("location")).toContain(
-    `/admin/servicing/${servicingId}`,
-  );
+  says(response.headers.get("location"), `/admin/servicing/${servicingId}`);
   expectFlashError(response);
   expect((await allTransfers()).length).toBe(before);
 };

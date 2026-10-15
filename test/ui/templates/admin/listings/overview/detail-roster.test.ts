@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { ListingDeactivatedBanner } from "#templates/admin/listings/overview.tsx";
 import {
@@ -6,6 +6,7 @@ import {
   renderListingDetail,
 } from "#test/ui/templates/admin/listings/helpers.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("adminListingPage roster and attendees", () => {
   registerListingTemplateHooks();
@@ -18,10 +19,10 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Thank You URL");
-    assertStringIncludes(html, 'value="https://example.com/thanks"');
-    assertStringIncludes(html, "readonly");
-    assertStringIncludes(html, "data-select-on-click");
+    says(html, "Thank You URL");
+    says(html, 'value="https://example.com/thanks"');
+    says(html, "readonly");
+    says(html, "data-select-on-click");
   });
 
   test("shows public URL with allowed domain", () => {
@@ -30,9 +31,9 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Public URL");
-    assertStringIncludes(html, 'href="https://example.com/ticket/ab12c"');
-    assertStringIncludes(html, "example.com/ticket/ab12c");
+    says(html, "Public URL");
+    says(html, 'href="https://example.com/ticket/ab12c"');
+    says(html, "example.com/ticket/ab12c");
   });
 
   test("shows collapsed embed codes with allowed domain and iframe param", () => {
@@ -41,20 +42,20 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(
+    says(
       html,
       '<label class="small-action" for="embed-toggle-1">Embed</label>',
     );
-    assertStringIncludes(html, 'class="visually-hidden embed-toggle"');
-    assertStringIncludes(html, 'class="embed-code-row"');
-    assertStringIncludes(html, "Embed Script");
-    assertStringIncludes(html, "Embed Iframe");
-    assertStringIncludes(html, "embed.js");
-    assertStringIncludes(html, "data-listings=");
-    assertStringIncludes(html, "https://example.com/ticket/ab12c?iframe=true");
-    assertStringIncludes(html, "height: 600px");
-    assertStringIncludes(html, "loading=");
-    assertStringIncludes(html, "readonly");
+    says(html, 'class="visually-hidden embed-toggle"');
+    says(html, 'class="embed-code-row"');
+    says(html, "Embed Script");
+    says(html, "Embed Iframe");
+    says(html, "embed.js");
+    says(html, "data-listings=");
+    says(html, "https://example.com/ticket/ab12c?iframe=true");
+    says(html, "height: 600px");
+    says(html, "loading=");
+    says(html, "readonly");
   });
 
   test("iframe embed is a plain iframe without resizer scripts", () => {
@@ -63,10 +64,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    assert(
-      !html.includes("iframeResize"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("iframeResize"));
   });
 
   test("renders empty attendees state", () => {
@@ -75,7 +73,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "No attendees yet");
+    says(html, "No attendees yet");
   });
 
   test("renders attendees table", () => {
@@ -85,8 +83,8 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    assertStringIncludes(html, "John Doe");
-    assertStringIncludes(html, "john@example.com");
+    says(html, "John Doe");
+    says(html, "john@example.com");
   });
 
   test("escapes attendee data", () => {
@@ -96,7 +94,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    assertStringIncludes(html, "&lt;script&gt;");
+    says(html, "&lt;script&gt;");
   });
 
   test("includes back link", () => {
@@ -105,7 +103,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "/admin/");
+    says(html, "/admin/");
   });
 
   test("shows phone column when attendee has phone", () => {
@@ -115,8 +113,8 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    assertStringIncludes(html, "<th>Phone</th>");
-    assertStringIncludes(html, "+1 555 123 4567");
+    says(html, "<th>Phone</th>");
+    says(html, "+1 555 123 4567");
   });
 
   test("hides phone column when no attendees have phone", () => {
@@ -126,10 +124,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    assert(
-      !html.includes("<th>Phone</th>"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<th>Phone</th>"));
   });
 
   test("hides email column when no attendees have email", () => {
@@ -139,11 +134,8 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    assertStringIncludes(html, "John Doe");
-    assert(
-      !html.includes("<th>Email</th>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "John Doe");
+    assert(!html.includes("<th>Email</th>"));
   });
 
   test("shows danger-text class when near capacity", () => {
@@ -156,8 +148,8 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing: nearFullListing,
     });
-    assertStringIncludes(html, 'class="danger-text"');
-    assertStringIncludes(html, "9 remain");
+    says(html, 'class="danger-text"');
+    says(html, "9 remain");
   });
 
   test("does not show danger-text class when not near capacity", () => {
@@ -166,27 +158,18 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    assert(
-      !html.includes('class="danger-text"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('class="danger-text"'));
   });
 
   test("shows deactivated alert for inactive listings", () => {
     const html = String(ListingDeactivatedBanner({ active: false }));
-    assertStringIncludes(html, 'class="error"');
-    assertStringIncludes(
-      html,
-      "This listing is deactivated and cannot be booked",
-    );
+    says(html, 'class="error"');
+    says(html, "This listing is deactivated and cannot be booked");
   });
 
   test("does not show deactivated alert for active listings", () => {
     const html = String(ListingDeactivatedBanner({ active: true }));
-    assert(
-      !html.includes("This listing is deactivated and cannot be booked"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("This listing is deactivated and cannot be booked"));
   });
 
   test("shows ticket column header", () => {
@@ -195,7 +178,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "<th>Ticket</th>");
+    says(html, "<th>Ticket</th>");
   });
 
   test("shows ticket token as link to public ticket URL", () => {
@@ -205,8 +188,8 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    assertStringIncludes(html, 'href="https://mysite.com/t/abc123"');
-    assertStringIncludes(html, "abc123");
+    says(html, 'href="https://mysite.com/t/abc123"');
+    says(html, "abc123");
   });
 
   test("renders empty date cell for attendee without date on daily listing", () => {
@@ -220,7 +203,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing: dailyListing,
     });
-    assertStringIncludes(html, "<th>Date</th>");
+    says(html, "<th>Date</th>");
   });
 
   test("shows unlimited booking window when maximum_days_after is 0", () => {
@@ -233,7 +216,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing: dailyListing,
     });
-    assertStringIncludes(html, "unlimited");
+    says(html, "unlimited");
   });
 
   test("shows numeric booking window when maximum_days_after is nonzero", () => {
@@ -246,11 +229,8 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing: dailyListing,
     });
-    assertStringIncludes(html, "to 30 days");
-    assert(
-      !html.includes("unlimited"),
-      "the value should not contain the searched item",
-    );
+    says(html, "to 30 days");
+    assert(!html.includes("unlimited"));
   });
 
   test("shows danger-text for daily listing at capacity with date filter", () => {
@@ -266,8 +246,8 @@ describe("adminListingPage roster and attendees", () => {
       dateFilter: "2026-03-15",
       listing: dailyListing,
     });
-    assertStringIncludes(html, 'class="danger-text"');
-    assertStringIncludes(html, "0 remain");
+    says(html, 'class="danger-text"');
+    says(html, "0 remain");
   });
 
   test("shows danger-text on the total count for a near-capacity daily listing without a date filter", () => {
@@ -281,7 +261,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing: dailyListing,
     });
-    assertStringIncludes(html, 'class="danger-text">91<');
+    says(html, 'class="danger-text">91<');
   });
 });
 
@@ -298,10 +278,7 @@ describe("adminListingPage optional fields", () => {
       attendees: [],
       listing,
     });
-    assert(
-      !html.includes("Thank You URL"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Thank You URL"));
   });
 
   test("shows webhook URL in copyable input when present", () => {
@@ -314,9 +291,9 @@ describe("adminListingPage optional fields", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Webhook URL");
-    assertStringIncludes(html, 'value="https://hooks.example.com/notify"');
-    assertStringIncludes(html, "readonly");
+    says(html, "Webhook URL");
+    says(html, 'value="https://hooks.example.com/notify"');
+    says(html, "readonly");
   });
 
   test("hides embed rows for a child listing", () => {
@@ -327,14 +304,8 @@ describe("adminListingPage optional fields", () => {
       listing,
       publicPage: "child",
     });
-    assert(
-      !html.includes(`embed-script-${listing.id}`),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes(`embed-iframe-${listing.id}`),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes(`embed-script-${listing.id}`));
+    assert(!html.includes(`embed-iframe-${listing.id}`));
   });
 });
 
@@ -351,8 +322,8 @@ describe("adminListingPage listing date and location", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Listing Date");
-    assertStringIncludes(html, "Monday 15 June 2026 at 15:00 GMT+1");
+    says(html, "Listing Date");
+    says(html, "Monday 15 June 2026 at 15:00 GMT+1");
   });
 
   test("does not show Listing Date row when date is empty", () => {
@@ -362,10 +333,7 @@ describe("adminListingPage listing date and location", () => {
       attendees: [],
       listing,
     });
-    assert(
-      !html.includes("Listing Date"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Listing Date"));
   });
 
   test("shows Location row when listing has a location", () => {
@@ -378,8 +346,8 @@ describe("adminListingPage listing date and location", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "<th>Location</th>");
-    assertStringIncludes(html, "Village Hall");
+    says(html, "<th>Location</th>");
+    says(html, "Village Hall");
   });
 
   test("does not show Location row when location is empty", () => {
@@ -389,10 +357,7 @@ describe("adminListingPage listing date and location", () => {
       attendees: [],
       listing,
     });
-    assert(
-      !html.includes("<th>Location</th>"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<th>Location</th>"));
   });
 
   test("shows both Listing Date and Location when both are set", () => {
@@ -406,7 +371,7 @@ describe("adminListingPage listing date and location", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Listing Date");
-    assertStringIncludes(html, "Town Centre");
+    says(html, "Listing Date");
+    says(html, "Town Centre");
   });
 });

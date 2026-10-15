@@ -22,6 +22,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -63,7 +64,8 @@ When(
 Then(
   "the site says {int} record is left behind",
   async function (this: TicketsWorld, count: number): Promise<void> {
-    expect(await whatThePrivacyPageSays(this)).toContain(
+    says(
+      await whatThePrivacyPageSays(this),
       t("privacy.orphans.purgeable_count", { count }),
     );
   },
@@ -72,7 +74,8 @@ Then(
 Then(
   "the site says no records are left behind",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await whatThePrivacyPageSays(this)).toContain(
+    says(
+      await whatThePrivacyPageSays(this),
       t("privacy.orphans.purgeable_count", { count: 0 }),
     );
   },
@@ -81,7 +84,8 @@ Then(
 Then(
   "the organiser is told {int} record was deleted",
   function (this: TicketsWorld, count: number): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    says(
+      whatTheyWereTold(this, ORGANISER),
       t("privacy.orphans.flash_purged", { count }),
     );
   },
@@ -125,9 +129,7 @@ When(
 Then(
   "the organiser is told the record was deleted",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
-      t("privacy.erase.flash_done"),
-    );
+    says(whatTheyWereTold(this, ORGANISER), t("privacy.erase.flash_done"));
   },
 );
 
@@ -155,16 +157,15 @@ Then(
 Then(
   "the organiser is told there was nothing to delete",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
-      t("privacy.erase.flash_none"),
-    );
+    says(whatTheyWereTold(this, ORGANISER), t("privacy.erase.flash_none"));
   },
 );
 
 Then(
   "the organiser is told to enter an email or phone number",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    says(
+      whatTheyWereTold(this, ORGANISER),
       t("privacy.erase.error_identifier"),
     );
   },

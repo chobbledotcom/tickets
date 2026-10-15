@@ -1,9 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { MaskedInput } from "#templates/components/masked-input.tsx";
+import { says } from "#test-utils/says.ts";
 
 describe("MaskedInput", () => {
   test("shows the mask sentinel as the value of a stored secret", () => {
@@ -34,10 +35,7 @@ describe("MaskedInput", () => {
     expect(html).toBe(
       `<label>API Key<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email_api_key" placeholder="Enter API key" type="password"></label>`,
     );
-    assert(
-      !html.includes("value="),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("value="));
   });
 
   test("keeps a declared maxlength over the shared default", () => {
@@ -50,10 +48,7 @@ describe("MaskedInput", () => {
       }),
     );
 
-    assertStringIncludes(html, 'maxlength="64"');
-    assert(
-      !html.includes(`maxlength="${MAX_INPUT_LENGTH}"`),
-      "the value should not contain the searched item",
-    );
+    says(html, 'maxlength="64"');
+    assert(!html.includes(`maxlength="${MAX_INPUT_LENGTH}"`));
   });
 });

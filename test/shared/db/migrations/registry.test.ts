@@ -6,11 +6,11 @@
  * applied. Loading every entry here keeps the two from drifting.
  */
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { MIGRATION_IDS, MIGRATION_REGISTRY } from "#db/migrations/registry.ts";
+import { has } from "#test-utils/says.ts";
 
 const MIGRATIONS = await loadMigrations();
 
@@ -49,7 +49,7 @@ describe("db > migration registry", () => {
   // A missing name reads as position -1, which every later position beats, so
   // each name is confirmed present before the two are compared.
   const positionOf = (id: string): number => {
-    assertArrayIncludes(MIGRATION_IDS ?? [], [id]);
+    has(MIGRATION_IDS, id);
     return MIGRATION_IDS.indexOf(id);
   };
 

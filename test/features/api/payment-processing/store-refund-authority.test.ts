@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deleteAttendee } from "#db/attendees/delete.ts";
@@ -15,6 +14,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { protectedStateOf } from "#test-utils/payment-claim.ts";
 import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import {
   reservedPlaceholder,
@@ -158,7 +158,7 @@ describeWithEnv("terminal placeholder refund authority", { db: true }, () => {
     await expect(deleteAttendee(attendee.id)).rejects.toBeInstanceOf(
       PaymentRowsBusyError,
     );
-    assertStringIncludes(
+    says(
       await (await adminGet(`/admin/attendees/${attendee.id}/actions`)).text(),
       "/admin/privacy#refund-recovery",
     );

@@ -7,6 +7,7 @@
  * branch-carrying logic lives here and is unit-tested directly.
  */
 
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -21,6 +22,7 @@ import {
   SENTRY_BUILD_DEFINES,
   sentryTreeShakingGuard,
 } from "#scripts/edge-bundle-modules.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("buildBuildInfoModule", () => {
   test("emits both constants with the given timestamp and commit", () => {
@@ -33,7 +35,8 @@ describe("buildBuildInfoModule", () => {
   });
 
   test("JSON-encodes an empty commit rather than emitting a bare token", () => {
-    expect(buildBuildInfoModule("2026-01-01T00:00:00.000Z", "")).toContain(
+    says(
+      buildBuildInfoModule("2026-01-01T00:00:00.000Z", ""),
       `export const BUILD_COMMIT = "";`,
     );
   });
@@ -41,7 +44,8 @@ describe("buildBuildInfoModule", () => {
   test("escapes values through JSON.stringify", () => {
     // A quote in the value must be escaped, not emitted raw, or the module
     // would be syntactically broken.
-    expect(buildBuildInfoModule("2026", 'a"b')).toContain(
+    says(
+      buildBuildInfoModule("2026", 'a"b'),
       `export const BUILD_COMMIT = "a\\"b";`,
     );
   });
@@ -57,19 +61,21 @@ describe("buildAssetPathsModule", () => {
   test("emits a const only for defs that carry a path constant", () => {
     const out = buildAssetPathsModule(PATH_DEFS, 1234);
     // favicon.svg has no path constant, so it is filtered out entirely.
-    expect(out).not.toContain("favicon");
-    expect(out).toContain("CSS_PATH");
-    expect(out).toContain("EMBED_JS_PATH");
+    assert(!out.includes("favicon"));
+    says(out, "CSS_PATH");
+    says(out, "EMBED_JS_PATH");
   });
 
   test("cache-busts normal assets with the build timestamp", () => {
-    expect(buildAssetPathsModule(PATH_DEFS, 1234)).toContain(
+    says(
+      buildAssetPathsModule(PATH_DEFS, 1234),
       `export const CSS_PATH = "/style.css?ts=1234";`,
     );
   });
 
   test("never cache-busts the embed script (must always serve latest)", () => {
-    expect(buildAssetPathsModule(PATH_DEFS, 1234)).toContain(
+    says(
+      buildAssetPathsModule(PATH_DEFS, 1234),
       `export const EMBED_JS_PATH = "/embed.js";`,
     );
   });
@@ -91,11 +97,13 @@ describe("buildAssetPathsModule", () => {
         "style.css": "https://assets.example.com/assets/release/style.css",
       },
     });
-    expect(paths).toContain(
+    says(
+      paths,
       `export const CSS_PATH = "https://assets.example.com/assets/release/style.css";`,
     );
-    expect(paths).toContain(`export const EMBED_JS_PATH = "/embed.js";`);
-    expect(paths).toContain(
+    says(paths, `export const EMBED_JS_PATH = "/embed.js";`);
+    says(
+      paths,
       `export const ASSET_CDN_ORIGIN = "https://assets.example.com";`,
     );
   });
@@ -127,39 +135,43 @@ const importAssetsModule = (
 describe("buildAssetsModule", () => {
   test("declares a variable per def carrying the pre-read content", () => {
     const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS);
-    expect(out).toContain(`const v0 = "<svg/>";`);
-    expect(out).toContain(`const v1 = "console.log(1)";`);
+    says(out, `const v0 = "<svg/>";`);
+    says(out, `const v1 = "console.log(1)";`);
   });
 
   test("emits a handler wiring each export name to its content-type and var", () => {
     const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS);
-    expect(out).toContain(
+    says(
+      out,
       `export const handleFavicon = () => new Response(v0, { headers: { "content-type": "image/svg+xml", ...CACHE_HEADERS } });`,
     );
-    expect(out).toContain(
+    says(
+      out,
       `export const handleAdminJs = () => new Response(v1, { headers: { "content-type": "application/javascript", ...CACHE_HEADERS } });`,
     );
   });
 
   test("declares the immutable cache header once", () => {
-    expect(buildAssetsModule(ASSET_DEFS, STATIC_ASSETS)).toContain(
+    says(
+      buildAssetsModule(ASSET_DEFS, STATIC_ASSETS),
       `const CACHE_HEADERS = { "cache-control": "public, max-age=31536000, immutable" };`,
     );
   });
 
   test("mirrors assets.ts's orderWidgetBody from the inlined order.js", () => {
     const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS);
-    expect(out).toContain(`const orderJsBody = "widget-source";`);
-    expect(out).toContain("export const orderWidgetBody = () => orderJsBody;");
+    says(out, `const orderJsBody = "widget-source";`);
+    says(out, "export const orderWidgetBody = () => orderJsBody;");
   });
 
   test("redirects published assets without embedding their bodies", () => {
     const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS, CDN_ASSETS);
-    expect(out).not.toContain("console.log(1)");
-    expect(out).toContain(
+    assert(!out.includes("console.log(1)"));
+    says(
+      out,
       `export const handleAdminJs = () => new Response(null, { status: 302, headers: { location: "https://assets.example.com/assets/release/admin.js" } });`,
     );
-    expect(out).toContain(`const v0 = "<svg/>";`);
+    says(out, `const v0 = "<svg/>";`);
   });
 
   test("returns a CDN redirect whose security headers remain mutable", async () => {
@@ -223,7 +235,7 @@ describe("reactRuntimeGuard", () => {
   });
 
   test("labels the message with the given build name", () => {
-    expect(reactRuntimeGuard("Deploy").message).toContain("Deploy bundle");
+    says(reactRuntimeGuard("Deploy").message, "Deploy bundle");
   });
 });
 
@@ -263,7 +275,7 @@ describe("bundleSizeGuard", () => {
   });
 
   test("names the byte limit in its message", () => {
-    expect(bundleSizeGuard(10_000_000).message).toContain("10000000");
+    says(bundleSizeGuard(10_000_000).message, "10000000");
   });
 });
 

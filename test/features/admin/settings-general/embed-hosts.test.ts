@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -17,6 +17,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 /** Post invalid embed hosts and assert a 302 redirect with error flash */
@@ -115,7 +116,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
         cookie,
       });
       const html = await settingsResponse.text();
-      assertStringIncludes(html, "example.com, *.mysite.org");
+      says(html, "example.com, *.mysite.org");
     });
 
     test("clears embed hosts when empty", async () => {
@@ -197,18 +198,12 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
   describe("CSP frame-ancestors with embed hosts", () => {
     test("ticket page has no frame-ancestors when no embed hosts configured", async () => {
       const csp = await getTicketCsp();
-      assert(
-        !csp.includes("frame-ancestors"),
-        "the value should not contain the searched item",
-      );
+      assert(!csp.includes("frame-ancestors"));
     });
 
     test("ticket page has frame-ancestors when embed hosts configured", async () => {
       const csp = await getTicketCsp("example.com, *.mysite.org");
-      assertStringIncludes(
-        csp,
-        "frame-ancestors 'self' example.com *.mysite.org",
-      );
+      says(csp, "frame-ancestors 'self' example.com *.mysite.org");
     });
 
     test("non-embeddable pages still have frame-ancestors none regardless of embed hosts", async () => {
@@ -216,11 +211,8 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
 
       const response = await handleRequest(mockRequest("/"));
       const csp = getHeader(response, "content-security-policy");
-      assertStringIncludes(csp, "frame-ancestors 'none'");
-      assert(
-        !csp.includes("example.com"),
-        "the value should not contain the searched item",
-      );
+      says(csp, "frame-ancestors 'none'");
+      assert(!csp.includes("example.com"));
     });
 
     test("ticket page has no X-Frame-Options when embed hosts configured", async () => {

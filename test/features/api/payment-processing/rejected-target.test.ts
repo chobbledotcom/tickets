@@ -9,7 +9,7 @@
  * change nothing. The answer tests stay on the page the callback renders,
  * because a blank reference needs no money work. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -44,6 +44,7 @@ import {
   withSucceedingRefundFor,
 } from "#test-utils/rejected-charge.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 import { getTestSession, requestAsSession } from "#test-utils/session.ts";
 import { completedStripeRefund } from "#test-utils/stripe/fixtures.ts";
 
@@ -63,11 +64,8 @@ describeWithEnv("the rejected-checkout answer", { db: true }, () => {
 
     expect(response.status).toBe(400);
     const page = await response.text();
-    assertStringIncludes(page, "We could not find this payment session.");
-    assert(
-      !page.includes("Staff diagnostics"),
-      "the value should not contain the searched item",
-    );
+    says(page, "We could not find this payment session.");
+    assert(!page.includes("Staff diagnostics"));
   });
 
   it("hands an owner the diagnostics beside the refusal", async () => {
@@ -80,8 +78,8 @@ describeWithEnv("the rejected-checkout answer", { db: true }, () => {
     );
 
     const page = await response.text();
-    assertStringIncludes(page, "Staff diagnostics");
-    assertStringIncludes(page, "cs_blank");
+    says(page, "Staff diagnostics");
+    says(page, "cs_blank");
   });
 
   it("tells the buyer the money went back when the refund succeeded", async () => {
@@ -91,11 +89,8 @@ describeWithEnv("the rejected-checkout answer", { db: true }, () => {
 
     expect(response.status).toBe(400);
     const page = await response.text();
-    assertStringIncludes(page, "We have sent your money back");
-    assert(
-      !page.includes("Staff diagnostics"),
-      "the value should not contain the searched item",
-    );
+    says(page, "We have sent your money back");
+    assert(!page.includes("Staff diagnostics"));
   });
 
   it("asks the caller to come back while the refund is still out there", async () => {
@@ -114,7 +109,7 @@ describeWithEnv("the rejected-checkout answer", { db: true }, () => {
 
     expect(response.status).toBe(503);
     const page = await response.text();
-    assertStringIncludes(page, "We could not find this payment session.");
+    says(page, "We could not find this payment session.");
   });
 });
 

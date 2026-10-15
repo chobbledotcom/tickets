@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -13,6 +13,7 @@ import { withEnv } from "#test-utils/env.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   stubRefundPayment,
@@ -126,15 +127,9 @@ describeWithEnv(
         const html = await response.text();
         // The error is plain: it says the payment is being processed, and
         // nothing about a refund.
-        assertStringIncludes(html, "Payment is being processed");
-        assert(
-          !html.includes("refunded"),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes("contact support for a refund"),
-          "the value should not contain the searched item",
-        );
+        says(html, "Payment is being processed");
+        assert(!html.includes("refunded"));
+        assert(!html.includes("contact support for a refund"));
       } finally {
         mockRetrieve.restore();
       }

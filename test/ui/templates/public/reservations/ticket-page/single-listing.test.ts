@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -15,6 +15,7 @@ import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 import type { ListingWithCount } from "#types";
 
 describe("ticketPage (single listing)", () => {
@@ -61,44 +62,41 @@ describe("ticketPage (single listing)", () => {
 
   test("renders page title", async () => {
     const html = await renderTicket(listing);
-    assertStringIncludes(html, "Test Listing");
+    says(html, "Test Listing");
   });
 
   test("renders registration form when spots available", async () => {
     const html = await renderTicket(listing);
-    assertStringIncludes(html, 'action="/ticket/ab12c"');
-    assertStringIncludes(html, 'name="name"');
-    assertStringIncludes(html, 'name="email"');
-    assertStringIncludes(html, "Continue");
+    says(html, 'action="/ticket/ab12c"');
+    says(html, 'name="name"');
+    says(html, 'name="email"');
+    says(html, "Continue");
   });
 
   test("includes CSRF token in form", async () => {
     const html = await renderTicket(listing);
-    assertStringIncludes(html, 'name="csrf_token"');
-    assertStringIncludes(html, `value="${getCurrentCsrfToken()}"`);
+    says(html, 'name="csrf_token"');
+    says(html, `value="${getCurrentCsrfToken()}"`);
   });
 
   test("shows error when provided", async () => {
     const html = await renderTicket(listing, {
       error: "Name and email are required",
     });
-    assertStringIncludes(html, "Name and email are required");
-    assertStringIncludes(html, 'class="error"');
+    says(html, "Name and email are required");
+    says(html, 'class="error"');
   });
 
   test("shows full message when no spots", async () => {
     const fullListing = testListingWithCount({ attendee_count: 100 });
     const html = await renderTicket(fullListing);
-    assertStringIncludes(html, "this listing is full");
-    assert(
-      !html.includes(">Reserve Ticket</button>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "this listing is full");
+    assert(!html.includes(">Reserve Ticket</button>"));
   });
 
   test("displays listing name as header", async () => {
     const html = await renderTicket(listing);
-    assertStringIncludes(html, "<h1>Test Listing</h1>");
+    says(html, "<h1>Test Listing</h1>");
   });
 
   test("a package override makes an otherwise-free listing render the provider email", () => {
@@ -122,11 +120,8 @@ describe("ticketPage (single listing)", () => {
             : {}),
           slugs: [PKG_SLUG],
         });
-      assert(
-        !render().includes('name="email"'),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(render(new Map([[991, 1500]])), 'name="email"');
+      assert(!render().includes('name="email"'));
+      says(render(new Map([[991, 1500]])), 'name="email"');
     } finally {
       s.restore();
     }
@@ -138,11 +133,11 @@ describe("ticketPage (single listing)", () => {
       max_quantity: 5,
     });
     const html = await renderTicket(multiQtyListing);
-    assertStringIncludes(html, "Number of Tickets");
-    assertStringIncludes(html, `name="quantity_${multiQtyListing.id}"`);
-    assertStringIncludes(html, '<option value="1">1</option>');
-    assertStringIncludes(html, '<option value="5">5</option>');
-    assertStringIncludes(html, "Continue");
+    says(html, "Number of Tickets");
+    says(html, `name="quantity_${multiQtyListing.id}"`);
+    says(html, '<option value="1">1</option>');
+    says(html, '<option value="5">5</option>');
+    says(html, "Continue");
   });
 
   test("limits quantity selector to remaining spots", async () => {
@@ -151,12 +146,9 @@ describe("ticketPage (single listing)", () => {
       max_quantity: 10,
     });
     const html = await renderTicket(limitedListing);
-    assertStringIncludes(html, "Number of Tickets");
-    assertStringIncludes(html, '<option value="3">3</option>');
-    assert(
-      !html.includes('<option value="4">4</option>'),
-      "the value should not contain the searched item",
-    );
+    says(html, "Number of Tickets");
+    says(html, '<option value="3">3</option>');
+    assert(!html.includes('<option value="4">4</option>'));
   });
 
   test("a built-site plan sells months, not tickets", async () => {
@@ -167,29 +159,20 @@ describe("ticketPage (single listing)", () => {
       max_quantity: 5,
     });
     const html = await renderTicket(planListing);
-    assertStringIncludes(html, "Number of months");
+    says(html, "Number of months");
     // Each option states the months it buys: three units of a three-month
     // plan are nine months.
-    assertStringIncludes(html, '<option value="1">3 months</option>');
-    assertStringIncludes(html, '<option value="3">9 months</option>');
-    assert(
-      !html.includes("Number of Tickets"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('">3</option>'),
-      "the value should not contain the searched item",
-    );
+    says(html, '<option value="1">3 months</option>');
+    says(html, '<option value="3">9 months</option>');
+    assert(!html.includes("Number of Tickets"));
+    assert(!html.includes('">3</option>'));
   });
 
   test("hides quantity selector when max_quantity is 1", async () => {
     const html = await renderTicket(listing); // max_quantity is 1
-    assert(
-      !html.includes("Number of Tickets"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Number of Tickets"));
     expect(hasInputWithValue(html, `quantity_${listing.id}`, "1")).toBe(true);
-    assertStringIncludes(html, "Continue");
+    says(html, "Continue");
   });
 
   test("shows Continue button for purchase_only listing", async () => {
@@ -198,7 +181,7 @@ describe("ticketPage (single listing)", () => {
       purchase_only: true,
     });
     const html = await renderTicket(poListing);
-    assertStringIncludes(html, "Continue");
+    says(html, "Continue");
   });
 
   test("shows phone field for phone-only listings", async () => {
@@ -207,12 +190,9 @@ describe("ticketPage (single listing)", () => {
       fields: "phone",
     });
     const html = await renderTicket(phoneListing);
-    assertStringIncludes(html, 'name="phone"');
-    assertStringIncludes(html, "Your Phone Number");
-    assert(
-      !html.includes('name="email"'),
-      "the value should not contain the searched item",
-    );
+    says(html, 'name="phone"');
+    says(html, "Your Phone Number");
+    assert(!html.includes('name="email"'));
   });
 
   test("shows both email and phone for email,phone setting", async () => {
@@ -221,17 +201,14 @@ describe("ticketPage (single listing)", () => {
       fields: "email,phone",
     });
     const html = await renderTicket(bothListing);
-    assertStringIncludes(html, 'name="email"');
-    assertStringIncludes(html, 'name="phone"');
+    says(html, 'name="email"');
+    says(html, 'name="phone"');
   });
 
   test("shows only email for email setting", async () => {
     const html = await renderTicket(listing);
-    assertStringIncludes(html, 'name="email"');
-    assert(
-      !html.includes('name="phone"'),
-      "the value should not contain the searched item",
-    );
+    says(html, 'name="email"');
+    assert(!html.includes('name="phone"'));
   });
 
   test("hides header and description in iframe mode", async () => {
@@ -240,16 +217,10 @@ describe("ticketPage (single listing)", () => {
       description: "A great listing",
     });
     const html = await renderTicket(listingWithDesc, { iframe: true });
-    assert(
-      !html.includes("<h1>"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("A great listing"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, 'class="iframe"');
-    assertStringIncludes(html, 'name="name"');
+    assert(!html.includes("<h1>"));
+    assert(!html.includes("A great listing"));
+    says(html, 'class="iframe"');
+    says(html, 'name="name"');
   });
 
   test("shows header and description when not in iframe mode", async () => {
@@ -258,53 +229,41 @@ describe("ticketPage (single listing)", () => {
       description: "A great listing",
     });
     const html = await renderTicket(listingWithDesc);
-    assertStringIncludes(html, "<h1>Test Listing</h1>");
-    assertStringIncludes(html, "A great listing");
-    assert(
-      !html.includes('class="iframe"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "<h1>Test Listing</h1>");
+    says(html, "A great listing");
+    assert(!html.includes('class="iframe"'));
   });
 
   test("includes iframe-resizer child script in iframe mode", async () => {
     const html = await renderTicket(listing, { iframe: true });
-    assertStringIncludes(html, "iframe-resizer-child.js");
+    says(html, "iframe-resizer-child.js");
   });
 
   test("excludes iframe-resizer child script when not in iframe mode", async () => {
     const html = await renderTicket(listing);
-    assert(
-      !html.includes("iframe-resizer-child.js"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("iframe-resizer-child.js"));
   });
 
   test("renders terms and conditions with checkbox", async () => {
     const html = await renderTicket(listing, { terms: "No refunds allowed" });
-    assertStringIncludes(html, "No refunds allowed");
-    assertStringIncludes(html, 'class="prose"');
-    assertStringIncludes(html, 'name="agree_terms"');
+    says(html, "No refunds allowed");
+    says(html, 'class="prose"');
+    says(html, 'name="agree_terms"');
   });
 
   test("renders markdown paragraphs in terms and conditions", async () => {
     const html = await renderTicket(listing, {
       terms: "Line one\n\nLine two\n\nLine three",
     });
-    assertStringIncludes(html, "<p>Line one</p>");
-    assertStringIncludes(html, "<p>Line two</p>");
-    assertStringIncludes(html, "<p>Line three</p>");
+    says(html, "<p>Line one</p>");
+    says(html, "<p>Line two</p>");
+    says(html, "<p>Line three</p>");
   });
 
   test("does not render terms when not provided", async () => {
     const html = await renderTicket(listing);
-    assert(
-      !html.includes('class="terms"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('name="agree_terms"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('class="terms"'));
+    assert(!html.includes('name="agree_terms"'));
   });
 
   test("renders custom questions when provided", async () => {
@@ -332,8 +291,8 @@ describe("ticketPage (single listing)", () => {
       },
     ];
     const html = await renderTicket(listing, { questions });
-    assertStringIncludes(html, "Size?");
-    assertStringIncludes(html, 'name="question_1"');
+    says(html, "Size?");
+    says(html, 'name="question_1"');
   });
 
   test("includes OpenGraph tags when baseUrl is provided", async () => {
@@ -345,26 +304,17 @@ describe("ticketPage (single listing)", () => {
     const html = await renderTicket(ev, {
       baseUrl: "https://tix.example.com",
     });
-    assertStringIncludes(
-      html,
-      '<meta property="og:title" content="Birthday Party">',
-    );
-    assertStringIncludes(html, '<meta property="og:type" content="website">');
-    assertStringIncludes(
+    says(html, '<meta property="og:title" content="Birthday Party">');
+    says(html, '<meta property="og:type" content="website">');
+    says(
       html,
       '<meta property="og:url" content="https://tix.example.com/ticket/birthday-party">',
     );
-    assertStringIncludes(
-      html,
-      '<meta property="og:description" content="A fun party">',
-    );
+    says(html, '<meta property="og:description" content="A fun party">');
   });
 
   test("does not include OpenGraph tags when baseUrl is not provided", async () => {
     const html = await renderTicket(listing);
-    assert(
-      !html.includes("og:title"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("og:title"));
   });
 });

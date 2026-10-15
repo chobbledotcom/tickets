@@ -1,5 +1,7 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { says } from "#test-utils/says.ts";
 import { walkSourceFiles } from "#test-utils/walk-src.ts";
 
 const imagePath = ".github/workflows/publish-image.yml";
@@ -67,7 +69,8 @@ describe("Release image publication", () => {
 
   test("publishes only after the release job succeeds", () => {
     const workflow = Deno.readTextFileSync(releasePath);
-    expect(workflow).toContain(
+    says(
+      workflow,
       [
         "  publish-image:",
         "    needs: release",
@@ -85,7 +88,7 @@ describe("Release image publication", () => {
     expect(workflow).toMatch(
       /tag: \$\{\{ steps\.create-release\.outputs\.tag }}/,
     );
-    expect(workflow).toContain("id: create-release");
+    says(workflow, "id: create-release");
     expect(
       workflow.indexOf('echo "tag=$TAG" >> "$GITHUB_OUTPUT"'),
     ).toBeGreaterThan(workflow.indexOf('gh release create "$TAG"'));
@@ -93,10 +96,8 @@ describe("Release image publication", () => {
 
   test("grants registry writes only to the image job", () => {
     const workflow = Deno.readTextFileSync(releasePath);
-    expect(workflow).toContain("\npermissions:\n  contents: read\n");
-    expect(workflow).toContain(
-      "  release:\n    permissions:\n      contents: write\n",
-    );
+    says(workflow, "\npermissions:\n  contents: read\n");
+    says(workflow, "  release:\n    permissions:\n      contents: write\n");
     expect(workflow.match(/packages: write/g)).toHaveLength(1);
   });
 
@@ -111,7 +112,8 @@ describe("Release image publication", () => {
   });
 
   test("retains the repository and main branch restrictions", () => {
-    expect(readImage()).toContain(
+    says(
+      readImage(),
       "if: github.repository == 'chobbledotcom/tickets' && github.ref == 'refs/heads/main'",
     );
   });
@@ -120,9 +122,7 @@ describe("Release image publication", () => {
     const workflow = readImage();
     expect(workflow).toMatch(/ref: \$\{\{ github\.sha }}/);
     expect(workflow).toMatch(/RELEASE_TAG: \$\{\{ inputs\.release_tag }}/);
-    expect(workflow).toContain(
-      "group: publish-image\n  cancel-in-progress: false",
-    );
+    says(workflow, "group: publish-image\n  cancel-in-progress: false");
     const commands = [
       "run: container-build",
       "run: container-load",
@@ -135,7 +135,8 @@ describe("Release image publication", () => {
   });
 
   test("queues release images without replacement by older retries", () => {
-    expect(readImage()).toContain(
+    says(
+      readImage(),
       "group: publish-image\n  cancel-in-progress: false\n  queue: max",
     );
   });
@@ -145,9 +146,7 @@ describe("Release image publication", () => {
       '{"tag_name":"release-tag","sha":"new-main-commit"}',
     );
     expect(result.code).toBe(0);
-    expect(result.stderr).toContain(
-      "/repos/chobbledotcom/tickets/releases/latest",
-    );
+    says(result.stderr, "/repos/chobbledotcom/tickets/releases/latest");
     expect(result.stdout.trim().split("\n")).toEqual([
       "engine login ghcr.io -u test-owner --password-stdin",
       "engine tag ghcr.io/chobbledotcom/tickets:latest ghcr.io/chobbledotcom/tickets:sha-release-commit",
@@ -159,11 +158,14 @@ describe("Release image publication", () => {
   test("keeps an older release retry away from latest", async () => {
     const result = await publishImage('{"tag_name":"new-release"}');
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain(
+    says(
+      result.stdout,
       "engine push ghcr.io/chobbledotcom/tickets:sha-release-commit",
     );
-    expect(result.stdout).not.toContain(
-      "engine push ghcr.io/chobbledotcom/tickets:latest",
+    assert(
+      !result.stdout.includes(
+        "engine push ghcr.io/chobbledotcom/tickets:latest",
+      ),
     );
   });
 
@@ -177,8 +179,10 @@ describe("Release image publication", () => {
     test(`refuses latest on ${label}`, async () => {
       const result = await publishImage(response, status);
       expect(result.code).not.toBe(0);
-      expect(result.stdout).not.toContain(
-        "engine push ghcr.io/chobbledotcom/tickets:latest",
+      assert(
+        !result.stdout.includes(
+          "engine push ghcr.io/chobbledotcom/tickets:latest",
+        ),
       );
     });
   }
@@ -191,8 +195,10 @@ describe("Release image publication", () => {
     );
     expect(result.code).not.toBe(0);
     expect(result.stderr).toBe("");
-    expect(result.stdout).not.toContain(
-      "engine push ghcr.io/chobbledotcom/tickets:latest",
+    assert(
+      !result.stdout.includes(
+        "engine push ghcr.io/chobbledotcom/tickets:latest",
+      ),
     );
   });
 
@@ -203,7 +209,8 @@ describe("Release image publication", () => {
       "push ghcr.io/chobbledotcom/tickets:latest",
     );
     expect(result.code).not.toBe(0);
-    expect(result.stdout).toContain(
+    says(
+      result.stdout,
       "engine push ghcr.io/chobbledotcom/tickets:sha-release-commit",
     );
   });

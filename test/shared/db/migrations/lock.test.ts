@@ -1,5 +1,4 @@
 import type { InStatement } from "@libsql/client";
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -23,6 +22,7 @@ import {
   takeMigrationLock,
 } from "#test-utils/migrations.ts";
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("db > migrations > lock", { db: true }, () => {
   const heldLock = async (): Promise<string | null> => {
@@ -209,7 +209,7 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
   test("the held-lock message says how long a crashed lock is honoured", () => {
     using _fetch = stubNtfyFetch({}).fetchStub;
 
-    assertStringIncludes(
+    says(
       migrationLockHeldError().message,
       "reclaimed automatically after 2 minutes",
     );

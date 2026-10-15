@@ -19,6 +19,7 @@
  * `src/shared/accounting/*`; see each test file's header for the contract.
  */
 
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { costAccount } from "#accounting/accounts.ts";
 import { accountBalance } from "#accounting/queries.ts";
@@ -32,6 +33,7 @@ import { nowMs } from "#shared/now.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { getTestSession, withTestSession } from "#test-utils/session.ts";
 import type { Attendee, Listing, ListingWithCount } from "#types";
 
@@ -289,14 +291,14 @@ export const assertAdmin404 = async (
 /** Assert rendered HTML links a servicing id to `/admin/servicing/:id` and NOT
  *  to `/admin/attendees/:id` — the kind-aware routing contract (§8/§12/§17). */
 export const expectServicingLink = (body: string, id: number): void => {
-  expect(body).toContain(`/admin/servicing/${id}`);
-  expect(body).not.toContain(`/admin/attendees/${id}`);
+  says(body, `/admin/servicing/${id}`);
+  assert(!body.includes(`/admin/attendees/${id}`));
 };
 
 /** Assert a POST response is a 302 redirect to a location containing `path`. */
 export const assertRedirectTo = (response: Response, path: string): void => {
   expect(response.status).toBe(302);
-  expect(response.headers.get("location")).toContain(path);
+  says(response.headers.get("location"), path);
 };
 
 /** Assert a 302 response's redirect pathname (ignoring flash query params)

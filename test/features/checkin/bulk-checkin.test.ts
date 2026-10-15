@@ -1,10 +1,11 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
+import { says } from "#test-utils/says.ts";
 import { testCsrfToken } from "#test-utils/session.ts";
 import {
   checkOneLegAsStaff,
@@ -110,11 +111,8 @@ describeWithEnv(
         const body = await response.text();
         // The live row's admission stays on offer; a refunded checked row
         // is out of the eligibility set, so it cannot flip the action.
-        assertStringIncludes(body, "Check In All");
-        assert(
-          !body.includes("Check Out All"),
-          "the value should not contain the searched item",
-        );
+        says(body, "Check In All");
+        assert(!body.includes("Check Out All"));
       });
     });
   },

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -18,6 +17,7 @@ import {
   transferEventLabel,
 } from "#templates/admin/ledger/formatting.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 
 import { transfer } from "./helpers.ts";
 
@@ -55,7 +55,7 @@ describe("admin ledger formatting", () => {
         kind: KIND.serviceCost,
         source: account(COST, 3),
       });
-      assertStringIncludes(html, "Service event cost added for");
+      says(html, "Service event cost added for");
     });
 
     test("reads as cost reduced when the money went back into it", () => {
@@ -64,7 +64,7 @@ describe("admin ledger formatting", () => {
         kind: KIND.serviceCost,
         source: account(EXTERNAL, 1),
       });
-      assertStringIncludes(html, "Service event cost reduced for");
+      says(html, "Service event cost reduced for");
     });
 
     test("names the cost account either way", () => {
@@ -73,7 +73,7 @@ describe("admin ledger formatting", () => {
         kind: KIND.serviceCost,
         source: account(EXTERNAL, 1),
       });
-      assertStringIncludes(html, "<b>cost</b>");
+      says(html, "<b>cost</b>");
     });
   });
 
@@ -84,7 +84,7 @@ describe("admin ledger formatting", () => {
         kind: KIND.modifier,
         source: account(ATTENDEE, 1),
       });
-      assertStringIncludes(html, "Extra option income added for");
+      says(html, "Extra option income added for");
     });
 
     test("reads as a reduction when the money came back off it", () => {
@@ -93,7 +93,7 @@ describe("admin ledger formatting", () => {
         kind: KIND.modifier,
         source: account(MODIFIER, 2),
       });
-      assertStringIncludes(html, "Option income reduced for");
+      says(html, "Option income reduced for");
     });
   });
 

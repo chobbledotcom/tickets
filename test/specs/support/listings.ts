@@ -27,6 +27,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Listing } from "#types";
 // jscpd:ignore-end
@@ -134,7 +135,7 @@ export const tickOnListingTab = async (
   );
   requireCheckboxOffered(browser.currentHtml, field, String(boxId));
   await fillInAndSend(browser, { [field]: String(boxId) }, "Save");
-  expect(browser.pageText).toContain(saidAfter);
+  says(browser.pageText, saidAfter);
 };
 
 /** What the site tells somebody when a listing's own form saves. */

@@ -18,6 +18,7 @@ import {
 import { parseWorkerCount } from "#scripts/workers.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withTempDir } from "#test-utils/files.ts";
+import { has, says } from "#test-utils/says.ts";
 
 describe("test-groups", () => {
   describe("mustRunAlone", () => {
@@ -169,9 +170,9 @@ describe("test-groups", () => {
       // Each import sits on its own line, so a generated entry stays readable
       // when a group needs eyeballing.
       const lines = source.split("\n");
-      expect(lines).toContain('import "../test/a.test.ts";');
-      expect(lines).toContain('import "../test/b.test.ts";');
-      expect(source).toContain("do not edit");
+      has(lines, 'import "../test/a.test.ts";');
+      has(lines, 'import "../test/b.test.ts";');
+      says(source, "do not edit");
     });
   });
 
@@ -381,7 +382,7 @@ describe("test-groups", () => {
           `${root}/test/plain.test.ts`,
         ]);
         const entry = await Deno.readTextFile(groups.runArgs[0]!);
-        expect(entry).toContain('import "../test/plain.test.ts";');
+        says(entry, 'import "../test/plain.test.ts";');
 
         await groups.cleanup();
         await groups.cleanup(); // a second pass finds nothing left — no throw
@@ -400,7 +401,7 @@ describe("test-groups", () => {
         );
         // A later run must reuse that leftover dir rather than choke on it.
         const again = await writeTestGroups(root, 1);
-        expect(again.runArgs[0]).toContain(GROUPS_DIR);
+        says(again.runArgs[0], GROUPS_DIR);
         await again.cleanup();
       });
     });

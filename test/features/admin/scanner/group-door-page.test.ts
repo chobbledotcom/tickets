@@ -7,7 +7,7 @@
  * every-listing warning, and the guards.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -20,6 +20,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund } from "#test-utils/ledger.ts";
 import { expectLoginRedirectWithReturn } from "#test-utils/login-redirect.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestEditorSession,
   requestAsSession,
@@ -40,15 +41,9 @@ describeWithEnv("group scanner page", { db: true }, () => {
     const { group, members } = await groupDoor();
     const body = await doorPage(group.id);
 
-    assertStringIncludes(body, `Scanner: ${group.name}`);
-    assertStringIncludes(
-      body,
-      `data-scan-path="/admin/groups/${group.id}/scan"`,
-    );
-    assert(
-      !body.includes(`/admin/listing/${members[0]!.id}/scan`),
-      "the value should not contain the searched item",
-    );
+    says(body, `Scanner: ${group.name}`);
+    says(body, `data-scan-path="/admin/groups/${group.id}/scan"`);
+    assert(!body.includes(`/admin/listing/${members[0]!.id}/scan`));
   });
 
   test("offers one option per person, with their places summed", async () => {
@@ -60,7 +55,7 @@ describeWithEnv("group scanner page", { db: true }, () => {
 
     const body = await doorPage(group.id);
 
-    assertStringIncludes(body, "Sam (3 tickets)");
+    says(body, "Sam (3 tickets)");
     expect(body.match(/role="option"/g)?.length).toBe(1);
   });
 
@@ -82,14 +77,8 @@ describeWithEnv("group scanner page", { db: true }, () => {
 
     const body = await doorPage(group.id);
 
-    assert(
-      !body.includes(rosterOption("Rob")),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !body.includes(rosterOption("Mel")),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes(rosterOption("Rob")));
+    assert(!body.includes(rosterOption("Mel")));
   });
 
   test("warns that one scan checks in every listing only once that rule is on", async () => {
@@ -100,13 +89,12 @@ describeWithEnv("group scanner page", { db: true }, () => {
       !(await doorPage(door.group.id)).includes(
         "Scanning a ticket in this group",
       ),
-      "the value should not contain the searched item",
     );
 
     await updateTestGroup(door.group.id, { scanChecksInAllListings: true });
     const warned = await doorPage(door.group.id);
-    assertStringIncludes(warned, 'role="alert"');
-    assertStringIncludes(
+    says(warned, 'role="alert"');
+    says(
       warned,
       "Scanning a ticket in this group will check in ALL of the attendee's booked listings in that group",
     );
@@ -124,7 +112,6 @@ describeWithEnv("group scanner page", { db: true }, () => {
     });
     assert(
       !(await doorPage(single.id)).includes("Scanning a ticket in this group"),
-      "the value should not contain the searched item",
     );
   });
 
@@ -164,15 +151,9 @@ describeWithEnv("group scanner page", { db: true }, () => {
     await updateTestGroup(group.id, { scanChecksInAllListings: true });
     const body = await doorPage(group.id);
 
-    assert(
-      !body.includes("Scanning a ticket in this group"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !body.includes(rosterOption("Ola")),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(body, "No tickets to check in");
+    assert(!body.includes("Scanning a ticket in this group"));
+    assert(!body.includes(rosterOption("Ola")));
+    says(body, "No tickets to check in");
   });
 
   test("redirects to the login flow with the door page when not authenticated", async () => {
@@ -218,8 +199,8 @@ describeWithEnv("group scanner page", { db: true }, () => {
 
     const body = await doorPage(door.group.id);
 
-    assertStringIncludes(body, rosterOption("Sam"));
-    assertStringIncludes(body, 'data-detail=""');
+    says(body, rosterOption("Sam"));
+    says(body, 'data-detail=""');
   });
 
   test("answers the scan of a missing group with not_found", async () => {

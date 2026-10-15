@@ -1,7 +1,9 @@
 import { pathToFileURL } from "node:url";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { CompactTapReporter } from "#scripts/compact-test-reporter.ts";
 import { hasReporterArg } from "#scripts/tap-estimate.ts";
+import { says } from "#test-utils/says.ts";
 
 const consume = (reporter: CompactTapReporter, lines: string[]): void => {
   for (const line of lines) reporter.consumeLine(line);
@@ -65,8 +67,8 @@ Deno.test("compact TAP reporter keeps real failures and suppresses parent step s
     line: 12,
   });
   expect(out).toEqual(["ok   [######------------------] 1/4 passes"]);
-  expect(err.join("\n")).toContain("AssertionError: Values differ");
-  expect(err.join("\n")).not.toContain("1 test step failed.");
+  says(err.join("\n"), "AssertionError: Values differ");
+  assert(!err.join("\n").includes("1 test step failed."));
 });
 
 Deno.test("compact TAP reporter buffers pretty JSON diagnostic blocks", () => {
@@ -101,13 +103,13 @@ Deno.test("compact TAP reporter buffers pretty JSON diagnostic blocks", () => {
   const summary = reporter.finish();
 
   expect(summary.failed).toBe(1);
-  expect(summary.failures[0]?.message).toContain("JSON details survived");
+  says(summary.failures[0]?.message, "JSON details survived");
   expect(summary.failures[0]?.location).toEqual({
     column: 5,
     file: "test/json.test.ts",
     line: 34,
   });
-  expect(err.join("\n")).not.toContain("No TAP diagnostic was emitted");
+  assert(!err.join("\n").includes("No TAP diagnostic was emitted"));
 });
 
 Deno.test("compact TAP reporter parses YAML diagnostic blocks and suppresses parent summaries", () => {
@@ -147,14 +149,14 @@ Deno.test("compact TAP reporter parses YAML diagnostic blocks and suppresses par
 
   expect(summary.failed).toBe(1);
   expect(summary.failures[0]?.name).toBe("fails with YAML");
-  expect(summary.failures[0]?.message).toContain("YAML details survived");
+  says(summary.failures[0]?.message, "YAML details survived");
   expect(summary.failures[0]?.location).toEqual({
     column: 7,
     file: "test/yaml.test.ts",
     line: 56,
   });
-  expect(err.join("\n")).not.toContain("No TAP diagnostic was emitted");
-  expect(err.join("\n")).not.toContain("1 test step failed.");
+  assert(!err.join("\n").includes("No TAP diagnostic was emitted"));
+  assert(!err.join("\n").includes("1 test step failed."));
 });
 
 Deno.test("compact TAP reporter can hide progress for CI output", () => {

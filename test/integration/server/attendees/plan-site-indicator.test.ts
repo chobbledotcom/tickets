@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
@@ -19,6 +19,7 @@ import {
 } from "#test-utils/db-helpers/site-plans.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { postListingSale, refundBookedOrder } from "#test-utils/ledger.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -39,8 +40,8 @@ describeWithEnv(
 
         const owed = await adminGet(`/admin/attendees/${attendee.id}`);
         const before = await owed.text();
-        assertStringIncludes(before, "Site Plan");
-        assertStringIncludes(before, "No site assigned yet");
+        says(before, "Site Plan");
+        says(before, "No site assigned yet");
 
         await insertBuiltSite("Pooled", "pooled.test", "", "", true);
         const pool = await getAssignableBuiltSites();
@@ -53,11 +54,8 @@ describeWithEnv(
 
         const served = await adminGet(`/admin/attendees/${attendee.id}`);
         const after = await served.text();
-        assertStringIncludes(after, "Site Plan");
-        assert(
-          !after.includes("No site assigned yet"),
-          "the value should not contain the searched item",
-        );
+        says(after, "Site Plan");
+        assert(!after.includes("No site assigned yet"));
       });
 
       test("an incomplete payment shows no repair cue", async () => {
@@ -76,11 +74,8 @@ describeWithEnv(
 
         const page = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await page.text();
-        assertStringIncludes(html, "Site Plan");
-        assert(
-          !html.includes("No site assigned yet"),
-          "the value should not contain the searched item",
-        );
+        says(html, "Site Plan");
+        assert(!html.includes("No site assigned yet"));
       });
 
       test("a fully paid plan sale with one payment reference still shows the cue", async () => {
@@ -99,8 +94,8 @@ describeWithEnv(
 
         const page = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await page.text();
-        assertStringIncludes(html, "Site Plan");
-        assertStringIncludes(html, "No site assigned yet");
+        says(html, "Site Plan");
+        says(html, "No site assigned yet");
       });
 
       test("a claim on a refunded plan row still serves the active plan", async () => {
@@ -129,7 +124,7 @@ describeWithEnv(
           listingId: refundedPlan.id,
         });
         const owed = await adminGet(`/admin/attendees/${attendee.id}`);
-        assertStringIncludes(await owed.text(), "No site assigned yet");
+        says(await owed.text(), "No site assigned yet");
 
         await insertBuiltSite("Stale Claim", "stale.test", "", "", true);
         const pool = await getAssignableBuiltSites();
@@ -145,10 +140,7 @@ describeWithEnv(
         const html = await page.text();
         // The claim on the refunded plan holds the buyer's one site, so no
         // row asks for a second one.
-        assert(
-          !html.includes("No site assigned yet"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("No site assigned yet"));
       });
 
       test("one site serves a combined purchase of two plan listings", async () => {
@@ -169,12 +161,9 @@ describeWithEnv(
 
         const served = await adminGet(`/admin/attendees/${attendee.id}`);
         const after = await served.text();
-        assertStringIncludes(after, "First Plan");
-        assertStringIncludes(after, "Second Plan");
-        assert(
-          !after.includes("No site assigned yet"),
-          "the value should not contain the searched item",
-        );
+        says(after, "First Plan");
+        says(after, "Second Plan");
+        assert(!after.includes("No site assigned yet"));
       });
     });
   },

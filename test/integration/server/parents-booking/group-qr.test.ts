@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -9,6 +8,7 @@ import {
   soldOutParentInGroup,
   ticketGet,
 } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv(
   "server > parents booking — group QR",
@@ -44,7 +44,7 @@ describeWithEnv(
       expect(res.status).toBe(200);
       expect(res.headers.get("content-type")).toBe("image/svg+xml");
       const body = await res.text();
-      assertStringIncludes(body, "<svg");
+      says(body, "<svg");
     });
   },
 );

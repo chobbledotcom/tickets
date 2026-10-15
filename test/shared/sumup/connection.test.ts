@@ -1,9 +1,9 @@
-import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { sumupApi } from "#shared/sumup.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import {
   makeSumupClient,
   setupSumupSuite,
@@ -108,12 +108,13 @@ describe("sumup testSumupConnection", () => {
       (err) => {
         // The opaque SumUp body is replaced with a hint about the likely causes:
         // the public-vs-secret key mix-up first, then the cross-account mismatch.
-        assertStringIncludes(err ?? "", "401");
-        assertStringIncludes(err ?? "", "Public API key");
-        assertStringIncludes(err ?? "", "secret API key");
-        assertStringIncludes(err ?? "", "same SumUp account");
-        assert(
-          err?.includes("detail") === false,
+        says(err, "401");
+        says(err, "Public API key");
+        says(err, "secret API key");
+        says(err, "same SumUp account");
+        saysNot(
+          err,
+          "detail",
           "the value should not contain the searched item",
         );
       },

@@ -1,7 +1,7 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ADMIN_AREA_LOADERS } from "#routes/admin/area-loaders.ts";
+import { has } from "#test-utils/says.ts";
 
 test("keeps the complete built-site route catalog exact", async () => {
   // Key order carries no behaviour (the router matches by specificity),
@@ -31,13 +31,15 @@ test("keeps the complete built-site route catalog exact", async () => {
 });
 
 test("routes the scheduler provisioning action as a POST", async () => {
-  assertArrayIncludes(Object.keys(await ADMIN_AREA_LOADERS.builtSites.load()), [
+  has(
+    Object.keys(await ADMIN_AREA_LOADERS.builtSites.load()),
     "POST /admin/built-sites/:id/provision-scheduler",
-  ]);
+  );
 });
 
 test("routes the Uptime Kuma monitor action as a POST", async () => {
-  assertArrayIncludes(Object.keys(await ADMIN_AREA_LOADERS.builtSites.load()), [
+  has(
+    Object.keys(await ADMIN_AREA_LOADERS.builtSites.load()),
     "POST /admin/built-sites/:id/add-uptime-monitor",
-  ]);
+  );
 });

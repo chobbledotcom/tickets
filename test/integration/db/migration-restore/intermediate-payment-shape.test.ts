@@ -7,7 +7,7 @@
  * Here the dormant tables exist in the shape the intermediate build deployed.
  */
 
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -26,6 +26,7 @@ import {
 } from "#test/integration/db/migration-restore/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { appliedMigrationIds } from "#test-utils/migrations.ts";
+import { has } from "#test-utils/says.ts";
 
 const MIGRATIONS = await loadMigrations();
 
@@ -115,8 +116,8 @@ describeWithEnv(
 
       await verifyCurrentAppSchema();
       const applied = await appliedMigrationIds();
-      assertArrayIncludes(applied, ["2026-08-04_login_attempt_stamp"]);
-      assertArrayIncludes(applied, ["2026-08-10_refund_authority_records"]);
+      has(applied, "2026-08-04_login_attempt_stamp");
+      has(applied, "2026-08-10_refund_authority_records");
 
       // The redefinition replaced the foreign shape: the refund columns it
       // adds are present, and the columns it dropped are gone. An upgrade
@@ -143,14 +144,11 @@ describeWithEnv(
       await expect(initDb()).rejects.toThrow(
         "refusing to reinterpret stored payment history",
       );
-      assertArrayIncludes((await appliedMigrationIds()) ?? [], [
-        "2026-08-04_login_attempt_stamp",
-      ]);
+      has(await appliedMigrationIds(), "2026-08-04_login_attempt_stamp");
       assert(
         !(await appliedMigrationIds()).includes(
           "2026-08-10_refund_authority_records",
         ),
-        "the value should not contain the searched item",
       );
 
       const stored = await getDb().execute(

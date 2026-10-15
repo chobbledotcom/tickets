@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { join } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
@@ -9,6 +10,7 @@ import {
 import { generateMutants, type Mutant } from "#scripts/mutation/generate.ts";
 import { mutantKeyForPath } from "#scripts/mutation/ignore.ts";
 import { tempDir } from "#test-utils/files.ts";
+import { says } from "#test-utils/says.ts";
 
 const source = "export const read = (x: number | null) => x ?? 0;\n";
 
@@ -107,11 +109,9 @@ describe("checking the equivalent-mutant registry resolves", () => {
     const problems = await check(state);
 
     expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain("stale");
-    expect(problems[0]).toContain("noSuchThing~0000000");
-    expect(problems[0]).toContain(
-      `to accept: ${freshKeyFor("src/read.ts", state.mutant)}`,
-    );
+    says(problems[0], "stale");
+    says(problems[0], "noSuchThing~0000000");
+    says(problems[0], `to accept: ${freshKeyFor("src/read.ts", state.mutant)}`);
   });
 
   /** Two sites carrying the same mutation are both candidates, so the checker
@@ -154,9 +154,9 @@ describe("checking the equivalent-mutant registry resolves", () => {
     const problems = await check(state);
 
     expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain("stale");
-    expect(problems[0]).toContain("delete");
-    expect(problems[0]).not.toContain("to accept:");
+    says(problems[0], "stale");
+    says(problems[0], "delete");
+    assert(!problems[0]?.includes("to accept:"));
   });
 
   /** `keysFor` generates exhaustively, so an entry naming a replacement the
@@ -185,7 +185,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
     const problems = await check(state);
 
     expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain("path escapes the project");
+    says(problems[0], "path escapes the project");
   });
 
   /** A path holding spaces keeps them in the key, and the fresh-key search
@@ -213,8 +213,8 @@ describe("checking the equivalent-mutant registry resolves", () => {
     const problems = await check(state);
 
     expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain("stale");
-    expect(problems[0]).toContain(`to accept: ${freshKeyFor(relPath, mutant)}`);
+    says(problems[0], "stale");
+    says(problems[0], `to accept: ${freshKeyFor(relPath, mutant)}`);
   });
 
   // A branch that deletes or renames a source still has to be told which line
@@ -229,8 +229,8 @@ describe("checking the equivalent-mutant registry resolves", () => {
     const problems = await check(state);
 
     expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain("stale");
-    expect(problems[0]).toContain("src/read.ts::gone~0000000");
+    says(problems[0], "stale");
+    says(problems[0], "src/read.ts::gone~0000000");
   });
 
   test("reports the same entry recorded twice", async () => {
@@ -245,7 +245,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
     const problems = await check(state);
 
     expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain("duplicate");
+    says(problems[0], "duplicate");
   });
 
   /**
@@ -265,7 +265,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
     const problems = await check(state);
 
     expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain('path must be written as "src/read.ts"');
+    says(problems[0], 'path must be written as "src/read.ts"');
   });
 
   test("refuses an absolute path", async () => {
@@ -279,7 +279,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
     const problems = await check(state);
 
     expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain("path must be relative to the project");
+    says(problems[0], "path must be relative to the project");
   });
 
   test("refuses a path escaping the project", async () => {
@@ -291,7 +291,7 @@ describe("checking the equivalent-mutant registry resolves", () => {
     const problems = await check(state);
 
     expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain("path escapes the project");
+    says(problems[0], "path escapes the project");
   });
 
   test("raises on a line that is neither comment nor entry", async () => {
@@ -314,7 +314,8 @@ describe("checking the equivalent-mutant registry resolves", () => {
     const problems = await check(state);
 
     expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain(
+    says(
+      problems[0],
       `to accept: ${freshKeyFor("src/read.ts", state.mutant)}  audited:${shortHash(source)}   # why it was equivalent`,
     );
   });

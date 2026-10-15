@@ -38,6 +38,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { loggedInAdminBrowser, openAttendeeEditor } from "#test-utils/e2e.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   enablePublicSite,
   setupStripe,
@@ -284,13 +285,13 @@ export const runOrderJourney = async (spec: {
     expect(browser.containsText(name)).toBe(true);
   }
   await browser.visit(selectionUrl(catalog, spec.select));
-  expect(browser.currentUrl).toContain("/ticket/");
+  says(browser.currentUrl, "/ticket/");
 
   // Every control the journey means to fill must actually render — a path
   // whose input silently vanished would otherwise just book less.
   const filled = spec.form(catalog);
   for (const field of Object.keys(filled)) {
-    expect(browser.currentHtml).toContain(`name="${field}"`);
+    says(browser.currentHtml, `name="${field}"`);
   }
   const fields = {
     email: "journey@example.com",

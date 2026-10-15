@@ -5,6 +5,7 @@ import {
   runSiteMigrationTui,
 } from "#scripts/site-migration/run.ts";
 import { okResult } from "#shared/result.ts";
+import { has, says } from "#test-utils/says.ts";
 import {
   bunnySite,
   siteMigrationCliState,
@@ -50,8 +51,9 @@ describe("site migration TUI", () => {
         ],
       },
     ]);
-    expect(state.stdout).toContain("first-site now uses its Turso database.");
-    expect(state.stdout.join("\n")).toContain(
+    has(state.stdout, "first-site now uses its Turso database.");
+    says(
+      state.stdout.join("\n"),
       'open the built site "first-site" on the main site and save the new DB_URL and DB_TOKEN',
     );
   });
@@ -64,12 +66,8 @@ describe("site migration TUI", () => {
 
     expect(await runSiteMigrationTui(state.deps)).toBe(0);
 
-    expect(state.stdout).toContain(
-      "  1. first-site — bunny database (script 42)",
-    );
-    expect(state.stdout).toContain(
-      "  2. done-site — turso database (script 7)",
-    );
+    has(state.stdout, "  1. first-site — bunny database (script 42)");
+    has(state.stdout, "  2. done-site — turso database (script 7)");
     expect(state.secretUpdates).toEqual([]);
   });
 
@@ -81,7 +79,8 @@ describe("site migration TUI", () => {
 
     expect(await runSiteMigrationTui(state.deps)).toBe(1);
 
-    expect(state.stderr).toContain(
+    has(
+      state.stderr,
       "Migration failed: done-site is not on a Bunny database (it is on: turso).",
     );
     expect(state.events).toEqual([]);
@@ -93,7 +92,8 @@ describe("site migration TUI", () => {
 
     expect(await runSiteMigrationTui(state.deps)).toBe(1);
 
-    expect(state.stdout.join("\n")).toContain(
+    says(
+      state.stdout.join("\n"),
       "Any booking made during the copy stays in the old database and is lost.",
     );
   });
@@ -105,7 +105,8 @@ describe("site migration TUI", () => {
 
     expect(await runSiteMigrationTui(state.deps)).toBe(1);
 
-    expect(state.stderr).toContain(
+    has(
+      state.stderr,
       "Migration failed: Site name does not match. Please type the exact name to confirm.",
     );
     expect(state.events).toEqual([]);
@@ -124,7 +125,7 @@ describe("site migration TUI", () => {
 
     expect(state.secretUpdates).toEqual([]);
     expect(state.deleted).toEqual(["personal/destination-database"]);
-    expect(state.stderr).toContain("Migration failed: upload stopped");
+    has(state.stderr, "Migration failed: upload stopped");
   });
 
   test("puts the old database back when repointing fails", async () => {
@@ -147,10 +148,11 @@ describe("site migration TUI", () => {
       [TEST_TURSO_CREDENTIALS.dbUrl, TEST_TURSO_CREDENTIALS.dbToken],
       ["libsql://abc-first-site.lite.bunnydb.net", "first-site-token"],
     ]);
-    expect(state.stderr).toContain(
+    has(
+      state.stderr,
       "Migration failed: Bunny refused. first-site was put back on its old database.",
     );
-    expect(state.stdout).toContain(`DB_URL=${TEST_TURSO_CREDENTIALS.dbUrl}`);
+    has(state.stdout, `DB_URL=${TEST_TURSO_CREDENTIALS.dbUrl}`);
   });
 
   test("says to set the secrets by hand when the undo also fails", async () => {
@@ -163,7 +165,8 @@ describe("site migration TUI", () => {
 
     expect(await runSiteMigrationTui(state.deps)).toBe(1);
 
-    expect(state.stderr).toContain(
+    has(
+      state.stderr,
       "Migration failed: Bunny refused. first-site could not be put back on its old database either: Bunny refused. Set DB_URL and DB_TOKEN by hand.",
     );
   });
@@ -197,12 +200,11 @@ describe("site migration TUI", () => {
     expect(await runSiteMigrationTui(state.deps)).toBe(1);
 
     expect(state.secretUpdates.length).toBe(1);
-    expect(state.stderr).toContain(
+    has(
+      state.stderr,
       "The database was migrated, but temporary files could not be removed: directory in use",
     );
-    expect(state.stderr).toContain(
-      "Remove this directory: /tmp/turso-migration-test",
-    );
+    has(state.stderr, "Remove this directory: /tmp/turso-migration-test");
   });
 
   test("asks for another name when the site name is already taken", async () => {
@@ -217,9 +219,7 @@ describe("site migration TUI", () => {
 
     expect(await runSiteMigrationTui(state.deps)).toBe(0);
 
-    expect(state.stdout).toContain(
-      "Turso database already exists: personal/first-site",
-    );
+    has(state.stdout, "Turso database already exists: personal/first-site");
     expect(state.createRequests[0]?.name).toBe("first-site-two");
   });
 
@@ -230,9 +230,7 @@ describe("site migration TUI", () => {
 
     expect(await runSiteMigrationTui(state.deps)).toBe(0);
 
-    expect(state.stderr).toContain(
-      "Migration failed: Choose a number between 1 and 1.",
-    );
+    has(state.stderr, "Migration failed: Choose a number between 1 and 1.");
     expect(state.secretUpdates.length).toBe(1);
   });
 
@@ -241,7 +239,7 @@ describe("site migration TUI", () => {
 
     expect(await runSiteMigrationTui(state.deps)).toBe(1);
 
-    expect(state.stderr).toContain("Migration cancelled.");
+    has(state.stderr, "Migration cancelled.");
   });
 
   test("fails when the main site lists no sites", async () => {
@@ -249,9 +247,7 @@ describe("site migration TUI", () => {
 
     expect(await runSiteMigrationTui(state.deps)).toBe(1);
 
-    expect(state.stderr).toContain(
-      "Migration failed: The main site listed no sites.",
-    );
+    has(state.stderr, "Migration failed: The main site listed no sites.");
   });
 
   test("asks for the settings that are not configured", async () => {
@@ -299,7 +295,7 @@ describe("site migration TUI", () => {
 
     expect(await runSiteMigrationTui(state.deps)).toBe(130);
 
-    expect(state.stderr).toContain("Migration interrupted.");
+    has(state.stderr, "Migration interrupted.");
     expect(state.secretUpdates).toEqual([]);
   });
 });

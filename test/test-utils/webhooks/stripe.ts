@@ -4,6 +4,7 @@ import type { SessionMetadata } from "#shared/payments.ts";
 import type { StripeCheckoutSession } from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { signedMeta } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import { stubWebhookVerify } from "#test-utils/settings.ts";
 import { answerCompletedStripeRefund } from "#test-utils/stripe/fixtures.ts";
 import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
@@ -134,7 +135,7 @@ export const expectWebhookKeptAndRefunded = async (
       for (const substring of Array.isArray(errorContains)
         ? errorContains
         : [errorContains]) {
-        expect(json.error).toContain(substring);
+        says(String(json.error), substring);
       }
     },
     signature ?? "sig_valid",

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -27,6 +27,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { gbp } from "#test-utils/payment-state.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 
 const reference = (
   raw: string,
@@ -99,12 +100,9 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
       "updated_at",
       "observed_at",
     ]);
-    assertStringIncludes(insert, "ON CONFLICT DO UPDATE");
-    assertStringIncludes(insert, "RETURNING id, provider, reference_index");
-    assert(
-      !insert.includes("INSERT OR IGNORE"),
-      "the value should not contain the searched item",
-    );
+    says(insert, "ON CONFLICT DO UPDATE");
+    says(insert, "RETURNING id, provider, reference_index");
+    assert(!insert.includes("INSERT OR IGNORE"));
     expect(insert.match(/\?/gu)?.length).toBe(16);
     expect(queries.filter((sql) => sql.includes("payment_charges"))).toEqual([
       insert,
@@ -283,9 +281,10 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
       state: { kind: "send_armed" },
     });
     expect(queries.sql).toHaveLength(1);
-    assertStringIncludes(queries.sql[0] ?? "", "UPDATE payment_charges");
-    assert(
-      queries.sql[0]?.includes("SELECT") === false,
+    says(queries.sql[0], "UPDATE payment_charges");
+    saysNot(
+      queries.sql[0],
+      "SELECT",
       "the value should not contain the searched item",
     );
     expect(

@@ -3,7 +3,6 @@
  * ticket counts. Sits beside the listing-scanner route suite, which owns
  * the page and the auth branches. */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -13,6 +12,7 @@ import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { beforeNextTransaction } from "#test-utils/record-queries.ts";
+import { says } from "#test-utils/says.ts";
 import {
   requestAsSession,
   testCookie,
@@ -70,7 +70,7 @@ describeWithEnv("scan quantity guards", { db: true }, () => {
       ),
     );
     await assertJson(Promise.resolve(response), 400, (result) => {
-      assertStringIncludes(result.error, "Invalid quantity");
+      says(result.error, "Invalid quantity");
     });
     // Nothing landed: the line still answers not yet checked in.
     const after = await scanAndGetJson(

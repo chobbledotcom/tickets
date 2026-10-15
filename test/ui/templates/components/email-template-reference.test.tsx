@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -6,6 +5,7 @@ import {
   LOOP_EXAMPLE,
   TEMPLATE_VARIABLES,
 } from "#templates/components/email-template-reference.tsx";
+import { has } from "#test-utils/says.ts";
 
 describe("email template reference declaration", () => {
   test("declares each code once", () => {
@@ -36,7 +36,7 @@ describe("email template reference declaration", () => {
       ...LOOP_EXAMPLE.matchAll(/\{%\s*for\s+\w+\s+in\s+(\w+)\s*%\}/g),
     ].map((match) => match[1]!);
     for (const path of [...used, ...iterables]) {
-      assertArrayIncludes(declared, [path]);
+      has(declared, path);
     }
   });
 });

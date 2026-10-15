@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -23,6 +23,7 @@ import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { useTransactionalDb } from "#test-utils/ledger.ts";
+import { has, says } from "#test-utils/says.ts";
 
 /** The value bound to `column` in a built INSERT, by pairing the SQL's leading
  *  column list with its positional args. */
@@ -85,19 +86,16 @@ describe("accounting > rows > bookingLegBatchInsert", () => {
     const built = bookingLegBatchInsert(leg, recordedAt, "MAX(id)", 7, guard);
     // source is the attendee account -> subquery; destination (revenue) stays a
     // bound literal. Swapping the two would post the sale to a phantom account.
-    assertStringIncludes(built.sql, "CAST(MAX(id) AS TEXT)");
+    says(built.sql, "CAST(MAX(id) AS TEXT)");
     expect(built.sql.indexOf("CAST(MAX(id) AS TEXT)")).toBe(
       built.sql.lastIndexOf("CAST(MAX(id) AS TEXT)"),
     );
-    assertArrayIncludes(built.args, [7]); // the subquery's bound arg
-    assertArrayIncludes(built.args, ["9"]); // revenue id still a bound literal
-    assert(
-      !built.args.includes("3"),
-      "the value should not contain the searched item",
-    ); // attendee id replaced by subquery
+    has(built.args, 7); // the subquery's bound arg
+    has(built.args, "9"); // revenue id still a bound literal
+    assert(!built.args.includes("3")); // attendee id replaced by subquery
     expect(built.args.at(-1)).toBe("g"); // guard args come last
     expect(built.sql).toMatch(/^INSERT OR IGNORE INTO transfers /);
-    assertStringIncludes(built.sql, "WHERE ? = 'g'");
+    says(built.sql, "WHERE ? = 'g'");
   });
 });
 

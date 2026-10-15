@@ -1,8 +1,8 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { initSchemaAtlas } from "#src/ui/client/admin/schema-atlas.ts";
 import { createDomInstaller } from "#test-utils/happy-dom.ts";
+import { says } from "#test-utils/says.ts";
 
 const { installDom, cleanup } = createDomInstaller(["MouseEvent"]);
 
@@ -149,10 +149,10 @@ describe("initSchemaAtlas", () => {
       "choice_not_sent",
     ]);
     // The unknown actor falls back to the system colour, never no colour.
-    assertStringIncludes(
+    says(
       window.document
         .querySelector('[data-schema-from="choice_not_sent"]')
-        ?.getAttribute("class") ?? "",
+        ?.getAttribute("class"),
       "schema-edge-system",
     );
   });

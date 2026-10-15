@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -13,6 +13,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -38,12 +39,9 @@ describeWithEnv(
           "address",
           "special_instructions",
         ]) {
-          assertStringIncludes(
-            html,
-            `id="${name}" maxlength="250" name="${name}"`,
-          );
+          says(html, `id="${name}" maxlength="250" name="${name}"`);
         }
-        assertStringIncludes(html, 'id="phone" maxlength="32" name="phone"');
+        says(html, 'id="phone" maxlength="32" name="phone"');
       });
 
       test("renders the create form with a quantity box per listing", async () => {
@@ -62,17 +60,11 @@ describeWithEnv(
         );
         // A quantity box per listing, and no add-line button (fixed table).
         expect(attendeeLineIndex(html, listing.id)).not.toBeNull();
-        assert(
-          !html.includes("Add Listing Line"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Add Listing Line"));
         // A clean form has no errors, so the name field keeps its autofocus and
         // no error alert claims it.
-        assertStringIncludes(html, `autocomplete="off" autofocus id="name"`);
-        assert(
-          !html.includes("autofocus class="),
-          "the value should not contain the searched item",
-        );
+        says(html, `autocomplete="off" autofocus id="name"`);
+        assert(!html.includes("autofocus class="));
       });
 
       test("hides the date fields when there are no daily listings", async () => {
@@ -81,37 +73,25 @@ describeWithEnv(
         await createTestListing({ maxAttendees: 100, name: "Standard Only" });
         const response = await adminGet("/admin/attendees/new");
         const html = await expectHtmlResponse(response, 200);
-        assert(
-          !html.includes('name="start_date"'),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes('id="day_count"'),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes("only affects daily listings"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes('name="start_date"'));
+        assert(!html.includes('id="day_count"'));
+        assert(!html.includes("only affects daily listings"));
       });
 
       test("shows the optional date fields when a daily listing exists", async () => {
         await createDailyTestListing({ name: "Daily One" });
         const response = await adminGet("/admin/attendees/new");
         const html = await expectHtmlResponse(response, 200);
-        assertStringIncludes(html, 'name="start_date"');
-        assertStringIncludes(html, 'id="day_count"');
+        says(html, 'name="start_date"');
+        says(html, 'id="day_count"');
         // The note makes clear the date is optional and daily-only.
-        assertStringIncludes(html, "only affects daily listings");
+        says(html, "only affects daily listings");
       });
 
       test("omits the 'Back without saving' link", async () => {
         // The browser back button is enough; the explicit link was removed.
         const html = await bareCreateForm();
-        assert(
-          !html.includes("Back without saving"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Back without saving"));
       });
 
       test("shows the availability notice on a dateless create form", async () => {
@@ -123,7 +103,7 @@ describeWithEnv(
           "Availability is inaccurate until dates have been saved",
         );
         // Visible (not hidden) when no date is known.
-        assertStringIncludes(html, "data-availability-notice>");
+        says(html, "data-availability-notice>");
       });
 
       test("hides the availability notice when a date is pre-filled", async () => {
@@ -132,7 +112,7 @@ describeWithEnv(
           `/admin/attendees/new?select_${listing.id}=1&start_date=2026-07-01`,
         );
         const html = await expectHtmlResponse(response, 200);
-        assertStringIncludes(html, "data-availability-notice hidden>");
+        says(html, "data-availability-notice hidden>");
       });
 
       test("pre-fills listings selected from the calendar checker", async () => {
@@ -159,17 +139,11 @@ describeWithEnv(
         // Nothing is booked yet, so an un-ticked toggle would hide every row.
         // Instead the form drops the toggle and shows every listing.
         const html = await bareCreateForm();
-        assert(
-          !html.includes("Show all listings"),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes('class="show-all-toggle"'),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Show all listings"));
+        assert(!html.includes('class="show-all-toggle"'));
         // The editor carries the show-all modifier so the not-booked rows stay
         // visible despite the CSS that hides them under the toggle.
-        assertStringIncludes(html, "listing-editor show-all-listings");
+        says(html, "listing-editor show-all-listings");
       });
 
       test("keeps the un-ticked 'Show all listings' toggle when listings are pre-filled", async () => {
@@ -188,13 +162,10 @@ describeWithEnv(
           200,
           "Show all listings",
         );
-        assertStringIncludes(html, 'class="show-all-toggle"');
+        says(html, 'class="show-all-toggle"');
         // Un-ticked: the checkbox carries no `checked` attribute.
         expect(html).not.toMatch(/class="show-all-toggle"[^>]*checked/);
-        assert(
-          !html.includes("listing-editor show-all-listings"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("listing-editor show-all-listings"));
       });
 
       test("pre-fills the shared start date from the deep link", async () => {
@@ -208,7 +179,7 @@ describeWithEnv(
             `name="qty_${attendeeLineIndex(html, listing.id)}"[^>]*value="1"`,
           ),
         );
-        assertStringIncludes(html, 'value="2026-07-01"');
+        says(html, 'value="2026-07-01"');
       });
 
       test("leaves the start date blank when the deep link omits it", async () => {
@@ -256,7 +227,7 @@ describeWithEnv(
         const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
         const html = await response.text();
         // The shared day-count select preselects the booking's current 2-day span.
-        assertStringIncludes(html, 'id="day_count"');
+        says(html, 'id="day_count"');
         expect(hasSelectedOption(html, "2")).toBe(true);
       });
 
@@ -275,11 +246,8 @@ describeWithEnv(
           200,
           "Show all listings",
         );
-        assertStringIncludes(html, 'class="show-all-toggle"');
-        assert(
-          !html.includes("listing-editor show-all-listings"),
-          "the value should not contain the searched item",
-        );
+        says(html, 'class="show-all-toggle"');
+        assert(!html.includes("listing-editor show-all-listings"));
       });
 
       test("preserves return_url as a hidden field when provided", async () => {

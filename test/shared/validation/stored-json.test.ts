@@ -44,10 +44,7 @@ describe("defineStoredJson", () => {
       ),
     );
     expect(error.cause).toBeUndefined();
-    assert(
-      !error.message.includes(secret),
-      "the value should not contain the searched item",
-    );
+    assert(!error.message.includes(secret));
   });
 
   test("rejects extra object fields", () => {

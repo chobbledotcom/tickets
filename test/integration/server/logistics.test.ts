@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -18,6 +18,7 @@ import { createListingWithAttendeeAndLogistics } from "#test-utils/db-helpers/at
 import { createLogisticsAgent } from "#test-utils/db-helpers/logistics-agents.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, withExpectedError } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -59,16 +60,10 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
 
     test("nav hides Logistics until the feature is enabled", async () => {
       const body = await (await adminGet("/admin/logistics")).text();
-      assert(
-        !body.includes('class="active" href="/admin/logistics"'),
-        "the value should not contain the searched item",
-      );
+      assert(!body.includes('class="active" href="/admin/logistics"'));
       await enableFeature("logistics");
       const enabledBody = await (await adminGet("/admin/logistics")).text();
-      assertStringIncludes(
-        enabledBody,
-        'class="active" href="/admin/logistics"',
-      );
+      says(enabledBody, 'class="active" href="/admin/logistics"');
     });
 
     test("highlights the Logistics sub-nav link on the logistics page", async () => {
@@ -77,7 +72,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       // never lit up on the page users actually land on.
       await enableFeature("logistics");
       const body = await (await adminGet("/admin/logistics")).text();
-      assertStringIncludes(body, 'class="active" href="/admin/logistics"');
+      says(body, 'class="active" href="/admin/logistics"');
     });
   });
 
@@ -131,18 +126,15 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const editForm = await adminGet(`/admin/logistics/${id}`);
       const editHtml = await editForm.text();
       // The form must post to the real edit route (no stray /agents/ segment).
-      assertStringIncludes(editHtml, `action="/admin/logistics/${id}/edit"`);
-      assertStringIncludes(editHtml, `href="/admin/logistics/${id}"`);
-      assertStringIncludes(editHtml, `href="/admin/logistics/${id}/actions"`);
-      assertStringIncludes(editHtml, "Van A");
-      assert(
-        !editHtml.includes(`/admin/logistics/${id}/delete`),
-        "the value should not contain the searched item",
-      );
+      says(editHtml, `action="/admin/logistics/${id}/edit"`);
+      says(editHtml, `href="/admin/logistics/${id}"`);
+      says(editHtml, `href="/admin/logistics/${id}/actions"`);
+      says(editHtml, "Van A");
+      assert(!editHtml.includes(`/admin/logistics/${id}/delete`));
       const actionsHtml = await (
         await adminGet(`/admin/logistics/${id}/actions`)
       ).text();
-      assertStringIncludes(actionsHtml, `/admin/logistics/${id}/delete`);
+      says(actionsHtml, `/admin/logistics/${id}/delete`);
       const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "Van B",
       });
@@ -220,11 +212,8 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
 
       // The edit form offers the agent user but never the editor.
       const editHtml = await (await adminGet(`/admin/logistics/${id}`)).text();
-      assertStringIncludes(editHtml, `value="${agentUserId}"`);
-      assert(
-        !editHtml.includes(`value="${editorUserId}"`),
-        "the value should not contain the searched item",
-      );
+      says(editHtml, `value="${agentUserId}"`);
+      assert(!editHtml.includes(`value="${editorUserId}"`));
 
       // A crafted submission with the editor's id is dropped server-side.
       await adminFormPost(`/admin/logistics/${id}/edit`, {
@@ -238,12 +227,9 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const id = await createLogisticsAgent("Doomed Van");
       const confirm = await adminGet(`/admin/logistics/${id}/delete`);
       const confirmHtml = await confirm.text();
-      assertStringIncludes(
-        confirmHtml,
-        `action="/admin/logistics/${id}/delete"`,
-      );
-      assertStringIncludes(confirmHtml, "Delete logistics agent");
-      assertStringIncludes(confirmHtml, "Doomed Van");
+      says(confirmHtml, `action="/admin/logistics/${id}/delete"`);
+      says(confirmHtml, "Delete logistics agent");
+      says(confirmHtml, "Doomed Van");
       const { response } = await adminFormPost(
         `/admin/logistics/${id}/delete`,
         {
@@ -295,7 +281,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       });
       const body = await response.text();
       expect(response.status).toBe(400);
-      assertStringIncludes(body, "Agent name is required");
+      says(body, "Agent name is required");
       expect(body).toMatch(
         new RegExp(
           `checked[^>]*value="${userId}"|value="${userId}"[^>]*checked`,

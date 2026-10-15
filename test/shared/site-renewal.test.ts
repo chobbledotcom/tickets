@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -25,6 +24,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 import { assignmentEntry } from "./site-assignment/contracts-setup.ts";
 
 describe("renewal secret pushes", () => {
@@ -58,7 +58,7 @@ describeWithEnv("renewal token reservation", { db: true }, () => {
     expect(stored.readOnlyFrom).not.toBe("");
     expect(recorder.pushedUrls.length).toBeGreaterThanOrEqual(1);
     for (const pushed of recorder.pushedUrls) {
-      assertStringIncludes(pushed, stored.renewalToken!);
+      says(pushed, stored.renewalToken!);
     }
   });
 
@@ -116,7 +116,7 @@ describeWithEnv("renewal token reservation", { db: true }, () => {
       .map((c) => String(c.args[2]));
     expect(renewalUrls.length).toBeGreaterThanOrEqual(2);
     for (const url of renewalUrls.slice(1)) {
-      assertStringIncludes(url, stored.renewalToken!);
+      says(url, stored.renewalToken!);
     }
   });
 

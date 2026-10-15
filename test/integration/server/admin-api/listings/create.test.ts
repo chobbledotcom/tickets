@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -6,6 +5,7 @@ import { requireListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { apiRequest } from "#test-utils/session.ts";
 import { MAX_DURATION_DAYS } from "#types";
 
@@ -145,7 +145,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          assertStringIncludes(body.error, "Webhook URL");
+          says(body.error, "Webhook URL");
         },
       );
     });
@@ -318,7 +318,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          assertStringIncludes(body.error, "Maximum price");
+          says(body.error, "Maximum price");
         },
       );
     });

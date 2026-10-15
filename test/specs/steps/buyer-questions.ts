@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   answerInListDownload,
@@ -15,6 +16,7 @@ import {
   visitorOpensBooking,
 } from "#test/specs/support/buyer-questions.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -59,10 +61,10 @@ Then(
     second: string,
   ): Promise<void> {
     const browser = await visitorOpensBooking(this, listingName);
-    expect(browser.pageText).toContain(text);
+    says(browser.pageText, text);
     questionFieldOn(this, browser);
-    expect(browser.pageText).toContain(first);
-    expect(browser.pageText).toContain(second);
+    says(browser.pageText, first);
+    says(browser.pageText, second);
   },
 );
 
@@ -74,7 +76,7 @@ Then(
     text: string,
   ): Promise<void> {
     const browser = await visitorOpensBooking(this, listingName);
-    expect(browser.pageText).not.toContain(text);
+    assert(!browser.pageText.includes(text));
   },
 );
 
@@ -115,16 +117,16 @@ When(
 Then(
   "the owner is told the question's text does not match",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("Question text does not match");
+    says(ownerLastTold(this), "Question text does not match");
     // Still there to be asked: the page the owner is on is the question's own
     // delete page, which only exists while the question does.
-    expect(ownerLastTold(this)).toContain(askedQuestion(this).text);
+    says(ownerLastTold(this), askedQuestion(this).text);
   },
 );
 
 Then(
   "the owner is told the question is deleted",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("Question deleted");
+    says(ownerLastTold(this), "Question deleted");
   },
 );

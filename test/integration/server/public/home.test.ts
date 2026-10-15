@@ -58,14 +58,8 @@ describeWithEnv("server public > home", { db: true, triggers: true }, () => {
     test("hides terms and contact nav links when pages are empty", async () => {
       await enablePublicSite();
       const html = await assertPublicHtml("/", 'href="/"', 'href="/listings"');
-      assert(
-        !html.includes('href="/terms"'),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('href="/contact"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('href="/terms"'));
+      assert(!html.includes('href="/contact"'));
     });
 
     test("shows login link styled as footer", async () => {

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type {
@@ -13,6 +12,7 @@ import {
   noteLines,
 } from "#templates/admin/answer-rows.ts";
 import { AttendeeAnswersTable } from "#templates/admin/attendee-detail.tsx";
+import { says } from "#test-utils/says.ts";
 
 const questions: QuestionWithAnswers[] = [
   {
@@ -289,14 +289,11 @@ describe("AttendeeAnswersTable", () => {
         }),
       ),
     );
-    assertStringIncludes(html, "Answers");
-    assertStringIncludes(html, "Shirt size?");
-    assertStringIncludes(html, ">Small<br>");
-    assertStringIncludes(
-      html,
-      "<small>Changed. At booking: &quot;Large&quot;.</small>",
-    );
-    assertStringIncludes(
+    says(html, "Answers");
+    says(html, "Shirt size?");
+    says(html, ">Small<br>");
+    says(html, "<small>Changed. At booking: &quot;Large&quot;.</small>");
+    says(
       html,
       "<small>Warning: This answer changes the price. The price was not updated.</small>",
     );

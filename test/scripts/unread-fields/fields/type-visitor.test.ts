@@ -1,5 +1,7 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { has } from "#test-utils/says.ts";
 import { fieldsOf, pathsOf } from "./fields-of-source.ts";
 
 /**
@@ -29,8 +31,8 @@ export type CarriesHelpers = Pick<CarriedByAPick, "helper" | "sender">;
       ),
     );
 
-    expect(paths).toContain('CarriesHelpers.helper["()"].input.givenToAHelper');
-    expect(paths).toContain('CarriesHelpers.sender["()"]["0"].taken');
+    has(paths, 'CarriesHelpers.helper["()"].input.givenToAHelper');
+    has(paths, 'CarriesHelpers.sender["()"]["0"].taken');
   });
 
   test("walks a carried construct signature's inputs and result", async () => {
@@ -42,12 +44,8 @@ export type CarriesFactories = Pick<CarriedByAPick, "factory">;
       ),
     );
 
-    expect(paths).toContain(
-      'CarriesFactories.factory["new ()"].seed.givenToAFactory',
-    );
-    expect(paths).toContain(
-      'CarriesFactories.factory["new ()"].result.madeByTheFactory',
-    );
+    has(paths, 'CarriesFactories.factory["new ()"].seed.givenToAFactory');
+    has(paths, 'CarriesFactories.factory["new ()"].result.madeByTheFactory');
   });
 
   test("walks a carried container's element", async () => {
@@ -59,8 +57,8 @@ export type CarriesCollections = Pick<CarriedByAPick, "items" | "pair">;
       ),
     );
 
-    expect(paths).toContain('CarriesCollections.items["[]"].insideAPickedSet');
-    expect(paths).toContain('CarriesCollections.pair["1"].insideAPickedTuple');
+    has(paths, 'CarriesCollections.items["[]"].insideAPickedSet');
+    has(paths, 'CarriesCollections.pair["1"].insideAPickedTuple');
   });
 
   test("walks a carried record's value without the written node", async () => {
@@ -76,7 +74,7 @@ export type CarriesLetter = Pick<Lettered, "letter">;
       ),
     );
 
-    expect(paths).toContain('CarriesLetter.letter["[]"].insideARecordValue');
+    has(paths, 'CarriesLetter.letter["[]"].insideARecordValue');
   });
 
   test("answers two carried records from one built index", async () => {
@@ -93,8 +91,8 @@ export type KeepsBoth = Pick<Kept, "first" | "second">;
       ),
     );
 
-    expect(paths).toContain('KeepsBoth.first["[]"].keptFirst');
-    expect(paths).toContain('KeepsBoth.second["[]"].keptSecond');
+    has(paths, 'KeepsBoth.first["[]"].keptFirst');
+    has(paths, 'KeepsBoth.second["[]"].keptSecond');
   });
 
   test("stops at a type parameter without a substitution", async () => {
@@ -126,8 +124,8 @@ export type CarriesEither = Pick<Either, "either">;
       ),
     );
 
-    expect(paths).toContain("CarriesEither.either.leftish");
-    expect(paths).toContain("CarriesEither.either.rightish");
+    has(paths, "CarriesEither.either.leftish");
+    has(paths, "CarriesEither.either.rightish");
   });
 
   test("records a carried value typed by a plain object's own shape", async () => {
@@ -145,7 +143,7 @@ export type CarriesTyped = Pick<HoldsTyped, "typed">;
       ),
     );
 
-    expect(paths).toContain("CarriesTyped.typed.insideTheValue");
+    has(paths, "CarriesTyped.typed.insideTheValue");
   });
 
   test("stops at a signature parameter with no type yet", async () => {
@@ -164,7 +162,7 @@ export type CarriesCall = Pick<WithGenericCall, "run">;
       ),
     );
 
-    expect(paths).toContain('CarriesCall.run["()"].name.readByName');
-    expect(paths).not.toContain('CarriesCall.run["()"].value');
+    has(paths, 'CarriesCall.run["()"].name.readByName');
+    assert(!paths.includes('CarriesCall.run["()"].value'));
   });
 });

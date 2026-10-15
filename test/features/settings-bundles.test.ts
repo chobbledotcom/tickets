@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { CONFIG_KEYS } from "#db/settings.ts";
@@ -11,6 +11,7 @@ import { getPrefix, settingsForPath } from "#routes/settings-bundles.ts";
 import { paymentProviderUsesSandbox } from "#shared/payment-provider-status.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { has } from "#test-utils/says.ts";
 
 describe("settings bundles", () => {
   test("extracts the first path segment without its leading slash", () => {
@@ -18,32 +19,28 @@ describe("settings bundles", () => {
   });
 
   test("loads the schema hash for admin routes", () => {
-    assertArrayIncludes(settingsForPath("/admin"), ["db_schema_hash"]);
+    has(settingsForPath("/admin"), "db_schema_hash");
   });
 
   test("loads the admin bundle for the welcome-dismiss POST", () => {
-    assertArrayIncludes(settingsForPath("/admin/welcome/dismiss"), [
+    has(
+      settingsForPath("/admin/welcome/dismiss"),
       CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
-    ]);
+    );
   });
 
   test("keeps the home page bundle narrower than the full settings list", () => {
     assert(
       !settingsForPath("/").includes(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY),
-      "the value should not contain the searched item",
     );
   });
 
   test("uses the full settings list for inherited object property names", () => {
-    assertArrayIncludes(settingsForPath("/constructor"), [
-      CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
-    ]);
+    has(settingsForPath("/constructor"), CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY);
   });
 
   test("does not reserve a settings bundle for the early scheduled route", () => {
-    assertArrayIncludes(settingsForPath("/scheduled"), [
-      CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
-    ]);
+    has(settingsForPath("/scheduled"), CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY);
   });
 
   describe("what every response reads", () => {

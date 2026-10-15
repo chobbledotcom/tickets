@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -14,6 +14,7 @@ import {
   setGoogleWalletEnvVars,
 } from "#test-utils/google-wallet.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
   beforeEach(() => {
@@ -82,8 +83,8 @@ describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
 
     const response = await awaitTestRequest(`/gwallet/${token}`);
     const cacheControl = response.headers.get("Cache-Control");
-    assertStringIncludes(cacheControl ?? "", "public");
-    assertStringIncludes(cacheControl ?? "", "s-maxage=3600");
+    says(cacheControl, "public");
+    says(cacheControl, "s-maxage=3600");
   });
 
   test("returns null for non-GET methods", async () => {
@@ -107,10 +108,7 @@ describeWithEnv("ticket view google wallet link", { db: true }, () => {
 
   test("does not show google wallet link when not configured", async () => {
     const { body } = await fetchAliceTicketPageBody();
-    assert(
-      !body.includes("Google Wallet"),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes("Google Wallet"));
   });
 
   test("shows google wallet link when configured", async () => {
@@ -153,7 +151,7 @@ describeWithEnv(
       expect(config!.serviceAccountEmail).toBe(
         "env@env-project.iam.gserviceaccount.com",
       );
-      assertStringIncludes(config!.serviceAccountKey, "BEGIN PRIVATE KEY");
+      says(config!.serviceAccountKey, "BEGIN PRIVATE KEY");
     });
   },
 );

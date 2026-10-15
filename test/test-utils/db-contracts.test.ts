@@ -39,6 +39,7 @@ import {
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
 import { wait } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestAgentSession,
   createTestManagerSession,
@@ -177,7 +178,7 @@ describe("test-utils — db-backed & settings contracts", () => {
         "mgr-mixed",
         "MixedCaseManager",
       );
-      expect(managerCookie).toContain("mgr-mixed");
+      says(managerCookie, "mgr-mixed");
 
       const agent = await createTestAgentSession({
         token: "agent-mixed",

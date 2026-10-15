@@ -4,7 +4,7 @@
  * `defineEntityPage`, so everything here goes through a real render.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeePage } from "#routes/admin/attendee-page.ts";
@@ -16,6 +16,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { seedHistoricalProcessedPayment } from "#test-utils/historical-payment-references.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
+import { says } from "#test-utils/says.ts";
 import { withTestSession } from "#test-utils/session.ts";
 import {
   bookAttendee,
@@ -55,7 +56,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
   describe("the overview tab", () => {
     test("names the attendee in the page title", async () => {
       const html = await tabHtml(await bookAttendee(), "");
-      assertStringIncludes(html, "Ada Lovelace");
+      says(html, "Ada Lovelace");
     });
 
     test("offers every tab the owner may open", async () => {
@@ -68,7 +69,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
         "activity",
         "actions",
       ]) {
-        assertStringIncludes(html, `/admin/attendees/${id}/${slug}`);
+        says(html, `/admin/attendees/${id}/${slug}`);
       }
     });
 
@@ -76,7 +77,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
       const id = await bookAttendee();
       await finalizeProcessedPayment("sess_page_refresh", id);
 
-      assertStringIncludes(
+      says(
         await tabHtml(id, ""),
         `action="/admin/attendees/${id}/refresh-payment"`,
       );
@@ -91,14 +92,8 @@ describeWithEnv("the attendee page", { db: true }, () => {
       );
 
       const html = await tabHtml(id, "");
-      assertStringIncludes(
-        html,
-        "This older payment does not record which provider took it",
-      );
-      assert(
-        !html.includes(`action="/admin/attendees/${id}/refresh-payment"`),
-        "the value should not contain the searched item",
-      );
+      says(html, "This older payment does not record which provider took it");
+      assert(!html.includes(`action="/admin/attendees/${id}/refresh-payment"`));
     });
   });
 
@@ -116,10 +111,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("is not even linked for a manager, so no one clicks a dead link", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "", MANAGER);
-      assert(
-        !html.includes(`/admin/attendees/${id}/ledger`),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes(`/admin/attendees/${id}/ledger`));
     });
   });
 
@@ -147,7 +139,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
       );
       // The hidden field itself — the admin nav also links /admin/calendar,
       // so a looser check would pass without the value ever being carried.
-      assertStringIncludes(
+      says(
         await response.text(),
         'name="return_url" type="hidden" value="/admin/calendar"',
       );
@@ -157,10 +149,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "edit");
       // No return URL means no hidden field, rather than an empty one.
-      assert(
-        !html.includes('name="return_url" type="hidden"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('name="return_url" type="hidden"'));
     });
   });
 
@@ -174,11 +163,8 @@ describeWithEnv("the attendee page", { db: true }, () => {
         "has@example.com",
       );
       const html = await tabHtml(attendee.id, "");
-      assertStringIncludes(html, "/t/");
-      assert(
-        !html.includes("No quantity"),
-        "the value should not contain the searched item",
-      );
+      says(html, "/t/");
+      assert(!html.includes("No quantity"));
     });
 
     test("says so instead of linking a ticket page that would not open", async () => {
@@ -191,12 +177,9 @@ describeWithEnv("the attendee page", { db: true }, () => {
       );
       await setBookingLineQuantity(attendee.id, listing.id, 0);
       const html = await tabHtml(attendee.id, "");
-      assertStringIncludes(html, "No quantity");
+      says(html, "No quantity");
       // The /t page 404s without a quantity, so it must not be linked at all.
-      assert(
-        !html.includes("/t/"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("/t/"));
     });
   });
 
@@ -206,7 +189,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
       const html = await tabHtml(id, "");
       // The preview's own link, not the tab strip's — the strip would still
       // link activity even if the preview pointed somewhere else.
-      assertStringIncludes(
+      says(
         html,
         `<a href="/admin/attendees/${id}/activity">View all activity</a>`,
       );
@@ -217,7 +200,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("sits at the attendee's own address, with no slug after it", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "");
-      assertStringIncludes(html, `href="/admin/attendees/${id}"`);
+      says(html, `href="/admin/attendees/${id}"`);
     });
   });
 
@@ -225,7 +208,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("marks Attendees as the section being viewed", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "");
-      assertStringIncludes(html, 'class="active" href="/admin/attendees"');
+      says(html, 'class="active" href="/admin/attendees"');
     });
   });
 
@@ -233,17 +216,14 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("is offered while the site can be written to", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "");
-      assertStringIncludes(html, "Add a note");
+      says(html, "Add a note");
     });
 
     test("is not offered once the site is read-only", async () => {
       const id = await bookAttendee();
       using _env = withEnv({ READ_ONLY_FROM: "2000-01-01" });
       const html = await tabHtml(id, "");
-      assert(
-        !html.includes("Add a note"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Add a note"));
     });
   });
 
@@ -251,7 +231,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("links back to the full activity history", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "ledger");
-      assertStringIncludes(
+      says(
         html,
         `<a href="/admin/attendees/${id}/activity">See the full plain-English log on the Activity tab</a>`,
       );

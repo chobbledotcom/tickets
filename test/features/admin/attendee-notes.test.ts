@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getNoteRows, getNotesFor } from "#db/notes/queries.ts";
@@ -8,6 +8,7 @@ import { setupAdminTest } from "#test-utils/admin-fixture.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("admin > attendee notes routes", { db: true }, () => {
@@ -16,8 +17,8 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     const response = await adminGet(`/admin/attendee/${attendee.id}/note`);
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, `action="/admin/attendee/${attendee.id}/note"`);
-    assertStringIncludes(html, 'name="note"');
+    says(html, `action="/admin/attendee/${attendee.id}/note"`);
+    says(html, 'name="note"');
   });
 
   test("GET on a missing attendee is a 404", async () => {
@@ -54,7 +55,7 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
       { note: "   " },
     );
     expect(response.status).toBe(400);
-    assertStringIncludes(await response.text(), "Enter a note");
+    says(await response.text(), "Enter a note");
     expect(await getNoteRows("attendee", [attendee.id])).toEqual([]);
   });
 
@@ -78,13 +79,10 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "Are you sure");
-    assertStringIncludes(html, "deletable note");
+    says(html, "Are you sure");
+    says(html, "deletable note");
     // The intermediate page never asks for the copy/paste confirmation.
-    assert(
-      !html.includes('name="confirm_identifier"'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('name="confirm_identifier"'));
   });
 
   test("GET delete on a missing note is a 404", async () => {

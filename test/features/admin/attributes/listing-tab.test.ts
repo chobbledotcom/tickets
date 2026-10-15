@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
@@ -7,6 +6,7 @@ import { expectFlashRedirect, expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttributeWithOptions } from "#test-utils/db-helpers/attributes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import { enableFeature } from "#test-utils/settings.ts";
 
@@ -35,9 +35,10 @@ describeWithEnv("server (listing attributes tab save)", { db: true }, () => {
       expect(
         selected.get(listing.id)![0]!.options.map((option) => option.text),
       ).toEqual(["Easy"]);
-      assertArrayIncludes((await activityMessages()) ?? [], [
+      has(
+        await activityMessages(),
         "Attributes updated for 'Climbing' (1 option)",
-      ]);
+      );
     });
 
     test("the save is refused while the attributes feature is off", async () => {

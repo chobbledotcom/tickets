@@ -1,6 +1,5 @@
 /* jscpd:ignore-start -- imports */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { reserveSession } from "#db/processed-payments.ts";
@@ -14,6 +13,7 @@ import {
 } from "#shared/sumup/checkout-resolution.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { asSession } from "#test-utils/payment-session.ts";
+import { says } from "#test-utils/says.ts";
 import {
   stageSignedMultiItemSumupCheckout,
   stageSignedSumupCheckout,
@@ -82,10 +82,7 @@ describeWithEnv("settlePaymentCallback", { db: true }, () => {
     );
 
     expect(outcome.kind).toBe("unpaid");
-    assertStringIncludes(
-      ("detail" in outcome && outcome.detail) || "",
-      "status=unpaid",
-    );
+    says(("detail" in outcome && outcome.detail) || "", "status=unpaid");
   });
 
   test("names the caller in what it records, so an operator can tell them apart", async () => {
@@ -96,10 +93,7 @@ describeWithEnv("settlePaymentCallback", { db: true }, () => {
       "Recovery check",
     );
 
-    assertStringIncludes(
-      ("detail" in outcome && outcome.detail) || "",
-      "Recovery check",
-    );
+    says(("detail" in outcome && outcome.detail) || "", "Recovery check");
   });
 
   test("will not touch money for a paid session nothing proves is ours", async () => {
@@ -122,7 +116,7 @@ describeWithEnv("settlePaymentCallback", { db: true }, () => {
     const outcome = await settleStaged("co_held", reference);
 
     expect(outcome.kind).toBe("held");
-    assertStringIncludes(
+    says(
       ("detail" in outcome && outcome.detail) || "",
       "Payment is being processed",
     );

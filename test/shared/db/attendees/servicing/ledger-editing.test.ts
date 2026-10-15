@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { costAccount } from "#accounting/accounts.ts";
@@ -9,6 +9,7 @@ import { transfersByAccount } from "#accounting/queries.ts";
 import { getServicingCosts } from "#db/attendees/servicing.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createServicingHold,
   editServiceCost,
@@ -71,10 +72,7 @@ describeWithEnv("servicing §22 - editing costs", { db: true }, () => {
         amount: "60.00",
       },
     );
-    assertStringIncludes(
-      response.headers.get("location") ?? "",
-      `/admin/servicing/${id}`,
-    );
+    says(response.headers.get("location"), `/admin/servicing/${id}`);
     expect(await listingCostOf(listing.id)).toBe(6000);
   });
 
@@ -94,11 +92,8 @@ describeWithEnv("servicing §22 - editing costs", { db: true }, () => {
     expect(costs[0]!.id).toBe(costId);
     expect(costs[0]!.memo).toBe("Boiler part");
     const body = await renderAdminPage(`/admin/servicing/${id}`);
-    assertStringIncludes(body, formatCurrency(6000));
-    assert(
-      !body.includes(formatCurrency(9000)),
-      "the value should not contain the searched item",
-    );
+    says(body, formatCurrency(6000));
+    assert(!body.includes(formatCurrency(9000)));
   });
 
   test("a second sequential edit uses the current adjusted amount, not the original", async () => {

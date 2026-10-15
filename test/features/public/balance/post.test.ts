@@ -1,4 +1,3 @@
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -15,6 +14,7 @@ import {
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { has, says } from "#test-utils/says.ts";
 import { testCsrfToken } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -32,7 +32,7 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     const token = await signBalanceToken(attendeeId);
     const response = await postPay(token);
     expect(response.status).toBe(200);
-    assertStringIncludes(await response.text(), "no tickets to pay for");
+    says(await response.text(), "no tickets to pay for");
   });
 
   test("POST rejects an invalid csrf token", async () => {
@@ -41,7 +41,7 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(`/pay/${token}`, { csrf_token: "invalid" }, ""),
     );
-    assertStringIncludes(await response.text(), "not valid");
+    says(await response.text(), "not valid");
   });
 
   test("POST starts a checkout for the balance", async () => {
@@ -56,8 +56,8 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
       ),
     );
     // Redirects to the hosted checkout (302/303) on success.
-    assertArrayIncludes([302, 303], [response.status]);
-    assertStringIncludes(response.headers.get("location") ?? "", "http");
+    has([302, 303], response.status);
+    says(response.headers.get("location"), "http");
   });
 
   test("POST builds a fee-free balance checkout intent for the outstanding amount", async () => {
@@ -115,14 +115,14 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
       mockFormRequest(`/pay/${token}`, { csrf_token: "wrong-token" }, ""),
     );
     expect(response.status).toBe(200);
-    assertStringIncludes(await response.text(), "not valid");
+    says(await response.text(), "not valid");
   });
 
   test("POST shows an error when no payment provider is configured", async () => {
     const attendeeId = await createReserved(1500);
     const token = await signBalanceToken(attendeeId);
     const response = await postPay(token);
-    assertStringIncludes(await response.text(), "not valid");
+    says(await response.text(), "not valid");
   });
 
   test("POST rejects an invalid CSRF token before checking the balance", async () => {
@@ -132,7 +132,7 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(`/pay/${token}`, { csrf_token: "bad-token" }, ""),
     );
-    assertStringIncludes(await response.text(), "not valid");
+    says(await response.text(), "not valid");
   });
 
   test("POST shows an error when the checkout cannot be created", async () => {
@@ -146,7 +146,7 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     );
     try {
       const response = await postPay(token);
-      assertStringIncludes(await response.text(), "not valid");
+      says(await response.text(), "not valid");
     } finally {
       checkoutStub.restore();
     }

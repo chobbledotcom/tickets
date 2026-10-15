@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { postTransfers } from "#accounting/store.ts";
@@ -13,6 +13,7 @@ import { testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, createTestManagerSession } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin ledger list views)", { db: true }, () => {
@@ -30,22 +31,19 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     await seededSale("Summer Concert", 2500);
     const html = await ledgerPageHtml("/admin/ledger?view=dual");
     // The sale leg credits the listing's revenue account, linked by its name.
-    assertStringIncludes(html, "Summer Concert");
-    assertStringIncludes(html, "/admin/ledger?listing=");
+    says(html, "Summer Concert");
+    says(html, "/admin/ledger?listing=");
     // The attendee leg resolves to a link too (name decrypted with the key).
-    assertStringIncludes(html, "Ada Lovelace");
-    assertStringIncludes(html, "/admin/ledger/attendee/");
-    assertStringIncludes(html, "<td>Booking made</td>");
-    assert(
-      !html.includes("<td>sale</td>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Ada Lovelace");
+    says(html, "/admin/ledger/attendee/");
+    says(html, "<td>Booking made</td>");
+    assert(!html.includes("<td>sale</td>"));
   });
 
   test("shows the empty state when no transfers exist", async () => {
     const response = await adminGet("/admin/ledger?view=dual");
     const html = await response.text();
-    assertStringIncludes(html, "No money changes yet.");
+    says(html, "No money changes yet.");
   });
 
   test("hides the external 'Card / bank' cash legs from the transfer list", async () => {
@@ -55,29 +53,20 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     await seededSale("Gala", 2500);
     const response = await adminGet("/admin/ledger?view=dual");
     const html = await response.text();
-    assertStringIncludes(html, "<td>Booking made</td>");
-    assert(
-      !html.includes("Card / bank"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<td>Booking made</td>");
+    assert(!html.includes("Card / bank"));
   });
 
   test("defaults the bare ledger page to the human view", async () => {
     await seededSale("Gala", 2500);
     const response = await adminGet("/admin/ledger");
     const html = await response.text();
-    assertStringIncludes(html, "<th>Activity</th>");
-    assertStringIncludes(html, "<strong>Simple view</strong>");
-    assertStringIncludes(html, "booked");
-    assertStringIncludes(html, "Gala");
-    assert(
-      !html.includes("<th>Event</th>"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("<td>sale</td>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<th>Activity</th>");
+    says(html, "<strong>Simple view</strong>");
+    says(html, "booked");
+    says(html, "Gala");
+    assert(!html.includes("<th>Event</th>"));
+    assert(!html.includes("<td>sale</td>"));
   });
 
   test("resolves a real modifier's name and links its leg to its Money page", async () => {
@@ -93,8 +82,8 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     const response = await adminGet("/admin/ledger");
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "Booking surcharge");
-    assertStringIncludes(html, `/admin/ledger/modifier/${modifier.id}`);
+    says(html, "Booking surcharge");
+    says(html, `/admin/ledger/modifier/${modifier.id}`);
   });
 
   /** The event label every bulk leg renders, used to count visible rows. */
@@ -132,7 +121,7 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     // so truncation is detected — the note shows and only the cap is rendered,
     // never the whole ledger.
     const html = await postBulkLegsAndGet(EXPECTED_DISPLAY_CAP + 1);
-    assertStringIncludes(html, "Showing the 500 most recent money changes.");
+    says(html, "Showing the 500 most recent money changes.");
     expect(renderedRowCount(html)).toBe(EXPECTED_DISPLAY_CAP);
   });
 
@@ -140,10 +129,7 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     // Exactly the cap: the LIMIT (cap + 1) returns no extra row, so no
     // truncation note, and all cap rows render.
     const html = await postBulkLegsAndGet(EXPECTED_DISPLAY_CAP);
-    assert(
-      !html.includes("Showing the 500 most recent money changes."),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Showing the 500 most recent money changes."));
     expect(renderedRowCount(html)).toBe(EXPECTED_DISPLAY_CAP);
   });
 });

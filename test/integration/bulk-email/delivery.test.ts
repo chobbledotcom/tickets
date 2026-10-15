@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hashEmail } from "#db/contact-preferences.ts";
@@ -24,6 +23,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("mailto links", () => {
   test("buildMailtoLink addresses a lone recipient directly without BCC", () => {
@@ -103,13 +103,10 @@ describeWithEnv("buildBulkPayload", { encryptionKey: true }, () => {
       const keepHash = await hashEmail("keep@example.com");
       const why =
         "You're receiving this because you registered for one of our listings.";
-      assertStringIncludes(payload.html, why);
-      assertStringIncludes(payload.text, why);
-      assertStringIncludes(
-        payload.html,
-        `<a href="${BULK_UNSUBSCRIBE_PLACEHOLDER}">`,
-      );
-      assertStringIncludes(
+      says(payload.html, why);
+      says(payload.text, why);
+      says(payload.html, `<a href="${BULK_UNSUBSCRIBE_PLACEHOLDER}">`);
+      says(
         payload.text,
         `Unsubscribe or manage your preferences: ${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
       );

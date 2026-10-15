@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
@@ -11,6 +11,7 @@ import {
   testGroup,
   testListingWithCount,
 } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 const moneyTotals = (
   overrides: Partial<ListingMoneyTotals> = {},
@@ -60,10 +61,10 @@ describe("group admin panels", () => {
           testListingWithCount({ attendee_count: 8, id: 2 }),
         ],
       });
-      assertStringIncludes(html, "Group Attendees");
-      assertStringIncludes(html, "20 / 50");
-      assertStringIncludes(html, "30 remain");
-      assertStringIncludes(html, "across all listings");
+      says(html, "Group Attendees");
+      says(html, "20 / 50");
+      says(html, "30 remain");
+      says(html, "across all listings");
     });
 
     test("Group Attendees row drops cap fragment when group is uncapped", () => {
@@ -77,7 +78,7 @@ describe("group admin panels", () => {
       );
       expect(groupRow).not.toBeNull();
       const capCell = groupRow![1];
-      assertStringIncludes(capCell ?? "", "(no group cap)");
+      says(capCell, "(no group cap)");
       assert(
         capCell !== undefined && !capCell.includes("remain"),
         "the value should not contain the searched item",
@@ -94,12 +95,9 @@ describe("group admin panels", () => {
         group,
         listings: [testListingWithCount({ attendee_count: 0 })],
       });
-      assertStringIncludes(html, "0 / 1");
-      assertStringIncludes(html, "1 remain");
-      assert(
-        !html.includes("(no group cap)"),
-        "the value should not contain the searched item",
-      );
+      says(html, "0 / 1");
+      says(html, "1 remain");
+      assert(!html.includes("(no group cap)"));
     });
 
     test("keeps one space between the meter and its scope note", () => {
@@ -108,23 +106,20 @@ describe("group admin panels", () => {
         group,
         listings: [testListingWithCount({ attendee_count: 20 })],
       });
-      assertStringIncludes(html, "30 remain</span> <small>");
+      says(html, "30 remain</span> <small>");
     });
 
     test("headlines the detail table with the group name across both columns", () => {
       const html = overviewHtml({ group: testGroup({ name: "Named Group" }) });
-      assertStringIncludes(html, '<th colspan="2">Named Group</th>');
+      says(html, '<th colspan="2">Named Group</th>');
     });
 
     test("keeps the hidden row off a group that is not hidden", () => {
       const html = overviewHtml({
         group: testGroup({ hidden: false, name: "Visible Group" }),
       });
-      assertStringIncludes(html, "Visible Group");
-      assert(
-        !html.includes(t("listings_table.yes_not_shown_in_public_list")),
-        "the value should not contain the searched item",
-      );
+      says(html, "Visible Group");
+      assert(!html.includes(t("listings_table.yes_not_shown_in_public_list")));
     });
 
     test("Group Attendees row gets danger-text when at cap", () => {
@@ -133,9 +128,9 @@ describe("group admin panels", () => {
         group,
         listings: [testListingWithCount({ attendee_count: 10 })],
       });
-      assertStringIncludes(html, "danger-text");
-      assertStringIncludes(html, "10 / 10");
-      assertStringIncludes(html, "0 remain");
+      says(html, "danger-text");
+      says(html, "10 / 10");
+      says(html, "0 remain");
     });
 
     test("shows a running-total mismatch for group listings", () => {
@@ -160,9 +155,9 @@ describe("group admin panels", () => {
           }),
         ],
       });
-      assertStringIncludes(html, "Running total check");
-      assertStringIncludes(html, "expected <strong>2</strong>, got");
-      assertStringIncludes(html, "Review group listings");
+      says(html, "Running total check");
+      says(html, "expected <strong>2</strong>, got");
+      says(html, "Review group listings");
     });
 
     test("shows income for an override-priced package whose listings are free", () => {
@@ -180,7 +175,7 @@ describe("group admin panels", () => {
         hasPaidListing: true,
         listings,
       });
-      assertStringIncludes(withRevenue, "Total income earned");
+      says(withRevenue, "Total income earned");
 
       // Without a paid listing the revenue row is omitted entirely.
       const withoutRevenue = overviewHtml({
@@ -189,10 +184,7 @@ describe("group admin panels", () => {
         hasPaidListing: false,
         listings,
       });
-      assert(
-        !withoutRevenue.includes("Total income earned"),
-        "the value should not contain the searched item",
-      );
+      assert(!withoutRevenue.includes("Total income earned"));
     });
 
     test("summarises group income and servicing costs with a filtered ledger link", () => {
@@ -214,26 +206,20 @@ describe("group admin panels", () => {
           transferCount: 3,
         }),
       });
-      assertStringIncludes(html, "Money in and out");
-      assertStringIncludes(html, "Total income earned");
-      assertStringIncludes(html, "+£200");
-      assertStringIncludes(html, "Service event costs");
-      assertStringIncludes(html, "Refunds");
-      assertStringIncludes(html, "−£12");
-      assertStringIncludes(html, "−£40");
-      assertStringIncludes(html, "Net after refunds and costs");
-      assertStringIncludes(html, "£160");
-      assert(
-        !html.includes("+£160"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(
-        html,
-        "<strong>Net after refunds and costs</strong>",
-      );
-      assertStringIncludes(html, 'href="/admin/ledger?group=8"');
-      assertStringIncludes(html, "View this group's money changes");
-      assertStringIncludes(html, "View every change in the group's money.");
+      says(html, "Money in and out");
+      says(html, "Total income earned");
+      says(html, "+£200");
+      says(html, "Service event costs");
+      says(html, "Refunds");
+      says(html, "−£12");
+      says(html, "−£40");
+      says(html, "Net after refunds and costs");
+      says(html, "£160");
+      assert(!html.includes("+£160"));
+      says(html, "<strong>Net after refunds and costs</strong>");
+      says(html, 'href="/admin/ledger?group=8"');
+      says(html, "View this group's money changes");
+      says(html, "View every change in the group's money.");
     });
 
     test("does not offer a forbidden ledger link without owner access", () => {
@@ -248,11 +234,8 @@ describe("group admin panels", () => {
           transferCount: 1,
         }),
       });
-      assertStringIncludes(html, "Total income earned");
-      assert(
-        !html.includes("/admin/ledger?group=8"),
-        "the value should not contain the searched item",
-      );
+      says(html, "Total income earned");
+      assert(!html.includes("/admin/ledger?group=8"));
     });
 
     test("shows money and its ledger link for a free group with only costs", () => {
@@ -266,10 +249,10 @@ describe("group admin panels", () => {
           transferCount: 1,
         }),
       });
-      assertStringIncludes(html, "Money in and out");
-      assertStringIncludes(html, "Service event costs");
-      assertStringIncludes(html, "−£30");
-      assertStringIncludes(html, 'href="/admin/ledger?group=8"');
+      says(html, "Money in and out");
+      says(html, "Service event costs");
+      says(html, "−£30");
+      says(html, 'href="/admin/ledger?group=8"');
     });
 
     test("shows ledger income in the group detail table", () => {
@@ -278,7 +261,7 @@ describe("group admin panels", () => {
         hasPaidListing: false,
         money: moneyTotals({ recognisedIncome: 2500 }),
       });
-      assertStringIncludes(html, "<th>Total Revenue</th><td>£25</td>");
+      says(html, "<th>Total Revenue</th><td>£25</td>");
     });
 
     test("shows money and its ledger link for a free group with only outside costs", () => {
@@ -292,12 +275,12 @@ describe("group admin panels", () => {
           transferCount: 1,
         }),
       });
-      assertStringIncludes(html, "Money in and out");
-      assertStringIncludes(
+      says(html, "Money in and out");
+      says(
         html,
         '<th>Costs paid outside checkout</th><td class="col-amount">−£30</td>',
       );
-      assertStringIncludes(html, 'href="/admin/ledger?group=8"');
+      says(html, 'href="/admin/ledger?group=8"');
     });
 
     test("suppresses the public URL / QR / embed when the group isn't shareable", () => {
@@ -305,30 +288,24 @@ describe("group admin panels", () => {
       const listings = [testListingWithCount({ attendee_count: 0, id: 1 })];
 
       const shareable = overviewHtml({ group, listings, shareable: true });
-      assertStringIncludes(shareable, `localhost/ticket/${group.slug}`);
-      assertStringIncludes(shareable, `embed-script-${group.id}`);
+      says(shareable, `localhost/ticket/${group.slug}`);
+      says(shareable, `embed-script-${group.id}`);
       // The Embed action is a label for the hidden toggle, and the embed code
       // rows start hidden, exactly as on the listing page.
-      assertStringIncludes(
+      says(
         shareable,
         `<label class="small-action" for="embed-toggle-${group.id}">Embed</label>`,
       );
-      assertStringIncludes(
+      says(
         shareable,
         `class="visually-hidden embed-toggle" id="embed-toggle-${group.id}" type="checkbox"`,
       );
       expect((shareable.match(/class="embed-code-row"/g) ?? []).length).toBe(2);
 
       const unshareable = overviewHtml({ group, listings, shareable: false });
-      assert(
-        !unshareable.includes(`localhost/ticket/${group.slug}`),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !unshareable.includes(`embed-script-${group.id}`),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(unshareable, "isn't currently bookable");
+      assert(!unshareable.includes(`localhost/ticket/${group.slug}`));
+      assert(!unshareable.includes(`embed-script-${group.id}`));
+      says(unshareable, "isn't currently bookable");
     });
 
     test("shows the check-in, revenue, and answer rows the shared stats build", () => {
@@ -340,10 +317,10 @@ describe("group admin panels", () => {
         money: moneyTotals({ recognisedIncome: 2500 }),
         questionData: sizeQuestionAnswerData(),
       });
-      assertStringIncludes(html, "<th>Total Revenue</th><td>£25</td>");
-      assertStringIncludes(html, "<th>Tickets Checked In</th>");
-      assertStringIncludes(html, "Size?");
-      assertStringIncludes(html, "Small (2), Large (1)");
+      says(html, "<th>Total Revenue</th><td>£25</td>");
+      says(html, "<th>Tickets Checked In</th>");
+      says(html, "Size?");
+      says(html, "Small (2), Large (1)");
     });
 
     test("leaves the answer rows out when the group carries no questions", () => {
@@ -351,11 +328,8 @@ describe("group admin panels", () => {
         group: testGroup({ id: 8 }),
         money: moneyTotals({ recognisedIncome: 2500 }),
       });
-      assertStringIncludes(html, "<th>Total Revenue</th><td>£25</td>");
-      assert(
-        !html.includes("Size?"),
-        "the value should not contain the searched item",
-      );
+      says(html, "<th>Total Revenue</th><td>£25</td>");
+      assert(!html.includes("Size?"));
     });
 
     test("offers ungrouped listings as add-to-group candidates", () => {
@@ -364,9 +338,9 @@ describe("group admin panels", () => {
         group,
         ungroupedListings: [testListingWithCount({ id: 7, name: "Joinable" })],
       });
-      assertStringIncludes(html, "<strong>Add listings:</strong>");
-      assertStringIncludes(html, 'value="7"');
-      assertStringIncludes(html, "Joinable");
+      says(html, "<strong>Add listings:</strong>");
+      says(html, 'value="7"');
+      says(html, "Joinable");
     });
 
     test("shows deactivated candidates muted and last in the add-to-group list", () => {
@@ -407,7 +381,7 @@ describe("group admin panels", () => {
         '<input disabled name="listing_ids" type="checkbox" value="8"',
       );
       expect(striker).toBeGreaterThan(joinable);
-      assertStringIncludes(
+      says(
         html,
         t("groups.candidate_type_blocked", {
           candidate: "daily",
@@ -437,7 +411,7 @@ describe("group admin panels", () => {
         ],
       });
       expect(html).toMatch(/<input disabled[^>]*value="9"/);
-      assertStringIncludes(html, t("groups.candidate_days_blocked_fixed"));
+      says(html, t("groups.candidate_days_blocked_fixed"));
     });
 
     test("an enabled candidate carries no disabled marker", () => {

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -11,6 +11,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { resetSentry } from "#test-utils/sentry.ts";
 import {
   adminFormPost,
@@ -48,20 +49,17 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
     const response = await adminGet("/admin/debug");
     const html = await response.text();
     expect(response.status).toBe(200);
-    assertStringIncludes(html, 'action="/admin/debug/sentry"');
-    assertStringIncludes(html, 'class="inline"');
-    assertStringIncludes(html, 'id="debug-sentry-test"');
-    assertStringIncludes(html, ">Test Sentry</button>");
+    says(html, 'action="/admin/debug/sentry"');
+    says(html, 'class="inline"');
+    says(html, 'id="debug-sentry-test"');
+    says(html, ">Test Sentry</button>");
   });
 
   test("hides the test form when Sentry is not configured", async () => {
     using _env = withEnv({ SENTRY_URL: undefined });
     const html = await (await adminGet("/admin/debug")).text();
-    assertStringIncludes(html, "Sentry URL");
-    assert(
-      !html.includes('action="/admin/debug/sentry"'),
-      "the value should not contain the searched item",
-    );
+    says(html, "Sentry URL");
+    assert(!html.includes('action="/admin/debug/sentry"'));
   });
 
   test("sends a tagged test error and confirms delivery", async () => {
@@ -86,12 +84,9 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
       // The exact values sendSentryTest (src/shared/sentry.ts) writes today —
       // keep these literals in sync with that source.
       expect(envelopes).toHaveLength(1);
-      assertStringIncludes(
-        envelopes[0] ?? "",
-        "Test Sentry notification from the admin debug page.",
-      );
-      assertStringIncludes(envelopes[0] ?? "", '"source":"admin-debug"');
-      assertStringIncludes(envelopes[0] ?? "", '"test":"true"');
+      says(envelopes[0], "Test Sentry notification from the admin debug page.");
+      says(envelopes[0], '"source":"admin-debug"');
+      says(envelopes[0], '"test":"true"');
     } finally {
       resetSentry();
     }

@@ -6,7 +6,7 @@
  * admin routes and tested there.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -23,6 +23,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
 describe("EMPTY_QR_VALUES", () => {
@@ -82,13 +83,13 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       const response = await adminGet(`/admin/listing/${listing.id}/qr`);
       expect(response.status).toBe(200);
       const body = await response.text();
-      assertStringIncludes(body, 'name="customer_name"');
+      says(body, 'name="customer_name"');
       // The customer name input carries the contact-field cap, like every
       // other hand-rendered contact input.
-      assertStringIncludes(body, 'maxlength="250"');
-      assertStringIncludes(body, 'name="value"');
-      assertStringIncludes(body, 'name="quantity"');
-      assertStringIncludes(body, 'value="1"');
+      says(body, 'maxlength="250"');
+      says(body, 'name="value"');
+      says(body, 'name="quantity"');
+      says(body, 'value="1"');
     });
 
     test("shows green indicator for listing with no extra fields, red when extra fields required", async () => {
@@ -104,15 +105,15 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       });
       const r1 = await adminGet(`/admin/listing/${noFields.id}/qr`);
       const r2 = await adminGet(`/admin/listing/${withFields.id}/qr`);
-      assertStringIncludes(await r1.text(), 'class="success-text"');
-      assertStringIncludes(await r2.text(), 'class="danger-text"');
+      says(await r1.text(), 'class="success-text"');
+      says(await r2.text(), 'class="danger-text"');
     });
 
     test("shows a date selector for daily listings", async () => {
       const listing = await createDailyTestListing({ unitPrice: 500 });
       const response = await adminGet(`/admin/listing/${listing.id}/qr`);
       const body = await response.text();
-      assertStringIncludes(body, 'name="date"');
+      says(body, 'name="date"');
     });
 
     test("offers single-day dates for a customisable daily listing", async () => {
@@ -125,10 +126,10 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       });
       const response = await adminGet(`/admin/listing/${listing.id}/qr`);
       const body = await response.text();
-      assertStringIncludes(body, 'name="date"');
+      says(body, 'name="date"');
       // A date one day before the window edge supports a single day even though
       // it can't fit the 2-day maximum — single-day availability still offers it.
-      assertStringIncludes(body, addDays(testDate(todayInTz("UTC")), 60));
+      says(body, addDays(testDate(todayInTz("UTC")), 60));
     });
 
     test("offers only child-servable dates for a daily parent", async () => {
@@ -143,11 +144,8 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
 
       const response = await adminGet(`/admin/listing/${parent.id}/qr`);
       const body = await response.text();
-      assertStringIncludes(body, `value="${servable}"`);
-      assert(
-        !body.includes(`value="${unservable}"`),
-        "the value should not contain the searched item",
-      );
+      says(body, `value="${servable}"`);
+      assert(!body.includes(`value="${unservable}"`));
     });
 
     test("omits the date selector for standard listings", async () => {
@@ -157,10 +155,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       });
       const response = await adminGet(`/admin/listing/${listing.id}/qr`);
       const body = await response.text();
-      assert(
-        !body.includes('name="date"'),
-        "the value should not contain the searched item",
-      );
+      assert(!body.includes('name="date"'));
     });
   });
 
@@ -196,11 +191,8 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       );
       expect(response.status).toBe(200);
       const body = await response.text();
-      assertStringIncludes(body, "Quantity must be at most 2.");
-      assert(
-        !body.includes("/qr-book?t="),
-        "the value should not contain the searched item",
-      );
+      says(body, "Quantity must be at most 2.");
+      assert(!body.includes("/qr-book?t="));
     });
 
     test("renders a validation error when quantity is not a strict integer", async () => {
@@ -213,10 +205,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
         { quantity: "2x" },
       );
       const body = await response.text();
-      assertStringIncludes(
-        body,
-        "Enter a whole-number quantity of at least 1.",
-      );
+      says(body, "Enter a whole-number quantity of at least 1.");
     });
 
     test("renders a validation error when daily listing is missing a date", async () => {
@@ -230,7 +219,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
         },
       );
       const body = await response.text();
-      assertStringIncludes(body, "Date is required");
+      says(body, "Date is required");
     });
 
     test("refuses a customer name the booking form would reject", async () => {
@@ -248,11 +237,8 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       );
       expect(response.status).toBe(200);
       const body = await response.text();
-      assertStringIncludes(body, "Name must be 250 characters or fewer");
-      assert(
-        !body.includes("/qr-book?t="),
-        "the value should not contain the searched item",
-      );
+      says(body, "Name must be 250 characters or fewer");
+      assert(!body.includes("/qr-book?t="));
     });
 
     test("returns 404 when the listing does not exist", async () => {
@@ -274,11 +260,8 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
         { customer_name: "Ada", date: unservable, quantity: "1" },
       );
       const body = await response.text();
-      assertStringIncludes(body, "Please select a valid date");
-      assert(
-        !body.includes("/qr-book?t="),
-        "the value should not contain the searched item",
-      );
+      says(body, "Please select a valid date");
+      assert(!body.includes("/qr-book?t="));
     });
 
     test("renders a validation error for pay-more price below minimum", async () => {
@@ -296,7 +279,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
         },
       );
       const body = await response.text();
-      assertStringIncludes(body, "at least the minimum");
+      says(body, "at least the minimum");
     });
 
     test("an inactive listing's share actions and QR generators are gone", async () => {
@@ -310,7 +293,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
         (await adminGet(`/admin/listing/${listing.id}`)).text();
 
       const before = await overview();
-      assertStringIncludes(before, "/ticket/");
+      says(before, "/ticket/");
 
       const { deactivateTestListing, reactivateTestListing } = await import(
         "#test-utils/db-helpers/listings.ts"
@@ -320,15 +303,9 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       // The overview hides the public URL, QR, and embed controls whose
       // destinations would 404, and names the state honestly.
       const after = await overview();
-      assert(
-        !after.includes(`href="${listing.slug}"`),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !after.includes(`/admin/listing/${listing.id}/qr">`),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(after, "inactive");
+      assert(!after.includes(`href="${listing.slug}"`));
+      assert(!after.includes(`/admin/listing/${listing.id}/qr">`));
+      says(after, "inactive");
 
       // The generator refuses before minting anything, and a signed QR
       // refresh is equally closed.
@@ -350,7 +327,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       publicQr.body?.cancel();
 
       await reactivateTestListing(listing.id);
-      assertStringIncludes(await overview(), "/ticket/");
+      says(await overview(), "/ticket/");
     });
   });
 
@@ -379,17 +356,14 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
         `/admin/listing/${listing.id}/qr.json?customer_name=Ada&value=7.50&quantity=2`,
       );
       expect(response.status).toBe(200);
-      assertStringIncludes(
-        response.headers.get("content-type") ?? "",
-        "application/json",
-      );
+      says(response.headers.get("content-type"), "application/json");
       const body = (await response.json()) as {
         ok: boolean;
         url: string;
         svg: string;
       };
       expect(body.ok).toBe(true);
-      assertStringIncludes(body.svg, "<svg");
+      says(body.svg, "<svg");
       const match = body.url.match(/\/qr-book\?t=([^&]+)/);
       expect(match).not.toBeNull();
       const token = decodeURIComponent(match![1]!);
@@ -414,7 +388,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
         error?: string;
       };
       expect(body.ok).toBe(false);
-      assertStringIncludes(body.error ?? "", "Quantity must be at most 2.");
+      says(body.error, "Quantity must be at most 2.");
     });
 
     test("signs a different token each minute (fresh expiry)", async () => {

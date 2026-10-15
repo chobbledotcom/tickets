@@ -1,6 +1,5 @@
 /* jscpd:ignore-start -- imports */
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -9,6 +8,7 @@ import {
 } from "#payment/sumup-recovery-machine-spec.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import { sumupRecoveryAtlas as atlas } from "#shared/schema-atlas/sumup-recovery.ts";
+import { has } from "#test-utils/says.ts";
 
 /* jscpd:ignore-end */
 
@@ -106,9 +106,9 @@ describe("sumup recovery atlas", () => {
   });
 
   test("joins the machines the schema page folds over", () => {
-    assertArrayIncludes(
+    has(
       SCHEMA_ATLAS_MACHINES.map((machine) => machine.id),
-      ["sumup_recovery"],
+      "sumup_recovery",
     );
   });
 });

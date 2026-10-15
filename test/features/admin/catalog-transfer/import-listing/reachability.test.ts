@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { countRows, execute } from "#db/client.ts";
@@ -16,6 +15,7 @@ import {
   linkModifierGroup,
   patchModifier,
 } from "#test-utils/modifiers.ts";
+import { says } from "#test-utils/says.ts";
 
 // Child add-on reachability on import lives in its own file: the setup creates
 // listings, a group, and an opt-in modifier, and folding it into
@@ -56,8 +56,8 @@ describeWithEnv(
       if (result.ok) throw new Error("unreachable");
       // The edge editor's own child-add-on message (its {addon}/{name}
       // placeholders are quote-escaped in the locale, so assert its stable prose).
-      assertStringIncludes(result.error, "opt-in add-on");
-      assertStringIncludes(result.error, "offering it as a child");
+      says(result.error, "opt-in add-on");
+      says(result.error, "offering it as a child");
     });
 
     test("accepts a bookable-alone child even when only it reaches the add-on", async () => {
@@ -134,7 +134,7 @@ describeWithEnv(
 
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("The import should be rejected");
-      assertStringIncludes(result.error, "Imported race extra");
+      says(result.error, "Imported race extra");
       expect(await countRows("listings")).toBe(before);
       expect(await modifierListings.getIds(modifier.id)).toEqual([]);
       expect(

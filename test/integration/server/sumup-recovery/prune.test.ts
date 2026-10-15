@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryAll } from "#db/client.ts";
@@ -12,6 +12,7 @@ import {
 import { PRUNE_SUMUP_RETENTION_MS } from "#shared/limits.ts";
 import { isoBefore } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { has } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -76,6 +77,6 @@ describeWithEnv("server > SumUp recovery pruning", { db: true }, () => {
     await runDatabasePruning(null);
     await runDatabasePruning(null);
 
-    assertArrayIncludes((await survivingStates()) ?? [], ["owed"]);
+    has(await survivingStates(), "owed");
   });
 });

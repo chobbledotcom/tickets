@@ -5,7 +5,7 @@
  * affordances and routes stay parent-only.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -16,6 +16,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { makeParent } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -37,16 +38,10 @@ describeWithEnv(
         ).text();
         // Child is inactive (not in feed regardless) and the parent has no
         // bookable child, so the parent is omitted; the plain listing remains.
-        assert(
-          !rss.includes("FeedParent"),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !rss.includes("FeedChild"),
-          "the value should not contain the searched item",
-        );
-        assertStringIncludes(rss, "FeedPlain");
-        assertStringIncludes(rss, `/ticket/${plain.slug}`);
+        assert(!rss.includes("FeedParent"));
+        assert(!rss.includes("FeedChild"));
+        says(rss, "FeedPlain");
+        says(rss, `/ticket/${plain.slug}`);
       });
 
       test("omits a visible child item from the feed", async () => {
@@ -60,11 +55,8 @@ describeWithEnv(
         ).text();
         // Parent is bookable (one available child) so it stays; the child's own
         // standalone item is omitted.
-        assertStringIncludes(ics, "VisParent");
-        assert(
-          !ics.includes(`/ticket/${child.slug}`),
-          "the value should not contain the searched item",
-        );
+        says(ics, "VisParent");
+        assert(!ics.includes(`/ticket/${child.slug}`));
       });
     });
 
@@ -76,12 +68,9 @@ describeWithEnv(
         });
         const plain = await createTestListing({ name: "MbPlain" });
         const body = await (await adminGet("/admin/listings")).text();
-        assertStringIncludes(body, `data-multi-booking-slug="${parent.slug}"`);
-        assertStringIncludes(body, `data-multi-booking-slug="${plain.slug}"`);
-        assert(
-          !body.includes(`data-multi-booking-slug="${child.slug}"`),
-          "the value should not contain the searched item",
-        );
+        says(body, `data-multi-booking-slug="${parent.slug}"`);
+        says(body, `data-multi-booking-slug="${plain.slug}"`);
+        assert(!body.includes(`data-multi-booking-slug="${child.slug}"`));
       });
     });
 
@@ -94,36 +83,15 @@ describeWithEnv(
         const body = await (
           await adminGet(`/admin/listing/${child.id}`)
         ).text();
-        assert(
-          !body.includes(`/admin/listing/${child.id}/qr`),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !body.includes(`/ticket/${child.slug}/qr`),
-          "the value should not contain the searched item",
-        );
-        assertStringIncludes(
-          body,
-          "it has no standalone booking link, embed, or QR code",
-        );
+        assert(!body.includes(`/admin/listing/${child.id}/qr`));
+        assert(!body.includes(`/ticket/${child.slug}/qr`));
+        says(body, "it has no standalone booking link, embed, or QR code");
         // The public booking URL and both embed snippets are suppressed too — a
         // child has no standalone entry point to share or embed.
-        assert(
-          !body.includes(`/ticket/${child.slug}`),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !body.includes(`embed-toggle-${child.id}`),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !body.includes(`embed-script-${child.id}`),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !body.includes(`embed-iframe-${child.id}`),
-          "the value should not contain the searched item",
-        );
+        assert(!body.includes(`/ticket/${child.slug}`));
+        assert(!body.includes(`embed-toggle-${child.id}`));
+        assert(!body.includes(`embed-script-${child.id}`));
+        assert(!body.includes(`embed-iframe-${child.id}`));
       });
 
       test("a parent detail page keeps its share/QR affordances", async () => {
@@ -134,12 +102,12 @@ describeWithEnv(
         const body = await (
           await adminGet(`/admin/listing/${parent.id}`)
         ).text();
-        assertStringIncludes(body, `/admin/listing/${parent.id}/qr`);
+        says(body, `/admin/listing/${parent.id}/qr`);
         // A non-child parent keeps its public URL and both embed snippets, so the
         // suppression is genuinely conditional on being a child.
-        assertStringIncludes(body, `/ticket/${parent.slug}`);
-        assertStringIncludes(body, `embed-script-${parent.id}`);
-        assertStringIncludes(body, `embed-iframe-${parent.id}`);
+        says(body, `/ticket/${parent.slug}`);
+        says(body, `embed-script-${parent.id}`);
+        says(body, `embed-iframe-${parent.id}`);
       });
 
       test("the child QR generator route 404s", async () => {

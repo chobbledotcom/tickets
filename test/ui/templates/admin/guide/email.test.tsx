@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { renderGuideSections } from "#templates/admin/guide/components.tsx";
@@ -8,6 +8,7 @@ import {
   expectVariablesShown,
   shown,
 } from "#test-utils/email-template-reference.ts";
+import { says } from "#test-utils/says.ts";
 
 const renderEmailGuide = (): string =>
   String(renderGuideSections(emailSections()));
@@ -28,23 +29,17 @@ describe("guide > email sections", () => {
 
   test("the variables entry shows the worked loop and the availability note", () => {
     const html = renderEmailGuide();
-    assertStringIncludes(
-      html,
-      `<pre><code>${shown(LOOP_EXAMPLE)}</code></pre>`,
-    );
-    assertStringIncludes(
-      html,
-      t("settings.advanced.email_variables.not_available"),
-    );
+    says(html, `<pre><code>${shown(LOOP_EXAMPLE)}</code></pre>`);
+    says(html, t("settings.advanced.email_variables.not_available"));
   });
 
   test("the host email note renders with its links and joins intact", () => {
     const html = String(renderGuideSections(emailSections(hostWithEmail)));
-    assertStringIncludes(
+    says(
       html,
       "using <strong>Host Mail</strong> and the address <code>host@example.com</code>. You can use your own company instead",
     );
-    assertStringIncludes(
+    says(
       html,
       'enter it in <a href="/admin/settings-advanced#settings-email">Advanced Settings</a>. Your own settings come first',
     );
@@ -52,27 +47,24 @@ describe("guide > email sections", () => {
 
   test("the setup steps and section anchors render exactly", () => {
     const html = renderEmailGuide();
-    assertStringIncludes(
+    says(
       html,
       'Go to <a href="/admin/settings-advanced#settings-email">Advanced Settings</a> and find the <strong>Email</strong> section',
     );
-    assertStringIncludes(html, "Choose your email company from the dropdown");
-    assertStringIncludes(html, '<h3 id="email">');
-    assertStringIncludes(html, '<h3 id="email-templates">');
-    assertStringIncludes(html, '<h3 id="bulk-email">');
+    says(html, "Choose your email company from the dropdown");
+    says(html, '<h3 id="email">');
+    says(html, '<h3 id="email-templates">');
+    says(html, '<h3 id="bulk-email">');
   });
 
   test("the filters entry names both filters with their examples", () => {
     const html = renderEmailGuide();
-    assertStringIncludes(
-      html,
-      "<code>{{ amount | currency }}</code> — formats a number",
-    );
-    assertStringIncludes(
+    says(html, "<code>{{ amount | currency }}</code> — formats a number");
+    says(
       html,
       "<code>{{ count | pluralize: &quot;ticket&quot;, &quot;tickets&quot; }}</code> — returns the singular",
     );
-    assertStringIncludes(
+    says(
       html,
       "<code>{{ listing_names }}</code> — All listing names, joined with &quot;and&quot;",
     );
@@ -80,13 +72,7 @@ describe("guide > email sections", () => {
 
   test("every settings link opens the advanced settings page", () => {
     const html = renderEmailGuide();
-    assert(
-      !html.includes('href="/admin/settings"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(
-      html,
-      'href="/admin/settings-advanced#settings-email"',
-    );
+    assert(!html.includes('href="/admin/settings"'));
+    says(html, 'href="/admin/settings-advanced#settings-email"');
   });
 });

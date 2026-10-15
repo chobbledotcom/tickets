@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
@@ -9,6 +8,7 @@ import {
   defineTable,
 } from "#shared/tables/definition.ts";
 import { defineTableLayout } from "#shared/tables/layout.ts";
+import { says } from "#test-utils/says.ts";
 
 type Row = { name: string; status: string };
 
@@ -42,10 +42,7 @@ describe("defineTable", () => {
     expect(table.layout.defaultColumnKeys).toEqual(["name"]);
     expect(table.layout.parse("{{status}}").columnKeys).toEqual(["status"]);
     expect(table.layout.validate("{{status}}")).toBe(null);
-    assertStringIncludes(
-      table.layout.validate("{{missing}}") ?? "",
-      'Unknown column "missing"',
-    );
+    says(table.layout.validate("{{missing}}"), 'Unknown column "missing"');
   });
 
   test("rejects an empty column list", () => {

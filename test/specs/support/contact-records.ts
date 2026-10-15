@@ -24,6 +24,7 @@ import type {
   TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { says } from "#test-utils/says.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -131,7 +132,7 @@ export const saveRecord = async (
 ): Promise<TestBrowser> => {
   const browser = await openRecord(world, email);
   for (const box of Object.values(BOXES)) {
-    expect(browser.currentHtml).toContain(`name="${box}"`);
+    says(browser.currentHtml, `name="${box}"`);
   }
   const values = Object.fromEntries(
     mapNotNullish(([word, box]: [string, string]) => {

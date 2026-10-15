@@ -14,12 +14,13 @@
  */
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { createServicingHold, renderAdminPage } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
@@ -72,12 +73,9 @@ describeWithEnv(
       await createTestListing({ maxAttendees: 10, name: "Servicing Target" });
       const body = await renderAdminPage("/admin/servicing/new");
       for (const field of SERVICING_CREATE_CONTACT_FIELDS) {
-        assert(
-          !body.includes(field),
-          "the value should not contain the searched item",
-        );
+        assert(!body.includes(field));
       }
-      assertStringIncludes(body, 'name="name"');
+      says(body, 'name="name"');
       expect(body).toMatch(/day_count|start_date/);
     });
   },

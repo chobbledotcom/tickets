@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
@@ -10,6 +10,7 @@ import {
 import { PaymentDetails } from "#templates/admin/attendees.tsx";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 const attendeeStatus = (
   overrides: Partial<AttendeeStatus> = {},
@@ -109,10 +110,7 @@ describe("attendee page blocks", () => {
     expect(html).toMatch(
       /^<div class="page-block attendee-banner"><section class="attendee-notes">[\s\S]*<p>Bring identification<\/p>[\s\S]*<\/section><\/div>$/,
     );
-    assert(
-      !html.includes("attendee-status"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("attendee-status"));
   });
 
   test("keeps a note's ledger link for owners but demotes it for other admins", () => {
@@ -124,16 +122,13 @@ describe("attendee page blocks", () => {
     // The ledger pages are owner-only, so a non-owner's note renders the
     // words without the link — a rendered link is a promise that it works.
     const staffHtml = String(renderBanner([attendeeStatus()], [ledgerNote]));
-    assertStringIncludes(staffHtml, "check the ledger");
-    assert(
-      !staffHtml.includes('href="/admin/ledger/attendee/1"'),
-      "the value should not contain the searched item",
-    );
+    says(staffHtml, "check the ledger");
+    assert(!staffHtml.includes('href="/admin/ledger/attendee/1"'));
 
     const ownerHtml = String(
       renderBanner([attendeeStatus()], [ledgerNote], true),
     );
-    assertStringIncludes(ownerHtml, 'href="/admin/ledger/attendee/1"');
+    says(ownerHtml, 'href="/admin/ledger/attendee/1"');
   });
 
   test("omits the payment block when the attendee has no payment", () => {
@@ -158,12 +153,9 @@ describe("attendee page blocks", () => {
       }),
     );
 
-    assertStringIncludes(html, "Payment Details");
-    assertStringIncludes(html, 'action="/admin/attendees/7/refresh-payment"');
-    assert(
-      !html.includes("Payment ID:"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Payment Details");
+    says(html, 'action="/admin/attendees/7/refresh-payment"');
+    assert(!html.includes("Payment ID:"));
   });
 
   test("does not promise refresh for an unindexed legacy payment", () => {
@@ -175,11 +167,8 @@ describe("attendee page blocks", () => {
       }),
     );
 
-    assertStringIncludes(html, "pi_legacy");
-    assert(
-      !html.includes("/refresh-payment"),
-      "the value should not contain the searched item",
-    );
+    says(html, "pi_legacy");
+    assert(!html.includes("/refresh-payment"));
   });
 
   test("explains an older provider-unknown payment without a dead form", () => {
@@ -192,11 +181,8 @@ describe("attendee page blocks", () => {
       }),
     );
 
-    assertStringIncludes(html, "Payment Details");
-    assertStringIncludes(html, message);
-    assert(
-      !html.includes("/refresh-payment"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Payment Details");
+    says(html, message);
+    assert(!html.includes("/refresh-payment"));
   });
 });

@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -6,6 +6,7 @@ import builtSitesUpdatesMigration from "#db/migrations/2026-06-24_built_sites_up
 import { applySchemaChanges } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { has } from "#test-utils/says.ts";
 
 const context = buildMigrationContext({ applySchemaChanges });
 
@@ -52,14 +53,11 @@ describeWithEnv(
     test("adds the updates column, defaulting existing rows to release", async () => {
       await createPreUpdatesTable();
       await insertSite();
-      assert(
-        !(await columnNames()).includes("updates"),
-        "the value should not contain the searched item",
-      );
+      assert(!(await columnNames()).includes("updates"));
 
       await runMigration();
 
-      assertArrayIncludes((await columnNames()) ?? [], ["updates"]);
+      has(await columnNames(), "updates");
       const { rows } = await getDb().execute("SELECT updates FROM built_sites");
       // A site that predates the channel feature lands on the safe default.
       expect(rows[0]?.updates).toBe("release");

@@ -1,4 +1,3 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -18,6 +17,7 @@ import {
   getProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { saysNot } from "#test-utils/says.ts";
 
 /** Perform the full two-phase reserve+finalize as production code does */
 const processSession = async (
@@ -50,8 +50,9 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       const result = await getProcessedPayment("cs_processed_123");
       expect(result?.payment_session_id).toBe("cs_processed_123");
       expect(result?.attendee_id).toBe(ctx.attendeeId);
-      assert(
-        result?.payment_reference?.includes("pi_cs_processed_123") === false,
+      saysNot(
+        result?.payment_reference,
+        "pi_cs_processed_123",
         "the value should not contain the searched item",
       );
       expect(result?.processed_at).toBeDefined();

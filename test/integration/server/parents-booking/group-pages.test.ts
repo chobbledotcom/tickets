@@ -1,10 +1,11 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { makeParent, ticketGet } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 
 describeWithEnv(
   "server > parents booking — group pages",
@@ -28,12 +29,9 @@ describeWithEnv(
       // appears in the parent's child block (here a sole child, auto-selected and
       // shown informationally); the child must NOT get its own standalone
       // quantity control (`quantity_<childId>`).
-      assertStringIncludes(body, `name="quantity_${parent.id}"`);
-      assertStringIncludes(body, `data-sole-child="${child.id}"`);
-      assert(
-        !body.includes(`name="quantity_${child.id}"`),
-        "the value should not contain the searched item",
-      );
+      says(body, `name="quantity_${parent.id}"`);
+      says(body, `data-sole-child="${child.id}"`);
+      assert(!body.includes(`name="quantity_${child.id}"`));
     });
 
     test("a group page cannot book the child alone", async () => {
@@ -67,8 +65,8 @@ describeWithEnv(
       const a = await createTestListing({ groupId: group.id, name: "A" });
       const b = await createTestListing({ groupId: group.id, name: "B" });
       const body = await (await ticketGet(group.slug)).text();
-      assertStringIncludes(body, `name="quantity_${a.id}"`);
-      assertStringIncludes(body, `name="quantity_${b.id}"`);
+      says(body, `name="quantity_${a.id}"`);
+      says(body, `name="quantity_${b.id}"`);
     });
 
     test("a group whose only member is a child returns 404", async () => {

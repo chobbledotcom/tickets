@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -26,6 +26,7 @@ import {
   withStorageDisabled,
   withStorageMock,
 } from "#test-utils/mocks.ts";
+import { has } from "#test-utils/says.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -73,14 +74,8 @@ describeWithEnv(
             "File storage is not configured.",
           );
           const html = await (await adminGet("/admin/images")).text();
-          assert(
-            !html.includes("Hidden while disabled"),
-            "the value should not contain the searched item",
-          );
-          assert(
-            !html.includes("Add Image"),
-            "the value should not contain the searched item",
-          );
+          assert(!html.includes("Hidden while disabled"));
+          assert(!html.includes("Add Image"));
         });
       });
     });
@@ -241,7 +236,7 @@ describeWithEnv(
         const messages = (await getAllActivityLog()).map(
           (entry) => entry.message,
         );
-        assertArrayIncludes(messages, ["Image 'New library image' uploaded"]);
+        has(messages, "Image 'New library image' uploaded");
       });
     });
   },

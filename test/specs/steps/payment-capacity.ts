@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
@@ -21,6 +22,7 @@ import {
   expectSessionFailed,
   getProcessedPayment,
 } from "#test-utils/processed-payments.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   expectWebhookKeptAndRefunded,
@@ -167,12 +169,10 @@ Then(
       await getTestPrivateKey(),
     );
     expect(notes).toHaveLength(1);
-    expect(notes[0]?.note).toContain(
-      "the event filled up while they were paying",
-    );
-    expect(notes[0]?.note).toContain("Refund code: capacity_full");
-    expect(notes[0]?.note).not.toContain(lateSession.paymentIntent);
-    expect(notes[0]?.note).toContain(`/admin/ledger/attendee/${attendeeId}`);
+    says(notes[0]?.note, "the event filled up while they were paying");
+    says(notes[0]?.note, "Refund code: capacity_full");
+    saysNot(notes[0]?.note, lateSession.paymentIntent);
+    says(notes[0]?.note, `/admin/ledger/attendee/${attendeeId}`);
     await expectSessionFailed(sessionId);
   },
 );
@@ -246,9 +246,9 @@ Then(
     const firstBody = requiredWorldValue(this.firstBody, "first body");
     const secondBody = requiredWorldValue(this.secondBody, "second body");
     expect(secondBody).toBe(firstBody);
-    expect(firstBody).toContain("saved your details");
-    expect(firstBody).toContain("refunded");
-    expect(firstBody).not.toContain("being processed");
+    says(firstBody, "saved your details");
+    says(firstBody, "refunded");
+    assert(!firstBody.includes("being processed"));
     const sessionId = requiredWorldValue(this.sessionId, "session id");
     const record = await getProcessedPayment(sessionId);
     if (!record) {

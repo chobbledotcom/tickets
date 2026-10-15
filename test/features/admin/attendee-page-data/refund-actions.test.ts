@@ -1,6 +1,6 @@
 /** Refund controls rendered from the attendee page's authoritative payment facts. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { loadAttendeeForEdit } from "#routes/admin/attendee-page-data.ts";
@@ -33,6 +33,7 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, withTestSession } from "#test-utils/session.ts";
 
 const getListingPageHtml = async (listingId: number): Promise<string> => {
@@ -82,10 +83,7 @@ describeWithEnv("server (admin refund actions)", { db: true }, () => {
       "Free User",
       "free@example.com",
     );
-    assert(
-      !html.includes("Refund All"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Refund All"));
   });
 
   test("shows the per-attendee Refund action on a paid attendee's edit page", async () => {
@@ -98,7 +96,7 @@ describeWithEnv("server (admin refund actions)", { db: true }, () => {
     );
     const response = await adminGet(`/admin/attendees/${attendee.id}/actions`);
     const html = await expectHtmlResponse(response, 200);
-    assertStringIncludes(html, `/admin/attendees/${attendee.id}/refund`);
+    says(html, `/admin/attendees/${attendee.id}/refund`);
   });
 
   test("hides Refund but keeps delete and resend when there is no payment", async () => {
@@ -111,15 +109,9 @@ describeWithEnv("server (admin refund actions)", { db: true }, () => {
     );
     const response = await adminGet(`/admin/attendees/${attendee.id}/actions`);
     const html = await expectHtmlResponse(response, 200);
-    assert(
-      !html.includes(`/admin/attendees/${attendee.id}/refund`),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, `/admin/attendees/${attendee.id}/delete`);
-    assertStringIncludes(
-      html,
-      `/admin/attendees/${attendee.id}/resend-notification`,
-    );
+    assert(!html.includes(`/admin/attendees/${attendee.id}/refund`));
+    says(html, `/admin/attendees/${attendee.id}/delete`);
+    says(html, `/admin/attendees/${attendee.id}/resend-notification`);
   });
 
   test("loads canRefund as false without an active booking line", async () => {
@@ -204,10 +196,9 @@ describeWithEnv("server (admin refund actions)", { db: true }, () => {
       await withTestSession(() => loadAttendeeForEdit(attendee.id)),
     ).toMatchObject({ canRefund: true });
     const refundUrl = `/admin/attendees/${attendee.id}/refund`;
-    assertStringIncludes(await tabHtml(attendee.id, "actions"), refundUrl);
+    says(await tabHtml(attendee.id, "actions"), refundUrl);
     assert(
       !(await tabHtml(attendee.id, "actions", MANAGER)).includes(refundUrl),
-      "the value should not contain the searched item",
     );
   });
 });

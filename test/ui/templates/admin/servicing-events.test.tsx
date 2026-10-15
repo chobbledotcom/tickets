@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ServicingEventSummary } from "#db/attendees/servicing.ts";
@@ -7,6 +7,7 @@ import {
   servicingEventDateLabel,
   upcomingServicingSection,
 } from "#templates/admin/servicing-events.tsx";
+import { says } from "#test-utils/says.ts";
 
 const event = (over: Partial<ServicingEventSummary> = {}) =>
   ({
@@ -33,16 +34,16 @@ describe("ServicingEventEditLink", () => {
     const html = String(
       ServicingEventEditLink({ event: { id: 12, name: "Summer service" } }),
     );
-    assertStringIncludes(html, 'href="/admin/servicing/12"');
-    assertStringIncludes(html, "Summer service");
+    says(html, 'href="/admin/servicing/12"');
+    says(html, "Summer service");
   });
 });
 
 describe("upcomingServicingSection", () => {
   test("opens with the upcoming-events heading", () => {
     const html = upcomingServicingSection([]);
-    assertStringIncludes(html, "<details open>");
-    assertStringIncludes(html, "<summary>Upcoming service events</summary>");
+    says(html, "<details open>");
+    says(html, "<summary>Upcoming service events</summary>");
   });
 
   test("shows one line per event, not one per booking line", () => {
@@ -59,21 +60,18 @@ describe("upcomingServicingSection", () => {
 
   test("shows the date, the listing count and the total quantity", () => {
     const html = upcomingServicingSection([event()]);
-    assertStringIncludes(html, "Saturday 4 July 2026");
-    assertStringIncludes(html, "1 listing");
-    assertStringIncludes(html, "3");
+    says(html, "Saturday 4 July 2026");
+    says(html, "1 listing");
+    says(html, "3");
   });
 
   test("leaves the date out of the details when none is booked", () => {
     const html = upcomingServicingSection([event({ date: null })]);
-    assert(
-      !html.includes("· 1 listing"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "1 listing");
+    assert(!html.includes("· 1 listing"));
+    says(html, "1 listing");
   });
 
   test("shows an empty list when there is nothing upcoming", () => {
-    assertStringIncludes(upcomingServicingSection([]), "<ul></ul>");
+    says(upcomingServicingSection([]), "<ul></ul>");
   });
 });

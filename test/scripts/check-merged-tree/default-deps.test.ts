@@ -2,13 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { defaultDeps } from "#scripts/check-merged-tree/run.ts";
 import { projectRoot } from "#scripts/project-root.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("merged-tree check default dependencies", () => {
   test("captures a real git run, defaulting to the checkout root", async () => {
     const deps = defaultDeps();
     const bare = await deps.command("git", ["--version"]);
     expect(bare.success).toBe(true);
-    expect(bare.stdout).toContain("git version");
+    says(bare.stdout, "git version");
     const rooted = await deps.command(
       "git",
       ["rev-parse", "--show-toplevel"],

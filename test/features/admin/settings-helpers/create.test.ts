@@ -147,10 +147,7 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
       });
       const res = await runHandler(handler, { value: "x" }, mockErrorPage);
       const location = res.headers.get("location") ?? "";
-      assert(
-        !location.includes("form="),
-        "the value should not contain the searched item",
-      );
+      assert(!location.includes("form="));
     });
 
     test("passes no formId to errorPage when formId is not set", async () => {

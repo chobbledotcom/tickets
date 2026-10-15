@@ -13,6 +13,7 @@ import {
   gradeJevAnswers,
   loadJevKey,
 } from "#scripts/grade-code/jev.ts";
+import { says } from "#test-utils/says.ts";
 
 const jevCheck = (id: string) => {
   const found = CHECKS.find((check) => check.id === id);
@@ -76,7 +77,7 @@ describe("buildJevState", () => {
     expect(state.lines).toBe(2);
     expect(state.content).toBe("// Note.\nconst a = 1;\n");
     expect(Array.isArray(state.comments)).toBe(true);
-    expect(state.standards).toContain("AGENTS.md");
+    says(String(state.standards), "AGENTS.md");
   });
 
   test("sends the whole source of a long file", () => {
@@ -168,7 +169,7 @@ describe("callJev", () => {
       () => Promise.resolve(),
     );
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain("the answer is not JSON");
+    if (!result.ok) says(result.error, "the answer is not JSON");
   });
 
   test("retries a malformed 200 body until a healthy one arrives", async () => {
@@ -207,7 +208,7 @@ describe("callJev", () => {
     }
     const result = await resultPromise;
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain("AbortError");
+    if (!result.ok) says(result.error, "AbortError");
   });
 
   test("refuses a reply that leaves a question unanswered", async () => {
@@ -310,7 +311,7 @@ describe("gradeJevAnswers", () => {
     expect(results.sureFail).toMatchObject({ goodness: 0, status: "FAIL" });
     expect(results.unsurePass).toMatchObject({ goodness: 0.5, status: "WARN" });
     expect(results.unsureFail).toMatchObject({ goodness: 0.5, status: "WARN" });
-    expect(results.unsurePass?.note).toContain("conf 0.20");
+    says(results.unsurePass?.note, "conf 0.20");
   });
 
   test("throws when a question it was given has no answer", () => {

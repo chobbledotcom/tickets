@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 // jscpd:ignore-end
@@ -18,6 +17,7 @@ import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { has } from "#test-utils/says.ts";
 
 /** Everything the merge writes, read back raw, so a failed merge can be
  *  compared with the state it started from. The source attendee is part of the
@@ -167,9 +167,9 @@ describeWithEnv(
 
       // The answers are recoverable only from the source, so the source must
       // have survived the failed merge with its rows intact.
-      assertArrayIncludes(
+      has(
         after.attendees.map((row) => row.id),
-        [source.id],
+        source.id,
       );
       expect(after).toEqual(before);
     });
@@ -180,9 +180,9 @@ describeWithEnv(
         withPiiWriteFault,
       );
 
-      assertArrayIncludes(
+      has(
         after.attendees.map((row) => row.id),
-        [source.id],
+        source.id,
       );
       expect(after).toEqual(before);
     });

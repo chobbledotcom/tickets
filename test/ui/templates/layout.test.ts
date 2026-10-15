@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
@@ -26,6 +26,7 @@ import { withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 import type { AdminSession } from "#types";
 
 const EDITOR_SESSION: AdminSession = { adminLevel: "editor" };
@@ -36,8 +37,8 @@ const EDITOR_SESSION: AdminSession = { adminLevel: "editor" };
 const expectRenewalLink = async (): Promise<void> => {
   using _env = withEnv({ RENEWAL_URL: "https://example.com/renew" });
   const html = String(AdminNav({ active: "/admin/", session: OWNER_SESSION }));
-  assertStringIncludes(html, "Renew now");
-  assertStringIncludes(html, "https://example.com/renew");
+  says(html, "Renew now");
+  says(html, "https://example.com/renew");
 };
 
 const setupLayoutTest = async (): Promise<void> => {
@@ -56,19 +57,19 @@ describe("asset-paths", () => {
 
   test("pages include CSS_PATH in stylesheet link", () => {
     const html = adminLoginPage();
-    assertStringIncludes(html, `href="${CSS_PATH}"`);
-    assertStringIncludes(html, 'rel="stylesheet"');
+    says(html, `href="${CSS_PATH}"`);
+    says(html, 'rel="stylesheet"');
   });
 
   test("pages include JS_PATH in deferred script tag", () => {
     const html = adminLoginPage();
-    assertStringIncludes(html, `src="${JS_PATH}"`);
-    assertStringIncludes(html, "defer");
+    says(html, `src="${JS_PATH}"`);
+    says(html, "defer");
   });
 
   test("pages link /custom.css cache-busted by the settings version", () => {
     const html = adminLoginPage();
-    assertStringIncludes(html, `href="/custom.css?v=${settings.version}"`);
+    says(html, `href="/custom.css?v=${settings.version}"`);
   });
 });
 
@@ -80,11 +81,11 @@ describe("Layout skip navigation", () => {
     const html = String(
       Layout({ children: "", family: "public", title: "Test" }),
     );
-    assertStringIncludes(html, 'class="skip-nav"');
-    assertStringIncludes(html, 'href="#main-content"');
-    assertStringIncludes(html, "Skip to content");
-    assertStringIncludes(html, 'id="main-content"');
-    assertStringIncludes(html, 'tabindex="-1"');
+    says(html, 'class="skip-nav"');
+    says(html, 'href="#main-content"');
+    says(html, "Skip to content");
+    says(html, 'id="main-content"');
+    says(html, 'tabindex="-1"');
   });
 
   test("keeps global chrome direct while grouping page regions", () => {
@@ -98,7 +99,7 @@ describe("Layout skip navigation", () => {
       }),
     );
 
-    assertStringIncludes(
+    says(
       html,
       '<main id="main-content" tabindex="-1"><nav class="example-nav">Menu</nav><div class="page-regions example-page"><h1>Heading</h1><p>Body</p></div></main>',
     );
@@ -115,12 +116,12 @@ describe("Layout document shell", () => {
     );
 
     expect(html.slice(0, "<!DOCTYPE html>".length)).toBe("<!DOCTYPE html>");
-    assertStringIncludes(
+    says(
       html,
       '<meta charset="UTF-8"><meta content="width=device-width, initial-scale=1.0" name="viewport">',
     );
-    assertStringIncludes(html, `<link href="${CSS_PATH}" rel="stylesheet">`);
-    assertStringIncludes(
+    says(html, `<link href="${CSS_PATH}" rel="stylesheet">`);
+    says(
       html,
       `<link href="/custom.css?v=${settings.version}" rel="stylesheet">`,
     );
@@ -137,11 +138,8 @@ describe("Layout document shell", () => {
       }),
     );
 
-    assertStringIncludes(html, extra);
-    assert(
-      !html.includes("&lt;meta"),
-      "the value should not contain the searched item",
-    );
+    says(html, extra);
+    assert(!html.includes("&lt;meta"));
   });
 
   test("applies an explicit body class without adding the iframe script", () => {
@@ -154,14 +152,8 @@ describe("Layout document shell", () => {
       }),
     );
 
-    assertStringIncludes(
-      html,
-      '<body class="example-page" data-page-family="public">',
-    );
-    assert(
-      !html.includes(IFRAME_RESIZER_CHILD_JS_PATH),
-      "the value should not contain the searched item",
-    );
+    says(html, '<body class="example-page" data-page-family="public">');
+    assert(!html.includes(IFRAME_RESIZER_CHILD_JS_PATH));
   });
 
   test("adds the iframe script only for an iframe body class", () => {
@@ -174,14 +166,8 @@ describe("Layout document shell", () => {
       }),
     );
 
-    assertStringIncludes(
-      html,
-      '<body class="example iframe" data-page-family="public">',
-    );
-    assertStringIncludes(
-      html,
-      `<script src="${IFRAME_RESIZER_CHILD_JS_PATH}"></script>`,
-    );
+    says(html, '<body class="example iframe" data-page-family="public">');
+    says(html, `<script src="${IFRAME_RESIZER_CHILD_JS_PATH}"></script>`);
   });
 
   test("renders the configured header image with decorative semantics", () => {
@@ -190,7 +176,7 @@ describe("Layout document shell", () => {
       Layout({ children: "", family: "public", title: "Test" }),
     );
 
-    assertStringIncludes(
+    says(
       html,
       `<img alt="" class="header-image" src="${getImageProxyUrl(
         "header.jpg",
@@ -205,14 +191,8 @@ describe("Layout document shell", () => {
       return String(Layout({ children: "", family: "public", title: "Test" }));
     });
 
-    assert(
-      !html.includes("header-image"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes(getImageProxyUrl("header.jpg")),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("header-image"));
+    assert(!html.includes(getImageProxyUrl("header.jpg")));
   });
 
   test("renders the demo banner only in demo mode", () => {
@@ -224,11 +204,8 @@ describe("Layout document shell", () => {
       Layout({ children: "", family: "public", title: "Test" }),
     );
 
-    assert(
-      !normalHtml.includes('class="demo-banner"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(demoHtml, 'class="demo-banner"');
+    assert(!normalHtml.includes('class="demo-banner"'));
+    says(demoHtml, 'class="demo-banner"');
   });
 
   test("renders an unconsumed request flash before the page content", async () => {
@@ -239,7 +216,7 @@ describe("Layout document shell", () => {
       );
     });
 
-    assertStringIncludes(
+    says(
       html,
       '<div class="success" role="alert">Saved from context</div><div class="page-regions">Page body</div>',
     );
@@ -254,11 +231,8 @@ describe("Layout document shell", () => {
       );
     });
 
-    assert(
-      !html.includes("Already shown"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, '<div class="page-regions">Page body</div>');
+    assert(!html.includes("Already shown"));
+    says(html, '<div class="page-regions">Page body</div>');
   });
 });
 
@@ -268,21 +242,21 @@ describe("adminLoginPage", () => {
 
   test("renders login form", () => {
     const html = adminLoginPage();
-    assertStringIncludes(html, "Login");
-    assertStringIncludes(html, 'action="/admin/login"');
-    assertStringIncludes(html, 'type="password"');
-    assertStringIncludes(html, 'name="csrf_token"');
+    says(html, "Login");
+    says(html, 'action="/admin/login"');
+    says(html, 'type="password"');
+    says(html, 'name="csrf_token"');
   });
 
   test("shows error when provided", () => {
     const html = adminLoginPage("Invalid password");
-    assertStringIncludes(html, "Invalid password");
-    assertStringIncludes(html, 'class="error"');
+    says(html, "Invalid password");
+    says(html, 'class="error"');
   });
 
   test("escapes error message", () => {
     const html = adminLoginPage("<script>evil()</script>");
-    assertStringIncludes(html, "&lt;script&gt;");
+    says(html, "&lt;script&gt;");
   });
 });
 
@@ -318,8 +292,8 @@ describeWithEnv(
       const html = String(
         AdminNav({ active: "/admin/", session: OWNER_SESSION }),
       );
-      assertStringIncludes(html, "read-only-banner");
-      assertStringIncludes(html, "This site is in read-only mode");
+      says(html, "read-only-banner");
+      says(html, "This site is in read-only mode");
     });
 
     test("AdminNav read-only banner includes renewal link when RENEWAL_URL is set", async () => {
@@ -333,11 +307,8 @@ describeWithEnv(
         listings: [buildTicketListing(listing, false, undefined)],
         slugs: [listing.slug],
       });
-      assertStringIncludes(html, "Registration closed.");
-      assert(
-        !html.includes("Continue"),
-        "the value should not contain the searched item",
-      );
+      says(html, "Registration closed.");
+      assert(!html.includes("Continue"));
     });
   },
 );
@@ -357,8 +328,8 @@ describeWithEnv(
       const html = String(
         AdminNav({ active: "/admin/", session: OWNER_SESSION }),
       );
-      assertStringIncludes(html, "read-only-banner-warning");
-      assertStringIncludes(html, "expires on");
+      says(html, "read-only-banner-warning");
+      says(html, "expires on");
     });
 
     test("AdminNav warning banner includes renewal link when RENEWAL_URL is set", async () => {
@@ -372,12 +343,9 @@ describeWithEnv(
         const html = String(
           AdminNav({ active: "/admin/", session: OWNER_SESSION }),
         );
-        assertStringIncludes(html, "read-only-banner-warning");
-        assertStringIncludes(html, "Your site is approaching its expiry");
-        assert(
-          !html.includes("expires on"),
-          "the value should not contain the searched item",
-        );
+        says(html, "read-only-banner-warning");
+        says(html, "Your site is approaching its expiry");
+        assert(!html.includes("expires on"));
       } finally {
         Date.prototype.toLocaleDateString = original;
       }

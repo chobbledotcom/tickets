@@ -1,8 +1,8 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
 import { testGroup } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("ListingGroupSelect", () => {
   test("renders nothing when there are no groups", () => {
@@ -19,13 +19,10 @@ describe("ListingGroupSelect", () => {
         selectedGroupIds: [],
       }),
     );
-    assertStringIncludes(html, '<fieldset class="checkboxes">');
-    assertStringIncludes(html, "<legend>Group</legend>");
-    assertStringIncludes(
-      html,
-      '<input name="group_ids" type="checkbox" value="3"> Weekend',
-    );
-    assertStringIncludes(
+    says(html, '<fieldset class="checkboxes">');
+    says(html, "<legend>Group</legend>");
+    says(html, '<input name="group_ids" type="checkbox" value="3"> Weekend');
+    says(
       html,
       '<input name="group_ids" type="checkbox" value="9"> Christmas Bundle',
     );
@@ -41,11 +38,8 @@ describe("ListingGroupSelect", () => {
         selectedGroupIds: [9],
       }),
     );
-    assertStringIncludes(
-      html,
-      '<input name="group_ids" type="checkbox" value="3"> Weekend',
-    );
-    assertStringIncludes(
+    says(html, '<input name="group_ids" type="checkbox" value="3"> Weekend');
+    says(
       html,
       '<input checked name="group_ids" type="checkbox" value="9"> Weekend',
     );

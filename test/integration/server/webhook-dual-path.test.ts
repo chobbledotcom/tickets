@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -10,6 +9,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
@@ -133,7 +133,7 @@ const expectSavedAndRefunded = () =>
     200,
     (json) => {
       expect(json.processed).toBe(false);
-      assertStringIncludes(json.error, "saved your details");
+      says(json.error, "saved your details");
     },
   );
 

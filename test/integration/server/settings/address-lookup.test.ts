@@ -1,10 +1,11 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { settings } from "#db/settings.ts";
 import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const post = (data: Record<string, string>) =>
@@ -121,25 +122,19 @@ describeWithEnv("server (admin settings: address lookup)", { db: true }, () => {
     test("shows the address lookup section with the provider picklist", async () => {
       const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
-      assertStringIncludes(html, "settings-address-lookup");
-      assertStringIncludes(html, 'name="address_lookup_provider"');
-      assertStringIncludes(html, ">EasyPostcodes</option>");
-      assertStringIncludes(html, 'name="address_lookup_api_key"');
-      assert(
-        !html.includes(MASK_SENTINEL),
-        "the value should not contain the searched item",
-      );
+      says(html, "settings-address-lookup");
+      says(html, 'name="address_lookup_provider"');
+      says(html, ">EasyPostcodes</option>");
+      says(html, 'name="address_lookup_api_key"');
+      assert(!html.includes(MASK_SENTINEL));
     });
 
     test("masks a stored API key instead of echoing it", async () => {
       await saveEasypostcodes();
       const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
-      assertStringIncludes(html, MASK_SENTINEL);
-      assert(
-        !html.includes("epc-key-1"),
-        "the value should not contain the searched item",
-      );
+      says(html, MASK_SENTINEL);
+      assert(!html.includes("epc-key-1"));
     });
   });
 });

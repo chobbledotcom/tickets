@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe } from "@std/testing/bdd";
 import {
@@ -6,6 +6,7 @@ import {
   moneyStep,
   PriceInput,
 } from "#templates/components/price-input.tsx";
+import { says } from "#test-utils/says.ts";
 import { testWithSetting } from "#test-utils/settings.ts";
 
 describe("moneyStep", () => {
@@ -68,13 +69,13 @@ describe("PriceInput", () => {
       const html = String(
         PriceInput({ min: "0", name: "amount", value: "1.005" }),
       );
-      assertStringIncludes(html, 'name="amount"');
-      assertStringIncludes(html, 'type="number"');
-      assertStringIncludes(html, 'inputmode="decimal"');
+      says(html, 'name="amount"');
+      says(html, 'type="number"');
+      says(html, 'inputmode="decimal"');
       // step tracks the 3-decimal currency, so 1.005 is typeable.
-      assertStringIncludes(html, 'step="0.001"');
-      assertStringIncludes(html, 'min="0"');
-      assertStringIncludes(html, 'value="1.005"');
+      says(html, 'step="0.001"');
+      says(html, 'min="0"');
+      says(html, 'value="1.005"');
     },
   );
 
@@ -83,16 +84,10 @@ describe("PriceInput", () => {
     { currency: "GBP" },
     () => {
       const html = String(PriceInput({ name: "amount", required: true }));
-      assertStringIncludes(html, 'step="0.01"');
-      assertStringIncludes(html, " required");
-      assert(
-        !html.includes("min="),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes("value="),
-        "the value should not contain the searched item",
-      );
+      says(html, 'step="0.01"');
+      says(html, " required");
+      assert(!html.includes("min="));
+      assert(!html.includes("value="));
     },
   );
 });

@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -18,6 +18,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createServicingEvent,
   recordServiceCost,
@@ -66,32 +67,23 @@ describeWithEnv("servicing cost page", { db: true }, () => {
 
     const body = await renderAdminPage(`/admin/servicing/${event.id}`);
 
-    assertStringIncludes(body, listing.name);
-    assertStringIncludes(
+    says(body, listing.name);
+    says(
       body,
       `href="/admin/ledger?listing=${listing.id}">${listing.name}</a>`,
     );
     // An event page lives within the Servicing section: the section's own
     // link lights up, and its "Add" sub-item does not.
-    assertStringIncludes(body, '<a class="active" href="/admin/servicing">');
-    assert(
-      !body.includes('<a class="active" href="/admin/servicing/new">'),
-      "the value should not contain the searched item",
-    );
+    says(body, '<a class="active" href="/admin/servicing">');
+    assert(!body.includes('<a class="active" href="/admin/servicing/new">'));
 
     // The list page is the section's landing route, so it lights up too.
     const listPage = await renderAdminPage("/admin/servicing");
-    assertStringIncludes(
-      listPage,
-      '<a class="active" href="/admin/servicing">',
-    );
+    says(listPage, '<a class="active" href="/admin/servicing">');
 
     // The new-event page is the "Add" sub-item's own route.
     const newPage = await renderAdminPage("/admin/servicing/new");
-    assertStringIncludes(
-      newPage,
-      '<a class="active" href="/admin/servicing/new">',
-    );
+    says(newPage, '<a class="active" href="/admin/servicing/new">');
   });
 
   test("hides cost controls when no listing can receive the cost", () => {
@@ -107,14 +99,8 @@ describeWithEnv("servicing cost page", { db: true }, () => {
       session: testSession(),
     });
 
-    assert(
-      !body.includes('name="target_listing_id"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !body.includes("Record service event cost"),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes('name="target_listing_id"'));
+    assert(!body.includes("Record service event cost"));
   });
 
   test("keeps only held inactive listings and reports deleted holds", () => {
@@ -160,33 +146,21 @@ describeWithEnv("servicing cost page", { db: true }, () => {
       session: testSession(),
     });
 
-    assertStringIncludes(body, "<h1>New service event</h1>");
-    assertStringIncludes(body, 'action="/admin/servicing/new"');
-    assertStringIncludes(body, 'id="servicing-form"');
-    assertStringIncludes(body, "Create service event");
-    assertStringIncludes(
+    says(body, "<h1>New service event</h1>");
+    says(body, 'action="/admin/servicing/new"');
+    says(body, 'id="servicing-form"');
+    says(body, "Create service event");
+    says(
       body,
       '<input autocomplete="off" maxlength="250" name="name" required type="text">',
     );
-    assertStringIncludes(body, '<input name="start_date" type="date">');
-    assertStringIncludes(
-      body,
-      '<input min="1" name="day_count" type="number" value="1">',
-    );
-    assertStringIncludes(body, '<use href="/icons.svg#plus">');
-    assertStringIncludes(
-      body,
-      '<input min="0" name="quantity_3" type="number" value="0">',
-    );
+    says(body, '<input name="start_date" type="date">');
+    says(body, '<input min="1" name="day_count" type="number" value="1">');
+    says(body, '<use href="/icons.svg#plus">');
+    says(body, '<input min="0" name="quantity_3" type="number" value="0">');
     // No stored event yet, so none of the event-only sections render.
-    assert(
-      !body.includes('class="warning"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !body.includes("Annual service"),
-      "the value should not contain the searched item",
-    );
+    assert(!body.includes('class="warning"'));
+    assert(!body.includes("Annual service"));
   });
 
   test("renders an event page with every editing section", () => {
@@ -223,41 +197,26 @@ describeWithEnv("servicing cost page", { db: true }, () => {
       session: testSession(),
     });
 
-    assertStringIncludes(body, "<h1>Annual service</h1>");
-    assertStringIncludes(body, 'action="/admin/servicing/7"');
-    assertStringIncludes(
-      body,
-      '<p class="warning">1 held listing no longer exists.',
-    );
-    assertStringIncludes(
-      body,
-      'name="name" required type="text" value="Annual service"',
-    );
-    assertStringIncludes(
-      body,
-      'name="start_date" type="date" value="2026-07-01"',
-    );
-    assertStringIncludes(body, '<use href="/icons.svg#save">');
-    assertStringIncludes(body, "<td>Main hall</td>");
-    assertStringIncludes(body, "<td>Storage room<em> (inactive)</em></td>");
-    assertStringIncludes(
-      body,
-      '<input min="0" name="quantity_3" type="number" value="2">',
-    );
-    assertStringIncludes(body, "Save service event");
-    assert(
-      !body.includes("Create service event"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(body, 'action="/admin/servicing/7/duplicate"');
-    assertStringIncludes(body, 'action="/admin/servicing/7/delete"');
-    assertStringIncludes(body, "Record service event cost");
-    assertStringIncludes(body, 'name="cost_idempotency_key" type="hidden"');
-    assertStringIncludes(body, 'name="amount"');
-    assertStringIncludes(body, 'name="memo"');
-    assertStringIncludes(body, 'name="target_listing_id"');
-    assertStringIncludes(body, "Service event costs");
-    assertStringIncludes(body, "Boiler part");
+    says(body, "<h1>Annual service</h1>");
+    says(body, 'action="/admin/servicing/7"');
+    says(body, '<p class="warning">1 held listing no longer exists.');
+    says(body, 'name="name" required type="text" value="Annual service"');
+    says(body, 'name="start_date" type="date" value="2026-07-01"');
+    says(body, '<use href="/icons.svg#save">');
+    says(body, "<td>Main hall</td>");
+    says(body, "<td>Storage room<em> (inactive)</em></td>");
+    says(body, '<input min="0" name="quantity_3" type="number" value="2">');
+    says(body, "Save service event");
+    assert(!body.includes("Create service event"));
+    says(body, 'action="/admin/servicing/7/duplicate"');
+    says(body, 'action="/admin/servicing/7/delete"');
+    says(body, "Record service event cost");
+    says(body, 'name="cost_idempotency_key" type="hidden"');
+    says(body, 'name="amount"');
+    says(body, 'name="memo"');
+    says(body, 'name="target_listing_id"');
+    says(body, "Service event costs");
+    says(body, "Boiler part");
   });
 
   const renderCostsPage = (adminLevel: "owner" | "editor"): string =>
@@ -293,30 +252,15 @@ describeWithEnv("servicing cost page", { db: true }, () => {
   test("renders the costs table with its date, note, and money links", () => {
     const ownerBody = renderCostsPage("owner");
 
-    assertStringIncludes(
-      ownerBody,
-      'href="/admin/ledger?listing=3">Main hall</a>',
-    );
-    assertStringIncludes(ownerBody, "Deleted listing");
-    assertStringIncludes(
-      ownerBody,
-      `<td>${formatDateLabel("2026-07-01")}</td>`,
-    );
-    assertStringIncludes(
-      ownerBody,
-      `<td>${formatDateLabel("2026-07-02")}</td>`,
-    );
-    assertStringIncludes(
-      ownerBody,
-      `<td class="col-amount">${formatCurrency(9000)}</td>`,
-    );
-    assertStringIncludes(
-      ownerBody,
-      `<td class="col-amount">${formatCurrency(250)}</td>`,
-    );
-    assertStringIncludes(ownerBody, 'id="servicing-costs"');
-    assertStringIncludes(ownerBody, 'class="listing-section"');
-    assertStringIncludes(ownerBody, 'class="danger"');
+    says(ownerBody, 'href="/admin/ledger?listing=3">Main hall</a>');
+    says(ownerBody, "Deleted listing");
+    says(ownerBody, `<td>${formatDateLabel("2026-07-01")}</td>`);
+    says(ownerBody, `<td>${formatDateLabel("2026-07-02")}</td>`);
+    says(ownerBody, `<td class="col-amount">${formatCurrency(9000)}</td>`);
+    says(ownerBody, `<td class="col-amount">${formatCurrency(250)}</td>`);
+    says(ownerBody, 'id="servicing-costs"');
+    says(ownerBody, 'class="listing-section"');
+    says(ownerBody, 'class="danger"');
     // One amount input in the record-cost form, one in each cost row editor.
     expect(ownerBody.match(/name="amount"/g)).toHaveLength(3);
   });
@@ -326,11 +270,8 @@ describeWithEnv("servicing cost page", { db: true }, () => {
 
     // The editor still sees the listing name, but the owner-only money link
     // stays off their table.
-    assertStringIncludes(editorBody, "Main hall");
-    assert(
-      !editorBody.includes("/admin/ledger?listing="),
-      "the value should not contain the searched item",
-    );
+    says(editorBody, "Main hall");
+    assert(!editorBody.includes("/admin/ledger?listing="));
   });
 
   test("renders the servicing list's rows, deleted listings, and empty state", () => {
@@ -355,29 +296,17 @@ describeWithEnv("servicing cost page", { db: true }, () => {
       ],
     );
 
-    assertStringIncludes(
-      list,
-      '<tr class="servicing-event" data-servicing="true">',
-    );
-    assertStringIncludes(list, "Annual service");
-    assertStringIncludes(list, 'href="/admin/servicing/7"');
-    assertStringIncludes(
-      list,
-      `<td>${servicingEventDateLabel("2026-07-01")}</td>`,
-    );
-    assertStringIncludes(
-      list,
-      "<td>Main hall, Storage room, Deleted listing</td>",
-    );
-    assertStringIncludes(
-      list,
-      "<th>Name</th><th>Date</th><th>Listings</th><th>Quantity</th>",
-    );
-    assertStringIncludes(list, "<td>4</td>");
-    assertStringIncludes(list, 'href="/admin/guide#servicing"');
-    assertStringIncludes(list, "Servicing guide");
+    says(list, '<tr class="servicing-event" data-servicing="true">');
+    says(list, "Annual service");
+    says(list, 'href="/admin/servicing/7"');
+    says(list, `<td>${servicingEventDateLabel("2026-07-01")}</td>`);
+    says(list, "<td>Main hall, Storage room, Deleted listing</td>");
+    says(list, "<th>Name</th><th>Date</th><th>Listings</th><th>Quantity</th>");
+    says(list, "<td>4</td>");
+    says(list, 'href="/admin/guide#servicing"');
+    says(list, "Servicing guide");
 
     const emptyList = renderServicingList(testSession(), [], []);
-    assertStringIncludes(emptyList, "No service events yet.");
+    says(emptyList, "No service events yet.");
   });
 });

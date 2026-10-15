@@ -1,11 +1,11 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has, says } from "#test-utils/says.ts";
 import { createTestApiKeyToken } from "#test-utils/session.ts";
 
 // Absolute project root, derived from this file's location rather than the
@@ -128,7 +128,7 @@ describe("CLI API without configuration", () => {
     const described = JSON.parse(stdout) as {
       resources: Record<string, unknown>;
     };
-    assertArrayIncludes(Object.keys(described.resources), ["listings"]);
+    has(Object.keys(described.resources), "listings");
   });
 
   test("reports the missing site as the usage envelope", async () => {
@@ -376,7 +376,7 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
         expect(answer.error.kind).toBe("server");
         expect(answer.error.status).toBe(200);
         expect(answer.error.fields).toBeNull();
-        assertStringIncludes(answer.error.message, "failed validation");
+        says(answer.error.message, "failed validation");
       } finally {
         await server.shutdown();
       }

@@ -3,7 +3,6 @@
  * fetch + cache fill on a miss, and generic (logged) provider failures.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import {
@@ -16,6 +15,7 @@ import { lookupAddresses } from "#shared/address-lookup/service.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 
 const PROVIDER_BODY = JSON.stringify([
   {
@@ -104,7 +104,7 @@ describeWithEnv("address lookup service", { db: true }, () => {
       error: "Address lookup failed — please try again or type your address",
       ok: false,
     });
-    assertStringIncludes(errors.lastMessage() ?? "", "E_ADDRESS_LOOKUP");
+    says(errors.lastMessage(), "E_ADDRESS_LOOKUP");
     // Failures are never cached — the next attempt retries the provider.
     const index = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
     expect(await getCachedAddresses(index)).toBeNull();

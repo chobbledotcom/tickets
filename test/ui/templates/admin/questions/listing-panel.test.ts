@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   ListingOverviewPanel,
@@ -12,6 +12,7 @@ import {
   testListingWithCount,
   testQuestion,
 } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import { setupQuestionPageTest } from "./fixtures.ts";
 
 describe("adminListingQuestionsPage", () => {
@@ -28,7 +29,7 @@ describe("adminListingQuestionsPage", () => {
       }),
     );
     // The empty-state prompt keeps a space before the create link.
-    assertStringIncludes(
+    says(
       html,
       'No questions created yet. <a href="/admin/questions">Create questions</a> first.',
     );
@@ -50,16 +51,10 @@ describe("adminListingQuestionsPage", () => {
         listing,
       }),
     );
-    assertStringIncludes(
-      html,
-      '<input name="question_ids" type="checkbox" value="1">',
-    );
+    says(html, '<input name="question_ids" type="checkbox" value="1">');
     // A single space sits before the "(1 option…)" summary inside the label.
-    assertStringIncludes(html, "<small> (1 option: Yes)</small>");
-    assert(
-      !html.includes("1 options"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<small> (1 option: Yes)</small>");
+    assert(!html.includes("1 options"));
   });
 
   test("shows Manage questions link below form", () => {
@@ -81,8 +76,8 @@ describe("adminListingQuestionsPage", () => {
         listing,
       }),
     );
-    assertStringIncludes(html, 'href="/admin/questions"');
-    assertStringIncludes(html, "Manage questions");
+    says(html, 'href="/admin/questions"');
+    says(html, "Manage questions");
   });
 
   test("lists option names in parentheses", () => {
@@ -105,7 +100,7 @@ describe("adminListingQuestionsPage", () => {
         listing,
       }),
     );
-    assertStringIncludes(html, "3 options: S, M, L)");
+    says(html, "3 options: S, M, L)");
   });
 });
 
@@ -126,7 +121,7 @@ describe("adminListingPage with questionData", () => {
         stats: overviewStatsFromAttendees(listing, []),
       }),
     );
-    assertStringIncludes(html, "<th>Size?</th>");
-    assertStringIncludes(html, "S (0)");
+    says(html, "<th>Size?</th>");
+    says(html, "S (0)");
   });
 });

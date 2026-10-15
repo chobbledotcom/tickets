@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { countLines, findIssues } from "#scripts/check-file-lengths/rules.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("check-file-lengths rules", () => {
   test("counts the lines one file's content holds", () => {
@@ -18,7 +19,7 @@ describe("check-file-lengths rules", () => {
   test("flags a file over the limit that no entry covers", () => {
     const [issue] = findIssues("big.ts", "\n".repeat(500), 400, {});
     expect(issue?.rule).toBe("over-limit");
-    expect(issue?.problem).toContain("500 lines");
+    says(issue?.problem, "500 lines");
     expect(issue?.fix).toBe("split the file");
   });
 
@@ -32,7 +33,7 @@ describe("check-file-lengths rules", () => {
       "grew.ts": 35,
     });
     expect(issue?.rule).toBe("over-limit");
-    expect(issue?.problem).toContain("grew from 35");
+    says(issue?.problem, "grew from 35");
   });
 
   test("fails when a covered file shrank, so the step lands with its entry", () => {
@@ -40,7 +41,7 @@ describe("check-file-lengths rules", () => {
       "shrank.ts": 35,
     });
     expect(issue?.rule).toBe("improved");
-    expect(issue?.problem).toContain("from 35 lines to 31");
+    says(issue?.problem, "from 35 lines to 31");
   });
 
   test("fails when an entry names a file now under the limit", () => {
@@ -48,7 +49,7 @@ describe("check-file-lengths rules", () => {
       "done.ts": 35,
     });
     expect(issue?.rule).toBe("stale-entry");
-    expect(issue?.fix).toContain("delete the entry");
+    says(issue?.fix, "delete the entry");
   });
 
   test("leaves a covered file at its recorded count alone", () => {

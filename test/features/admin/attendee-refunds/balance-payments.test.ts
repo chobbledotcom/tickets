@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
@@ -34,6 +34,7 @@ import {
   submitRefund,
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 import type { Attendee, Listing } from "#types";
 
@@ -220,7 +221,7 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
         `/admin/attendees/${ctx.attendee.id}/actions`,
       );
       const html = await expectHtmlResponse(response, 200);
-      assertStringIncludes(html, `/admin/attendees/${ctx.attendee.id}/refund`);
+      says(html, `/admin/attendees/${ctx.attendee.id}/refund`);
     });
 
     test("keeps refresh reachable when a balance-only refund needs Money", async () => {
@@ -238,24 +239,20 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
         await adminGet(`/admin/attendees/${ctx.attendee.id}/actions`),
         200,
       );
-      assert(
-        !actions.includes(`/admin/attendees/${ctx.attendee.id}/refund`),
-        "the value should not contain the searched item",
-      );
+      assert(!actions.includes(`/admin/attendees/${ctx.attendee.id}/refund`));
       assert(
         !actions.includes(`/admin/attendees/${ctx.attendee.id}/payment-review`),
-        "the value should not contain the searched item",
       );
 
       const overview = await expectHtmlResponse(
         await adminGet(`/admin/attendees/${ctx.attendee.id}`),
         200,
       );
-      assertStringIncludes(
+      says(
         overview,
         `action="/admin/attendees/${ctx.attendee.id}/refresh-payment"`,
       );
-      assertStringIncludes(overview, "Refresh payment status");
+      says(overview, "Refresh payment status");
     });
   });
 });

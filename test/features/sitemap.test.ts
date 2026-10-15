@@ -2,7 +2,7 @@
  * nothing. Served from the static table, so the handler reads its own
  * settings, exactly like /robots.txt. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -27,6 +27,7 @@ import {
 import { testListingInput } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { soldOutParentInGroup } from "#test-utils/parents.ts";
+import { says } from "#test-utils/says.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
 
 /* jscpd:ignore-end */
@@ -73,40 +74,19 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe("application/xml");
       const xml = await response.text();
-      assertStringIncludes(
-        xml,
-        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-      );
-      assertStringIncludes(xml, "<loc>https://localhost/</loc>");
-      assertStringIncludes(xml, "<loc>https://localhost/listings</loc>");
-      assertStringIncludes(xml, "<loc>https://localhost/news</loc>");
-      assertStringIncludes(xml, "<loc>https://localhost/page/plans</loc>");
-      assertStringIncludes(
-        xml,
-        `<loc>https://localhost/news/${post.slug}</loc>`,
-      );
-      assertStringIncludes(
-        xml,
-        `<loc>https://localhost/ticket/${listing.slug}</loc>`,
-      );
-      assertStringIncludes(
-        xml,
-        `<loc>https://localhost/ticket/${group.slug}</loc>`,
-      );
+      says(xml, '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
+      says(xml, "<loc>https://localhost/</loc>");
+      says(xml, "<loc>https://localhost/listings</loc>");
+      says(xml, "<loc>https://localhost/news</loc>");
+      says(xml, "<loc>https://localhost/page/plans</loc>");
+      says(xml, `<loc>https://localhost/news/${post.slug}</loc>`);
+      says(xml, `<loc>https://localhost/ticket/${listing.slug}</loc>`);
+      says(xml, `<loc>https://localhost/ticket/${group.slug}</loc>`);
       // A hidden listing or group is not on the public site, so the sitemap
       // does not name it. No admin path belongs in a public document either.
-      assert(
-        !xml.includes("hidden-concert"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !xml.includes("secret-bundle"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !xml.includes("/admin"),
-        "the value should not contain the searched item",
-      );
+      assert(!xml.includes("hidden-concert"));
+      assert(!xml.includes("secret-bundle"));
+      assert(!xml.includes("/admin"));
     } finally {
       await disablePublicSite();
     }
@@ -121,24 +101,12 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const empty = await (
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();
-      assertStringIncludes(empty, "<loc>https://localhost/</loc>");
-      assertStringIncludes(empty, "<loc>https://localhost/listings</loc>");
-      assert(
-        !empty.includes("<loc>https://localhost/terms</loc>"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !empty.includes("<loc>https://localhost/contact</loc>"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !empty.includes("<loc>https://localhost/order</loc>"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !empty.includes("<loc>https://localhost/news</loc>"),
-        "the value should not contain the searched item",
-      );
+      says(empty, "<loc>https://localhost/</loc>");
+      says(empty, "<loc>https://localhost/listings</loc>");
+      assert(!empty.includes("<loc>https://localhost/terms</loc>"));
+      assert(!empty.includes("<loc>https://localhost/contact</loc>"));
+      assert(!empty.includes("<loc>https://localhost/order</loc>"));
+      assert(!empty.includes("<loc>https://localhost/news</loc>"));
 
       // Give every page what its handler requires, and the document lists it.
       await settings.update.orderEnabled(true);
@@ -148,10 +116,10 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const served = await (
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();
-      assertStringIncludes(served, "<loc>https://localhost/terms</loc>");
-      assertStringIncludes(served, "<loc>https://localhost/contact</loc>");
-      assertStringIncludes(served, "<loc>https://localhost/order</loc>");
-      assertStringIncludes(served, "<loc>https://localhost/news</loc>");
+      says(served, "<loc>https://localhost/terms</loc>");
+      says(served, "<loc>https://localhost/contact</loc>");
+      says(served, "<loc>https://localhost/order</loc>");
+      says(served, "<loc>https://localhost/news</loc>");
     } finally {
       await settings.update.orderEnabled(false);
       await settings.update.terms("");
@@ -173,18 +141,9 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       ).text();
       // A child that sells only through its parent has no /ticket page of
       // its own, and a paused listing answers 404. The parent stays in.
-      assert(
-        !xml.includes(child.slug),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !xml.includes("paused-concert"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(
-        xml,
-        `<loc>https://localhost/ticket/${parent.slug}</loc>`,
-      );
+      assert(!xml.includes(child.slug));
+      assert(!xml.includes("paused-concert"));
+      says(xml, `<loc>https://localhost/ticket/${parent.slug}</loc>`);
     } finally {
       await disablePublicSite();
     }
@@ -199,10 +158,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const xml = await (
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();
-      assert(
-        !xml.includes("members-only-club"),
-        "the value should not contain the searched item",
-      );
+      assert(!xml.includes("members-only-club"));
     } finally {
       await disablePublicSite();
     }
@@ -220,10 +176,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const xml = await (
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();
-      assertStringIncludes(
-        xml,
-        `<loc>https://localhost/ticket/${group.slug}</loc>`,
-      );
+      says(xml, `<loc>https://localhost/ticket/${group.slug}</loc>`);
     } finally {
       await disablePublicSite();
     }
@@ -261,20 +214,12 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       // pages answer 404 and stay out. A normal slug stays in.
       assert(
         !xml.includes("<loc>https://localhost/ticket/plans&pricing</loc>"),
-        "the value should not contain the searched item",
       );
       assert(
         !xml.includes("<loc>https://localhost/ticket/plans&amp;pricing</loc>"),
-        "the value should not contain the searched item",
       );
-      assertStringIncludes(
-        xml,
-        `<loc>https://localhost/ticket/${plain.slug}</loc>`,
-      );
-      assertStringIncludes(
-        xml,
-        `<loc>https://localhost/ticket/${plainGroup.slug}</loc>`,
-      );
+      says(xml, `<loc>https://localhost/ticket/${plain.slug}</loc>`);
+      says(xml, `<loc>https://localhost/ticket/${plainGroup.slug}</loc>`);
     } finally {
       await disablePublicSite();
     }
@@ -296,10 +241,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const xml = await (
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();
-      assert(
-        !xml.includes(listing.slug),
-        "the value should not contain the searched item",
-      );
+      assert(!xml.includes(listing.slug));
     } finally {
       await settings.update.listingDefaults({});
       await disablePublicSite();
@@ -312,10 +254,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       await createTestListing({ name: "Dated Listing" });
       const response = await handleRequest(mockRequest("/sitemap.xml"));
       expect(response.status).toBe(200);
-      assert(
-        !(await response.text()).includes("<lastmod>"),
-        "the value should not contain the searched item",
-      );
+      assert(!(await response.text()).includes("<lastmod>"));
     } finally {
       await disablePublicSite();
     }
@@ -329,14 +268,8 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const xml = await response.text();
       // The public route's slug pattern rejects the ampersand, so the page
       // answers 404 and the document names no URL for it.
-      assert(
-        !xml.includes("plans&amp;pricing"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !xml.includes("plans&pricing"),
-        "the value should not contain the searched item",
-      );
+      assert(!xml.includes("plans&amp;pricing"));
+      assert(!xml.includes("plans&pricing"));
     } finally {
       await disablePublicSite();
     }
@@ -350,10 +283,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const xml = await response.text();
       // URL parsing drops the trailing newline, so the served page and its
       // stored slug no longer match: the document names no URL for it.
-      assert(
-        !xml.includes("page/latest"),
-        "the value should not contain the searched item",
-      );
+      assert(!xml.includes("page/latest"));
     } finally {
       await disablePublicSite();
     }
@@ -365,10 +295,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       await settings.update.customDomain("custom.example");
       await settings.update.customDomainLastValidated();
       const response = await handleRequest(mockRequest("/sitemap.xml"));
-      assertStringIncludes(
-        await response.text(),
-        "<loc>https://custom.example/</loc>",
-      );
+      says(await response.text(), "<loc>https://custom.example/</loc>");
     } finally {
       await settings.update.customDomain("");
       await disablePublicSite();

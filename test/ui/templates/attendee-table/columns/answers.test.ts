@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import type { AttendeeQuestionData } from "#templates/attendee-table/types.ts";
 import {
@@ -8,6 +8,7 @@ import {
   render,
 } from "#test/ui/templates/attendee-table/shared.ts";
 import { testAttendee, testRadioQuestion } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 attendeeTableSuite(() => {
   const questionData: AttendeeQuestionData = {
@@ -36,44 +37,35 @@ attendeeTableSuite(() => {
     );
 
   test("renders the Answers header when question data is provided", () => {
-    assertStringIncludes(renderAnswers(1), "<th>Answers</th>");
+    says(renderAnswers(1), "<th>Answers</th>");
   });
 
   test("renders answer text in the answer cell", () => {
     const html = renderAnswers(1);
-    assertStringIncludes(html, 'class="answers-cell"');
-    assertStringIncludes(html, "Small, Red");
+    says(html, 'class="answers-cell"');
+    says(html, "Small, Red");
   });
 
   test("puts questions and answers in the tooltip", () => {
-    assertStringIncludes(renderAnswers(1), 'title="Size?: Small, Color?: Red"');
+    says(renderAnswers(1), 'title="Size?: Small, Color?: Red"');
   });
 
   test("renders an empty answer for an attendee with no answers", () => {
     const html = renderAnswers(999);
-    assertStringIncludes(html, 'class="answers-cell"');
-    assertStringIncludes(html, 'title=""');
+    says(html, 'class="answers-cell"');
+    says(html, 'title=""');
   });
 
   test("renders only the answers saved for an attendee", () => {
     const html = renderAnswers(2);
-    assertStringIncludes(html, "Large");
-    assert(
-      !html.includes('title="Size?: Small'),
-      "the value should not contain the searched item",
-    );
+    says(html, "Large");
+    assert(!html.includes('title="Size?: Small'));
   });
 
   test("omits Answers when question data is absent", () => {
     const html = render(makeOpts());
-    assert(
-      !html.includes("<th>Answers</th>"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("answers-cell"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<th>Answers</th>"));
+    assert(!html.includes("answers-cell"));
   });
 
   test("omits Answers when the question list is empty", () => {
@@ -82,16 +74,13 @@ attendeeTableSuite(() => {
         questionData: { attendeeAnswerMap: new Map(), questions: [] },
       }),
     );
-    assert(
-      !html.includes("<th>Answers</th>"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("<th>Answers</th>"));
   });
 
   test("counts Answers in an empty table layout", () => {
     const html = render(makeOpts({ questionData, rows: [] }));
-    assertStringIncludes(html, "<th>Answers</th>");
-    assertStringIncludes(html, "No attendees yet");
-    assertStringIncludes(html, 'colspan="6"');
+    says(html, "<th>Answers</th>");
+    says(html, "No attendees yet");
+    says(html, 'colspan="6"');
   });
 });

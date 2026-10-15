@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -10,6 +9,7 @@ import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   expectScheduledResponse,
   scheduledAuthorization,
@@ -58,10 +58,7 @@ describeWithEnv(
           typeof options.body === "string"
             ? options.body
             : new TextDecoder().decode(options.body as Uint8Array);
-        assertStringIncludes(
-          body,
-          "Scheduled maintenance requires completed setup",
-        );
+        says(body, "Scheduled maintenance requires completed setup");
       } finally {
         resetSentry();
       }

@@ -1,4 +1,3 @@
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
@@ -14,6 +13,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { addAnswer, createQuestion } from "#test-utils/questions/helpers.ts";
+import { has, says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -55,7 +55,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const response = await adminGet("/admin/questions");
       const body = await response.text();
-      assertStringIncludes(body, 'title="Gala Night"');
+      says(body, 'title="Gala Night"');
     });
   });
 
@@ -70,9 +70,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(id).toBeGreaterThan(0);
       expect(await storedFeatureEnabled("questions")).toBe(true);
       // The creation lands in the activity log with the row's kind and name.
-      assertArrayIncludes((await activityMessages()) ?? [], [
-        "Question 'What size?' created",
-      ]);
+      has(await activityMessages(), "Question 'What size?' created");
     });
 
     test("does not enable Questions for an invalid create", async () => {
@@ -260,7 +258,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const response = await adminGet(`/admin/questions/${id}`);
       const body = await expectHtmlResponse(response, 200, "One", "Two");
       // Each answer links through to its own edit page.
-      assertStringIncludes(
+      says(
         body,
         `<a href="/admin/questions/${id}/answers/${answerId}/edit">One</a>`,
       );
@@ -405,11 +403,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const response = await adminGet(`/admin/questions/${qId}`);
       const body = await response.text();
       // The answers table shows the stored selection total (0 with no bookings).
-      assertStringIncludes(
-        body,
-        '<th class="col-quantity">Times selected</th>',
-      );
-      assertStringIncludes(body, '<td class="col-quantity">0</td>');
+      says(body, '<th class="col-quantity">Times selected</th>');
+      says(body, '<td class="col-quantity">0</td>');
     });
   });
 });

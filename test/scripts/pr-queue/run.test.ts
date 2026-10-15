@@ -4,6 +4,7 @@ import { PR_QUEUE_USAGE } from "#scripts/pr-queue/args.ts";
 import type { GhRunner } from "#scripts/pr-queue/gh.ts";
 import { runPrQueue } from "#scripts/pr-queue/run.ts";
 import type { GraphQlPr } from "#scripts/pr-queue/types.ts";
+import { says } from "#test-utils/says.ts";
 import { ghSaying, makePr, queueReply } from "./fixtures.ts";
 
 /** One open pull request, with the fields this report sorts and prints by. */
@@ -40,7 +41,7 @@ describe("running the PR queue report", () => {
 
     expect(code).toBe(2);
     expect(logs).toEqual([]);
-    expect(errors.join("")).toContain("Unknown argument: --nope");
+    says(errors.join(""), "Unknown argument: --nope");
   });
 
   test("reports the repo it was told to look at", async () => {
@@ -50,8 +51,8 @@ describe("running the PR queue report", () => {
     );
 
     expect(code).toBe(0);
-    expect(logs.join("\n")).toContain("owner/repo");
-    expect(logs.join("\n")).toContain("Some PR");
+    says(logs.join("\n"), "owner/repo");
+    says(logs.join("\n"), "Some PR");
   });
 
   test("prints JSON when asked, with the count and the repo", async () => {
@@ -66,7 +67,7 @@ describe("running the PR queue report", () => {
       repo: "owner/repo",
     });
     // Indented, so a person reading it in the terminal can follow it.
-    expect(logs.join("")).toContain('\n  "open": 1');
+    says(logs.join(""), '\n  "open": 1');
   });
 
   test("warns when GitHub had more pull requests than it fetched", async () => {
@@ -75,7 +76,7 @@ describe("running the PR queue report", () => {
       ghSaying({ stdout: queueReply([openPr()], true) }).run,
     );
 
-    expect(errors.join("\n")).toContain("only the 60 most recently updated");
+    says(errors.join("\n"), "only the 60 most recently updated");
   });
 
   test("passes a gh failure's message and exit code out", async () => {
@@ -86,7 +87,7 @@ describe("running the PR queue report", () => {
 
     expect(code).toBe(4);
     expect(logs).toEqual([]);
-    expect(errors.join("\n")).toContain("not logged in");
+    says(errors.join("\n"), "not logged in");
   });
 
   test("lets an unexpected error through rather than hiding it", async () => {

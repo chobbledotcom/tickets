@@ -5,6 +5,7 @@ import { defineEvidenceCapture } from "#scripts/specs/evidence/capture-flow.ts";
 import type { EvidenceCaptureDeclaration } from "#scripts/specs/evidence/schema.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { validFeature } from "#test/scripts/specs/profile-fixture.ts";
+import { says } from "#test-utils/says.ts";
 import {
   compileEvidenceFeature,
   PAYMENT_RESULT_CAPTURE as declaration,
@@ -273,7 +274,7 @@ describe("Cucumber evidence capture", () => {
     ]);
     expect(calls.captures[0]?.page).toBe(calls.page);
     expect(calls.continued).toEqual(["http://127.0.0.1:4321/icons.svg"]);
-    expect(calls.css[0]).toContain("--test-colour: blue");
+    says(calls.css[0], "--test-colour: blue");
     expect(calls.attachments).toEqual([
       {
         bytes: new Uint8Array([1, 2, 3]),

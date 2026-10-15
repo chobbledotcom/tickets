@@ -5,13 +5,14 @@
  * and only staff get the footer that exposes the query log.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectLoginRedirectWithReturn } from "#test-utils/login-redirect.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestEditorSession,
   getTestSession,
@@ -65,10 +66,7 @@ describeWithEnv("admin segment dispatch", { db: true }, () => {
       }),
     );
     expect(response.status).toBe(401);
-    assertStringIncludes(
-      response.headers.get("content-type") ?? "",
-      "application/json",
-    );
+    says(response.headers.get("content-type"), "application/json");
   });
 
   test("a signed-in visitor reaches a protected page", async () => {
@@ -81,15 +79,12 @@ describeWithEnv("admin segment dispatch", { db: true }, () => {
 describeWithEnv("the admin footer's query log", { db: true }, () => {
   test("opens for staff reading a page", async () => {
     const { cookie } = await getTestSession();
-    assertStringIncludes(await bodyOf("/admin/users", cookie), "debug-menu");
+    says(await bodyOf("/admin/users", cookie), "debug-menu");
   });
 
   test("stays shut for an editor", async () => {
     // The log exposes every query the page ran; only staff may read it.
     const { cookie } = await createTestEditorSession();
-    assert(
-      !(await bodyOf("/admin/listings", cookie)).includes("debug-menu"),
-      "the value should not contain the searched item",
-    );
+    assert(!(await bodyOf("/admin/listings", cookie)).includes("debug-menu"));
   });
 });

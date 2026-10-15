@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { zipSync } from "fflate";
@@ -11,6 +11,7 @@ import {
   runRestoreCli,
 } from "#scripts/restore-lib.ts";
 import { TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";
+import { has } from "#test-utils/says.ts";
 
 const encoder = new TextEncoder();
 const FULL_COMMIT = "0123456789abcdef0123456789abcdef01234567";
@@ -214,31 +215,18 @@ describe("restore task", () => {
 
     expect(await runRestoreCli(state.deps)).toBe(0);
     expect(state.stderr).toEqual([]);
-    assertArrayIncludes(state.stdout, [
-      "Target database: libsql://tickets.example.com",
-    ]);
-    assertArrayIncludes(state.stdout, [
-      "Backup created: 2026-07-22T12:00:00.000Z",
-    ]);
-    assertArrayIncludes(state.stdout, [
-      "Backup contents: 1 table, 2 rows, 2 SQL statements",
-    ]);
-    assertArrayIncludes(state.stdout, [
-      "Schema: matches this version of the app",
-    ]);
-    assertArrayIncludes(state.stdout, ["Checking 2 SQL statements..."]);
-    assertArrayIncludes(state.stdout, ["Deleting current database data..."]);
-    assertArrayIncludes(state.stdout, ["Recreating the database schema..."]);
-    assertArrayIncludes(state.stdout, ["Importing 2 SQL statements..."]);
-    assertArrayIncludes(state.stdout, ["Clearing cached database data..."]);
-    assertArrayIncludes(state.stdout, ["Database restored successfully."]);
-    assertArrayIncludes(state.stdout, [
-      `The backup was running commit ${FULL_COMMIT}.`,
-    ]);
-    assert(
-      !state.stdout.join("\n").includes("secret"),
-      "the value should not contain the searched item",
-    );
+    has(state.stdout, "Target database: libsql://tickets.example.com");
+    has(state.stdout, "Backup created: 2026-07-22T12:00:00.000Z");
+    has(state.stdout, "Backup contents: 1 table, 2 rows, 2 SQL statements");
+    has(state.stdout, "Schema: matches this version of the app");
+    has(state.stdout, "Checking 2 SQL statements...");
+    has(state.stdout, "Deleting current database data...");
+    has(state.stdout, "Recreating the database schema...");
+    has(state.stdout, "Importing 2 SQL statements...");
+    has(state.stdout, "Clearing cached database data...");
+    has(state.stdout, "Database restored successfully.");
+    has(state.stdout, `The backup was running commit ${FULL_COMMIT}.`);
+    assert(!state.stdout.join("\n").includes("secret"));
     expect(state.restored).toHaveLength(1);
     expect(state.promptMessages).toEqual([
       `Type ${RESTORE_CONFIRMATION} to continue:`,
@@ -259,9 +247,10 @@ describe("restore task", () => {
     });
 
     expect(await runRestoreCli(state.deps)).toBe(0);
-    assertArrayIncludes(state.stderr, [
+    has(
+      state.stderr,
       "Warning: This backup uses a different database schema. The app may need to apply database updates after the restore.",
-    ]);
+    );
   });
 
   test("handles an older backup without a manifest", async () => {
@@ -271,7 +260,7 @@ describe("restore task", () => {
     });
 
     expect(await runRestoreCli(state.deps)).toBe(0);
-    assertArrayIncludes(state.stdout, ["Backup manifest: not available"]);
+    has(state.stdout, "Backup manifest: not available");
     expect(state.stdout.some((line) => line.includes("commit"))).toBe(false);
   });
 
@@ -281,7 +270,7 @@ describe("restore task", () => {
     });
 
     expect(await runRestoreCli(state.deps)).toBe(1);
-    assertArrayIncludes(state.stderr, ["Restore failed: newer backup"]);
+    has(state.stderr, "Restore failed: newer backup");
     expect(state.stderr.some((line) => line.includes("was reset"))).toBe(false);
   });
 
@@ -292,12 +281,11 @@ describe("restore task", () => {
     });
 
     expect(await runRestoreCli(state.deps)).toBe(1);
-    assertArrayIncludes(state.stderr, [
-      "Restore failed: database import failed",
-    ]);
-    assertArrayIncludes(state.stderr, [
+    has(state.stderr, "Restore failed: database import failed");
+    has(
+      state.stderr,
       "The target database was reset before the restore failed. Fix the error and run the restore again.",
-    ]);
+    );
   });
 
   test("reports when restored build information cannot be read", async () => {

@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -24,6 +23,7 @@ import { withDbFault } from "#test-utils/db-fault.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockMultipartRequest, withExpectedError } from "#test-utils/mocks.ts";
+import { has, says } from "#test-utils/says.ts";
 import {
   adminMultipartPost,
   setupListingAndLogin,
@@ -79,7 +79,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         uses_logistics: "",
       });
       expect(response.status).toBe(400);
-      assertStringIncludes(await response.text(), "date is required");
+      says(await response.text(), "date is required");
     });
 
     test("re-renders with carried template_id when create validation fails", async () => {
@@ -91,7 +91,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         // name omitted → validation error
       });
       expect(response.status).toBe(400);
-      assertStringIncludes(await response.text(), 'value="online-digital"');
+      says(await response.text(), 'value="online-digital"');
     });
 
     test("creates listing when authenticated", async () => {
@@ -192,9 +192,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
       await expectFlashRedirect("/admin", "Listing created")(response);
 
       const listing = await getListingWithCount(1);
-      assertArrayIncludes((await listingGroups.getIds(listing!.id)) ?? [], [
-        group.id,
-      ]);
+      has(await listingGroups.getIds(listing!.id), group.id);
     });
 
     test("rejects non-existent group_id on create", async () => {
@@ -234,7 +232,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
       });
       expectStatus(400)(response);
       const body = await response.clone().text();
-      assertStringIncludes(body, "already contains standard listings");
+      says(body, "already contains standard listings");
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -291,7 +289,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
       expect(response.status).toBe(400);
       // The submitted group checkbox re-renders as checked rather than empty, so
       // a fixed-and-resubmitted listing keeps its membership.
-      assertStringIncludes(html, `value="${group.id}"`);
+      says(html, `value="${group.id}"`);
       expect(html).toMatch(
         new RegExp(
           `checked[^>]*value="${group.id}"|value="${group.id}"[^>]*checked`,
@@ -316,7 +314,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         thank_you_url: "https://example.com",
       });
       expect(response.status).toBe(400);
-      assertStringIncludes(
+      says(
         await response.text(),
         "Name is already in use by another listing or group",
       );

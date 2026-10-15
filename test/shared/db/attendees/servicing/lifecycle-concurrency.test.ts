@@ -14,7 +14,6 @@
  */
 // jscpd:ignore-start
 
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -22,6 +21,7 @@ import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has } from "#test-utils/says.ts";
 import {
   createRealAttendee,
   createServicingHold,
@@ -137,7 +137,7 @@ describeWithEnv(
       expect(rows.length).toBe(1);
       // One of the two quantities won (last writer). Both are valid; assert
       // it's one of {2, 3}, never a sum like 5.
-      assertArrayIncludes([2, 3], [rows[0]!.quantity]);
+      has([2, 3], rows[0]!.quantity);
     });
 
     test("a real attendee booked on a listing alongside a servicing hold is unaffected by the hold's edit", async () => {

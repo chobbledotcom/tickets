@@ -9,7 +9,7 @@
  */
 
 // jscpd:ignore-start
-import { expect } from "@std/expect";
+import { assert } from "@std/assert";
 import { t } from "#i18n";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import {
@@ -38,6 +38,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -138,7 +139,7 @@ export const groupDoorChecksInAll = async (
   const page = browser.currentHtml;
   const tickWorth = checkboxValueOffered(page, EVERY_LISTING_BOX);
   // Turning on is only a real turn-on for a box that started clear.
-  expect(tickedCheckboxes(page, EVERY_LISTING_BOX)).not.toContain(tickWorth);
+  assert(!tickedCheckboxes(page, EVERY_LISTING_BOX).includes(tickWorth));
   await fillInAndSend(browser, {}, t("common.save_changes"), {
     [EVERY_LISTING_BOX]: [tickWorth],
   });
@@ -152,7 +153,8 @@ export const editPageKeepsEveryListingBoxTicked: ReadAboutOneThing<
 > = async (world, groupName) => {
   const page = (await openAdminPage(world, groupEditPage(world, groupName)))
     .currentHtml;
-  expect(tickedCheckboxes(page, EVERY_LISTING_BOX)).toContain(
+  has(
+    tickedCheckboxes(page, EVERY_LISTING_BOX),
     checkboxValueOffered(page, EVERY_LISTING_BOX),
   );
 };

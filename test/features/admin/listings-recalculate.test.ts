@@ -1,4 +1,3 @@
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -11,6 +10,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingWithDriftedTotals } from "#test-utils/db-helpers/listing-totals.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { has, says } from "#test-utils/says.ts";
 import { getTestSession } from "#test-utils/session.ts";
 
 const recalculatePath = (listingId: number): string =>
@@ -29,12 +29,12 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
 
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, "Current");
-      assertStringIncludes(html, "From attendee data");
+      says(html, "Current");
+      says(html, "From attendee data");
       // Stored 9 and 5 beside the one booking's 1 and 1, or the operator
       // cannot see what they are about to change.
-      assertStringIncludes(html, "<td>9</td><td>1</td>");
-      assertStringIncludes(html, "<td>5</td><td>1</td>");
+      says(html, "<td>9</td><td>1</td>");
+      says(html, "<td>5</td><td>1</td>");
     });
 
     test("is a 404 for a listing id that does not exist", async () => {
@@ -68,8 +68,8 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
       expect(response.headers.get("location")).toMatch(
         new RegExp(`^/admin/listing/${listing.id}/edit(\\?|$)`),
       );
-      assertStringIncludes(
-        response.headers.get("set-cookie") ?? "",
+      says(
+        response.headers.get("set-cookie"),
         encodeURIComponent("Listing totals recalculated"),
       );
 
@@ -96,9 +96,9 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
       );
 
       const entries = await getAllActivityLog();
-      assertArrayIncludes(
+      has(
         entries.map((entry) => entry.message),
-        [`Listing '${listing.name}' totals recalculated`],
+        `Listing '${listing.name}' totals recalculated`,
       );
     });
 
@@ -118,10 +118,7 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
       // The page comes back as a client error, not a success, because the
       // operator still has to choose.
       expect(response.status).toBe(400);
-      assertStringIncludes(
-        await response.text(),
-        "Choose at least one total to recalculate",
-      );
+      says(await response.text(), "Choose at least one total to recalculate");
       const untouched = await getListingWithCount(listing.id);
       expect(untouched?.attendee_count).toBe(9);
       expect(untouched?.tickets_count).toBe(5);

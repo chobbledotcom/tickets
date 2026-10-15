@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -22,6 +22,7 @@ import {
   createTestAttendeeDirect,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -115,7 +116,7 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         await adminGet(`/admin/attendees/${target.id}/actions`),
         200,
       );
-      assertStringIncludes(idle, " autofocus");
+      says(idle, " autofocus");
       expect(extractInputValue(idle, "token")).toBe("");
       // After a successful search the box echoes the token back (so the admin
       // can see what matched) and cedes focus to the decision form.
@@ -123,10 +124,7 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         await mergeActionsPage(target.id, sourceToken),
         200,
       );
-      assert(
-        !searched.includes("autofocus"),
-        "the value should not contain the searched item",
-      );
+      assert(!searched.includes("autofocus"));
       expect(extractInputValue(searched, "token")).toBe(sourceToken);
     });
   });
@@ -238,15 +236,12 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         "Decision",
       );
       const moveableRow = tableRowContaining(html, `Listing #${listing2.id}`);
-      assertStringIncludes(
+      says(
         moveableRow,
         '<td><span class="muted">Will be moved</span></td><td></td></tr>',
       );
-      assert(
-        !moveableRow.includes('name="booking_'),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(
+      assert(!moveableRow.includes('name="booking_'));
+      says(
         tableRowContaining(html, `Listing #${listing1.id}`),
         `name="booking_${listing1.id}:null:0:0"`,
       );

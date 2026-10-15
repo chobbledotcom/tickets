@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -10,6 +10,7 @@ import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { has } from "#test-utils/says.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -122,13 +123,10 @@ describeWithEnv(
         )(response);
 
         const setNames = secrets.setCalls.map((c) => c.name);
-        assertArrayIncludes(setNames, ["NTFY_URL"]);
-        assertArrayIncludes(setNames, ["DB_URL"]);
+        has(setNames, "NTFY_URL");
+        has(setNames, "DB_URL");
         // The unreproducible encryption key is never set.
-        assert(
-          !setNames.includes("DB_ENCRYPTION_KEY"),
-          "the value should not contain the searched item",
-        );
+        assert(!setNames.includes("DB_ENCRYPTION_KEY"));
 
         const logs = await getAllActivityLog();
         expect(logs.some((l) => l.message.includes("missing secret"))).toBe(

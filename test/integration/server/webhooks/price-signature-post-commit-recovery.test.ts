@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -46,6 +45,7 @@ import {
   getProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { says } from "#test-utils/says.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
 const contactCountsByHash = async (hash: string) =>
@@ -316,13 +316,13 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           ).toBe(1);
           // Both bodies carry the buyer's typed answer from the staged row.
           const buyerBody = emailBodies.find((body) => body.to[0] === email)!;
-          assertStringIncludes(buyerBody.html, "Anything else?");
-          assertStringIncludes(buyerBody.html, "Vegetarian, please");
+          says(buyerBody.html, "Anything else?");
+          says(buyerBody.html, "Vegetarian, please");
           const ownerBody = emailBodies.find(
             (body) => body.to[0] === "owner@example.com",
           )!;
-          assertStringIncludes(ownerBody.html, "Anything else?");
-          assertStringIncludes(ownerBody.html, "Vegetarian, please");
+          says(ownerBody.html, "Anything else?");
+          says(ownerBody.html, "Vegetarian, please");
           // The committed batch took the staged copy back with the booking.
           expect((await readCheckoutAnswers(sessionId)).size).toBe(0);
           // The recovered sends extended the renewal site's deadline once.
@@ -342,8 +342,8 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
               mockRequest(`/payment/success?session_id=${sessionId}`),
             );
             expect(redirect.status).toBe(302);
-            assertStringIncludes(
-              redirect.headers.get("location") ?? "",
+            says(
+              redirect.headers.get("location"),
               encodeURIComponent(ticketToken),
             );
             expect(await getAttendeesRaw(listing.id)).toHaveLength(1);

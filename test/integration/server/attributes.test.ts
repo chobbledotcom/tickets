@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
@@ -19,6 +19,7 @@ import {
   createTestListing,
   duplicateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminGet, getTestSession } from "#test-utils/session.ts";
 import { enableFeature } from "#test-utils/settings.ts";
 
@@ -130,14 +131,8 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
       // The tab loader once received the framework's page-context object in
       // its `error` parameter, so every load showed an error box reading
       // "[object Object]".
-      assert(
-        !html.includes("[object Object]"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('class="error"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("[object Object]"));
+      assert(!html.includes('class="error"'));
     });
 
     test("shows available options and checked selections", async () => {
@@ -157,17 +152,14 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
         "Easy",
         "Hard",
       );
-      assertStringIncludes(
+      says(
         html,
         `checked name="option_ids" type="checkbox" value="${
           attribute.options[1]!.id
         }"`,
       );
       // Each attribute's options render as a row-based checkbox fieldset.
-      assertStringIncludes(
-        html,
-        '<fieldset class="checkboxes listing-section">',
-      );
+      says(html, '<fieldset class="checkboxes listing-section">');
     });
 
     test("shows attributes that do not have options yet", async () => {

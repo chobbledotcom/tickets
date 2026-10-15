@@ -1,10 +1,11 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
 import { formatDateRangeLabel } from "#shared/date-labels.ts";
 import { AttendeeBookingsTable } from "#templates/admin/attendee-detail.tsx";
 import { expectListingRowQuantity } from "#test-utils/assertions.ts";
+import { says } from "#test-utils/says.ts";
 
 const booking = (
   overrides: Partial<AttendeeBooking> = {},
@@ -40,18 +41,18 @@ describe("AttendeeBookingsTable", () => {
       booking({ listingId: 7, listingName: "Kayak", quantity: 2 }),
       booking({ listingId: 8, listingName: "Canoe", quantity: 3 }),
     ]);
-    assertStringIncludes(html, "Bookings");
-    assertStringIncludes(html, 'href="/admin/listing/7"');
-    assertStringIncludes(html, "Kayak");
-    assertStringIncludes(html, 'href="/admin/listing/8"');
-    assertStringIncludes(html, "Canoe");
+    says(html, "Bookings");
+    says(html, 'href="/admin/listing/7"');
+    says(html, "Kayak");
+    says(html, 'href="/admin/listing/8"');
+    says(html, "Canoe");
     // Each listing's row shows its own quantity (Kayak→2, Canoe→3), so a
     // swapped grouping fails here, not just a wrong sum...
     expectListingRowQuantity(html, 7, 2);
     expectListingRowQuantity(html, 8, 3);
     // ...and the footer totals them (2 + 3); only the total cell holds 5.
-    assertStringIncludes(html, '<th colspan="2" scope="row">Total</th>');
-    assertStringIncludes(html, '<td class="col-quantity">5</td>');
+    says(html, '<th colspan="2" scope="row">Total</th>');
+    says(html, '<td class="col-quantity">5</td>');
   });
 
   test("formats the date range for a dated (daily) booking", () => {
@@ -61,7 +62,7 @@ describe("AttendeeBookingsTable", () => {
         startAt: "2026-06-01T00:00:00Z",
       }),
     ]);
-    assertStringIncludes(
+    says(
       html,
       formatDateRangeLabel("2026-06-01T00:00:00Z", "2026-06-03T00:00:00Z"),
     );
@@ -71,20 +72,16 @@ describe("AttendeeBookingsTable", () => {
     // A standard (fixed-date) booking carries no start date; the status badge
     // proves the only em dash present is the date fallback.
     const html = renderBookings([booking({ checkedIn: 1, startAt: null })]);
-    assertStringIncludes(html, "Checked in");
-    assertStringIncludes(html, "—");
+    says(html, "Checked in");
+    says(html, "—");
   });
 
   test("marks an inactive listing", () => {
-    assertStringIncludes(
-      renderBookings([booking({ listingActive: false })]),
-      "(Inactive)",
-    );
+    says(renderBookings([booking({ listingActive: false })]), "(Inactive)");
     assert(
       !renderBookings([booking({ listingActive: true })]).includes(
         "(Inactive)",
       ),
-      "the value should not contain the searched item",
     );
   });
 
@@ -93,15 +90,12 @@ describe("AttendeeBookingsTable", () => {
       assignBuiltSite: true,
       listingName: "One Month Site",
     });
-    assertStringIncludes(
+    says(
       renderBookings([planLine], true),
       '<div class="muted small">No site assigned yet</div>',
     );
     // The buyer already holds a site, so no plan row shows the cue.
-    assert(
-      !renderBookings([planLine]).includes("No site assigned yet"),
-      "the value should not contain the searched item",
-    );
+    assert(!renderBookings([planLine]).includes("No site assigned yet"));
     // An ordinary listing never reads as owed a site, and a no-quantity
     // plan line bought nothing.
     assert(
@@ -109,13 +103,11 @@ describe("AttendeeBookingsTable", () => {
         [booking({ assignBuiltSite: true, quantity: 0 })],
         true,
       ).includes("No site assigned yet"),
-      "the value should not contain the searched item",
     );
     assert(
       !renderBookings([booking({ listingName: "Concert" })], true).includes(
         "No site assigned yet",
       ),
-      "the value should not contain the searched item",
     );
   });
 
@@ -127,7 +119,6 @@ describe("AttendeeBookingsTable", () => {
     });
     assert(
       !renderBookings([refundedPlan], true).includes("No site assigned yet"),
-      "the value should not contain the searched item",
     );
   });
 
@@ -143,24 +134,15 @@ describe("AttendeeBookingsTable", () => {
         parentListingId: 1,
       }),
     ]);
-    assertStringIncludes(
-      html,
-      '<div class="muted small">Add-on chosen under Base unit</div>',
-    );
+    says(html, '<div class="muted small">Add-on chosen under Base unit</div>');
   });
 
   test("a plain booking shows no add-on annotation", () => {
     const html = renderBookings([
       booking({ listingId: 7, listingName: "Base unit" }),
     ]);
-    assert(
-      !html.includes("Add-on chosen under"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Includes add-on"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Add-on chosen under"));
+    assert(!html.includes("Includes add-on"));
   });
 
   test("annotates a parent row with the add-on children folded under it (#5)", () => {
@@ -172,15 +154,12 @@ describe("AttendeeBookingsTable", () => {
       booking({ listingId: 8, listingName: "Paddle", parentListingId: 1 }),
       booking({ listingId: 9, listingName: "Helmet", parentListingId: 1 }),
     ]);
-    assertStringIncludes(
+    says(
       html,
       '<div class="muted small">Includes add-on: Paddle, Helmet</div>',
     );
     // The children still show their own "chosen under" annotation.
-    assertStringIncludes(
-      html,
-      '<div class="muted small">Add-on chosen under Base unit</div>',
-    );
+    says(html, '<div class="muted small">Add-on chosen under Base unit</div>');
   });
 
   test("falls back to the parent id when its row is absent from the order", () => {
@@ -189,7 +168,7 @@ describe("AttendeeBookingsTable", () => {
     const html = renderBookings([
       booking({ listingId: 8, listingName: "Add-on", parentListingId: 7 }),
     ]);
-    assertStringIncludes(html, "Add-on chosen under #7");
+    says(html, "Add-on chosen under #7");
   });
 
   test("falls back to an em dash when a booking has no status", () => {
@@ -202,16 +181,10 @@ describe("AttendeeBookingsTable", () => {
         startAt: "2026-06-01T00:00:00Z",
       }),
     ]);
-    assertStringIncludes(html, "—");
+    says(html, "—");
     // With a start date, the date cell renders words, so this one em dash
     // can only be the status column's fallback.
-    assert(
-      !html.includes("Checked in"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("Refunded"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Checked in"));
+    assert(!html.includes("Refunded"));
   });
 });

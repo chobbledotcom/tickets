@@ -1,6 +1,6 @@
 /** Owner-only HTTP boundary for provider refund recovery. */
 
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -30,6 +30,7 @@ import {
   addProviderRefundTestCase,
   readyRefundTestState,
 } from "#test-utils/provider-refund-cases.ts";
+import { has, says } from "#test-utils/says.ts";
 import {
   adminGet,
   createTestManagerSession,
@@ -69,10 +70,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
 
     const response = await submitCase(cookie, { choice: "check_again" });
     expectStatus(403)(response);
-    assert(
-      !(await response.text()).includes("Check the provider again"),
-      "the value should not contain the searched item",
-    );
+    assert(!(await response.text()).includes("Check the provider again"));
   });
 
   test("returns 404 when an owner opens a case which does not exist", async () => {
@@ -134,13 +132,11 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       readRefundAuthorityState(row!.refund_state, "checked case"),
     ).toMatchObject({ kind: "completed", local: { kind: "due" } });
     const messages = (await getAllActivityLog()).map(({ message }) => message);
-    assertArrayIncludes(messages, [
+    has(
+      messages,
       `Refund recovery ${id}: owner asked the site to check the provider again`,
-    ]);
-    assert(
-      !messages.join(" ").includes(reference),
-      "the value should not contain the searched item",
     );
+    assert(!messages.join(" ").includes(reference));
   });
 
   test("says no refund was sent when an active provider check is unreadable", async () => {
@@ -206,12 +202,9 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
 
     const detail = await adminGet(refundCasePath(id));
     const detailHtml = await detail.text();
-    assertStringIncludes(detailHtml, "Send this refund");
-    assertStringIncludes(detailHtml, 'button class="danger"');
-    assert(
-      !detailHtml.includes("Check the provider again"),
-      "the value should not contain the searched item",
-    );
+    says(detailHtml, "Send this refund");
+    says(detailHtml, 'button class="danger"');
+    assert(!detailHtml.includes("Check the provider again"));
     await expectFlashRedirect(
       refundCasePath(id),
       "Continued the ready refund safely.",
@@ -226,9 +219,9 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     expect(
       readRefundAuthorityState(row!.refund_state, "ready owner case"),
     ).toMatchObject({ kind: "completed", local: { kind: "due" } });
-    assertArrayIncludes(
+    has(
       (await getAllActivityLog()).map(({ message }) => message),
-      [`Refund recovery ${id}: owner authorized the ready refund to continue`],
+      `Refund recovery ${id}: owner authorized the ready refund to continue`,
     );
   });
 
@@ -249,7 +242,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     using provider = returnedProviderCheck();
 
     const detail = await adminGet(refundCasePath(id));
-    assertStringIncludes(await detail.text(), "Check the provider again");
+    says(await detail.text(), "Check the provider again");
     await expectProviderCheck(
       id,
       provider,
@@ -268,14 +261,8 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     });
     const returnedChoice = await adminGet(refundCasePath(id));
     const returnedChoiceHtml = await returnedChoice.text();
-    assertStringIncludes(
-      returnedChoiceHtml,
-      'value="provider_confirmed_returned"',
-    );
-    assert(
-      !returnedChoiceHtml.includes('value="provider_confirmed_not_sent"'),
-      "the value should not contain the searched item",
-    );
+    says(returnedChoiceHtml, 'value="provider_confirmed_returned"');
+    assert(!returnedChoiceHtml.includes('value="provider_confirmed_not_sent"'));
   });
 
   test("keeps a partial return protected without asking for a false choice", async () => {
@@ -299,15 +286,12 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     // The money the choice attests is in view before the owner acts.
     const page = await adminGet(refundCasePath(id));
     const html = await page.text();
-    assertStringIncludes(html, 'value="provider_confirmed_returned"');
-    assert(
-      !html.includes('value="provider_confirmed_not_sent"'),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "Provider returned");
-    assertStringIncludes(html, "£4 GBP");
-    assertStringIncludes(html, "Not returned");
-    assertStringIncludes(html, "£21 GBP");
+    says(html, 'value="provider_confirmed_returned"');
+    assert(!html.includes('value="provider_confirmed_not_sent"'));
+    says(html, "Provider returned");
+    says(html, "£4 GBP");
+    says(html, "Not returned");
+    says(html, "£21 GBP");
 
     const refuse = async (body: Record<string, string>): Promise<void> => {
       await expectFlashRedirect(
@@ -385,24 +369,15 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     const queue = await adminGet("/admin/privacy");
     const queueHtml = await queue.text();
     expect(queue.status).toBe(200);
-    assertStringIncludes(queueHtml, `Open refund ${id}`);
-    assert(
-      !queueHtml.includes(reference),
-      "the value should not contain the searched item",
-    );
+    says(queueHtml, `Open refund ${id}`);
+    assert(!queueHtml.includes(reference));
 
     const detail = await adminGet(refundCasePath(id));
     const detailHtml = await detail.text();
     expect(detail.status).toBe(200);
-    assertStringIncludes(detailHtml, reference);
-    assertStringIncludes(
-      detailHtml,
-      "The provider confirms that the money was returned",
-    );
-    assert(
-      !detailHtml.includes("checked"),
-      "the value should not contain the searched item",
-    );
+    says(detailHtml, reference);
+    says(detailHtml, "The provider confirms that the money was returned");
+    assert(!detailHtml.includes("checked"));
 
     await expectFlashRedirect(
       "/admin/privacy",
@@ -423,7 +398,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     ).toMatchObject({ kind: "completed", local: { kind: "due" } });
 
     const recording = await adminGet(refundCasePath(id));
-    assertStringIncludes(
+    says(
       await recording.text(),
       "I confirm that this returned money is now recorded in Money.",
     );
@@ -440,15 +415,14 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     expectStatus(404)(await adminGet(refundCasePath(id)));
 
     const messages = (await getAllActivityLog()).map(({ message }) => message);
-    assertArrayIncludes(messages, [
+    has(
+      messages,
       `Refund recovery ${id}: owner confirmed that the provider returned the money`,
-    ]);
-    assertArrayIncludes(messages, [
-      `Refund recovery ${id}: owner confirmed the returned money is recorded in Money`,
-    ]);
-    assert(
-      !messages.join(" ").includes(reference),
-      "the value should not contain the searched item",
     );
+    has(
+      messages,
+      `Refund recovery ${id}: owner confirmed the returned money is recorded in Money`,
+    );
+    assert(!messages.join(" ").includes(reference));
   });
 });

@@ -35,6 +35,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -75,7 +76,7 @@ Then(
   function (this: TicketsWorld): void {
     const browser = browserSeenBy(this, READER);
     expect(browser.currentUrl).toBe(CHOICES_PATH);
-    expect(browser.pageText).toContain(t("unsubscribe.subscribed_message"));
+    says(browser.pageText, t("unsubscribe.subscribed_message"));
   },
 );
 
@@ -89,9 +90,7 @@ When(
 Then(
   "they are told they have unsubscribed",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, READER)).toContain(
-      t("unsubscribe.unsubscribed_flash"),
-    );
+    says(whatTheyWereTold(this, READER), t("unsubscribe.unsubscribed_flash"));
   },
 );
 
@@ -128,9 +127,7 @@ When(
 Then(
   "they are told they have resubscribed",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, READER)).toContain(
-      t("unsubscribe.resubscribed_flash"),
-    );
+    says(whatTheyWereTold(this, READER), t("unsubscribe.resubscribed_flash"));
   },
 );
 
@@ -151,9 +148,7 @@ When(
 Then(
   "they are told their record was deleted",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, READER)).toContain(
-      t("unsubscribe.deleted_flash"),
-    );
+    says(whatTheyWereTold(this, READER), t("unsubscribe.deleted_flash"));
   },
 );
 
@@ -174,9 +169,7 @@ When(
 );
 
 Then("they are told the link is invalid", function (this: TicketsWorld): void {
-  expect(browserSeenBy(this, READER).pageText).toContain(
-    t("unsubscribe.invalid_link"),
-  );
+  says(browserSeenBy(this, READER).pageText, t("unsubscribe.invalid_link"));
 });
 
 Then(

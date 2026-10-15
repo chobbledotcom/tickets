@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import ts from "typescript";
@@ -7,6 +8,7 @@ import {
   type OwnedField,
 } from "#scripts/unread-fields/fields.ts";
 import { ownerPath, reaching } from "#scripts/unread-fields/identity.ts";
+import { has } from "#test-utils/says.ts";
 
 /**
  * One field gets one line, and the line names every place the field is
@@ -246,61 +248,55 @@ describe("one line per field", () => {
   });
 
   test("walks through each named type a borrowed field holds", () => {
-    expect(paths()).toContain("Public.detail.deep");
-    expect(paths()).toContain("Child.inherited.deep");
+    has(paths(), "Public.detail.deep");
+    has(paths(), "Child.inherited.deep");
   });
 
   test("keeps an exported target's fields under that target", () => {
-    expect(paths()).toContain("ExportedDetail.ownDeep");
-    expect(paths()).toContain("UsesExportedDetail.detail");
-    expect(paths()).not.toContain("UsesExportedDetail.detail.ownDeep");
-    expect(paths()).toContain("ExportedBox.value");
-    expect(paths()).not.toContain("UsesExportedBox.value");
-    expect(paths()).toContain("ExportedInput.sourceOwnedInput");
-    expect(paths()).not.toContain("PicksExportedService.run");
-    expect(paths()).not.toContain(
-      'PicksExportedService.run["()"].input.sourceOwnedInput',
+    has(paths(), "ExportedDetail.ownDeep");
+    has(paths(), "UsesExportedDetail.detail");
+    assert(!paths().includes("UsesExportedDetail.detail.ownDeep"));
+    has(paths(), "ExportedBox.value");
+    assert(!paths().includes("UsesExportedBox.value"));
+    has(paths(), "ExportedInput.sourceOwnedInput");
+    assert(!paths().includes("PicksExportedService.run"));
+    assert(
+      !paths().includes(
+        'PicksExportedService.run["()"].input.sourceOwnedInput',
+      ),
     );
   });
 
   test("keeps a private type argument under its exported caller", () => {
-    expect(paths()).toContain("UsesExportedBox.value.privateInline");
-    expect(paths()).toContain("PicksExportedBox.value.pickedPrivateInline");
-    expect(paths()).not.toContain("PicksExportedBox.value");
+    has(paths(), "UsesExportedBox.value.privateInline");
+    has(paths(), "PicksExportedBox.value.pickedPrivateInline");
+    assert(!paths().includes("PicksExportedBox.value"));
   });
 
   test("walks through each substituted generic value", () => {
-    expect(paths()).toContain("NestedBoxes.value.value.id");
-    expect(paths()).toContain("PicksPrivateBox.value");
-    expect(paths()).toContain("PicksPrivateBox.value.pickedFromPrivateBox");
-    expect(paths()).toContain('PicksPrivateArray.value["[]"].pickedFromArray');
-    expect(paths()).toContain('PicksPrivateMap.value["keys()"].pickedFromKey');
-    expect(paths()).toContain(
-      'PicksPrivateMap.value["values()"].pickedFromValue',
-    );
-    expect(paths()).toContain(
-      "PicksPrivatePromise.value.result.pickedFromPromise",
-    );
-    expect(paths()).toContain(
-      'PicksPrivateCall.value["()"].input.pickedFromInput',
-    );
-    expect(paths()).toContain(
-      'PicksPrivateCall.value["()"].result.pickedFromOutput',
-    );
-    expect(paths()).toContain("PicksPrivateRecord.value.fixed");
-    expect(paths()).toContain("PicksPrivateRecord.value.fixed.pickedFromFixed");
+    has(paths(), "NestedBoxes.value.value.id");
+    has(paths(), "PicksPrivateBox.value");
+    has(paths(), "PicksPrivateBox.value.pickedFromPrivateBox");
+    has(paths(), 'PicksPrivateArray.value["[]"].pickedFromArray');
+    has(paths(), 'PicksPrivateMap.value["keys()"].pickedFromKey');
+    has(paths(), 'PicksPrivateMap.value["values()"].pickedFromValue');
+    has(paths(), "PicksPrivatePromise.value.result.pickedFromPromise");
+    has(paths(), 'PicksPrivateCall.value["()"].input.pickedFromInput');
+    has(paths(), 'PicksPrivateCall.value["()"].result.pickedFromOutput');
+    has(paths(), "PicksPrivateRecord.value.fixed");
+    has(paths(), "PicksPrivateRecord.value.fixed.pickedFromFixed");
   });
 
   test("walks a private shape for each exported route", () => {
-    expect(paths()).toContain("DirectBeforePick.nested.deep");
-    expect(paths()).toContain("PickAfterDirect.nested.deep");
-    expect(paths()).toContain("PickBeforeDirect.nested.deep");
-    expect(paths()).toContain("DirectAfterPick.nested.deep");
+    has(paths(), "DirectBeforePick.nested.deep");
+    has(paths(), "PickAfterDirect.nested.deep");
+    has(paths(), "PickBeforeDirect.nested.deep");
+    has(paths(), "DirectAfterPick.nested.deep");
   });
 
   test("walks a private shape at each path inside one export", () => {
-    expect(paths()).toContain("ReachesPrivateTwoWays.direct.nested.deep");
-    expect(paths()).toContain("ReachesPrivateTwoWays.nested.deep");
+    has(paths(), "ReachesPrivateTwoWays.direct.nested.deep");
+    has(paths(), "ReachesPrivateTwoWays.nested.deep");
   });
 
   test("stops below a recursive field", () => {
@@ -321,29 +317,27 @@ describe("one line per field", () => {
   });
 
   test("walks the chosen output of a utility type", () => {
-    expect(paths()).toContain("Filtered.nested.deep");
-    expect(paths()).not.toContain("Filtered.nested.gone");
-    expect(paths()).toContain("MadeDetail.output.deep");
-    expect(paths()).not.toContain("MadeDetail.input.notOutput");
+    has(paths(), "Filtered.nested.deep");
+    assert(!paths().includes("Filtered.nested.gone"));
+    has(paths(), "MadeDetail.output.deep");
+    assert(!paths().includes("MadeDetail.input.notOutput"));
   });
 
   test("uses the source fields rather than a utility selector", () => {
-    expect(paths()).toContain('ChosenDefinition.fields["[]"].stateField');
-    expect(paths()).toContain(
-      'ChosenDefinition.fields["[]"].configuredStateField',
-    );
+    has(paths(), 'ChosenDefinition.fields["[]"].stateField');
+    has(paths(), 'ChosenDefinition.fields["[]"].configuredStateField');
     expect(namesFor("stateField")).toHaveLength(1);
     expect(namesFor("configuredStateField")).toHaveLength(1);
   });
 
   test("walks through the result of a Promise", () => {
-    expect(paths()).toContain("AsyncResult.validate.result.error");
-    expect(paths()).toContain("AsyncResult.validate.result.value");
-    expect(paths()).toContain("AliasedAsyncResult.result.done");
-    expect(paths()).toContain("NestedAsyncResult.result.done");
-    expect(paths()).toContain("PromiseLikeResult.result.done");
-    expect(paths()).toContain("LocalPromiseResult.local.id");
-    expect(paths()).not.toContain("LocalPromiseResult.result.id");
+    has(paths(), "AsyncResult.validate.result.error");
+    has(paths(), "AsyncResult.validate.result.value");
+    has(paths(), "AliasedAsyncResult.result.done");
+    has(paths(), "NestedAsyncResult.result.done");
+    has(paths(), "PromiseLikeResult.result.done");
+    has(paths(), "LocalPromiseResult.local.id");
+    assert(!paths().includes("LocalPromiseResult.result.id"));
   });
 
   test("keeps a result step apart from a field of that name", () => {

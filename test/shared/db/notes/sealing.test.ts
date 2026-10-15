@@ -30,10 +30,7 @@ describeWithEnv("db > notes > sealing", { db: true }, () => {
       const sealed = await sealNote("system", "system secret");
 
       expect(sealed.startsWith("enc:")).toBe(true);
-      assert(
-        !sealed.includes("system secret"),
-        "the value should not contain the searched item",
-      );
+      assert(!sealed.includes("system secret"));
       expect(await decrypt(sealed as EnvKeyEncrypted)).toBe("system secret");
     });
 
@@ -41,10 +38,7 @@ describeWithEnv("db > notes > sealing", { db: true }, () => {
       const sealed = await sealNote("owner", "owner secret");
 
       expect(sealed.startsWith("hyb:")).toBe(true);
-      assert(
-        !sealed.includes("owner secret"),
-        "the value should not contain the searched item",
-      );
+      assert(!sealed.includes("owner secret"));
       expect(
         await decryptWithOwnerKey(
           sealed as OwnerKeyEncrypted,

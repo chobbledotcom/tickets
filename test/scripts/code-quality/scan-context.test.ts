@@ -10,6 +10,7 @@ import {
   REPO_ROOT,
   SRC_DIR,
 } from "#test/scripts/code-quality/scan-context.ts";
+import { says } from "#test-utils/says.ts";
 
 /**
  * The live-tree assertions in test/integration/code-quality.test.ts pass the
@@ -45,10 +46,8 @@ describe("code-quality scan context", () => {
       detectRelativeImport,
     );
     expect(violations).toHaveLength(1);
-    expect(violations[0]).toContain("src/scan-context-fixture.ts:1");
-    expect(violations[0]).toContain(
-      "(use a # alias instead of a ../ relative import)",
-    );
+    says(violations[0], "src/scan-context-fixture.ts:1");
+    says(violations[0], "(use a # alias instead of a ../ relative import)");
   });
 
   test("getRelativePath names a file relative to src/", () => {

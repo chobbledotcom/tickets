@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -33,6 +33,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { has, says } from "#test-utils/says.ts";
 import { loginAsAdmin } from "#test-utils/session.ts";
 
 /** POST a wrong-password login from the given client IP, then assert it is
@@ -45,10 +46,7 @@ const expectWrongPasswordLoginFrom = async (
     username: TEST_ADMIN_USERNAME,
   });
   const response = await handleRequest(request, clientIp);
-  assert(
-    !response.headers.getSetCookie().includes(clearSessionCookie()),
-    "the value should not contain the searched item",
-  );
+  assert(!response.headers.getSetCookie().includes(clearSessionCookie()));
   expectRedirectWithFlash(
     "/admin",
     expect.stringContaining("Username or password was wrong"),
@@ -250,9 +248,9 @@ describeWithEnv("server (admin login)", { db: true }, () => {
         }),
       );
       await expectFlashRedirect("/admin", "Logged in")(response);
-      assertArrayIncludes(
+      has(
         timers.calls.map((call) => call.args[1]),
-        [150],
+        150,
       );
     });
   });
@@ -312,9 +310,7 @@ describeWithEnv("server (admin login)", { db: true }, () => {
           cookie,
         ),
       );
-      assertArrayIncludes(postResponse.headers.getSetCookie(), [
-        clearSessionCookie(),
-      ]);
+      has(postResponse.headers.getSetCookie(), clearSessionCookie());
       expect(postResponse.status).toBe(302);
 
       // Follow the redirect, carrying both the original session cookie and
@@ -328,12 +324,9 @@ describeWithEnv("server (admin login)", { db: true }, () => {
       // Should land on the login page with the error, NOT the dashboard.
       const html = await getResponse.text();
       expect(getResponse.status).toBe(200);
-      assertStringIncludes(html, "Login");
-      assertStringIncludes(html, "Username or password was wrong");
-      assert(
-        !html.includes("Listing name"),
-        "the value should not contain the searched item",
-      );
+      says(html, "Login");
+      says(html, "Username or password was wrong");
+      assert(!html.includes("Listing name"));
     });
   });
 

@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
@@ -20,6 +20,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -185,16 +186,13 @@ describeWithEnv(
       const memberQueries = batchedMemberQueries(seen);
       expect(memberQueries.length).toBe(1);
       const [memberQuery] = memberQueries;
-      assertStringIncludes(memberQuery ?? "", "GROUP BY listing.id");
+      says(memberQuery, "GROUP BY listing.id");
       assert(
         memberQuery !== undefined &&
           !memberQuery.includes("GROUP BY listing.id,"),
         "the value should not contain the searched item",
       );
-      assertStringIncludes(
-        memberQuery ?? "",
-        "ORDER BY listing.created DESC, listing.id DESC",
-      );
+      says(memberQuery, "ORDER BY listing.created DESC, listing.id DESC");
     });
 
     test("checks all packages with one shared set of package reads", async () => {

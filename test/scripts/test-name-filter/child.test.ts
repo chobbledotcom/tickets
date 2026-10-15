@@ -1,7 +1,9 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { projectRoot } from "#scripts/project-root.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
+import { has, says } from "#test-utils/says.ts";
 import { TEST_NAME_FILTER_ENV } from "#test-utils/test-name-filter.ts";
 
 const FIXTURE_DIR = "test/scripts/test-name-filter/fixtures";
@@ -70,21 +72,21 @@ describe("a test-name filter in the test child", () => {
     const { names, success } = await runFixture("nested.ts", "leaf alpha");
 
     expect(success).toBe(true);
-    expect(names).toContain("leaf alpha");
-    expect(names).not.toContain("leaf beta");
-    expect(names).not.toContain("leaf gamma");
+    has(names, "leaf alpha");
+    assert(!names.includes("leaf beta"));
+    assert(!names.includes("leaf gamma"));
     // A suite that kept nothing leaves no pass event behind.
-    expect(names).not.toContain("empty middle");
-    expect(names).not.toContain("empty inner");
+    assert(!names.includes("empty middle"));
+    assert(!names.includes("empty inner"));
   });
 
   test("runs a matched describe whole", async () => {
     const { names, success } = await runFixture("nested.ts", "inner group");
 
     expect(success).toBe(true);
-    expect(names).toContain("leaf alpha");
-    expect(names).toContain("leaf beta");
-    expect(names).not.toContain("leaf gamma");
+    has(names, "leaf alpha");
+    has(names, "leaf beta");
+    assert(!names.includes("leaf gamma"));
   });
 
   test("matches leaves through a /regular expression/", async () => {
@@ -94,9 +96,9 @@ describe("a test-name filter in the test child", () => {
     );
 
     expect(success).toBe(true);
-    expect(names).toContain("leaf alpha");
-    expect(names).toContain("leaf gamma");
-    expect(names).not.toContain("leaf beta");
+    has(names, "leaf alpha");
+    has(names, "leaf gamma");
+    assert(!names.includes("leaf beta"));
   });
 
   test("matches no test and reports an empty plan", async () => {
@@ -114,9 +116,9 @@ describe("a test-name filter in the test child", () => {
     const { names, success } = await runFixture("nested.ts");
 
     expect(success).toBe(true);
-    expect(names).toContain("leaf alpha");
-    expect(names).toContain("leaf beta");
-    expect(names).toContain("leaf gamma");
+    has(names, "leaf alpha");
+    has(names, "leaf beta");
+    has(names, "leaf gamma");
   });
 
   test("runs a matched top-level it of a hooked file", async () => {
@@ -126,12 +128,12 @@ describe("a test-name filter in the test child", () => {
     );
 
     expect(success).toBe(true);
-    expect(names).toContain("standalone alpha");
+    has(names, "standalone alpha");
     // The hidden suite's hook runs only when something below it is kept.
-    expect(marks).toContain("global hook ran\n");
-    expect(marks).toContain("standalone alpha ran\n");
-    expect(marks).not.toContain("standalone beta ran");
-    expect(marks).not.toContain("inner leaf ran");
+    says(marks, "global hook ran\n");
+    says(marks, "standalone alpha ran\n");
+    assert(!marks.includes("standalone beta ran"));
+    assert(!marks.includes("inner leaf ran"));
   });
 
   test("never runs a hooked file's hidden suite when nothing is kept", async () => {
@@ -152,11 +154,11 @@ describe("a test-name filter in the test child", () => {
     );
 
     expect(success).toBe(true);
-    expect(names).toContain("inner leaf");
-    expect(names).toContain("other leaf");
-    expect(names).not.toContain("standalone alpha");
-    expect(marks).toContain("global hook ran\n");
-    expect(marks).not.toContain("standalone alpha ran");
+    has(names, "inner leaf");
+    has(names, "other leaf");
+    assert(!names.includes("standalone alpha"));
+    says(marks, "global hook ran\n");
+    assert(!marks.includes("standalone alpha ran"));
   });
 
   test("runs no suite-level hooks of a pruned suite", async () => {
@@ -166,12 +168,12 @@ describe("a test-name filter in the test child", () => {
     );
 
     expect(success).toBe(true);
-    expect(names).toContain("kept leaf");
-    expect(names).not.toContain("pruned leaf");
-    expect(marks).toContain("kept leaf ran\n");
-    expect(marks).not.toContain("pruned setup ran");
-    expect(marks).not.toContain("pruned leaf ran");
-    expect(marks).not.toContain("pruned afterAll ran");
+    has(names, "kept leaf");
+    assert(!names.includes("pruned leaf"));
+    says(marks, "kept leaf ran\n");
+    assert(!marks.includes("pruned setup ran"));
+    assert(!marks.includes("pruned leaf ran"));
+    assert(!marks.includes("pruned afterAll ran"));
   });
 
   test("keeps and drops plain Deno.test declarations by name", async () => {
@@ -181,10 +183,10 @@ describe("a test-name filter in the test child", () => {
     );
 
     expect(success).toBe(true);
-    expect(names).toContain("plain test");
-    expect(names).not.toContain("wrapped leaf");
-    expect(marks).toContain("plain test ran\n");
-    expect(marks).not.toContain("wrapped leaf ran");
+    has(names, "plain test");
+    assert(!names.includes("wrapped leaf"));
+    says(marks, "plain test ran\n");
+    assert(!marks.includes("wrapped leaf ran"));
   });
 
   test("runs a matched bdd leaf beside dropped plain tests", async () => {
@@ -194,10 +196,10 @@ describe("a test-name filter in the test child", () => {
     );
 
     expect(success).toBe(true);
-    expect(names).toContain("wrapped leaf");
-    expect(names).not.toContain("plain test");
-    expect(marks).toContain("wrapped leaf ran\n");
-    expect(marks).not.toContain("plain test ran");
+    has(names, "wrapped leaf");
+    assert(!names.includes("plain test"));
+    says(marks, "wrapped leaf ran\n");
+    assert(!marks.includes("plain test ran"));
   });
 
   test("runs a matched standalone it of a hooked file by name", async () => {
@@ -207,11 +209,11 @@ describe("a test-name filter in the test child", () => {
     );
 
     expect(success).toBe(true);
-    expect(names).toContain("standalone beta");
-    expect(marks).toContain("global hook ran\n");
-    expect(marks).toContain("standalone beta ran\n");
-    expect(marks).not.toContain("standalone alpha ran");
-    expect(marks).not.toContain("inner leaf ran");
+    has(names, "standalone beta");
+    says(marks, "global hook ran\n");
+    says(marks, "standalone beta ran\n");
+    assert(!marks.includes("standalone alpha ran"));
+    assert(!marks.includes("inner leaf ran"));
   });
 
   test("runs a matched group's hooks and leaf when the group keeps them", async () => {
@@ -221,12 +223,12 @@ describe("a test-name filter in the test child", () => {
     );
 
     expect(success).toBe(true);
-    expect(names).toContain("pruned leaf");
-    expect(names).not.toContain("kept leaf");
-    expect(marks).toContain("pruned setup ran\n");
-    expect(marks).toContain("pruned leaf ran\n");
-    expect(marks).toContain("pruned afterAll ran after 1 setups\n");
-    expect(marks).not.toContain("kept leaf ran");
+    has(names, "pruned leaf");
+    assert(!names.includes("kept leaf"));
+    says(marks, "pruned setup ran\n");
+    says(marks, "pruned leaf ran\n");
+    says(marks, "pruned afterAll ran after 1 setups\n");
+    assert(!marks.includes("kept leaf ran"));
   });
 
   test("fails a fixture run whose marks path is missing", async () => {
@@ -235,6 +237,6 @@ describe("a test-name filter in the test child", () => {
     });
 
     expect(success).toBe(false);
-    expect(stdout).toContain("TICKETS_TEST_FILTER_MARKS is not set");
+    says(stdout, "TICKETS_TEST_FILTER_MARKS is not set");
   });
 });

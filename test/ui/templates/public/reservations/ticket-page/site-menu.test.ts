@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { detectIframeMode } from "#shared/request-context.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
@@ -9,6 +9,7 @@ import {
 } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 
 /** A minimal public-nav prop set — the fixed root links only, no page tree. */
 const navProps = (): PublicNavProps => ({
@@ -34,9 +35,9 @@ describe("ticketPage (site menu)", () => {
       nav: navProps(),
       slugs: ["listing"],
     });
-    assertStringIncludes(html, '<div class="admin-nav-group">');
-    assertStringIncludes(html, 'aria-label="Site menu"');
-    assertStringIncludes(html, '<a href="/listings">');
+    says(html, '<div class="admin-nav-group">');
+    says(html, 'aria-label="Site menu"');
+    says(html, '<a href="/listings">');
   });
 
   test("drops the site menu in iframe mode even when one is supplied", async () => {
@@ -47,18 +48,9 @@ describe("ticketPage (site menu)", () => {
         nav: navProps(),
         slugs: ["listing"],
       });
-      assertStringIncludes(
-        html,
-        '<body class="iframe" data-page-family="public">',
-      );
-      assert(
-        !html.includes("admin-nav-group"),
-        "the value should not contain the searched item",
-      );
-      assert(
-        !html.includes('aria-label="Site menu"'),
-        "the value should not contain the searched item",
-      );
+      says(html, '<body class="iframe" data-page-family="public">');
+      assert(!html.includes("admin-nav-group"));
+      assert(!html.includes('aria-label="Site menu"'));
     });
   });
 });

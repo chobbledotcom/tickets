@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type BuildTreeInput, buildBookingTree } from "#booking/build-tree.ts";
@@ -18,6 +17,7 @@ import { t } from "#i18n";
 import { FormParams } from "#shared/form-data.ts";
 import { resolved } from "#test-utils/booking-model-fixtures.ts";
 import { treePackage } from "#test-utils/package-cap-fixtures.ts";
+import { has } from "#test-utils/says.ts";
 import type { ListingWithCount } from "#types";
 
 /** A cart line resolved against availability (the shape the fold reads). */
@@ -142,9 +142,9 @@ describe("foldBookingTree — walking the tree", () => {
     if (!fold.ok) return;
     expect(fold.allocations).toEqual([{ childId: 9, parentId: 1, qty: 2 }]);
     expect(fold.quantities.get(9)).toBe(2);
-    assertArrayIncludes(
+    has(
       fold.listings.map((l) => l.listing.id),
-      [9],
+      9,
     );
   });
 

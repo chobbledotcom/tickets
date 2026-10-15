@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -16,6 +16,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin settings)", { db: true }, () => {
@@ -105,25 +106,16 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await settings.update.paymentProvider("sumup");
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      assertStringIncludes(html, "No SumUp credentials are saved");
-      assert(
-        !html.includes("sumup-test-btn"),
-        "the value should not contain the searched item",
-      );
+      says(html, "No SumUp credentials are saved");
+      assert(!html.includes("sumup-test-btn"));
     });
 
     test("disables browser autocomplete on the SumUp credential fields", async () => {
       await settings.update.paymentProvider("sumup");
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      assertStringIncludes(
-        inputNamed(html, "sumup_api_key"),
-        'autocomplete="off"',
-      );
-      assertStringIncludes(
-        inputNamed(html, "sumup_merchant_code"),
-        'autocomplete="off"',
-      );
+      says(inputNamed(html, "sumup_api_key"), 'autocomplete="off"');
+      says(inputNamed(html, "sumup_merchant_code"), 'autocomplete="off"');
     });
 
     test("shows the configured message and the test button", async () => {
@@ -133,8 +125,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       });
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      assertStringIncludes(html, "Your SumUp credentials are saved");
-      assertStringIncludes(html, "sumup-test-btn");
+      says(html, "Your SumUp credentials are saved");
+      says(html, "sumup-test-btn");
     });
   });
 

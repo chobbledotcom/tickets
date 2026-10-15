@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -14,6 +14,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { BASE, create, findPage } from "./helpers.ts";
 
@@ -63,13 +64,10 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         200,
       );
       // The un-added listing is still offered; the added one is not.
-      assertStringIncludes(html, `value="${kept.id}"`);
-      assert(
-        !html.includes(`value="${added.id}"`),
-        "the value should not contain the searched item",
-      );
+      says(html, `value="${kept.id}"`);
+      assert(!html.includes(`value="${added.id}"`));
       // The un-added group is offered too.
-      assertStringIncludes(html, ">KeptG<");
+      says(html, ">KeptG<");
     });
 
     test("rejects re-adding an item already on the page", async () => {
@@ -120,13 +118,13 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
-      assertStringIncludes(html, "Real Listing");
-      assertStringIncludes(html, "Real Group");
-      assertStringIncludes(html, "Name kidlabel");
+      says(html, "Real Listing");
+      says(html, "Real Group");
+      says(html, "Name kidlabel");
       // Only the dangling edge (not the empty-named listing) is "(missing)".
       expect((html.match(/\(missing\)/g) ?? []).length).toBe(1);
       // The spare page is offered in the sub-page picker.
-      assertStringIncludes(html, "Name spare");
+      says(html, "Name spare");
     });
 
     test("offers only active listings; labels keep inactive ones named", async () => {
@@ -142,14 +140,11 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         200,
       );
       // The already-added inactive listing still labels its row...
-      assertStringIncludes(html, "Retired Listing");
+      says(html, "Retired Listing");
       // ...but an inactive listing is never offered as a new option, and
       // neither is a renewal tier (a normal public link would take payment
       // without extending the site).
-      assert(
-        !html.includes(`value="${inactive.id}"`),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes(`value="${inactive.id}"`));
       const tier = await createTestListing({
         hidden: true,
         monthsPerUnit: 1,
@@ -160,10 +155,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
-      assert(
-        !html2.includes(`value="${tier.id}"`),
-        "the value should not contain the searched item",
-      );
+      assert(!html2.includes(`value="${tier.id}"`));
       // A child listing's public page 404s by construction (a booking can
       // never start from a child, I3), so it is never offered either — while
       // its parent still is.
@@ -174,11 +166,8 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
-      assertStringIncludes(html3, ">Parent Listing<");
-      assert(
-        !html3.includes(">Child Listing<"),
-        "the value should not contain the searched item",
-      );
+      says(html3, ">Parent Listing<");
+      assert(!html3.includes(">Child Listing<"));
       // And the server revalidation rejects all three.
       const other = await seedPage("actives-2");
       for (const id of [inactive.id, tier.id, child.id]) {

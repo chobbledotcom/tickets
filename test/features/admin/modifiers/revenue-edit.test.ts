@@ -1,4 +1,3 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -20,6 +19,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
 import { insertModifier, insertModifierUsage } from "#test-utils/modifiers.ts";
+import { saysNot } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import {
   enableFeature,
@@ -88,8 +88,9 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const log = await getAllActivityLog(10);
       const entry = log.find((e) => e.message.includes("revenue adjusted"));
       expect(entry?.message).toBe("Modifier 'Promo' revenue adjusted");
-      assert(
-        entry?.message?.includes("12.34") === false,
+      saysNot(
+        entry?.message,
+        "12.34",
         "the value should not contain the searched item",
       );
     });

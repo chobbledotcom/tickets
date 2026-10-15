@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { byLine, reportCheck } from "#scripts/check-report.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("reportCheck", () => {
   let logs: string[] = [];
@@ -39,7 +40,7 @@ describe("reportCheck", () => {
 
   test("counts one finding as one", () => {
     reportCheck({ ...base, found: ["only"] });
-    expect(errors.at(-1)).toContain("1 comment issue(s) found");
+    says(errors.at(-1), "1 comment issue(s) found");
   });
 
   test("uses the caller's noun and guide", () => {

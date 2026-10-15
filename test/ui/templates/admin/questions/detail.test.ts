@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { adminQuestionPage } from "#templates/admin/questions.tsx";
@@ -10,6 +10,7 @@ import {
   testListingWithCount,
   testQuestion,
 } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 import {
   setupQuestionPageTest,
   TEST_LISTINGS,
@@ -24,12 +25,12 @@ describe("adminQuestionPage", () => {
 
   test("renders question text and edit form", () => {
     const html = adminQuestionPage(question, OWNER_SESSION);
-    assertStringIncludes(html, "T-shirt size?");
-    assertStringIncludes(html, 'action="/admin/questions/1/edit"');
-    assertStringIncludes(html, 'class="active" href="/admin/questions"');
+    says(html, "T-shirt size?");
+    says(html, 'action="/admin/questions/1/edit"');
+    says(html, 'class="active" href="/admin/questions"');
     // The choice-type selector offers radio vs select, with the question's
     // current type (radio) pre-selected.
-    assertStringIncludes(
+    says(
       html,
       '<select name="display_type"><option selected value="radio">Radio buttons</option><option value="select">Select box</option></select>',
     );
@@ -37,11 +38,11 @@ describe("adminQuestionPage", () => {
 
   test("renders answer list linking to each answer's edit page", () => {
     const html = adminQuestionPage(question, OWNER_SESSION);
-    assertStringIncludes(html, "Small");
-    assertStringIncludes(html, "Large");
-    assertStringIncludes(html, 'href="/admin/questions/1/answers/10/edit"');
-    assertStringIncludes(html, 'href="/admin/questions/1/answers/11/edit"');
-    assertStringIncludes(
+    says(html, "Small");
+    says(html, "Large");
+    says(html, 'href="/admin/questions/1/answers/10/edit"');
+    says(html, 'href="/admin/questions/1/answers/11/edit"');
+    says(
       html,
       '<form action="/admin/questions/1/answers" autocomplete="off" method="POST" id="add-answer">',
     );
@@ -49,20 +50,17 @@ describe("adminQuestionPage", () => {
 
   test("no longer links to answer deletion from the question page", () => {
     const html = adminQuestionPage(question, OWNER_SESSION);
-    assert(
-      !html.includes("/admin/questions/1/answers/10/delete"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("/admin/questions/1/answers/10/delete"));
   });
 
   test("renders delete question link", () => {
     const html = adminQuestionPage(question, OWNER_SESSION);
-    assertStringIncludes(html, 'href="/admin/questions/1/delete"');
+    says(html, 'href="/admin/questions/1/delete"');
   });
 
   test("renders error message when provided", () => {
     const html = adminQuestionPage(question, OWNER_SESSION, "Error!");
-    assertStringIncludes(html, "Error!");
+    says(html, "Error!");
   });
 
   test("renders empty answers state", () => {
@@ -70,7 +68,7 @@ describe("adminQuestionPage", () => {
       testQuestion({ id: 1, text: "Q?" }),
       OWNER_SESSION,
     );
-    assertStringIncludes(html, "No answers yet");
+    says(html, "No answers yet");
   });
 
   test("locks the type on a free-text question's edit form", () => {
@@ -84,14 +82,8 @@ describe("adminQuestionPage", () => {
     );
     // No selector — a hidden field keeps it free-text and the choice options
     // are not offered.
-    assertStringIncludes(
-      html,
-      '<input name="display_type" type="hidden" value="free_text"',
-    );
-    assert(
-      !html.includes("Radio buttons"),
-      "the value should not contain the searched item",
-    );
+    says(html, '<input name="display_type" type="hidden" value="free_text"');
+    assert(!html.includes("Radio buttons"));
   });
 
   test("hides answer management for a free-text question", () => {
@@ -105,13 +97,10 @@ describe("adminQuestionPage", () => {
     );
     // No add-answer form or answer heading — just an explanatory note that also
     // tells the operator a free-text question can't drive a price, and why.
-    assert(
-      !html.includes("/admin/questions/1/answers"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "they have no answer options");
-    assertStringIncludes(html, "can't change the price");
-    assertStringIncludes(html, "a price modifier attaches to a chosen answer");
+    assert(!html.includes("/admin/questions/1/answers"));
+    says(html, "they have no answer options");
+    says(html, "can't change the price");
+    says(html, "a price modifier attaches to a chosen answer");
   });
 
   test("renders answers in a table with their selection totals", () => {
@@ -120,9 +109,9 @@ describe("adminQuestionPage", () => {
       [11, 3],
     ]);
     const html = adminQuestionPage(question, OWNER_SESSION, undefined, counts);
-    assertStringIncludes(html, "<table");
-    assertStringIncludes(html, '<td class="col-quantity">5</td>');
-    assertStringIncludes(html, '<td class="col-quantity">3</td>');
+    says(html, "<table");
+    says(html, '<td class="col-quantity">5</td>');
+    says(html, '<td class="col-quantity">3</td>');
   });
 
   test("shows zero selections for answers with no stored total", () => {
@@ -132,23 +121,17 @@ describe("adminQuestionPage", () => {
       undefined,
       new Map(),
     );
-    assertStringIncludes(html, '<td class="col-quantity">0</td>');
+    says(html, '<td class="col-quantity">0</td>');
   });
 
   test("renders move-up and move-down buttons", () => {
     const html = adminQuestionPage(question, OWNER_SESSION);
-    assertStringIncludes(html, "/answers/10/move-down");
-    assert(
-      !html.includes("/answers/10/move-up"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, "/answers/11/move-up");
-    assert(
-      !html.includes("/answers/11/move-down"),
-      "the value should not contain the searched item",
-    );
+    says(html, "/answers/10/move-down");
+    assert(!html.includes("/answers/10/move-up"));
+    says(html, "/answers/11/move-up");
+    assert(!html.includes("/answers/11/move-down"));
     // The answers table carries the reorder Order column header when writable.
-    assertStringIncludes(html, '<th class="col-reorder">Order</th>');
+    says(html, '<th class="col-reorder">Order</th>');
   });
 
   test("renders both move buttons for middle answer", () => {
@@ -162,8 +145,8 @@ describe("adminQuestionPage", () => {
       text: "Q?",
     });
     const html = adminQuestionPage(q, OWNER_SESSION);
-    assertStringIncludes(html, "/answers/11/move-up");
-    assertStringIncludes(html, "/answers/11/move-down");
+    says(html, "/answers/11/move-up");
+    says(html, "/answers/11/move-down");
   });
 
   test("keeps question details readable without write controls in read-only mode", () => {
@@ -176,37 +159,16 @@ describe("adminQuestionPage", () => {
       TEST_LISTINGS,
       new Set([1]),
     );
-    assertStringIncludes(html, "T-shirt size?");
-    assertStringIncludes(html, "<p>Spring Gig</p>");
-    assert(
-      !html.includes("<p>Summer Gig</p>"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('action="/admin/questions/1/listings"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('action="/admin/questions/1/edit"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("/admin/questions/1/answers/10/edit"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("/admin/questions/1/delete"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes("/answers/10/move-"),
-      "the value should not contain the searched item",
-    );
+    says(html, "T-shirt size?");
+    says(html, "<p>Spring Gig</p>");
+    assert(!html.includes("<p>Summer Gig</p>"));
+    assert(!html.includes('action="/admin/questions/1/listings"'));
+    assert(!html.includes('action="/admin/questions/1/edit"'));
+    assert(!html.includes("/admin/questions/1/answers/10/edit"));
+    assert(!html.includes("/admin/questions/1/delete"));
+    assert(!html.includes("/answers/10/move-"));
     // No reorder Order column on the answers table in read-only mode.
-    assert(
-      !html.includes('<th class="col-reorder">'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('<th class="col-reorder">'));
   });
 
   test("joins multiple assigned listing names with a comma in read-only mode", () => {
@@ -221,13 +183,13 @@ describe("adminQuestionPage", () => {
       TEST_LISTINGS,
       new Set([1, 2]),
     );
-    assertStringIncludes(html, "<p>Spring Gig, Summer Gig</p>");
+    says(html, "<p>Spring Gig, Summer Gig</p>");
   });
 
   test("renders empty state when no listings exist", () => {
     const html = adminQuestionPage(question, OWNER_SESSION);
-    assertStringIncludes(html, "Assign to Listings");
-    assertStringIncludes(html, "No listings yet");
+    says(html, "Assign to Listings");
+    says(html, "No listings yet");
   });
 
   test("renders an listing checkbox for each listing", () => {
@@ -238,16 +200,16 @@ describe("adminQuestionPage", () => {
       undefined,
       TEST_LISTINGS,
     );
-    assertStringIncludes(
+    says(
       html,
       '<form action="/admin/questions/1/listings" autocomplete="off" method="POST" id="question-listings">',
     );
-    assertStringIncludes(html, "<strong>Linked listings (0):</strong>");
-    assertStringIncludes(html, 'name="listing_ids"');
-    assertStringIncludes(html, 'value="1"');
-    assertStringIncludes(html, 'value="2"');
-    assertStringIncludes(html, "Spring Gig");
-    assertStringIncludes(html, "Summer Gig");
+    says(html, "<strong>Linked listings (0):</strong>");
+    says(html, 'name="listing_ids"');
+    says(html, 'value="1"');
+    says(html, 'value="2"');
+    says(html, "Spring Gig");
+    says(html, "Summer Gig");
   });
 
   test("renders the assign-to-all toggle before the listing checkboxes", () => {
@@ -262,7 +224,7 @@ describe("adminQuestionPage", () => {
     const firstListing = html.indexOf('name="listing_ids"');
     expect(toggle).toBeGreaterThan(-1);
     expect(firstListing).toBeGreaterThan(toggle);
-    assertStringIncludes(html, "Assign to all listings");
+    says(html, "Assign to all listings");
   });
 
   test("shows an '(all)' heading, not a stored-id count, when assign-all is set", () => {
@@ -276,11 +238,8 @@ describe("adminQuestionPage", () => {
       TEST_LISTINGS,
       new Set(),
     );
-    assertStringIncludes(html, "<strong>Linked listings (all):</strong>");
-    assert(
-      !html.includes("Linked listings (0):"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<strong>Linked listings (all):</strong>");
+    assert(!html.includes("Linked listings (0):"));
   });
 
   test("sorts a deactivated listing last and renders it muted", () => {
@@ -311,13 +270,9 @@ describe("adminQuestionPage", () => {
       TEST_LISTINGS,
       new Set([1]),
     );
-    assertStringIncludes(
-      html,
-      'checked name="listing_ids" type="checkbox" value="1"',
-    );
+    says(html, 'checked name="listing_ids" type="checkbox" value="1"');
     assert(
       !html.includes('checked name="listing_ids" type="checkbox" value="2"'),
-      "the value should not contain the searched item",
     );
   });
 });

@@ -7,7 +7,6 @@
  * key is the secret.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -20,6 +19,7 @@ import {
 import { signCsrfToken } from "#shared/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestApiKeyToken,
   getTestSession,
@@ -135,7 +135,7 @@ describeWithEnv("what a JSON body must look like", { db: true }, () => {
     const response = await post({ body: "hello", contentType: "text/plain" });
 
     expect(response.status).toBe(400);
-    assertStringIncludes(await response.text(), "Invalid request body");
+    says(await response.text(), "Invalid request body");
   });
 
   test("refuses JSON that does not parse", async () => {
@@ -145,7 +145,7 @@ describeWithEnv("what a JSON body must look like", { db: true }, () => {
     });
 
     expect(response.status).toBe(400);
-    assertStringIncludes(await response.text(), "Invalid request body");
+    says(await response.text(), "Invalid request body");
     expect(errors.contains("Malformed JSON body")).toBe(true);
   });
 
@@ -156,7 +156,7 @@ describeWithEnv("what a JSON body must look like", { db: true }, () => {
     });
 
     expect(response.status).toBe(400);
-    assertStringIncludes(await response.text(), "Invalid request body");
+    says(await response.text(), "Invalid request body");
   });
 
   test("hands the parsed object to the handler", async () => {

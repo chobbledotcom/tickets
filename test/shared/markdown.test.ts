@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -7,99 +7,85 @@ import {
   renderMarkdown,
   withoutLinksTo,
 } from "#shared/markdown.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("markdown", () => {
   describe("renderMarkdown", () => {
     test("renders bold text", () => {
       const result = renderMarkdown("**bold**");
-      assertStringIncludes(result, "<strong>bold</strong>");
+      says(result, "<strong>bold</strong>");
     });
 
     test("renders italic text", () => {
       const result = renderMarkdown("*italic*");
-      assertStringIncludes(result, "<em>italic</em>");
+      says(result, "<em>italic</em>");
     });
 
     test("renders links", () => {
       const result = renderMarkdown("[click](https://example.com)");
-      assertStringIncludes(result, '<a href="https://example.com">click</a>');
+      says(result, '<a href="https://example.com">click</a>');
     });
 
     test("wraps text in paragraph tags", () => {
       const result = renderMarkdown("hello");
-      assertStringIncludes(result, "<p>hello</p>");
+      says(result, "<p>hello</p>");
     });
 
     test("renders multiple paragraphs", () => {
       const result = renderMarkdown("para1\n\npara2");
-      assertStringIncludes(result, "<p>para1</p>");
-      assertStringIncludes(result, "<p>para2</p>");
+      says(result, "<p>para1</p>");
+      says(result, "<p>para2</p>");
     });
 
     test("renders unordered lists", () => {
       const result = renderMarkdown("- item1\n- item2");
-      assertStringIncludes(result, "<li>item1</li>");
-      assertStringIncludes(result, "<li>item2</li>");
+      says(result, "<li>item1</li>");
+      says(result, "<li>item2</li>");
     });
 
     test("escapes raw HTML tags", () => {
       const result = renderMarkdown("<script>alert(1)</script>");
-      assert(
-        !result.includes("<script>"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(result, "&lt;script&gt;");
+      assert(!result.includes("<script>"));
+      says(result, "&lt;script&gt;");
     });
 
     test("escapes inline HTML", () => {
       const result = renderMarkdown("text <b>bold</b> more");
-      assert(
-        !result.includes("<b>"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(result, "&lt;b&gt;");
+      assert(!result.includes("<b>"));
+      says(result, "&lt;b&gt;");
     });
 
     test("strips javascript: URLs from links", () => {
       const result = renderMarkdown("[click](javascript:alert(1))");
-      assert(
-        !result.includes("javascript:"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(result, '<a href="">click</a>');
+      assert(!result.includes("javascript:"));
+      says(result, '<a href="">click</a>');
     });
 
     test("strips javascript: URLs regardless of case", () => {
       const result = renderMarkdown("[click](JavaScript:alert(1))");
-      assert(
-        !result.includes("avaScript:"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(result, '<a href="">click</a>');
+      assert(!result.includes("avaScript:"));
+      says(result, '<a href="">click</a>');
     });
 
     test("strips data: URLs from images", () => {
       const result = renderMarkdown("![x](data:text/html,<script>)");
-      assert(
-        !result.includes("data:text/html"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(result, 'src=""');
+      assert(!result.includes("data:text/html"));
+      says(result, 'src=""');
     });
 
     test("keeps safe https links", () => {
       const result = renderMarkdown("[ok](https://example.com)");
-      assertStringIncludes(result, '<a href="https://example.com">ok</a>');
+      says(result, '<a href="https://example.com">ok</a>');
     });
 
     test("keeps relative links", () => {
       const result = renderMarkdown("[home](/admin)");
-      assertStringIncludes(result, '<a href="/admin">home</a>');
+      says(result, '<a href="/admin">home</a>');
     });
 
     test("keeps mailto links", () => {
       const result = renderMarkdown("[mail](mailto:a@b.com)");
-      assertStringIncludes(result, '<a href="mailto:a@b.com">mail</a>');
+      says(result, '<a href="mailto:a@b.com">mail</a>');
     });
   });
 
@@ -243,13 +229,10 @@ describe("markdown", () => {
         ].join("\n"),
       );
       const rendered = renderMarkdown(filtered);
-      assert(
-        !rendered.includes('href="/admin/ledger'),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(rendered, '<a href="/admin/guide">guide</a>');
-      assertStringIncludes(rendered, "<strong>Money links:</strong>");
-      assertStringIncludes(rendered, "<em>formatting</em>");
+      assert(!rendered.includes('href="/admin/ledger'));
+      says(rendered, '<a href="/admin/guide">guide</a>');
+      says(rendered, "<strong>Money links:</strong>");
+      says(rendered, "<em>formatting</em>");
     });
 
     test("demotes automatic links to a forbidden absolute prefix", () => {

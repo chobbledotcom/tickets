@@ -1,8 +1,9 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
 import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("buildCapacityCheckedInsert", () => {
   test("binds every default booking fact in statement order", () => {
@@ -15,11 +16,11 @@ describe("buildCapacityCheckedInsert", () => {
     expect(statement.args.slice(0, 6)).toEqual([17, startAt, endAt, 1, "", 0]);
     // Both zero defaults (parent_listing_id and package_group_id) share the
     // interned ?6 slot; the capacity clause binds nothing new.
-    assertStringIncludes(
+    says(
       statement.sql,
       "SELECT ?1, last_insert_rowid(), ?2, ?3, ?4, ?5, ?6, ?6",
     );
-    assertStringIncludes(statement.sql, "WHERE");
+    says(statement.sql, "WHERE");
   });
 
   test("binds a supplied attendee before custom booking facts", () => {
@@ -48,10 +49,7 @@ describe("buildCapacityCheckedInsert", () => {
       19,
       23,
     ]);
-    assertStringIncludes(
-      statement.sql,
-      "SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8",
-    );
+    says(statement.sql, "SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8");
   });
 
   test("omits the capacity clause when overbooking is allowed", () => {
@@ -61,10 +59,7 @@ describe("buildCapacityCheckedInsert", () => {
       true,
     );
 
-    assert(
-      !statement.sql.includes("WHERE"),
-      "the value should not contain the searched item",
-    );
+    assert(!statement.sql.includes("WHERE"));
   });
 
   test("a zero-quantity booking carries no capacity or active condition", () => {
@@ -77,18 +72,12 @@ describe("buildCapacityCheckedInsert", () => {
       quantity: 0,
     });
 
-    assertStringIncludes(
+    says(
       statement.sql,
       "WHERE EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ?1)",
     );
-    assert(
-      !statement.sql.includes("max_attendees"),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !statement.sql.includes("active = 1"),
-      "the value should not contain the searched item",
-    );
+    assert(!statement.sql.includes("max_attendees"));
+    assert(!statement.sql.includes("active = 1"));
   });
 
   test("an overbook caller writes a zero-quantity ghost unconditionally", () => {
@@ -101,10 +90,7 @@ describe("buildCapacityCheckedInsert", () => {
       true,
     );
 
-    assert(
-      !statement.sql.includes("WHERE"),
-      "the value should not contain the searched item",
-    );
+    assert(!statement.sql.includes("WHERE"));
   });
 
   test("an overbook caller keeps an extra condition the caller passed", () => {
@@ -115,11 +101,8 @@ describe("buildCapacityCheckedInsert", () => {
       () => "order_not_yet_recorded",
     );
 
-    assertStringIncludes(statement.sql, "WHERE order_not_yet_recorded");
-    assert(
-      !statement.sql.includes("max_attendees"),
-      "the value should not contain the searched item",
-    );
+    says(statement.sql, "WHERE order_not_yet_recorded");
+    assert(!statement.sql.includes("max_attendees"));
   });
 
   test("a zero-quantity booking keeps an extra condition the caller passed", () => {
@@ -130,13 +113,10 @@ describe("buildCapacityCheckedInsert", () => {
       () => "order_not_yet_recorded",
     );
 
-    assertStringIncludes(
+    says(
       statement.sql,
       "WHERE EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ?1) AND (order_not_yet_recorded)",
     );
-    assert(
-      !statement.sql.includes("max_attendees"),
-      "the value should not contain the searched item",
-    );
+    assert(!statement.sql.includes("max_attendees"));
   });
 });

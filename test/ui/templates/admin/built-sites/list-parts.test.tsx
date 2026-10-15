@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import {
   BuiltSitesGuideFooter,
@@ -6,6 +6,7 @@ import {
   BuiltSitesListBody,
 } from "#templates/admin/built-sites/list-parts.tsx";
 import { testBuiltSite } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 test("renders the empty list with its renewal summary", () => {
   const html = String(
@@ -16,8 +17,8 @@ test("renders the empty list with its renewal summary", () => {
       sort: "name",
     }),
   );
-  assertStringIncludes(html, "No built sites recorded.");
-  assertStringIncludes(html, "Renewal tiers");
+  says(html, "No built sites recorded.");
+  says(html, "Renewal tiers");
 });
 
 test("renders a site's link, URL, status, channel, and host id", () => {
@@ -39,11 +40,11 @@ test("renders a site's link, URL, status, channel, and host id", () => {
       sort: "name",
     }),
   );
-  assertStringIncludes(html, 'href="/admin/built-sites/42">Child site</a>');
-  assertStringIncludes(html, "https://child.example");
-  assertStringIncludes(html, "Assigned (attendee #17)");
-  assertStringIncludes(html, "beta");
-  assertStringIncludes(html, "host-42");
+  says(html, 'href="/admin/built-sites/42">Child site</a>');
+  says(html, "https://child.example");
+  says(html, "Assigned (attendee #17)");
+  says(html, "beta");
+  says(html, "host-42");
 });
 
 test("labels an unassigned site that others can book as Available", () => {
@@ -55,12 +56,9 @@ test("labels an unassigned site that others can book as Available", () => {
       sort: "name",
     }),
   );
-  assertStringIncludes(html, '<a href="/admin/built-sites/1">Alpha</a>');
-  assertStringIncludes(html, "Available</td>");
-  assert(
-    !html.includes("Not assignable"),
-    "the value should not contain the searched item",
-  );
+  says(html, '<a href="/admin/built-sites/1">Alpha</a>');
+  says(html, "Available</td>");
+  assert(!html.includes("Not assignable"));
 });
 
 test("labels an unassigned site nobody can book as Not assignable", () => {
@@ -72,12 +70,9 @@ test("labels an unassigned site nobody can book as Not assignable", () => {
       sort: "name",
     }),
   );
-  assertStringIncludes(html, '<a href="/admin/built-sites/2">Beta</a>');
-  assertStringIncludes(html, "Not assignable</td>");
-  assert(
-    !html.includes("Available</td>"),
-    "the value should not contain the searched item",
-  );
+  says(html, '<a href="/admin/built-sites/2">Beta</a>');
+  says(html, "Not assignable</td>");
+  assert(!html.includes("Available</td>"));
 });
 
 test("links a bare bunny.run address as a working b-cdn.net link", () => {
@@ -95,19 +90,13 @@ test("links a bare bunny.run address as a working b-cdn.net link", () => {
       sort: "name",
     }),
   );
-  assertStringIncludes(html, 'href="https://childsite.b-cdn.net"');
-  assert(
-    !html.includes("bunny.run"),
-    "the value should not contain the searched item",
-  );
+  says(html, 'href="https://childsite.b-cdn.net"');
+  assert(!html.includes("bunny.run"));
 });
 
 test("renders the list actions and guide destination", () => {
   const actions = String(BuiltSitesListActions());
-  assertStringIncludes(actions, 'href="/admin/built-sites/new"');
-  assertStringIncludes(actions, 'href="/admin/builder"');
-  assertStringIncludes(
-    String(BuiltSitesGuideFooter()),
-    'href="/admin/guide#built-sites"',
-  );
+  says(actions, 'href="/admin/built-sites/new"');
+  says(actions, 'href="/admin/builder"');
+  says(String(BuiltSitesGuideFooter()), 'href="/admin/guide#built-sites"');
 });

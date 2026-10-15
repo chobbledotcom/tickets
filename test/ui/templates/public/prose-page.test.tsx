@@ -1,8 +1,8 @@
-import { assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { prosePage, simplePublicPage } from "#templates/public/prose-page.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 
 describe("public prose pages", () => {
   beforeAll(setupAdminPageTest);
@@ -14,7 +14,7 @@ describe("public prose pages", () => {
       <form>Action</form>,
     );
 
-    assertStringIncludes(
+    says(
       html,
       '<div class="prose"><h1>Main heading</h1><p>Introduction</p></div><form>Action</form>',
     );
@@ -26,7 +26,7 @@ describe("public prose pages", () => {
       "Main heading",
     )(<p>Whole body</p>);
 
-    assertStringIncludes(
+    says(
       html,
       '<div class="prose"><h1>Main heading</h1><p>Whole body</p></div>',
     );

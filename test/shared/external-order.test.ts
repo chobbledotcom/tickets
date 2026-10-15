@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -7,6 +7,7 @@ import {
   serializeCatalog,
 } from "#shared/external-order.ts";
 import { testListing } from "#test-utils/factories.ts";
+import { says } from "#test-utils/says.ts";
 
 const base = {
   currency: "GBP",
@@ -175,11 +176,8 @@ describe("external-order", () => {
         ],
       });
       const out = serializeCatalog(catalog);
-      assert(
-        !out.includes("</script>"),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(out, "\\u003c");
+      assert(!out.includes("</script>"));
+      says(out, "\\u003c");
     });
   });
 });

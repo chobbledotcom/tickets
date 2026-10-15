@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -12,6 +12,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 import type { AdminSession } from "#types";
 
 /** The hole names the scanner script fills in, spelled as the page carries
@@ -33,13 +34,10 @@ describe("the admin scanner page template", () => {
       OWNER_SESSION,
     );
 
-    assertStringIncludes(html, "<title>Scanner: Doors</title>");
-    assertStringIncludes(html, 'data-scan-path="/admin/groups/5/scan"');
-    assertStringIncludes(html, 'action="/admin/groups/5/scan"');
-    assert(
-      !html.includes("Scanning a ticket in this group"),
-      "the value should not contain the searched item",
-    );
+    says(html, "<title>Scanner: Doors</title>");
+    says(html, 'data-scan-path="/admin/groups/5/scan"');
+    says(html, 'action="/admin/groups/5/scan"');
+    assert(!html.includes("Scanning a ticket in this group"));
   });
 
   test("offers the people still to arrive with their summed places", () => {
@@ -53,11 +51,11 @@ describe("the admin scanner page template", () => {
       ],
     );
 
-    assertStringIncludes(html, "2 tickets available");
-    assertStringIncludes(html, 'data-name="Ada"');
-    assertStringIncludes(html, 'data-quantity="2"');
-    assertStringIncludes(html, 'data-attendee-id="41"');
-    assertStringIncludes(html, 'data-name="Sam"');
+    says(html, "2 tickets available");
+    says(html, 'data-name="Ada"');
+    says(html, 'data-quantity="2"');
+    says(html, 'data-attendee-id="41"');
+    says(html, 'data-name="Sam"');
   });
 
   test("tells two people with the same name apart by their day and listing", () => {
@@ -84,16 +82,13 @@ describe("the admin scanner page template", () => {
     // Same name and the same number of places: only the day, and on a
     // multi-listing door the listing, tells the two picks apart, so the
     // roster shows it beside the name.
-    assertStringIncludes(html, "Ada (2 tickets) — Camping · 12 Jun");
-    assertStringIncludes(html, "Ada (2 tickets) — Workshop · 14 Jun");
-    assertStringIncludes(html, 'data-detail="Camping · 12 Jun"');
+    says(html, "Ada (2 tickets) — Camping · 12 Jun");
+    says(html, "Ada (2 tickets) — Workshop · 14 Jun");
+    says(html, 'data-detail="Camping · 12 Jun"');
     // The pick list searches what it shows; it no longer offers the ticket
     // token, which the roster stopped carrying.
-    assertStringIncludes(html, "Search by name, day, or listing");
-    assert(
-      !html.includes("ticket token"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Search by name, day, or listing");
+    assert(!html.includes("ticket token"));
   });
 
   test("joins a several-place pick's details into one searchable line", () => {
@@ -111,7 +106,7 @@ describe("the admin scanner page template", () => {
       ],
     );
 
-    assertStringIncludes(html, 'data-detail="Camping, 12 Jun"');
+    says(html, 'data-detail="Camping, 12 Jun"');
   });
 
   test("escapes a pick's name and day once, so the search reads the real words", () => {
@@ -129,16 +124,10 @@ describe("the admin scanner page template", () => {
       ],
     );
 
-    assertStringIncludes(html, 'data-name="Ada &amp; Bo"');
-    assertStringIncludes(html, 'data-detail="Tom &amp; Jerry &lt;Show&gt;"');
-    assertStringIncludes(
-      html,
-      "Ada &amp; Bo (1 ticket) — Tom &amp; Jerry &lt;Show&gt;",
-    );
-    assert(
-      !html.includes("&amp;amp;"),
-      "the value should not contain the searched item",
-    );
+    says(html, 'data-name="Ada &amp; Bo"');
+    says(html, 'data-detail="Tom &amp; Jerry &lt;Show&gt;"');
+    says(html, "Ada &amp; Bo (1 ticket) — Tom &amp; Jerry &lt;Show&gt;");
+    assert(!html.includes("&amp;amp;"));
   });
 
   test("says when nobody is left to check in", () => {
@@ -149,7 +138,7 @@ describe("the admin scanner page template", () => {
       [],
     );
 
-    assertStringIncludes(html, "No tickets to check in");
+    says(html, "No tickets to check in");
   });
 
   test("one person still to arrive is named as one ticket, not none", () => {
@@ -160,7 +149,7 @@ describe("the admin scanner page template", () => {
       [{ attendeeId: 41, details: [], name: "Ada", quantity: 1 }],
     );
 
-    assertStringIncludes(html, "1 ticket available");
+    says(html, "1 ticket available");
   });
 
   test("carries the check-every-listing warning as an alert, with no way to change it at the door", () => {
@@ -173,30 +162,21 @@ describe("the admin scanner page template", () => {
       [],
       true,
     );
-    assertStringIncludes(warned, 'role="alert"');
-    assertStringIncludes(
+    says(warned, 'role="alert"');
+    says(
       warned,
       "Scanning a ticket in this group will check in ALL of the attendee's booked listings in that group",
     );
     // The warning states the rule; it must not offer to change it at the door.
-    assert(
-      !warned.includes('name="scan_checks_in_all_listings"'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !warned.includes('action="/admin/groups/5/scanner"'),
-      "the value should not contain the searched item",
-    );
+    assert(!warned.includes('name="scan_checks_in_all_listings"'));
+    assert(!warned.includes('action="/admin/groups/5/scanner"'));
 
     const quiet = adminScannerPage(
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
     );
-    assert(
-      !quiet.includes("Scanning a ticket in this group"),
-      "the value should not contain the searched item",
-    );
+    assert(!quiet.includes("Scanning a ticket in this group"));
   });
 
   test("carries every check-in message both checking paths read", () => {
@@ -302,50 +282,44 @@ describe("the admin scanner page template", () => {
     );
     // The two asks the door puts before it admits: a forced or ID-checked
     // check-in, and how many tickets a multi-place booking admits.
-    assertStringIncludes(
-      html,
-      'class="scanner-overlay hidden" id="scanner-confirm"',
-    );
-    assertStringIncludes(html, 'class="scanner-overlay-backdrop"');
-    assertStringIncludes(html, 'class="scanner-overlay-box"');
-    assertStringIncludes(html, 'id="scanner-confirm-close"');
-    assertStringIncludes(html, 'id="scanner-confirm-message"');
+    says(html, 'class="scanner-overlay hidden" id="scanner-confirm"');
+    says(html, 'class="scanner-overlay-backdrop"');
+    says(html, 'class="scanner-overlay-box"');
+    says(html, 'id="scanner-confirm-close"');
+    says(html, 'id="scanner-confirm-message"');
     expect(times(html, 'class="scanner-confirm-actions"')).toBe(2);
-    assertStringIncludes(html, 'id="scanner-confirm-yes"');
-    assertStringIncludes(html, 'id="scanner-confirm-no"');
-    assertStringIncludes(
-      html,
-      'class="scanner-overlay hidden" id="scanner-quantity"',
-    );
-    assertStringIncludes(html, 'id="scanner-start"');
+    says(html, 'id="scanner-confirm-yes"');
+    says(html, 'id="scanner-confirm-no"');
+    says(html, 'class="scanner-overlay hidden" id="scanner-quantity"');
+    says(html, 'id="scanner-start"');
     // The camera hole and status line the scanner script starts from, and
     // the quantity ask's controls.
-    assertStringIncludes(html, 'id="scanner-container"');
-    assertStringIncludes(html, 'id="scanner-video"');
-    assertStringIncludes(html, 'id="scanner-status"');
-    assertStringIncludes(html, 'id="scanner-quantity-message"');
-    assertStringIncludes(html, 'for="scanner-quantity-select"');
-    assertStringIncludes(html, 'id="scanner-quantity-select"');
-    assertStringIncludes(html, 'id="scanner-quantity-confirm"');
-    assertStringIncludes(html, 'id="scanner-quantity-cancel"');
+    says(html, 'id="scanner-container"');
+    says(html, 'id="scanner-video"');
+    says(html, 'id="scanner-status"');
+    says(html, 'id="scanner-quantity-message"');
+    says(html, 'for="scanner-quantity-select"');
+    says(html, 'id="scanner-quantity-select"');
+    says(html, 'id="scanner-quantity-confirm"');
+    says(html, 'id="scanner-quantity-cancel"');
     // The /admin/ route is the home section's own landing link, so the nav
     // highlights it.
-    assertStringIncludes(html, '<a class="active" href="/admin/">Home</a>');
+    says(html, '<a class="active" href="/admin/">Home</a>');
 
     // The manual pick-up form.
-    assertStringIncludes(html, 'id="manual-checkin"');
-    assertStringIncludes(html, 'method="POST"');
-    assertStringIncludes(html, 'name="csrf_token"');
-    assertStringIncludes(html, 'for="manual-checkin-input"');
-    assertStringIncludes(html, 'class="combobox"');
-    assertStringIncludes(html, 'id="manual-checkin-attendee-id"');
-    assertStringIncludes(html, 'name="attendee_id"');
-    assertStringIncludes(html, 'autocomplete="off"');
-    assertStringIncludes(html, 'id="manual-checkin-input"');
-    assertStringIncludes(html, 'type="text"');
-    assertStringIncludes(html, 'class="combobox-list hidden"');
-    assertStringIncludes(html, 'id="ticket-options"');
-    assertStringIncludes(html, 'id="manual-checkin-status"');
+    says(html, 'id="manual-checkin"');
+    says(html, 'method="POST"');
+    says(html, 'name="csrf_token"');
+    says(html, 'for="manual-checkin-input"');
+    says(html, 'class="combobox"');
+    says(html, 'id="manual-checkin-attendee-id"');
+    says(html, 'name="attendee_id"');
+    says(html, 'autocomplete="off"');
+    says(html, 'id="manual-checkin-input"');
+    says(html, 'type="text"');
+    says(html, 'class="combobox-list hidden"');
+    says(html, 'id="ticket-options"');
+    says(html, 'id="manual-checkin-status"');
     // Two hidden fields: the form's own code, and the chosen person's
     // ticket; plus the three plainly hidden boxes the script reveals (the
     // overlays carry their hidden state inside a two-class attribute).
@@ -353,7 +327,7 @@ describe("the admin scanner page template", () => {
     expect(times(html, 'class="hidden"')).toBe(3);
 
     // The way out to the guide.
-    assertStringIncludes(html, 'href="/admin/guide#checkin"');
+    says(html, 'href="/admin/guide#checkin"');
   });
 });
 
@@ -370,12 +344,12 @@ describe("the admin scanner doors page template", () => {
       listingDoors: [{ name: "Ceilidh", path: "/admin/listings/3/scan" }],
     });
 
-    assertStringIncludes(html, "<title>Scanner doors</title>");
-    assertStringIncludes(html, t("admin.scanner.doors_intro"));
-    assertStringIncludes(html, t("terms.listings"));
-    assertStringIncludes(html, t("terms.groups"));
-    assertStringIncludes(html, 'href="/admin/listings/3/scan">Ceilidh</a>');
-    assertStringIncludes(html, 'href="/admin/groups/7/scan">Winter Social</a>');
+    says(html, "<title>Scanner doors</title>");
+    says(html, t("admin.scanner.doors_intro"));
+    says(html, t("terms.listings"));
+    says(html, t("terms.groups"));
+    says(html, 'href="/admin/listings/3/scan">Ceilidh</a>');
+    says(html, 'href="/admin/groups/7/scan">Winter Social</a>');
     // The listings section is announced before the groups section.
     expect(html.indexOf(t("terms.listings"))).toBeLessThan(
       html.indexOf(t("terms.groups")),
@@ -388,13 +362,10 @@ describe("the admin scanner doors page template", () => {
       listingDoors: [{ name: "Ceilidh", path: "/admin/listings/3/scan" }],
     });
 
-    assertStringIncludes(html, t("terms.listings"));
-    assertStringIncludes(html, 'href="/admin/listings/3/scan">Ceilidh</a>');
+    says(html, t("terms.listings"));
+    says(html, 'href="/admin/listings/3/scan">Ceilidh</a>');
     // An empty heading would promise a link that is not there.
-    assert(
-      !html.includes(t("terms.groups")),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes(t("terms.groups")));
   });
 
   test("lists the group doors alone when no listing has a door", () => {
@@ -403,12 +374,9 @@ describe("the admin scanner doors page template", () => {
       listingDoors: [],
     });
 
-    assertStringIncludes(html, t("terms.groups"));
-    assertStringIncludes(html, 'href="/admin/groups/7/scan">Winter Social</a>');
-    assert(
-      !html.includes(t("terms.listings")),
-      "the value should not contain the searched item",
-    );
+    says(html, t("terms.groups"));
+    says(html, 'href="/admin/groups/7/scan">Winter Social</a>');
+    assert(!html.includes(t("terms.listings")));
   });
 
   test("says when there are no doors yet", () => {
@@ -417,25 +385,13 @@ describe("the admin scanner doors page template", () => {
       listingDoors: [],
     });
 
-    assertStringIncludes(html, t("admin.scanner.doors_empty"));
-    assert(
-      !html.includes(t("terms.listings")),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes(t("terms.groups")),
-      "the value should not contain the searched item",
-    );
+    says(html, t("admin.scanner.doors_empty"));
+    assert(!html.includes(t("terms.listings")));
+    assert(!html.includes(t("terms.groups")));
     // A door's path always ends in "/scan"; the empty doors page links to no
     // door (the nav's own /admin/scanner route is not a door).
-    assert(
-      !html.includes('href="/admin/listing/'),
-      "the value should not contain the searched item",
-    );
-    assert(
-      !html.includes('href="/admin/groups/'),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes('href="/admin/listing/'));
+    assert(!html.includes('href="/admin/groups/'));
   });
 
   test("the nav links a scanner back to the doors list", () => {
@@ -444,8 +400,8 @@ describe("the admin scanner doors page template", () => {
     const html = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "scanner" } }),
     );
-    assertStringIncludes(html, 'href="/admin/scanner"');
-    assertStringIncludes(html, ">Scanner</a>");
+    says(html, 'href="/admin/scanner"');
+    says(html, ">Scanner</a>");
   });
 
   test("the nav offers the doors list to a scanner login only", () => {
@@ -455,10 +411,7 @@ describe("the admin scanner doors page template", () => {
       const html = String(
         AdminNav({ active: "/admin/", session: { adminLevel } }),
       );
-      assert(
-        !html.includes('href="/admin/scanner"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('href="/admin/scanner"'));
     }
   });
 });

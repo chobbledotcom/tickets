@@ -4,7 +4,7 @@
  * round trips, and a fully booked member makes only its own package sold out.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
@@ -24,6 +24,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import { says } from "#test-utils/says.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import type { ListingWithCount } from "#types";
 
@@ -356,12 +357,9 @@ describeWithEnv(
         await handleRequest(mockRequest(`/listings?date=${date}`))
       ).text();
 
-      assertStringIncludes(html, "Sold Out");
-      assert(
-        !html.includes(`/ticket/${member.slug}`),
-        "the value should not contain the searched item",
-      );
-      assertStringIncludes(html, `/ticket/${otherMember.slug}`);
+      says(html, "Sold Out");
+      assert(!html.includes(`/ticket/${member.slug}`));
+      says(html, `/ticket/${otherMember.slug}`);
     });
   },
 );

@@ -1,9 +1,8 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { decrypt, ENCRYPTION_PREFIX } from "#crypto/encryption.ts";
 import { HYBRID_PREFIX } from "#crypto/hybrid.ts";
-
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   loadIndexedPaymentReference,
@@ -17,16 +16,14 @@ import {
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
+import { has } from "#test-utils/says.ts";
 
 describeWithEnv("db > payment reference store", { db: true }, () => {
   test("stores a tagged reference encrypted with its provider-aware index", async () => {
     const payment = taggedPaymentReference("pi_secret", "square");
     const stored = await storePaymentReference(payment);
 
-    assert(
-      !stored.encrypted.includes(payment.reference),
-      "the value should not contain the searched item",
-    );
+    assert(!stored.encrypted.includes(payment.reference));
     expect(stored.encrypted.startsWith(HYBRID_PREFIX)).toBe(true);
     expect(stored.encrypted.startsWith(ENCRYPTION_PREFIX)).toBe(false);
     await expect(
@@ -76,12 +73,14 @@ describeWithEnv("db > payment reference store", { db: true }, () => {
     const indexes = await matchingPaymentReferenceIndexes(historical);
 
     expect(indexes[0]).toBe(await paymentReferenceIndex(historical));
-    assertArrayIncludes(indexes ?? [], [
+    has(
+      indexes,
       await paymentReferenceIndex(taggedPaymentReference("pi_ids", "square")),
-    ]);
-    assertArrayIncludes(indexes ?? [], [
+    );
+    has(
+      indexes,
       await paymentReferenceIndex(taggedPaymentReference("pi_ids", "sumup")),
-    ]);
+    );
   });
 
   test("a row with no stored index gets one derived from its reference", async () => {

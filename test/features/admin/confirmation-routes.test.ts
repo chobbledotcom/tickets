@@ -5,7 +5,6 @@
  * mutation gate runs against.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -19,6 +18,7 @@ import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestManagerSession,
   testCookie,
@@ -53,10 +53,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
-        "/admin/away/a",
-      );
+      says(response.headers.get("location"), "/admin/away/a");
       expectFlash(
         response,
         expect.stringContaining("Name does not match"),
@@ -212,10 +209,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
-        "/admin/test/1/delete",
-      );
+      says(response.headers.get("location"), "/admin/test/1/delete");
       expectFlash(
         response,
         "Name does not match. Please type the exact name to confirm deletion.",
@@ -237,10 +231,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
-        "/admin/test",
-      );
+      says(response.headers.get("location"), "/admin/test");
       expectFlash(response, "deleted");
     });
 
@@ -278,10 +269,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
         7,
       );
 
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
-        "/admin/test/Alpha/7",
-      );
+      says(response.headers.get("location"), "/admin/test/Alpha/7");
     });
 
     test("answers with the given not-found response", async () => {
@@ -367,10 +355,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
         ),
         1,
       );
-      assertStringIncludes(
-        anyPost.headers.get("location") ?? "",
-        "/admin/test",
-      );
+      says(anyPost.headers.get("location"), "/admin/test");
     });
 
     test("uses the guard pair an explicit auth option names", async () => {

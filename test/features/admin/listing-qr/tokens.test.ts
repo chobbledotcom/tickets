@@ -1,7 +1,6 @@
 /** The QR generator's minting contract: a POST that succeeds signs a token
  * carrying exactly the submitted values, scoped to the listing. */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -9,6 +8,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import { extractAndVerifyToken, extractToken, postQr } from "./shared.ts";
 
@@ -24,7 +24,7 @@ describeWithEnv("admin listing QR tokens", { db: true }, () => {
       { quantity: "5" },
     );
     const body = await response.text();
-    assertStringIncludes(body, "Quantity must be at most 2.");
+    says(body, "Quantity must be at most 2.");
     expect(extractToken(body)).toBeNull();
   });
 
@@ -61,8 +61,8 @@ describeWithEnv("admin listing QR tokens", { db: true }, () => {
       value: "200.00",
     });
     expect(response.status).toBe(200);
-    assertStringIncludes(body, "/qr-book?t=");
-    assertStringIncludes(body, "<svg");
+    says(body, "/qr-book?t=");
+    says(body, "<svg");
   });
 
   test("accepts a zero price override for a fixed-price listing", async () => {

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { parseCookies } from "#routes/url.ts";
@@ -16,24 +16,22 @@ import {
   getSessionCookieName,
   parseFlashValue,
 } from "#shared/cookies.ts";
+import { says } from "#test-utils/says.ts";
 
 /** Assert common cookie attributes for dev (localhost) mode */
 const expectDevCookieAttributes = (cookie: string) => {
-  assertStringIncludes(cookie, "HttpOnly");
-  assert(
-    !cookie.includes("; Secure;"),
-    "the value should not contain the searched item",
-  );
-  assertStringIncludes(cookie, "SameSite=Strict");
-  assertStringIncludes(cookie, "Path=/");
+  says(cookie, "HttpOnly");
+  assert(!cookie.includes("; Secure;"));
+  says(cookie, "SameSite=Strict");
+  says(cookie, "Path=/");
 };
 
 /** Assert common cookie attributes for secure (non-localhost) mode */
 const expectSecureCookieAttributes = (cookie: string) => {
-  assertStringIncludes(cookie, "HttpOnly");
-  assertStringIncludes(cookie, "; Secure;");
-  assertStringIncludes(cookie, "SameSite=Strict");
-  assertStringIncludes(cookie, "Path=/");
+  says(cookie, "HttpOnly");
+  says(cookie, "; Secure;");
+  says(cookie, "SameSite=Strict");
+  says(cookie, "Path=/");
 };
 
 describe("isSecureMode", () => {
@@ -78,30 +76,30 @@ describe("buildSessionCookie", () => {
   test("includes __Host-session in secure mode with all required attributes", () => {
     setEffectiveDomainForTest("example.com");
     const cookie = buildSessionCookie("test-token");
-    assertStringIncludes(cookie, "__Host-session=test-token");
+    says(cookie, "__Host-session=test-token");
     expectSecureCookieAttributes(cookie);
-    assertStringIncludes(cookie, "Max-Age=86400");
+    says(cookie, "Max-Age=86400");
   });
 
   test("includes 'session' in dev mode without Secure flag", () => {
     setEffectiveDomainForTest("localhost");
     const cookie = buildSessionCookie("test-token");
-    assertStringIncludes(cookie, "session=test-token");
+    says(cookie, "session=test-token");
     expectDevCookieAttributes(cookie);
-    assertStringIncludes(cookie, "Max-Age=86400");
+    says(cookie, "Max-Age=86400");
   });
 
   test("keeps loopback request hosts in dev cookie mode", () => {
     seedEffectiveDomainHost(new URL("http://127.0.0.1:38123/admin/"));
     const cookie = buildSessionCookie("test-token");
-    assertStringIncludes(cookie, "session=test-token");
+    says(cookie, "session=test-token");
     expectDevCookieAttributes(cookie);
   });
 
   test("respects custom maxAge", () => {
     setEffectiveDomainForTest("example.com");
     const cookie = buildSessionCookie("test-token", { maxAge: 3600 });
-    assertStringIncludes(cookie, "Max-Age=3600");
+    says(cookie, "Max-Age=3600");
   });
 });
 
@@ -111,17 +109,17 @@ describe("clearSessionCookie", () => {
   test("includes __Host-session in secure mode with Max-Age=0", () => {
     setEffectiveDomainForTest("example.com");
     const cookie = clearSessionCookie();
-    assertStringIncludes(cookie, "__Host-session=");
+    says(cookie, "__Host-session=");
     expectSecureCookieAttributes(cookie);
-    assertStringIncludes(cookie, "Max-Age=0");
+    says(cookie, "Max-Age=0");
   });
 
   test("includes 'session' in dev mode without Secure flag", () => {
     setEffectiveDomainForTest("localhost");
     const cookie = clearSessionCookie();
-    assertStringIncludes(cookie, "session=");
+    says(cookie, "session=");
     expectDevCookieAttributes(cookie);
-    assertStringIncludes(cookie, "Max-Age=0");
+    says(cookie, "Max-Age=0");
   });
 });
 
@@ -137,25 +135,19 @@ describe("buildFlashCookie", () => {
   test("encodes success message as JSON", () => {
     setEffectiveDomainForTest("localhost");
     const cookie = buildFlashCookie("abc123", "Saved", true);
-    assertStringIncludes(
-      cookie,
-      encodeURIComponent(JSON.stringify({ m: "Saved", t: "s" })),
-    );
+    says(cookie, encodeURIComponent(JSON.stringify({ m: "Saved", t: "s" })));
   });
 
   test("encodes error message as JSON", () => {
     setEffectiveDomainForTest("localhost");
     const cookie = buildFlashCookie("abc123", "Failed", false);
-    assertStringIncludes(
-      cookie,
-      encodeURIComponent(JSON.stringify({ m: "Failed", t: "e" })),
-    );
+    says(cookie, encodeURIComponent(JSON.stringify({ m: "Failed", t: "e" })));
   });
 
   test("sets short Max-Age", () => {
     setEffectiveDomainForTest("localhost");
     const cookie = buildFlashCookie("abc123", "Saved", true);
-    assertStringIncludes(cookie, "Max-Age=10");
+    says(cookie, "Max-Age=10");
   });
 
   test("embeds the form re-fill token when provided", () => {
@@ -168,7 +160,7 @@ describe("buildFlashCookie", () => {
       undefined,
       "stash-token",
     );
-    assertStringIncludes(
+    says(
       cookie,
       encodeURIComponent(
         JSON.stringify({ f: "stash-token", m: "Saved", t: "s" }),
@@ -184,7 +176,7 @@ describe("clearFlashCookie", () => {
     setEffectiveDomainForTest("localhost");
     const cookie = clearFlashCookie("abc123");
     expect(cookie).toMatch(/^flash_abc123=/);
-    assertStringIncludes(cookie, "Max-Age=0");
+    says(cookie, "Max-Age=0");
   });
 });
 

@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
@@ -9,6 +9,7 @@ import {
   confirmDeleteWithLog,
 } from "#routes/admin/logged-actions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { has } from "#test-utils/says.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("admin > logged actions", { db: true }, () => {
@@ -23,9 +24,9 @@ describeWithEnv("admin > logged actions", { db: true }, () => {
     )({ id: 7, name: "Colour" });
 
     expect(deleted).toEqual([7]);
-    assertArrayIncludes(
+    has(
       (await withTestSession(() => getAllActivityLog())).map((e) => e.message),
-      ["Attribute 'Colour' deleted"],
+      "Attribute 'Colour' deleted",
     );
   });
 
@@ -42,9 +43,9 @@ describeWithEnv("admin > logged actions", { db: true }, () => {
     });
 
     expect(appended).toEqual([3]);
-    assertArrayIncludes(
+    has(
       (await withTestSession(() => getAllActivityLog())).map((e) => e.message),
-      ["Question 'Postcode' created"],
+      "Question 'Postcode' created",
     );
   });
 
@@ -69,7 +70,6 @@ describeWithEnv("admin > logged actions", { db: true }, () => {
       !(await withTestSession(() => getAllActivityLog()))
         .map((e) => e.message)
         .includes("Question 'Ghost' created"),
-      "the value should not contain the searched item",
     );
   });
 });

@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
@@ -18,6 +19,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -56,9 +58,7 @@ Then(
     expect(this.bookingWasTaken).toBe(false);
     // It has to be refused for want of room: any other failure would otherwise
     // count as the days being held.
-    expect(scenarioBrowser(this).pageText).toContain(
-      t("error.not_enough_spots"),
-    );
+    says(scenarioBrowser(this).pageText, t("error.not_enough_spots"));
   },
 );
 
@@ -81,7 +81,7 @@ When(
 Then(
   "the list shows that stay running from day {int} to day {int}",
   function (this: TicketsWorld, from: number, to: number): void {
-    expect(downloadedList(this)).toContain(columnFor(this, from, to));
+    says(downloadedList(this), columnFor(this, from, to));
   },
 );
 
@@ -90,7 +90,7 @@ Then(
   function (this: TicketsWorld, to: number): void {
     // The longest stay the listing allows must not appear in place of the days
     // the customer actually chose.
-    expect(downloadedList(this)).not.toContain(columnFor(this, 10, to));
+    assert(!downloadedList(this).includes(columnFor(this, 10, to)));
   },
 );
 
@@ -98,8 +98,8 @@ Then(
   "the list shows that booking on day {int} alone",
   function (this: TicketsWorld, day: number): void {
     const list = downloadedList(this);
-    expect(list).toContain(dayFromToday(this, day));
+    says(list, dayFromToday(this, day));
     // A single day is never written as a range.
-    expect(list).not.toContain(" to ");
+    assert(!list.includes(" to "));
   },
 );

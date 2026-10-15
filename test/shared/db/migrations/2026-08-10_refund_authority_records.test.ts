@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -6,6 +5,7 @@ import refundAuthorityRecords from "#db/migrations/2026-08-10_refund_authority_r
 import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { says } from "#test-utils/says.ts";
 
 const QUEUE_INDEX = "idx_processed_payments_protected_attendee";
 
@@ -138,7 +138,7 @@ describeWithEnv(
 
       await migration().up();
 
-      assertStringIncludes(
+      says(
         await storedIndexSql(QUEUE_INDEX),
         `ON processed_payments(attendee_id) WHERE protected_state != ''`,
       );

@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
@@ -34,6 +35,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { twoGroupedListingsBookedOnAdjacentDays } from "#test-utils/db-helpers/grouped-days.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { expectStayCanBeBooked, expectStayRunsFor } from "./stays-booking.ts";
 
 // jscpd:ignore-end
@@ -120,18 +122,18 @@ Then(
   "the page says each booking lasts {int} days",
   function (this: TicketsWorld, days: number): void {
     const page = scenarioBrowser(this).pageText;
-    expect(page).toContain(t("listings_table.booking_duration"));
-    expect(page).toContain(
-      `${days} ${t("listings_table.day_count_with_parens")}`,
-    );
+    says(page, t("listings_table.booking_duration"));
+    says(page, `${days} ${t("listings_table.day_count_with_parens")}`);
   },
 );
 
 Then(
   "the page says nothing about how long bookings last",
   function (this: TicketsWorld): void {
-    expect(scenarioBrowser(this).pageText).not.toContain(
-      t("listings_table.booking_duration"),
+    assert(
+      !scenarioBrowser(this).pageText.includes(
+        t("listings_table.booking_duration"),
+      ),
     );
   },
 );
@@ -222,7 +224,8 @@ Then(
 Then(
   "the organiser is warned that the shared day is over its limit",
   function (this: TicketsWorld): void {
-    expect(this.lengthChangeMessage).toContain(
+    says(
+      this.lengthChangeMessage,
       `group capacity exceeded on ${this.sharedDayOver}`,
     );
   },
@@ -304,8 +307,8 @@ Then(
       `/admin/listing/${listingIdNamed(this, name)}/attendees`,
     );
     for (const { email, who } of [guest(1), guest(2)]) {
-      expect(browser.pageText).toContain(who);
-      expect(browser.pageText).toContain(email);
+      says(browser.pageText, who);
+      says(browser.pageText, email);
     }
   },
 );

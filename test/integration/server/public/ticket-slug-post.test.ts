@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -26,6 +26,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -217,14 +218,8 @@ describeWithEnv(
           mockRequest(`/ticket/${listing.slug}`),
         );
         const html = await getResponse.text();
-        assert(
-          !html.includes("Stale Name"),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes("stale@example.com"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Stale Name"));
+        assert(!html.includes("stale@example.com"));
       });
 
       test("does not leak saved form data from validation error into next POST", async () => {
@@ -308,12 +303,12 @@ describeWithEnv(
         });
         expect(response.status).toBe(302);
         const location = response.headers.get("location") || "";
-        assertStringIncludes(location, "/ticket/reserved?tokens=");
+        says(location, "/ticket/reserved?tokens=");
 
         // Follow the redirect and check the success page
         const successResponse = await handleRequest(mockRequest(location));
         const html = await successResponse.text();
-        assertStringIncludes(html, "Thank you for your order");
+        says(html, "Thank you for your order");
       });
 
       test("rejects when listing is full", async () => {

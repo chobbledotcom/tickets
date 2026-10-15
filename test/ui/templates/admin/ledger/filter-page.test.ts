@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { LedgerFilterState } from "#templates/admin/ledger/filter.tsx";
 import {
@@ -9,6 +9,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { says } from "#test-utils/says.ts";
 import { featureSetting, useSetting } from "#test-utils/settings.ts";
 import { names, transfer } from "./helpers.ts";
 
@@ -46,34 +47,25 @@ describe("adminLedgerPage", () => {
 
   test("renders the money heading, nav, stats, filters, and simple list", () => {
     const html = adminLedgerPage(pageData(), OWNER_SESSION);
-    assertStringIncludes(html, "Money");
-    assert(
-      !html.includes("Money history"),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(html, 'href="/admin/ledger"');
-    assertStringIncludes(html, "<th>Activity</th>");
-    assertStringIncludes(html, "Simple view");
-    assertStringIncludes(html, "Detailed view");
-    assertStringIncludes(html, "Money moved from");
+    says(html, "Money");
+    assert(!html.includes("Money history"));
+    says(html, 'href="/admin/ledger"');
+    says(html, "<th>Activity</th>");
+    says(html, "Simple view");
+    says(html, "Detailed view");
+    says(html, "Money moved from");
     // The whole-business scope is selected and keeps an unscoped URL.
-    assertStringIncludes(
-      html,
-      '<option selected value="/admin/ledger">Everything</option>',
-    );
-    assertStringIncludes(html, "Total income");
-    assertStringIncludes(html, "£25.00");
+    says(html, '<option selected value="/admin/ledger">Everything</option>');
+    says(html, "Total income");
+    says(html, "£25.00");
     // Both range pickers render with unique anchor ids.
-    assertStringIncludes(html, 'id="ledger-from"');
-    assertStringIncludes(html, 'id="ledger-to"');
+    says(html, 'id="ledger-from"');
+    says(html, 'id="ledger-to"');
     // The by-listing select lists every listing plus the "all" option.
-    assertStringIncludes(html, "Everything");
-    assertStringIncludes(html, "Summer Concert");
-    assertStringIncludes(
-      html,
-      '<option selected value="/admin/ledger">Everything</option>',
-    );
-    assertStringIncludes(html, "Festival package");
+    says(html, "Everything");
+    says(html, "Summer Concert");
+    says(html, '<option selected value="/admin/ledger">Everything</option>');
+    says(html, "Festival package");
   });
 
   test("heads the stats with the listing name when scoped to one listing", () => {
@@ -81,7 +73,7 @@ describe("adminLedgerPage", () => {
       pageData({ statsHeading: "Summer Concert" }),
       OWNER_SESSION,
     );
-    assertStringIncludes(html, "<h2>Summer Concert</h2>");
+    says(html, "<h2>Summer Concert</h2>");
   });
 
   test("can switch to the detailed money-change list", () => {
@@ -89,9 +81,9 @@ describe("adminLedgerPage", () => {
       pageData({ filters: { ...NO_FILTERS, view: "dual" } }),
       OWNER_SESSION,
     );
-    assertStringIncludes(html, "<th>Money moved</th>");
-    assertStringIncludes(html, 'href="/admin/ledger">Simple view</a>');
-    assertStringIncludes(html, "<strong>Detailed view</strong>");
+    says(html, "<th>Money moved</th>");
+    says(html, 'href="/admin/ledger">Simple view</a>');
+    says(html, "<strong>Detailed view</strong>");
   });
 
   test("preselects the chosen listing in the by-listing select", () => {
@@ -105,7 +97,7 @@ describe("adminLedgerPage", () => {
       OWNER_SESSION,
     );
     // The listing option carries `selected`; its value scopes the URL to it.
-    assertStringIncludes(
+    says(
       html,
       '<option selected value="/admin/ledger?listing=1">Summer Concert</option>',
     );
@@ -122,11 +114,11 @@ describe("adminLedgerPage", () => {
       }),
       OWNER_SESSION,
     );
-    assertStringIncludes(
+    says(
       html,
       '<option selected value="/admin/ledger?group=2">Festival package</option>',
     );
-    assertStringIncludes(html, "<h2>Festival package</h2>");
+    says(html, "<h2>Festival package</h2>");
   });
 
   test("day links carry the from/to filters and the other side's state", () => {
@@ -141,9 +133,9 @@ describe("adminLedgerPage", () => {
       OWNER_SESSION,
     );
     // A "to" day link keeps the existing from + listing scope.
-    assertStringIncludes(html, "to=2026-06-20");
-    assertStringIncludes(html, "from=2026-06-20");
-    assertStringIncludes(html, "listing=1");
+    says(html, "to=2026-06-20");
+    says(html, "from=2026-06-20");
+    says(html, "listing=1");
   });
 
   test("filter links preserve dual view and paged calendar state", () => {
@@ -161,21 +153,18 @@ describe("adminLedgerPage", () => {
       }),
       OWNER_SESSION,
     );
-    assertStringIncludes(
+    says(
       html,
       'value="/admin/ledger?from=2026-06-20&amp;to=2026-06-22&amp;view=dual&amp;fromCal=2026-05&amp;toCal=2026-07"',
     );
-    assertStringIncludes(html, "view=dual");
-    assertStringIncludes(html, "toCal=2026-07");
+    says(html, "view=dual");
+    says(html, "toCal=2026-07");
   });
 
   test("surfaces the 'showing recent' note only when truncated", () => {
     const shown = adminLedgerPage(pageData({ truncated: true }), OWNER_SESSION);
-    assertStringIncludes(shown, "Showing the 500 most recent money changes.");
+    says(shown, "Showing the 500 most recent money changes.");
     const all = adminLedgerPage(pageData({ truncated: false }), OWNER_SESSION);
-    assert(
-      !all.includes("Showing the 500 most recent money changes."),
-      "the value should not contain the searched item",
-    );
+    assert(!all.includes("Showing the 500 most recent money changes."));
   });
 });

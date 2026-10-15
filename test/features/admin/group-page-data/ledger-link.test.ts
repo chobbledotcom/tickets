@@ -1,9 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { loadGroupOverviewPanel } from "#routes/admin/group-page-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("the group Overview tab's ledger link", { db: true }, () => {
@@ -24,10 +25,7 @@ describeWithEnv("the group Overview tab's ledger link", { db: true }, () => {
         loadGroupOverviewPanel(group, true),
       ]),
     );
-    assert(
-      !String(withDefault).includes(ledgerHref),
-      "the value should not contain the searched item",
-    );
-    assertStringIncludes(String(forOwner), ledgerHref);
+    assert(!String(withDefault).includes(ledgerHref));
+    says(String(forOwner), ledgerHref);
   });
 });

@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -32,6 +32,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 /** A listing plus "John Doe" attendee with the thank-you URL set — shared
@@ -157,10 +158,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         response,
         `/admin/listing/${listing.id}/attendees`,
       );
-      assert(
-        !location.includes("filter="),
-        "the value should not contain the searched item",
-      );
+      assert(!location.includes("filter="));
     });
 
     test("redirects to return_url when provided", async () => {
@@ -226,14 +224,11 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const response = await adminGet(`/admin/listing/${listing.id}/attendees`);
       const html = await expectHtmlResponse(response, 200, "Cara Pair");
 
-      assertStringIncludes(
+      says(
         html,
         `href="/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
       );
-      assert(
-        !html.includes('name="check_in"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('name="check_in"'));
     });
 
     test("a date's line of a two-date booking opens the quantity page", async () => {
@@ -258,14 +253,11 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         200,
         "Dana Days",
       );
-      assertStringIncludes(
+      says(
         html,
         `href="/admin/listing/${listing.id}/attendee/${made.attendees[0]!.id}/checkin`,
       );
-      assert(
-        !html.includes('name="check_in"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('name="check_in"'));
     });
 
     test("a checked-in line beside a hidden part line opens the quantity page", async () => {
@@ -295,14 +287,11 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         200,
         "Hal Half",
       );
-      assertStringIncludes(
+      says(
         html,
         `href="/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
       );
-      assert(
-        !html.includes('name="check_in"'),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes('name="check_in"'));
     });
   });
 

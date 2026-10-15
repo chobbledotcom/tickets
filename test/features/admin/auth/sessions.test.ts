@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createSession, getSession } from "#db/sessions.ts";
@@ -18,6 +18,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import { loginAsAdmin } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin sessions)", { db: true }, () => {
@@ -39,7 +40,7 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
 
       const response = await awaitTestRequest("/admin/sessions", { cookie });
       const html = await response.text();
-      assertStringIncludes(html, "<mark>Current</mark>");
+      says(html, "<mark>Current</mark>");
     });
 
     test("shows logout button when other sessions exist", async () => {
@@ -56,7 +57,7 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
 
       const response = await awaitTestRequest("/admin/sessions", { cookie });
       const html = await response.text();
-      assertStringIncludes(html, "Log out of all other sessions");
+      says(html, "Log out of all other sessions");
     });
 
     test("does not show logout button when no other sessions", async () => {
@@ -64,10 +65,7 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
 
       const response = await awaitTestRequest("/admin/sessions", { cookie });
       const html = await response.text();
-      assert(
-        !html.includes("Log out of all other sessions"),
-        "the value should not contain the searched item",
-      );
+      assert(!html.includes("Log out of all other sessions"));
     });
   });
 
@@ -195,17 +193,11 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
       const html = await response.text();
 
       // Verify we get login page, not blank screen or dashboard
-      assertStringIncludes(html, "Login");
-      assertStringIncludes(html, "<form");
+      says(html, "Login");
+      says(html, "<form");
       expect(html.length).toBeGreaterThan(100); // Not blank
-      assert(
-        !html.includes("Listings"),
-        "the value should not contain the searched item",
-      ); // Should not show dashboard
-      assert(
-        !html.includes("No listings yet"),
-        "the value should not contain the searched item",
-      ); // Should not show listings table
+      assert(!html.includes("Listings")); // Should not show dashboard
+      assert(!html.includes("No listings yet")); // Should not show listings table
 
       // Verify session was deleted from database after expiration check
       const deletedSession = await getSession(expiredToken);
@@ -230,16 +222,10 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
         const html = await response.text();
 
         // Each request should consistently show login page, not blank or dashboard
-        assertStringIncludes(html, "Login");
+        says(html, "Login");
         expect(html.length).toBeGreaterThan(100);
-        assert(
-          !html.includes("Listings"),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes("No listings yet"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Listings"));
+        assert(!html.includes("No listings yet"));
       }
 
       // Verify session was deleted after first access
@@ -255,9 +241,9 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
       const html = await response.text();
 
       // Verify key content elements that should never be blank
-      assertStringIncludes(html, "Listings"); // Page title
-      assertStringIncludes(html, "<table"); // Table structure
-      assertStringIncludes(html, "Listing name"); // Table header
+      says(html, "Listings"); // Page title
+      says(html, "<table"); // Table structure
+      says(html, "Listing name"); // Table header
       expect(html.length).toBeGreaterThan(500); // Substantial content
     });
 
@@ -267,10 +253,10 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
       const html = await response.text();
 
       // Verify key content elements of login page
-      assertStringIncludes(html, "Login");
-      assertStringIncludes(html, "<form");
-      assertStringIncludes(html, "username");
-      assertStringIncludes(html, "password");
+      says(html, "Login");
+      says(html, "<form");
+      says(html, "username");
+      says(html, "password");
       expect(html.length).toBeGreaterThan(200); // Substantial content
     });
   });

@@ -1,4 +1,3 @@
-import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -14,7 +13,6 @@ import {
 import { legReference } from "#accounting/refs.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
-
 import {
   REFUND_LEDGER_BATCH_DATABASE_CALLS,
   recordAttendeeRefund,
@@ -36,6 +34,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { says, saysNot } from "#test-utils/says.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 describeWithEnv(
@@ -206,12 +205,9 @@ describeWithEnv(
       expect(
         refundLegsOf(await transfersByAccount(attendeeAccount(18))).length,
       ).toBe(0);
-      assertStringIncludes(errors.lastMessage() ?? "", "E_LEDGER_POST");
-      assertStringIncludes(
-        errors.lastMessage() ?? "",
-        "Refund ledger post failed",
-      );
-      assertStringIncludes(errors.lastMessage() ?? "", "attendee=18");
+      says(errors.lastMessage(), "E_LEDGER_POST");
+      says(errors.lastMessage(), "Refund ledger post failed");
+      says(errors.lastMessage(), "attendee=18");
     });
 
     test("posts all refund groups for a balance-settled attendee in a bulk batch", async () => {
@@ -280,12 +276,13 @@ describeWithEnv(
           recordAttendeeRefundsBatch([target]),
         ),
       ).toEqual(new Map([[21, refundLedgerResult([], target.references)]]));
-      assertStringIncludes(
-        errors.lastMessage() ?? "",
+      says(
+        errors.lastMessage(),
         "Bulk refund ledger preparation failed for 1 attendee records",
       );
-      assert(
-        errors.lastMessage()?.includes("ledger read failed") === false,
+      saysNot(
+        errors.lastMessage(),
+        "ledger read failed",
         "the value should not contain the searched item",
       );
     });
@@ -299,12 +296,13 @@ describeWithEnv(
           recordAttendeeRefundsBatch([target]),
         ),
       ).toEqual(new Map([[22, refundLedgerResult([], target.references)]]));
-      assertStringIncludes(
-        errors.lastMessage() ?? "",
+      says(
+        errors.lastMessage(),
         "Bulk refund ledger post failed for 1 attendee records",
       );
-      assert(
-        errors.lastMessage()?.includes("ledger write failed") === false,
+      saysNot(
+        errors.lastMessage(),
+        "ledger write failed",
         "the value should not contain the searched item",
       );
     });

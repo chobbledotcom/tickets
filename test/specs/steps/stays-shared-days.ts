@@ -24,6 +24,7 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -166,9 +167,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     expect(this.bookingWasTaken).toBe(false);
     // Refused for want of room, not for some unrelated reason.
-    expect(browserSeenBy(this, CUSTOMER).pageText).toContain(
-      "enough spots available",
-    );
+    says(browserSeenBy(this, CUSTOMER).pageText, "enough spots available");
     // Neither half of the order may be taken — a partly-booked order would
     // leave the customer paying for a stay they cannot use.
     expect((await staysOn(this, "Short")).length).toBe(0);

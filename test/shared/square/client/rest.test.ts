@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -9,6 +8,7 @@ import {
   installMockFetch,
   jsonResponse,
 } from "#test/shared/square/mock-fetch.ts";
+import { says } from "#test-utils/says.ts";
 import { describeSquare } from "#test-utils/square/harness.ts";
 
 describeSquare(() => {
@@ -113,7 +113,7 @@ describeSquare(() => {
       // The whole answer comes back, because the classifier reads the
       // status and the refusal words itself.
       expect(answer.status).toBe(200);
-      assertStringIncludes(answer.text, "ord_rest");
+      says(answer.text, "ord_rest");
       const [url, opts] = mockFetch.calls[0]!.args;
       expect(url).toBe(
         "https://connect.squareupsandbox.com/v2/online-checkout/payment-links/plink_rest",
@@ -376,10 +376,7 @@ describeSquare(() => {
       const client = await squareApi.getSquareClient();
       await client!.orders.get({ orderId: "test" });
 
-      assertStringIncludes(
-        mockFetch.calls[0]!.args[0] ?? "",
-        "connect.squareup.com",
-      );
+      says(mockFetch.calls[0]!.args[0], "connect.squareup.com");
     });
   });
 });

@@ -3,7 +3,7 @@
  * which groups the edit form ticks after a rejected save.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
@@ -29,6 +29,7 @@ import {
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createQuestion } from "#test-utils/questions/helpers.ts";
+import { says } from "#test-utils/says.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 const SESSION: AuthSession = {
@@ -114,7 +115,7 @@ describeWithEnv(
     describe("the edit tab", () => {
       test("shows the listing's stored name", async () => {
         const listing = await createTestListing({ name: "Autumn Fair" });
-        assertStringIncludes(await editHtml(listing.id), "Autumn Fair");
+        says(await editHtml(listing.id), "Autumn Fair");
       });
 
       test("ticks the groups the listing is stored in", async () => {
@@ -137,18 +138,12 @@ describeWithEnv(
 
       test("shows the message when a save was rejected", async () => {
         const listing = await createTestListing({});
-        assertStringIncludes(
-          await editHtml(listing.id, "Slug is taken"),
-          "Slug is taken",
-        );
+        says(await editHtml(listing.id, "Slug is taken"), "Slug is taken");
       });
 
       test("shows no message when the tab is opened normally", async () => {
         const listing = await createTestListing({});
-        assert(
-          !(await editHtml(listing.id)).includes("Slug is taken"),
-          "the value should not contain the searched item",
-        );
+        assert(!(await editHtml(listing.id)).includes("Slug is taken"));
       });
     });
 
@@ -158,7 +153,7 @@ describeWithEnv(
         const html = await withTestSession(async () =>
           String(await loadListingImagesPanel(await loaded(listing.id))),
         );
-        assertStringIncludes(html, `/admin/listing/${listing.id}`);
+        says(html, `/admin/listing/${listing.id}`);
       });
     });
 
@@ -181,8 +176,8 @@ describeWithEnv(
 
       test("offers every question the site has", async () => {
         const { html } = await questionsHtml();
-        assertStringIncludes(html, "Any allergies?");
-        assertStringIncludes(html, "Parking needed?");
+        says(html, "Any allergies?");
+        says(html, "Parking needed?");
       });
 
       test("ticks only the questions this listing uses", async () => {
@@ -214,8 +209,8 @@ describeWithEnv(
 
       test("offers every option the attribute has", async () => {
         const { html } = await attributesHtml();
-        assertStringIncludes(html, "Step free");
-        assertStringIncludes(html, "Stairs only");
+        says(html, "Step free");
+        says(html, "Stairs only");
       });
 
       test("ticks only the options this listing shows", async () => {
@@ -230,7 +225,7 @@ describeWithEnv(
         const html = await withTestSession(async () =>
           String(await loadListingQrPanel(await loaded(listing.id))),
         );
-        assertStringIncludes(html, `/admin/listing/${listing.id}/qr`);
+        says(html, `/admin/listing/${listing.id}/qr`);
       });
     });
   },

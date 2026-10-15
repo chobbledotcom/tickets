@@ -1,4 +1,5 @@
-import { assert, assertStringIncludes } from "@std/assert";
+// jscpd:ignore-start
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -21,11 +22,14 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import { mockRequest, withStorageMock } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   createTestManagerSession,
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+
+// jscpd:ignore-end
 
 const makePage = (name: string, slug: string) =>
   createTestSitePage(slug, { name });
@@ -119,10 +123,7 @@ describeWithEnv(
           200,
         );
         // The panel's set form posts back to the images route.
-        assertStringIncludes(
-          html,
-          `action="/admin/site/pages/${page.id}/images"`,
-        );
+        says(html, `action="/admin/site/pages/${page.id}/images"`);
       });
     });
 
@@ -144,7 +145,7 @@ describeWithEnv(
           ),
           200,
         );
-        assertStringIncludes(html, `value="page:${page.id}"`);
+        says(html, `value="page:${page.id}"`);
 
         // Saving with the page target linked persists it.
         const response = await handleRequest(
@@ -187,10 +188,7 @@ describeWithEnv(
           ),
           200,
         );
-        assert(
-          !html.includes(`value="page:${page.id}"`),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes(`value="page:${page.id}"`));
 
         const saveResponse = await handleRequest(
           formRequest(

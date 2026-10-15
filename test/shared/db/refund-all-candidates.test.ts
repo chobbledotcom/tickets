@@ -349,10 +349,7 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
     if (summary === undefined || batch === undefined) {
       throw new Error("Refund All did not issue both admission reads");
     }
-    assert(
-      !summary.includes("pii_blob"),
-      "the value should not contain the searched item",
-    );
+    assert(!summary.includes("pii_blob"));
     expect(batch.indexOf("LIMIT ?")).toBeGreaterThan(-1);
     expect(batch.indexOf("attendee.pii_blob")).toBeGreaterThan(
       batch.indexOf("LIMIT ?"),

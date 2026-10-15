@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
@@ -19,6 +19,7 @@ import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale, postWriteoffAdjustment } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminFormPost,
   adminGet,
@@ -83,18 +84,9 @@ describeWithEnv(
           `/admin/listing/${listing.id}/actions?date=${hiddenDate}`,
         );
         const html = await response.text();
-        assert(
-          !html.includes("Ada Lovelace"),
-          "the value should not contain the searched item",
-        );
-        assertStringIncludes(
-          html,
-          `href="/admin/emails?listing=${listing.id}"`,
-        );
-        assert(
-          !html.includes("btn--disabled"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Ada Lovelace"));
+        says(html, `href="/admin/emails?listing=${listing.id}"`);
+        assert(!html.includes("btn--disabled"));
       });
       test("Overview collates counts, revenue and notes without loading attendees", async () => {
         const { listing, cookie } = await setupListingAndLogin({
@@ -147,13 +139,13 @@ describeWithEnv(
         );
         const html = await response.text();
         // The confirmed count excludes the incomplete booking (2 booked − 1).
-        assertStringIncludes(html, "1 / 100");
+        says(html, "1 / 100");
         // Received revenue is the paid sale only (£50), not the £80 gross.
-        assertStringIncludes(html, "Total Revenue");
-        assertStringIncludes(html, "£50");
+        says(html, "Total Revenue");
+        says(html, "£50");
         // The note (with its author's decrypted name) renders on the Overview.
-        assertStringIncludes(html, "Called ahead about access");
-        assertStringIncludes(html, "Grace Hopper");
+        says(html, "Called ahead about access");
+        says(html, "Grace Hopper");
       });
       test("shows the full activity log on the Activity tab", async () => {
         const { listing, cookie } = await setupListingAndLogin({
@@ -168,7 +160,7 @@ describeWithEnv(
         );
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "A notable listing event");
+        says(html, "A notable listing event");
       });
       test("offers the reactivate action for a deactivated listing", async () => {
         const { listing, cookie } = await setupListingAndLogin({
@@ -183,11 +175,8 @@ describeWithEnv(
         );
         const html = await response.text();
         // A deactivated listing shows reactivate, never deactivate.
-        assertStringIncludes(html, `/admin/listing/${listing.id}/reactivate`);
-        assert(
-          !html.includes(`/admin/listing/${listing.id}/deactivate`),
-          "the value should not contain the searched item",
-        );
+        says(html, `/admin/listing/${listing.id}/reactivate`);
+        assert(!html.includes(`/admin/listing/${listing.id}/deactivate`));
       });
     });
   },

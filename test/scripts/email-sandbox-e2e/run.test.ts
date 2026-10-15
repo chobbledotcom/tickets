@@ -1,5 +1,6 @@
 /** Direct tests for one email leg's probes, outcomes, and containment. */
 
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -8,6 +9,7 @@ import { runEmailLeg } from "#scripts/email-sandbox-e2e/run.ts";
 import { BULK_UNSUBSCRIBE_PLACEHOLDER } from "#shared/email/bulk.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { says } from "#test-utils/says.ts";
 
 const resendEnv = {
   RESEND_API_KEY: "re_test_123",
@@ -60,7 +62,7 @@ describe("runEmailLeg on a ready resend leg", () => {
     }[];
     expect(attachments).toHaveLength(1);
     expect(attachments[0]!.filename).toBe("probe.svg");
-    expect(atob(attachments[0]!.content)).toContain("<svg");
+    says(atob(attachments[0]!.content), "<svg");
   });
 
   test("sends the bulk probe with the unsubscribe substitution filled in", async () => {
@@ -77,8 +79,11 @@ describe("runEmailLeg on a ready resend leg", () => {
     expect(batch).toHaveLength(1);
     expect(batch[0]!.to).toEqual(["delivered@resend.dev"]);
     expect(batch[0]!.subject).toMatch(/\(resend, bulk\)$/);
-    expect(batch[0]!.html).toContain('href="https://example.com/unsubscribe"');
-    expect(batch[0]!.html).not.toContain(BULK_UNSUBSCRIBE_PLACEHOLDER);
+    says(batch[0]!.html, 'href="https://example.com/unsubscribe"');
+    assert(
+      !batch[0]!.html.includes(BULK_UNSUBSCRIBE_PLACEHOLDER),
+      "the value should not contain the searched item",
+    );
   });
 
   test("reports both accepted sends as one sent leg", async () => {
@@ -304,7 +309,7 @@ describe("runEmailLeg on a ready postmark leg", () => {
     using _fetched = stubFetch(okJson(), new Response("to@example.com"));
     const outcome = await runEmailLeg("postmark");
     expect(outcome.state).toBe("failed");
-    expect(outcome.detail).not.toContain("to@example.com");
+    assert(!outcome.detail.includes("to@example.com"));
   });
 
   test("skips the per-message read when the batch itself was refused", async () => {

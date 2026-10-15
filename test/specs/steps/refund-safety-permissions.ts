@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import {
@@ -35,6 +36,7 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
+import { says } from "#test-utils/says.ts";
 
 // jscpd:ignore-end
 
@@ -99,7 +101,7 @@ When(
     await browser.visit(
       `/admin/attendees/${safetyBooking(this, attendee).attendeeId}/actions`,
     );
-    expect(browser.pageText).toContain(attendee);
+    says(browser.pageText, attendee);
     this.attendeeName = attendee;
   },
 );

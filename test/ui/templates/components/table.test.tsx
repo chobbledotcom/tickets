@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -8,6 +8,7 @@ import {
   renderTable,
   tableColumnText,
 } from "#templates/components/table.tsx";
+import { says } from "#test-utils/says.ts";
 
 describe("typed table rendering", () => {
   test("ignores non-text and empty cell classes through the renderer", () => {
@@ -32,7 +33,7 @@ describe("typed table rendering", () => {
       ),
     );
 
-    assertStringIncludes(
+    says(
       html,
       "<tbody><tr><td>Value 0</td></tr><tr><td>Value 1</td></tr><tr><td>Value 2</td></tr><tr><td>Value 3</td></tr><tr><td>Value 4</td></tr></tbody>",
     );
@@ -64,11 +65,11 @@ describe("typed table rendering", () => {
       },
     ]);
 
-    assertStringIncludes(
+    says(
       String(renderTable(table, [{ amount: 12 }])),
       '<td class="col-amount highlight" title="Exact amount">12</td>',
     );
-    assertStringIncludes(
+    says(
       String(renderTable(table, [], { empty: "None" })),
       '<td colspan="1">None</td>',
     );
@@ -85,8 +86,8 @@ describe("typed table rendering", () => {
         hiddenKeys: new Set<"shown" | "hidden">(["hidden"]),
       }),
     );
-    assertStringIncludes(html, "<thead><tr><th>Shown</th></tr></thead>");
-    assertStringIncludes(html, "<tbody><tr><td>Keep</td></tr></tbody>");
+    says(html, "<thead><tr><th>Shown</th></tr></thead>");
+    says(html, "<tbody><tr><td>Keep</td></tr></tbody>");
   });
 
   test("renders attributes derived from each row", () => {
@@ -94,7 +95,7 @@ describe("typed table rendering", () => {
       { cell: (row) => row.name, header: "Name", key: "name" },
     ]);
 
-    assertStringIncludes(
+    says(
       String(
         renderTable(table, [{ active: false, name: "Hidden" }], {
           rowAttrs: (row) =>
@@ -116,7 +117,7 @@ describe("typed table rendering", () => {
       { cell: (row) => row.value, header: "Value", key: "value" },
     ]);
 
-    assertStringIncludes(
+    says(
       String(renderTable(table, [{ label: "Name", value: "Alice" }])),
       '<th scope="row">Name</th><td>Alice</td>',
     );
@@ -135,17 +136,11 @@ describe("typed table rendering", () => {
     ]);
 
     const html = String(renderColumnReference(table));
-    assertStringIncludes(html, `<th>${t("guide.table_reference.tag")}</th>`);
-    assertStringIncludes(html, `<th>${t("guide.table_reference.label")}</th>`);
-    assertStringIncludes(
-      html,
-      `<th>${t("guide.table_reference.description")}</th>`,
-    );
-    assertStringIncludes(html, "{{name}}");
-    assertStringIncludes(html, "Stored name");
-    assert(
-      !html.includes("{{internal}}"),
-      "the value should not contain the searched item",
-    );
+    says(html, `<th>${t("guide.table_reference.tag")}</th>`);
+    says(html, `<th>${t("guide.table_reference.label")}</th>`);
+    says(html, `<th>${t("guide.table_reference.description")}</th>`);
+    says(html, "{{name}}");
+    says(html, "Stored name");
+    assert(!html.includes("{{internal}}"));
   });
 });

@@ -16,6 +16,7 @@ import {
   updateMode,
 } from "#scripts/check-runner.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
+import { has, says } from "#test-utils/says.ts";
 
 describe("reading the counts a check ratchets on", () => {
   let dir: TempPath;
@@ -113,7 +114,7 @@ describe("the per-file check runners", () => {
       );
       expect(code).toBe(0);
       expect(errors).toEqual([]);
-      expect(out).toContain("Every exported name says what it names.");
+      has(out, "Every exported name says what it names.");
     });
   });
 
@@ -125,8 +126,8 @@ describe("the per-file check runners", () => {
         "try {\n  save();\n} catch (e) {}\n",
       );
       expect(code).toBe(1);
-      expect(errors[0]).toContain(`${dir.path}/src/empty.ts:3 [empty-catch]`);
-      expect(errors[0]).toContain("no statement and no comment");
+      says(errors[0], `${dir.path}/src/empty.ts:3 [empty-catch]`);
+      says(errors[0], "no statement and no comment");
     });
 
     test("passes a tree whose catches explain themselves", async () => {
@@ -136,9 +137,7 @@ describe("the per-file check runners", () => {
         "try {\n  save();\n} catch (e) {\n  recover(e);\n}\n",
       );
       expect(code).toBe(0);
-      expect(out).toContain(
-        "Every catch block says what it does with the error.",
-      );
+      has(out, "Every catch block says what it does with the error.");
     });
   });
 
@@ -150,7 +149,7 @@ describe("the per-file check runners", () => {
         "\n".repeat(501),
       );
       expect(code).toBe(1);
-      expect(errors[0]).toContain("[over-limit]: holds 501 lines");
+      says(errors[0], "[over-limit]: holds 501 lines");
     });
 
     test("passes a file between the 400-line aim and the limit", async () => {
@@ -161,7 +160,8 @@ describe("the per-file check runners", () => {
       );
       expect(code).toBe(0);
       expect(errors).toEqual([]);
-      expect(out).toContain(
+      has(
+        out,
         "Every source file sits at or under the limit its list holds it to.",
       );
     });
@@ -216,9 +216,9 @@ describe("the per-file check runners", () => {
         },
       );
       expect(code).toBe(1);
-      expect(errors[0]).toContain(`${dir.path}/src/gone.ts [stale-entry]`);
-      expect(errors[0]).toContain("delete the entry");
-      expect(errors[1]).toContain("1 file-length issue(s) found");
+      says(errors[0], `${dir.path}/src/gone.ts [stale-entry]`);
+      says(errors[0], "delete the entry");
+      says(errors[1], "1 file-length issue(s) found");
     });
   });
 });

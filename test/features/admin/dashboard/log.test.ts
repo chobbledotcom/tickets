@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { logActivity } from "#test-utils/activity-log.ts";
 import {
@@ -10,6 +10,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminGet,
   createTestManagerSession,
@@ -34,13 +35,10 @@ describeWithEnv("admin activity log", { db: true }, () => {
       await logActivity(`Action ${index}`);
     }
     const html = await (await adminGet("/admin/log")).text();
-    assertStringIncludes(html, "Showing the most recent 200 entries");
-    assertStringIncludes(html, "Action 200");
-    assertStringIncludes(html, "Action 1");
-    assert(
-      !html.includes("Action 0</td>"),
-      "the value should not contain the searched item",
-    );
+    says(html, "Showing the most recent 200 entries");
+    says(html, "Action 200");
+    says(html, "Action 1");
+    assert(!html.includes("Action 0</td>"));
   });
 
   test("does not mark exactly 200 entries as truncated", async () => {
@@ -48,10 +46,7 @@ describeWithEnv("admin activity log", { db: true }, () => {
       await logActivity(`Exact action ${index}`);
     }
     const html = await (await adminGet("/admin/log")).text();
-    assert(
-      !html.includes("Showing the most recent 200 entries"),
-      "the value should not contain the searched item",
-    );
+    assert(!html.includes("Showing the most recent 200 entries"));
   });
 
   test("links each entry to its attendee and listing by name", async () => {
@@ -70,13 +65,7 @@ describeWithEnv("admin activity log", { db: true }, () => {
     const html = await (
       await awaitTestRequest("/admin/log", { cookie })
     ).text();
-    assertStringIncludes(
-      html,
-      `<a href="/admin/attendees/${attendee.id}">Ada Lovelace</a>`,
-    );
-    assertStringIncludes(
-      html,
-      `<a href="/admin/listing/${listing.id}">Gala Dinner</a>`,
-    );
+    says(html, `<a href="/admin/attendees/${attendee.id}">Ada Lovelace</a>`);
+    says(html, `<a href="/admin/listing/${listing.id}">Gala Dinner</a>`);
   });
 });

@@ -1,4 +1,3 @@
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
@@ -11,6 +10,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { has, says } from "#test-utils/says.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
@@ -83,9 +83,10 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
       // The success flash and the activity row both name the action, and every
       // member comes back.
       expectFlash(response, "Group reactivated (x2 listings)");
-      assertArrayIncludes((await activityMessages()) ?? [], [
+      has(
+        await activityMessages(),
         "Group 'Bring Back' reactivated (x2 listings)",
-      ]);
+      );
       expect((await getListingWithCount(a.id))?.active).toBe(true);
       expect((await getListingWithCount(b.id))?.active).toBe(true);
     });
@@ -109,8 +110,8 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
+      says(
+        response.headers.get("location"),
         `/admin/groups/${group.id}/bulk-actions/reactivate`,
       );
       // The mismatch error names the field to type.

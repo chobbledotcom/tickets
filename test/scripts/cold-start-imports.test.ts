@@ -10,6 +10,7 @@
  * test green, while a genuine regression (re-adding a top-level static
  * import) fails it loudly.
  */
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {

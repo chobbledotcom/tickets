@@ -12,10 +12,7 @@ describe("provider refund queue cursor", () => {
 
   test("round-trips one opaque positive boundary", async () => {
     const cursor = await writeProviderRefundCursor(42);
-    assert(
-      !cursor.includes("refund-cases"),
-      "the value should not contain the searched item",
-    );
+    assert(!cursor.includes("refund-cases"));
     expect(await readProviderRefundCursor(cursor)).toBe(42);
   });
 

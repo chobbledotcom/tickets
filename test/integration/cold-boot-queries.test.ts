@@ -4,7 +4,6 @@
  * and the complete set asserted, so a new boot query fails loudly.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { invalidateInitDbCache } from "#db/migrations.ts";
@@ -16,6 +15,7 @@ import {
 } from "#shared/update.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import { says } from "#test-utils/says.ts";
 
 const request = (path: string): Request =>
   new Request(`http://localhost${path}`, { headers: { host: "localhost" } });
@@ -65,7 +65,7 @@ describeWithEnv("cold-boot query chain", { db: true }, () => {
       // migration history complete?" — the CREATE TABLE + SELECT id pair that
       // used to run on every boot must not come back.
       expect(boot.schemaProbe.length).toBe(1);
-      assertStringIncludes(boot.schemaProbe[0] ?? "", "applied_migrations");
+      says(boot.schemaProbe[0], "applied_migrations");
       expect(seen.filter((sql) => sql.includes("CREATE TABLE")).length).toBe(0);
       expect(
         seen.filter((sql) => sql.includes("SELECT id FROM schema_migrations"))

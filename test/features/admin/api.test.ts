@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -12,6 +11,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { says } from "#test-utils/says.ts";
 import { apiRequest, createTestApiKeyToken } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Listings", { db: true }, () => {
@@ -368,7 +368,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          assertStringIncludes(body.error, "Maximum price");
+          says(body.error, "Maximum price");
         },
       );
     });
@@ -414,7 +414,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          assertStringIncludes(body.error, "same type");
+          says(body.error, "same type");
         },
       );
     });

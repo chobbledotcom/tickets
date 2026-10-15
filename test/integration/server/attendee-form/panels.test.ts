@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { CreateAttendeeResult } from "#db/attendee-types.ts";
@@ -18,6 +18,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { says } from "#test-utils/says.ts";
 import {
   adminGet,
   createTestManagerSession,
@@ -64,7 +65,7 @@ describeWithEnv(
         expectListingRowQuantity(html, kayak.id, 2);
         expectListingRowQuantity(html, canoe.id, 3);
         // ...and the summary footer totals them (2 + 3 = 5).
-        assertStringIncludes(html, '<td class="col-quantity">5</td>');
+        says(html, '<td class="col-quantity">5</td>');
       });
 
       test("surfaces the checked-in status of a booking", async () => {
@@ -86,7 +87,7 @@ describeWithEnv(
         const html = await expectHtmlResponse(response, 200, "Bookings");
         // Assert the rendered badge markup, not just the words "Checked in",
         // so a mutant that drops the badge styling/element is still caught.
-        assertStringIncludes(html, '<span class="badge">Checked in</span>');
+        says(html, '<span class="badge">Checked in</span>');
       });
     });
 
@@ -122,10 +123,10 @@ describeWithEnv(
           },
         );
         const html = await expectHtmlResponse(response, 200);
-        assertStringIncludes(html, "<th>Other side</th>");
+        says(html, "<th>Other side</th>");
         // The sale's counterparty links to the listing; the payment's is card/bank.
-        assertStringIncludes(html, "Pottery Class");
-        assertStringIncludes(html, "Card / bank");
+        says(html, "Pottery Class");
+        says(html, "Card / bank");
       });
 
       test("a manager's Ledger tab 404s and is absent from the strip (owner-only money movements)", async () => {
@@ -142,14 +143,8 @@ describeWithEnv(
           cookie: managerCookie,
         });
         const html = await expectHtmlResponse(overview, 200);
-        assert(
-          !html.includes(`/admin/attendees/${id}/ledger`),
-          "the value should not contain the searched item",
-        );
-        assert(
-          !html.includes("<th>Other side</th>"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes(`/admin/attendees/${id}/ledger`));
+        assert(!html.includes("<th>Other side</th>"));
       });
     });
 
@@ -179,7 +174,7 @@ describeWithEnv(
           { date: "2026-06-15", listingId: daily.id, quantity: 1 },
           { date: "2026-06-20", listingId: daily.id, quantity: 1 },
         ]);
-        assertStringIncludes(html, "different start dates or lengths");
+        says(html, "different start dates or lengths");
       });
 
       test("does not show the mixed-timing alert when daily bookings are uniform", async () => {
@@ -187,10 +182,7 @@ describeWithEnv(
         const html = await editPageHtmlForBookings([
           { date: "2026-06-15", listingId: daily.id, quantity: 1 },
         ]);
-        assert(
-          !html.includes("different start dates or lengths"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("different start dates or lengths"));
       });
     });
 
@@ -223,15 +215,15 @@ describeWithEnv(
         });
         const html = await editPageHtml(result);
         // Per-listing warnings (singular + plural) and a top-of-page summary.
-        assertStringIncludes(
+        says(
           html,
           "One Day is designed for up to 1 day, but the booking spans 3.",
         );
-        assertStringIncludes(
+        says(
           html,
           "Two Day is designed for up to 2 days, but the booking spans 3.",
         );
-        assertStringIncludes(html, "Please double-check");
+        says(html, "Please double-check");
       });
 
       test("no warning when the range fits the listing's duration", async () => {
@@ -244,10 +236,7 @@ describeWithEnv(
           durationDays: 3,
         });
         const html = await editPageHtml(result);
-        assert(
-          !html.includes("Please double-check"),
-          "the value should not contain the searched item",
-        );
+        assert(!html.includes("Please double-check"));
       });
     });
   },

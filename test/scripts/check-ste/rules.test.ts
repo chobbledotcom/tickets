@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { proseBlocks } from "#scripts/check-ste/prose.ts";
 import { findIssues } from "#scripts/check-ste/rules.ts";
+import { says } from "#test-utils/says.ts";
 
 const issuesOn = (line: string) => findIssues(`${line}\n`);
 const rulesOn = (line: string) => issuesOn(line).map((issue) => issue.rule);
@@ -52,7 +53,7 @@ describe("check-ste rules", () => {
     test("keeps reading an indented line that continues a paragraph", () => {
       const content = "Text\n    Should this continue?\n";
       expect(rulesOn(content)).toEqual(["banned-modal"]);
-      expect(proseBlocks(content)[0]?.text).toContain("Should");
+      says(proseBlocks(content)[0]?.text, "Should");
     });
 
     test("keeps reading an indented line that continues a list item", () => {
