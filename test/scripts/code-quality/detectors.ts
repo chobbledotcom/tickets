@@ -216,7 +216,7 @@ export const extractExports = (content: string): string[] => {
 
 /**
  * Whether the code-only text credits `symbolName` with a same-file use
- * beyond its own declaration line. LazyExport clauses hide: their quoted
+ * beyond its own declaration line. Loader-builder clauses hide: their quoted
  * names name the remote module and export, never a same-named local export.
  */
 export const isUsedInSameFile = (
@@ -238,13 +238,13 @@ export const isUsedInSameFile = (
  * The three clause shapes that pull a named symbol in from another module: a
  * static `import { … } from`, a destructured lazy load
  * `const { … } = await import(…)` (how cold-start-sensitive paths defer heavy
- * modules), and the route table's lazyExport entries, which name the export
- * they will read as a quoted string after the thunk. The clause matchers run
+ * modules), and the prefix declaration's loader builders, which name the
+ * export they will read as a quoted string after the thunk. The matchers run
  * over the code-only text (see {@link codeOnly}), so a clause-shaped example
  * in a comment or a string registers nothing.
  */
 const IMPORT_CLAUSES =
-  /import\s*\{([^}]*)\}|(?:const|let|var)\s*\{([^{}]*)\}\s*=\s*await\s+import\(|lazyExport\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/g;
+  /import\s*\{([^}]*)\}|(?:const|let|var)\s*\{([^{}]*)\}\s*=\s*await\s+import\(|(?:lazyExport|handlerLoader|routesObjectLoader)\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/g;
 
 /**
  * The source-side names one IMPORT_CLAUSES match pulls in: the first word of

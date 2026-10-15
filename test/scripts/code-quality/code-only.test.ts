@@ -44,16 +44,18 @@ describe("the matchers read code, not raw text", () => {
     expectNotImported('const hint = `import { foo } from "./x.ts"`;', "foo");
   });
 
-  test("still detects a lazyExport entry that shares a file with comments", () => {
-    const content = [
-      "// The route table defers each page's module.",
-      'lazyExport(() => import("#routes/foo.ts"), "routeFoo"),',
-    ].join("\n");
-    expect(isSymbolImported("routeFoo", content)).toBe(true);
-    expect(importedSymbolsOf(mapOf([["a.ts", content]])).has("routeFoo")).toBe(
-      true,
-    );
-  });
+  for (const builder of ["lazyExport", "handlerLoader"]) {
+    test(`still detects a ${builder} entry beside a comment`, () => {
+      const content = [
+        "// The route table defers each page's module.",
+        `${builder}(() => import("#routes/foo.ts"), "routeFoo"),`,
+      ].join("\n");
+      expect(isSymbolImported("routeFoo", content)).toBe(true);
+      expect(
+        importedSymbolsOf(mapOf([["a.ts", content]])).has("routeFoo"),
+      ).toBe(true);
+    });
+  }
 
   test("a lazyExport clause's quoted names are not same-file usages", () => {
     const content = [
