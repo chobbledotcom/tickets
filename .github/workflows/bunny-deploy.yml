@@ -25,6 +25,10 @@ permissions:
 jobs:
   deploy:
     runs-on: ubicloud-standard-4
+    # Step conditions cannot read the secrets context, so the key's presence
+    # is derived here once. The key itself stays in secrets and step inputs.
+    env:
+      HAS_MAIN_INSTANCE_KEY: ${{ (inputs.main_instance_key || secrets.MAIN_INSTANCE_KEY) != '' }}
 
     steps:
       - name: Checkout repository
@@ -68,24 +72,72 @@ jobs:
           auth_token: ${{ secrets.SENTRY_AUTH_TOKEN }}
           release: chobble-tickets@${{ github.sha }}
 
-      # Resolve the staging site's own public origin for the selected script.
-      # This runs on every deploy (manual or push), with or without the
-      # backup: the update-mode wait must poll the deployed site, never the
-      # main instance that serves the fleet's credentials.
+      # Resolve the staging site's own public origin for the selected script
+      # when a main instance key was supplied (manual runs). Push deploys
+      # carry no key, and MAIN_INSTANCE_KEY is deliberately not stored, so
+      # they take the staging origin from the STAGING_SITE_URL variable
+      # instead. Either way the update-mode wait polls the deployed site,
+      # never the main instance that serves the fleet's credentials.
       - name: Resolve the staging site's URL
         id: resolve-site
+        if: ${{ env.HAS_MAIN_INSTANCE_KEY == 'true' }}
         uses: ./.github/actions/resolve-site-credentials
         with:
           main_instance: ${{ secrets.MAIN_INSTANCE }}
           main_instance_key: ${{ inputs.main_instance_key || secrets.MAIN_INSTANCE_KEY }}
           script_id: ${{ inputs.script_id || secrets.BUNNY_STAGING_SCRIPT_ID }}
 
+      # A keyless run takes the staging origin from STAGING_SITE_URL. It fails
+      # before the update flag is set when the variable is not a usable https
+      # origin (blank or whitespace included), or when a script id override
+      # would poll the staging origin for a different site: a deploy that
+      # cannot name its site would otherwise set UPDATE_IN_PROGRESS and then
+      # wedge the wait.
+      - name: Take the staging URL from the variable when no key was supplied
+        id: staging-url
+        if: ${{ env.HAS_MAIN_INSTANCE_KEY != 'true' }}
+        env:
+          STAGING_SITE_URL: ${{ vars.STAGING_SITE_URL }}
+          SCRIPT_ID_OVERRIDE: ${{ inputs.script_id }}
+        run: |
+          if [ -n "$SCRIPT_ID_OVERRIDE" ]; then
+            echo "A script id override needs a main instance key, so its own site" >&2
+            echo "URL can be resolved. Paste the key on this manual run." >&2
+            exit 1
+          fi
+          url=$(printf '%s' "$STAGING_SITE_URL" | tr -d '[:space:]')
+          url=${url%/}
+          # An origin only: https, a host name of dot-separated labels (each
+          # label starts and ends with a letter or digit, so empty and
+          # hyphen-edged labels fail), an optional port in 1-65535. No
+          # credentials, path, query or fragment can reach update-mode begin,
+          # which sets the update flag before it polls this URL.
+          port=${url##*:}
+          case $port in
+            [0-9]*) ;;
+            *) port=443 ;;
+          esac
+          host=${url#https://}
+          host=${host%:*}
+          if ! printf '%s' "$url" |
+            grep -Eqx 'https://[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*(:[0-9]{1,5})?' ||
+            ((10#$port < 1 || 10#$port > 65535)) ||
+            [ "${#host}" -gt 253 ] ||
+            printf '%s' "$host" | tr '.' '\n' | grep -Eq '.{64,}'; then
+            echo "STAGING_SITE_URL is not an https origin (https://host[:port]): '$STAGING_SITE_URL'." >&2
+            echo "Host labels must be 1-63 characters and the host at most 253." >&2
+            echo "Set it to the staging site's public origin, or paste a main" >&2
+            echo "instance key on a manual run." >&2
+            exit 1
+          fi
+          echo "site_url=$url" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to staging
         uses: ./.github/actions/deploy-bunny-script
         with:
           script_id: ${{ inputs.script_id || secrets.BUNNY_STAGING_SCRIPT_ID }}
           api_key: ${{ secrets.BUNNY_ACCESS_KEY }}
-          site_url: ${{ steps.resolve-site.outputs.site_url }}
+          site_url: ${{ steps.resolve-site.outputs.site_url || steps.staging-url.outputs.site_url }}
           build_tag: ${{ steps.build.outputs.build_tag }}
 
       # Upload source maps for this release after deploy (no-op without secrets).
