@@ -56,7 +56,7 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
       ),
     );
     // Redirects to the hosted checkout (302/303) on success.
-    assertStringIncludes([302, 303], response.status);
+    assertArrayIncludes([302, 303], [response.status]);
     assertStringIncludes(response.headers.get("location") ?? "", "http");
   });
 

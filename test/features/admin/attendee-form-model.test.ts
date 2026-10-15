@@ -466,7 +466,7 @@ describe("validateParsedForm", () => {
     );
     expect(result.valid).toBe(false);
     if (!result.valid)
-      assertStringIncludes(result.lineErrors.get(0), "at most 5");
+      assertStringIncludes(result.lineErrors.get(0) ?? "", "at most 5");
   });
 
   test("treats a 0-quantity line as not booked, not an error", () => {

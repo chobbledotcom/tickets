@@ -86,10 +86,9 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
         "No options yet.",
       );
       expect(await storedFeatureEnabled("attributes")).toBe(true);
-      assertStringIncludes(
-        await activityMessages(),
+      assertArrayIncludes(await activityMessages(), [
         "Attribute 'Terrain' created",
-      );
+      ]);
     });
 
     test("a new attribute joins the order, so it can be moved", async () => {
@@ -166,10 +165,9 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
       expect((await getAttributeWithOptions(attribute.id))?.name).toBe(
         "New name",
       );
-      assertStringIncludes(
-        await activityMessages(),
+      assertArrayIncludes(await activityMessages(), [
         "Attribute 'New name' updated",
-      );
+      ]);
     });
 
     test("an empty name is refused back to the attribute page", async () => {
@@ -261,10 +259,9 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
       )(response);
       expect(await getAttributeWithOptions(attribute.id)).toBeNull();
       expectStatus(404)(await adminGet(`/admin/attributes/${attribute.id}`));
-      assertStringIncludes(
-        await activityMessages(),
+      assertArrayIncludes(await activityMessages(), [
         "Attribute 'Audience' deleted",
-      );
+      ]);
     });
   });
 });

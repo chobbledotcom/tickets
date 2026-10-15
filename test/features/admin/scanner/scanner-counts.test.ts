@@ -71,10 +71,9 @@ describeWithEnv("a scanner login and part bookings", { db: true }, () => {
     });
 
     expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 2 }]);
-    assertStringIncludes(
-      await activityMessages(),
+    assertArrayIncludes(await activityMessages(), [
       "Attendee checked in 2 tickets via scanner for 'Doors'",
-    );
+    ]);
   });
 
   test("the ticket page shows a scanner the part count and both door actions", async () => {

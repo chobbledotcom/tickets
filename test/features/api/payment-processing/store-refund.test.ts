@@ -148,7 +148,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
            FROM system_notes WHERE entity_type = 'attendee'`,
       );
       expect(note?.total).toBe(1);
-      assertStringIncludes(note?.system_name, "refund_unreturned");
+      assertStringIncludes(note?.system_name ?? "", "refund_unreturned");
 
       // With the claim free, the next delivery replays the stored words and
       // writes nothing new.

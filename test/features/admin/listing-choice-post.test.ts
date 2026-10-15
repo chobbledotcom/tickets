@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createListingChoicePost } from "#routes/admin/listing-choice-post.ts";
@@ -58,10 +57,9 @@ describeWithEnv("admin listing choice post", { db: true }, () => {
     expect(saved).toEqual([{ ids: [4, 7], listingId: listing.id }]);
     expectRedirect(response, `/admin/listing/${listing.id}/widgets`);
     expectFlash(response, "Widgets updated");
-    assertStringIncludes(
-      await activityMessages(),
+    assertArrayIncludes(await activityMessages(), [
       "Widgets updated for 'Fair' (2 widgets)",
-    );
+    ]);
   });
 
   test("logs a single choice in the singular", async () => {
@@ -74,10 +72,9 @@ describeWithEnv("admin listing choice post", { db: true }, () => {
     });
 
     response.body?.cancel();
-    assertStringIncludes(
-      await activityMessages(),
+    assertArrayIncludes(await activityMessages(), [
       "Widgets updated for 'Solo' (1 widget)",
-    );
+    ]);
   });
 
   test("hands a custom id reader the configured field name", async () => {

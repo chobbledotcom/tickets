@@ -124,10 +124,9 @@ describeWithEnv("what a saved edit says afterwards", { db: true }, () => {
       buildUpdateListingForm({ name: "After Log" }, listing),
     );
 
-    assertStringIncludes(
-      await activityMessages(),
+    assertArrayIncludes(await activityMessages(), [
       "Listing 'After Log' updated",
-    );
+    ]);
   });
 
   test("says only that the listing was updated when nothing else changed", async () => {
@@ -203,10 +202,9 @@ describeWithEnv("changing how long a daily stay runs", { db: true }, () => {
     );
 
     expect(flashOf(response)).toBe("Listing updated");
-    assertStringIncludes(
-      await activityMessages(),
+    assertArrayIncludes(await activityMessages(), [
       "Listing 'Retreat' duration changed to 4 day(s)",
-    );
+    ]);
   });
 
   test("leaves the bookings alone when the length did not move", async () => {
@@ -279,10 +277,9 @@ describeWithEnv("changing how long a daily stay runs", { db: true }, () => {
     expect(flashOf(response)).toBe(
       "Listing updated Warning: group capacity exceeded on 2026-09-02",
     );
-    assertStringIncludes(
-      await activityMessages(),
+    assertArrayIncludes(await activityMessages(), [
       "Duration change caused group capacity overflow on 2026-09-02",
-    );
+    ]);
   });
 
   test("says nothing extra for a listing that is not daily", async () => {

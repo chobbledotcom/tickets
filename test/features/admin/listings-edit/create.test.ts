@@ -108,10 +108,9 @@ describeWithEnv("what a create writes down", { db: true }, () => {
       buildCreateListingForm(testListingInput({ name: "Logged Create" })),
     );
 
-    assertStringIncludes(
-      await activityMessages(),
+    assertArrayIncludes(await activityMessages(), [
       "Listing 'Logged Create' created",
-    );
+    ]);
   });
 });
 

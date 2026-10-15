@@ -65,10 +65,9 @@ describeWithEnv("deleting a status", { db: true }, () => {
 
     await remove(id, "Logged Removal");
 
-    assertStringIncludes(
-      await activityMessages(),
+    assertArrayIncludes(await activityMessages(), [
       "Attendee status 'Logged Removal' deleted",
-    );
+    ]);
   });
 
   test("refuses the last one left", async () => {
@@ -81,7 +80,7 @@ describeWithEnv("deleting a status", { db: true }, () => {
       "You must keep at least one status",
       false,
     )(response);
-    assertStringIncludes(await names(), only.name);
+    assertArrayIncludes(await names(), [only.name]);
   });
 
   test("refuses the one new public bookings get", async () => {
@@ -126,7 +125,7 @@ describeWithEnv("deleting a status", { db: true }, () => {
       "Choose another status for its attendees before deleting",
       false,
     )(response);
-    assertStringIncludes(await names(), "In Use");
+    assertArrayIncludes(await names(), ["In Use"]);
     expect(await attendeeStatusCount(id)).toBe(1);
   });
 });
@@ -151,7 +150,7 @@ describeWithEnv("the delete confirmation", { db: true }, () => {
       "Name does not match. Please type the exact name to confirm deletion.",
       false,
     )(response);
-    assertStringIncludes(await names(), "Exact");
+    assertArrayIncludes(await names(), ["Exact"]);
   });
 });
 
@@ -267,15 +266,14 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
       attendeeId,
     ]);
     expect(Number(rows.rows[0]!.status_id)).toBe(otherId);
-    assertStringIncludes(await names(), "Landing Status");
+    assertArrayIncludes(await names(), ["Landing Status"]);
     assert(
       !(await names()).includes("Busy"),
       "the value should not contain the searched item",
     );
-    assertStringIncludes(
-      await activityMessages(),
+    assertArrayIncludes(await activityMessages(), [
       "1 attendee(s) moved from status 'Busy' to 'Landing Status'",
-    );
+    ]);
   });
 
   test("a missing target status refuses the delete and keeps everything", async () => {
@@ -290,7 +288,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
       "Choose another status for its attendees before deleting",
       false,
     )(response);
-    assertStringIncludes(await names(), "Busy");
+    assertArrayIncludes(await names(), ["Busy"]);
     expect(await attendeeStatusCount(busyId)).toBe(1);
   });
 
@@ -308,7 +306,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     );
     await expect(fault).rejects.toThrow("reassign unavailable");
 
-    assertStringIncludes(await names(), "Busy");
+    assertArrayIncludes(await names(), ["Busy"]);
     expect(await attendeeStatusCount(busyId)).toBe(1);
     const rows = await execute("SELECT status_id FROM attendees WHERE id = ?", [
       attendeeId,

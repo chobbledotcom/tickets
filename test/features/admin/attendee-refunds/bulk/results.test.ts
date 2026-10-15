@@ -109,7 +109,7 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
     const log = (await getListingActivityLog(listing.id)).find((entry) =>
       entry.message.includes("Bulk refund: 0 succeeded"),
     );
-    assertStringIncludes(log?.message, "0 succeeded, 1 failed");
+    assertStringIncludes(log?.message ?? "", "0 succeeded, 1 failed");
   });
 
   test("reports one uncertain refund answer in the flash", async () => {

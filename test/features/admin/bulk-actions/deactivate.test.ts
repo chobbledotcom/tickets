@@ -74,10 +74,9 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       // The success flash and the activity row both name the action and the
       // member count.
       expectFlash(response, "Group deactivated (x2 listings)");
-      assertStringIncludes(
-        await activityMessages(),
+      assertArrayIncludes(await activityMessages(), [
         "Group 'Shutdown' deactivated (x2 listings)",
-      );
+      ]);
       expect((await getListingWithCount(a.id))?.active).toBe(false);
       expect((await getListingWithCount(b.id))?.active).toBe(false);
     });

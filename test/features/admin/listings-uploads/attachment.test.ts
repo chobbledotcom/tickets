@@ -89,10 +89,9 @@ describeWithEnv("uploading a listing's attachment", { db: true }, () => {
     await withStorageMock(async () => {
       await upload(leaflet());
 
-      assertStringIncludes(
-        await activityMessages(),
+      assertArrayIncludes(await activityMessages(), [
         "Attachment uploaded for listing",
-      );
+      ]);
     });
   });
 
@@ -228,10 +227,9 @@ describeWithEnv("removing a listing's attachment", { db: true }, () => {
         storageCalls.some((url) => url.endsWith("/stored-leaflet.pdf")),
       ).toBe(true);
       expect(await storedAttachment(listing.id)).toEqual({ name: "", url: "" });
-      assertStringIncludes(
-        await activityMessages(),
+      assertArrayIncludes(await activityMessages(), [
         "Attachment removed for 'Had A Leaflet'",
-      );
+      ]);
     });
   });
 });

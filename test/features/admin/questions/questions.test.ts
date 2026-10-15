@@ -70,10 +70,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(id).toBeGreaterThan(0);
       expect(await storedFeatureEnabled("questions")).toBe(true);
       // The creation lands in the activity log with the row's kind and name.
-      assertStringIncludes(
-        await activityMessages(),
+      assertArrayIncludes(await activityMessages(), [
         "Question 'What size?' created",
-      );
+      ]);
     });
 
     test("does not enable Questions for an invalid create", async () => {

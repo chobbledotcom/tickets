@@ -57,10 +57,9 @@ describeWithEnv("inviting a user", { db: true }, () => {
     const { response } = await invite("loggedinvite", "manager");
 
     expect(response.status).toBe(302);
-    assertStringIncludes(
-      await activityMessages(),
+    assertArrayIncludes(await activityMessages(), [
       "User 'loggedinvite' invited as manager",
-    );
+    ]);
   });
 
   test("shows the link on the page the owner lands on", async () => {
@@ -292,10 +291,9 @@ describeWithEnv("choosing which vans an agent drives", { db: true }, () => {
     });
 
     await expectFlashRedirect(LIST_PATH, t("success.agents_updated"))(response);
-    assertStringIncludes(
-      await activityMessages(),
+    assertArrayIncludes(await activityMessages(), [
       "Agents updated for user 'loggeddriver'",
-    );
+    ]);
   });
 });
 

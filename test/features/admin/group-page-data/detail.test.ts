@@ -203,7 +203,7 @@ describeWithEnv(
           (form) => form.action === `/admin/groups/${target.id}/add-listings`,
         );
         // The listing already in Group A is offered as an add candidate…
-        assertStringIncludes(addForm?.body, `value="${inOtherGroup.id}"`);
+        assertStringIncludes(addForm?.body ?? "", `value="${inOtherGroup.id}"`);
         // …while the target's own member is not (no add-form checkbox for it).
         assert(
           !(addForm?.body).includes(`value="${ownMember.id}"`),
