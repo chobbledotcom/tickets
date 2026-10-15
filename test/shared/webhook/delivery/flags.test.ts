@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
-import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { questionsTable } from "#db/questions/tables.ts";
 import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
@@ -86,6 +87,11 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
         }),
       );
     const calls = await countDatabaseCalls(50, send);
+    // The measuring run cleared the email flag; raise it again so the
+    // starved rerun shows a failed clear leaving the flag up.
+    await execute("UPDATE attendees SET email_pending = 1 WHERE id = ?", [
+      attendee.id,
+    ]);
     const logs = await withErrorSpy(async (errorSpy) => {
       await runWithSubrequestBudget(() =>
         withSubrequestAllowance(
@@ -98,6 +104,13 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
 
     expect(expectOneError(logs, "E_DB_QUERY")).toContain(
       "The pending-flag clear batch failed",
+    );
+    // The failed clear batch leaves both flags up, and no failure activity
+    // is written for a failure the raised flags represent.
+    await expectFlagsAndActivity(
+      attendee.id,
+      { email_pending: 1, webhooks_pending: 1 },
+      0,
     );
   });
 
@@ -126,33 +139,41 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
   });
 
   test("a send that dies before its deliveries keeps both flags up", async () => {
-    // The stored email provider is unknown, so the email send dies before
-    // any delivery was attempted: no side's outcome is known. Both flags
-    // stay up for the admin, the error reports, and no failure activity is
-    // written.
+    // The email send's answer-lines read dies before any delivery was
+    // attempted: no side's outcome is known. Both flags stay up for the
+    // admin, the error reports, and no failure activity is written.
     await configureTestEmail();
-    const { attendee } = await bookTestAttendeeWithFlags(
+    const { attendee, listing } = await bookTestAttendeeWithFlags(
       "Early Death Buyer",
       1,
       1,
     );
-    await execute("UPDATE settings SET value = ? WHERE key = ?", [
-      "unknown-provider",
-      "email_provider",
-    ]);
-    settings.invalidateCache();
-    await settings.loadKeys(ALL_SETTINGS_KEYS);
+    // The listing carries a question, so the answer-lines read is a real
+    // database call the budget can starve.
+    const question = await questionsTable.insert({
+      displayType: "radio",
+      text: "Meal?",
+    });
+    await listingQuestions.setIds(listing.id, [question.id]);
 
     await expectSendLeavesFlags(attendee.id, () =>
-      withRequestContext(() =>
-        logAndNotifyRegistration(
-          [
-            makeEntry(
-              { webhook_url: "" },
-              { email: attendee.email, id: attendee.id },
+      runWithSubrequestBudget(() =>
+        withSubrequestAllowance(
+          // One database call for the registration activity line; the send's
+          // answer-lines read is the call that dies.
+          { database: 1, external: 20, total: 20 },
+          () =>
+            withRequestContext(() =>
+              logAndNotifyRegistration(
+                [
+                  makeEntry(
+                    { webhook_url: "" },
+                    { email: attendee.email, id: attendee.id },
+                  ),
+                ],
+                { clearPendingFlagsFor: [attendee.id], source: "public" },
+              ),
             ),
-          ],
-          { clearPendingFlagsFor: [attendee.id], source: "public" },
         ),
       ),
     );
