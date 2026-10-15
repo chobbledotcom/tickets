@@ -283,14 +283,16 @@ describe("database connection pool", () => {
       // The hold must gate the read. If the request settles first, the
       // entry signal never came from a suspended read: fail the test so
       // the finally restores the patched prototypes.
-      const settled = pending.then(
-        () => "settled",
-        () => "settled",
-      ) as Promise<"entered" | "settled">;
-      const outcome = await Promise.race([
-        entered.then(() => "entered" as const),
-        settled,
-      ]);
+      const settled = (async () => {
+        // Fulfillment and rejection both mean the request is done.
+        await Promise.allSettled([pending]);
+        return "settled" as const;
+      })();
+      const signalled = (async () => {
+        await entered;
+        return "entered" as const;
+      })();
+      const outcome = await Promise.race([signalled, settled]);
       if (outcome === "settled") {
         throw new Error(
           "The request settled before the body read signalled entry",
