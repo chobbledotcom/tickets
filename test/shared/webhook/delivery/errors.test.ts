@@ -79,8 +79,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     );
   });
 
-
-6: @ours
+7: @ours
 
   test("reports one incident for unexpected failures in both delivery channels", async () => {
     await configureTestEmail();

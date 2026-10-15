@@ -1,9 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { countAttendeesWithPendingFlags } from "#db/attendees/notification-flags.ts";
+import {
+  countAttendeesWithPendingFlags,
+  restoreClaimedNotificationFlags,
+} from "#db/attendees/notification-flags.ts";
 import { execute } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookTestAttendeeWithFlags } from "#test-utils/db-helpers/attendees.ts";
+import {
+  bookTestAttendeeWithFlags,
+  readPendingNotificationFlags,
+} from "#test-utils/db-helpers/attendees.ts";
 
 describeWithEnv("the pending-notification count", { db: true }, () => {
   test("counts zero when no attendee owes a send", async () => {
@@ -47,5 +53,24 @@ describeWithEnv("the pending-notification count", { db: true }, () => {
     // here, so the count must not fold 'e mail' into 'email' and stays at
     // the padded buyer's one.
     expect(await countAttendeesWithPendingFlags()).toBe(1);
+  });
+});
+
+describeWithEnv("restoring a recovery's claimed flags", { db: true }, () => {
+  test("raises only the claimed sides and leaves the others alone", async () => {
+    const { attendee } = await bookTestAttendeeWithFlags("Leased Buyer", 1, 1);
+    // The claim flipped both sides down; the restore releases the lease for
+    // the webhook side alone, so the email side keeps saying its send ran.
+    await execute(
+      "UPDATE attendees SET email_pending = 0, webhooks_pending = 0 WHERE id = ?",
+      [attendee.id],
+    );
+
+    await restoreClaimedNotificationFlags(attendee.id, ["webhooks"]);
+
+    expect(await readPendingNotificationFlags(attendee.id)).toEqual({
+      email: 0,
+      webhooks: 1,
+    });
   });
 });

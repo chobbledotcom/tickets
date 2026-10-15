@@ -2,7 +2,10 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { claimOutstandingNotificationFlags } from "#db/attendees/notification-flags.ts";
+import {
+  claimOutstandingNotificationFlags,
+  restoreClaimedNotificationFlags,
+} from "#db/attendees/notification-flags.ts";
 import { getAttendeeBookingRowsRaw } from "#db/attendees/queries.ts";
 import { storedBookingSource } from "#db/contact-tokens.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -309,29 +312,37 @@ const resendNotification = async (
     );
   }
 
-  await Promise.all([
-    logAndNotifyRegistration(notify, {
-      // This resend carries every live booking line the attendee holds, so
-      // its sends own the attendee's pending-notification flags. The email
-      // send clears email_pending when its far side accepts. The webhook
-      // send clears webhooks_pending the same way. A refused send leaves its
-      // flag up, so the badge keeps saying what never went out.
-      clearPendingFlagsFor: [attendeeId],
-      freeTexts,
-      recoverSides: recoveredSides,
-      // One site serves the whole buyer, so the assignment reads every line
-      // they hold, refunded ones too. A claim recorded on another purchase's
-      // plan keeps the buyer served. So does a claim on a line refunded
-      // later.
-      siteAssignmentEntries: entries,
-      source,
-    }),
-    logActivity(
-      `Notification re-sent for attendee '${data.attendee.name}'`,
-      data.listing.id,
-      attendeeId,
-    ),
-  ]);
+  try {
+    await Promise.all([
+      logAndNotifyRegistration(notify, {
+        // This resend carries every live booking line the attendee holds, so
+        // its sends own the attendee's pending-notification flags. The email
+        // send clears email_pending when its far side accepts. The webhook
+        // send clears webhooks_pending the same way. A refused send leaves
+        // its flag up, so the badge keeps saying what never went out.
+        clearPendingFlagsFor: [attendeeId],
+        freeTexts,
+        recoverSides: recoveredSides,
+        // One site serves the whole buyer, so the assignment reads every
+        // line they hold, refunded ones too. A claim recorded on another
+        // purchase's plan keeps the buyer served. So does a claim on a line
+        // refunded later.
+        siteAssignmentEntries: entries,
+        source,
+      }),
+      logActivity(
+        `Notification re-sent for attendee '${data.attendee.name}'`,
+        data.listing.id,
+        attendeeId,
+      ),
+    ]);
+  } catch (error) {
+    // The claim is a lease for sends that never ran. Release it, so the
+    // flags keep saying what is still owed and the recovery stays
+    // retryable.
+    await restoreClaimedNotificationFlags(attendeeId, recoveredSides);
+    throw error;
+  }
   return redirect(actionsTab, t("success.notification_resent"), true, {
     form,
   });

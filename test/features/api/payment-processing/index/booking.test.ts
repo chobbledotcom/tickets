@@ -135,7 +135,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
    * answers, the questions-record, and the activity lines ride the create
    * batch — one write fewer than before the batch carried them, because the
    * post-commit queue writes nothing, and a send-free booking runs no
-   * pending-flag clear batch — so an answered booking costs the same as a
+   * pending-flag settle batch — so an answered booking costs the same as a
    * bare one. */
   const expectBookedInThreeCalls = async (
     id: string,

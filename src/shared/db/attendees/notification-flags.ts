@@ -12,6 +12,7 @@
  */
 
 import {
+  executeBatch,
   executeBatchWithResults,
   inPlaceholders,
   queryOne,
@@ -72,6 +73,17 @@ export const claimOutstandingNotificationFlags = async (
   const sides: PendingNotificationSide[] = ["email", "webhooks"];
   return sides.filter((_side, index) => results[index]!.rowsAffected > 0);
 };
+
+/** Put one recovery's claimed sides back up. The claim flipped them down as
+ * a lease for sends that never ran, so the flags must keep saying a send is
+ * owed. Unclaimed sides stay untouched. */
+export const restoreClaimedNotificationFlags = (
+  attendeeId: number,
+  sides: readonly PendingNotificationSide[],
+): Promise<unknown> =>
+  executeBatch(
+    sides.map((side) => pendingFlagStatement(side, [attendeeId], "raise")),
+  );
 
 /** SQL for "a listing this attendee booked currently collects an email".
  * The attendee row reads and the dashboard count share it, so the badge and

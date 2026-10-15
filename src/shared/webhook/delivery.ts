@@ -2,8 +2,9 @@ import { logActivities } from "#db/activity-log.ts";
 import {
   type PendingNotificationSide,
   pendingFlagStatement,
+  restoreClaimedNotificationFlags,
 } from "#db/attendees/notification-flags.ts";
-import { executeBatch } from "#db/client.ts";
+import { executeBatch, type SqlStatement } from "#db/client.ts";
 import type { WebhookBookingSource } from "#db/contact-tokens.ts";
 import { settings } from "#db/settings.ts";
 import { flatMap, mapNotNullish, unique } from "#fp";
@@ -183,6 +184,12 @@ const acceptedDelivery = (
   result: PromiseSettledResult<RegistrationDeliveryResult>,
 ): boolean => result.status === "fulfilled" && !result.value.failed;
 
+/** The attendees whose pending flags a send owns. */
+type FlagOwningAttendees = readonly number[] | undefined;
+
+/** The outstanding sides a recovery claimed. */
+type RecoveredSides = readonly PendingNotificationSide[] | undefined;
+
 /** One registration send the queue carries, and the flags its sends own. */
 type RegistrationSend = {
   entries: EmailEntry[];
@@ -190,18 +197,35 @@ type RegistrationSend = {
   source: WebhookBookingSource;
   packageFacts?: RegistrationPackageFacts | undefined;
   freeTexts?: FreeTextAnswers | undefined;
-  clearPendingFlagsFor?: readonly number[] | undefined;
-  recoverSides?: readonly PendingNotificationSide[] | undefined;
+  clearPendingFlagsFor?: FlagOwningAttendees;
+  recoverSides?: RecoveredSides;
 };
 
 /** Which sides a send queues. A recovery queues only the sides it claimed.
  * Every other path queues both. */
 const selectedSides = (
-  recoverSides: readonly PendingNotificationSide[] | undefined,
+  recoverSides: RecoveredSides | undefined,
 ): Record<PendingNotificationSide, boolean> => ({
   email: recoverSides === undefined || recoverSides.includes("email"),
   webhooks: recoverSides === undefined || recoverSides.includes("webhooks"),
 });
+
+/** The flag writes one settled send earned. A side whose send cleared writes
+ * a clear; a recovery side whose send did not clear writes a raise, so the
+ * claim's lease releases back to an owed send. */
+const earnedFlagStatements = (
+  clearPendingFlagsFor: readonly number[],
+  cleared: Record<PendingNotificationSide, boolean>,
+  recoverSides: RecoveredSides | undefined,
+): SqlStatement[] =>
+  (["email", "webhooks"] as const).flatMap((side) => {
+    if (cleared[side]) {
+      return [pendingFlagStatement(side, clearPendingFlagsFor, "clear")];
+    }
+    return recoverSides?.includes(side)
+      ? [pendingFlagStatement(side, clearPendingFlagsFor, "raise")]
+      : [];
+  });
 
 /** Clears the pending flags a flag-owning send's sides earned, raises a
  * recovery's unearned sides back up, and reports what no raised flag
@@ -212,7 +236,7 @@ const settleFlagOwningSend = async (
   webhookResult: PromiseSettledResult<RegistrationDeliveryResult>,
   emailResult: PromiseSettledResult<RegistrationEmailResult>,
   errors: unknown[],
-  recoverSides?: readonly PendingNotificationSide[] | undefined,
+  recoverSides?: RecoveredSides,
 ): Promise<void> => {
   // The flags carry the failure: each side clears its own flag only when its
   // send was attempted and its far side accepted. A failed send leaves its
@@ -240,22 +264,11 @@ const settleFlagOwningSend = async (
     attempted.email && emailSide !== undefined && !emailSide.buyerFailed;
   const webhooksFlagClears =
     attempted.webhooks && acceptedDelivery(webhookResult);
-  // A recovery's side that did not clear raises back up: the claim flipped
-  // it down, and the flag must keep saying a send is owed.
-  const statements = [
-    ...(webhooksFlagClears
-      ? [pendingFlagStatement("webhooks", clearPendingFlagsFor, "clear")]
-      : []),
-    ...(buyerFlagClears
-      ? [pendingFlagStatement("email", clearPendingFlagsFor, "clear")]
-      : []),
-    ...(recoverSides?.includes("webhooks") && !webhooksFlagClears
-      ? [pendingFlagStatement("webhooks", clearPendingFlagsFor, "raise")]
-      : []),
-    ...(recoverSides?.includes("email") && !buyerFlagClears
-      ? [pendingFlagStatement("email", clearPendingFlagsFor, "raise")]
-      : []),
-  ];
+  const statements = earnedFlagStatements(
+    clearPendingFlagsFor,
+    { email: buyerFlagClears, webhooks: webhooksFlagClears },
+    recoverSides,
+  );
   if (statements.length > 0) {
     await executeBatch(statements).catch(async (error) => {
       await logError({
@@ -340,8 +353,8 @@ const queueRegistrationNotifications = async (
   source: WebhookBookingSource,
   suppliedPackageFacts?: RegistrationPackageFacts,
   freeTexts?: FreeTextAnswers,
-  clearPendingFlagsFor?: readonly number[] | undefined,
-  recoverSides?: readonly PendingNotificationSide[] | undefined,
+  clearPendingFlagsFor?: FlagOwningAttendees,
+  recoverSides?: RecoveredSides,
 ): Promise<void> => {
   let packageFacts: RegistrationPackageFacts | undefined;
   try {
@@ -352,6 +365,15 @@ const queueRegistrationNotifications = async (
       ? (suppliedPackageFacts ?? (await loadRegistrationPackageFacts(entries)))
       : suppliedPackageFacts;
   } catch (error) {
+    // The claim is a lease for sends that never ran. A preparation failure
+    // before the send starts releases it, so the flags keep saying what is
+    // still owed. A recovery claims one attendee.
+    if (recoverSides !== undefined && clearPendingFlagsFor !== undefined) {
+      await restoreClaimedNotificationFlags(
+        clearPendingFlagsFor[0]!,
+        recoverSides,
+      );
+    }
     await reportRegistrationDeliveryError(clearPendingFlagsFor === undefined);
     throw error;
   }
@@ -393,7 +415,7 @@ export interface NotifyRegistrationOptions {
    * its flag up, so the flags carry the failure and no failure activity line
    * is written. Callers whose bookings carry no flags leave this unset, and a
    * failed send keeps writing the failure line it always did. */
-  clearPendingFlagsFor?: readonly number[] | undefined;
+  clearPendingFlagsFor?: FlagOwningAttendees;
   /** The buyer's typed free-text answers. The strings table keeps them sealed
    * to the owner key, which no notification path can spend, so the booking
    * request hands the plaintext it already holds to the confirmation email. */
@@ -405,7 +427,7 @@ export interface NotifyRegistrationOptions {
    * sides queue, and a selected side whose send was refused or never ran has
    * its flag raised back up: the claim flipped it down, and the flag must
    * keep saying a send is owed. Leave this unset outside a recovery. */
-  recoverSides?: readonly PendingNotificationSide[] | undefined;
+  recoverSides?: RecoveredSides;
   /** Entries only the site assignment sees, in place of `entries`. The resend
    * passes its refunded plan rows here, so a claim recorded on a line refunded
    * later still serves the buyer. Defaults to `entries`. */
