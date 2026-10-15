@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/deno";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -173,17 +174,17 @@ describe("sentry", () => {
 
       expect(fetchStub.calls.length).toBe(1);
       const [url, options] = fetchStub.calls[0]!.args as [string, RequestInit];
-      expect(url).toContain("bugs.example.test");
-      expect(url).toContain("/api/2/envelope/");
+      assertStringIncludes(url, "bugs.example.test");
+      assertStringIncludes(url, "/api/2/envelope/");
       expect(options.method).toBe("POST");
       expect(options.referrerPolicy).toBe("strict-origin");
       const body = bodyText(options.body);
       // Real exception with a stack trace, not just a flat message.
-      expect(body).toContain("kaboom");
-      expect(body).toContain("stacktrace");
+      assertStringIncludes(body, "kaboom");
+      assertStringIncludes(body, "stacktrace");
       // Classified code travels as a tag, detail as extra context.
-      expect(body).toContain(ErrorCode.CDN_REQUEST);
-      expect(body).toContain("GET /thing: kaboom");
+      assertStringIncludes(body, ErrorCode.CDN_REQUEST);
+      assertStringIncludes(body, "GET /thing: kaboom");
     });
 
     test("sends the formatted message when no exception is attached", async () => {
@@ -195,7 +196,7 @@ describe("sentry", () => {
 
       expect(fetchStub.calls.length).toBe(1);
       const body = firstFetchBody();
-      expect(body).toContain(formatErrorMessage(context));
+      assertStringIncludes(body, formatErrorMessage(context));
     });
 
     test("tags the event with listing and attendee ids", async () => {
@@ -209,8 +210,8 @@ describe("sentry", () => {
       });
 
       const body = firstFetchBody();
-      expect(body).toContain('"listingId":"42"');
-      expect(body).toContain('"attendeeId":"99"');
+      assertStringIncludes(body, '"listingId":"42"');
+      assertStringIncludes(body, '"attendeeId":"99"');
     });
 
     test("carries the detail as structured extra context, not just prose", async () => {
@@ -225,7 +226,8 @@ describe("sentry", () => {
         error: new Error("kaboom"),
       });
 
-      expect(firstFetchBody()).toContain(
+      assertStringIncludes(
+        firstFetchBody(),
         '"extra":{"detail":"structured-detail-marker"}',
       );
     });
@@ -241,17 +243,29 @@ describe("sentry", () => {
       });
 
       const body = firstFetchBody();
-      expect(body).toContain("provider=postmark status=422");
-      expect(body).not.toContain("Suppressed recipient");
-      expect(body).not.toContain("boss@example.com");
-      expect(body).not.toContain("operatorDetail");
+      assertStringIncludes(body, "provider=postmark status=422");
+      assert(
+        !body.includes("Suppressed recipient"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !body.includes("boss@example.com"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !body.includes("operatorDetail"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("marks the event as level error", async () => {
       const levels =
         (await captureDbErrorBody()).match(/"level":"[^"]*"/g) ?? [];
-      expect(levels).toContain('"level":"error"');
-      expect(levels).not.toContain('"level":"info"');
+      assertArrayIncludes(levels ?? [], ['"level":"error"']);
+      assert(
+        (levels as string[]).includes('"level":"info"') === false,
+        "the value should not contain the searched item",
+      );
     });
 
     // Regression: an error's cause was dropped, so every database failure was
@@ -267,8 +281,8 @@ describe("sentry", () => {
       });
 
       const body = firstFetchBody();
-      expect(body).toContain("libsql execute failed");
-      expect(body).toContain("connection reset by peer");
+      assertStringIncludes(body, "libsql execute failed");
+      assertStringIncludes(body, "connection reset by peer");
     });
 
     test("keeps the console lines printed before the error", async () => {
@@ -278,7 +292,7 @@ describe("sentry", () => {
       console.debug("a line worth keeping");
       await captureServerError({ code: ErrorCode.DB_QUERY });
 
-      expect(firstFetchBody()).toContain("a line worth keeping");
+      assertStringIncludes(firstFetchBody(), "a line worth keeping");
     });
 
     test("names the site and the route the error happened on", async () => {
@@ -288,9 +302,10 @@ describe("sentry", () => {
       await captureListingsError({ code: ErrorCode.DB_QUERY });
 
       const body = firstFetchBody();
-      expect(body).toContain('"transaction":"GET /admin/listings/[id]"');
-      expect(body).toContain('"site":"venue.example.com"');
-      expect(body).toContain(
+      assertStringIncludes(body, '"transaction":"GET /admin/listings/[id]"');
+      assertStringIncludes(body, '"site":"venue.example.com"');
+      assertStringIncludes(
+        body,
         '"url":"https://venue.example.com/admin/listings/[id]"',
       );
     });
@@ -308,9 +323,15 @@ describe("sentry", () => {
       );
 
       const body = firstFetchBody();
-      expect(body).not.toContain("9D5F57B232");
-      expect(body).not.toContain("a@b.test");
-      expect(body).toContain('"transaction":"GET /t/[redacted]"');
+      assert(
+        !body.includes("9D5F57B232"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !body.includes("a@b.test"),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(body, '"transaction":"GET /t/[redacted]"');
     });
 
     // A blank tag is worse than a missing one: it shows up in the tag list and
@@ -322,11 +343,23 @@ describe("sentry", () => {
       await captureServerError({ code: ErrorCode.DB_QUERY });
 
       const body = firstFetchBody();
-      expect(body).not.toContain("requestId");
-      expect(body).not.toContain('"url"');
-      expect(body).not.toContain("listingId");
-      expect(body).not.toContain("attendeeId");
-      expect(body).toContain('"code":"E_DB_QUERY"');
+      assert(
+        !body.includes("requestId"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !body.includes('"url"'),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !body.includes("listingId"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !body.includes("attendeeId"),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(body, '"code":"E_DB_QUERY"');
     });
 
     // Boot and scheduled runs report outside any request, and still have to say
@@ -337,7 +370,8 @@ describe("sentry", () => {
 
       await captureServerError({ code: ErrorCode.DB_QUERY });
 
-      expect(firstFetchBody()).toContain(
+      assertStringIncludes(
+        firstFetchBody(),
         `"site":${JSON.stringify(getEffectiveDomain())}`,
       );
     });
@@ -364,7 +398,8 @@ describe("sentry", () => {
         detail: "image 4821 missing",
       });
 
-      expect(firstFetchBody()).toContain(
+      assertStringIncludes(
+        firstFetchBody(),
         '"fingerprint":["E_IMAGE_BROKEN","GET","/admin/listings/[id]"]',
       );
     });
@@ -380,11 +415,17 @@ describe("sentry", () => {
         error: new Error("kaboom"),
       });
 
-      expect(firstFetchBody()).not.toContain('"fingerprint"');
+      assert(
+        !firstFetchBody().includes('"fingerprint"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("does not add empty extra context", async () => {
-      expect(await captureDbErrorBody()).not.toContain('"extra"');
+      assert(
+        !(await captureDbErrorBody()).includes('"extra"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("honours the endpoint retry-after limit", async () => {
@@ -444,12 +485,13 @@ describe("sentry", () => {
       expect(await sendSentryTest()).toBe(true);
       expect(fetchStub.calls.length).toBe(1);
       const body = firstFetchBody();
-      expect(body).toContain(
+      assertStringIncludes(
+        body,
         '"value":"Test Sentry notification from the admin debug page."',
       );
-      expect(body).toContain('"source":"admin-debug"');
-      expect(body).toContain('"test":"true"');
-      expect(body).toContain("stacktrace");
+      assertStringIncludes(body, '"source":"admin-debug"');
+      assertStringIncludes(body, '"test":"true"');
+      assertStringIncludes(body, "stacktrace");
     });
 
     test("accepts only a 2xx Sentry response", async () => {

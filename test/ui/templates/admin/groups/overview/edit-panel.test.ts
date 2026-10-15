@@ -49,7 +49,7 @@ describe("GroupEditPanel package members table", () => {
     assertStringIncludes(
       html.match(
         /<input type="checkbox" name="scan_checks_in_all_listings"[^>]*>/,
-      )![0],
+      )![0] ?? "",
       " checked",
     );
 

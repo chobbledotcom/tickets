@@ -3,6 +3,7 @@
  * about it.
  */
 
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -43,8 +44,8 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
 
     expect(fetchSpy.calls.length).toBe(2);
     const urls = spyFirstArgs(fetchSpy.calls);
-    expect(urls).toContain("https://hook-a.com");
-    expect(urls).toContain("https://hook-b.com");
+    assertArrayIncludes(urls ?? [], ["https://hook-a.com"]);
+    assertArrayIncludes(urls ?? [], ["https://hook-b.com"]);
     expect(await activityMessages()).toEqual([]);
   });
 
@@ -158,7 +159,10 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
       ),
     ).toHaveLength(1);
     for (const value of Object.values(sentinels)) {
-      expect(messages.join("\n")).not.toContain(value);
+      assert(
+        !messages.join("\n").includes(value),
+        "the value should not contain the searched item",
+      );
     }
   });
 

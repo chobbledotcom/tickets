@@ -8,6 +8,7 @@
  * (§20 "activity log and calendar share one kind-aware link builder").
  */
 // jscpd:ignore-start
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 // jscpd:ignore-end

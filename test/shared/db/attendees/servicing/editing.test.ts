@@ -13,6 +13,8 @@
  *     atomic-edit core as attendees, scoped to `kind='servicing'`.
  */
 // jscpd:ignore-start
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -148,8 +150,8 @@ describeWithEnv(
       await deactivateTestListing(listing.id);
 
       const body = await renderAdminPage(`/admin/servicing/${id}`);
-      expect(body).toContain("Boiler Room");
-      expect(body).toContain("(inactive)");
+      assertStringIncludes(body, "Boiler Room");
+      assertStringIncludes(body, "(inactive)");
       expect(body).toMatch(
         new RegExp(`name="quantity_${listing.id}"[^>]*value="2"`),
       );
@@ -192,8 +194,8 @@ describeWithEnv(
       });
 
       const body = await renderAdminPage(`/admin/servicing/${id}`);
-      expect(body).toContain("no longer exist");
-      expect(body).toContain("will be removed");
+      assertStringIncludes(body, "no longer exist");
+      assertStringIncludes(body, "will be removed");
     });
   },
 );

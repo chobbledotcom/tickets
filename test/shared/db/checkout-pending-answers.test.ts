@@ -3,6 +3,7 @@
  * booking's create batch, and replaced when the same checkout is created
  * again. */
 
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -44,7 +45,10 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
       [await sessionIndexOf("cs_sealed")],
     );
     expect(row).not.toBeNull();
-    expect(row?.sealed).not.toContain("Coming by bus");
+    assert(
+      row?.sealed?.includes("Coming by bus") === false,
+      "the value should not contain the searched item",
+    );
   });
 
   test("rests only the hash of the session id, never the id itself", async () => {

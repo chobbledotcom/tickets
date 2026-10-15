@@ -3,6 +3,7 @@
  *  follows the parent it is booked under. Split from the main edge-rule file
  *  to keep both under the ~400-line target. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -21,8 +22,11 @@ describe("edgeFieldError minimum quantity", () => {
       listing(),
       listing({ min_quantity: 2, name: "Bundled" }),
     );
-    expect(message).toContain("'Bundled'");
-    expect(message).not.toContain("children_err");
+    assertStringIncludes(message ?? "", "'Bundled'");
+    assert(
+      message?.includes("children_err") === false,
+      "the value should not contain the searched item",
+    );
   });
 
   test("refuses a child whose minimum is above one", () => {

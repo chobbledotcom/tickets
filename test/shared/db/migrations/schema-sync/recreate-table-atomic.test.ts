@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -68,7 +69,7 @@ describe("db > recreateTable atomicity", () => {
 
     // The rebuild dropped `legacy_extra` on the staged table; its survival proves
     // the DROP/CREATE/RENAME were rolled back, not committed-then-failed.
-    expect(await columnNames("users")).toContain("legacy_extra");
+    assertArrayIncludes((await columnNames("users")) ?? [], ["legacy_extra"]);
 
     // Both duplicate rows are still present and untouched.
     const rows = await getDb().execute(
@@ -77,7 +78,10 @@ describe("db > recreateTable atomicity", () => {
     expect(rows.rows.map((row) => row.username_index)).toEqual(["dup", "dup"]);
 
     // The UNIQUE index never landed — its creation is what failed and rolled back.
-    expect(await indexNames("users")).not.toContain("idx_users_username_index");
+    assert(
+      !(await indexNames("users")).includes("idx_users_username_index"),
+      "the value should not contain the searched item",
+    );
 
     // The staged rebuild table must not be left behind either.
     const staged = await getDb().execute(
@@ -92,12 +96,17 @@ describe("db > recreateTable atomicity", () => {
     await recreateTable("users");
 
     // The extra column is gone (rebuilt from SCHEMA) and the row survived.
-    expect(await columnNames("users")).not.toContain("legacy_extra");
+    assert(
+      !(await columnNames("users")).includes("legacy_extra"),
+      "the value should not contain the searched item",
+    );
     const rows = await getDb().execute("SELECT username_index FROM users");
     expect(rows.rows.map((row) => row.username_index)).toEqual(["only"]);
 
     // The SCHEMA's UNIQUE index was (re)created in the same transaction.
-    expect(await indexNames("users")).toContain("idx_users_username_index");
+    assertArrayIncludes((await indexNames("users")) ?? [], [
+      "idx_users_username_index",
+    ]);
   });
 
   test("creates a current schema table when it is absent from the live database", async () => {

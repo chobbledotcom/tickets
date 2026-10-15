@@ -2,6 +2,7 @@
  * Only `cancelled_order_id` ends a link on a 200; a 404 ends it on its own; a
  * refusal that names a paid order ends it too; everything else proves
  * nothing. */
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";

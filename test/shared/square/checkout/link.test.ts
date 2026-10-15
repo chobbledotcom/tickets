@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decrypt } from "#crypto/encryption.ts";
@@ -237,7 +238,10 @@ describeSquare(() => {
           // own clock decides here: 2026-09-29T12:00:00Z plus one hour.
           expect(row?.link_ends_at).toBe("2026-09-29T13:00:00.000Z");
           expect(row?.next_attempt_at).toBe("2026-09-29T13:00:00.000Z");
-          expect(row?.sealed_handle).not.toContain("link_order_stage");
+          assert(
+            row?.sealed_handle?.includes("link_order_stage") === false,
+            "the value should not contain the searched item",
+          );
           expect(await decrypt(row?.sealed_handle as EnvKeyEncrypted)).toBe(
             "link_order_stage",
           );

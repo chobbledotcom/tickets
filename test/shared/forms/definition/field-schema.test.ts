@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups } from "#i18n";
@@ -37,8 +38,11 @@ describe("form field schema", () => {
       ] as const,
     });
     const html = form.render();
-    expect(html).toContain("<strong>Payment:</strong> Use cash.");
-    expect(html).not.toContain("<strong>Charge:</strong>");
+    assertStringIncludes(html, "<strong>Payment:</strong> Use cash.");
+    assert(
+      !html.includes("<strong>Charge:</strong>"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("rejects a select value outside its declared options", () => {
@@ -121,7 +125,7 @@ describe("form field schema", () => {
       options: [{ label: "Pay", value: "pay" }],
       type: "select",
     } as const satisfies Field;
-    expect(renderField(valid)).toContain("<select");
+    assertStringIncludes(renderField(valid), "<select");
   });
 
   test("throws when defining a select with an empty option list", () => {
@@ -223,9 +227,15 @@ describe("form field schema", () => {
     };
 
     expect(form.sections).toEqual(["main", "advanced"]);
-    expect(form.section("main")).toContain('name="name"');
-    expect(form.section("main")).not.toContain('name="summary"');
-    expect(form.section("advanced")).not.toContain('name="private"');
+    assertStringIncludes(form.section("main"), 'name="name"');
+    assert(
+      !form.section("main").includes('name="summary"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !form.section("advanced").includes('name="private"'),
+      "the value should not contain the searched item",
+    );
     expect(rejectUnknownSection).toThrow("Unknown section: missing");
   });
 
@@ -246,6 +256,9 @@ describe("form field schema", () => {
       fields: [{ label: "Name", name: "name", type: "text" }] as const,
     });
 
-    expect(form.renderField("name")).not.toContain("value=");
+    assert(
+      !form.renderField("name").includes("value="),
+      "the value should not contain the searched item",
+    );
   });
 });

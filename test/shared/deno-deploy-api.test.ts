@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -45,7 +46,7 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
       expect(result.value.appId).toBe("app_abc123");
       expect(result.value.slug).toBe("my-app");
     }
-    expect(captured.url).toContain("/v2/apps");
+    assertStringIncludes(captured.url ?? "", "/v2/apps");
     expect(captured.body).toEqual({ orgId: "test-org-id", slug: "my-app" });
     expect(captured.contentType).toBe("application/json");
     expect(captured.method).toBe("POST");
@@ -71,8 +72,8 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     const result = await denoDeployApi.createApp("bad");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toContain("Create app failed (400)");
-      expect(result.error).toContain("Invalid slug");
+      assertStringIncludes(result.error ?? "", "Create app failed (400)");
+      assertStringIncludes(result.error ?? "", "Invalid slug");
     }
   });
 
@@ -94,7 +95,7 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     ]);
     expect(result.ok).toBe(true);
     expect(callCount).toBe(1);
-    expect(captured.url).toContain("/apps/app_ev");
+    assertStringIncludes(captured.url ?? "", "/apps/app_ev");
     expect(captured.method).toBe("PATCH");
     expect(captured.body).toEqual({
       env_vars: [
@@ -117,8 +118,8 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     const result = await denoDeployApi.setEnvVars("app_pe", [["BAD VAR", "v"]]);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toContain("Set app env vars failed (422)");
-      expect(result.error).toContain("invalid env var name");
+      assertStringIncludes(result.error ?? "", "Set app env vars failed (422)");
+      assertStringIncludes(result.error ?? "", "invalid env var name");
     }
   });
   test("setEnvVar PATCHes one secret, production entry by default", async () => {
@@ -174,7 +175,7 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toContain("Set app env var failed (401)");
+      assertStringIncludes(result.error ?? "", "Set app env var failed (401)");
     }
   });
 
@@ -183,7 +184,7 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     const result = await denoDeployApi.getAppEnvVars("app_gev");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toContain("Get app failed (401)");
+      assertStringIncludes(result.error ?? "", "Get app failed (401)");
     }
   });
 
@@ -315,8 +316,8 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     const result = await denoDeployApi.deployCode("app_missing", "code");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toContain("Deploy code failed (404)");
-      expect(result.error).toContain("app not found");
+      assertStringIncludes(result.error ?? "", "Deploy code failed (404)");
+      assertStringIncludes(result.error ?? "", "app not found");
     }
   });
 

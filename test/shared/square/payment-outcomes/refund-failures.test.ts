@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
@@ -109,15 +110,25 @@ describeSquare(() => {
           reason: "provider_error",
         });
 
-        expect(errors.lastMessage()).toContain("outcome=uncertain");
-        expect(errors.lastMessage()).toContain("reason=provider_error");
-        expect(errors.lastMessage()).not.toContain(PRIVATE_REFERENCE);
+        assertStringIncludes(errors.lastMessage() ?? "", "outcome=uncertain");
+        assertStringIncludes(
+          errors.lastMessage() ?? "",
+          "reason=provider_error",
+        );
+        assert(
+          errors.lastMessage()?.includes(PRIVATE_REFERENCE) === false,
+          "the value should not contain the searched item",
+        );
 
         const body = sentryRequestBody(fetchStub.calls);
-        expect(body).not.toContain(PRIVATE_REFERENCE);
-        expect(body).toContain("Status code: 503");
-        expect(body).toContain("stacktrace");
-        expect(body).toContain(
+        assert(
+          !body.includes(PRIVATE_REFERENCE),
+          "the value should not contain the searched item",
+        );
+        assertStringIncludes(body, "Status code: 503");
+        assertStringIncludes(body, "stacktrace");
+        assertStringIncludes(
+          body,
           '"detail":"outcome=uncertain reason=provider_error"',
         );
       } finally {
@@ -131,7 +142,8 @@ describeSquare(() => {
       );
       // The refund left with nobody able to say what became of it, so the
       // report names our own failure rather than one of Square's.
-      expect(errors.lastMessage()).toContain(
+      assertStringIncludes(
+        errors.lastMessage() ?? "",
         "outcome=thrown reason=internal_error",
       );
     });

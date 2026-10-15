@@ -10,6 +10,8 @@
  * from every surface, never silently accepted.
  */
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -140,8 +142,11 @@ describeWithEnv(
         name: "Future Service",
       });
       const body = await renderAdminPage("/admin/");
-      expect(body).toContain(`/admin/servicing/${service.id}`);
-      expect(body).not.toContain(`/admin/servicing/${attendee.id}`);
+      assertStringIncludes(body, `/admin/servicing/${service.id}`);
+      assert(
+        !body.includes(`/admin/servicing/${attendee.id}`),
+        "the value should not contain the searched item",
+      );
     });
   },
 );

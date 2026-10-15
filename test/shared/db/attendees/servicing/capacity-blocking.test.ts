@@ -15,6 +15,7 @@
  *     and range, so the existing capacity readers see it without a special case.
  */
 // jscpd:ignore-start
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";

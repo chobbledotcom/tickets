@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { decryptAttendees } from "#db/attendees/pii.ts";
@@ -140,8 +141,8 @@ describeWithEnv("seeds", { db: true }, () => {
     const raw = await getAttendeesRaw(listing!.id);
     const [attendee] = await decryptAttendees(raw, await getTestPrivateKey());
 
-    expect(DEMO_NAMES).toContain(attendee!.name);
-    expect(DEMO_EMAILS).toContain(attendee!.email);
+    assertArrayIncludes(DEMO_NAMES as readonly string[], [attendee!.name]);
+    assertArrayIncludes(DEMO_EMAILS as readonly string[], [attendee!.email]);
     // The seed payment id embeds the booking's worth: unit price x quantity.
     const worth = listing!.unit_price * raw[0]!.quantity;
     expect(attendee!.payment_id).toBe(

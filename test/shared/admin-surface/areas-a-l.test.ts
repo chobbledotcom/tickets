@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { AREAS_A_L } from "#shared/admin-surface/areas-a-l.ts";
@@ -41,6 +42,9 @@ describe("the A-L admin areas", () => {
     expect(AREAS_A_L.attendees.view.attendeeCheckin).toBe(
       "/admin/listing/:id/attendee/:attendeeId/checkin",
     );
-    expect(AREAS_A_L.attendees.audience).not.toContain("scanner");
+    assert(
+      !(AREAS_A_L.attendees.audience as readonly string[]).includes("scanner"),
+      "the value should not contain the searched item",
+    );
   });
 });

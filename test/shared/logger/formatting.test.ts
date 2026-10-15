@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -52,7 +53,10 @@ describe("formatErrorMessage", () => {
     expect(formatErrorMessage(context)).toBe(
       "Error: Payment session error (price mismatch)",
     );
-    expect(formatErrorMessage(context)).not.toContain("42");
+    assert(
+      !formatErrorMessage(context).includes("42"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("ignores the operator-only detail", () => {
@@ -64,7 +68,10 @@ describe("formatErrorMessage", () => {
     expect(formatErrorMessage(context)).toBe(
       "Error: Email send failed (provider=postmark status=422)",
     );
-    expect(formatErrorMessage(context)).not.toContain("Suppressed");
+    assert(
+      !formatErrorMessage(context).includes("Suppressed"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -121,7 +128,10 @@ describe("formatRequestError", () => {
       "/checkin/secret-token",
       new Error("fail"),
     );
-    expect(result).not.toContain("secret-token");
-    expect(result).toContain("[redacted]");
+    assert(
+      !result.includes("secret-token"),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(result, "[redacted]");
   });
 });

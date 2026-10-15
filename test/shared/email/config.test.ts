@@ -3,6 +3,7 @@
  * scopes; the two `describeWithEnv` suites prove the same reads against a
  * real database write. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -111,7 +112,7 @@ describe("email config resolution", () => {
       const logged = errors.calls
         .map((call) => String(call.args[0]))
         .join("\n");
-      expect(logged).toContain('invalid HOST_EMAIL_PROVIDER: "imap"');
+      assertStringIncludes(logged, 'invalid HOST_EMAIL_PROVIDER: "imap"');
     });
   });
 

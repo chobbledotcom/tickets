@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { paymentAnchorReference } from "#db/payment-anchor/reference.ts";
@@ -26,7 +27,10 @@ describeWithEnv("db > payment anchor > reference", { db: true }, () => {
 
     expect(prepared.stored.index).toBe(taggedIndex);
     expect(prepared.matchingIndexes).toEqual([taggedIndex, untaggedIndex]);
-    expect(prepared.stored.encrypted).not.toContain(payment.reference);
+    assert(
+      !prepared.stored.encrypted.includes(payment.reference),
+      "the value should not contain the searched item",
+    );
     expect(
       await loadPaymentReference(
         prepared.stored.encrypted,

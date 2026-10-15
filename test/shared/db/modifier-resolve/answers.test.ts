@@ -1,4 +1,4 @@
-import { assertRejects } from "@std/assert";
+import { assert, assertRejects } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -67,7 +67,10 @@ describeWithEnv("modifier-resolve answer triggers", { db: true }, () => {
 
       // Not selected: the modifier doesn't trigger.
       const unselected = await resolveModifiers([checkoutItem()]);
-      expect(unselected.map((s) => s.name)).not.toContain("Large size");
+      assert(
+        !unselected.map((s) => s.name).includes("Large size"),
+        "the value should not contain the searched item",
+      );
 
       // The linked answer selected on listing 1, which has 2 tickets: applies x2.
       const selected = await resolveAnswerPicks(
@@ -125,7 +128,10 @@ describeWithEnv("modifier-resolve answer triggers", { db: true }, () => {
       await patchModifier(modifierId, { max_per_order: 0 });
 
       const specs = await resolveModifiers([checkoutItem()]);
-      expect(specs.map((s) => s.name)).not.toContain("Zone 2 delivery");
+      assert(
+        !specs.map((s) => s.name).includes("Zone 2 delivery"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("does not read the cap of a modifier the cart is too small for", async () => {
@@ -145,7 +151,10 @@ describeWithEnv("modifier-resolve answer triggers", { db: true }, () => {
         { "1": [answerIds[0]!] },
         new Map([[1, 2]]),
       );
-      expect(specs.map((s) => s.name)).not.toContain("Big spenders only");
+      assert(
+        !specs.map((s) => s.name).includes("Big spenders only"),
+        "the value should not contain the searched item",
+      );
     });
 
     refusesStoredCap("refuses a stored per-order cap of zero", 0);

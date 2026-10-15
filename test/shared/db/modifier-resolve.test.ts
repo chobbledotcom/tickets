@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -155,14 +156,20 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
     test("includes a stock-limited modifier while stock remains", async () => {
       await insertModifier({ name: "Plenty", stock: 5 });
       const specs = await resolveModifiers([checkoutItem()]);
-      expect(specs.map((s) => s.name)).toContain("Plenty");
+      assertArrayIncludes(
+        specs.map((s) => s.name),
+        ["Plenty"],
+      );
     });
 
     test("excludes a modifier whose stock is used up", async () => {
       const m = await insertModifier({ name: "Limited", stock: 1 });
       await insertModifierUsage(m.id, 1, 1, 500);
       const specs = await resolveModifiers([checkoutItem()]);
-      expect(specs.map((s) => s.name)).not.toContain("Limited");
+      assert(
+        !specs.map((s) => s.name).includes("Limited"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("applies a listing-scoped modifier only alongside a linked listing", async () => {
@@ -179,7 +186,10 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       expect(applied.find((s) => s.name === "VIP")?.listingIds).toEqual([1]);
 
       const skipped = await resolveModifiers([checkoutItem({ listingId: 2 })]);
-      expect(skipped.map((s) => s.name)).not.toContain("VIP");
+      assert(
+        !skipped.map((s) => s.name).includes("VIP"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("applies a code modifier only when the matching code is entered", async () => {
@@ -190,18 +200,27 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       });
 
       const withoutCode = await resolveModifiers([checkoutItem()]);
-      expect(withoutCode.map((s) => s.name)).not.toContain("SUMMER");
+      assert(
+        !withoutCode.map((s) => s.name).includes("SUMMER"),
+        "the value should not contain the searched item",
+      );
 
       const wrongCode = await resolveModifiers([checkoutItem()], {
         code: "winter",
       });
-      expect(wrongCode.map((s) => s.name)).not.toContain("SUMMER");
+      assert(
+        !wrongCode.map((s) => s.name).includes("SUMMER"),
+        "the value should not contain the searched item",
+      );
 
       // Matching is case-insensitive (normalised before hashing).
       const rightCode = await resolveModifiers([checkoutItem()], {
         code: "SUMMER25",
       });
-      expect(rightCode.map((s) => s.name)).toContain("SUMMER");
+      assertArrayIncludes(
+        rightCode.map((s) => s.name),
+        ["SUMMER"],
+      );
     });
 
     test("applies an opt-in add-on at the chosen quantity only when selected", async () => {
@@ -209,7 +228,10 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       await patchModifier(m.id, { trigger: "optional" });
 
       const unselected = await resolveModifiers([checkoutItem()]);
-      expect(unselected.map((s) => s.name)).not.toContain("T-shirt");
+      assert(
+        !unselected.map((s) => s.name).includes("T-shirt"),
+        "the value should not contain the searched item",
+      );
 
       const selected = await resolveModifiers([checkoutItem()], {
         addOns: new Map([[m.id, 3]]),

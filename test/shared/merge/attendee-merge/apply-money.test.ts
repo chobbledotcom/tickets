@@ -1,4 +1,5 @@
 /** Paid-booking behavior for attendee merges. */
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {

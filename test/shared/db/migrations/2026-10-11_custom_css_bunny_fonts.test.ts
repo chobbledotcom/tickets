@@ -1,6 +1,7 @@
 /** The custom CSS Bunny fonts backfill: the stored stylesheet is scanned once,
  *  and the saved flag says whether the CSP must name fonts.bunny.net. */
 
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, resultRows } from "#db/client.ts";
@@ -99,9 +100,9 @@ describeWithEnv("custom css bunny fonts migration", { db: true }, () => {
     await initDb();
 
     expect(await settingsValueOrNull("custom_css_bunny_fonts")).toBe("true");
-    expect(await appliedMigrationIds()).toContain(
+    assertArrayIncludes((await appliedMigrationIds()) ?? [], [
       "2026-10-11_custom_css_bunny_fonts",
-    );
+    ]);
     expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
   });
 });

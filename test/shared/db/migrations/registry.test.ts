@@ -5,6 +5,8 @@
  * would make the probe and the migration runner disagree about what has been
  * applied. Loading every entry here keeps the two from drifting.
  */
+
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { loadMigrations } from "#db/migrations/context.ts";
@@ -47,7 +49,7 @@ describe("db > migration registry", () => {
   // A missing name reads as position -1, which every later position beats, so
   // each name is confirmed present before the two are compared.
   const positionOf = (id: string): number => {
-    expect(MIGRATION_IDS).toContain(id);
+    assertArrayIncludes(MIGRATION_IDS ?? [], [id]);
     return MIGRATION_IDS.indexOf(id);
   };
 

@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -11,7 +12,10 @@ describe("provider refund queue cursor", () => {
 
   test("round-trips one opaque positive boundary", async () => {
     const cursor = await writeProviderRefundCursor(42);
-    expect(cursor).not.toContain("refund-cases");
+    assert(
+      !cursor.includes("refund-cases"),
+      "the value should not contain the searched item",
+    );
     expect(await readProviderRefundCursor(cursor)).toBe(42);
   });
 

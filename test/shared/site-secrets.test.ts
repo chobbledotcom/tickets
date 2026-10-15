@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -74,7 +75,10 @@ describeWithEnv(
       const pairs = collectHostSecrets();
       expect(pairs).toContainEqual(["NTFY_URL", "https://ntfy.example.com/t"]);
       // STORAGE_ZONE_KEY is not set in this env, so it must be absent.
-      expect(pairs.map(([name]) => name)).not.toContain("STORAGE_ZONE_KEY");
+      assert(
+        !pairs.map(([name]) => name).includes("STORAGE_ZONE_KEY"),
+        "the value should not contain the searched item",
+      );
     });
   },
 );
@@ -99,10 +103,13 @@ describeWithEnv(
 
     test("skips the support message for a Bunny hosting provider", () => {
       const names = collectHostSecrets("bunny").map(([name]) => name);
-      expect(names).toContain("BUNNY_API_KEY");
-      expect(names).toContain("BUNNY_DNS_ZONE_ID");
-      expect(names).toContain("BUNNY_DNS_SUBDOMAIN_SUFFIX");
-      expect(names).not.toContain("SUPPORT_PAGE_TEXT");
+      assertArrayIncludes(names ?? [], ["BUNNY_API_KEY"]);
+      assertArrayIncludes(names ?? [], ["BUNNY_DNS_ZONE_ID"]);
+      assertArrayIncludes(names ?? [], ["BUNNY_DNS_SUBDOMAIN_SUFFIX"]);
+      assert(
+        !names.includes("SUPPORT_PAGE_TEXT"),
+        "the value should not contain the searched item",
+      );
     });
   },
 );
@@ -142,30 +149,51 @@ describeWithEnv(
       const names = expectedNamesFor(
         buildSite({ hostingId: "app_abc", hostingProvider: "deno" }),
       );
-      expect(names).not.toContain("BUNNY_SCRIPT_ID");
+      assert(
+        !names.includes("BUNNY_SCRIPT_ID"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("never includes DB_ENCRYPTION_KEY (it cannot be reproduced)", () => {
-      expect(expectedNamesFor(buildSite())).not.toContain("DB_ENCRYPTION_KEY");
+      assert(
+        !expectedNamesFor(buildSite()).includes("DB_ENCRYPTION_KEY"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("omits base credentials the site has no value for", () => {
       const names = expectedNamesFor(
         buildSite({ dbToken: "", dbUrl: "", hostingId: "555" }),
       );
-      expect(names).not.toContain("DB_URL");
-      expect(names).not.toContain("DB_TOKEN");
-      expect(names).toContain("BUNNY_SCRIPT_ID");
+      assert(
+        !names.includes("DB_URL"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !names.includes("DB_TOKEN"),
+        "the value should not contain the searched item",
+      );
+      assertArrayIncludes(names ?? [], ["BUNNY_SCRIPT_ID"]);
     });
 
     test("includes only host secrets when the site has no base values", () => {
       const names = expectedNamesFor(
         buildSite({ dbToken: "", dbUrl: "", hostingId: "" }),
       );
-      expect(names).not.toContain("BUNNY_SCRIPT_ID");
-      expect(names).not.toContain("DB_URL");
-      expect(names).not.toContain("DB_TOKEN");
-      expect(names).toContain("NTFY_URL");
+      assert(
+        !names.includes("BUNNY_SCRIPT_ID"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !names.includes("DB_URL"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !names.includes("DB_TOKEN"),
+        "the value should not contain the searched item",
+      );
+      assertArrayIncludes(names ?? [], ["NTFY_URL"]);
     });
   },
 );
@@ -189,9 +217,12 @@ describeWithEnv(
           if (!view.ok) return;
           expect(view.missing).toEqual(["NTFY_URL"]);
           // A live secret outside the expected set is never flagged as missing.
-          expect(view.missing).not.toContain("DB_ENCRYPTION_KEY");
-          expect(view.present).toContain("DB_ENCRYPTION_KEY");
-          expect(view.expected).toContain("NTFY_URL");
+          assert(
+            !view.missing.includes("DB_ENCRYPTION_KEY"),
+            "the value should not contain the searched item",
+          );
+          assertArrayIncludes(view.present ?? [], ["DB_ENCRYPTION_KEY"]);
+          assertArrayIncludes(view.expected ?? [], ["NTFY_URL"]);
         },
       );
     });
@@ -260,7 +291,7 @@ describeWithEnv(
     test("refuses when BUNNY_API_KEY is not configured", async () => {
       const view = await loadSiteSecretsStatus(buildSite());
       expect(view.ok).toBe(false);
-      if (!view.ok) expect(view.error).toContain("BUNNY_API_KEY");
+      if (!view.ok) assertStringIncludes(view.error, "BUNNY_API_KEY");
     });
   },
 );
@@ -274,7 +305,7 @@ describeWithEnv(
         buildSite({ hostingId: "app_abc", hostingProvider: "deno" }),
       );
       expect(view.ok).toBe(false);
-      if (!view.ok) expect(view.error).toContain("DENO_DEPLOY_TOKEN");
+      if (!view.ok) assertStringIncludes(view.error, "DENO_DEPLOY_TOKEN");
     });
   },
 );
@@ -294,8 +325,8 @@ describeWithEnv(
           const view = await loadSiteSecretsStatus(site);
           expect(view.ok).toBe(true);
           if (view.ok) {
-            expect(view.present).toContain("DB_URL");
-            expect(view.present).toContain("DB_TOKEN");
+            assertArrayIncludes(view.present ?? [], ["DB_URL"]);
+            assertArrayIncludes(view.present ?? [], ["DB_TOKEN"]);
           }
         },
       );
@@ -391,7 +422,7 @@ describeWithEnv(
         false,
       );
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error).toContain("no hosting ID");
+      if (!result.ok) assertStringIncludes(result.error ?? "", "no hosting ID");
     });
   },
 );

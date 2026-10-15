@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { dateToRange } from "#db/capacity.ts";
@@ -71,16 +72,16 @@ describe("buildCartCapacitySql", () => {
       demandWith(new Map([[LISTING, bucket([], QTY)]])),
     );
     expect(args).toEqual([LISTING]);
-    expect(sql).toContain(`+ ${QTY} <=`);
-    expect(sql).toContain("id = ?1 AND active = 1");
-    expect(sql).toContain(") AS fits");
+    assertStringIncludes(sql, `+ ${QTY} <=`);
+    assertStringIncludes(sql, "id = ?1 AND active = 1");
+    assertStringIncludes(sql, ") AS fits");
   });
 
   test("a single remaining unit of demand still gets its clause", () => {
     const { sql } = buildCartCapacitySql(
       demandWith(new Map([[LISTING, bucket([], 1)]])),
     );
-    expect(sql).toContain("+ 1 <=");
+    assertStringIncludes(sql, "+ 1 <=");
   });
 
   test("a single undated unit on either demand component gets its clause", () => {
@@ -106,7 +107,7 @@ describe("buildCartCapacitySql", () => {
       const { sql } = buildCartCapacitySql(
         demandWith(new Map([[LISTING, component]])),
       );
-      expect(sql).toContain("+ 1 <=");
+      assertStringIncludes(sql, "+ 1 <=");
     }
   });
 
@@ -133,8 +134,11 @@ describe("buildCartCapacitySql", () => {
         ]),
       ),
     );
-    expect(sql).toContain("+ 3 <=");
-    expect(sql).not.toContain("+ 5 <=");
+    assertStringIncludes(sql, "+ 3 <=");
+    assert(
+      !sql.includes("+ 5 <="),
+      "the value should not contain the searched item",
+    );
   });
 
   test("per-day listing demand is one clause carrying a VALUES row per day", () => {
@@ -161,9 +165,9 @@ describe("buildCartCapacitySql", () => {
     expect(occurrences(flatSql(sql), ") AND (")).toBe(0);
     // The rows of one day-demand table are comma-separated tuples of
     // (start_at, end_at, qty), each column read by its own reference.
-    expect(sql).toContain("), (");
+    assertStringIncludes(sql, "), (");
     expect(occurrences(flatSql(sql), "dayDemand.column2")).toBe(1);
-    expect(sql).toContain("max_attendees");
+    assertStringIncludes(sql, "max_attendees");
   });
 
   test("many listings sharing the same days stay under the bind cap", () => {
@@ -214,9 +218,12 @@ describe("buildCartCapacitySql", () => {
     // The per-day clause carries the day's 2 booked units beside the 3
     // date-less units that occupy the group every day; the undated clause
     // counts the whole 5-unit bucket against the group's running total.
-    expect(sql).toContain("+ 5 <=");
-    expect(sql).toContain("(SELECT max_attendees FROM groups WHERE id = ?1)");
-    expect(sql).toContain("= 0 OR");
+    assertStringIncludes(sql, "+ 5 <=");
+    assertStringIncludes(
+      sql,
+      "(SELECT max_attendees FROM groups WHERE id = ?1)",
+    );
+    assertStringIncludes(sql, "= 0 OR");
     expect(args).toEqual([9, startAt, endAt]);
   });
 
@@ -287,8 +294,11 @@ describe("buildCartCapacitySql", () => {
       groupDemand: new Map([[9, bucket([], 3)]]),
       listingDemand: new Map(),
     });
-    expect(sql).toContain("+ 3 <=");
-    expect(sql).not.toContain("start_at");
+    assertStringIncludes(sql, "+ 3 <=");
+    assert(
+      !sql.includes("start_at"),
+      "the value should not contain the searched item",
+    );
     expect(args).toEqual([9]);
   });
 
@@ -309,8 +319,8 @@ describe("buildCartCapacitySql", () => {
         ]),
       ),
     );
-    expect(sql).toContain("AS fits");
-    expect(sql).toContain("+ 2 <=");
+    assertStringIncludes(sql, "AS fits");
+    assertStringIncludes(sql, "+ 2 <=");
     expect(args).toEqual([LISTING]);
   });
 });

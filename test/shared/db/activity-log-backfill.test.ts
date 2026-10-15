@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -60,8 +61,8 @@ describeWithEnv("db > activity log backfill", { db: true }, () => {
     const messages = (await withTestSession(() => getAllActivityLog())).map(
       (e) => e.message,
     );
-    expect(messages).toContain("legacy one");
-    expect(messages).toContain("legacy two");
+    assertArrayIncludes(messages ?? [], ["legacy one"]);
+    assertArrayIncludes(messages ?? [], ["legacy two"]);
   });
 
   test("leaves owner-key rows untouched", async () => {

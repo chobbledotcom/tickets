@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { decrypt, ENCRYPTION_PREFIX } from "#crypto/encryption.ts";
@@ -22,7 +23,10 @@ describeWithEnv("db > payment reference store", { db: true }, () => {
     const payment = taggedPaymentReference("pi_secret", "square");
     const stored = await storePaymentReference(payment);
 
-    expect(stored.encrypted).not.toContain(payment.reference);
+    assert(
+      !stored.encrypted.includes(payment.reference),
+      "the value should not contain the searched item",
+    );
     expect(stored.encrypted.startsWith(HYBRID_PREFIX)).toBe(true);
     expect(stored.encrypted.startsWith(ENCRYPTION_PREFIX)).toBe(false);
     await expect(
@@ -72,12 +76,12 @@ describeWithEnv("db > payment reference store", { db: true }, () => {
     const indexes = await matchingPaymentReferenceIndexes(historical);
 
     expect(indexes[0]).toBe(await paymentReferenceIndex(historical));
-    expect(indexes).toContain(
+    assertArrayIncludes(indexes ?? [], [
       await paymentReferenceIndex(taggedPaymentReference("pi_ids", "square")),
-    );
-    expect(indexes).toContain(
+    ]);
+    assertArrayIncludes(indexes ?? [], [
       await paymentReferenceIndex(taggedPaymentReference("pi_ids", "sumup")),
-    );
+    ]);
   });
 
   test("a row with no stored index gets one derived from its reference", async () => {

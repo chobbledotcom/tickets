@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { allTransfers } from "#accounting/queries.ts";
@@ -46,7 +47,8 @@ describe("LISTING_AGGREGATE_WRITE_COLUMNS matches the trigger SQL", () => {
     );
     expect(updateTrigger).toBeDefined();
     const expectedCols = [...LISTING_AGGREGATE_WRITE_COLUMNS].join(", ");
-    expect(updateTrigger!.sql).toContain(
+    assertStringIncludes(
+      updateTrigger!.sql,
       `AFTER UPDATE OF ${expectedCols} ON listing_attendees`,
     );
   });
@@ -68,7 +70,7 @@ describe("tickets_count shared predicate guard", () => {
 
   for (const [name, sql] of ticketCountSites) {
     test(`${name} references the shared quantity predicate`, () => {
-      expect(sql).toContain(TICKET_COUNTS_PREDICATE);
+      assertStringIncludes(sql, TICKET_COUNTS_PREDICATE);
     });
   }
 });

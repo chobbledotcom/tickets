@@ -1,3 +1,4 @@
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { IntlMessageFormat } from "intl-messageformat";
@@ -161,8 +162,8 @@ describe("i18n", () => {
         const out = t("admin.attendees.refund_all_confirm", {
           name: "Attendee Gala",
         });
-        expect(out).toContain('"Attendee Gala"'); // data untouched
-        expect(out).toContain("all guests"); // copy rebranded
+        assertStringIncludes(out, '"Attendee Gala"'); // data untouched
+        assertStringIncludes(out, "all guests"); // copy rebranded
       });
     });
 
@@ -179,7 +180,7 @@ describe("i18n", () => {
 
   describe("getRegisteredLocales", () => {
     test("includes en by default", () => {
-      expect(getRegisteredLocales()).toContain("en");
+      assertArrayIncludes(getRegisteredLocales() ?? [], ["en"]);
     });
   });
 

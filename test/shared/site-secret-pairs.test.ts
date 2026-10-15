@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -87,9 +88,9 @@ describeWithEnv(
       const { calls, result } = await backfillHalfPair(false);
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.error).toContain("The site already holds");
-        expect(result.error).toContain("the two keys match");
-        expect(result.error).toContain("Tick the confirm box");
+        assertStringIncludes(result.error ?? "", "The site already holds");
+        assertStringIncludes(result.error ?? "", "the two keys match");
+        assertStringIncludes(result.error ?? "", "Tick the confirm box");
       }
       // Nothing is copied while the conflict stands.
       expect(calls).toEqual([]);

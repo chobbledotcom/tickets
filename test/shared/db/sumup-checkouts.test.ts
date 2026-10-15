@@ -7,6 +7,7 @@
  * alone cannot decrypt the staged metadata.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptWithKey } from "#crypto/encryption.ts";
@@ -87,8 +88,11 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
       );
 
       const error = await rejectedError(getSumupCheckout(REFERENCE));
-      expect(error.message).toContain(row.reference_index as string);
-      expect(error.message).not.toContain(REFERENCE);
+      assertStringIncludes(error.message, row.reference_index as string);
+      assert(
+        !error.message.includes(REFERENCE),
+        "the value should not contain the searched item",
+      );
     });
 
     test("keeps rows isolated per reference", async () => {
@@ -187,10 +191,22 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
       const row = await rawRow();
       const atRest = JSON.stringify(row);
 
-      expect(atRest).not.toContain(METADATA.email);
-      expect(atRest).not.toContain(METADATA.name);
-      expect(atRest).not.toContain(METADATA.phone);
-      expect(atRest).not.toContain(METADATA.address);
+      assert(
+        !atRest.includes(METADATA.email),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !atRest.includes(METADATA.name),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !atRest.includes(METADATA.phone),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !atRest.includes(METADATA.address),
+        "the value should not contain the searched item",
+      );
     });
 
     test("stores no plaintext checkout reference in any column", async () => {
@@ -199,7 +215,10 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
 
       const row = await rawRow();
 
-      expect(JSON.stringify(row)).not.toContain(REFERENCE);
+      assert(
+        !JSON.stringify(row).includes(REFERENCE),
+        "the value should not contain the searched item",
+      );
       expect(row.reference_index).not.toBe(REFERENCE);
     });
 

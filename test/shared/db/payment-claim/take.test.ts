@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -242,7 +243,10 @@ describeWithEnv(
         expect(stored).toBe(
           await paymentReferenceIndex(taggedPaymentReference("pi_secret")),
         );
-        expect(stored).not.toContain("pi_secret");
+        assert(
+          !stored.includes("pi_secret"),
+          "the value should not contain the searched item",
+        );
       });
     });
 

@@ -64,9 +64,12 @@ describe("CustomDomainForm", () => {
     const domainInput = formHtml.match(/<input[^>]*name="custom_domain"[^>]*>/);
     expect(domainInput).not.toBeNull();
     if (domainInput === null) return;
-    assertStringIncludes(domainInput[0], 'placeholder="tickets.example.co.uk"');
-    assertStringIncludes(domainInput[0], 'type="text"');
-    assertStringIncludes(domainInput[0], 'value="tickets.example.com"');
+    assertStringIncludes(
+      domainInput[0] ?? "",
+      'placeholder="tickets.example.co.uk"',
+    );
+    assertStringIncludes(domainInput[0] ?? "", 'type="text"');
+    assertStringIncludes(domainInput[0] ?? "", 'value="tickets.example.com"');
     // Guide link
     assertStringIncludes(html, 'href="/admin/guide#custom-domain"');
     // Subdomain note (visible when subdomain is set)

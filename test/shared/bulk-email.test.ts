@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { summarizeProviderResponse } from "#shared/bulk-email.ts";
@@ -61,10 +62,13 @@ describe("summarizeProviderResponse", () => {
   test("truncates an over-long reply", () => {
     const long = "x".repeat(1000);
     const summary = summarizeProviderResponse([reply(200, long)]);
-    expect(summary).toContain("...");
+    assertStringIncludes(summary, "...");
     // Capped well below the raw body, which is never echoed in full.
     expect(summary.length).toBeLessThan(long.length);
-    expect(summary).not.toContain(long);
+    assert(
+      !summary.includes(long),
+      "the value should not contain the searched item",
+    );
   });
 
   test("names the messages an accepted batch refused anyway", () => {
@@ -83,7 +87,7 @@ describe("summarizeProviderResponse", () => {
   });
 
   test("counts one refused message in the singular", () => {
-    expect(
+    assertStringIncludes(
       summarizeProviderResponse([
         reply(200, "[]", {
           reasons: ["Inactive recipient"],
@@ -91,7 +95,8 @@ describe("summarizeProviderResponse", () => {
           unconfirmed: 0,
         }),
       ]),
-    ).toContain("It refused 1 message.");
+      "It refused 1 message.",
+    );
   });
 
   test("still gives the refused count when no reason came back", () => {
@@ -143,12 +148,15 @@ describe("summarizeProviderResponse", () => {
       reply(200, "[]", { reasons: [], refused: 0, unconfirmed: 1 }),
     ]);
 
-    expect(summary).toContain("It did not confirm 1 message.");
-    expect(summary).not.toContain("refused");
+    assertStringIncludes(summary, "It did not confirm 1 message.");
+    assert(
+      !summary.includes("refused"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("separates two different refusal reasons", () => {
-    expect(
+    assertStringIncludes(
       summarizeProviderResponse([
         reply(200, "[]", {
           reasons: ["Inactive recipient", "Hard bounce"],
@@ -156,7 +164,8 @@ describe("summarizeProviderResponse", () => {
           unconfirmed: 0,
         }),
       ]),
-    ).toContain("It refused 2 messages. Inactive recipient; Hard bounce.");
+      "It refused 2 messages. Inactive recipient; Hard bounce.",
+    );
   });
 
   test("caps an over-long list of refusal reasons", () => {
@@ -165,8 +174,11 @@ describe("summarizeProviderResponse", () => {
       reply(200, "[]", { reasons, refused: 40, unconfirmed: 0 }),
     ]);
 
-    expect(summary).toContain("It refused 40 messages.");
-    expect(summary).toContain("...");
-    expect(summary).not.toContain(reasons.join("; "));
+    assertStringIncludes(summary, "It refused 40 messages.");
+    assertStringIncludes(summary, "...");
+    assert(
+      !summary.includes(reasons.join("; ")),
+      "the value should not contain the searched item",
+    );
   });
 });

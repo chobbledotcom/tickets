@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, queryAll } from "#db/client.ts";
@@ -67,7 +68,10 @@ describeWithEnv(
         { listing_id: 10, price_id: "2", unit_price: 750 },
       ]);
       // The column is gone but membership + quantity survive the rebuild.
-      expect(await groupListingsColumns()).not.toContain("package_price");
+      assert(
+        !(await groupListingsColumns()).includes("package_price"),
+        "the value should not contain the searched item",
+      );
       const rows = await queryAll<{ listing_id: number; quantity: number }>(
         "SELECT listing_id, quantity FROM group_listings WHERE group_id = 1 ORDER BY listing_id",
       );

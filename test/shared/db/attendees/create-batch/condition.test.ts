@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { bookingBatchCondition } from "#db/attendees/create-batch.ts";
@@ -30,9 +31,9 @@ describeWithEnv(
         plan.legs[0]!.eventGroup,
         ...plan.legs.map((leg) => leg.reference),
       ]);
-      expect(statement.sql).toContain("id = ?1");
-      expect(statement.sql).toContain("modifier_id = ?1");
-      expect(statement.sql).toContain("event_group = ?3");
+      assertStringIncludes(statement.sql, "id = ?1");
+      assertStringIncludes(statement.sql, "modifier_id = ?1");
+      assertStringIncludes(statement.sql, "event_group = ?3");
     });
 
     test("uses two true conditions for a plan without stock or ledger work", () => {

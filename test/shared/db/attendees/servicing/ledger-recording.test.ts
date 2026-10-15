@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#accounting/accounts.ts";
@@ -40,9 +42,18 @@ describeWithEnv(
     test("creating a servicing event posts no sale, payment, or fee legs (never a sale)", async () => {
       const { listing } = await createServicingHold();
       const kinds = (await allTransfers()).map((transfer) => transfer.kind);
-      expect(kinds).not.toContain("sale");
-      expect(kinds).not.toContain("payment");
-      expect(kinds).not.toContain("fee");
+      assert(
+        !kinds.includes("sale"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !kinds.includes("payment"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !kinds.includes("fee"),
+        "the value should not contain the searched item",
+      );
       expect(await accountBalance(revenueAccount(listing.id))).toBe(0);
     });
 
@@ -111,10 +122,10 @@ describeWithEnv(
 
       const html = await renderAdminPage(`/admin/listing/${listing.id}`);
 
-      expect(html).toContain("Service event costs");
-      expect(html).toContain(formatCurrency(9000));
-      expect(html).toContain("Profit before refunds");
-      expect(html).toContain(formatCurrency(11000));
+      assertStringIncludes(html, "Service event costs");
+      assertStringIncludes(html, formatCurrency(9000));
+      assertStringIncludes(html, "Profit before refunds");
+      assertStringIncludes(html, formatCurrency(11000));
     });
 
     test("the cost route dates the cost leg to the service event date, not the submit time", async () => {

@@ -2,6 +2,7 @@
  * Posting a payload: the direct request made and its typed delivery result.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -87,7 +88,7 @@ describeWithEnv("sendWebhook", { db: true }, () => {
       ];
       expect(firstUrl).toBe("https://example.com/webhook");
       expect(firstOptions.redirect).toBe("manual");
-      expect(firstOptions.body).toContain(privacySentinel);
+      assertStringIncludes(String(firstOptions.body ?? ""), privacySentinel);
       expect(redirectedBody).toBeNull();
     });
   }

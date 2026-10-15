@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -281,7 +282,8 @@ describeWithEnv("provider refund target authority", { db: true }, () => {
     const rejected = results.filter((result) => result.status === "rejected");
     expect(fulfilled).toHaveLength(1);
     expect(rejected).toHaveLength(1);
-    expect(String(rejected[0]!.reason)).toContain(
+    assertStringIncludes(
+      String(rejected[0]!.reason),
       "Refund callback identity belongs to another charge",
     );
     expect(refunding.sendCount()).toBe(1);

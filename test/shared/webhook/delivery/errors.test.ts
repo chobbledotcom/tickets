@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -48,7 +49,7 @@ const expectOneError = (logs: string[], code: string): string => {
   expect(logs).toHaveLength(1);
   const [log] = logs;
   if (!log) throw new Error("Expected one error log");
-  expect(log).toContain(code);
+  assertStringIncludes(log, code);
   return log;
 };
 
@@ -68,7 +69,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     const expected = await withMessageGroups(["activity-log"], () =>
       t("admin.log.registration_delivery_failed"),
     );
-    expect(await activityMessages()).toContain(expected);
+    assertArrayIncludes((await activityMessages()) ?? [], [expected]);
   });
 
   test("reports an unexpected failure from pending registration work", async () => {
@@ -79,8 +80,9 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     const logs = await registrationLogs(entries);
 
-    expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
-      "private",
+    assert(
+      !expectOneError(logs, "E_REGISTRATION_DELIVERY").includes("private"),
+      "the value should not contain the searched item",
     );
   });
 
@@ -157,8 +159,9 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       { displays, pricingByGroup: new Map() },
     );
 
-    expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
-      privateValue,
+    assert(
+      !expectOneError(logs, "E_REGISTRATION_DELIVERY").includes(privateValue),
+      "the value should not contain the searched item",
     );
     expect(
       (await activityMessages()).filter(
@@ -184,9 +187,9 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       ),
     );
 
-    expect(await activityMessages()).toContain(
+    assertArrayIncludes((await activityMessages()) ?? [], [
       "Registration notification delivery failed.",
-    );
+    ]);
   });
 
   test("records a refused sibling when another webhook throws", async () => {
@@ -243,11 +246,18 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
           ? body
           : new TextDecoder().decode(body as Uint8Array);
 
-      expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
-        privateValue,
+      assert(
+        !expectOneError(logs, "E_REGISTRATION_DELIVERY").includes(privateValue),
+        "the value should not contain the searched item",
       );
-      expect(sentryBody).toContain("Registration notification delivery failed");
-      expect(sentryBody).not.toContain(privateValue);
+      assertStringIncludes(
+        sentryBody,
+        "Registration notification delivery failed",
+      );
+      assert(
+        !sentryBody.includes(privateValue),
+        "the value should not contain the searched item",
+      );
       expect(
         fetchSpy.calls.filter(({ args }) =>
           String(args[0]).includes("ntfy.example.test"),
@@ -341,7 +351,8 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     // The detail names the write that failed, so an operator can tell a
     // broken delivery write from every other database error.
-    expect(expectOneError(logs, "E_DB_QUERY")).toContain(
+    assertStringIncludes(
+      expectOneError(logs, "E_DB_QUERY"),
       "Registration delivery failure activity write",
     );
   });

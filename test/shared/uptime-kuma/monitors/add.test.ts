@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { resetI18nForTest, t } from "#i18n";

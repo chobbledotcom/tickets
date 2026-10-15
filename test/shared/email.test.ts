@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -50,10 +51,17 @@ const sendEmailExpectingError = async (
       expect(delivery.reason).toBe(expected.reason);
     }
     const logs = errorSpy.calls.map((c) => c.args[0] as string);
-    expect(logs.join("\n")).not.toContain(msg.to);
+    assert(
+      !logs.join("\n").includes(msg.to),
+      "the value should not contain the searched item",
+    );
     const line = logs.find((l) => l.includes("E_EMAIL_SEND"));
     expect(line).toBe(`[Error] E_EMAIL_SEND ${expected.logged}`);
-    if (expected.reason) expect(line).not.toContain(expected.reason);
+    if (expected.reason)
+      assert(
+        line?.includes(expected.reason) === false,
+        "the value should not contain the searched item",
+      );
   } finally {
     errorSpy.restore();
   }

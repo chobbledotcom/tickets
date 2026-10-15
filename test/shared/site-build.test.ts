@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -122,7 +123,7 @@ describeWithEnv("site build", { db: true }, () => {
         });
         expect(result.ok).toBe(false);
         if (result.ok) return;
-        expect(result.error).toContain("seed refused");
+        assertStringIncludes(result.error ?? "", "seed refused");
         expect(await builtSites.getAll()).toEqual([]);
       },
       { supportSeedResult: { error: "seed refused", ok: false } },

@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { bookedRangeLabel } from "#shared/date-labels.ts";
@@ -170,7 +171,10 @@ describe("dates", () => {
         dailyListingWithAllDays(),
         makeHoliday("Holiday", holidayDate, holidayDate),
       );
-      expect(dates).not.toContain(holidayDate);
+      assert(
+        !dates.includes(holidayDate),
+        "the value should not contain the searched item",
+      );
     });
 
     test("excludes holiday ranges", () => {
@@ -180,9 +184,18 @@ describe("dates", () => {
         dailyListingWithAllDays(),
         makeHoliday("Holiday Range", holidayStart, holidayEnd),
       );
-      expect(dates).not.toContain(holidayStart);
-      expect(dates).not.toContain(addDays(testDate(today()), 2));
-      expect(dates).not.toContain(holidayEnd);
+      assert(
+        !dates.includes(holidayStart),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !dates.includes(addDays(testDate(today()), 2)),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !dates.includes(holidayEnd),
+        "the value should not contain the searched item",
+      );
     });
 
     test("respects minimum_days_before", () => {
@@ -257,11 +270,17 @@ describe("dates", () => {
       });
       const dates = getAvailableDates(listing, holidays);
       // day+1 start → covers day 1,2,3 → contains holidayStart → excluded
-      expect(dates).not.toContain(addDays(testDate(today()), 1));
+      assert(
+        !dates.includes(addDays(testDate(today()), 1)),
+        "the value should not contain the searched item",
+      );
       // day+3 start is the holiday itself → excluded
-      expect(dates).not.toContain(holidayStart);
+      assert(
+        !dates.includes(holidayStart),
+        "the value should not contain the searched item",
+      );
       // day+4 start → covers day 4,5,6 → no holiday → included
-      expect(dates).toContain(addDays(testDate(today()), 4));
+      assertArrayIncludes(dates ?? [], [addDays(testDate(today()), 4)]);
     });
 
     test("durationOverride filters by the given span instead of duration_days", () => {
@@ -270,12 +289,15 @@ describe("dates", () => {
       const { listing, holidays } = overrideListingWithDay2Holiday();
       // With duration 5 the day+1 start spans the holiday and is excluded;
       // with an override of 1 it is offered.
-      expect(getAvailableDates(listing, holidays)).not.toContain(
-        addDays(testDate(today()), 1),
+      assert(
+        !getAvailableDates(listing, holidays).includes(
+          addDays(testDate(today()), 1),
+        ),
+        "the value should not contain the searched item",
       );
-      expect(getAvailableDates(listing, holidays, 1)).toContain(
+      assertArrayIncludes(getAvailableDates(listing, holidays, 1) ?? [], [
         addDays(testDate(today()), 1),
-      );
+      ]);
     });
 
     test("durationOverride of 0 is clamped to one day, not treated as absent", () => {
@@ -286,9 +308,9 @@ describe("dates", () => {
       // Override 0 → a 1-day span: the day+1 start clears the day+2 holiday.
       // Were 0 mistaken for "absent" it would use duration_days (5), which
       // spans the holiday, and the day would be excluded.
-      expect(getAvailableDates(listing, holidays, 0)).toContain(
+      assertArrayIncludes(getAvailableDates(listing, holidays, 0) ?? [], [
         addDays(testDate(today()), 1),
-      );
+      ]);
     });
   });
 
@@ -493,7 +515,10 @@ describe("dates", () => {
       // A 3-day booking can only start on days 0, 1, or 2 — day 3 and 4
       // can't fit a 3-day range within the 4-day window.
       expect(dates.length).toBeLessThanOrEqual(3);
-      expect(dates).not.toContain(addDays(testDate(today()), 4));
+      assert(
+        !dates.includes(addDays(testDate(today()), 4)),
+        "the value should not contain the searched item",
+      );
     });
 
     test("skips holidays", () => {
@@ -751,19 +776,22 @@ describe("dates", () => {
 
   describe("formatDatetimeLabel", () => {
     test("formats ISO datetime as human-readable string", () => {
-      expect(formatDatetimeLabel("2026-06-15T14:00:00.000Z")).toContain(
+      assertStringIncludes(
+        formatDatetimeLabel("2026-06-15T14:00:00.000Z"),
         "Monday 15 June 2026 at 14:00",
       );
     });
 
     test("pads single-digit hours and minutes", () => {
-      expect(formatDatetimeLabel("2026-01-05T09:05:00.000Z")).toContain(
+      assertStringIncludes(
+        formatDatetimeLabel("2026-01-05T09:05:00.000Z"),
         "Monday 5 January 2026 at 09:05",
       );
     });
 
     test("handles midnight", () => {
-      expect(formatDatetimeLabel("2026-03-01T00:00:00.000Z")).toContain(
+      assertStringIncludes(
+        formatDatetimeLabel("2026-03-01T00:00:00.000Z"),
         "Sunday 1 March 2026 at 00:00",
       );
     });

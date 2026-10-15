@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -167,8 +168,14 @@ describe("sms gateway send", () => {
     );
 
     expect(body).not.toBeNull();
-    expect(body!).not.toContain("secret message");
-    expect(body!).not.toContain("+44123");
+    assert(
+      !body!.includes("secret message"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !body!.includes("+44123"),
+      "the value should not contain the searched item",
+    );
     expect(JSON.parse(body!).isEncrypted).toBe(true);
   });
 

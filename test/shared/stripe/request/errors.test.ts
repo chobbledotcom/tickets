@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ProviderTransportError } from "#payment/transport-error.ts";
@@ -71,9 +72,12 @@ describe("Stripe transport errors", () => {
     // Stripe's own wording rides on the message, where the sanitiser and the
     // checkout boundary already keep it from operators and buyers. None of
     // the closed fields may repeat it.
-    expect(
-      JSON.stringify((error as ProviderTransportError).detail),
-    ).not.toContain("Private value");
+    assert(
+      !JSON.stringify((error as ProviderTransportError).detail).includes(
+        "Private value",
+      ),
+      "the value should not contain the searched item",
+    );
   });
 
   test("fails loudly on invalid success JSON", async () => {

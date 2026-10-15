@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -167,7 +168,10 @@ describe("attendeeOwedSubquery", () => {
   test("scopes to the attendee account type, not revenue", () => {
     const sql = attendeeOwedSubquery("a.id");
     expect(sql.startsWith("-(SELECT")).toBe(true);
-    expect(sql).toContain(`dest_type = '${ATTENDEE}'`);
-    expect(sql).not.toContain(`'${REVENUE}'`);
+    assertStringIncludes(sql, `dest_type = '${ATTENDEE}'`);
+    assert(
+      !sql.includes(`'${REVENUE}'`),
+      "the value should not contain the searched item",
+    );
   });
 });

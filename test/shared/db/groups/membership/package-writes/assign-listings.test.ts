@@ -5,6 +5,7 @@
  * in `set-groups.test.ts`.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
@@ -101,10 +102,12 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
       ),
     ).rejects.toBeInstanceOf(TransactionValidationError);
 
-    expect(
-      await assignListingsToGroup([payMore.id], packageGroup.id),
-    ).toContain("lets the buyer choose their own price");
-    expect(await assignListingsToGroup([addOn.id], packageGroup.id)).toContain(
+    assertStringIncludes(
+      (await assignListingsToGroup([payMore.id], packageGroup.id)) ?? "",
+      "lets the buyer choose their own price",
+    );
+    assertStringIncludes(
+      (await assignListingsToGroup([addOn.id], packageGroup.id)) ?? "",
       "offered as an add-on",
     );
     expect(await listingGroupIdsOf(payMore.id)).toEqual([]);

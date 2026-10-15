@@ -13,6 +13,7 @@
  *   - `#test-utils/servicing.ts` wraps it as `createTestServicingEvent`.
  */
 // jscpd:ignore-start
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";

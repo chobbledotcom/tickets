@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -60,8 +61,11 @@ describeWithEnv("db modifiers table", { db: true }, () => {
       await modifiersTable.update(inactive.id, { active: false });
 
       const names = (await getActiveModifiers()).map((m) => m.name);
-      expect(names).toContain("Live");
-      expect(names).not.toContain("Off");
+      assertArrayIncludes(names ?? [], ["Live"]);
+      assert(
+        !names.includes("Off"),
+        "the value should not contain the searched item",
+      );
       expect(await getModifier(active.id)).not.toBeNull();
     });
 

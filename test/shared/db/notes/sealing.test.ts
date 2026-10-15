@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decrypt } from "#crypto/encryption.ts";
@@ -29,7 +30,10 @@ describeWithEnv("db > notes > sealing", { db: true }, () => {
       const sealed = await sealNote("system", "system secret");
 
       expect(sealed.startsWith("enc:")).toBe(true);
-      expect(sealed).not.toContain("system secret");
+      assert(
+        !sealed.includes("system secret"),
+        "the value should not contain the searched item",
+      );
       expect(await decrypt(sealed as EnvKeyEncrypted)).toBe("system secret");
     });
 
@@ -37,7 +41,10 @@ describeWithEnv("db > notes > sealing", { db: true }, () => {
       const sealed = await sealNote("owner", "owner secret");
 
       expect(sealed.startsWith("hyb:")).toBe(true);
-      expect(sealed).not.toContain("owner secret");
+      assert(
+        !sealed.includes("owner secret"),
+        "the value should not contain the searched item",
+      );
       expect(
         await decryptWithOwnerKey(
           sealed as OwnerKeyEncrypted,

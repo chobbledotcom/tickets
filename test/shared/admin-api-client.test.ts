@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -166,10 +167,11 @@ describe("admin api client", () => {
       ADMIN_API_RESOURCES.attributes,
     ).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(Error);
-    expect((failure as Error).message).toContain(
+    assertStringIncludes(
+      (failure as Error).message,
       "admin api attributes response failed validation",
     );
-    expect((failure as Error).message).toContain("attributes.0.id");
+    assertStringIncludes((failure as Error).message, "attributes.0.id");
   });
 
   test("a schema-invalid success keeps the served status", async () => {
@@ -180,7 +182,8 @@ describe("admin api client", () => {
     ).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(AdminApiSchemaError);
     expect((failure as AdminApiSchemaError).status).toBe(200);
-    expect((failure as Error).message).toContain(
+    assertStringIncludes(
+      (failure as Error).message,
       "admin api attributes response failed validation",
     );
   });

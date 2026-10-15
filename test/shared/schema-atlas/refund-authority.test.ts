@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { refundAuthorityAtlas } from "#shared/schema-atlas/refund-authority.ts";
@@ -105,11 +106,16 @@ describe("the refund authority atlas", () => {
       "conflict_not_sent=>choice_not_sent",
       "conflict_wait=>check",
     ]);
-    expect(edgeIds("send_armed")).toContain("observe=>observing");
-    expect(edgeIds("send_armed")).toContain("replay=>send_armed");
-    expect(edgeIds("send_armed")).toContain("expired=>choice_open");
-    expect(edgeIds("send_armed")).toContain("possibly_sent=>choice_open");
-    expect(edgeIds("ready")).not.toContain("replay=>send_armed");
+    assertArrayIncludes(edgeIds("send_armed") ?? [], ["observe=>observing"]);
+    assertArrayIncludes(edgeIds("send_armed") ?? [], ["replay=>send_armed"]);
+    assertArrayIncludes(edgeIds("send_armed") ?? [], ["expired=>choice_open"]);
+    assertArrayIncludes(edgeIds("send_armed") ?? [], [
+      "possibly_sent=>choice_open",
+    ]);
+    assert(
+      !edgeIds("ready").includes("replay=>send_armed"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a settled partial return is an owner decision with one exit", () => {
@@ -137,11 +143,13 @@ describe("the refund authority atlas", () => {
   });
 
   test("the open owner choice admits both answers and fresh evidence", () => {
-    expect(edgeIds("choice_open")).toContain(
+    assertArrayIncludes(edgeIds("choice_open") ?? [], [
       "owner_confirms_returned=>returned",
-    );
-    expect(edgeIds("choice_open")).toContain("owner_confirms_not_sent=>ready");
-    expect(edgeIds("choice_open")).toContain("conflict_wait=>check");
+    ]);
+    assertArrayIncludes(edgeIds("choice_open") ?? [], [
+      "owner_confirms_not_sent=>ready",
+    ]);
+    assertArrayIncludes(edgeIds("choice_open") ?? [], ["conflict_wait=>check"]);
   });
 
   test("money back ends at recorded, which is terminal", () => {

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -29,17 +30,17 @@ describe("validateSquareAccessToken", () => {
 
   test("rejects a production application ID", () => {
     const error = validateSquareAccessToken("sq0idp-EXAMPLE");
-    expect(error).toContain("application ID or secret");
+    assertStringIncludes(error ?? "", "application ID or secret");
   });
 
   test("rejects a production application secret", () => {
     const error = validateSquareAccessToken("sq0csp-EXAMPLE");
-    expect(error).toContain("application ID or secret");
+    assertStringIncludes(error ?? "", "application ID or secret");
   });
 
   test("rejects a sandbox application ID", () => {
     const error = validateSquareAccessToken("sandbox-sq0idb-EXAMPLE");
-    expect(error).toContain("application ID or secret");
+    assertStringIncludes(error ?? "", "application ID or secret");
   });
 
   test("rejects a sandbox application secret with the exact app-credential message", () => {
@@ -56,7 +57,7 @@ describe("validateSquareAccessToken", () => {
 
   test("rejects a value with a valid prefix that is not anchored at the start", () => {
     const error = validateSquareAccessToken("junk-EAAAtoken");
-    expect(error).toContain("EAAA");
+    assertStringIncludes(error ?? "", "EAAA");
   });
 });
 

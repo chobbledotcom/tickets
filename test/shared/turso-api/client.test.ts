@@ -1,4 +1,4 @@
-import { assertRejects } from "@std/assert";
+import { assertRejects, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { Result } from "#shared/result.ts";
@@ -18,7 +18,7 @@ const assertExistsAnswer = async (
   if (expected === "error") {
     expect(exists.ok).toBe(false);
     if (!exists.ok) {
-      expect(exists.error).toContain("Check database");
+      assertStringIncludes(exists.error, "Check database");
     }
     return;
   }
@@ -58,7 +58,7 @@ describeWithEnv("turso api client", { env: TEST_TURSO_ENV }, () => {
         const result = await client().deleteDatabase("myorg", "db");
         expect(result.ok).toBe(false);
         if (!result.ok) {
-          expect(result.error).toContain("Delete database");
+          assertStringIncludes(result.error ?? "", "Delete database");
         }
       },
     );
@@ -193,12 +193,12 @@ describeWithEnv("turso api client", { env: TEST_TURSO_ENV }, () => {
         const groups = await client().listGroups("myorg");
         expect(groups.ok).toBe(false);
         if (!groups.ok) {
-          expect(groups.error).toContain("List Turso groups");
+          assertStringIncludes(groups.error, "List Turso groups");
         }
         const organizations = await client().listOrganizations();
         expect(organizations.ok).toBe(false);
         if (!organizations.ok) {
-          expect(organizations.error).toContain("List Turso organizations");
+          assertStringIncludes(organizations.error, "List Turso organizations");
         }
       },
     );

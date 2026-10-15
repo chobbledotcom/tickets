@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -174,8 +175,11 @@ describe("external-order", () => {
         ],
       });
       const out = serializeCatalog(catalog);
-      expect(out).not.toContain("</script>");
-      expect(out).toContain("\\u003c");
+      assert(
+        !out.includes("</script>"),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(out, "\\u003c");
     });
   });
 });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { TemplateData } from "#shared/email-renderer.ts";
@@ -161,10 +162,10 @@ describeEmailRenderer(() => {
       const engine = createBaseLiquidEngine();
       const loop = await engine.parseAndRender(LOOP_EXAMPLE, data);
       const dates = data.entries[0]!.attendee.date_range_label;
-      expect(loop).toContain("Summer Fete: 3 tickets");
-      expect(loop).toContain("Bake Off: 1 ticket");
-      expect(loop).toContain(dates);
-      expect(loop).toContain("£25");
+      assertStringIncludes(loop, "Summer Fete: 3 tickets");
+      assertStringIncludes(loop, "Bake Off: 1 ticket");
+      assertStringIncludes(loop, dates);
+      assertStringIncludes(loop, "£25");
     });
   });
 });

@@ -9,6 +9,7 @@
  * it.
  */
 
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -121,22 +122,34 @@ describeWithEnv("db > attendees > overlap", { db: true }, () => {
 
   test("excludes the queried attendee's own overlapping booking", async () => {
     const f = await overlapFixture();
-    expect(f.ids).not.toContain(f.self);
+    assert(
+      !f.ids.includes(f.self),
+      "the value should not contain the searched item",
+    );
   });
 
   test("excludes a booking ending exactly when the window starts", async () => {
     const f = await overlapFixture();
-    expect(f.ids).not.toContain(f.adjacentBefore);
+    assert(
+      !f.ids.includes(f.adjacentBefore),
+      "the value should not contain the searched item",
+    );
   });
 
   test("excludes a booking starting exactly when the window ends", async () => {
     const f = await overlapFixture();
-    expect(f.ids).not.toContain(f.adjacentAfter);
+    assert(
+      !f.ids.includes(f.adjacentAfter),
+      "the value should not contain the searched item",
+    );
   });
 
   test("excludes a booking whose range is entirely outside the window", async () => {
     const f = await overlapFixture();
-    expect(f.ids).not.toContain(f.far);
+    assert(
+      !f.ids.includes(f.far),
+      "the value should not contain the searched item",
+    );
   });
 
   test("returns each overlapping booking's listing, quantity, and stored range", async () => {
@@ -165,7 +178,10 @@ describeWithEnv("db > attendees > overlap", { db: true }, () => {
       SERVICING_KIND,
       servicing,
     ]);
-    expect(await overlappingIds(0)).not.toContain(servicing);
+    assert(
+      !(await overlappingIds(0)).includes(servicing),
+      "the value should not contain the searched item",
+    );
   });
 
   test("includes an overlapper booked on a different listing", async () => {
@@ -181,7 +197,7 @@ describeWithEnv("db > attendees > overlap", { db: true }, () => {
     });
     // The window is date-based, not listing-scoped: someone booked on a
     // different listing in the same days is still an "other attendee".
-    expect(await overlappingIds(current)).toContain(onB);
+    assertArrayIncludes((await overlappingIds(current)) ?? [], [onB]);
   });
 
   test("returns every overlapping row of an attendee with several bookings", async () => {
@@ -212,7 +228,10 @@ describeWithEnv("db > attendees > overlap", { db: true }, () => {
       "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
       [zero],
     );
-    expect(await overlappingIds(0)).not.toContain(zero);
+    assert(
+      !(await overlappingIds(0)).includes(zero),
+      "the value should not contain the searched item",
+    );
   });
 
   test("excludes a date-less booking, keeping only the dated overlapper", async () => {
@@ -225,6 +244,9 @@ describeWithEnv("db > attendees > overlap", { db: true }, () => {
     });
     const ids = await overlappingIds(0);
     expect(ids).toEqual([dated]);
-    expect(ids).not.toContain(dateless);
+    assert(
+      !ids.includes(dateless),
+      "the value should not contain the searched item",
+    );
   });
 });

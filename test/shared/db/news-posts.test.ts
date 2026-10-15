@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -51,7 +52,10 @@ describeWithEnv("db > news-posts", { db: true }, () => {
         raw[0]?.snippet,
         raw[0]?.content,
       );
-      expect(raw[0]?.name).not.toContain("Launch day");
+      assert(
+        raw[0]?.name?.includes("Launch day") === false,
+        "the value should not contain the searched item",
+      );
       // `created` stays plaintext ISO so SQL can order newest-first.
       expect(raw[0]?.created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
@@ -202,7 +206,10 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       expectEncryptedAtRest(raw[0]?.slug);
       // The index is the plaintext HMAC of the slug, not the slug itself.
       expect(raw[0]?.slug_index).not.toBe("");
-      expect(raw[0]?.slug_index).not.toContain("2026-07-06-indexed");
+      assert(
+        raw[0]?.slug_index?.includes("2026-07-06-indexed") === false,
+        "the value should not contain the searched item",
+      );
     });
 
     test("getNewsPostBySlugIndex round-trips the post; null for an unknown slug", async () => {

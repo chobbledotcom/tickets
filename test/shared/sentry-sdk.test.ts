@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/deno";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -173,17 +174,18 @@ describe("Sentry SDK transport", () => {
         ),
       );
 
-      expect(body).toContain('"level":"error"');
-      expect(body).toContain('"code":"E_DB_QUERY"');
-      expect(body).toContain('"listingId":"42"');
-      expect(body).toContain('"extra":{"detail":"select failed"}');
-      expect(body).toContain('"transaction":"GET /admin/listings/[id]"');
+      assertStringIncludes(body, '"level":"error"');
+      assertStringIncludes(body, '"code":"E_DB_QUERY"');
+      assertStringIncludes(body, '"listingId":"42"');
+      assertStringIncludes(body, '"extra":{"detail":"select failed"}');
+      assertStringIncludes(body, '"transaction":"GET /admin/listings/[id]"');
     });
 
     test("groups a report with no stack even outside a request", async () => {
       using _env = withEnv({ SENTRY_URL: DSN });
 
-      expect(await messageReportBody()).toContain(
+      assertStringIncludes(
+        await messageReportBody(),
         '"fingerprint":["E_DB_QUERY"]',
       );
     });
@@ -191,23 +193,32 @@ describe("Sentry SDK transport", () => {
     test("leaves a report that carries a stack trace ungrouped", async () => {
       using _env = withEnv({ SENTRY_URL: DSN });
 
-      expect(await errorReportBody()).not.toContain("fingerprint");
+      assert(
+        !(await errorReportBody()).includes("fingerprint"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("sends an attached error as an exception, not as prose", async () => {
       using _env = withEnv({ SENTRY_URL: DSN });
 
       const body = await errorReportBody();
-      expect(body).toContain('"stacktrace"');
-      expect(body).not.toContain('"message":"Error: Database query failed"');
+      assertStringIncludes(body, '"stacktrace"');
+      assert(
+        !body.includes('"message":"Error: Database query failed"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("sends a report with no error as a message", async () => {
       using _env = withEnv({ SENTRY_URL: DSN });
 
       const body = await messageReportBody();
-      expect(body).toContain('"message":"Error: Database query failed"');
-      expect(body).not.toContain('"stacktrace"');
+      assertStringIncludes(body, '"message":"Error: Database query failed"');
+      assert(
+        !body.includes('"stacktrace"'),
+        "the value should not contain the searched item",
+      );
     });
   });
 });

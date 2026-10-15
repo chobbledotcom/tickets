@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -142,8 +143,9 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       await runDatabasePruning();
 
       const remaining = await getAllSessions();
-      expect(remaining.map((session) => session.csrf_token)).not.toContain(
-        "csrf-stale",
+      assert(
+        !remaining.map((session) => session.csrf_token).includes("csrf-stale"),
+        "the value should not contain the searched item",
       );
     });
 
@@ -159,8 +161,9 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       await runDatabasePruning();
 
       const remaining = await getAllSessions();
-      expect(remaining.map((session) => session.csrf_token)).toContain(
-        "csrf-active",
+      assertArrayIncludes(
+        remaining.map((session) => session.csrf_token),
+        ["csrf-active"],
       );
     });
 
@@ -176,8 +179,9 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       await runDatabasePruning();
 
       const remaining = await getAllSessions();
-      expect(remaining.map((session) => session.csrf_token)).toContain(
-        "csrf-fresh-expired",
+      assertArrayIncludes(
+        remaining.map((session) => session.csrf_token),
+        ["csrf-fresh-expired"],
       );
     });
   });

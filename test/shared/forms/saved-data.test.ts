@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
@@ -20,8 +21,8 @@ describe("saved form data", () => {
         field({ label: "Name", name: "name" }),
         field({ label: "Email", name: "email", type: "email" }),
       ]);
-      expect(html).toContain('value="Alice"');
-      expect(html).toContain('value="alice@test.com"');
+      assertStringIncludes(html, 'value="Alice"');
+      assertStringIncludes(html, 'value="alice@test.com"');
     });
   });
 
@@ -32,8 +33,14 @@ describe("saved form data", () => {
         field({ label: "Password", name: "password", type: "password" }),
         field({ label: "Photo", name: "photo", type: "file" }),
       ]);
-      expect(html).not.toContain("secret123");
-      expect(html).not.toContain("hack.jpg");
+      assert(
+        !html.includes("secret123"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("hack.jpg"),
+        "the value should not contain the searched item",
+      );
     });
   });
 
@@ -46,7 +53,7 @@ describe("saved form data", () => {
       const notesHtml = renderFields([
         field({ label: "Notes", name: "notes", type: "textarea" }),
       ]);
-      expect(notesHtml).toContain("My notes");
+      assertStringIncludes(notesHtml, "My notes");
 
       const selectHtml = renderFields([
         field({
@@ -59,7 +66,7 @@ describe("saved form data", () => {
           type: "select",
         }),
       ]);
-      expect(selectHtml).toContain('value="blue" selected');
+      assertStringIncludes(selectHtml, 'value="blue" selected');
 
       const checkboxHtml = renderFields([
         field({
@@ -73,9 +80,12 @@ describe("saved form data", () => {
           type: "checkbox-group",
         }),
       ]);
-      expect(checkboxHtml).toContain('value="a" checked');
-      expect(checkboxHtml).not.toContain('value="b" checked');
-      expect(checkboxHtml).toContain('value="c" checked');
+      assertStringIncludes(checkboxHtml, 'value="a" checked');
+      assert(
+        !checkboxHtml.includes('value="b" checked'),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(checkboxHtml, 'value="c" checked');
     });
   });
 
@@ -87,8 +97,8 @@ describe("saved form data", () => {
       const html = renderFields([
         field({ label: "Start", name: "start", type: "datetime" }),
       ]);
-      expect(html).toContain('value="2026-03-21"');
-      expect(html).toContain('value="14:30"');
+      assertStringIncludes(html, 'value="2026-03-21"');
+      assertStringIncludes(html, 'value="14:30"');
     });
   });
 
@@ -98,8 +108,8 @@ describe("saved form data", () => {
       const html = renderFields([
         field({ label: "Start", name: "start", type: "datetime" }),
       ]);
-      expect(html).toContain('value="2026-03-21"');
-      expect(html).toContain('value="00:00"');
+      assertStringIncludes(html, 'value="2026-03-21"');
+      assertStringIncludes(html, 'value="00:00"');
     });
   });
 
@@ -112,7 +122,10 @@ describe("saved form data", () => {
         const html = renderFields([
           field({ label: "Start", name: "start", type: "datetime" }),
         ]);
-        expect(html).not.toContain('value="');
+        assert(
+          !html.includes('value="'),
+          "the value should not contain the searched item",
+        );
       });
     }
   });
@@ -121,17 +134,23 @@ describe("saved form data", () => {
     await withRequestContext(async () => {
       setSavedFormData(new FormParams("name=Alice"));
       clearSavedFormData();
-      expect(
-        renderFields([field({ label: "Name", name: "name" })]),
-      ).not.toContain('value="Alice"');
+      assert(
+        !renderFields([field({ label: "Name", name: "name" })]).includes(
+          'value="Alice"',
+        ),
+        "the value should not contain the searched item",
+      );
     });
   });
 
   test("renders no value attributes when nothing was saved", async () => {
     await withRequestContext(async () => {
-      expect(
-        renderFields([field({ label: "Name", name: "name" })]),
-      ).not.toContain('value="');
+      assert(
+        !renderFields([field({ label: "Name", name: "name" })]).includes(
+          'value="',
+        ),
+        "the value should not contain the searched item",
+      );
     });
   });
 
@@ -141,8 +160,11 @@ describe("saved form data", () => {
         new FormParams("name=%3Cscript%3Ealert(1)%3C%2Fscript%3E"),
       );
       const html = renderFields([field({ label: "Name", name: "name" })]);
-      expect(html).toContain("&lt;script&gt;");
-      expect(html).not.toContain("<script>alert");
+      assertStringIncludes(html, "&lt;script&gt;");
+      assert(
+        !html.includes("<script>alert"),
+        "the value should not contain the searched item",
+      );
     });
   });
 
@@ -154,7 +176,7 @@ describe("saved form data", () => {
       const html = renderFields([field({ label: "Name", name: "name" })], {
         name: "",
       });
-      expect(html).toContain('value="Restored"');
+      assertStringIncludes(html, 'value="Restored"');
     });
   });
 
@@ -164,7 +186,10 @@ describe("saved form data", () => {
         [field({ defaultValue: "Default", label: "Name", name: "name" })],
         { name: "" },
       );
-      expect(html).not.toContain('value="Default"');
+      assert(
+        !html.includes('value="Default"'),
+        "the value should not contain the searched item",
+      );
     });
   });
 

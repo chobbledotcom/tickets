@@ -1,4 +1,5 @@
 import type { Config } from "@libsql/client";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -132,7 +133,8 @@ describe("database request conversion", () => {
     const sent = firstSent(boundary);
     expect(sent.request.url).toBe("https://pipeline.test/v2/pipeline");
     expect(sent.request.method).toBe("POST");
-    expect(sent.request.headers.get("content-type")).toContain(
+    assertStringIncludes(
+      sent.request.headers.get("content-type") ?? "",
       "application/json",
     );
     const envelope = JSON.parse(await sent.request.text()) as {

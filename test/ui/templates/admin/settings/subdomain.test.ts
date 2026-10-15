@@ -78,8 +78,8 @@ describe("HostSubdomainForm", () => {
     const subdomainInput = form[0].match(/<input[^>]*name="subdomain"[^>]*>/);
     expect(subdomainInput).not.toBeNull();
     if (subdomainInput === null) return;
-    assertStringIncludes(subdomainInput[0], 'type="hidden"');
-    assertStringIncludes(subdomainInput[0], 'value="my-sub"');
+    assertStringIncludes(subdomainInput[0] ?? "", 'type="hidden"');
+    assertStringIncludes(subdomainInput[0] ?? "", 'value="my-sub"');
     assertStringIncludes(
       html,
       "Register this subdomain. This cannot be undone.",
@@ -98,7 +98,7 @@ describe("HostSubdomainForm", () => {
       html,
       'href="/admin/settings-advanced#settings-host-subdomain"',
     );
-    assertStringIncludes(form[0], 'id="settings-host-subdomain"');
+    assertStringIncludes(form[0] ?? "", 'id="settings-host-subdomain"');
   });
 
   test("renders the check form when no subdomain is set", () => {
@@ -120,9 +120,9 @@ describe("HostSubdomainForm", () => {
     );
     expect(subdomainInput).not.toBeNull();
     if (subdomainInput === null) return;
-    assertStringIncludes(subdomainInput[0], 'type="text"');
-    assertStringIncludes(form[0], 'id="settings-host-subdomain"');
-    assertStringIncludes(form[0], "Check if the name is free");
+    assertStringIncludes(subdomainInput[0] ?? "", 'type="text"');
+    assertStringIncludes(form[0] ?? "", 'id="settings-host-subdomain"');
+    assertStringIncludes(form[0] ?? "", "Check if the name is free");
     assertStringIncludes(html, "muted");
     assertStringIncludes(html, ".tickets.example");
     // The intro promises the address through the check, not an example that

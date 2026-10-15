@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
@@ -76,8 +77,14 @@ const imageUseRows = (): Promise<
 
 const expectListingImageColumnsGone = async (): Promise<void> => {
   const columns = await columnNames("listings");
-  expect(columns).not.toContain("image_url");
-  expect(columns).not.toContain("image_thumb_url");
+  assert(
+    !columns.includes("image_url"),
+    "the value should not contain the searched item",
+  );
+  assert(
+    !columns.includes("image_thumb_url"),
+    "the value should not contain the searched item",
+  );
 };
 
 describeWithEnv(

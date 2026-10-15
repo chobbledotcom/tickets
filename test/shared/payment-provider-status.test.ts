@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -37,8 +38,9 @@ describeWithEnv("payment provider status", { db: true }, () => {
 
   test("answers a mode for every provider, so no page shows a blank", () => {
     for (const provider of PAYMENT_PROVIDER_IDS) {
-      expect(["live", "sandbox", "test", "unknown"]).toContain(
-        paymentProviderMode(provider),
+      assertArrayIncludes(
+        ["live", "sandbox", "test", "unknown"],
+        [paymentProviderMode(provider)],
       );
     }
   });

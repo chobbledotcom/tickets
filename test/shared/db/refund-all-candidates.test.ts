@@ -1,5 +1,6 @@
 // jscpd:ignore-start -- imports
 import type { Client, ResultSet } from "@libsql/client";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, setDb } from "#db/client.ts";
@@ -348,7 +349,10 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
     if (summary === undefined || batch === undefined) {
       throw new Error("Refund All did not issue both admission reads");
     }
-    expect(summary).not.toContain("pii_blob");
+    assert(
+      !summary.includes("pii_blob"),
+      "the value should not contain the searched item",
+    );
     expect(batch.indexOf("LIMIT ?")).toBeGreaterThan(-1);
     expect(batch.indexOf("attendee.pii_blob")).toBeGreaterThan(
       batch.indexOf("LIMIT ?"),

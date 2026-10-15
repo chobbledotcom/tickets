@@ -4,6 +4,7 @@
  * be applied.
  */
 
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { type Stub, spy, stub } from "@std/testing/mock";
@@ -122,7 +123,10 @@ describeWithEnv(
         true,
       );
 
-      expect((await renewalLogEntry())?.message).toContain("for 7 month(s)");
+      assertStringIncludes(
+        (await renewalLogEntry())?.message ?? "",
+        "for 7 month(s)",
+      );
     });
 
     test("counts a single-month line too", async () => {
@@ -130,7 +134,10 @@ describeWithEnv(
 
       await renewWithPush([tierEntry(103, 1, 1)], tokenIndex, true);
 
-      expect((await renewalLogEntry())?.message).toContain("for 1 month(s)");
+      assertStringIncludes(
+        (await renewalLogEntry())?.message ?? "",
+        "for 1 month(s)",
+      );
     });
 
     test("records the renewal against the first renewal line's listing", async () => {
@@ -160,7 +167,8 @@ describeWithEnv(
       );
 
       const { logged } = await renewWithPush([notATier], tokenIndex, true);
-      expect(logged).toContain(
+      assertStringIncludes(
+        logged,
         "Renewal rejected: listing 55 is not an active hidden purchase-only renewal tier",
       );
       expect(await renewalLogEntry()).toBeUndefined();
@@ -174,7 +182,8 @@ describeWithEnv(
         unknownIndex,
         true,
       );
-      expect(logged).toContain(
+      assertStringIncludes(
+        logged,
         "Renewal site not found for token index abcdefgh...",
       );
     });
@@ -187,11 +196,12 @@ describeWithEnv(
         tokenIndex,
         false,
       );
-      expect(logged).toContain("CDN_REQUEST");
+      assertStringIncludes(logged, "CDN_REQUEST");
       // The operator alert names the failing area, so a push failure is
       // distinguishable from any other alert the site sends.
-      expect(alerts).toContain("CDN_REQUEST");
-      expect(logged).toContain(
+      assertArrayIncludes(alerts ?? [], ["CDN_REQUEST"]);
+      assertStringIncludes(
+        logged,
         "Failed to push READ_ONLY_FROM for renewal of 'Renew Fail': provider refused",
       );
       expect(await renewalLogEntry()).toBeUndefined();

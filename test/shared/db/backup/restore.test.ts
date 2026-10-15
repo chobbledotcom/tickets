@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { zipSync } from "fflate";
@@ -249,7 +250,10 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
         "SELECT item_type FROM image_uses",
       );
       expect(use?.item_type).toBe("listing");
-      expect(await listingColumnNames()).not.toContain("image_url");
+      assert(
+        !(await listingColumnNames()).includes("image_url"),
+        "the value should not contain the searched item",
+      );
     });
   });
 
@@ -283,7 +287,10 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
       const holidayColumns = await queryAll<{ name: string }>(
         "SELECT name FROM pragma_table_info('holidays')",
       );
-      expect(holidayColumns.map((c) => c.name)).not.toContain("stray_col");
+      assert(
+        !holidayColumns.map((c) => c.name).includes("stray_col"),
+        "the value should not contain the searched item",
+      );
     });
   });
 });

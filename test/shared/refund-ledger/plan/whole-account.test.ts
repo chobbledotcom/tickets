@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -330,6 +331,6 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     await expectRefundNeedsManualAdjustment();
     // "Logs" is part of the contract: the operator's only breadcrumb for a
     // stranded refund is the classified error.
-    expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+    assertStringIncludes(errors.lastMessage() ?? "", "E_LEDGER_POST");
   });
 });

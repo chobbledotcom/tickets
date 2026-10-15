@@ -1,4 +1,5 @@
 import { type Client, createClient } from "@libsql/client";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -227,7 +228,7 @@ describeWithEnv(
 
       expect(state.latestVersion).toBe(LATEST_TAG);
       expect(state.latestVersionName).toBe("2099-01-01 - Big Update");
-      expect(state.siteVersionLabel).toContain("2026");
+      assertStringIncludes(state.siteVersionLabel ?? "", "2026");
       expect(state.updateAvailable).toBe(true);
       expect(state.upToDate).toBe(false);
       expect(state.providerConfigured).toBe(true);
@@ -292,7 +293,7 @@ describeWithEnv(
       const state = await loadBuiltSiteUpdateState(site);
 
       expect(state.latestVersion).toBe("");
-      expect(state.siteVersionLabel).toContain("2026");
+      assertStringIncludes(state.siteVersionLabel ?? "", "2026");
       expect(state.updateAvailable).toBe(false);
       expect(state.upToDate).toBe(false);
     });

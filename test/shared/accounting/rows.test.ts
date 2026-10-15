@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -84,16 +85,19 @@ describe("accounting > rows > bookingLegBatchInsert", () => {
     const built = bookingLegBatchInsert(leg, recordedAt, "MAX(id)", 7, guard);
     // source is the attendee account -> subquery; destination (revenue) stays a
     // bound literal. Swapping the two would post the sale to a phantom account.
-    expect(built.sql).toContain("CAST(MAX(id) AS TEXT)");
+    assertStringIncludes(built.sql, "CAST(MAX(id) AS TEXT)");
     expect(built.sql.indexOf("CAST(MAX(id) AS TEXT)")).toBe(
       built.sql.lastIndexOf("CAST(MAX(id) AS TEXT)"),
     );
-    expect(built.args).toContain(7); // the subquery's bound arg
-    expect(built.args).toContain("9"); // revenue id still a bound literal
-    expect(built.args).not.toContain("3"); // attendee id replaced by subquery
+    assertArrayIncludes(built.args, [7]); // the subquery's bound arg
+    assertArrayIncludes(built.args, ["9"]); // revenue id still a bound literal
+    assert(
+      !built.args.includes("3"),
+      "the value should not contain the searched item",
+    ); // attendee id replaced by subquery
     expect(built.args.at(-1)).toBe("g"); // guard args come last
     expect(built.sql).toMatch(/^INSERT OR IGNORE INTO transfers /);
-    expect(built.sql).toContain("WHERE ? = 'g'");
+    assertStringIncludes(built.sql, "WHERE ? = 'g'");
   });
 });
 

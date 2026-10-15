@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
@@ -44,7 +45,10 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
       await paymentReferenceIndex(payment),
     );
     expect(stored?.provider_reference.startsWith("hyb:1:")).toBe(true);
-    expect(stored?.provider_reference).not.toContain(payment.reference);
+    assert(
+      stored?.provider_reference?.includes(payment.reference) === false,
+      "the value should not contain the searched item",
+    );
   });
 
   for (const [reference, charge, refundedAmount, expected] of [

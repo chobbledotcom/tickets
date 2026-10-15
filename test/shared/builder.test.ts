@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -205,10 +206,10 @@ describeWithEnv(
 
           const secretsSet = secretsFrom(secretStub);
           const secretNames = secretsSet.map(([name]) => name);
-          expect(secretNames).toContain("DB_URL");
-          expect(secretNames).toContain("DB_TOKEN");
-          expect(secretNames).toContain("DB_ENCRYPTION_KEY");
-          expect(secretNames).toContain("BUNNY_SCRIPT_ID");
+          assertArrayIncludes(secretNames ?? [], ["DB_URL"]);
+          assertArrayIncludes(secretNames ?? [], ["DB_TOKEN"]);
+          assertArrayIncludes(secretNames ?? [], ["DB_ENCRYPTION_KEY"]);
+          assertArrayIncludes(secretNames ?? [], ["BUNNY_SCRIPT_ID"]);
 
           expectSecret(secretsSet, "DB_URL", "libsql://test.turso.io");
           expectSecret(secretsSet, "BUNNY_SCRIPT_ID", "42");
@@ -361,7 +362,7 @@ describeWithEnv(
         async (tursoStub) => {
           const result = await builderApi.createDatabase("My Site", "turso");
           expect(result.ok).toBe(true);
-          if (result.ok) expect(result.value.dbUrl).toContain("turso.io");
+          if (result.ok) assertStringIncludes(result.value.dbUrl, "turso.io");
           expect(tursoStub.calls).toHaveLength(1);
         },
       ));
@@ -381,7 +382,7 @@ describeWithEnv(
         async (bunnyStub) => {
           const result = await builderApi.createDatabase("My Site", "bunny");
           expect(result.ok).toBe(true);
-          if (result.ok) expect(result.value.dbUrl).toContain("bunny.io");
+          if (result.ok) assertStringIncludes(result.value.dbUrl, "bunny.io");
           expect(bunnyStub.calls).toHaveLength(1);
         },
       ));
@@ -432,9 +433,18 @@ describeWithEnv(
           expect(result.ok).toBe(true);
           const secrets = setEnvStub.calls[0]!.args[1] as [string, string][];
           const names = secrets.map(([name]) => name);
-          expect(names).not.toContain("BUNNY_API_KEY");
-          expect(names).not.toContain("BUNNY_DNS_ZONE_ID");
-          expect(names).not.toContain("BUNNY_DNS_SUBDOMAIN_SUFFIX");
+          assert(
+            !names.includes("BUNNY_API_KEY"),
+            "the value should not contain the searched item",
+          );
+          assert(
+            !names.includes("BUNNY_DNS_ZONE_ID"),
+            "the value should not contain the searched item",
+          );
+          assert(
+            !names.includes("BUNNY_DNS_SUBDOMAIN_SUFFIX"),
+            "the value should not contain the searched item",
+          );
         },
       );
     });

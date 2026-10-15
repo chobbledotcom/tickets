@@ -4,6 +4,7 @@
  * servicing holds. The kind-aware ref link builder built on top of it is
  * covered in `test/shared/attendee-links.test.ts`.
  */
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {

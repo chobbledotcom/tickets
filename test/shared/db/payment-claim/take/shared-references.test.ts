@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, requireOne } from "#db/client.ts";
@@ -230,9 +231,10 @@ describeWithEnv(
       });
 
       expect(result).toEqual({ kind: "too_many_reference_holders" });
-      expect(
-        queries.find((sql) => sql.includes("attendee_id NOT IN")),
-      ).toContain(`LIMIT ${FIRST_REFUSED_SHARING_ROW_COUNT}`);
+      assertStringIncludes(
+        queries.find((sql) => sql.includes("attendee_id NOT IN")) ?? "",
+        `LIMIT ${FIRST_REFUSED_SHARING_ROW_COUNT}`,
+      );
       const state = await execute(
         `SELECT COUNT(*) AS row_count,
                 SUM(CASE WHEN protected_state != '' THEN 1 ELSE 0 END)

@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -120,9 +121,15 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
       const allLog = await withTestSession(() => getAllActivityLog());
       const messages = allLog.map((e) => e.message);
-      expect(messages).not.toContain("Action for listing");
-      expect(messages).not.toContain("Another action");
-      expect(messages).toContain("Global action");
+      assert(
+        !messages.includes("Action for listing"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !messages.includes("Another action"),
+        "the value should not contain the searched item",
+      );
+      assertArrayIncludes(messages ?? [], ["Global action"]);
     });
 
     // Book one attendee onto two listings, with distinct quantities so an
@@ -289,7 +296,10 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       );
       try {
         const listings = await getAllListings();
-        expect(listings.map((item) => item.id)).not.toContain(listing.id);
+        assert(
+          !listings.map((item) => item.id).includes(listing.id),
+          "the value should not contain the searched item",
+        );
       } finally {
         replicaRead.restore();
       }

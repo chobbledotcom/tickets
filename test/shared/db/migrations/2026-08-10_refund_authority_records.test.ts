@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -137,7 +138,8 @@ describeWithEnv(
 
       await migration().up();
 
-      expect(await storedIndexSql(QUEUE_INDEX)).toContain(
+      assertStringIncludes(
+        await storedIndexSql(QUEUE_INDEX),
         `ON processed_payments(attendee_id) WHERE protected_state != ''`,
       );
     });

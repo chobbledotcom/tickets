@@ -13,6 +13,7 @@
  *     `createServicingEvent(buildDuplicateServicingInput(original))`.
  */
 // jscpd:ignore-start
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";

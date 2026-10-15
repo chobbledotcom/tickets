@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -55,10 +56,14 @@ describe("buildCapacityCondition", () => {
   test("date-less with exclusion: the group count carries a real exclusion subquery", () => {
     const cond = capacityStatement(LISTING, QTY, null, EXCLUDE);
     expect(occurrences(cond.sql, "- COALESCE((")).toBe(2);
-    expect(flatSql(cond.sql)).toContain(
+    assertStringIncludes(
+      flatSql(cond.sql),
       "FROM listing_attendees AS attendee JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id WHERE groupListing.group_id = groupRow.id AND attendee.attendee_id = ?3",
     );
-    expect(cond.sql).not.toContain("undefined");
+    assert(
+      !cond.sql.includes("undefined"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("date-less with exclusion: both counts subtract the attendee's rows", () => {
@@ -68,18 +73,27 @@ describe("buildCapacityCondition", () => {
 
   test("dated: every listing-type predicate comes from the rule table", () => {
     const cond = capacityStatement(LISTING, QTY, DAY);
-    expect(cond.sql).toContain(
+    assertStringIncludes(
+      cond.sql,
       capacityRuleTypeSql("perDateCap", "listing.listing_type"),
     );
-    expect(cond.sql).toContain(
+    assertStringIncludes(
+      cond.sql,
       capacityRuleTypeSql("dateLessCap", "memberListing.listing_type"),
     );
-    expect(cond.sql).toContain(
+    assertStringIncludes(
+      cond.sql,
       capacityRuleTypeSql("perDateCap", "memberListing.listing_type"),
     );
     // No hand-written type comparison survives anywhere in the guard.
-    expect(cond.sql).not.toContain("!= 'daily'");
-    expect(cond.sql).not.toContain("= 'daily'");
+    assert(
+      !cond.sql.includes("!= 'daily'"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !cond.sql.includes("= 'daily'"),
+      "the value should not contain the searched item",
+    );
     expect(cond.args).toEqual([LISTING, QTY, ...dayRangeArgs(DAY)]);
   });
 
@@ -102,7 +116,10 @@ describe("buildCapacityCondition", () => {
         capacityRuleTypeSql("dateLessCap", "memberListing.listing_type"),
       ),
     ).toBe(2);
-    expect(cond.sql).not.toContain("undefined");
+    assert(
+      !cond.sql.includes("undefined"),
+      "the value should not contain the searched item",
+    );
     expect(cond.args).toEqual([LISTING, QTY, EXCLUDE, endAt, startAt]);
   });
 

@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -77,11 +78,13 @@ describeWithEnv(
 
         expect(await tableExists("email_preferences")).toBe(false);
         expect(await tableExists("contact_preferences")).toBe(true);
-        expect(await columnNames("contact_preferences")).not.toContain(
-          "email_hash",
+        assert(
+          !(await columnNames("contact_preferences")).includes("email_hash"),
+          "the value should not contain the searched item",
         );
-        expect(await columnNames("contact_preferences")).not.toContain(
-          "created",
+        assert(
+          !(await columnNames("contact_preferences")).includes("created"),
+          "the value should not contain the searched item",
         );
         const rows = await getDb().execute(
           "SELECT contact_hash, unsubscribed, visits, stats_blob, last_activity FROM contact_preferences",
@@ -177,8 +180,8 @@ describeWithEnv(
         await runContactPreferencesMigration();
 
         const columns = await columnNames("contact_preferences");
-        expect(columns).toContain("contact_hash");
-        expect(columns).toContain("email_hash");
+        assertArrayIncludes(columns ?? [], ["contact_hash"]);
+        assertArrayIncludes(columns ?? [], ["email_hash"]);
         expect(await tableRowCount("contact_preferences")).toBe(1);
       });
     });

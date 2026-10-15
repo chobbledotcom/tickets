@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
@@ -43,7 +44,10 @@ describe("defineStoredJson", () => {
       ),
     );
     expect(error.cause).toBeUndefined();
-    expect(error.message).not.toContain(secret);
+    assert(
+      !error.message.includes(secret),
+      "the value should not contain the searched item",
+    );
   });
 
   test("rejects extra object fields", () => {

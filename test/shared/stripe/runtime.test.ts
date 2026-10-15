@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -140,7 +141,8 @@ describeStripe("Stripe client configuration", () => {
     const debugSpy = spy(console, "debug");
     try {
       expect(await stripeClientRuntime.get()).toBeNull();
-      expect(debugSpy.calls[0]?.args[0]).toContain(
+      assertStringIncludes(
+        debugSpy.calls[0]?.args[0] ?? "",
         "No secret key configured, cannot create client",
       );
     } finally {

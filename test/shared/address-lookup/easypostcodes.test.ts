@@ -3,6 +3,7 @@
  * the API fetch (stubbed at globalThis.fetch).
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -164,14 +165,16 @@ describe("fetchEasypostcodesAddresses", () => {
     using _fetch = stubFetch(new Error("connection refused"));
     const result = await fetchEasypostcodesAddresses("SW1A 1AA", "k");
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain("connection refused");
+    if (!result.ok)
+      assertStringIncludes(result.error ?? "", "connection refused");
   });
 
   test("reports an unexpected response shape as a failure", async () => {
     using _fetch = stubFetch(new Response('{"weird":true}'));
     const result = await fetchEasypostcodesAddresses("SW1A 1AA", "k");
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain("unexpected response");
+    if (!result.ok)
+      assertStringIncludes(result.error ?? "", "unexpected response");
   });
 });
 

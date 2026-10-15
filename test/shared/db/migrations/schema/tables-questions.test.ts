@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { questionTables } from "#db/migrations/schema/tables-questions.ts";
@@ -18,5 +19,8 @@ test("versions built-site data without the retired prune marker", () => {
     "site_data_revision",
     "INTEGER NOT NULL DEFAULT 0",
   ]);
-  expect(columns.map(([name]) => name)).not.toContain("last_pruned");
+  assert(
+    !columns.map(([name]) => name).includes("last_pruned"),
+    "the value should not contain the searched item",
+  );
 });

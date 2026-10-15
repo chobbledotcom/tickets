@@ -1,3 +1,4 @@
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import paymentRecords from "#db/migrations/2026-07-26_payment_records.ts";
@@ -11,7 +12,7 @@ describe("db > migrations > payment records", () => {
   test("is registered under the id it declares", () => {
     // The id is what the applied-marker is written under: a mismatch with the
     // registry would run the migration again on every boot.
-    expect(MIGRATION_IDS).toContain(migration.id);
+    assertArrayIncludes(MIGRATION_IDS ?? [], [migration.id]);
     expect(migration.id).toBe("2026-07-26_payment_records");
   });
 
@@ -29,6 +30,6 @@ describe("db > migrations > payment records", () => {
   });
 
   test("says what it does", () => {
-    expect(migration.description).toContain("payment record");
+    assertStringIncludes(migration.description, "payment record");
   });
 });

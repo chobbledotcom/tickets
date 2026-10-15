@@ -1,4 +1,6 @@
 /* jscpd:ignore-start -- imports */
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
@@ -99,10 +101,12 @@ describeWithEnv(
           const result = await bunnyCdnApi.deployScriptCode("console.log(1)");
           expect(result).toEqual({ ok: true });
           expect(fetchStub.calls).toHaveLength(2);
-          expect(String(fetchStub.calls[0]!.args[0])).toContain(
+          assertStringIncludes(
+            String(fetchStub.calls[0]!.args[0]),
             "/compute/script/99/code",
           );
-          expect(String(fetchStub.calls[1]!.args[0])).toContain(
+          assertStringIncludes(
+            String(fetchStub.calls[1]!.args[0]),
             "/compute/script/99/publish",
           );
           expect(
@@ -124,10 +128,12 @@ describeWithEnv(
         async (fetchStub) => {
           const result = await bunnyCdnApi.deployScriptCode("code", 12345);
           expect(result).toEqual({ ok: true });
-          expect(String(fetchStub.calls[0]!.args[0])).toContain(
+          assertStringIncludes(
+            String(fetchStub.calls[0]!.args[0]),
             "/compute/script/12345/code",
           );
-          expect(String(fetchStub.calls[1]!.args[0])).toContain(
+          assertStringIncludes(
+            String(fetchStub.calls[1]!.args[0]),
             "/compute/script/12345/publish",
           );
         },
@@ -174,7 +180,8 @@ describeWithEnv(
       using fetchStub = stubFetch(new Response(null, { status: 204 }));
       const result = await bunnyCdnApi.publishEdgeScript(42);
       expect(result.ok).toBe(true);
-      expect(String(fetchStub.calls[0]!.args[0])).toContain(
+      assertStringIncludes(
+        String(fetchStub.calls[0]!.args[0]),
         "/compute/script/42/publish",
       );
       expect((fetchStub.calls[0]!.args[1] as RequestInit).method).toBe("POST");
@@ -201,7 +208,8 @@ describeWithEnv(
         "libsql://test",
       );
       expect(result.ok).toBe(true);
-      expect(String(fetchStub.calls[0]!.args[0])).toContain(
+      assertStringIncludes(
+        String(fetchStub.calls[0]!.args[0]),
         "/compute/script/42/secrets",
       );
       const init = fetchStub.calls[0]!.args[1] as RequestInit;
@@ -246,7 +254,8 @@ describeWithEnv(
         () => stubFetch(new Response(JSON.stringify({ Secrets: [] }))),
         async (fetchStub) => {
           await bunnyCdnApi.listEdgeScriptSecrets(7);
-          expect(String(fetchStub.calls[0]!.args[0])).toContain(
+          assertStringIncludes(
+            String(fetchStub.calls[0]!.args[0]),
             "/compute/script/7/secrets",
           );
           // GET is the default method (no explicit method on the request init).

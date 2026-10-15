@@ -4,6 +4,7 @@
  * actually builds, so a renamed id or a wrong path fails here rather than
  * making the boot probe and the migration runner disagree on the same line.
  */
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { loadMigrations } from "#db/migrations/context.ts";

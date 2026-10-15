@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { WalletPassData } from "#routes/tickets/token-utils.ts";
@@ -170,7 +171,7 @@ describe("google-wallet", () => {
       expect(payload.iss).toBe("test@test-project.iam.gserviceaccount.com");
       expect(payload.aud).toBe("google");
       expect(payload.typ).toBe("savetowallet");
-      expect([before, after]).toContain(payload.iat);
+      assertArrayIncludes([before, after], [payload.iat]);
     });
 
     test("includes listing ticket class and object in payload", async () => {

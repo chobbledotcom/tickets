@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { LedgerConflictError } from "#accounting/conflicts.ts";
@@ -80,7 +81,7 @@ describe("db > accounting > store", () => {
         ]),
       );
       expect(error).toBeInstanceOf(LedgerConflictError);
-      expect(error.message).toContain("refers to no transfer");
+      assertStringIncludes(error.message, "refers to no transfer");
       expect((await allTransfers()).length).toBe(0);
     });
 
@@ -126,7 +127,7 @@ describe("db > accounting > store", () => {
       const error = await rejection(
         postTransfers([tx({ amount: 0, reference: "bad" })]),
       );
-      expect(error.message).toContain("non_positive_amount");
+      assertStringIncludes(error.message, "non_positive_amount");
       expect((await allTransfers()).length).toBe(0);
     });
 
@@ -174,7 +175,7 @@ describe("db > accounting > store", () => {
           throw new Error("surrounding work failed");
         }),
       );
-      expect(error.message).toContain("surrounding work failed");
+      assertStringIncludes(error.message, "surrounding work failed");
       expect((await allTransfers()).length).toBe(0);
     });
 
@@ -186,7 +187,7 @@ describe("db > accounting > store", () => {
           postTransfersTx(t, [tx({ amount: -5, reference: "bad" })]),
         ),
       );
-      expect(error.message).toContain("non_positive_amount");
+      assertStringIncludes(error.message, "non_positive_amount");
       expect((await allTransfers()).length).toBe(0);
     });
 
@@ -214,7 +215,10 @@ describe("db > accounting > store", () => {
         ),
       );
       expect(error).toBeInstanceOf(LedgerConflictError);
-      expect(error.message).toContain("already belongs to a different event");
+      assertStringIncludes(
+        error.message,
+        "already belongs to a different event",
+      );
       expect((await allTransfers()).length).toBe(1);
     });
 
@@ -251,7 +255,7 @@ describe("db > accounting > store", () => {
         ),
       );
       expect(error).toBeInstanceOf(LedgerConflictError);
-      expect(error.message).toContain("refers to no transfer");
+      assertStringIncludes(error.message, "refers to no transfer");
       expect((await allTransfers()).length).toBe(0);
     });
   });
@@ -310,7 +314,7 @@ describe("db > accounting > store", () => {
         postTransferGroups([[{ ...sale!, amount: 9999 }, pay!]]),
       );
       expect(error).toBeInstanceOf(LedgerConflictError);
-      expect(error.message).toContain("amount");
+      assertStringIncludes(error.message, "amount");
       expect((await allTransfers()).length).toBe(2);
     });
 
@@ -322,7 +326,7 @@ describe("db > accounting > store", () => {
         ]),
       );
       expect(error).toBeInstanceOf(LedgerConflictError);
-      expect(error.message).toContain("different event");
+      assertStringIncludes(error.message, "different event");
       expect((await allTransfers()).length).toBe(1);
     });
 
@@ -351,7 +355,10 @@ describe("db > accounting > store", () => {
           ],
         ]),
       );
-      expect(error.message).toContain("duplicate reference across the batch");
+      assertStringIncludes(
+        error.message,
+        "duplicate reference across the batch",
+      );
       expect((await allTransfers()).length).toBe(0);
     });
 
@@ -371,7 +378,10 @@ describe("db > accounting > store", () => {
           ],
         ]),
       );
-      expect(error.message).toContain("duplicate eventGroup across the batch");
+      assertStringIncludes(
+        error.message,
+        "duplicate eventGroup across the batch",
+      );
       expect((await allTransfers()).length).toBe(0);
     });
 
@@ -382,7 +392,7 @@ describe("db > accounting > store", () => {
           [tx({ amount: 0, eventGroup: "evt-b", reference: "bad" })],
         ]),
       );
-      expect(error.message).toContain("non_positive_amount");
+      assertStringIncludes(error.message, "non_positive_amount");
       // All-or-nothing: the valid group is not written either.
       expect((await allTransfers()).length).toBe(0);
     });
@@ -437,7 +447,7 @@ describe("db > accounting > store", () => {
         ]),
       );
       expect(error).toBeInstanceOf(LedgerConflictError);
-      expect(error.message).toContain("refers to no transfer");
+      assertStringIncludes(error.message, "refers to no transfer");
     });
   });
 });

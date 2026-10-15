@@ -3,6 +3,7 @@
  * way the first part's mirror does: ids and loaders are compared against the
  * migration the module on disk actually builds.
  */
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { loadMigrations } from "#db/migrations/context.ts";

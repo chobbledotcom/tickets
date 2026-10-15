@@ -1,5 +1,6 @@
 /** The checks a post runs before writing are read in one go, not one by one. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { transfersByEventGroup } from "#accounting/queries.ts";
@@ -73,9 +74,9 @@ describe("db > accounting > store > snapshot batching", () => {
       postTransferGroups([reversalOf(originalId)]),
     );
 
-    expect(snapshot).toContain("event_group IN");
-    expect(snapshot).toContain("reference IN");
-    expect(snapshot).toContain("id IN");
+    assertStringIncludes(String(snapshot), "event_group IN");
+    assertStringIncludes(String(snapshot), "reference IN");
+    assertStringIncludes(String(snapshot), "id IN");
   });
 
   test("skips the round trip entirely when there is nothing to check", async () => {

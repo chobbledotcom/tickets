@@ -1,4 +1,5 @@
 import type { InStatement } from "@libsql/client";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -124,7 +125,9 @@ describeWithEnv(
       await initDb();
 
       expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
-      expect(debugLines()).toContain("[Migration] Updating version marker...");
+      assertArrayIncludes(debugLines() ?? [], [
+        "[Migration] Updating version marker...",
+      ]);
     });
 
     test("a fresh database says it is starting from the current schema", async () => {
@@ -133,9 +136,9 @@ describeWithEnv(
 
       await initDb({ allowMissingSettings: true });
 
-      expect(debugLines()).toContain(
+      assertArrayIncludes(debugLines() ?? [], [
         "[Migration] Initializing fresh database from current schema",
-      );
+      ]);
     });
 
     test("outside a request, the build's own commit is stored before boot returns", async () => {
@@ -163,9 +166,9 @@ describeWithEnv(
       // does not leave the tests after this one on a half-built schema.
       await initDb();
 
-      expect(debugLines()).toContain(
+      assertArrayIncludes(debugLines() ?? [], [
         "[Migration] Rebuilding wiped database from current schema",
-      );
+      ]);
     });
 
     test("migrations are batched across requests when the request budget applies", async () => {
@@ -250,10 +253,12 @@ describeWithEnv(
     test("a held lock says so, and how long it is honoured", async () => {
       const { error } = await bootWithLockHeld(undefined);
 
-      expect(String(error)).toContain(
+      assertStringIncludes(
+        String(error),
         "Database migration is already in progress (migration_lock held).",
       );
-      expect(String(error)).toContain(
+      assertStringIncludes(
+        String(error),
         "reclaimed automatically after 2 minutes",
       );
     });

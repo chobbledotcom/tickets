@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getActiveHolidays, holidays } from "#db/holidays.ts";
@@ -27,7 +28,10 @@ describeWithEnv("db > holidays", { db: true }, () => {
     });
 
     const active = await getActiveHolidays();
-    expect(active.map((holiday) => holiday.name)).toContain("Final Day");
+    assertArrayIncludes(
+      active.map((holiday) => holiday.name),
+      ["Final Day"],
+    );
   });
 
   test("lists every stored holiday by start date", async () => {

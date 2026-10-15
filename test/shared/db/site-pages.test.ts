@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -51,7 +52,10 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       ]);
       // At rest, everything is ciphertext (enc:… envelope), not plaintext.
       expectEncryptedAtRest(raw[0]?.name, raw[0]?.slug, raw[0]?.content);
-      expect(raw[0]?.name).not.toContain("Name about");
+      assert(
+        raw[0]?.name?.includes("Name about") === false,
+        "the value should not contain the searched item",
+      );
 
       const back = await getSitePageById(created.id);
       expect(back?.name).toBe("Name about");
@@ -112,7 +116,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
           name: "Fresh",
         });
         const slugs = (await sitePages.getAll()).map((r) => r.slug);
-        expect(slugs).toContain("fresh-cache");
+        assertArrayIncludes(slugs ?? [], ["fresh-cache"]);
         // The returned row is built from the input (no post-commit read-back),
         // and matches what a fresh read decrypts.
         expect(created.meta_title).toBe("Meta");
@@ -198,8 +202,9 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     });
 
     test("cache stats identify the site pages cache by name", () => {
-      expect(getAllCacheStats().map((stat) => stat.name)).toContain(
-        "site_pages_nav",
+      assertArrayIncludes(
+        getAllCacheStats().map((stat) => stat.name),
+        ["site_pages_nav"],
       );
     });
   });

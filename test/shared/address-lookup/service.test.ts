@@ -3,6 +3,7 @@
  * fetch + cache fill on a miss, and generic (logged) provider failures.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import {
@@ -103,7 +104,7 @@ describeWithEnv("address lookup service", { db: true }, () => {
       error: "Address lookup failed — please try again or type your address",
       ok: false,
     });
-    expect(errors.lastMessage()).toContain("E_ADDRESS_LOOKUP");
+    assertStringIncludes(errors.lastMessage() ?? "", "E_ADDRESS_LOOKUP");
     // Failures are never cached — the next attempt retries the provider.
     const index = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
     expect(await getCachedAddresses(index)).toBeNull();

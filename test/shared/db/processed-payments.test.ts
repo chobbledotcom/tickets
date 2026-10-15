@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -137,7 +138,10 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       const row = await getProcessedPayment("sess_failenc");
       // The raw column is ciphertext: the user-facing message can embed an
       // encrypted-at-rest listing name, so it must not be stored in the clear.
-      expect(row!.failure_data).not.toContain("Private Listing Name");
+      assert(
+        !row!.failure_data.includes("Private Listing Name"),
+        "the value should not contain the searched item",
+      );
       expect(row!.failure_data).not.toBe(
         '{"error":"Private Listing Name sold out","status":409}',
       );
@@ -258,8 +262,14 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         await reserveSession("sess_error");
         throw new Error("should not reach here");
       } catch (e) {
-        expect(String(e)).not.toContain("should not reach here");
-        expect(String(e)).not.toContain("UNIQUE constraint");
+        assert(
+          !String(e).includes("should not reach here"),
+          "the value should not contain the searched item",
+        );
+        assert(
+          !String(e).includes("UNIQUE constraint"),
+          "the value should not contain the searched item",
+        );
       }
 
       // Rebuild it from the real schema rather than a copy of it. A
