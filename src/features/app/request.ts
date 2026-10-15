@@ -11,6 +11,7 @@ import { assertSettingsReadsDeclared } from "#db/settings-audit.ts";
 import { once } from "#fp";
 import { withMessageGroups } from "#i18n";
 import { SETUP_MESSAGE_GROUPS } from "#locales/groups.ts";
+import { getPrefix } from "#routes/app/prefixes.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
@@ -25,7 +26,7 @@ import {
   temporaryErrorResponse,
   withCookie,
 } from "#routes/response.ts";
-import { getPrefix, settingsForPath } from "#routes/settings-bundles.ts";
+import { settingsForPath } from "#routes/settings-bundles.ts";
 import { routeStatic } from "#routes/static.ts";
 import { parseCookies, parseRequest } from "#routes/url.ts";
 import {

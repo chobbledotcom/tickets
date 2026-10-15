@@ -94,11 +94,6 @@
     "wordy": 1,
     "participle": 1
   },
-  "src/features/app/routes.ts": {
-    "semicolon": 2,
-    "wordy": 1,
-    "present-perfect": 1
-  },
   "src/features/app/rules.ts": {
     "banned-modal": 2
   },
@@ -310,10 +305,7 @@
     "semicolon": 3
   },
   "src/features/settings-bundles.ts": {
-    "long-sentence": 3,
-    "contraction": 1,
-    "banned-modal": 2,
-    "semicolon": 3
+    "semicolon": 1
   },
   "src/features/tickets/index.ts": {
     "long-sentence": 3,

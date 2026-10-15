@@ -6,7 +6,8 @@ import {
   recordSettingsLoaded,
   setSettingsAuditEnabled,
 } from "#db/settings-audit.ts";
-import { getPrefix, settingsForPath } from "#routes/settings-bundles.ts";
+import { getPrefix } from "#routes/app/prefixes.ts";
+import { settingsForPath } from "#routes/settings-bundles.ts";
 import { paymentProviderUsesSandbox } from "#shared/payment-provider-status.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
