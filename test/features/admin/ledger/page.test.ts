@@ -77,17 +77,23 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
     ]);
   };
 
-  /** The exact text of the top table's net cell: the assertion reads that
-   * cell alone, so another row's similar amount or a missing row cannot
-   * pass. */
+  /** The exact text of the top table's net cell: the labelled row is
+   * isolated first, and the value cell must lie inside that row, so another
+   * row's amount cannot pass and a cell-less labelled row cannot borrow
+   * one. */
   const netCellValue = (body: string): string => {
     const labelAt = body.indexOf("Net after service costs");
     expect(labelAt).toBeGreaterThan(-1);
-    const cellStart = body.indexOf("<td>", labelAt);
+    const rowStart = body.lastIndexOf("<tr>", labelAt);
+    expect(rowStart).toBeGreaterThan(-1);
+    const rowEnd = body.indexOf("</tr>", labelAt);
+    expect(rowEnd).toBeGreaterThan(-1);
+    const row = body.slice(rowStart, rowEnd);
+    const cellStart = row.indexOf("<td>");
     expect(cellStart).toBeGreaterThan(-1);
-    const cellEnd = body.indexOf("</td>", cellStart);
+    const cellEnd = row.indexOf("</td>", cellStart);
     expect(cellEnd).toBeGreaterThan(-1);
-    return body.slice(cellStart + 4, cellEnd);
+    return row.slice(cellStart + 4, cellEnd);
   };
 
   test("shows servicing costs and the net beside the total income", async () => {
@@ -111,6 +117,15 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
     expect(incomeAt).toBeLessThan(costsAt);
     expect(costsAt).toBeLessThan(netAt);
     expect(netAt).toBeLessThan(dueAt);
+  });
+
+  test("the net cell helper rejects a labelled row whose cell sits in a later row", () => {
+    // Bong's trace: a labelled row with no value cell, followed by a row
+    // that carries the amount. The helper must not read past the labelled
+    // row for its value.
+    const malformed =
+      "<tr><th>Net after service costs</th></tr><tr><td>£250</td></tr>";
+    expect(() => netCellValue(malformed)).toThrow();
   });
 
   test("a ledger with no service costs shows the net equal to the income", async () => {
