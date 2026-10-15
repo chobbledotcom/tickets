@@ -11,6 +11,7 @@ import { getListingWithCount } from "#db/listings/records.ts";
 import { hasAnyPaymentReference } from "#db/payment-references.ts";
 import { getAttendeeTextAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { t } from "#i18n";
+import { emailPendingForAdminLines } from "#routes/admin/attendees-route-helpers.ts";
 import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
@@ -38,6 +39,7 @@ import {
 import {
   availableDayCounts,
   isPaidListing,
+  type ListingFields,
   type ListingWithCount,
 } from "#types";
 import {
@@ -114,6 +116,7 @@ const buildCreateAttendeeInput = (
     listing_type: string;
     customisable_days: boolean;
     duration_days: number;
+    fields: ListingFields;
   },
 ) => {
   const { name, email, phone, address, special_instructions, quantity, date } =
@@ -136,6 +139,13 @@ const buildCreateAttendeeInput = (
       },
     ],
     email: email || "",
+    // The confirmation email is owed the moment the attendee exists. The
+    // admin add never sends it itself, so the flag stays up until the
+    // Re-send notification action gets an accepted send. Webhooks are never
+    // owed for a hand-added attendee.
+    emailPending: emailPendingForAdminLines([
+      { fields: listing.fields, isBooked: quantity > 0 },
+    ]),
     name,
     phone: phone || "",
     source: "admin" as const,

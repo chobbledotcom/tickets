@@ -60,7 +60,7 @@ describeWithEnv(
     test("skips all emails when attendee has no email and no business email set", async () => {
       expect(
         await setupAndSendRegistration({}, [makeEntry({}, { email: "" })]),
-      ).toEqual({ failed: false });
+      ).toEqual({ buyerFailed: false, failed: false, ownerFailed: false });
       expect(fetch.callCount()).toBe(0);
     });
 
@@ -327,7 +327,9 @@ describeWithEnv(
       fetch.restubFetch(() => Promise.reject(new TypeError("Network error")));
 
       expect(await sendRegistrationEmails([makeEntry()], "GBP")).toEqual({
+        buyerFailed: true,
         failed: true,
+        ownerFailed: false,
       });
     });
   },

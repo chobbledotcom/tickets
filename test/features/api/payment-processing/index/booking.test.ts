@@ -14,7 +14,7 @@ import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
-
+import type { ValidatedSession } from "#routes/api/webhook-types.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -131,14 +131,15 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     ).toBeNull();
   });
 
-  /** A paid booking costs three database calls, answered or not. The answers,
-   * the questions-record, and the activity lines ride the create batch, and
-   * the post-commit queue writes nothing, so an answered booking costs the
-   * same as a bare one. A later stack layer clears the pending-notification
-   * flags in one more call after the sends settle. */
+  /** A paid booking costs three database calls, answered or not. The
+   * answers, the questions-record, and the activity lines ride the create
+   * batch — one write fewer than before the batch carried them, because the
+   * post-commit queue writes nothing, and a send-free booking runs no
+   * pending-flag clear batch — so an answered booking costs the same as a
+   * bare one. */
   const expectBookedInThreeCalls = async (
     id: string,
-    data: Parameters<typeof processPaymentSession>[1],
+    data: ValidatedSession,
   ): Promise<void> => {
     const calls = await countDatabaseCalls(3, async () => {
       expect((await processPaymentSession(id, data)).success).toBe(true);

@@ -7,7 +7,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#db/client.ts";
+import { getDb, queryOne } from "#db/client.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import {
   adminCheckinPost as checkIn,
@@ -93,6 +93,49 @@ describeWithEnv("adding an attendee by hand", { db: true }, () => {
       `/admin/listing/${listing.id}/attendees`,
       "Added Added By Hand",
     )(response);
+  });
+
+  test("owes the email the listing collects, and no webhooks", async () => {
+    // A hand-added attendee never gets an email from the add itself, so the
+    // email flag stays up until a Re-send notification is accepted. Webhooks
+    // are never owed for a hand-added attendee.
+    const { listing } = await setupListingAndAttendee({
+      listing: { fields: "email", webhookUrl: "https://hooks.example.com/x" },
+      name: "Existing",
+    });
+
+    const { response } = await adminFormPost(
+      `/admin/listing/${listing.id}/attendee`,
+      { email: "owed@example.com", name: "Owed Email", quantity: "1" },
+    );
+
+    expect(response.status).toBe(302);
+    const row = await queryOne<{
+      email_pending: number;
+      webhooks_pending: number;
+    }>(
+      `SELECT email_pending, webhooks_pending FROM attendees
+       WHERE id = (SELECT MAX(attendee_id) FROM listing_attendees WHERE listing_id = ?)`,
+      [listing.id],
+    );
+    expect(row).toEqual({ email_pending: 2, webhooks_pending: 0 });
+  });
+
+  test("owes no email when the listing collects none", async () => {
+    const { listing } = await setupListingAndAttendee({ name: "Existing" });
+
+    const { response } = await adminFormPost(
+      `/admin/listing/${listing.id}/attendee`,
+      { name: "No Email Owed", quantity: "1" },
+    );
+
+    expect(response.status).toBe(302);
+    const row = await queryOne<{ email_pending: number }>(
+      `SELECT email_pending FROM attendees
+       WHERE id = (SELECT MAX(attendee_id) FROM listing_attendees WHERE listing_id = ?)`,
+      [listing.id],
+    );
+    expect(row).toEqual({ email_pending: 0 });
   });
 
   test("refuses more places than the listing has left", async () => {

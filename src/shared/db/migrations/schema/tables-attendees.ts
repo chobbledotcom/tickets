@@ -45,6 +45,12 @@ export const attendeeTables: [name: string, table: Table][] = [
         ["pii_payment_session_id", "TEXT"],
         ["status_id", "INTEGER DEFAULT NULL"],
         ["split_logistics_agents", "INTEGER NOT NULL DEFAULT 0"],
+        // Whether a notification send is owed for this booking, and who the
+        // booking came from: 0 none, 1 booked online, 2 added by an admin.
+        // An owed send that never got through keeps the flag up, so the
+        // admin sees it.
+        ["email_pending", "INTEGER NOT NULL DEFAULT 0"],
+        ["webhooks_pending", "INTEGER NOT NULL DEFAULT 0"],
         // HMAC blind-index of the attendee's phone, populated lazily the first
         // time an admin texts them, so inbound SMS replies can be matched back
         // to the attendee without storing the number in the clear.

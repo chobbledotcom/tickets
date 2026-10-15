@@ -235,8 +235,9 @@ const TOKEN_ATTENDEE_BALANCE = remainingBalanceFromLedger(
 );
 
 /** The attendee columns a scan needs: identity, the token index its ticket
- * resolves by, the PII blob for the name, and the ledger balance. */
-const ATTENDEE_SCAN_COLUMNS = `${ATTENDEE_ALIAS}.id, ${ATTENDEE_ALIAS}.created, ${ATTENDEE_ALIAS}.kind, ${ATTENDEE_ALIAS}.ticket_token_index, ${ATTENDEE_ALIAS}.pii_blob, ${ATTENDEE_ALIAS}.status_id, ${TOKEN_ATTENDEE_BALANCE}`;
+ * resolves by, the PII blob for the name, and the ledger balance. The
+ * pending-notification flag columns ride along for the flag-clearing flow. */
+const ATTENDEE_SCAN_COLUMNS = `${ATTENDEE_ALIAS}.id, ${ATTENDEE_ALIAS}.created, ${ATTENDEE_ALIAS}.kind, ${ATTENDEE_ALIAS}.ticket_token_index, ${ATTENDEE_ALIAS}.pii_blob, ${ATTENDEE_ALIAS}.status_id, ${TOKEN_ATTENDEE_BALANCE}, ${ATTENDEE_ALIAS}.webhooks_pending`;
 
 type AttendeeScanRow = {
   id: number;
@@ -246,6 +247,7 @@ type AttendeeScanRow = {
   pii_blob: OwnerKeyEncrypted;
   status_id: number | null;
   remaining_balance: number;
+  webhooks_pending: number;
 };
 
 /** Assemble one attendee's full booking view from its row and lines. */
@@ -262,6 +264,7 @@ const attendeeWithBookingsBuild = (
   status_id: row.status_id,
   ticket_token: "",
   ticket_token_index: row.ticket_token_index,
+  webhooks_pending: row.webhooks_pending,
 });
 
 /**

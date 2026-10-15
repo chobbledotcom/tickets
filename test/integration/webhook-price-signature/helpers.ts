@@ -1,11 +1,15 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
+import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { getNoteRows } from "#db/notes/queries.ts";
 import { handleRequest } from "#routes";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { assertJson } from "#test-utils/assertions.ts";
+import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -106,6 +110,36 @@ export const setupWithListing = async (
     maxAttendees: 50,
     unitPrice: 1000,
     ...overrides,
+  });
+};
+
+/** A renewal-tier listing on a provisioned built site, with the Edge
+ * Scripting secret write stubbed out. Restores the stub with `.restore()`. */
+export const setupRenewalSite = async (siteName: string, host: string) => {
+  const edgeSecretCalls = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+    Promise.resolve({ ok: true as const }),
+  );
+  const listing = await setupWithListing({
+    hidden: true,
+    monthsPerUnit: 1,
+    purchaseOnly: true,
+  });
+  await insertBuiltSite(siteName, host, "", "", false, "5001");
+  const sites = await builtSites.getAll();
+  const site = sites.find((one) => one.name === siteName)!;
+  const { tokenIndex } = await provisionTestBuiltSite(site.id);
+  return { edgeSecretCalls, listing, site, tokenIndex };
+};
+
+/** Stubs the atomic create to commit the booking and then lose the result,
+ * the way a crashed response does. Restores with `.restore()`. */
+export const stubLostCreate = () => {
+  const createBooking = attendeesApi.createBookingAtomic;
+  return stub(attendeesApi, "createBookingAtomic", async (...args) => {
+    // The replay's create must commit: a fixture whose create failed fails
+    // the test's processed assertion downstream.
+    await createBooking(...args);
+    throw new Error("synthetic lost create result");
   });
 };
 

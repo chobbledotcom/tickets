@@ -240,6 +240,7 @@ const ADMIN_API_EXAMPLE_ATTENDEE = {
   split_logistics_agents: false,
   status_id: 3,
   ticket_token: "tok_9f3c7a1b",
+  webhooks_pending: 0,
 } satisfies AdminApiAttendee;
 
 /** The booking window a listing gets when its create body says nothing. */

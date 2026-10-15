@@ -11,7 +11,10 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createTestAttendee,
+  readPendingNotificationFlags,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { webhookMeta } from "#test-utils/factories.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
@@ -82,6 +85,30 @@ export const singleListingPayment = async (
   };
 };
 
+/** The same payment against a listing whose registration webhook is set, so
+ * the booking owes a webhook send beside its confirmation email. */
+export const singleListingPaymentWithWebhook = async (
+  id: string,
+  unitPrice: number,
+): Promise<{
+  data: ValidatedSession;
+  listing: Awaited<ReturnType<typeof createTestListing>>;
+}> => {
+  const listing = await createTestListing({
+    maxAttendees: 5,
+    unitPrice,
+    webhookUrl: "https://hooks.example.com/registration",
+  });
+  return {
+    data: trustedPayment(
+      id,
+      bookingIntent([{ e: listing.id, p: unitPrice, q: 1 }]),
+      unitPrice,
+    ),
+    listing,
+  };
+};
+
 export const ledgeredPaymentWithoutReservation = async (
   id: string,
   unitPrice: number,
@@ -134,4 +161,10 @@ export const bookedLine = async (
     entry: { attendee, listing: loaded! } as CreatedEntry,
     listingId: listing.id,
   };
+};
+
+/** Reads the booking's one attendee's pending notification flags back. */
+export const readBookingFlags = async (listingId: number) => {
+  const attendee = (await getAttendeesRaw(listingId))[0]!;
+  return readPendingNotificationFlags(attendee.id);
 };

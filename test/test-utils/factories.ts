@@ -134,6 +134,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   ticket_token: "test-token-1",
   // Hand-crafted fixture stand-in for the stored blind index — test cast.
   ticket_token_index: "test-token-index-1" as BlindIndex,
+  webhooks_pending: 0,
   ...overrides,
 });
 

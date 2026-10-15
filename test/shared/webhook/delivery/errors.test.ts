@@ -19,6 +19,7 @@ import {
   sendRegistrationWebhooks,
 } from "#shared/webhook/delivery.ts";
 import {
+  expectOneError,
   flushAsync,
   stubWebhookFetch,
   withErrorSpy,
@@ -43,14 +44,6 @@ const registrationLogs = (
     );
     return errorSpy.calls.map(({ args }) => String(args[0]));
   });
-
-const expectOneError = (logs: string[], code: string): string => {
-  expect(logs).toHaveLength(1);
-  const [log] = logs;
-  if (!log) throw new Error("Expected one error log");
-  expect(log).toContain(code);
-  return log;
-};
 
 describeWithEnv("registration delivery errors", { db: true }, () => {
   const fetchSpy = stubWebhookFetch();

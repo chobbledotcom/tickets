@@ -25,6 +25,10 @@ import {
   writeWithCreationWork,
 } from "#db/attendees/create-batch.ts";
 import { ATTENDEE_KIND, type AttendeeKind } from "#db/attendees/kind.ts";
+import {
+  PENDING_NOTIFICATION,
+  type PendingNotificationFlag,
+} from "#db/attendees/notification-flags.ts";
 import { annotateOrderParents } from "#db/attendees/order-parents.ts";
 import { contactFields, encryptAttendeeFields } from "#db/attendees/pii.ts";
 import { insert, type SqlStatement } from "#db/client.ts";
@@ -38,8 +42,10 @@ import { type Attendee, type ContactInfo, clampDurationDays } from "#types";
 /* jscpd:ignore-end */
 
 type AttendeeOrderFields = {
+  emailPending?: PendingNotificationFlag | undefined;
   kind?: AttendeeKind | undefined;
   statusId: number | null;
+  webhooksPending?: PendingNotificationFlag | undefined;
 };
 
 export const buildAttendeeInsert = (
@@ -49,11 +55,13 @@ export const buildAttendeeInsert = (
 ): SqlStatement =>
   insert("attendees", {
     created: enc.created,
+    email_pending: order.emailPending ?? PENDING_NOTIFICATION.none,
     kind: order.kind ?? ATTENDEE_KIND,
     pii_blob: enc.encryptedPiiBlob,
     pii_payment_session_id: piiPaymentSessionId,
     status_id: order.statusId,
     ticket_token_index: enc.ticketTokenIndex,
+    webhooks_pending: order.webhooksPending ?? PENDING_NOTIFICATION.none,
   });
 
 const contactInfoFromInput = (input: AttendeeInput): ContactInfo => ({
@@ -92,6 +100,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   status_id: input.statusId,
   ticket_token: input.ticketToken,
   ticket_token_index: input.ticketTokenIndex,
+  webhooks_pending: input.webhooksPending ?? PENDING_NOTIFICATION.none,
 });
 
 const prepareAttendeeWrite = async (
@@ -161,8 +170,10 @@ const prepareAttendeeWrite = async (
       attendeeInsert: buildAttendeeInsert(
         enc,
         {
+          emailPending: input.emailPending,
           kind: input.kind,
           statusId,
+          webhooksPending: input.webhooksPending,
         },
         piiPaymentSessionId,
       ),
@@ -200,6 +211,7 @@ const finishAttendeeWrite = (
         statusId: input.statusId ?? null,
         ticketToken: enc.ticketToken,
         ticketTokenIndex: enc.ticketTokenIndex,
+        webhooksPending: input.webhooksPending,
       }),
     ),
     success: true,

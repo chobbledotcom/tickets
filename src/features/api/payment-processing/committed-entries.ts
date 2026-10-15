@@ -25,6 +25,7 @@ type CommittedBookingRow = {
   remaining_balance: number;
   status_id: number | null;
   ticket_token_index: BlindIndex;
+  webhooks_pending: number;
 };
 
 /** Rebuild completion entries from committed primary rows and signed contact
@@ -53,7 +54,8 @@ export const committedEntries = async (
                    listingAttendee.quantity,
                    ${remainingBalanceFromLedger("attendee.id")},
                    attendee.status_id,
-                   attendee.ticket_token_index
+                   attendee.ticket_token_index,
+                   attendee.webhooks_pending
             FROM attendees AS attendee
             JOIN listing_attendees AS listingAttendee
               ON listingAttendee.attendee_id = attendee.id
@@ -83,6 +85,7 @@ export const committedEntries = async (
     status_id: row.status_id,
     ticket_token: ticketToken,
     ticket_token_index: row.ticket_token_index,
+    webhooks_pending: row.webhooks_pending,
   }));
   return pairEntriesByListing(attendees, validatedItems);
 };

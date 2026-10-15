@@ -158,6 +158,7 @@ const buildAttendeeView = (
   status_id: base.status_id,
   ticket_token: base.ticket_token,
   ticket_token_index: base.ticket_token_index,
+  webhooks_pending: base.webhooks_pending,
 });
 
 /**

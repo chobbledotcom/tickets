@@ -98,6 +98,10 @@ export const recoverOrRefundUnexpectedCreate = async ({
       validatedItems,
     );
     await queueRegistrationSends(entries, {
+      // The recovery replays the sends the original create batch owed but
+      // never ran. It owns their flags as that batch did: an accepted send
+      // clears, a refusal leaves the flag up.
+      clearPendingFlagsFor: [decision.attendeeId],
       freeTexts,
       siteTokenIndex: intent.siteTokenIndex,
       source: "public",
