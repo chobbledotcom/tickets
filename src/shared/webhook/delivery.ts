@@ -8,6 +8,7 @@ import { t, withMessageGroups } from "#i18n";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import {
   buyerConfirmationAttempted,
+  type RegistrationEmailResult,
   registrationEmailDelivery,
   sendRegistrationEmails,
 } from "#shared/email/registration.ts";
@@ -189,6 +190,54 @@ type RegistrationSend = {
   clearPendingFlagsFor?: readonly number[] | undefined;
 };
 
+/** Clears the pending flags a flag-owning send's sides earned, and reports
+ * what no raised flag represents. */
+const settleFlagOwningSend = async (
+  clearPendingFlagsFor: readonly number[],
+  attempted: { email: boolean; webhooks: boolean },
+  webhookResult: PromiseSettledResult<RegistrationDeliveryResult>,
+  emailResult: PromiseSettledResult<RegistrationEmailResult>,
+  errors: unknown[],
+): Promise<void> => {
+  // The flags carry the failure: each side clears its own flag only when its
+  // send was attempted and its far side accepted. A failed send leaves its
+  // flag up for the admin. No failure activity line is written for a failure
+  // a raised flag represents. The buyer confirmation's refusal is the email
+  // flag's subject, and a webhook refusal is the webhooks flag's. The
+  // owner's admin copy is no flag's subject, so its refusal keeps its
+  // failure activity. The error is still reported, so an unexpected
+  // rejection reaches the log and the alert.
+  //
+  // A failed clear batch leaves the flags up. The admin already reads a
+  // raised flag as an owed send. Log the batch's failure, and do not mask
+  // the delivery errors' report and throw.
+  const buyerFlagClears =
+    attempted.email &&
+    emailResult.status === "fulfilled" &&
+    !emailResult.value.buyerFailed;
+  const clears = [
+    ...(attempted.webhooks && acceptedDelivery(webhookResult)
+      ? [clearPendingFlagStatement("webhooks", clearPendingFlagsFor)]
+      : []),
+    ...(buyerFlagClears
+      ? [clearPendingFlagStatement("email", clearPendingFlagsFor)]
+      : []),
+  ];
+  if (clears.length > 0) {
+    await executeBatch(clears).catch(async (error) => {
+      await logError({
+        code: ErrorCode.DB_QUERY,
+        detail: `The pending-flag clear batch failed: ${String(error)}`,
+      });
+    });
+  }
+  const ownerFailureUnrepresented =
+    emailResult.status === "fulfilled" && emailResult.value.ownerFailed;
+  if (errors.length > 0 || ownerFailureUnrepresented) {
+    await reportRegistrationDeliveryError(ownerFailureUnrepresented);
+  }
+};
+
 const sendRegistrationNotifications = async (
   send: RegistrationSend,
 ): Promise<void> => {
@@ -217,29 +266,13 @@ const sendRegistrationNotifications = async (
     ...delivery.errors,
   ])(deliveries);
   if (send.clearPendingFlagsFor !== undefined) {
-    // The flags carry the failure: each side clears its own flag only when
-    // its send was attempted and its far side accepted. A failed send leaves
-    // its flag up for the admin. No failure activity line is written for a
-    // booking whose sends own their flags. The error is still reported, so
-    // an unexpected rejection reaches the log and the alert.
-    //
-    // A failed clear batch leaves the flags up. The admin already reads a
-    // raised flag as an owed send. Log the batch's failure, and do not
-    // mask the delivery errors' report and throw.
-    await executeBatch([
-      ...(webhooksAttempted && acceptedDelivery(webhookResult)
-        ? [clearPendingFlagStatement("webhooks", send.clearPendingFlagsFor)]
-        : []),
-      ...(emailAttempted && acceptedDelivery(emailResult)
-        ? [clearPendingFlagStatement("email", send.clearPendingFlagsFor)]
-        : []),
-    ]).catch(async (error) => {
-      await logError({
-        code: ErrorCode.DB_QUERY,
-        detail: `The pending-flag clear batch failed: ${String(error)}`,
-      });
-    });
-    if (errors.length > 0) await reportRegistrationDeliveryError(false);
+    await settleFlagOwningSend(
+      send.clearPendingFlagsFor,
+      { email: emailAttempted, webhooks: webhooksAttempted },
+      webhookResult,
+      emailResult,
+      errors,
+    );
   } else if (errors.length > 0) {
     await reportRegistrationDeliveryError(true);
   } else if (deliveries.some(({ failed }) => failed)) {

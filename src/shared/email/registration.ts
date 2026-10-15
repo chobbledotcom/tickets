@@ -17,6 +17,7 @@ import {
   buildTemplateData,
   buyerEntryGroups,
   collapsedPackageSummary,
+  type RenderedEmailContent,
   renderEmailContent,
 } from "#shared/email-renderer.ts";
 import {
@@ -34,6 +35,14 @@ interface RegistrationEmailDelivery {
   businessEmail: ValidEmail | null;
   config: EmailConfig;
 }
+
+/** The email side's outcome, split by message. The buyer's confirmation is
+ * the message a pending flag speaks of. The owner's admin copy is a
+ * different message, and no pending flag represents it. */
+export type RegistrationEmailResult = RegistrationDeliveryResult & {
+  buyerFailed: boolean;
+  ownerFailed: boolean;
+};
 
 export const registrationEmailDelivery = (
   entries: EmailEntry[],
@@ -121,9 +130,11 @@ export const sendRegistrationEmails = async (
   currency: string,
   suppliedFacts?: RegistrationPackageFacts,
   freeTexts?: FreeTextAnswers,
-): Promise<RegistrationDeliveryResult> => {
+): Promise<RegistrationEmailResult> => {
   const delivery = registrationEmailDelivery(entries);
-  if (!delivery) return { failed: false };
+  if (!delivery) {
+    return { buyerFailed: false, failed: false, ownerFailed: false };
+  }
   const { attendeeEmail, businessEmail, config } = delivery;
   const facts =
     suppliedFacts === undefined
@@ -131,15 +142,16 @@ export const sendRegistrationEmails = async (
       : suppliedFacts;
   const answerLines = await loadOrderAnswerLines(entries, freeTexts);
   const ticketUrl = buildTicketUrl(entries);
-  const messages: EmailMessage[] = [];
+  const messages: (EmailMessage & { buyerCopy: boolean })[] = [];
   const templateErrors: unknown[] = [];
   const addRenderedMessage = (
-    rendered: Awaited<ReturnType<typeof renderEmailContent>>,
+    rendered: RenderedEmailContent,
     details: Pick<EmailMessage, "attachments" | "replyTo" | "to">,
+    buyerCopy: boolean,
   ): void => {
     const { errors, ...content } = rendered;
     templateErrors.push(...errors);
-    messages.push({ ...content, ...details });
+    messages.push({ ...content, ...details, buyerCopy });
   };
 
   if (attendeeEmail) {
@@ -153,11 +165,15 @@ export const sendRegistrationEmails = async (
       renderEmailContent("confirmation", data),
       buildTicketAttachments(groups, currency),
     ]);
-    addRenderedMessage(rendered, {
-      attachments,
-      replyTo: businessEmail || undefined,
-      to: attendeeEmail,
-    });
+    addRenderedMessage(
+      rendered,
+      {
+        attachments,
+        replyTo: businessEmail || undefined,
+        to: attendeeEmail,
+      },
+      true,
+    );
   }
 
   if (businessEmail) {
@@ -166,14 +182,46 @@ export const sendRegistrationEmails = async (
       packageDisplays: facts.displays,
     });
     const rendered = await renderEmailContent("admin", data);
-    addRenderedMessage(rendered, {
-      replyTo: attendeeEmail || undefined,
-      to: businessEmail,
-    });
+    addRenderedMessage(
+      rendered,
+      {
+        replyTo: attendeeEmail || undefined,
+        to: businessEmail,
+      },
+      false,
+    );
   }
 
-  return await waitForRegistrationDeliveries([
-    ...messages.map((message) => deliverRegistrationEmail(config, message)),
-    ...templateErrors.map((error) => Promise.reject(error)),
-  ]);
+  // The template errors are not deliveries: a render can carry errors while
+  // the message still goes out. They ride the combined result and throw
+  // path, and never speak for either side's flag.
+  const attempts = [
+    ...messages.map((message) => ({
+      buyerCopy: message.buyerCopy,
+      promise: deliverRegistrationEmail(config, message),
+    })),
+    ...templateErrors.map((error) => ({
+      buyerCopy: false,
+      promise: Promise.reject(error),
+    })),
+  ];
+  const sideFailed = async (buyerCopy: boolean): Promise<boolean> =>
+    (
+      await Promise.allSettled(
+        attempts
+          .filter((one) => one.buyerCopy === buyerCopy)
+          .map((one) => one.promise),
+      )
+    ).some(
+      (one) =>
+        one.status === "rejected" ||
+        (one.status === "fulfilled" && !one.value.delivered),
+    );
+  return {
+    ...(await waitForRegistrationDeliveries(
+      attempts.map((one) => one.promise),
+    )),
+    buyerFailed: await sideFailed(true),
+    ownerFailed: await sideFailed(false),
+  };
 };

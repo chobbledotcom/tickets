@@ -1,14 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { bookingEventGroup } from "#accounting/mappers.ts";
 import { allTransfers } from "#accounting/queries.ts";
 import { legReference } from "#accounting/refs.ts";
 import { encrypt } from "#crypto/encryption.ts";
-import { attendeesApi } from "#db/attendees/api.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
+import { builtSites } from "#db/built-sites.ts";
 import {
   readCheckoutAnswers,
   stageCheckoutAnswers,
@@ -25,17 +23,16 @@ import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { handleRequest } from "#routes";
-import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import {
   runWebhook,
-  setupWithListing,
+  setupRenewalSite,
+  stubLostCreate,
   webhookRequest,
 } from "#test/integration/webhook-price-signature/helpers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
@@ -111,25 +108,11 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
       callsSince(fetchCallsBefore, "https://registration.example.com/hook");
     // The booked listing is a renewal tier, so the recovered sends also
     // extend the renewal site's deadline exactly once.
-    const listing = await setupWithListing({
-      hidden: true,
-      monthsPerUnit: 1,
-      purchaseOnly: true,
-    });
-    await insertBuiltSite(
-      "Recovery Renewal Site",
-      "recovery-renewal.b-cdn.net",
-      "",
-      "",
-      false,
-      "5001",
-    );
-    const sites = await builtSites.getAll();
-    const site = sites.find((one) => one.name === "Recovery Renewal Site")!;
-    const { tokenIndex } = await provisionTestBuiltSite(site.id);
-    const edgeSecretCalls = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-      Promise.resolve({ ok: true as const }),
-    );
+    const { edgeSecretCalls, listing, site, tokenIndex } =
+      await setupRenewalSite(
+        "Recovery Renewal Site",
+        "recovery-renewal.b-cdn.net",
+      );
     // The listings.fields column stores env-key encrypted values, so the
     // fixture writes the collected field the way every write path does.
     await execute(
@@ -193,18 +176,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
       }),
       900,
     );
-    const createBooking = attendeesApi.createBookingAtomic;
-    const loseResult = stub(
-      attendeesApi,
-      "createBookingAtomic",
-      async (...args) => {
-        const result = await createBooking(...args);
-        if (result === "sold-out" || !result.success) {
-          throw new Error("Expected booking to commit");
-        }
-        throw new Error("synthetic lost create result");
-      },
-    );
+    const loseResult = stubLostCreate();
 
     try {
       await runWebhook(

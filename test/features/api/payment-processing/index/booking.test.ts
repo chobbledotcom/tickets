@@ -14,6 +14,7 @@ import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
+import type { ValidatedSession } from "#routes/api/webhook-types.ts";
 
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -107,6 +108,20 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     ).toHaveLength(1);
   });
 
+  /** Runs one paid checkout, then reads the booking's one attendee's
+   * pending flags back. */
+  const payAndFlags = async (
+    id: string,
+    data: ValidatedSession,
+    listingId: number,
+  ): Promise<{ email: number; webhooks: number }> => {
+    await withRequestContext(async () => {
+      expect((await processPaymentSession(id, data)).success).toBe(true);
+    });
+    const attendee = (await getAttendeesRaw(listingId))[0]!;
+    return readPendingNotificationFlags(attendee.id);
+  };
+
   /** Book a paid listing, read its one attendee's pending flags back. */
   const bookedFlags = async (
     id: string,
@@ -116,12 +131,26 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       ? singleListingPaymentWithWebhook(id, 1000)
       : singleListingPayment(id, 1000));
     await configureTestEmail();
-    await withRequestContext(async () => {
-      expect((await processPaymentSession(id, data)).success).toBe(true);
-    });
-    const attendee = (await getAttendeesRaw(listing.id))[0]!;
-    return readPendingNotificationFlags(attendee.id);
+    return payAndFlags(id, data, listing.id);
   };
+
+  /** Refuses every Resend delivery addressed to one reader; the rest of the
+   * provider traffic is accepted. */
+  const refuseEmailsTo = (refused: string): void => {
+    fetch.restubFetch((url, init) => {
+      if (!url.includes("resend.com")) return new Response();
+      const body = JSON.parse(String(init?.body)) as { to: string[] };
+      return new Response("", {
+        status: body.to[0] === refused ? 500 : 200,
+      });
+    });
+  };
+
+  /** Counts the booking failure's activity lines. */
+  const deliveryFailureLines = async (): Promise<number> =>
+    (await getAllActivityLog()).filter(
+      (entry) => entry.message === "Registration notification delivery failed.",
+    ).length;
 
   test("a booking on a listing that collects no email sets no flags", async () => {
     // The listing's contact fields name no email, and no webhook is set, so
@@ -171,6 +200,60 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     });
   });
 
+  test("an owner-copy refusal no flag represents keeps its failure activity", async () => {
+    // The listing collects no email and sets no webhook, so the booking
+    // raises no flags. The configured business email makes the owner copy
+    // the only refused send: its refusal is no pending flag's subject, so
+    // the failure activity survives even though the send owns the flags.
+    const listing = await createTestListing({
+      // The empty fields string collects no contact fields, so the booking
+      // raises no pending-email flag.
+      fields: "",
+      maxAttendees: 5,
+      unitPrice: 1000,
+    });
+    await configureTestEmail({ businessEmail: "owner@example.com" });
+    refuseEmailsTo("owner@example.com");
+    const data = trustedPayment(
+      "cs_owner_copy_refusal",
+      bookingIntent([{ e: listing.id, p: 1000, q: 1 }]),
+      1000,
+    );
+    expect(
+      await payAndFlags("cs_owner_copy_refusal", data, listing.id),
+    ).toEqual({
+      email: 0,
+      webhooks: 0,
+    });
+    expect(await deliveryFailureLines()).toBe(1);
+  });
+
+  test("the buyer flag clears when only the owner copy is refused", async () => {
+    // The buyer's confirmation was accepted; the owner copy's refusal is a
+    // different message and must not keep the buyer's flag up. The owner
+    // copy's refusal reports through the failure activity instead.
+    await configureTestEmail({ businessEmail: "owner@example.com" });
+    refuseEmailsTo("owner@example.com");
+    expect(await bookedFlags("cs_owner_copy_only_refused", true)).toEqual({
+      email: 0,
+      webhooks: 0,
+    });
+    expect(await deliveryFailureLines()).toBe(1);
+  });
+
+  test("the buyer flag stays up when only the owner copy is accepted", async () => {
+    // The buyer's confirmation was refused; the owner copy's acceptance
+    // must not clear the buyer's flag. The raised flag carries the buyer
+    // refusal, so no failure activity is written.
+    await configureTestEmail({ businessEmail: "owner@example.com" });
+    refuseEmailsTo("buyer@example.com");
+    expect(await bookedFlags("cs_buyer_copy_only_refused", true)).toEqual({
+      email: 1,
+      webhooks: 0,
+    });
+    expect(await deliveryFailureLines()).toBe(0);
+  });
+
   test("takes a Square checkout's handle row when its payment books", async () => {
     const id = "sq_direct_booking";
     const listing = await createTestListing({
@@ -197,28 +280,29 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     ).toBeNull();
   });
 
-  /** A paid booking costs four database calls, answered or not. The answers,
-   * the questions-record, and the activity lines ride the create batch — one
-   * write fewer than before the batch carried them, because the post-commit
-   * queue writes nothing — so an answered booking costs the same as a bare
-   * one. */
-  const expectBookedInFourCalls = async (
+  /** A paid booking costs three database calls, answered or not. The
+   * answers, the questions-record, and the activity lines ride the create
+   * batch — one write fewer than before the batch carried them, because the
+   * post-commit queue writes nothing, and a send-free booking runs no
+   * pending-flag clear batch — so an answered booking costs the same as a
+   * bare one. */
+  const expectBookedInThreeCalls = async (
     id: string,
-    data: Parameters<typeof processPaymentSession>[1],
+    data: ValidatedSession,
   ): Promise<void> => {
-    const calls = await countDatabaseCalls(4, async () => {
+    const calls = await countDatabaseCalls(3, async () => {
       expect((await processPaymentSession(id, data)).success).toBe(true);
     });
-    expect(calls).toBe(4);
+    expect(calls).toBe(3);
   };
 
-  test("creates an unanswered paid booking in four database calls", async () => {
+  test("creates an unanswered paid booking in three database calls", async () => {
     const id = "cs_direct_booking_budget";
     const { data } = await singleListingPayment(id, 1000);
-    await expectBookedInFourCalls(id, data);
+    await expectBookedInThreeCalls(id, data);
   });
 
-  test("creates and answers a paid booking in four database calls", async () => {
+  test("creates and answers a paid booking in three database calls", async () => {
     const id = "cs_direct_answered_booking_budget";
     const { data, listing } = await singleListingPayment(id, 1000);
     const question = await questionsTable.insert({
@@ -232,7 +316,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     });
     await listingQuestions.setIds(listing.id, [question.id]);
     data.intent.listingAnswerIds = { [String(listing.id)]: [answer.id] };
-    await expectBookedInFourCalls(id, data);
+    await expectBookedInThreeCalls(id, data);
   });
 
   test("takes a checkout's staged answers into its confirmation email", async () => {
