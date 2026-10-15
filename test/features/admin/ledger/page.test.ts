@@ -60,26 +60,26 @@ describeWithEnv("the ledger's top stats table", { db: true }, () => {
     expect(body).toContain(formatSignedCurrency(25000, true));
     expect(body).toContain("Service event costs");
     expect(body).toContain(formatSignedCurrency(-9000, true));
-    expect(body).toContain("Net after refunds and costs");
-    expect(body).toContain(formatSignedCurrency(13000, false));
+    expect(body).toContain("Net after service costs");
+    expect(body).toContain(formatSignedCurrency(16000, false));
     // The costs and the net sit between the income and the rows that were
     // already there.
     const incomeAt = body.indexOf("Total income earned");
     const costsAt = body.indexOf("Service event costs");
-    const netAt = body.indexOf("Net after refunds and costs");
+    const netAt = body.indexOf("Net after service costs");
     const dueAt = body.indexOf("Customer balances due");
     expect(incomeAt).toBeLessThan(costsAt);
     expect(costsAt).toBeLessThan(netAt);
     expect(netAt).toBeLessThan(dueAt);
   });
 
-  test("a ledger with no service costs shows the net at the income balance", async () => {
+  test("a ledger with no service costs shows the net equal to the income", async () => {
     await seedLedger(false);
     const body = await renderAdminPage(SEED_RANGE);
 
     expect(body).toContain(formatSignedCurrency(25000, true));
     expect(body).toContain(formatSignedCurrency(0, true));
-    // The net carries the refund: the income balance minus nothing.
-    expect(body).toContain(formatSignedCurrency(22000, false));
+    // No costs were taken away, so the net is exactly the income.
+    expect(body).toContain(formatSignedCurrency(25000, false));
   });
 });

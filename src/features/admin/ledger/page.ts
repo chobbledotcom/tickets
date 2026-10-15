@@ -130,8 +130,8 @@ const buildStats = async (
             true,
           ),
           moneyRow(
-            "admin.ledger.stats.net_after_costs",
-            totals.netBalance - totals.servicingCosts,
+            "admin.ledger.stats.net_after_service_costs",
+            totals.income - totals.servicingCosts,
           ),
           moneyRow("admin.ledger.stats.due", totals.due),
           moneyRow("admin.ledger.stats.refunded", -totals.refunded, true),

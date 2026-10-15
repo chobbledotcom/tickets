@@ -168,8 +168,8 @@ describe("db > accounting > SQL figures agree with pure projections", () => {
         WRITE_UP -
         WRITE_DOWN,
     );
-    // The all-scope service costs are the cost-account legs' net, and the
-    // net balance is the revenue accounts' balance: both fold purely.
+    // The all-scope service costs are the cost-account legs' net: the fold
+    // is pure, and it reconciles with the per-listing sums below.
     const serviceCostLegs = (leg: Transfer) => leg.kind === KIND.serviceCost;
     expect(totals.servicingCosts).toBe(
       sumLegs((leg) => serviceCostLegs(leg) && leg.source.type === "cost")(
@@ -178,9 +178,6 @@ describe("db > accounting > SQL figures agree with pure projections", () => {
         sumLegs(
           (leg) => serviceCostLegs(leg) && leg.destination.type === "cost",
         )(all),
-    );
-    expect(totals.netBalance).toBe(
-      balanceOf(revenue1)(all) + balanceOf(revenue2)(all),
     );
     // And none of the figures are accidentally zero-on-zero matches.
     expect(totals.refunded).toBeGreaterThan(0);
