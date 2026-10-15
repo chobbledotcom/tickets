@@ -22,6 +22,7 @@
  *   - `#routes/admin/attendee-form-model.ts` — the shared `validateAttendeeBlock`.
  */
 // jscpd:ignore-start
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";

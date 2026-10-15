@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -43,13 +44,16 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
 
     const html = await renderAdminPage("/admin/servicing");
 
-    expect(html).toContain('class="servicing-event"');
-    expect(html).toContain(`/admin/servicing/${event.id}`);
-    expect(html).toContain("Route Service");
-    expect(html).toContain("Route Room");
-    expect(html).toContain("<td>2</td>");
-    expect(html).toContain("Undated Route Service");
-    expect(html).not.toContain("Deleted Route Listing");
+    assertStringIncludes(html, 'class="servicing-event"');
+    assertStringIncludes(html, `/admin/servicing/${event.id}`);
+    assertStringIncludes(html, "Route Service");
+    assertStringIncludes(html, "Route Room");
+    assertStringIncludes(html, "<td>2</td>");
+    assertStringIncludes(html, "Undated Route Service");
+    assert(
+      !html.includes("Deleted Route Listing"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("the servicing update route updates name and booking quantity", async () => {
@@ -66,7 +70,8 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       [`quantity_${listing.id}`]: "1",
     });
 
-    expect(response.headers.get("location")).toContain(
+    assertStringIncludes(
+      response.headers.get("location") ?? "",
       `/admin/servicing/${id}`,
     );
     // Read the row the route itself wrote — the next helper call would
@@ -95,7 +100,8 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       target_listing_id: String(listing.id),
     });
 
-    expect(response.headers.get("location")).toContain(
+    assertStringIncludes(
+      response.headers.get("location") ?? "",
       `/admin/servicing/${id}`,
     );
   });
@@ -135,7 +141,8 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       },
     );
     expect(noQtyResponse.status).toBe(302);
-    expect(noQtyResponse.headers.get("location")).toContain(
+    assertStringIncludes(
+      noQtyResponse.headers.get("location") ?? "",
       "/admin/servicing/new",
     );
     noQtyResponse.body?.cancel();

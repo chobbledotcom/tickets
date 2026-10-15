@@ -14,6 +14,7 @@
  *     `listing_attendees` link is swept on the same cutoff as an attendee.
  */
 // jscpd:ignore-start
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { allTransfers } from "#accounting/queries.ts";
@@ -39,7 +40,7 @@ describeWithEnv(
       const res = await handleRequest(mockRequest("/read-only"));
       expect(res.status).toBe(200);
       const html = await res.text();
-      expect(html).toContain("This site is in read-only mode.");
+      assertStringIncludes(html, "This site is in read-only mode.");
     });
 
     test("the page names the running build for the post-update wait", async () => {
@@ -47,7 +48,7 @@ describeWithEnv(
       try {
         const res = await handleRequest(mockRequest("/read-only"));
         const html = await res.text();
-        expect(html).toContain(updateBuildTagMeta("v2026-03-28-143022"));
+        assertStringIncludes(html, updateBuildTagMeta("v2026-03-28-143022"));
       } finally {
         setBuildTimestampForTest(null);
       }
@@ -56,7 +57,10 @@ describeWithEnv(
     test("a build with no timestamp reports no build tag", async () => {
       const res = await handleRequest(mockRequest("/read-only"));
       const html = await res.text();
-      expect(html).not.toContain('name="update-build-tag"');
+      assert(
+        !html.includes('name="update-build-tag"'),
+        "the value should not contain the searched item",
+      );
     });
 
     const api403Cases: ReadonlyArray<{
@@ -221,8 +225,8 @@ describeWithEnv(
       await assignListingsToGroup([roListing.id], group.id);
       const res = await handleRequest(mockRequest("/listings"));
       const html = await res.text();
-      expect(html).toContain("Read Only Group");
-      expect(html).toContain("Registration Closed");
+      assertStringIncludes(html, "Read Only Group");
+      assertStringIncludes(html, "Registration Closed");
     });
 
     test("GET /ticket/my-listing is allowed (view form)", async () => {
@@ -342,8 +346,8 @@ describeWithEnv(
       const res = await handleRequest(mockRequest("/read-only"));
       expect(res.status).toBe(200);
       const html = await res.text();
-      expect(html).toContain("The site is being updated.");
-      expect(html).toContain('name="update-in-progress" content="active"');
+      assertStringIncludes(html, "The site is being updated.");
+      assertStringIncludes(html, 'name="update-in-progress" content="active"');
     });
 
     test("a mutating /api/ request returns 503 with the update message", async () => {
@@ -424,8 +428,11 @@ describeWithEnv(
     test("the page shows the update message, not the expired one", async () => {
       const res = await handleRequest(mockRequest("/read-only"));
       const html = await res.text();
-      expect(html).toContain("The site is being updated.");
-      expect(html).not.toContain("This site is in read-only mode.");
+      assertStringIncludes(html, "The site is being updated.");
+      assert(
+        !html.includes("This site is in read-only mode."),
+        "the value should not contain the searched item",
+      );
     });
   },
 );
@@ -437,8 +444,11 @@ describeWithEnv(
     test("the marker says supported, so a later deploy's wait can run", async () => {
       const res = await handleRequest(mockRequest("/read-only"));
       const html = await res.text();
-      expect(html).toContain("This site is in read-only mode.");
-      expect(html).toContain('name="update-in-progress" content="supported"');
+      assertStringIncludes(html, "This site is in read-only mode.");
+      assertStringIncludes(
+        html,
+        'name="update-in-progress" content="supported"',
+      );
     });
   },
 );

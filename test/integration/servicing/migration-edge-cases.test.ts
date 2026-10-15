@@ -7,6 +7,8 @@
  * re-runs, a partial backfill, a backup taken before the migration).
  */
 // jscpd:ignore-start
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -134,8 +136,8 @@ describeWithEnv(
       expect(kindCol).toBeDefined();
       const [, type] = kindCol;
       expect(type).toMatch(/CHECK/i);
-      expect(type).toContain(ATTENDEE_KIND);
-      expect(type).toContain(SERVICING_KIND);
+      assertStringIncludes(type, ATTENDEE_KIND);
+      assertStringIncludes(type, SERVICING_KIND);
     });
   },
 );

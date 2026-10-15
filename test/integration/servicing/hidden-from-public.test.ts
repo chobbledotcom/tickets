@@ -15,6 +15,7 @@
  *   - `#test-utils/servicing.ts` exposes the servicing event's `ticketToken`.
  */
 // jscpd:ignore-start
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeePiiBlobForToken } from "#db/attendees/pii.ts";

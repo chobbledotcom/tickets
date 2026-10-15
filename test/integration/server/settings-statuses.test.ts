@@ -11,6 +11,7 @@
  */
 
 /* jscpd:ignore-start */
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
@@ -43,8 +44,11 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     test("links status names to their canonical entity pages", async () => {
       const seed = await seedStatus();
       const html = await (await adminGet(PATH)).text();
-      expect(html).toContain(`href="${PATH}/${seed.id}"`);
-      expect(html).not.toContain(`href="${PATH}/${seed.id}/edit"`);
+      assertStringIncludes(html, `href="${PATH}/${seed.id}"`);
+      assert(
+        !html.includes(`href="${PATH}/${seed.id}/edit"`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("shows status names without links in read-only mode", async () => {
@@ -53,8 +57,11 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       });
       const seed = await seedStatus();
       const html = await (await adminGet(PATH)).text();
-      expect(html).toContain(seed.name);
-      expect(html).not.toContain(`href="${PATH}/${seed.id}"`);
+      assertStringIncludes(html, seed.name);
+      assert(
+        !html.includes(`href="${PATH}/${seed.id}"`),
+        "the value should not contain the searched item",
+      );
     });
   });
 
@@ -63,8 +70,9 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       await adminFormPost(PATH, { name: "Invited" });
 
       const entries = await withTestSession(() => getAllActivityLog());
-      expect(entries.map((entry) => entry.message)).toContain(
-        "Attendee status 'Invited' created",
+      assertArrayIncludes(
+        entries.map((entry) => entry.message),
+        ["Attendee status 'Invited' created"],
       );
     });
 

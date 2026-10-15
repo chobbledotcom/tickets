@@ -6,6 +6,7 @@
  * adversarial scenarios because the user called them out explicitly.
  */
 // jscpd:ignore-start
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";

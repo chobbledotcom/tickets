@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -48,7 +50,10 @@ describeWithEnv(
 
       // The rendered page emits no quantity field for the sole child.
       const html = await bookingPageHtml(parent.slug);
-      expect(html).not.toContain(`name="child_qty_${parent.id}_${child.id}"`);
+      assert(
+        !html.includes(`name="child_qty_${parent.id}_${child.id}"`),
+        "the value should not contain the searched item",
+      );
 
       // Booking the parent at quantity 1 succeeds (no 'too many').
       const res = await bookParent(parent.slug, parentField(parent, "1"));
@@ -73,8 +78,11 @@ describeWithEnv(
       );
       // The quote succeeds (parent £10 + auto-filled child £5 = £15), not a 'too
       // many' rejection from an over-submitted child quantity.
-      expect(fragment).not.toContain("Too many add-ons");
-      expect(fragment).toContain("£15");
+      assert(
+        !fragment.includes("Too many add-ons"),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(fragment, "£15");
     });
 
     test("a sole pay-more child auto-fills and still collects its price without a posted qty", async () => {
@@ -94,7 +102,7 @@ describeWithEnv(
         ...parentField(parent, "1"),
         [`child_price_${parent.id}_${child.id}`]: "30.00",
       });
-      expect(html).toContain("£30");
+      assertStringIncludes(html, "£30");
     });
 
     test("the /calculate quote includes the auto-selected child", async () => {
@@ -104,7 +112,7 @@ describeWithEnv(
 
       // Parent is free, child costs 15.00 — the quote must reflect the child.
       const html = await postCalculate(parent.slug, parentField(parent, "1"));
-      expect(html).toContain("£15");
+      assertStringIncludes(html, "£15");
     });
   },
 );

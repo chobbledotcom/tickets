@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -49,7 +50,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_balance_unsigned"),
       );
-      expect(await response.text()).toContain("belongs to this site");
+      assertStringIncludes(await response.text(), "belongs to this site");
       // The balance is untouched — nothing was settled.
       const state = await getAttendeeBalanceState(attendeeId);
       expect(state?.remainingBalance).toBe(1500);
@@ -204,7 +205,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
         stripeRefundRequestShape("pi_bal_stale", 1500),
       ]);
       const html = await response.text();
-      expect(html).toContain("balance for this booking changed");
+      assertStringIncludes(html, "balance for this booking changed");
       // The live balance is untouched — still outstanding.
       const state = await getAttendeeBalanceState(attendeeId);
       expect(state?.remainingBalance).toBe(500);
@@ -230,7 +231,10 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
       expect(refund.calls[0]!.args).toEqual([
         stripeRefundRequestShape("pi_bal_amt", 1000),
       ]);
-      expect(await response.text()).toContain("price for this listing changed");
+      assertStringIncludes(
+        await response.text(),
+        "price for this listing changed",
+      );
       const state = await getAttendeeBalanceState(attendeeId);
       expect(state?.remainingBalance).toBe(1500);
     } finally {

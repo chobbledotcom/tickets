@@ -13,6 +13,8 @@
  *     supplemented with each attendee's kind, or a parallel kind map).
  */
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -44,15 +46,21 @@ describeWithEnv(
     test("a logged servicing attendee_id links to /admin/servicing/:id", async () => {
       const { id } = await createServicingHold();
       const body = await renderAdminPage("/admin/log");
-      expect(body).toContain(`/admin/servicing/${id}`);
-      expect(body).not.toContain(`/admin/attendees/${id}`);
+      assertStringIncludes(body, `/admin/servicing/${id}`);
+      assert(
+        !body.includes(`/admin/attendees/${id}`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a logged normal attendee_id still links to /admin/attendees/:id", async () => {
       const { attendee } = await createRealAttendee();
       const body = await renderAdminPage("/admin/log");
-      expect(body).toContain(`/admin/attendees/${attendee.id}`);
-      expect(body).not.toContain(`/admin/servicing/${attendee.id}`);
+      assertStringIncludes(body, `/admin/attendees/${attendee.id}`);
+      assert(
+        !body.includes(`/admin/servicing/${attendee.id}`),
+        "the value should not contain the searched item",
+      );
     });
   },
 );

@@ -8,6 +8,7 @@
  * could state in a visitor's words.
  */
 
+import { assertStringIncludes } from "@std/assert";
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -60,12 +61,13 @@ describeWithEnv(
       );
       expect(response.headers.get("x-robots-tag")).toBe("index, follow");
       const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain('class="news-gallery"');
-      expect(html).toContain("gallery-one.webp");
-      expect(html).toContain('alt="First alt"');
+      assertStringIncludes(html, 'class="news-gallery"');
+      assertStringIncludes(html, "gallery-one.webp");
+      assertStringIncludes(html, 'alt="First alt"');
       // Each thumbnail is a label for the radio input that shows its picture,
       // so the gallery works with no script at all.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         '<label class="news-gallery-thumb" for="news-gallery-1">',
       );
     });
@@ -80,8 +82,8 @@ describeWithEnv(
       await twoPictures("group", group.id);
 
       const html = await assertPublicHtml(`/ticket/${group.slug}`);
-      expect(html).toContain('class="news-gallery"');
-      expect(html).toContain("gallery-one.webp");
+      assertStringIncludes(html, 'class="news-gallery"');
+      assertStringIncludes(html, "gallery-one.webp");
     });
   },
 );

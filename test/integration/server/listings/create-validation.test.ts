@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -51,7 +53,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         thank_you_url: "https://example.com/thanks",
       });
       expect(response.status).toBe(400);
-      expect(await response.text()).toContain("valid day price");
+      assertStringIncludes(await response.text(), "valid day price");
       // Nothing was created.
       expect(await getListingWithCount(1)).toBeNull();
     });
@@ -67,8 +69,8 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
       });
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain('value="Monday" checked');
-      expect(html).toContain('value="Wednesday" checked');
+      assertStringIncludes(html, 'value="Monday" checked');
+      assertStringIncludes(html, 'value="Wednesday" checked');
     });
 
     test("accepts a create with a valid day price and stores it", async () => {

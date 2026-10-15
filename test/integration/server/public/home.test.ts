@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -56,8 +58,14 @@ describeWithEnv("server public > home", { db: true, triggers: true }, () => {
     test("hides terms and contact nav links when pages are empty", async () => {
       await enablePublicSite();
       const html = await assertPublicHtml("/", 'href="/"', 'href="/listings"');
-      expect(html).not.toContain('href="/terms"');
-      expect(html).not.toContain('href="/contact"');
+      assert(
+        !html.includes('href="/terms"'),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes('href="/contact"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("shows login link styled as footer", async () => {

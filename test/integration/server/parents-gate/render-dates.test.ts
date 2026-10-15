@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -44,9 +46,9 @@ describeWithEnv(
       // The parent's quantity selector still offers a bookable quantity (the
       // date-less sold-out child did NOT clamp it to 0).
       const options = selectOptionsFromHtml(html, `quantity_${parent.id}`);
-      expect(options).toContain('value="1"');
+      assertStringIncludes(options, 'value="1"');
       // The sole daily child renders informational (auto-selected), not disabled.
-      expect(html).toContain(`data-sole-child="${child.id}"`);
+      assertStringIncludes(html, `data-sole-child="${child.id}"`);
       expect(html).not.toMatch(
         new RegExp(
           `<select name="child_qty_${parent.id}_${child.id}"[^>]*\\sdisabled`,
@@ -76,9 +78,12 @@ describeWithEnv(
       const html = await bookingPageHtml(parent.slug);
       // Every child date is offered; a parent-only date is not.
       for (const d of childDates) {
-        expect(html).toContain(`<option value="${d}"`);
+        assertStringIncludes(html, `<option value="${d}"`);
       }
-      expect(html).not.toContain(`<option value="${otherDate}"`);
+      assert(
+        !html.includes(`<option value="${otherDate}"`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a daily parent with a dateless child keeps all its dates", async () => {
@@ -90,7 +95,7 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       for (const d of parentDates) {
-        expect(html).toContain(`<option value="${d}"`);
+        assertStringIncludes(html, `<option value="${d}"`);
       }
     });
 
@@ -120,9 +125,12 @@ describeWithEnv(
       await deactivateTestListing(inactiveChild.id);
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).toContain(`<option value="${mondayDate}"`);
+      assertStringIncludes(html, `<option value="${mondayDate}"`);
       // The inactive child's Tuesday must NOT be offered.
-      expect(html).not.toContain(`<option value="${tuesdayDate}"`);
+      assert(
+        !html.includes(`<option value="${tuesdayDate}"`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a fixed-span daily parent drops a child date with no valid full-span start", async () => {
@@ -152,7 +160,10 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       // No Monday→Wednesday span is valid for the child, so Monday is not offered.
-      expect(html).not.toContain(`<option value="${mondayDate}"`);
+      assert(
+        !html.includes(`<option value="${mondayDate}"`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a customisable daily parent offers a fixed daily child's full-span starts, not single days", async () => {
@@ -197,10 +208,13 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       // Monday (a valid full 3-day child start) is offered.
-      expect(html).toContain(`<option value="${mondayDate}"`);
+      assertStringIncludes(html, `<option value="${mondayDate}"`);
       // Tuesday is bookable single-day but starts no full 3-day span, so the
       // customisable parent must NOT offer it.
-      expect(html).not.toContain(`<option value="${tuesdayDate}"`);
+      assert(
+        !html.includes(`<option value="${tuesdayDate}"`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a daily child full on one date does not make its parent render sold out", async () => {
@@ -216,11 +230,14 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       // The parent renders a normal bookable form, not the sold-out message.
-      expect(html).toContain(`name="quantity_${parent.id}"`);
+      assertStringIncludes(html, `name="quantity_${parent.id}"`);
       // The daily child is the sole bookable option, rendered
       // informational — never as a disabled control.
-      expect(html).toContain(`data-sole-child="${child.id}"`);
-      expect(html).not.toContain("Sorry, this listing is full.");
+      assertStringIncludes(html, `data-sole-child="${child.id}"`);
+      assert(
+        !html.includes("Sorry, this listing is full."),
+        "the value should not contain the searched item",
+      );
     });
   },
 );

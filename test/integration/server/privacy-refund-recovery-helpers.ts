@@ -1,4 +1,5 @@
 /* jscpd:ignore-start -- imports */
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import type { ProviderRead } from "#payment/provider-read.ts";
@@ -68,8 +69,9 @@ export const expectProviderCheck = async (
   expect(provider.read.calls).toHaveLength(1);
   expect(provider.send.calls).toHaveLength(0);
   if (activityMessage) {
-    expect((await getAllActivityLog()).map(({ message }) => message)).toContain(
-      activityMessage,
+    assertArrayIncludes(
+      (await getAllActivityLog()).map(({ message }) => message),
+      [activityMessage],
     );
   }
 };

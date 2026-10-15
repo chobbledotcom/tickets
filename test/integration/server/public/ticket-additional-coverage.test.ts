@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -118,7 +120,7 @@ describeWithEnv(
           mockRequest(`/ticket/${listing.slug}`),
         );
         const html = await page.text();
-        expect(html).toContain('name="email"');
+        assertStringIncludes(html, 'name="email"');
 
         const response = await submitTicketForm(listing.slug, {
           [`addon_${addOn.id}`]: "1",
@@ -232,7 +234,7 @@ describeWithEnv(
         const getResponse = await handleRequest(mockRequest(path));
         expect(getResponse.status).toBe(200);
         const html = await getResponse.text();
-        expect(html).toContain("Sold Out");
+        assertStringIncludes(html, "Sold Out");
 
         // POST with quantity for both listings - sold out listing's quantity is ignored
         const csrfToken = extractCsrfToken(html);

@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";

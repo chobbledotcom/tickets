@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
@@ -76,26 +77,30 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     const html = await response.text();
     // The headline summary opens with a prose block and the status name beside
     // its label (with the separating space).
-    expect(html).toContain('class="prose"><h3>Reservation balance');
-    expect(html).toContain("Status:</strong> Reserved");
-    expect(html).toContain("Reservation deposit");
-    expect(html).toContain("Balance outstanding");
+    assertStringIncludes(html, 'class="prose"><h3>Reservation balance');
+    assertStringIncludes(html, "Status:</strong> Reserved");
+    assertStringIncludes(html, "Reservation deposit");
+    assertStringIncludes(html, "Balance outstanding");
     // The account statement (the "bits already there") renders alongside, with
     // its running-balance table's counterparty column.
-    expect(html).toContain("<th>Other side</th>");
+    assertStringIncludes(html, "<th>Other side</th>");
     // The customer payment link block: its prose heading, the copyable text
     // input carrying the signed link, and the quantity note.
-    expect(html).toContain('class="prose"><h3>Customer payment link');
-    expect(html).toContain('class="copyable" readonly type="text"');
-    expect(html).toContain('class="muted small">Only items with a quantity');
+    assertStringIncludes(html, 'class="prose"><h3>Customer payment link');
+    assertStringIncludes(html, 'class="copyable" readonly type="text"');
+    assertStringIncludes(
+      html,
+      'class="muted small">Only items with a quantity',
+    );
     // The signed customer link points at the public pay page.
-    expect(html).toContain("/pay/bal1.");
+    assertStringIncludes(html, "/pay/bal1.");
     // The history section is a prose pointer to the Activity tab (no log list).
-    expect(html).toContain('class="prose"><h3>History');
-    expect(html).toContain(
+    assertStringIncludes(html, 'class="prose"><h3>History');
+    assertStringIncludes(
+      html,
       "See the full plain-English log on the Activity tab",
     );
-    expect(html).toContain(`/admin/attendees/${attendeeId}/activity`);
+    assertStringIncludes(html, `/admin/attendees/${attendeeId}/activity`);
   });
 
   test("explains why the payment link is missing for a reservation with no provider", async () => {
@@ -125,9 +130,12 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     const response = await adminGet(`/admin/attendees/${attendeeId}/ledger`);
     const html = await response.text();
     // The fully-paid note renders in its own prose block.
-    expect(html).toContain('class="prose"><p>This booking is fully paid');
+    assertStringIncludes(html, 'class="prose"><p>This booking is fully paid');
     // No payment link when nothing is outstanding.
-    expect(html).not.toContain("/pay/bal1.");
+    assert(
+      !html.includes("/pay/bal1."),
+      "the value should not contain the searched item",
+    );
   });
 
   test("lists only the no-provider reason for a non-reservation balance without a provider", async () => {
@@ -216,11 +224,11 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     });
     const response = await adminGet(`/admin/attendees/${attendeeId}`);
     const html = await response.text();
-    expect(html).toContain("Balance outstanding");
-    expect(html).toContain(`/admin/attendees/${attendeeId}/ledger`);
+    assertStringIncludes(html, "Balance outstanding");
+    assertStringIncludes(html, `/admin/attendees/${attendeeId}/ledger`);
     // The tab strip alone also carries that href, so pin the payment-details
     // link itself by its anchor text — it must render for owners.
-    expect(html).toContain("View money changes and payment link");
+    assertStringIncludes(html, "View money changes and payment link");
   });
 
   test("a manager's overview shows the balance owed but never the owner-only ledger link", async () => {
@@ -234,8 +242,14 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
       cookie: await createTestManagerSession(),
     });
     const html = await expectHtmlResponse(overview, 200);
-    expect(html).toContain("Balance outstanding");
-    expect(html).not.toContain(`/admin/attendees/${attendeeId}/ledger`);
-    expect(html).not.toContain("view ledger &amp; payment link");
+    assertStringIncludes(html, "Balance outstanding");
+    assert(
+      !html.includes(`/admin/attendees/${attendeeId}/ledger`),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("view ledger &amp; payment link"),
+      "the value should not contain the searched item",
+    );
   });
 });

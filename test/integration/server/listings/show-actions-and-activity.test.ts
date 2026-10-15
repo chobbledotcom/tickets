@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
@@ -81,9 +83,18 @@ describeWithEnv(
           `/admin/listing/${listing.id}/actions?date=${hiddenDate}`,
         );
         const html = await response.text();
-        expect(html).not.toContain("Ada Lovelace");
-        expect(html).toContain(`href="/admin/emails?listing=${listing.id}"`);
-        expect(html).not.toContain("btn--disabled");
+        assert(
+          !html.includes("Ada Lovelace"),
+          "the value should not contain the searched item",
+        );
+        assertStringIncludes(
+          html,
+          `href="/admin/emails?listing=${listing.id}"`,
+        );
+        assert(
+          !html.includes("btn--disabled"),
+          "the value should not contain the searched item",
+        );
       });
       test("Overview collates counts, revenue and notes without loading attendees", async () => {
         const { listing, cookie } = await setupListingAndLogin({
@@ -136,13 +147,13 @@ describeWithEnv(
         );
         const html = await response.text();
         // The confirmed count excludes the incomplete booking (2 booked − 1).
-        expect(html).toContain("1 / 100");
+        assertStringIncludes(html, "1 / 100");
         // Received revenue is the paid sale only (£50), not the £80 gross.
-        expect(html).toContain("Total Revenue");
-        expect(html).toContain("£50");
+        assertStringIncludes(html, "Total Revenue");
+        assertStringIncludes(html, "£50");
         // The note (with its author's decrypted name) renders on the Overview.
-        expect(html).toContain("Called ahead about access");
-        expect(html).toContain("Grace Hopper");
+        assertStringIncludes(html, "Called ahead about access");
+        assertStringIncludes(html, "Grace Hopper");
       });
       test("shows the full activity log on the Activity tab", async () => {
         const { listing, cookie } = await setupListingAndLogin({
@@ -157,7 +168,7 @@ describeWithEnv(
         );
         expect(response.status).toBe(200);
         const html = await response.text();
-        expect(html).toContain("A notable listing event");
+        assertStringIncludes(html, "A notable listing event");
       });
       test("offers the reactivate action for a deactivated listing", async () => {
         const { listing, cookie } = await setupListingAndLogin({
@@ -172,8 +183,11 @@ describeWithEnv(
         );
         const html = await response.text();
         // A deactivated listing shows reactivate, never deactivate.
-        expect(html).toContain(`/admin/listing/${listing.id}/reactivate`);
-        expect(html).not.toContain(`/admin/listing/${listing.id}/deactivate`);
+        assertStringIncludes(html, `/admin/listing/${listing.id}/reactivate`);
+        assert(
+          !html.includes(`/admin/listing/${listing.id}/deactivate`),
+          "the value should not contain the searched item",
+        );
       });
     });
   },

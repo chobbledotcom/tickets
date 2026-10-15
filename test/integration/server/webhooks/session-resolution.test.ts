@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { describeWithEnv } from "#test-utils/db.ts";

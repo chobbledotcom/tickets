@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllListings } from "#db/listings/records.ts";
@@ -37,8 +38,8 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       const response = await adminGet("/admin/listing-defaults");
       expect(response.status).toBe(200);
       const body = await response.text();
-      expect(body).toContain('name="default_hidden"');
-      expect(body).toContain('name="default_webhook_url"');
+      assertStringIncludes(body, 'name="default_hidden"');
+      assertStringIncludes(body, 'name="default_webhook_url"');
     });
 
     test("pre-fills the form with the saved number and day defaults", async () => {
@@ -50,7 +51,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       const response = await adminGet("/admin/listing-defaults");
       const body = await response.text();
       // The number input carries the saved value and Monday is pre-ticked.
-      expect(body).toContain('value="3"');
+      assertStringIncludes(body, 'value="3"');
       expect(body).toMatch(
         /value="Monday"[^>]*checked|checked[^>]*value="Monday"/,
       );
@@ -184,8 +185,14 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       );
       // …but the stored value is ciphertext, not the plaintext URL.
       const stored = settings.getCachedRaw(CONFIG_KEYS.LISTING_DEFAULTS) ?? "";
-      expect(stored).not.toContain("secret.example.com");
-      expect(stored).not.toContain("hook-xyz");
+      assert(
+        !stored.includes("secret.example.com"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !stored.includes("hook-xyz"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("refuses a webhook default in demo mode but keeps the thank-you url", async () => {
@@ -286,14 +293,14 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       });
       const response = await adminGet("/admin/listing/new?template=custom");
       const body = await response.text();
-      expect(body).toContain('id="use-defaults"');
+      assertStringIncludes(body, 'id="use-defaults"');
       // A plain (Custom) new listing starts with Use-defaults checked.
       expect(body).toMatch(/checked[^>]*id="use-defaults"/);
-      expect(body).toContain("listing-form--default-hidden");
-      expect(body).toContain("listing-form--default-webhook-url");
+      assertStringIncludes(body, "listing-form--default-hidden");
+      assertStringIncludes(body, "listing-form--default-webhook-url");
       // Defaulted fields are pre-filled with the default values.
-      expect(body).toContain("https://example.com/hook");
-      expect(body).toContain("https://example.com/thanks");
+      assertStringIncludes(body, "https://example.com/hook");
+      assertStringIncludes(body, "https://example.com/thanks");
     });
 
     test("a template-picked new listing keeps Use-defaults off so the template wins", async () => {
@@ -308,7 +315,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       const body = await response.text();
       // The toggle is shown but NOT pre-checked, so the template's pinned
       // logistics dimension is not overridden by the conflicting default.
-      expect(body).toContain('id="use-defaults"');
+      assertStringIncludes(body, 'id="use-defaults"');
       expect(body).not.toMatch(/checked[^>]*id="use-defaults"/);
     });
 
@@ -361,14 +368,17 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
         await adminGet(`/admin/listing/${ownValues.id}/edit`)
       ).text();
       // …and a non-inheriting one renders it present but unchecked.
-      expect(offBody).toContain('id="use-defaults"');
+      assertStringIncludes(offBody, 'id="use-defaults"');
       expect(offBody).not.toMatch(/checked[^>]*id="use-defaults"/);
     });
 
     test("no toggle when the operator has set no defaults", async () => {
       const response = await adminGet("/admin/listing/new?template=custom");
       const body = await response.text();
-      expect(body).not.toContain('id="use-defaults"');
+      assert(
+        !body.includes('id="use-defaults"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("preserves an inheriting listing's flag while no defaults exist", async () => {
@@ -381,8 +391,11 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       });
       const response = await adminGet(`/admin/listing/${listing.id}/edit`);
       const body = await response.text();
-      expect(body).not.toContain('id="use-defaults"');
-      expect(body).toContain('name="use_defaults" type="hidden" value="1"');
+      assert(
+        !body.includes('id="use-defaults"'),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(body, 'name="use_defaults" type="hidden" value="1"');
     });
   });
 });

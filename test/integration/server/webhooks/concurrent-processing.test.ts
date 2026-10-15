@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -98,7 +100,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
       expect(winner.status).toBe(200);
       expect(await winner.json()).toEqual({ processed: true, received: true });
       expect(concurrent.status).toBe(409);
-      expect(await concurrent.text()).toContain("being processed");
+      assertStringIncludes(await concurrent.text(), "being processed");
 
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees).toHaveLength(1);

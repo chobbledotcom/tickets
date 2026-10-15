@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -47,7 +49,7 @@ describeWithEnv(
         // Should redirect to Stripe checkout
         expect(response.status).toBe(302);
         const location = response.headers.get("location");
-        expect(location).toContain("checkout.stripe.com");
+        assertStringIncludes(location ?? "", "checkout.stripe.com");
       });
 
       test("ticket paid flow shows error when session creation fails", async () => {

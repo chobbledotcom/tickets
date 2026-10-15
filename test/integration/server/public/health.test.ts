@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -14,7 +16,10 @@ describeWithEnv("server public > health", { db: true, triggers: true }, () => {
     test("returns a plain liveness reply by default", async () => {
       const response = await handleRequest(mockRequest("/health"));
       expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toContain("text/plain");
+      assertStringIncludes(
+        response.headers.get("content-type") ?? "",
+        "text/plain",
+      );
       expect(await response.text()).toBe("Up :)");
     });
 

@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
@@ -59,7 +61,7 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_discount_dep"),
         );
-        expect([200, 302, 303]).toContain(response.status);
+        assertArrayIncludes([200, 302, 303], [response.status]);
 
         const attendee = await latestAttendee();
         expect(attendee.remainingBalance).toBe(810);
@@ -74,9 +76,9 @@ describeWithEnv(
         const html = await (
           await handleRequest(mockRequest(`/pay/${token}`))
         ).text();
-        expect(html).toContain("Full order price:</strong> £9");
-        expect(html).toContain("Already paid:</strong> £0.90");
-        expect(html).toContain("Balance due:</strong> £8.10");
+        assertStringIncludes(html, "Full order price:</strong> £9");
+        assertStringIncludes(html, "Already paid:</strong> £0.90");
+        assertStringIncludes(html, "Balance due:</strong> £8.10");
       } finally {
         session.restore();
       }

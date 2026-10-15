@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assertStringIncludes } from "@std/assert";
 import { parse } from "@std/csv";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -69,13 +71,14 @@ describeWithEnv("server listings > export", { db: true }, () => {
       );
 
       const csv = await fetchListingExportCsv(listing.id, cookie);
-      expect(csv).toContain(
+      assertStringIncludes(
+        csv,
         "Name,Email,Phone,Address,Special Instructions,Quantity,Registered",
       );
-      expect(csv).toContain("John Doe");
-      expect(csv).toContain("john@example.com");
-      expect(csv).toContain("Jane Smith");
-      expect(csv).toContain("jane@example.com");
+      assertStringIncludes(csv, "John Doe");
+      assertStringIncludes(csv, "john@example.com");
+      assertStringIncludes(csv, "Jane Smith");
+      assertStringIncludes(csv, "jane@example.com");
     });
 
     test("returns CSV with Checked In column", async () => {
@@ -165,7 +168,8 @@ describeWithEnv("server listings > export", { db: true }, () => {
           cookie,
         },
       );
-      expect(response.headers.get("content-disposition")).toContain(
+      assertStringIncludes(
+        response.headers.get("content-disposition") ?? "",
         'attachment; filename="Roster_Order_attendees.csv"',
       );
     });
@@ -182,7 +186,7 @@ describeWithEnv("server listings > export", { db: true }, () => {
       });
       const disposition = response.headers.get("content-disposition");
       // Non-alphanumeric characters are replaced with underscores in filename sanitization
-      expect(disposition).toContain("Test_Listing_Special");
+      assertStringIncludes(disposition ?? "", "Test_Listing_Special");
     });
 
     test("CSV export includes question columns when listing has questions", async () => {
@@ -218,8 +222,8 @@ describeWithEnv("server listings > export", { db: true }, () => {
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
       const csv = await fetchListingExportCsv(listing.id, cookie);
-      expect(csv).toContain("Shirt Size");
-      expect(csv).toContain("Small");
+      assertStringIncludes(csv, "Shirt Size");
+      assertStringIncludes(csv, "Small");
     });
   });
 });

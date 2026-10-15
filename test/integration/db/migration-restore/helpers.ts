@@ -15,6 +15,7 @@
  * keeps the shards balanced as migrations are added — each shard gets an even
  * mix of long (old boundary) and short (recent boundary) chains.
  */
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#db/client.ts";

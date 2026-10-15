@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -29,7 +30,8 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     const parent = await createTestListing({ name: "Base unit" });
     const child = await createTestListing({ name: "Add-on" });
     const res = await postChildren(parent.id, [child.id]);
-    expect(res.headers.get("location")).toContain(
+    assertStringIncludes(
+      res.headers.get("location") ?? "",
       `/admin/listing/${parent.id}/edit`,
     );
     // A success flash, not an error one.
@@ -60,7 +62,10 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
       restore();
     }
 
-    expect(response.headers.get("location")).toContain("/admin/listings");
+    assertStringIncludes(
+      response.headers.get("location") ?? "",
+      "/admin/listings",
+    );
     expectFlash(response, t("error.child_listing_deleted"), false);
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
@@ -75,8 +80,9 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
   test("renders the section with the chosen child checked", async () => {
     const { parent, child } = await linkedParentChild();
     const html = await listingEditPageHtml(parent.id);
-    expect(html).toContain("Required child listings");
-    expect(html).toContain(
+    assertStringIncludes(html, "Required child listings");
+    assertStringIncludes(
+      html,
       `<input checked name="child_listing_ids" type="checkbox" value="${child.id}">`,
     );
   });
@@ -104,10 +110,12 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     const other = await createTestListing({ name: "Unrelated" });
     await postChildren(parent.id, [child.id]);
     const html = await listingEditPageHtml(parent.id);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input checked name="child_listing_ids" type="checkbox" value="${child.id}">`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input name="child_listing_ids" type="checkbox" value="${other.id}">`,
     );
   });
@@ -115,7 +123,10 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
   test("shows what a child is offered under", async () => {
     const { child } = await linkedParentChild();
     const html = await listingEditPageHtml(child.id);
-    expect(html).toContain("This listing is itself offered under: Base unit.");
+    assertStringIncludes(
+      html,
+      "This listing is itself offered under: Base unit.",
+    );
   });
 
   test("pre-disables a candidate that is itself a parent (usability #4)", async () => {
@@ -127,10 +138,11 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     const grandchild = await createTestListing({ name: "Leaf" });
     await postChildren(child.id, [grandchild.id]);
     const html = await listingEditPageHtml(parent.id);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input disabled name="child_listing_ids" type="checkbox" value="${child.id}">`,
     );
-    expect(html).toContain("already has its own child listings");
+    assertStringIncludes(html, "already has its own child listings");
   });
 
   test("pre-disables a daily candidate under a non-daily parent (usability #4)", async () => {
@@ -140,7 +152,8 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
       name: "Daily add-on",
     });
     const html = await listingEditPageHtml(parent.id);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input disabled name="child_listing_ids" type="checkbox" value="${daily.id}">`,
     );
   });
@@ -148,8 +161,12 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
   test("a child listing's edit page shows the inherited-fields banner (usability #3)", async () => {
     const { child } = await linkedParentChild();
     const html = await listingEditPageHtml(child.id);
-    expect(html).toContain("This listing is offered as a child of Base unit");
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
+      "This listing is offered as a child of Base unit",
+    );
+    assertStringIncludes(
+      html,
       "Inherited from the parent when this listing is chosen as a child",
     );
   });
@@ -157,22 +174,34 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
   test("a non-child listing's edit page shows no inherited-fields banner", async () => {
     const standalone = await createTestListing({ name: "Standalone" });
     const html = await listingEditPageHtml(standalone.id);
-    expect(html).not.toContain("This listing is offered as a child of");
-    expect(html).not.toContain(
-      "Inherited from the parent when this listing is chosen as a child",
+    assert(
+      !html.includes("This listing is offered as a child of"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes(
+        "Inherited from the parent when this listing is chosen as a child",
+      ),
+      "the value should not contain the searched item",
     );
   });
 
   test("a parent's detail page warns when manually adding an attendee (usability #2b)", async () => {
     const { parent } = await linkedParentChild();
     const html = await listingRosterPageHtml(parent.id);
-    expect(html).toContain("This listing requires a child listing (Add-on)");
+    assertStringIncludes(
+      html,
+      "This listing requires a child listing (Add-on)",
+    );
   });
 
   test("a non-parent's detail page shows no manual-add child warning", async () => {
     const standalone = await createTestListing({ name: "Standalone" });
     const html = await listingRosterPageHtml(standalone.id);
-    expect(html).not.toContain("requires a child listing");
+    assert(
+      !html.includes("requires a child listing"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("editing an attendee who booked only a parent warns its child is missing (usability #6)", async () => {
@@ -184,7 +213,8 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     // lone-parent state an admin manual add would.
     const result = await bookAttendee(parent, { name: "Ada" });
     const html = await attendeeEditHtml(result);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "requires one of its child listings to be booked too (Add-on)",
     );
   });
@@ -199,12 +229,15 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
       name: "Ada",
     });
     const html = await attendeeEditHtml(result);
-    expect(html).not.toContain("requires one of its child listings");
+    assert(
+      !html.includes("requires one of its child listings"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("notes when there are no other listings to choose from", async () => {
     const only = await createTestListing({ name: "Solo" });
     const html = await listingEditPageHtml(only.id);
-    expect(html).toContain("No other listings to choose from yet.");
+    assertStringIncludes(html, "No other listings to choose from yet.");
   });
 });

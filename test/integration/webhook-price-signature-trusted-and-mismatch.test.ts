@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
@@ -160,7 +161,7 @@ describeWithEnv(
       await runWebhook(session, async (refund) => {
         await assertJson(webhookRequest(), 200, (json) => {
           expect(json.processed).toBe(false);
-          expect(json.error).toContain("already been processed");
+          assertStringIncludes(json.error, "already been processed");
         });
         expect(refund.calls.length).toBe(0);
       });

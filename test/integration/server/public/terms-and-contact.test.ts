@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -30,7 +32,10 @@ describeWithEnv(
           "T&amp;Cs",
         );
         // The login footer is a homepage-only affordance (#69).
-        expect(html).not.toContain('href="/admin/login"');
+        assert(
+          !html.includes('href="/admin/login"'),
+          "the value should not contain the searched item",
+        );
       });
 
       test("returns 404 when terms not configured", async () => {
@@ -61,7 +66,10 @@ describeWithEnv(
           "Contact",
         );
         // The login footer is a homepage-only affordance (#69).
-        expect(html).not.toContain('href="/admin/login"');
+        assert(
+          !html.includes('href="/admin/login"'),
+          "the value should not contain the searched item",
+        );
       });
 
       test("returns 404 when contact text not configured", async () => {

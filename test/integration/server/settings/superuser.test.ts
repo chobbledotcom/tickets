@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -211,7 +212,10 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
       withEnableSuperuser(async () => {
         const user = await getUserByUsername("admin");
         expect(user!.password_hash).not.toBe("");
-        expect(user!.password_hash).not.toContain("pass1234");
+        assert(
+          !user!.password_hash.includes("pass1234"),
+          "the value should not contain the searched item",
+        );
       }));
 
     test("created user has wrapped_data_key set", () =>

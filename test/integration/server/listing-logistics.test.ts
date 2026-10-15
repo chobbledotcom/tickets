@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -16,8 +17,8 @@ describeWithEnv("server (listing logistics field)", { db: true }, () => {
 
     const response = await adminGet(`/admin/listing/${listing.id}/edit`);
     const html = await response.text();
-    expect(html).toContain('name="uses_logistics"');
-    expect(html).toContain("Needs logistics");
+    assertStringIncludes(html, 'name="uses_logistics"');
+    assertStringIncludes(html, "Needs logistics");
   });
 
   test("the new and duplicate forms include the logistics field", async () => {
@@ -25,16 +26,19 @@ describeWithEnv("server (listing logistics field)", { db: true }, () => {
     const listing = await createTestListing({ name: "Original" });
 
     const newForm = await adminGet("/admin/listing/new?template=custom");
-    expect(await newForm.text()).toContain('name="uses_logistics"');
+    assertStringIncludes(await newForm.text(), 'name="uses_logistics"');
 
     const dupForm = await adminGet(`/admin/listing/${listing.id}/duplicate`);
-    expect(await dupForm.text()).toContain('name="uses_logistics"');
+    assertStringIncludes(await dupForm.text(), 'name="uses_logistics"');
   });
 
   test("the new form omits the logistics field when logistics is off", async () => {
     settings.setForTest(featureSetting());
     const newForm = await adminGet("/admin/listing/new?template=custom");
-    expect(await newForm.text()).not.toContain('name="uses_logistics"');
+    assert(
+      !(await newForm.text()).includes('name="uses_logistics"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("ignores the Delivered field when logistics is off", async () => {
@@ -46,6 +50,9 @@ describeWithEnv("server (listing logistics field)", { db: true }, () => {
 
     const response = await adminGet(`/admin/listing/${listing.id}/edit`);
     const html = await response.text();
-    expect(html).not.toContain('name="uses_logistics"');
+    assert(
+      !html.includes('name="uses_logistics"'),
+      "the value should not contain the searched item",
+    );
   });
 });

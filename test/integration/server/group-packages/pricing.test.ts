@@ -7,6 +7,7 @@
  * own the branch cover, and the invariants that have no journey behind them.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";
@@ -108,10 +109,13 @@ describeWithEnv(
         await adminGet(`/admin/groups/${group.id}/edit`),
         200,
       );
-      expect(html).toContain(`name="package_day_price_${flex.id}_1"`);
-      expect(html).toContain(`name="package_day_price_${flex.id}_2"`);
-      expect(html).toContain('value="15.00"');
-      expect(html).not.toContain(`package_day_price_${plain.id}_`);
+      assertStringIncludes(html, `name="package_day_price_${flex.id}_1"`);
+      assertStringIncludes(html, `name="package_day_price_${flex.id}_2"`);
+      assertStringIncludes(html, 'value="15.00"');
+      assert(
+        !html.includes(`package_day_price_${plain.id}_`),
+        "the value should not contain the searched item",
+      );
 
       // Re-saving without the day inputs clears the overrides (full replace).
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
@@ -262,13 +266,13 @@ describeWithEnv(
         "Package prices",
         "Shown A",
       );
-      expect(html).toContain(`name="package_price_${a.id}"`);
-      expect(html).toContain('value="7.00"');
+      assertStringIncludes(html, `name="package_price_${a.id}"`);
+      assertStringIncludes(html, 'value="7.00"');
       // The override-free member renders an empty value, falling back to base price.
-      expect(html).toContain(`name="package_price_${b.id}"`);
+      assertStringIncludes(html, `name="package_price_${b.id}"`);
       // Per-package quantity inputs render, pre-filled with the saved quantity.
-      expect(html).toContain(`name="package_qty_${a.id}"`);
-      expect(html).toContain('value="5"');
+      assertStringIncludes(html, `name="package_qty_${a.id}"`);
+      assertStringIncludes(html, 'value="5"');
     });
 
     test("edit GET shows the empty-group prompt when there are no listings", async () => {

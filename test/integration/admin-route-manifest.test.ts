@@ -8,6 +8,7 @@
  * - every GET route has a destination declaring who may reach it.
  */
 
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { requiredMapValue } from "#fp";
@@ -45,16 +46,19 @@ describe("admin route manifest", () => {
     for (const [area, routes] of routesByArea) {
       for (const route of routes) {
         const [method, path] = routeParts(route);
-        expect(["DELETE", "GET", "PATCH", "POST", "PUT"], route).toContain(
-          method,
+        assertArrayIncludes(
+          ["DELETE", "GET", "PATCH", "POST", "PUT"],
+          [method],
+          route,
         );
         expect(path === "/admin" || path.startsWith("/admin/"), route).toBe(
           true,
         );
-        expect(
-          ADMIN_SURFACE.areas[area as keyof typeof ADMIN_SURFACE.areas],
+        assertArrayIncludes(
+          ADMIN_SURFACE.areas[area as keyof typeof ADMIN_SURFACE.areas] ?? [],
+          [adminPathSegment(path)],
           route,
-        ).toContain(adminPathSegment(path));
+        );
       }
     }
   });
@@ -65,8 +69,10 @@ describe("admin route manifest", () => {
         .get(name)!
         .map((route) => adminPathSegment(routeParts(route)[1]));
       for (const segment of segments) {
-        expect(served, `${name}: stale segment "${segment}"`).toContain(
-          segment,
+        assertArrayIncludes(
+          served,
+          [segment],
+          `${name}: stale segment "${segment}"`,
         );
       }
     }

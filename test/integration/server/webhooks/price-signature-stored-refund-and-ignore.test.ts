@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -81,8 +82,9 @@ describeWithEnv(
         await getTestPrivateKey(),
       );
       expect(notes).toHaveLength(1);
-      expect(notes[0]!.note).toContain("price changed");
-      expect(notes[0]!.note).toContain(
+      assertStringIncludes(notes[0]!.note, "price changed");
+      assertStringIncludes(
+        notes[0]!.note,
         `/admin/ledger/attendee/${attendee!.id}`,
       );
     });
@@ -322,7 +324,7 @@ describeWithEnv(
       });
       try {
         const response = await redirectRequest("cs_foreign_redirect");
-        expect(await response.text()).toContain("belongs to this site");
+        assertStringIncludes(await response.text(), "belongs to this site");
         expect(refund.calls.length).toBe(0);
       } finally {
         retrieve.restore();

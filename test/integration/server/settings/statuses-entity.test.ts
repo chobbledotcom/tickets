@@ -1,4 +1,6 @@
 /* jscpd:ignore-start */
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
@@ -82,7 +84,7 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
       400,
       "Choose another public default before clearing this one",
     );
-    expect(inputNamed(html, "is_paid_default")).toContain("checked");
+    assertStringIncludes(inputNamed(html, "is_paid_default"), "checked");
   });
 
   test("pre-fills a reservation status's fields when editing", async () => {
@@ -92,8 +94,8 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
       reservationAmount: "25%",
     });
     const html = await (await adminGet(`${PATH}/${reserved.id}/edit`)).text();
-    expect(html).toContain('value="25%"');
-    expect(inputNamed(html, "is_reservation")).toContain("checked");
+    assertStringIncludes(html, 'value="25%"');
+    assertStringIncludes(inputNamed(html, "is_reservation"), "checked");
   });
 
   test("returns 404 editing a missing status", async () => {
@@ -117,7 +119,7 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
       'value="Submitted name"',
       'value="lots"',
     );
-    expect(inputNamed(html, "is_reservation")).toContain("checked");
+    assertStringIncludes(inputNamed(html, "is_reservation"), "checked");
     expect((await getAttendeeStatus(seed.id))?.name).toBe(seed.name);
   });
 
@@ -127,7 +129,7 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(400);
-    expect(html).toContain("Please enter a name");
+    assertStringIncludes(html, "Please enter a name");
     expect(html).toMatch(/name="name"[^>]*value=""/);
   });
 
@@ -144,7 +146,7 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
       400,
       "Name must be 250 characters or fewer",
     );
-    expect(html).toContain(`maxlength="250"`);
+    assertStringIncludes(html, `maxlength="250"`);
     expect((await getAttendeeStatus(seed.id))?.name).toBe(seed.name);
   });
 
@@ -159,6 +161,6 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
       400,
       "Choose another paid default before clearing this one",
     );
-    expect(inputNamed(html, "is_public_default")).toContain("checked");
+    assertStringIncludes(inputNamed(html, "is_public_default"), "checked");
   });
 });

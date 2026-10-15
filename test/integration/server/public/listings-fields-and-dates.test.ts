@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -37,10 +39,14 @@ describeWithEnv(
           quantity: 1,
         });
         const html = await assertPublicHtml("/listings", "Sold Out");
-        expect(html).not.toContain(`href="/ticket/${listing.slug}"`);
+        assert(
+          !html.includes(`href="/ticket/${listing.slug}"`),
+          "the value should not contain the searched item",
+        );
         // The "Sold Out" message lives inside the card's prose block as a red
         // Badge, not a bare <p><strong>.
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           '<div class="prose"><h2>Full Listing</h2><p><span class="badge danger">Sold Out</span></p></div>',
         );
       });
@@ -63,15 +69,21 @@ describeWithEnv(
           quantity: 1,
         });
         const html = await assertPublicHtml("/listings", "Daily Hire");
-        expect(html).not.toContain("Sold Out");
-        expect(html).toContain(`href="/ticket/${listing.slug}"`);
+        assert(
+          !html.includes("Sold Out"),
+          "the value should not contain the searched item",
+        );
+        assertStringIncludes(html, `href="/ticket/${listing.slug}"`);
         // The booking page still offers the date selector rather than a
         // sold-out label.
         const page = await assertPublicHtml(
           `/ticket/${listing.slug}`,
           'name="date"',
         );
-        expect(page).not.toContain("Sold Out");
+        assert(
+          !page.includes("Sold Out"),
+          "the value should not contain the searched item",
+        );
       });
 
       test("invites a date and answers daily card availability once chosen", async () => {
@@ -113,7 +125,10 @@ describeWithEnv(
           "/listings",
           "listings-date-filter",
         );
-        expect(unfiltered).not.toContain("Not available on");
+        assert(
+          !unfiltered.includes("Not available on"),
+          "the value should not contain the searched item",
+        );
 
         // With a date: the full listing reads honestly unavailable for it, the
         // free one's Book CTA carries the date through.
@@ -121,15 +136,21 @@ describeWithEnv(
           `/listings?date=${date}`,
           "Not available on",
         );
-        expect(filtered).toContain(
+        assertStringIncludes(
+          filtered,
           `href="/ticket/${freeDaily.slug}?date=${date}"`,
         );
-        expect(filtered).toContain(
+        assertStringIncludes(
+          filtered,
           `href="/ticket/${flexDaily.slug}?date=${date}"`,
         );
-        expect(filtered).not.toContain(`href="/ticket/${fullDaily.slug}`);
+        assert(
+          !filtered.includes(`href="/ticket/${fullDaily.slug}`),
+          "the value should not contain the searched item",
+        );
         // The "Not available on" message is a red Badge inside the card's prose.
-        expect(filtered).toContain(
+        assertStringIncludes(
+          filtered,
           '<span class="badge danger">Not available on',
         );
         // The unavailable card moves into its own section below the available
@@ -143,7 +164,10 @@ describeWithEnv(
 
         // A malformed date is ignored rather than trusted.
         const garbage = await assertPublicHtml("/listings?date=2026-02-30");
-        expect(garbage).not.toContain("Not available on");
+        assert(
+          !garbage.includes("Not available on"),
+          "the value should not contain the searched item",
+        );
 
         // The carried date lands pre-selected on the booking page.
         await assertPublicHtml(
@@ -194,8 +218,11 @@ describeWithEnv(
           "Bundle Package",
           "Open Package",
         );
-        expect(filtered).not.toContain(`href="/ticket/${pkg.slug}"`);
-        expect(filtered).toContain(`href="/ticket/${openPkg.slug}"`);
+        assert(
+          !filtered.includes(`href="/ticket/${pkg.slug}"`),
+          "the value should not contain the searched item",
+        );
+        assertStringIncludes(filtered, `href="/ticket/${openPkg.slug}"`);
         expect(filtered.indexOf("Open Package")).toBeLessThan(
           filtered.indexOf("Unavailable"),
         );
@@ -229,8 +256,11 @@ describeWithEnv(
           "Hidden Member Package",
           "Plain Listing",
         );
-        expect(filtered).toContain("listings-date-filter");
-        expect(filtered).not.toContain(`href="/ticket/${pkg.slug}"`);
+        assertStringIncludes(filtered, "listings-date-filter");
+        assert(
+          !filtered.includes(`href="/ticket/${pkg.slug}"`),
+          "the value should not contain the searched item",
+        );
         expect(filtered.indexOf("Plain Listing")).toBeLessThan(
           filtered.indexOf("Unavailable"),
         );

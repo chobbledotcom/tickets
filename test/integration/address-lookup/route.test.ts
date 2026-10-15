@@ -5,6 +5,7 @@
  * editable).
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -172,22 +173,28 @@ describeWithEnv("address lookup search panels", { db: true }, () => {
   test("the booking form has no panel while lookup is off", async () => {
     const { listing } = await setupListingAndLogin({ fields: "address" });
     const html = await bookingFormHtml(listing.slug);
-    expect(html).toContain('name="address"');
-    expect(html).not.toContain("data-address-lookup");
+    assertStringIncludes(html, 'name="address"');
+    assert(
+      !html.includes("data-address-lookup"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("the booking form renders the panel when a provider is set", async () => {
     const { listing } = await setupListingAndLogin({ fields: "address" });
     await enableEasypostcodes();
     const html = await bookingFormHtml(listing.slug);
-    expect(html).toContain("data-address-lookup");
+    assertStringIncludes(html, "data-address-lookup");
     // The panel sits directly above the address textarea, hidden until the
     // client script reveals it.
     expect(html.indexOf("data-address-lookup")).toBeLessThan(
       html.indexOf('name="address"'),
     );
     // The textarea is always editable — no Edit button is rendered.
-    expect(html).not.toContain("data-address-edit");
+    assert(
+      !html.includes("data-address-edit"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("the admin attendee form renders the panel", async () => {
@@ -199,7 +206,10 @@ describeWithEnv("address lookup search panels", { db: true }, () => {
       mockRequest("/admin/attendees/new", { headers: { cookie } }),
     );
     const html = await response.text();
-    expect(html).toContain("data-address-lookup");
-    expect(html).not.toContain("data-address-edit");
+    assertStringIncludes(html, "data-address-lookup");
+    assert(
+      !html.includes("data-address-edit"),
+      "the value should not contain the searched item",
+    );
   });
 });

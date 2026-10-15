@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -55,11 +56,11 @@ describeWithEnv(
 
       const html = await pageHtml(`${group.slug}+${solo.slug}`);
       // The bundle keeps its own count selector; the listing keeps its row.
-      expect(html).toContain(`name="package_quantity_${group.id}"`);
-      expect(html).toContain(`name="quantity_${solo.id}"`);
-      expect(html).toContain("Camp Kit");
-      expect(html).toContain("Kit Tent");
-      expect(html).toContain("Lantern");
+      assertStringIncludes(html, `name="package_quantity_${group.id}"`);
+      assertStringIncludes(html, `name="quantity_${solo.id}"`);
+      assertStringIncludes(html, "Camp Kit");
+      assertStringIncludes(html, "Kit Tent");
+      assertStringIncludes(html, "Lantern");
     });
 
     test("a member added by its own slug sells through both paths at once", async () => {
@@ -72,8 +73,8 @@ describeWithEnv(
       const html = await pageHtml(`${group.slug}+${member.slug}`);
       // One package section (read-only member row) AND one standalone quantity
       // row for the same listing — the two bookable paths.
-      expect(html).toContain(`name="package_quantity_${group.id}"`);
-      expect(html).toContain(`name="quantity_${member.id}"`);
+      assertStringIncludes(html, `name="package_quantity_${group.id}"`);
+      assertStringIncludes(html, `name="quantity_${member.id}"`);
     });
 
     test("books one row per path when a package and its member's own row are both taken", async () => {
@@ -125,7 +126,10 @@ describeWithEnv(
       // The child keeps its own quantity row beside the parent's fold —
       // exactly as the plain (package-less) multi-slug page treats it.
       const slugs = `${group.slug}+${parent.slug}+${child.slug}`;
-      expect(await pageHtml(slugs)).toContain(`name="quantity_${child.id}"`);
+      assertStringIncludes(
+        await pageHtml(slugs),
+        `name="quantity_${child.id}"`,
+      );
 
       const submit = await submitPackageBooking(slugs, {
         email: "solo-child@test.com",
@@ -159,8 +163,8 @@ describeWithEnv(
 
       const slugs = `${camp.group.slug}+${beach.group.slug}+${solo.slug}`;
       const html = await pageHtml(slugs);
-      expect(html).toContain(`name="package_quantity_${camp.group.id}"`);
-      expect(html).toContain(`name="package_quantity_${beach.group.id}"`);
+      assertStringIncludes(html, `name="package_quantity_${camp.group.id}"`);
+      assertStringIncludes(html, `name="package_quantity_${beach.group.id}"`);
 
       const submit = await submitPackageBooking(slugs, {
         email: "trio@test.com",
@@ -199,10 +203,10 @@ describeWithEnv(
       const html = await pageHtml(`${group.slug}+${member.slug}+${solo.slug}`);
       // The package row uses its package name. The standalone row uses the
       // listing name because it is a separate booking path.
-      expect(html).toContain("Mystery Box");
-      expect(html).toContain(`name="package_quantity_${group.id}"`);
-      expect(html).toContain("Secret Widget");
-      expect(html).toContain(`name="quantity_${member.id}"`);
+      assertStringIncludes(html, "Mystery Box");
+      assertStringIncludes(html, `name="package_quantity_${group.id}"`);
+      assertStringIncludes(html, "Secret Widget");
+      assertStringIncludes(html, `name="quantity_${member.id}"`);
 
       const submit = await submitPackageBooking(
         `${group.slug}+${member.slug}+${solo.slug}`,
@@ -255,8 +259,8 @@ describeWithEnv(
       ]);
 
       const html = await pageHtml(`${a.slug}+${b.slug}`);
-      expect(html).toContain(`name="package_quantity_${a.id}"`);
-      expect(html).toContain(`name="package_quantity_${b.id}"`);
+      assertStringIncludes(html, `name="package_quantity_${a.id}"`);
+      assertStringIncludes(html, `name="package_quantity_${b.id}"`);
       expect(html).toMatch(/name="email"[^>]*required/);
     });
 
@@ -282,7 +286,10 @@ describeWithEnv(
         unitPrice: 0,
       });
       const html = await pageHtml(`${group.slug}+${solo.slug}`);
-      expect(html).not.toContain('name="email"');
+      assert(
+        !html.includes('name="email"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("two bundles sharing a parent render its child selector exactly once", async () => {
@@ -341,8 +348,11 @@ describeWithEnv(
 
       const html = await pageHtml(`${regular.slug}+${group.slug}`);
       // The package still sells; the regular group's slug names no cart item.
-      expect(html).toContain(`name="package_quantity_${group.id}"`);
-      expect(html).not.toContain("Crowd Item");
+      assertStringIncludes(html, `name="package_quantity_${group.id}"`);
+      assert(
+        !html.includes("Crowd Item"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("drops an incomplete package (a member deactivated) from the cart", async () => {
@@ -374,9 +384,15 @@ describeWithEnv(
       // The incomplete bundle must never sell partially: its slug drops while
       // the intact package books on.
       const html = await pageHtml(`${group.slug}+${whole.group.slug}`);
-      expect(html).not.toContain(`name="package_quantity_${group.id}"`);
-      expect(html).not.toContain("Kept Part");
-      expect(html).toContain(`name="package_quantity_${whole.group.id}"`);
+      assert(
+        !html.includes(`name="package_quantity_${group.id}"`),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("Kept Part"),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(html, `name="package_quantity_${whole.group.id}"`);
     });
 
     test("404s a cart whose every listing is another listing's child", async () => {
@@ -402,9 +418,12 @@ describeWithEnv(
       const a = await createTestListing({ name: "Alpha" });
       const b = await createTestListing({ name: "Bravo" });
       const html = await pageHtml(`${a.slug}+${b.slug}`);
-      expect(html).toContain(`name="quantity_${a.id}"`);
-      expect(html).toContain(`name="quantity_${b.id}"`);
-      expect(html).not.toContain("package_quantity_");
+      assertStringIncludes(html, `name="quantity_${a.id}"`);
+      assertStringIncludes(html, `name="quantity_${b.id}"`);
+      assert(
+        !html.includes("package_quantity_"),
+        "the value should not contain the searched item",
+      );
     });
   },
 );

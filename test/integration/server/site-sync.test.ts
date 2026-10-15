@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -96,7 +97,7 @@ describe("syncReadOnlyFrom with non-numeric bunny hostingId", () => {
     });
     const result = await syncReadOnlyFrom(site, "2099-01-01T00:00:00Z");
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain("No hostingId");
+    if (!result.ok) assertStringIncludes(result.error, "No hostingId");
   });
 });
 

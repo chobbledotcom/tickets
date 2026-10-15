@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -63,9 +64,13 @@ describeWithEnv(
 
         await rerunMigrationsAndExpectListingDomainRestored(listingId);
 
-        expect(await columnNames("activity_log")).not.toContain("event_id");
-        expect(await columnNames("built_sites")).not.toContain(
-          "assigned_event_id",
+        assert(
+          !(await columnNames("activity_log")).includes("event_id"),
+          "the value should not contain the searched item",
+        );
+        assert(
+          !(await columnNames("built_sites")).includes("assigned_event_id"),
+          "the value should not contain the searched item",
         );
         expect(await schemaHashMarker()).toBe(SCHEMA_HASH);
       });
@@ -86,8 +91,13 @@ describeWithEnv(
         await markMigrationsForRerun();
         await initDb();
 
-        expect(await columnNames("activity_log")).toContain("listing_id");
-        expect(await columnNames("activity_log")).not.toContain("event_id");
+        assertArrayIncludes((await columnNames("activity_log")) ?? [], [
+          "listing_id",
+        ]);
+        assert(
+          !(await columnNames("activity_log")).includes("event_id"),
+          "the value should not contain the searched item",
+        );
         const row = await getDb().execute(
           "SELECT listing_id FROM activity_log WHERE message = 'duplicate listing activity'",
         );
@@ -117,9 +127,12 @@ describeWithEnv(
         await initDb();
 
         const cols = await columnNames("activity_log");
-        expect(cols).toContain("listing_id");
-        expect(cols).toContain("attendee_id");
-        expect(cols).not.toContain("event_id");
+        assertArrayIncludes(cols, ["listing_id"]);
+        assertArrayIncludes(cols, ["attendee_id"]);
+        assert(
+          !cols.includes("event_id"),
+          "the value should not contain the searched item",
+        );
         const row = await getDb().execute(
           "SELECT listing_id FROM activity_log WHERE message = 'stale fk listing activity'",
         );

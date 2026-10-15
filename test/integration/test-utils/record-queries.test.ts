@@ -1,5 +1,6 @@
 /** Every client call shape must record and forward correctly — a mishandled
  *  shape would silently corrupt the exact-query assertions built on this. */
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";

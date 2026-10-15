@@ -12,6 +12,7 @@
  * be advertised live even though each member's own card is bookable.
  */
 
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -52,8 +53,8 @@ describeWithEnv(
         await settings.update.orderEnabled(true);
         const { child } = await parentWithFlaggedChild();
         const body = await (await handleRequest(mockRequest("/order"))).text();
-        expect(body).toContain(`name="select_${child.id}"`);
-        expect(body).toContain("Solo Widget");
+        assertStringIncludes(body, `name="select_${child.id}"`);
+        assertStringIncludes(body, "Solo Widget");
       });
     });
 
@@ -64,7 +65,7 @@ describeWithEnv(
         const rss = await (
           await handleRequest(mockRequest("/feeds/listings.rss"))
         ).text();
-        expect(rss).toContain(`/ticket/${child.slug}`);
+        assertStringIncludes(rss, `/ticket/${child.slug}`);
       });
     });
 
@@ -73,7 +74,7 @@ describeWithEnv(
         await settings.update.showPublicApi(true);
         const { child } = await parentWithFlaggedChild();
         const slugs = await apiListingSlugs();
-        expect(slugs).toContain(child.slug);
+        assertArrayIncludes(slugs, [child.slug]);
         const res = await apiGet(`/api/listings/${child.slug}`);
         expect(res.status).toBe(200);
         const body = (await res.json()) as {
@@ -97,7 +98,7 @@ describeWithEnv(
       test("the multi-booking builder offers a bookable_alone child", async () => {
         const { child } = await parentWithFlaggedChild();
         const body = await (await adminGet("/admin/listings")).text();
-        expect(body).toContain(`data-multi-booking-slug="${child.slug}"`);
+        assertStringIncludes(body, `data-multi-booking-slug="${child.slug}"`);
       });
 
       test("a bookable_alone child keeps its share/QR affordances", async () => {
@@ -105,9 +106,12 @@ describeWithEnv(
         const body = await (
           await adminGet(`/admin/listing/${child.id}`)
         ).text();
-        expect(body).toContain(`/ticket/${child.slug}`);
-        expect(body).not.toContain(
-          "it has no standalone booking link, embed, or QR code",
+        assertStringIncludes(body, `/ticket/${child.slug}`);
+        assert(
+          !body.includes(
+            "it has no standalone booking link, embed, or QR code",
+          ),
+          "the value should not contain the searched item",
         );
       });
     });
@@ -133,9 +137,12 @@ describeWithEnv(
         await deactivateTestListing(parent.id);
         const body = await publicBody("/listings");
         // The child's own card is bookable...
-        expect(body).toContain(`href="/ticket/${child.slug}"`);
+        assertStringIncludes(body, `href="/ticket/${child.slug}"`);
         // ...but the group's own /ticket/<group> Book link is not advertised.
-        expect(body).not.toContain(`href="/ticket/${group.slug}"`);
+        assert(
+          !body.includes(`href="/ticket/${group.slug}"`),
+          "the value should not contain the searched item",
+        );
       });
     });
 

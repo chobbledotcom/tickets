@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -104,8 +106,11 @@ describeWithEnv(
         const html = await getResponse.text();
 
         // Page should load but only show the active listing
-        expect(html).toContain("Active Listing");
-        expect(html).not.toContain("Inactive Listing");
+        assertStringIncludes(html, "Active Listing");
+        assert(
+          !html.includes("Inactive Listing"),
+          "the value should not contain the searched item",
+        );
       });
     });
   },

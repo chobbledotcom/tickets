@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -28,9 +30,9 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
       const response = await adminGet("/admin/listings");
       const html = await response.text();
       expect(response.status).toBe(200);
-      expect(html).toContain('class="active" href="/admin/listings"');
-      expect(html).toContain(active.name);
-      expect(html).toContain(deactivated.name);
+      assertStringIncludes(html, 'class="active" href="/admin/listings"');
+      assertStringIncludes(html, active.name);
+      assertStringIncludes(html, deactivated.name);
       expect(html.indexOf(active.name)).toBeLessThan(
         html.indexOf(deactivated.name),
       );
@@ -50,7 +52,7 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
       );
       // "Import from file" is a card in the picker grid, and the final one —
       // after every listing-type card (including "Custom / advanced").
-      expect(html).toContain('href="/admin/catalog/import"');
+      assertStringIncludes(html, 'href="/admin/catalog/import"');
       expect(html.indexOf("Custom / advanced")).toBeLessThan(
         html.indexOf("Import from file"),
       );

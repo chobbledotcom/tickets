@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { assertAdminHtml, testRequiresAuth } from "#test-utils/assertions.ts";
@@ -67,7 +69,10 @@ describeWithEnv("server listings > check-in filter", { db: true }, () => {
         "Checked In User",
         "<strong><u>Checked In</u></strong>",
       );
-      expect(html).not.toContain("Not Checked User");
+      assert(
+        !html.includes("Not Checked User"),
+        "the value should not contain the searched item",
+      );
     });
   });
   describe("GET /admin/listing/:id/out", () => {
@@ -97,9 +102,12 @@ describeWithEnv("server listings > check-in filter", { db: true }, () => {
       );
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).not.toContain("Checked In User");
-      expect(html).toContain("Not Checked User");
-      expect(html).toContain("<strong><u>Checked Out</u></strong>");
+      assert(
+        !html.includes("Checked In User"),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(html, "Not Checked User");
+      assertStringIncludes(html, "<strong><u>Checked Out</u></strong>");
     });
   });
 });

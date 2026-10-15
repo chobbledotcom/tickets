@@ -8,6 +8,8 @@
  * construction (kind='servicing' owns that state; the form cannot toggle it).
  */
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -73,8 +75,11 @@ const assertPublicBodyExcludesHold = async (
   listingName: string,
 ): Promise<void> => {
   const body = await (await awaitTestRequest(path)).text();
-  expect(body).toContain(listingName);
-  expect(body).not.toContain(HOLD_NAME);
+  assertStringIncludes(body, listingName);
+  assert(
+    !body.includes(HOLD_NAME),
+    "the value should not contain the searched item",
+  );
 };
 
 describeWithEnv("servicing §16 — public-facing exclusion", { db: true }, () => {
@@ -86,7 +91,10 @@ describeWithEnv("servicing §16 — public-facing exclusion", { db: true }, () =
   test("the public homepage does not render the service event", async () => {
     await createDailyHold();
     const body = await (await awaitTestRequest("/")).text();
-    expect(body).not.toContain(HOLD_NAME);
+    assert(
+      !body.includes(HOLD_NAME),
+      "the value should not contain the searched item",
+    );
   });
 
   test("the public /calculate quote prices listings only — a service event can't be added or shown", async () => {
@@ -105,8 +113,11 @@ describeWithEnv("servicing §16 — public-facing exclusion", { db: true }, () =
     const body = await (
       await calculate(listing.slug, { [`quantity_${listing.id}`]: "1" })
     ).text();
-    expect(body).toContain("Room A");
-    expect(body).not.toContain(HOLD_NAME);
+    assertStringIncludes(body, "Room A");
+    assert(
+      !body.includes(HOLD_NAME),
+      "the value should not contain the searched item",
+    );
   });
 
   test("GET /api/listings returns active listings only — no servicing rows", async () => {
@@ -120,11 +131,17 @@ describeWithEnv("servicing §16 — public-facing exclusion", { db: true }, () =
       name: HOLD_NAME,
     });
     const body = await (await awaitTestRequest("/api/listings")).text();
-    expect(body).toContain("Room A");
-    expect(body).not.toContain(HOLD_NAME);
+    assertStringIncludes(body, "Room A");
+    assert(
+      !body.includes(HOLD_NAME),
+      "the value should not contain the searched item",
+    );
     // The API returns listing objects (no `kind` field at all); a servicing
     // row can't appear because it isn't a listing.
-    expect(body).not.toContain('"kind"');
+    assert(
+      !body.includes('"kind"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a service event is hidden from the public site by construction", async () => {

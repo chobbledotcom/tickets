@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -242,8 +243,8 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     test("holidays link visible to owners", async () => {
       const response = await adminGet("/admin/holidays");
       const body = await response.text();
-      expect(body).toContain("/admin/holidays");
-      expect(body).toContain("Holidays");
+      assertStringIncludes(body, "/admin/holidays");
+      assertStringIncludes(body, "Holidays");
     });
   });
 

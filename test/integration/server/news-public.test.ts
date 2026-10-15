@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { appendImageToItem, imagesTable } from "#db/images.ts";
@@ -61,28 +62,32 @@ describeWithEnv("server (public news)", { db: true }, () => {
         });
 
         const html = await assertPublicHtml("/news");
-        expect(html).toContain("<title>News - Acme Site</title>");
+        assertStringIncludes(html, "<title>News - Acme Site</title>");
         // Both cards, newest first, each a link wrapping the shared card markup.
-        expect(html).toContain(`href="/news/${newer.slug}"`);
+        assertStringIncludes(html, `href="/news/${newer.slug}"`);
         expect(newer.slug).toBe("2026-07-02-newer-post");
-        expect(html).toContain('class="card news-card"');
+        assertStringIncludes(html, 'class="card news-card"');
         expect(html.indexOf("Newer Post")).toBeLessThan(
           html.indexOf("Older Post"),
         );
-        expect(html).toContain("Fresh snippet");
-        expect(html).toContain('class="card-name"');
+        assertStringIncludes(html, "Fresh snippet");
+        assertStringIncludes(html, 'class="card-name"');
         // The first image renders as the card thumbnail.
-        expect(html).toContain("news hero-thumb.webp");
+        assertStringIncludes(html, "news hero-thumb.webp");
       }));
 
     test("the list page's title is just News when the site has no name", async () => {
       await createTestNewsPost("Nav-worthy");
-      expect(await assertPublicHtml("/news")).toContain("<title>News</title>");
+      assertStringIncludes(
+        await assertPublicHtml("/news"),
+        "<title>News</title>",
+      );
     });
 
     test("every public page advertises the news RSS feed", async () => {
       const html = await assertPublicHtml("/");
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         '<link rel="alternate" type="application/rss+xml" title="News" href="/feeds/news.rss" />',
       );
     });
@@ -100,28 +105,39 @@ describeWithEnv("server (public news)", { db: true }, () => {
           metaTitle: "Launch | Acme",
         });
         const html = await assertPublicHtml(`/news/${post.slug}`);
-        expect(html).toContain("<h1>Big Launch</h1>");
-        expect(html).toContain("<strong>finally</strong>");
-        expect(html).toContain("<title>Launch | Acme - Acme Site</title>");
-        expect(html).toContain(
+        assertStringIncludes(html, "<h1>Big Launch</h1>");
+        assertStringIncludes(html, "<strong>finally</strong>");
+        assertStringIncludes(html, "<title>Launch | Acme - Acme Site</title>");
+        assertStringIncludes(
+          html,
           '<meta name="description" content="News about &quot;things&quot; &amp; fun" />',
         );
         // The title, the date, and the body all sit inside the one .prose block.
-        expect(html).toContain('<div class="prose"><h1>Big Launch</h1>');
+        assertStringIncludes(html, '<div class="prose"><h1>Big Launch</h1>');
         // The date reads as a plain date (no time) in italics.
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           '<p class="news-post-date"><em>Monday 15 June 2026</em></p>',
         );
-        expect(html).not.toContain("14:30");
+        assert(
+          !html.includes("14:30"),
+          "the value should not contain the searched item",
+        );
       }));
 
     test("falls back to the post name for the title; no meta tag when empty", async () => {
       const post = await createTestNewsPost("Plain Post");
       const html = await assertPublicHtml(`/news/${post.slug}`);
-      expect(html).toContain("<title>Plain Post</title>");
-      expect(html).not.toContain('name="description"');
+      assertStringIncludes(html, "<title>Plain Post</title>");
+      assert(
+        !html.includes('name="description"'),
+        "the value should not contain the searched item",
+      );
       // No images ⇒ no gallery at all.
-      expect(html).not.toContain("news-gallery");
+      assert(
+        !html.includes("news-gallery"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a single image renders full-size with no thumbs or radios to swap", async () => {
@@ -135,10 +151,13 @@ describeWithEnv("server (public news)", { db: true }, () => {
       });
       await appendImageToItem(image.id, { id: post.id, kind: "news" });
       const html = await assertPublicHtml(`/news/${post.slug}`);
-      expect(html).toContain('class="news-gallery-full"');
-      expect(html).toContain("solo.webp");
-      expect(html).toContain('alt="Solo"');
-      expect(html).not.toContain("news-gallery-thumb");
+      assertStringIncludes(html, 'class="news-gallery-full"');
+      assertStringIncludes(html, "solo.webp");
+      assertStringIncludes(html, 'alt="Solo"');
+      assert(
+        !html.includes("news-gallery-thumb"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("multiple images render the CSS-only gallery: first checked, one thumb per image", async () => {
@@ -150,20 +169,22 @@ describeWithEnv("server (public news)", { db: true }, () => {
 
       const html = await assertPublicHtml(`/news/${post.slug}`);
       // Two radios sharing one group; only the first is checked.
-      expect(html).toContain('id="news-gallery-0" name="news-gallery"');
-      expect(html).toContain('id="news-gallery-1" name="news-gallery"');
+      assertStringIncludes(html, 'id="news-gallery-0" name="news-gallery"');
+      assertStringIncludes(html, 'id="news-gallery-1" name="news-gallery"');
       expect(html.match(/checked/g)).toHaveLength(1);
       expect(html.indexOf("checked")).toBeLessThan(
         html.indexOf('id="news-gallery-1"'),
       );
       // Full images use the full files; thumbs use the thumbnail files and
       // point their labels at the radios.
-      expect(html).toContain("first pic.webp");
-      expect(html).toContain("first pic-thumb.webp");
-      expect(html).toContain(
+      assertStringIncludes(html, "first pic.webp");
+      assertStringIncludes(html, "first pic-thumb.webp");
+      assertStringIncludes(
+        html,
         '<label class="news-gallery-thumb" for="news-gallery-0">',
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         '<label class="news-gallery-thumb" for="news-gallery-1">',
       );
     });

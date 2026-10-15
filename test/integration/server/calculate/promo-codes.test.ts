@@ -2,7 +2,7 @@
  * discounts the total, an absent or wrong code changes nothing, and the
  * ticket line keeps the list price with the discount itemised separately. */
 
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { modifiersTable } from "#db/modifiers.ts";
@@ -50,11 +50,11 @@ describeWithEnv("server (/calculate promo-code quotes)", { db: true }, () => {
     const html = await quotePromoListing({ promo_code: "SAVE10" });
 
     // Discount line shown with modifier name and negative amount.
-    expect(html).toContain("10% off");
-    expect(html).toContain(formatCurrency(-100));
+    assertStringIncludes(html, "10% off");
+    assertStringIncludes(html, formatCurrency(-100));
     // Total reflects the discounted price (10% off £10.00 = £9.00).
-    expect(html).toContain(formatCurrency(900));
-    expect(html).toContain("order-summary-total");
+    assertStringIncludes(html, formatCurrency(900));
+    assertStringIncludes(html, "order-summary-total");
   });
 
   test("shows the listing price before modifiers, not the discounted line price", async () => {
@@ -62,37 +62,49 @@ describeWithEnv("server (/calculate promo-code quotes)", { db: true }, () => {
 
     // The ticket line is the full £10.00 list price, so the discount isn't
     // baked into it — the modifier is itemised separately on its own row...
-    expect(html).toContain(formatCurrency(1000));
-    expect(html).toContain("10% off");
-    expect(html).toContain(formatCurrency(-100));
+    assertStringIncludes(html, formatCurrency(1000));
+    assertStringIncludes(html, "10% off");
+    assertStringIncludes(html, formatCurrency(-100));
     // ...and only the total carries the £9.00 discounted figure.
-    expect(html).toContain(formatCurrency(900));
+    assertStringIncludes(html, formatCurrency(900));
   });
 
   test("does not apply a promo code discount when no code is submitted", async () => {
     const html = await quotePromoListing();
 
     // Full price — no promo code entered, no discount line.
-    expect(html).toContain(formatCurrency(1000));
-    expect(html).not.toContain(formatCurrency(900));
-    expect(html).not.toContain("10% off");
+    assertStringIncludes(html, formatCurrency(1000));
+    assert(
+      !html.includes(formatCurrency(900)),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("10% off"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("does not apply a promo code discount when a wrong code is submitted", async () => {
     const html = await quotePromoListing({ promo_code: "WRONGCODE" });
 
     // Full price — wrong promo code, no discount line.
-    expect(html).toContain(formatCurrency(1000));
-    expect(html).not.toContain(formatCurrency(900));
-    expect(html).not.toContain("10% off");
+    assertStringIncludes(html, formatCurrency(1000));
+    assert(
+      !html.includes(formatCurrency(900)),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("10% off"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("applies a promo code discount case-insensitively", async () => {
     const html = await quotePromoListing({ promo_code: "save10" });
 
     // Lowercase variant of the code should still match.
-    expect(html).toContain("10% off");
-    expect(html).toContain(formatCurrency(-100));
-    expect(html).toContain(formatCurrency(900));
+    assertStringIncludes(html, "10% off");
+    assertStringIncludes(html, formatCurrency(-100));
+    assertStringIncludes(html, formatCurrency(900));
   });
 });

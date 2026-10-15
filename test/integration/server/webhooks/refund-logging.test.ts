@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -84,7 +86,8 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
 
       // Verify refund was logged to activity log tagged to listing
       const refundEntry = await findRefundActivityEntry(listing.id);
-      expect(refundEntry.message).toContain(
+      assertStringIncludes(
+        refundEntry.message,
         "no longer accepting registrations",
       );
     } finally {
@@ -129,7 +132,7 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
       expect(response.status).toBe(200);
 
       const refundEntry = await findRefundActivityEntry(listing.id);
-      expect(refundEntry.message).toContain("price");
+      assertStringIncludes(refundEntry.message, "price");
     } finally {
       mockVerify.restore();
       mockRefund.restore();

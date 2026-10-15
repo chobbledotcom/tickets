@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
@@ -46,7 +48,7 @@ describeWithEnv(
           l.message.includes("updated"),
         );
         expect(updateLog).toBeDefined();
-        expect(updateLog?.message).toContain(listing.name);
+        assertStringIncludes(updateLog?.message ?? "", listing.name);
       });
     });
     describe("daily listing admin view", () => {
@@ -123,7 +125,7 @@ describeWithEnv(
           `/admin/listing/${listing.id}/attendees`,
         );
         const html = await response.text();
-        expect(html).toContain("<th>Date</th>");
+        assertStringIncludes(html, "<th>Date</th>");
       });
 
       test("does not show Date column for standard listings", async () => {
@@ -136,7 +138,10 @@ describeWithEnv(
           },
         );
         const html = await response.text();
-        expect(html).not.toContain("<th>Date</th>");
+        assert(
+          !html.includes("<th>Date</th>"),
+          "the value should not contain the searched item",
+        );
       });
 
       test("filters attendees by ?date= parameter", async () => {
@@ -147,9 +152,12 @@ describeWithEnv(
           listing,
           `?date=${validDate1}`,
         );
-        expect(html).toContain("User A");
-        expect(html).toContain("User B");
-        expect(html).not.toContain("User C");
+        assertStringIncludes(html, "User A");
+        assertStringIncludes(html, "User B");
+        assert(
+          !html.includes("User C"),
+          "the value should not contain the searched item",
+        );
       });
 
       test("filters attendees by ?date= showing other date", async () => {
@@ -160,8 +168,11 @@ describeWithEnv(
           `/admin/listing/${listing.id}/attendees?date=${validDate2}`,
         );
         const html = await response.text();
-        expect(html).toContain("User C");
-        expect(html).not.toContain("User A");
+        assertStringIncludes(html, "User C");
+        assert(
+          !html.includes("User A"),
+          "the value should not contain the searched item",
+        );
       });
 
       test("scopes the roster to the active date on the Attendees tab", async () => {
@@ -173,10 +184,14 @@ describeWithEnv(
         const html = await response.text();
         // The date filter scopes the roster to date1's two bookings, and the
         // date selector marks that date as the active option.
-        expect(html).toContain("User A");
-        expect(html).toContain("User B");
-        expect(html).not.toContain("User C");
-        expect(html).toContain(
+        assertStringIncludes(html, "User A");
+        assertStringIncludes(html, "User B");
+        assert(
+          !html.includes("User C"),
+          "the value should not contain the searched item",
+        );
+        assertStringIncludes(
+          html,
           `/admin/listing/${listing.id}/attendees?date=${validDate1}" selected`,
         );
       });
@@ -186,8 +201,8 @@ describeWithEnv(
 
         const response = await adminGet(`/admin/listing/${listing.id}`);
         const html = await response.text();
-        expect(html).toContain("(total)");
-        expect(html).toContain("Capacity of");
+        assertStringIncludes(html, "(total)");
+        assertStringIncludes(html, "Capacity of");
       });
 
       test("date filter composes with check-in filter", async () => {
@@ -198,9 +213,12 @@ describeWithEnv(
           listing,
           `?filter=out&date=${validDate1}`,
         );
-        expect(html).toContain("User A");
-        expect(html).toContain("User B");
-        expect(html).not.toContain("User C");
+        assertStringIncludes(html, "User A");
+        assertStringIncludes(html, "User B");
+        assert(
+          !html.includes("User C"),
+          "the value should not contain the searched item",
+        );
       });
 
       test("ignores a malformed ?date= and shows all attendees", async () => {
@@ -211,8 +229,8 @@ describeWithEnv(
           `/admin/listing/${listing.id}/attendees?date=not-a-date`,
         );
         const html = await response.text();
-        expect(html).toContain("User A");
-        expect(html).toContain("User C");
+        assertStringIncludes(html, "User A");
+        assertStringIncludes(html, "User C");
       });
 
       test("shows a date-scoped capacity summary on the roster, only when dated", async () => {
@@ -224,12 +242,15 @@ describeWithEnv(
             `/admin/listing/${listing.id}/attendees?date=${validDate1}`,
           )
         ).text();
-        expect(dated).toContain('class="listing-details-table"');
+        assertStringIncludes(dated, 'class="listing-details-table"');
         // Without a date the roster shows no capacity table.
         const undated = await (
           await adminGet(`/admin/listing/${listing.id}/attendees`)
         ).text();
-        expect(undated).not.toContain('class="listing-details-table"');
+        assert(
+          !undated.includes('class="listing-details-table"'),
+          "the value should not contain the searched item",
+        );
       });
 
       test("ignores ?date= for standard listings", async () => {
@@ -247,8 +268,11 @@ describeWithEnv(
           { cookie },
         );
         const html = await response.text();
-        expect(html).toContain("Standard User");
-        expect(html).not.toContain("<th>Date</th>");
+        assertStringIncludes(html, "Standard User");
+        assert(
+          !html.includes("<th>Date</th>"),
+          "the value should not contain the searched item",
+        );
       });
 
       test("CSV export includes Date column for daily listings", async () => {
@@ -278,8 +302,11 @@ describeWithEnv(
           `/admin/listing/${listing.id}/export?date=${validDate2}`,
         );
         const csv = await response.text();
-        expect(csv).toContain("User C");
-        expect(csv).not.toContain("User A");
+        assertStringIncludes(csv, "User C");
+        assert(
+          !csv.includes("User A"),
+          "the value should not contain the searched item",
+        );
       });
 
       test("CSV export filename includes date when filtered", async () => {
@@ -289,13 +316,14 @@ describeWithEnv(
           `/admin/listing/${listing.id}/export?date=${validDate1}`,
         );
         const disposition = response.headers.get("content-disposition") ?? "";
-        expect(disposition).toContain(validDate1);
-        expect(disposition).toContain("_attendees.csv");
+        assertStringIncludes(disposition, validDate1);
+        assertStringIncludes(disposition, "_attendees.csv");
       });
 
       test("Export CSV link includes ?date= when filter is active", async () => {
         const { listing, html } = await fetchDate1Roster();
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `/admin/listing/${listing.id}/export?date=${validDate1}`,
         );
       });
@@ -304,10 +332,12 @@ describeWithEnv(
         const { listing, html } = await fetchDate1Roster();
         // The shared filter bar injects its links raw, so the ampersand
         // between the query parameters is not entity-escaped.
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `/admin/listing/${listing.id}/attendees?filter=in&date=${validDate1}`,
         );
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `/admin/listing/${listing.id}/attendees?filter=out&date=${validDate1}`,
         );
       });

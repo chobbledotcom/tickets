@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -32,7 +33,7 @@ describeWithEnv("form re-fill across an error redirect", { db: true }, () => {
     const html = await followed.text();
     expect(followed.status).toBe(200);
     // The description the user already typed is restored from the stash.
-    expect(html).toContain("Remember this description");
+    assertStringIncludes(html, "Remember this description");
   });
 
   test("keeps the message but drops the re-fill on a cold isolate", async () => {
@@ -49,6 +50,9 @@ describeWithEnv("form re-fill across an error redirect", { db: true }, () => {
       cookie,
     );
     const html = await followed.text();
-    expect(html).not.toContain("This text would be lost");
+    assert(
+      !html.includes("This text would be lost"),
+      "the value should not contain the searched item",
+    );
   });
 });

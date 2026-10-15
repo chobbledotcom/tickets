@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { base64ToBase64Url } from "#crypto/utils.ts";
@@ -138,7 +139,7 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       );
       // Re-rendered in place with an error, not redirected.
       expect(response.status).toBe(200);
-      expect(await response.text()).toContain("characters or fewer");
+      assertStringIncludes(await response.text(), "characters or fewer");
       // The rejected submission wrote nothing.
       expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(0);
     });

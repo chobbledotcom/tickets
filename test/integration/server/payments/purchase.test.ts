@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -276,7 +278,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       expect(response.status).toBe(302);
       const location = response.headers.get("location");
       expect(location).not.toBeNull();
-      expect(location).toContain("checkout.stripe.com");
+      assertStringIncludes(location ?? "", "checkout.stripe.com");
     });
 
     test("rejects paid listing registration when sold out before payment", async () => {

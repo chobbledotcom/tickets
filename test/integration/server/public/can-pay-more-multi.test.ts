@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -74,8 +76,11 @@ describeWithEnv(
           mockRequest(`/ticket/${listing1.slug}+${listing2.slug}`),
         );
         const html = await response.text();
-        expect(html).toContain(`name="custom_price_${listing1.id}"`);
-        expect(html).not.toContain(`name="custom_price_${listing2.id}"`);
+        assertStringIncludes(html, `name="custom_price_${listing1.id}"`);
+        assert(
+          !html.includes(`name="custom_price_${listing2.id}"`),
+          "the value should not contain the searched item",
+        );
       });
 
       test("POST ticket with can_pay_more redirects to checkout", async () => {

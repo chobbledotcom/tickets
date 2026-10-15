@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
@@ -39,15 +40,18 @@ describe("renderError", () => {
 
   test("renders error with role alert", () => {
     const html = renderError("Something went wrong");
-    expect(html).toContain("Something went wrong");
-    expect(html).toContain('class="error"');
-    expect(html).toContain('role="alert"');
+    assertStringIncludes(html, "Something went wrong");
+    assertStringIncludes(html, 'class="error"');
+    assertStringIncludes(html, 'role="alert"');
   });
 
   test("escapes HTML in error message", () => {
     const html = renderError("<script>alert(1)</script>");
-    expect(html).toContain("&lt;script&gt;");
-    expect(html).not.toContain("<script>");
+    assertStringIncludes(html, "&lt;script&gt;");
+    assert(
+      !html.includes("<script>"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -59,53 +63,71 @@ describe("renderSuccess", () => {
 
   test("renders success message with role alert", () => {
     const html = renderSuccess("Changes saved");
-    expect(html).toContain("Changes saved");
-    expect(html).toContain('class="success"');
-    expect(html).toContain('role="alert"');
+    assertStringIncludes(html, "Changes saved");
+    assertStringIncludes(html, 'class="success"');
+    assertStringIncludes(html, 'role="alert"');
   });
 
   test("escapes HTML in success message", () => {
     const html = renderSuccess("<script>alert(1)</script>");
-    expect(html).toContain("&lt;script&gt;");
-    expect(html).not.toContain("<script>");
+    assertStringIncludes(html, "&lt;script&gt;");
+    assert(
+      !html.includes("<script>"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
 describe("Flash", () => {
   test("renders nothing when no error or success", () => {
     const html = String(Flash({}));
-    expect(html).not.toContain('class="error"');
-    expect(html).not.toContain('class="success"');
+    assert(
+      !html.includes('class="error"'),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes('class="success"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders error with role alert", () => {
     const html = String(Flash({ error: "Bad input" }));
-    expect(html).toContain("Bad input");
-    expect(html).toContain('class="error"');
-    expect(html).toContain('role="alert"');
-    expect(html).not.toContain('class="success"');
+    assertStringIncludes(html, "Bad input");
+    assertStringIncludes(html, 'class="error"');
+    assertStringIncludes(html, 'role="alert"');
+    assert(
+      !html.includes('class="success"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders success with role alert", () => {
     const html = String(Flash({ success: "Saved" }));
-    expect(html).toContain("Saved");
-    expect(html).toContain('class="success"');
-    expect(html).toContain('role="alert"');
-    expect(html).not.toContain('class="error"');
+    assertStringIncludes(html, "Saved");
+    assertStringIncludes(html, 'class="success"');
+    assertStringIncludes(html, 'role="alert"');
+    assert(
+      !html.includes('class="error"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders both error and success", () => {
     const html = String(Flash({ error: "Oops", success: "Done" }));
-    expect(html).toContain("Oops");
-    expect(html).toContain("Done");
-    expect(html).toContain('class="error"');
-    expect(html).toContain('class="success"');
+    assertStringIncludes(html, "Oops");
+    assertStringIncludes(html, "Done");
+    assertStringIncludes(html, 'class="error"');
+    assertStringIncludes(html, 'class="success"');
   });
 
   test("escapes HTML in messages", () => {
     const html = String(Flash({ error: "<script>xss</script>" }));
-    expect(html).toContain("&lt;script&gt;");
-    expect(html).not.toContain("<script>xss");
+    assertStringIncludes(html, "&lt;script&gt;");
+    assert(
+      !html.includes("<script>xss"),
+      "the value should not contain the searched item",
+    );
   });
 });
 
@@ -114,9 +136,9 @@ test("requestFlash renders every message from the request context", async () => 
     setFlashContext({ error: "Bad", info: "Notice", success: "Saved" });
     return String(requestFlash());
   });
-  expect(html).toContain("Bad");
-  expect(html).toContain("Notice");
-  expect(html).toContain("Saved");
+  assertStringIncludes(html, "Bad");
+  assertStringIncludes(html, "Notice");
+  assertStringIncludes(html, "Saved");
 });
 
 describe("CsrfForm", () => {
@@ -128,40 +150,46 @@ describe("CsrfForm", () => {
 
   test("renders POST form with action and CSRF token", () => {
     const html = String(CsrfForm({ action: "/submit" }));
-    expect(html).toContain('action="/submit"');
-    expect(html).toContain('method="POST"');
+    assertStringIncludes(html, 'action="/submit"');
+    assertStringIncludes(html, 'method="POST"');
     expect(hasInputWithValue(html, "csrf_token", getCurrentCsrfToken())).toBe(
       true,
     );
   });
 
   test("passes through class attribute", () => {
-    expect(String(CsrfForm({ action: "/submit", class: "inline" }))).toContain(
+    assertStringIncludes(
+      String(CsrfForm({ action: "/submit", class: "inline" })),
       'class="inline"',
     );
   });
 
   test("passes through enctype for multipart forms", () => {
-    expect(
+    assertStringIncludes(
       String(CsrfForm({ action: "/upload", enctype: "multipart/form-data" })),
-    ).toContain('enctype="multipart/form-data"');
+      'enctype="multipart/form-data"',
+    );
   });
 
   test("passes through id attribute", () => {
-    expect(
+    assertStringIncludes(
       String(CsrfForm({ action: "/submit", id: "settings-tz" })),
-    ).toContain('id="settings-tz"');
+      'id="settings-tz"',
+    );
   });
 
   test("does not render id attribute when not provided", () => {
-    expect(String(CsrfForm({ action: "/submit" }))).not.toContain("id=");
+    assert(
+      !String(CsrfForm({ action: "/submit" })).includes("id="),
+      "the value should not contain the searched item",
+    );
   });
 
   test("renders children inside the form", () => {
     const html = String(
       CsrfForm({ action: "/submit", children: "Submit here" }),
     );
-    expect(html).toContain("Submit here");
+    assertStringIncludes(html, "Submit here");
   });
 
   test("shows success flash when id matches the targeted form", async () => {
@@ -170,28 +198,34 @@ describe("CsrfForm", () => {
       { success: "Saved" },
       "my-form",
     );
-    expect(html).toContain("Saved");
-    expect(html).toContain('class="success"');
+    assertStringIncludes(html, "Saved");
+    assertStringIncludes(html, 'class="success"');
   });
 
   test("does not show success when id does not match", async () => {
-    expect(
-      await csrfFormInFlash(
-        { action: "/submit", id: "my-form" },
-        { success: "Saved" },
-        "other-form",
-      ),
-    ).not.toContain('class="success"');
+    assert(
+      !(
+        await csrfFormInFlash(
+          { action: "/submit", id: "my-form" },
+          { success: "Saved" },
+          "other-form",
+        )
+      ).includes('class="success"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("does not show success when no id on form", async () => {
-    expect(
-      await csrfFormInFlash(
-        { action: "/submit" },
-        { success: "Saved" },
-        "my-form",
-      ),
-    ).not.toContain('class="success"');
+    assert(
+      !(
+        await csrfFormInFlash(
+          { action: "/submit" },
+          { success: "Saved" },
+          "my-form",
+        )
+      ).includes('class="success"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("shows error flash when id matches the targeted form", async () => {
@@ -200,24 +234,28 @@ describe("CsrfForm", () => {
       { error: "Something went wrong" },
       "my-form",
     );
-    expect(html).toContain("Something went wrong");
-    expect(html).toContain('class="error"');
+    assertStringIncludes(html, "Something went wrong");
+    assertStringIncludes(html, 'class="error"');
   });
 
   test("does not show error when id does not match", async () => {
-    expect(
-      await csrfFormInFlash(
-        { action: "/submit", id: "my-form" },
-        { error: "err" },
-        "other-form",
-      ),
-    ).not.toContain('class="error"');
+    assert(
+      !(
+        await csrfFormInFlash(
+          { action: "/submit", id: "my-form" },
+          { error: "err" },
+          "other-form",
+        )
+      ).includes('class="error"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("appends ?iframe=true to action when in iframe mode", async () => {
     await withRequestContext(() => {
       detectIframeMode(new URL("https://example.com/?iframe=true"));
-      expect(String(CsrfForm({ action: "/ticket/test" }))).toContain(
+      assertStringIncludes(
+        String(CsrfForm({ action: "/ticket/test" })),
         'action="/ticket/test?iframe=true"',
       );
     });
@@ -227,8 +265,11 @@ describe("CsrfForm", () => {
     await withRequestContext(() => {
       detectIframeMode(new URL("https://example.com/"));
       const html = String(CsrfForm({ action: "/ticket/test" }));
-      expect(html).toContain('action="/ticket/test"');
-      expect(html).not.toContain("iframe");
+      assertStringIncludes(html, 'action="/ticket/test"');
+      assert(
+        !html.includes("iframe"),
+        "the value should not contain the searched item",
+      );
     });
   });
 });

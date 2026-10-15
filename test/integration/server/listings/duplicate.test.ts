@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -47,11 +49,14 @@ describeWithEnv("server listings > duplicate", { db: true }, () => {
         'value="https://example.com/webhook"',
       );
       // Name field should be empty (not pre-filled)
-      expect(html).not.toContain('value="Original Listing"');
+      assert(
+        !html.includes('value="Original Listing"'),
+        "the value should not contain the searched item",
+      );
       // Form posts to create endpoint
-      expect(html).toContain('action="/admin/listing"');
+      assertStringIncludes(html, 'action="/admin/listing"');
       // Name field has autofocus
-      expect(html).toContain("autofocus");
+      assertStringIncludes(html, "autofocus");
     });
 
     /** Sets up a plain listing and returns its rendered Actions tab HTML —
@@ -69,14 +74,14 @@ describeWithEnv("server listings > duplicate", { db: true }, () => {
 
     test("shows Duplicate link on the Actions tab", async () => {
       const html = await getActionsTabHtml();
-      expect(html).toContain('href="/admin/listing/1/duplicate"');
-      expect(html).toContain("<span>Duplicate</span>");
+      assertStringIncludes(html, 'href="/admin/listing/1/duplicate"');
+      assertStringIncludes(html, "<span>Duplicate</span>");
     });
 
     test("shows the JSON export link on the Actions tab", async () => {
       const html = await getActionsTabHtml();
-      expect(html).toContain('href="/admin/listing/1/export.json"');
-      expect(html).toContain("<span>Export</span>");
+      assertStringIncludes(html, 'href="/admin/listing/1/export.json"');
+      assertStringIncludes(html, "<span>Export</span>");
     });
   });
 

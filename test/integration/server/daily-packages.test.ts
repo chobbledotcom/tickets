@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -62,9 +63,9 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       await handleRequest(mockRequest(`/ticket/${group.slug}`))
     ).text();
     // One date control for the whole bundle (members share the start date).
-    expect(body).toContain('name="date"');
+    assertStringIncludes(body, 'name="date"');
     // The package quantity selector still rides alongside it.
-    expect(body).toContain(`name="package_quantity_${group.id}"`);
+    assertStringIncludes(body, `name="package_quantity_${group.id}"`);
   });
 
   test("a hidden package's clashing members are never named in conflict notes", async () => {
@@ -90,10 +91,19 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     const body = await (
       await handleRequest(mockRequest(`/ticket/${group.slug}`))
     ).text();
-    expect(body).toContain("No dates are currently available for booking.");
-    expect(body).not.toContain("Secret Near");
-    expect(body).not.toContain("Secret Far");
-    expect(body).not.toContain("Book them separately");
+    assertStringIncludes(body, "No dates are currently available for booking.");
+    assert(
+      !body.includes("Secret Near"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !body.includes("Secret Far"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !body.includes("Book them separately"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("books every member on the chosen date, stamped with the group", async () => {
@@ -125,7 +135,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       [`package_quantity_${group.id}`]: "1",
     });
     // The submit bounces back with the date error; nothing is booked.
-    expect([302, 303]).toContain(submit.status);
+    assertArrayIncludes([302, 303], [submit.status]);
     expect(await bookingRows(tent.id)).toHaveLength(0);
     expect(await bookingRows(firepit.id)).toHaveLength(0);
   });
@@ -159,7 +169,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       name: "Late",
       [`package_quantity_${group.id}`]: "1",
     });
-    expect([302, 303]).toContain(sameDate.status);
+    assertArrayIncludes([302, 303], [sameDate.status]);
     expect(await bookingRows(tent.id)).toHaveLength(1);
 
     // …while the next day books normally.
@@ -206,7 +216,10 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     // The package page still renders (the whole pool is free on other dates)…
     const page = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain(`name="package_quantity_${group.id}"`);
+    assertStringIncludes(
+      await page.text(),
+      `name="package_quantity_${group.id}"`,
+    );
 
     // …and a booking for a different date succeeds.
     const submit = await submitPackageBooking(group.slug, {
@@ -250,15 +263,18 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     ).text();
     // The bundle offers only the day counts EVERY member supports: 1 and 2,
     // never the hut-only 3-day option.
-    expect(body).toContain('name="day_count"');
-    expect(body).toContain('value="1"');
-    expect(body).toContain('value="2"');
-    expect(body).not.toContain('value="3"');
+    assertStringIncludes(body, 'name="day_count"');
+    assertStringIncludes(body, 'value="1"');
+    assertStringIncludes(body, 'value="2"');
+    assert(
+      !body.includes('value="3"'),
+      "the value should not contain the searched item",
+    );
     // Each option is labelled with the whole bundle's total for that span —
     // the members' ENTERED day prices summed (1000+500, 1800+900), never
     // base × days.
-    expect(body).toContain("£15");
-    expect(body).toContain("£27");
+    assertStringIncludes(body, "£15");
+    assertStringIncludes(body, "£27");
   });
 
   test("a customisable package prices each member's own day price, never base times days", async () => {
@@ -295,8 +311,11 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     });
     // 2-day bundle = boat 1800 + hut 900 = £27 — each member's ENTERED 2-day
     // price, not base × 2 (which would be £30).
-    expect(fragment).toContain("£27");
-    expect(fragment).not.toContain("£30");
+    assertStringIncludes(fragment, "£27");
+    assert(
+      !fragment.includes("£30"),
+      "the value should not contain the searched item",
+    );
   });
 
   /** The shared two-member customisable package (boat 1000/1800, hut 500/900)
@@ -324,8 +343,11 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     });
     // Boat's 2-day price is overridden to 1500 inside this package; the hut
     // keeps its own 900. Total £24, never the un-overridden £27.
-    expect(fragment).toContain("£24");
-    expect(fragment).not.toContain("£27");
+    assertStringIncludes(fragment, "£24");
+    assert(
+      !fragment.includes("£27"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("an explicit 0 per-day override makes that span free in the package", async () => {
@@ -341,8 +363,11 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     });
     // The boat's 2-day span is explicitly FREE inside this package (0 is a real
     // override, not "no override"); only the hut's own 900 charges.
-    expect(fragment).toContain("£9");
-    expect(fragment).not.toContain("£27");
+    assertStringIncludes(fragment, "£9");
+    assert(
+      !fragment.includes("£27"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("the package page drops day counts no member's required child can serve", async () => {
@@ -364,10 +389,13 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     const body = await (
       await handleRequest(mockRequest(`/ticket/${group.slug}`))
     ).text();
-    expect(body).toContain('name="day_count"');
+    assertStringIncludes(body, 'name="day_count"');
     // 2700 for the members plus the boat's unavoidable 200 add-on charge.
-    expect(body).toContain("2 days — £29");
-    expect(body).not.toContain("1 day —");
+    assertStringIncludes(body, "2 days — £29");
+    assert(
+      !body.includes("1 day —"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("a hidden package's day-count error names the package, not the member", async () => {
@@ -386,7 +414,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       name: "Hush",
       [`package_quantity_${group.id}`]: "1",
     });
-    expect([302, 303]).toContain(submit.status);
+    assertArrayIncludes([302, 303], [submit.status]);
     expect(parseFlashCookie(submit).error).toBe(
       "Hush Kit does not offer a 5-day booking",
     );
@@ -405,6 +433,6 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     });
     // The boat's flat 500 override is one price whatever the span, outranking
     // both its 2-day override (1500) and its own day price (1800): 500 + 900.
-    expect(fragment).toContain("£14");
+    assertStringIncludes(fragment, "£14");
   });
 });

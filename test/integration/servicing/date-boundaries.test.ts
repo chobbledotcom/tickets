@@ -6,6 +6,8 @@
  * predicate can silently shift a day.
  */
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
@@ -76,8 +78,8 @@ describeWithEnv("servicing edge cases — date boundaries", { db: true }, () => 
       name: "Today Service",
     });
     const body = await renderAdminPage("/admin/");
-    expect(body).toContain("Today Service");
-    expect(body).toContain(`/admin/servicing/${id}`);
+    assertStringIncludes(body, "Today Service");
+    assertStringIncludes(body, `/admin/servicing/${id}`);
   });
 
   test("a past-dated hold is excluded from the upcoming-events list (boundary exclusion)", async () => {
@@ -90,7 +92,10 @@ describeWithEnv("servicing edge cases — date boundaries", { db: true }, () => 
       name: "Ancient Service",
     });
     const body = await renderAdminPage("/admin/");
-    expect(body).not.toContain("Ancient Service");
+    assert(
+      !body.includes("Ancient Service"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("an undated servicing event always appears in upcoming regardless of created date", async () => {
@@ -108,6 +113,6 @@ describeWithEnv("servicing edge cases — date boundaries", { db: true }, () => 
       sql: "UPDATE attendees SET created = ? WHERE id = ?",
     });
     const body = await renderAdminPage("/admin/");
-    expect(body).toContain("Undated Service");
+    assertStringIncludes(body, "Undated Service");
   });
 });

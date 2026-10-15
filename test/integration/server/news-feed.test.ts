@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -24,21 +25,25 @@ describeWithEnv("server (news RSS feed)", { db: true }, () => {
       "application/rss+xml; charset=utf-8",
     );
     const body = await response.text();
-    expect(body).toContain('<rss version="2.0">');
-    expect(body).toContain("<link>https://localhost/news</link>");
-    expect(body).not.toContain("<item>");
+    assertStringIncludes(body, '<rss version="2.0">');
+    assertStringIncludes(body, "<link>https://localhost/news</link>");
+    assert(
+      !body.includes("<item>"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("channel uses the website title, defaulting to News", async () => {
     await enablePublicSite();
     let body = await (await fetchNewsRss()).text();
-    expect(body).toContain("<title>News</title>");
-    expect(body).toContain("<description>News from News</description>");
+    assertStringIncludes(body, "<title>News</title>");
+    assertStringIncludes(body, "<description>News from News</description>");
 
     await settings.update.websiteTitle("Acme & Co");
     body = await (await fetchNewsRss()).text();
-    expect(body).toContain("<title>Acme &amp; Co</title>");
-    expect(body).toContain(
+    assertStringIncludes(body, "<title>Acme &amp; Co</title>");
+    assertStringIncludes(
+      body,
       "<description>News from Acme &amp; Co</description>",
     );
   });
@@ -54,16 +59,20 @@ describeWithEnv("server (news RSS feed)", { db: true }, () => {
       snippet: 'Snippet with "quotes" & ampersands',
     });
     const body = await (await fetchNewsRss()).text();
-    expect(body).toContain("<title>Tom &amp; Jerry &lt;launch&gt;</title>");
-    expect(body).toContain(
+    assertStringIncludes(body, "<title>Tom &amp; Jerry &lt;launch&gt;</title>");
+    assertStringIncludes(
+      body,
       "<description>Snippet with &quot;quotes&quot; &amp; ampersands</description>",
     );
     // The permalink slug strips the punctuation from the name.
     expect(newer.slug).toBe("2026-07-02-tom-jerry-launch");
     const link = `https://localhost/news/${newer.slug}`;
-    expect(body).toContain(`<link>${link}</link>`);
-    expect(body).toContain(`<guid isPermaLink="true">${link}</guid>`);
-    expect(body).toContain("<pubDate>Thu, 02 Jul 2026 10:00:00 GMT</pubDate>");
+    assertStringIncludes(body, `<link>${link}</link>`);
+    assertStringIncludes(body, `<guid isPermaLink="true">${link}</guid>`);
+    assertStringIncludes(
+      body,
+      "<pubDate>Thu, 02 Jul 2026 10:00:00 GMT</pubDate>",
+    );
     expect(body.indexOf("Jerry")).toBeLessThan(body.indexOf("Older news"));
   });
 
@@ -71,7 +80,7 @@ describeWithEnv("server (news RSS feed)", { db: true }, () => {
     await enablePublicSite();
     await createTestNewsPost("Bare feed post");
     const body = await (await fetchNewsRss()).text();
-    expect(body).toContain("<title>Bare feed post</title>");
-    expect(body).toContain("<description></description>");
+    assertStringIncludes(body, "<title>Bare feed post</title>");
+    assertStringIncludes(body, "<description></description>");
   });
 });

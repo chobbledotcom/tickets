@@ -8,6 +8,8 @@
  * escaping JSX applies automatically elsewhere.
  */
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -26,8 +28,11 @@ describeWithEnv(
     test("the create page escapes the listing name in the booking table", async () => {
       await createDailyTestListing({ maxAttendees: 5, name: XSS_NAME });
       const body = await renderAdminPage("/admin/servicing/new");
-      expect(body).toContain(ESCAPED_NAME);
-      expect(body).not.toContain(XSS_NAME);
+      assertStringIncludes(body, ESCAPED_NAME);
+      assert(
+        !body.includes(XSS_NAME),
+        "the value should not contain the searched item",
+      );
     });
 
     test("the edit page escapes the listing name in the booking table and the cost <option>", async () => {
@@ -44,10 +49,14 @@ describeWithEnv(
       // name; the raw script tag never appears verbatim.
       const occurrences = body.split(ESCAPED_NAME).length - 1;
       expect(occurrences).toBeGreaterThanOrEqual(2);
-      expect(body).not.toContain(XSS_NAME);
+      assert(
+        !body.includes(XSS_NAME),
+        "the value should not contain the searched item",
+      );
       // The cost form's option targets the listing by its id, and the label is
       // the escaped name (not the raw markup).
-      expect(body).toContain(
+      assertStringIncludes(
+        body,
         `<option value="${listing.id}">${ESCAPED_NAME}</option>`,
       );
     });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -54,6 +55,6 @@ export const testConfirmIdentifierMismatch = (
       cookie,
     );
     const html = await page.text();
-    expect(html).toContain("does not match");
+    assertStringIncludes(html, "does not match");
   });
 };

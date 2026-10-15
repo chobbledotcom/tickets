@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { CliError } from "#cli/errors.ts";
@@ -78,7 +79,7 @@ describe("CLI run", () => {
     expect(result.code).toBe(2);
     const error = JSON.parse(result.err ?? "").error;
     expect(error.kind).toBe("usage");
-    expect(error.message).toContain(message);
+    assertStringIncludes(error.message, message);
     expect(error.status).toBeNull();
     expect(requests).toEqual([]);
   };
@@ -172,7 +173,8 @@ describe("CLI run", () => {
     );
     expect(result.code).toBe(3);
     expect(requests).toEqual([]);
-    expect(JSON.parse(result.err ?? "").error.message).toContain(
+    assertStringIncludes(
+      JSON.parse(result.err ?? "").error.message,
       "not valid JSON",
     );
   });
@@ -237,7 +239,7 @@ describe("CLI run", () => {
       const answer = JSON.parse(result.err ?? "");
       expect(answer.error.kind).toBe("validation");
       expect(answer.error.status).toBe(400);
-      expect(answer.error.message).toContain("admin api request failed");
+      assertStringIncludes(answer.error.message, "admin api request failed");
     }
   });
 
@@ -392,6 +394,6 @@ describe("CLI run", () => {
     expect(answer.error.kind).toBe("usage");
     expect(answer.error.status).toBeNull();
     expect(answer.error.fields).toBeNull();
-    expect(answer.error.message).toContain("API_HOSTNAME");
+    assertStringIncludes(answer.error.message, "API_HOSTNAME");
   });
 });

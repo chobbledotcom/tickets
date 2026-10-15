@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -145,8 +146,14 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       // The row answers with its real keys, so absent fields can be asserted
       // by name: neither storage detail may cross the boundary.
       const keys = Object.keys(rows[0]!);
-      expect(keys).not.toContain("pii_blob");
-      expect(keys).not.toContain("ticket_token_index");
+      assert(
+        !keys.includes("pii_blob"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !keys.includes("ticket_token_index"),
+        "the value should not contain the searched item",
+      );
       expect(rows[0]!.ticket_token).not.toBe("");
     });
 

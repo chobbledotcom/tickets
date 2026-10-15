@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -80,8 +82,14 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
         "Listing Type",
         "Standard",
       );
-      expect(html).not.toContain("Bookable Days");
-      expect(html).not.toContain("Booking Window");
+      assert(
+        !html.includes("Bookable Days"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("Booking Window"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("admin listing edit page pre-fills daily config", async () => {
@@ -99,7 +107,10 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
         'value="5"',
         'value="120"',
       );
-      expect(html).not.toContain('value="Monday" checked');
+      assert(
+        !html.includes('value="Monday" checked'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("updates listing from standard to daily", async () => {
@@ -146,7 +157,10 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
         'value="2"',
         'value="45"',
       );
-      expect(html).not.toContain('value="Monday" checked');
+      assert(
+        !html.includes('value="Monday" checked'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("rejects invalid listing_type value", async () => {
@@ -190,7 +204,10 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
       const { listing } = await setupListingAndLogin();
 
       const html = await assertAdminHtml(`/admin/listing/${listing.id}`);
-      expect(html).not.toContain("Non-Transferable");
+      assert(
+        !html.includes("Non-Transferable"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("admin listing edit page pre-fills non-transferable select", async () => {

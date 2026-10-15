@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -231,14 +232,17 @@ describeWithEnv(
       const html = await bookingPageHtml(parent.slug);
 
       // Per-unit selectors are namespaced per parent+child (invariant I1/I2).
-      expect(html).toContain(`name="child_qty_${parent.id}_${childA.id}"`);
-      expect(html).toContain(`name="child_qty_${parent.id}_${childB.id}"`);
+      assertStringIncludes(html, `name="child_qty_${parent.id}_${childA.id}"`);
+      assertStringIncludes(html, `name="child_qty_${parent.id}_${childB.id}"`);
       // The live hint supplies the exact target after the buyer chooses a parent
       // quantity, so the initial note stays true before that choice.
-      expect(html).toContain("Choose add-ons to match your ticket quantity");
-      expect(html).toContain("Choose an option for Daily base unit");
-      expect(html).toContain("Add-on Alpha");
-      expect(html).toContain("Add-on Beta");
+      assertStringIncludes(
+        html,
+        "Choose add-ons to match your ticket quantity",
+      );
+      assertStringIncludes(html, "Choose an option for Daily base unit");
+      assertStringIncludes(html, "Add-on Alpha");
+      assertStringIncludes(html, "Add-on Beta");
     });
 
     test("parent qty 1 with no child chosen is rejected (choose 1 more)", async () => {
@@ -332,7 +336,7 @@ describeWithEnv(
         ...childField(parent, childA, "1"),
         ...childField(parent, childB, "1"),
       });
-      expect(fragment).toContain("£120");
+      assertStringIncludes(fragment, "£120");
 
       // Each child's distinct price is independently load-bearing: a qty-1 parent
       // (£40) with one child Alpha (£15) totals £55, and with one child Beta (£25)
@@ -342,13 +346,13 @@ describeWithEnv(
         ...parentField(parent, "1"),
         ...childField(parent, childA, "1"),
       });
-      expect(alphaOnly).toContain("£55");
+      assertStringIncludes(alphaOnly, "£55");
       const betaOnly = await postCalculate(parent.slug, {
         date,
         ...parentField(parent, "1"),
         ...childField(parent, childB, "1"),
       });
-      expect(betaOnly).toContain("£65");
+      assertStringIncludes(betaOnly, "£65");
     });
 
     test("a one-of-each booking persists parent qty 2 and each child qty 1 on the parent's date", async () => {
@@ -382,8 +386,8 @@ describeWithEnv(
       );
       expect(parentPage.status).toBe(200);
       const parentHtml = await parentPage.text();
-      expect(parentHtml).toContain("Ada Lovelace");
-      expect(parentHtml).toContain('<td class="col-quantity">2</td>');
+      assertStringIncludes(parentHtml, "Ada Lovelace");
+      assertStringIncludes(parentHtml, '<td class="col-quantity">2</td>');
 
       // Child Alpha's page lists the buyer with the chosen quantity 1.
       const childAPage = await adminGet(
@@ -391,8 +395,8 @@ describeWithEnv(
       );
       expect(childAPage.status).toBe(200);
       const childAHtml = await childAPage.text();
-      expect(childAHtml).toContain("Ada Lovelace");
-      expect(childAHtml).toContain('<td class="col-quantity">1</td>');
+      assertStringIncludes(childAHtml, "Ada Lovelace");
+      assertStringIncludes(childAHtml, '<td class="col-quantity">1</td>');
 
       // Child Beta's page lists the buyer with the chosen quantity 1.
       const childBPage = await adminGet(
@@ -400,8 +404,8 @@ describeWithEnv(
       );
       expect(childBPage.status).toBe(200);
       const childBHtml = await childBPage.text();
-      expect(childBHtml).toContain("Ada Lovelace");
-      expect(childBHtml).toContain('<td class="col-quantity">1</td>');
+      assertStringIncludes(childBHtml, "Ada Lovelace");
+      assertStringIncludes(childBHtml, '<td class="col-quantity">1</td>');
     });
 
     test("a one-of-each booking shares one order token and records each child's parent", async () => {
@@ -451,16 +455,19 @@ describeWithEnv(
 
       // Both children are annotated as add-ons chosen under the parent; the
       // parent's own row carries no such annotation.
-      expect(html).toContain("Add-on chosen under Daily base unit");
-      expect(html).toContain("Add-on Alpha");
-      expect(html).toContain("Add-on Beta");
+      assertStringIncludes(html, "Add-on chosen under Daily base unit");
+      assertStringIncludes(html, "Add-on Alpha");
+      assertStringIncludes(html, "Add-on Beta");
     });
 
     test("a standalone booking's attendee detail page shows no add-on annotation", async () => {
       const { standalone } = await setupStandalone();
 
       const html = await attendeeDetailHtml(standalone.id);
-      expect(html).not.toContain("Add-on chosen under");
+      assert(
+        !html.includes("Add-on chosen under"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("the admin calendar shows the parent and inherited-date child bookings on the parent's date", async () => {
@@ -474,10 +481,10 @@ describeWithEnv(
       // The buyer appears, and all three listings (parent + both children) are
       // listed against the parent's booked date because the daily children
       // inherit it (invariant I4); the calendar shows the listing column.
-      expect(html).toContain("Ada Lovelace");
-      expect(html).toContain("Daily base unit");
-      expect(html).toContain("Add-on Alpha");
-      expect(html).toContain("Add-on Beta");
+      assertStringIncludes(html, "Ada Lovelace");
+      assertStringIncludes(html, "Daily base unit");
+      assertStringIncludes(html, "Add-on Alpha");
+      assertStringIncludes(html, "Add-on Beta");
     });
   },
 );

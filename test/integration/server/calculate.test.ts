@@ -3,6 +3,7 @@
  * rejection, sold-out answer tiers, capacity, and unknown slugs. Package,
  * promo-code, and deposit quotes live in focused files beside this one. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -32,10 +33,10 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     expect(response.status).toBe(200);
 
     const html = await response.text();
-    expect(html).toContain("Adult Ticket");
-    expect(html).toContain(formatCurrency(1500));
-    expect(html).toContain("order-summary-total");
-    expect(html).toContain("Total");
+    assertStringIncludes(html, "Adult Ticket");
+    assertStringIncludes(html, formatCurrency(1500));
+    assertStringIncludes(html, "order-summary-total");
+    assertStringIncludes(html, "Total");
   });
 
   test("prices a multi-unit line with a booking-fee extra line", async () => {
@@ -54,12 +55,12 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     ).text();
 
     // Two units priced as one line, labelled with the quantity.
-    expect(html).toContain("2× Workshop");
+    assertStringIncludes(html, "2× Workshop");
     // Booking fee (10% of 2000) added as an extra line.
-    expect(html).toContain("Booking fee");
-    expect(html).toContain(formatCurrency(200));
+    assertStringIncludes(html, "Booking fee");
+    assertStringIncludes(html, formatCurrency(200));
     // Total = 2000 + 200 booking fee.
-    expect(html).toContain(formatCurrency(2200));
+    assertStringIncludes(html, formatCurrency(2200));
   });
 
   test("totals without any contact details (PII is stripped)", async () => {
@@ -75,7 +76,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       [`quantity_${listing.id}`]: "3",
     });
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("Free Entry");
+    assertStringIncludes(await response.text(), "Free Entry");
   });
 
   test("shows a prompt when nothing is selected", async () => {
@@ -86,8 +87,8 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     });
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("order-summary-message");
-    expect(html).toContain("Please select at least one ticket");
+    assertStringIncludes(html, "order-summary-message");
+    assertStringIncludes(html, "Please select at least one ticket");
   });
 
   test("rejects an invalid CSRF token", async () => {
@@ -100,7 +101,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       }),
     );
     expect(response.status).toBe(403);
-    expect(await response.text()).toContain("order-summary-message");
+    assertStringIncludes(await response.text(), "order-summary-message");
   });
 
   test("rejects a sold-out answer tier in the quote", async () => {
@@ -113,13 +114,17 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       [`question_${questionId}`]: String(answerId),
       [`quantity_${listing.id}`]: "1",
     };
-    expect(await quoteTicketHtml(listing.slug, selection)).toContain(
+    assertStringIncludes(
+      await quoteTicketHtml(listing.slug, selection),
       "no longer available",
     );
 
     await modifiersTable.update(modifierId, { minVisits: 1 });
-    expect(await quoteTicketHtml(listing.slug, selection)).not.toContain(
-      "no longer available",
+    assert(
+      !(await quoteTicketHtml(listing.slug, selection)).includes(
+        "no longer available",
+      ),
+      "the value should not contain the searched item",
     );
   });
 
@@ -143,8 +148,11 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
           [`quantity_${listing.id}`]: "1",
         })
       ).text();
-      expect(html).toContain("no longer available");
-      expect(html).not.toContain("order-summary-total");
+      assertStringIncludes(html, "no longer available");
+      assert(
+        !html.includes("order-summary-total"),
+        "the value should not contain the searched item",
+      );
     } finally {
       mockBatch.restore();
     }

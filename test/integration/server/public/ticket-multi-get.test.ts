@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -75,7 +77,10 @@ describeWithEnv(
           `/ticket/${listing1.slug}+${listing2.slug}`,
           "Multi No Desc",
         );
-        expect(html).not.toContain("margin: 0.25rem 0 0.5rem");
+        assert(
+          !html.includes("margin: 0.25rem 0 0.5rem"),
+          "the value should not contain the searched item",
+        );
       });
 
       test("shows sold-out label for full listings", async () => {
@@ -142,7 +147,10 @@ describeWithEnv(
           `quantity_${listing1.id}`,
         );
         // The inactive listing should not have a quantity selector
-        expect(html).not.toContain(`quantity_${listing2.id}`);
+        assert(
+          !html.includes(`quantity_${listing2.id}`),
+          "the value should not contain the searched item",
+        );
       });
 
       test("returns 404 when all listings are inactive", async () => {
@@ -205,7 +213,10 @@ describeWithEnv(
           mockRequest(`/ticket/${listing1.slug}+${listing2.slug}`),
         );
         const cookie = response.headers.get("set-cookie") || "";
-        expect(cookie).not.toContain("csrf_token=");
+        assert(
+          !cookie.includes("csrf_token="),
+          "the value should not contain the searched item",
+        );
       });
 
       /** Creates two listings and GETs their combined ticket page with
@@ -226,7 +237,8 @@ describeWithEnv(
 
       test("form action includes ?iframe=true in iframe mode", async () => {
         const { listing1, listing2, html } = await getMultiTicketIframePage();
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `action="/ticket/${listing1.slug}+${listing2.slug}?iframe=true"`,
         );
       });

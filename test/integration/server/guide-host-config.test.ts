@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { hostEmail } from "#shared/email.ts";
@@ -12,8 +12,9 @@ describeWithEnv("server (admin guide host config)", { db: true }, () => {
   describe("GET /admin/guide", () => {
     test("shows default email setup instructions when no host email configured", async () => {
       const html = await guide("Choose your email company from the dropdown");
-      expect(html).not.toContain(
-        "already set up by the company that runs your site",
+      assert(
+        !html.includes("already set up by the company that runs your site"),
+        "the value should not contain the searched item",
       );
     });
 
@@ -38,8 +39,9 @@ describeWithEnv("server (admin guide host config)", { db: true }, () => {
 
     test("shows default Google Wallet setup when no host config", async () => {
       const html = await guide("You need three values from");
-      expect(html).not.toContain(
-        "already set up by the company that runs your site",
+      assert(
+        !html.includes("already set up by the company that runs your site"),
+        "the value should not contain the searched item",
       );
     });
 
@@ -63,8 +65,9 @@ describeWithEnv("server (admin guide host config)", { db: true }, () => {
 
     test("shows default wallet setup instructions when no host wallet configured", async () => {
       const html = await guide("You need five values from");
-      expect(html).not.toContain(
-        "already set up by the company that runs your site",
+      assert(
+        !html.includes("already set up by the company that runs your site"),
+        "the value should not contain the searched item",
       );
     });
 
@@ -91,15 +94,21 @@ describeWithEnv("server (admin guide host config)", { db: true }, () => {
     test("hides built sites section when builder is disabled", async () => {
       using _env = withEnv({ CAN_BUILD_SITES: undefined });
       const html = await assertAdminHtml("/admin/guide");
-      expect(html).not.toContain('id="built-sites"');
+      assert(
+        !html.includes('id="built-sites"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("cached guide is pinned to builder-off even under ambient CAN_BUILD_SITES=true", async () => {
       using _ambient = withEnv({ CAN_BUILD_SITES: "true" });
       const live = await assertAdminHtml("/admin/guide", 'id="built-sites"');
-      expect(live).toContain('id="built-sites"');
+      assertStringIncludes(live, 'id="built-sites"');
       const cached = await guide();
-      expect(cached).not.toContain('id="built-sites"');
+      assert(
+        !cached.includes('id="built-sites"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("shows built sites section when builder is enabled", async () => {

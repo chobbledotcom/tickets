@@ -6,6 +6,7 @@
  * own the branch cover, and the invariants that have no journey behind them.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
@@ -42,9 +43,15 @@ describeWithEnv(
       ).text();
       // The page renders (as a package), but the lone member's name/location are
       // not leaked in the header/OpenGraph (singleListing is dropped when hidden).
-      expect(body).toContain("HiddenPage");
-      expect(body).not.toContain("SecretMember");
-      expect(body).not.toContain("SecretVenue");
+      assertStringIncludes(body, "HiddenPage");
+      assert(
+        !body.includes("SecretMember"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !body.includes("SecretVenue"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a concealed package member keeps its own booking page", async () => {
@@ -60,7 +67,7 @@ describeWithEnv(
 
       const res = await handleRequest(mockRequest(`/ticket/${listing.slug}`));
       expect(res.status).toBe(200);
-      expect(await res.text()).toContain("DirectMember");
+      assertStringIncludes(await res.text(), "DirectMember");
     });
 
     test("a concealed package member keeps its QR booking paths", async () => {
@@ -90,8 +97,8 @@ describeWithEnv(
       );
       expect(qrBook.status).toBe(200);
       const page = await qrBook.text();
-      expect(page).toContain("QrMember");
-      expect(page).toContain('value="Ada"');
+      assertStringIncludes(page, "QrMember");
+      assertStringIncludes(page, 'value="Ada"');
     });
 
     test("a regular group shows a shared concealed-package member", async () => {
@@ -116,7 +123,7 @@ describeWithEnv(
 
       const res = await handleRequest(mockRequest(`/ticket/${regular.slug}`));
       expect(res.status).toBe(200);
-      expect(await res.text()).toContain("SharedMember");
+      assertStringIncludes(await res.text(), "SharedMember");
     });
 
     test("a direct /ticket/<package> URL 404s once a member is deactivated", async () => {
@@ -147,10 +154,10 @@ describeWithEnv(
       const body = await (
         await adminGet(`/admin/listing/${listing.id}`)
       ).text();
-      expect(body).toContain(`/admin/listing/${listing.id}/qr`);
-      expect(body).toContain(`/ticket/${listing.slug}`);
-      expect(body).toContain(`embed-script-${listing.id}`);
-      expect(body).toContain(`embed-iframe-${listing.id}`);
+      assertStringIncludes(body, `/admin/listing/${listing.id}/qr`);
+      assertStringIncludes(body, `/ticket/${listing.slug}`);
+      assertStringIncludes(body, `embed-script-${listing.id}`);
+      assertStringIncludes(body, `embed-iframe-${listing.id}`);
     });
 
     test("a concealed package member's admin QR generator serves", async () => {
@@ -172,14 +179,17 @@ describeWithEnv(
 
       // Bookable bundle: the admin detail offers the public link.
       const before = await (await adminGet(`/admin/groups/${group.id}`)).text();
-      expect(before).toContain(`/ticket/${group.slug}`);
+      assertStringIncludes(before, `/ticket/${group.slug}`);
 
       // Deactivating the sole member makes the bundle unbookable, so /ticket/<group>
       // now 404s and the admin share/QR/embed links are suppressed.
       await deactivateTestListing(only.id);
       const after = await (await adminGet(`/admin/groups/${group.id}`)).text();
-      expect(after).not.toContain(`/ticket/${group.slug}`);
-      expect(after).toContain("isn't currently bookable");
+      assert(
+        !after.includes(`/ticket/${group.slug}`),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(after, "isn't currently bookable");
     });
 
     test("a regular group can share a concealed-package member", async () => {
@@ -193,7 +203,7 @@ describeWithEnv(
       await assignListingsToGroup([shared.id], regular.id);
 
       const html = await (await adminGet(`/admin/groups/${regular.id}`)).text();
-      expect(html).toContain(`/ticket/${regular.slug}`);
+      assertStringIncludes(html, `/ticket/${regular.slug}`);
     });
   },
 );

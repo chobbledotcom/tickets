@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -99,7 +101,7 @@ describeWithEnv(
         // Validation failure re-renders the form (200) with the error inline.
         expect(response.status).toBe(200);
         const html = await response.text();
-        expect(html).toContain("Name is required");
+        assertStringIncludes(html, "Name is required");
       });
 
       test("preserves return_url on edit validation error", async () => {
@@ -112,8 +114,8 @@ describeWithEnv(
         });
         expect(response.status).toBe(200);
         const html = await response.text();
-        expect(html).toContain("Name is required");
-        expect(html).toContain(returnUrl);
+        assertStringIncludes(html, "Name is required");
+        assertStringIncludes(html, returnUrl);
       });
 
       test("rejects whitespace-only name", async () => {
@@ -123,7 +125,7 @@ describeWithEnv(
         });
         expect(response.status).toBe(200);
         const html = await response.text();
-        expect(html).toContain("Name is required");
+        assertStringIncludes(html, "Name is required");
       });
 
       test("updates attendee with new data", async () => {
@@ -147,11 +149,11 @@ describeWithEnv(
         );
         expect(editResponse.status).toBe(200);
         const html = await editResponse.text();
-        expect(html).toContain("Jane Doe");
-        expect(html).toContain("jane@example.com");
-        expect(html).toContain("555-9999");
-        expect(html).toContain("456 Oak Ave");
-        expect(html).toContain("Wheelchair access");
+        assertStringIncludes(html, "Jane Doe");
+        assertStringIncludes(html, "jane@example.com");
+        assertStringIncludes(html, "555-9999");
+        assertStringIncludes(html, "456 Oak Ave");
+        assertStringIncludes(html, "Wheelchair access");
       });
 
       test("editing an unrelated field keeps every path of a dual-path booking", async () => {

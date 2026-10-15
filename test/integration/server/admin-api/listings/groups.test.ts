@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
@@ -199,7 +200,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toContain("same type");
+          assertStringIncludes(body.error, "same type");
         },
       );
     });
@@ -230,15 +231,17 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toContain(
+          assertStringIncludes(
+            body.error,
             "already contains listings with a fixed number of days",
           );
         },
       );
 
       // A refused create leaves nothing behind.
-      expect(await storedListingNames()).not.toContain(
-        "Customisable Candidate",
+      assert(
+        !(await storedListingNames()).includes("Customisable Candidate"),
+        "the value should not contain the searched item",
       );
     });
 
@@ -277,7 +280,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toContain("same type");
+          assertStringIncludes(body.error, "same type");
         },
       );
 

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hashEmail } from "#db/contact-preferences.ts";
@@ -102,12 +103,14 @@ describeWithEnv("buildBulkPayload", { encryptionKey: true }, () => {
       const keepHash = await hashEmail("keep@example.com");
       const why =
         "You're receiving this because you registered for one of our listings.";
-      expect(payload.html).toContain(why);
-      expect(payload.text).toContain(why);
-      expect(payload.html).toContain(
+      assertStringIncludes(payload.html, why);
+      assertStringIncludes(payload.text, why);
+      assertStringIncludes(
+        payload.html,
         `<a href="${BULK_UNSUBSCRIBE_PLACEHOLDER}">`,
       );
-      expect(payload.text).toContain(
+      assertStringIncludes(
+        payload.text,
         `Unsubscribe or manage your preferences: ${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
       );
       expect(payload.recipients).toEqual([

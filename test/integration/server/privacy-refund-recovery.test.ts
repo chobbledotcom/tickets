@@ -1,5 +1,6 @@
 /** Owner-only HTTP boundary for provider refund recovery. */
 
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -68,7 +69,10 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
 
     const response = await submitCase(cookie, { choice: "check_again" });
     expectStatus(403)(response);
-    expect(await response.text()).not.toContain("Check the provider again");
+    assert(
+      !(await response.text()).includes("Check the provider again"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("returns 404 when an owner opens a case which does not exist", async () => {
@@ -130,10 +134,13 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       readRefundAuthorityState(row!.refund_state, "checked case"),
     ).toMatchObject({ kind: "completed", local: { kind: "due" } });
     const messages = (await getAllActivityLog()).map(({ message }) => message);
-    expect(messages).toContain(
+    assertArrayIncludes(messages, [
       `Refund recovery ${id}: owner asked the site to check the provider again`,
+    ]);
+    assert(
+      !messages.join(" ").includes(reference),
+      "the value should not contain the searched item",
     );
-    expect(messages.join(" ")).not.toContain(reference);
   });
 
   test("says no refund was sent when an active provider check is unreadable", async () => {
@@ -199,9 +206,12 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
 
     const detail = await adminGet(refundCasePath(id));
     const detailHtml = await detail.text();
-    expect(detailHtml).toContain("Send this refund");
-    expect(detailHtml).toContain('button class="danger"');
-    expect(detailHtml).not.toContain("Check the provider again");
+    assertStringIncludes(detailHtml, "Send this refund");
+    assertStringIncludes(detailHtml, 'button class="danger"');
+    assert(
+      !detailHtml.includes("Check the provider again"),
+      "the value should not contain the searched item",
+    );
     await expectFlashRedirect(
       refundCasePath(id),
       "Continued the ready refund safely.",
@@ -216,8 +226,9 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     expect(
       readRefundAuthorityState(row!.refund_state, "ready owner case"),
     ).toMatchObject({ kind: "completed", local: { kind: "due" } });
-    expect((await getAllActivityLog()).map(({ message }) => message)).toContain(
-      `Refund recovery ${id}: owner authorized the ready refund to continue`,
+    assertArrayIncludes(
+      (await getAllActivityLog()).map(({ message }) => message),
+      [`Refund recovery ${id}: owner authorized the ready refund to continue`],
     );
   });
 
@@ -238,7 +249,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     using provider = returnedProviderCheck();
 
     const detail = await adminGet(refundCasePath(id));
-    expect(await detail.text()).toContain("Check the provider again");
+    assertStringIncludes(await detail.text(), "Check the provider again");
     await expectProviderCheck(
       id,
       provider,
@@ -257,9 +268,13 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     });
     const returnedChoice = await adminGet(refundCasePath(id));
     const returnedChoiceHtml = await returnedChoice.text();
-    expect(returnedChoiceHtml).toContain('value="provider_confirmed_returned"');
-    expect(returnedChoiceHtml).not.toContain(
-      'value="provider_confirmed_not_sent"',
+    assertStringIncludes(
+      returnedChoiceHtml,
+      'value="provider_confirmed_returned"',
+    );
+    assert(
+      !returnedChoiceHtml.includes('value="provider_confirmed_not_sent"'),
+      "the value should not contain the searched item",
     );
   });
 
@@ -284,12 +299,15 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     // The money the choice attests is in view before the owner acts.
     const page = await adminGet(refundCasePath(id));
     const html = await page.text();
-    expect(html).toContain('value="provider_confirmed_returned"');
-    expect(html).not.toContain('value="provider_confirmed_not_sent"');
-    expect(html).toContain("Provider returned");
-    expect(html).toContain("£4 GBP");
-    expect(html).toContain("Not returned");
-    expect(html).toContain("£21 GBP");
+    assertStringIncludes(html, 'value="provider_confirmed_returned"');
+    assert(
+      !html.includes('value="provider_confirmed_not_sent"'),
+      "the value should not contain the searched item",
+    );
+    assertStringIncludes(html, "Provider returned");
+    assertStringIncludes(html, "£4 GBP");
+    assertStringIncludes(html, "Not returned");
+    assertStringIncludes(html, "£21 GBP");
 
     const refuse = async (body: Record<string, string>): Promise<void> => {
       await expectFlashRedirect(
@@ -367,17 +385,24 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     const queue = await adminGet("/admin/privacy");
     const queueHtml = await queue.text();
     expect(queue.status).toBe(200);
-    expect(queueHtml).toContain(`Open refund ${id}`);
-    expect(queueHtml).not.toContain(reference);
+    assertStringIncludes(queueHtml, `Open refund ${id}`);
+    assert(
+      !queueHtml.includes(reference),
+      "the value should not contain the searched item",
+    );
 
     const detail = await adminGet(refundCasePath(id));
     const detailHtml = await detail.text();
     expect(detail.status).toBe(200);
-    expect(detailHtml).toContain(reference);
-    expect(detailHtml).toContain(
+    assertStringIncludes(detailHtml, reference);
+    assertStringIncludes(
+      detailHtml,
       "The provider confirms that the money was returned",
     );
-    expect(detailHtml).not.toContain("checked");
+    assert(
+      !detailHtml.includes("checked"),
+      "the value should not contain the searched item",
+    );
 
     await expectFlashRedirect(
       "/admin/privacy",
@@ -398,7 +423,8 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     ).toMatchObject({ kind: "completed", local: { kind: "due" } });
 
     const recording = await adminGet(refundCasePath(id));
-    expect(await recording.text()).toContain(
+    assertStringIncludes(
+      await recording.text(),
       "I confirm that this returned money is now recorded in Money.",
     );
     await expectFlashRedirect(
@@ -414,12 +440,15 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     expectStatus(404)(await adminGet(refundCasePath(id)));
 
     const messages = (await getAllActivityLog()).map(({ message }) => message);
-    expect(messages).toContain(
+    assertArrayIncludes(messages, [
       `Refund recovery ${id}: owner confirmed that the provider returned the money`,
-    );
-    expect(messages).toContain(
+    ]);
+    assertArrayIncludes(messages, [
       `Refund recovery ${id}: owner confirmed the returned money is recorded in Money`,
+    ]);
+    assert(
+      !messages.join(" ").includes(reference),
+      "the value should not contain the searched item",
     );
-    expect(messages.join(" ")).not.toContain(reference);
   });
 });

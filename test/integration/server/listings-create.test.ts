@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -77,7 +79,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         uses_logistics: "",
       });
       expect(response.status).toBe(400);
-      expect(await response.text()).toContain("date is required");
+      assertStringIncludes(await response.text(), "date is required");
     });
 
     test("re-renders with carried template_id when create validation fails", async () => {
@@ -89,7 +91,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         // name omitted → validation error
       });
       expect(response.status).toBe(400);
-      expect(await response.text()).toContain('value="online-digital"');
+      assertStringIncludes(await response.text(), 'value="online-digital"');
     });
 
     test("creates listing when authenticated", async () => {
@@ -190,7 +192,9 @@ describeWithEnv("server listings > create", { db: true }, () => {
       await expectFlashRedirect("/admin", "Listing created")(response);
 
       const listing = await getListingWithCount(1);
-      expect(await listingGroups.getIds(listing!.id)).toContain(group.id);
+      assertArrayIncludes((await listingGroups.getIds(listing!.id)) ?? [], [
+        group.id,
+      ]);
     });
 
     test("rejects non-existent group_id on create", async () => {
@@ -230,7 +234,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
       });
       expectStatus(400)(response);
       const body = await response.clone().text();
-      expect(body).toContain("already contains standard listings");
+      assertStringIncludes(body, "already contains standard listings");
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -287,7 +291,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
       expect(response.status).toBe(400);
       // The submitted group checkbox re-renders as checked rather than empty, so
       // a fixed-and-resubmitted listing keeps its membership.
-      expect(html).toContain(`value="${group.id}"`);
+      assertStringIncludes(html, `value="${group.id}"`);
       expect(html).toMatch(
         new RegExp(
           `checked[^>]*value="${group.id}"|value="${group.id}"[^>]*checked`,
@@ -312,7 +316,8 @@ describeWithEnv("server listings > create", { db: true }, () => {
         thank_you_url: "https://example.com",
       });
       expect(response.status).toBe(400);
-      expect(await response.text()).toContain(
+      assertStringIncludes(
+        await response.text(),
         "Name is already in use by another listing or group",
       );
     });

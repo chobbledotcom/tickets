@@ -2,6 +2,7 @@
  * package costs (member overrides, per-package quantities, capacity clamps),
  * and what a hidden package's fragment is allowed to name. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { bookingError } from "#booking/form.ts";
@@ -45,9 +46,12 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     });
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Mystery Box");
-    expect(html).toContain(formatCurrency(1200));
-    expect(html).not.toContain("Secret Contents");
+    assertStringIncludes(html, "Mystery Box");
+    assertStringIncludes(html, formatCurrency(1200));
+    assert(
+      !html.includes("Secret Contents"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("quotes a package member at its override price, not its base price", async () => {
@@ -70,8 +74,11 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     // A package is booked by package count, not per-member quantities.
     const html = await quotePackage(group, "1");
     // The package override (1500) prices the line — not the 5000 base.
-    expect(html).toContain(formatCurrency(1500));
-    expect(html).not.toContain(formatCurrency(5000));
+    assertStringIncludes(html, formatCurrency(1500));
+    assert(
+      !html.includes(formatCurrency(5000)),
+      "the value should not contain the searched item",
+    );
   });
 
   test("quotes an explicit-free package member at zero, not its base price", async () => {
@@ -94,8 +101,11 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     ]);
 
     const html = await quotePackage(group, "1");
-    expect(html).toContain(formatCurrency(0));
-    expect(html).not.toContain(formatCurrency(5000));
+    assertStringIncludes(html, formatCurrency(0));
+    assert(
+      !html.includes(formatCurrency(5000)),
+      "the value should not contain the searched item",
+    );
   });
 
   test("an absent or invalid package quantity quotes nothing", async () => {
@@ -118,7 +128,7 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     const response = await postRunningTotal(group.slug, group.slug, {
       [`package_quantity_${group.id}`]: "abc",
     });
-    expect(await response.text()).toContain("select at least one");
+    assertStringIncludes(await response.text(), "select at least one");
   });
 
   test("multiplies a package member's line by its quantity and the package count", async () => {
@@ -141,7 +151,7 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
 
     // 2 packages → 6 units × 1000 = 6000.
     const html = await quotePackage(group, "2");
-    expect(html).toContain(formatCurrency(6000));
+    assertStringIncludes(html, formatCurrency(6000));
   });
 
   test("refuses a package count above the tightest member's capacity", async () => {
@@ -165,9 +175,15 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     // The member caps the package at 2 (max_quantity); a crafted count of 5
     // refuses instead of pricing a clamped count the buyer never chose.
     const html = await quotePackage(group, "5");
-    expect(html).toContain(bookingError.packageMaximum("Capped", 2));
-    expect(html).not.toContain(formatCurrency(2000));
-    expect(html).not.toContain(formatCurrency(5000));
+    assertStringIncludes(html, bookingError.packageMaximum("Capped", 2));
+    assert(
+      !html.includes(formatCurrency(2000)),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes(formatCurrency(5000)),
+      "the value should not contain the searched item",
+    );
   });
 
   test("caps the package count by the group's shared pool across members", async () => {
@@ -200,9 +216,15 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     // The group holds 2; one package consumes 1 A + 1 B = 2 spots, so only one
     // package fits. Posting 2 refuses instead of pricing a clamped count.
     const html = await quotePackage(group, "2");
-    expect(html).toContain(bookingError.packageMaximum("Shared Pool", 1));
-    expect(html).not.toContain(formatCurrency(2000));
-    expect(html).not.toContain(formatCurrency(4000));
+    assertStringIncludes(html, bookingError.packageMaximum("Shared Pool", 1));
+    assert(
+      !html.includes(formatCurrency(2000)),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes(formatCurrency(4000)),
+      "the value should not contain the searched item",
+    );
   });
 
   test("prices a group booking posted to the group slug", async () => {
@@ -222,7 +244,7 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     const html = await response.text();
-    expect(html).toContain("Day Pass");
-    expect(html).toContain(formatCurrency(2000));
+    assertStringIncludes(html, "Day Pass");
+    assertStringIncludes(html, formatCurrency(2000));
   });
 });

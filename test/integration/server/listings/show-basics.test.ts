@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingAggregates } from "#db/listings/aggregates.ts";
@@ -92,16 +94,16 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
       });
 
       const html = await getListingDetailHtml(listing.id, cookie);
-      expect(html).toContain("Money in and out");
-      expect(html).toContain("Gross ticket sales");
-      expect(html).toContain("Total income earned");
-      expect(html).toContain("Net after refunds and costs");
+      assertStringIncludes(html, "Money in and out");
+      assertStringIncludes(html, "Gross ticket sales");
+      assertStringIncludes(html, "Total income earned");
+      assertStringIncludes(html, "Net after refunds and costs");
       // Recognised income £70 differs from the net ledger balance £50 by the £20
       // refund — both rendered, reconciled.
-      expect(html).toContain("£70");
-      expect(html).toContain("£50");
-      expect(html).toContain("−£20");
-      expect(html).toContain(`href="/admin/ledger?listing=${listing.id}"`);
+      assertStringIncludes(html, "£70");
+      assertStringIncludes(html, "£50");
+      assertStringIncludes(html, "−£20");
+      assertStringIncludes(html, `href="/admin/ledger?listing=${listing.id}"`);
     });
 
     test("does not eagerly render the full revenue statement on listing detail pages", async () => {
@@ -109,10 +111,16 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
         await setupListingWithFiftyPoundSale("Busy Listing");
 
       const html = await getListingDetailHtml(listing.id, cookie);
-      expect(html).toContain("Money in and out");
-      expect(html).toContain(`href="/admin/ledger?listing=${listing.id}"`);
-      expect(html).not.toContain('<div class="page-block" id="ledger">');
-      expect(html).not.toContain("<th>Other side</th>");
+      assertStringIncludes(html, "Money in and out");
+      assertStringIncludes(html, `href="/admin/ledger?listing=${listing.id}"`);
+      assert(
+        !html.includes('<div class="page-block" id="ledger">'),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("<th>Other side</th>"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("does not offer managers a forbidden ledger link", async () => {
@@ -124,8 +132,11 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
         listing.id,
         await createTestManagerSession(),
       );
-      expect(html).toContain("Money in and out");
-      expect(html).not.toContain(`/admin/ledger?listing=${listing.id}`);
+      assertStringIncludes(html, "Money in and out");
+      assert(
+        !html.includes(`/admin/ledger?listing=${listing.id}`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("shows stored-total mismatches on listing detail and edit pages", async () => {
@@ -176,8 +187,8 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
         cookie: cookie,
       });
       const html = await response.text();
-      expect(html).toContain("/admin/listing/1/edit");
-      expect(html).toContain(">Edit<");
+      assertStringIncludes(html, "/admin/listing/1/edit");
+      assertStringIncludes(html, ">Edit<");
     });
 
     test("hides Attributes and Questions tabs while their features are disabled", async () => {
@@ -187,8 +198,14 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/listing/${listing.id}`)
       ).text();
-      expect(html).not.toContain(`/admin/listing/${listing.id}/attributes`);
-      expect(html).not.toContain(`/admin/listing/${listing.id}/questions`);
+      assert(
+        !html.includes(`/admin/listing/${listing.id}/attributes`),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes(`/admin/listing/${listing.id}/questions`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("shows Attributes and Questions tabs when their features are enabled", async () => {
@@ -200,8 +217,8 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/listing/${listing.id}`)
       ).text();
-      expect(html).toContain(`/admin/listing/${listing.id}/attributes`);
-      expect(html).toContain(`/admin/listing/${listing.id}/questions`);
+      assertStringIncludes(html, `/admin/listing/${listing.id}/attributes`);
+      assertStringIncludes(html, `/admin/listing/${listing.id}/questions`);
     });
   });
 });

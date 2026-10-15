@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -152,9 +153,12 @@ describeWithEnv(
         const { parent } = await c.setup();
         const body = await (await ticketGet(parent.slug)).text();
         const options = selectOptions(body, `name="quantity_${parent.id}"`);
-        expect(options).toContain(`value=${c.contains}`);
+        assertStringIncludes(options, `value=${c.contains}`);
         for (const value of c.notContains) {
-          expect(options).not.toContain(`value=${value}`);
+          assert(
+            !options.includes(`value=${value}`),
+            "the value should not contain the searched item",
+          );
         }
       });
     }
@@ -178,8 +182,11 @@ describeWithEnv(
         body,
         `name="child_qty_${parent.id}_${shared.id}"`,
       );
-      expect(options).toContain('value="1"');
-      expect(options).not.toContain('value="2"');
+      assertStringIncludes(options, 'value="1"');
+      assert(
+        !options.includes('value="2"'),
+        "the value should not contain the searched item",
+      );
     });
   },
 );

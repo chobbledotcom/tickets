@@ -1,5 +1,6 @@
 /** Pure tests for the half-open date ranges that servicing holds use. */
 // jscpd:ignore-start
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { expandDailyRange, overlapsDay } from "#db/attendees/capacity/range.ts";

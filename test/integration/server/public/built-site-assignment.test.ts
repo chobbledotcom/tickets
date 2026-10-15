@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { insertBuiltSite } from "#db/built-sites.ts";

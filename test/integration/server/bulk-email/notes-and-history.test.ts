@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
@@ -96,7 +97,8 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       useResend();
       const listing = await seedListingWithAttendees();
       const html = await previewListing(listing);
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         "These attendees have never been contacted through this page.",
       );
     });
@@ -120,7 +122,8 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       expect(stats.lastSubject).toBe("First");
 
       const html = await previewListing(listing);
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         "These attendees have been contacted through this page 1 times each.",
       );
     });
@@ -148,13 +151,15 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       // Before any activity: the panel shows a labelled section per channel,
       // each linking to its own /admin/history editor.
       const before = await attendeePage();
-      expect(before).toContain("Contact History");
-      expect(before).toContain("Stats / notes for alice@example.com");
-      expect(before).toContain("Stats / notes for 07700 900333");
-      expect(before).toContain(
+      assertStringIncludes(before, "Contact History");
+      assertStringIncludes(before, "Stats / notes for alice@example.com");
+      assertStringIncludes(before, "Stats / notes for 07700 900333");
+      assertStringIncludes(
+        before,
         `/admin/history/${base64ToBase64Url(emailHash)}`,
       );
-      expect(before).toContain(
+      assertStringIncludes(
+        before,
         `/admin/history/${base64ToBase64Url(phoneHash)}`,
       );
 
@@ -187,14 +192,17 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       const after = await attendeePage();
       // The shared summary lists previous bookings and each channel's messages;
       // the last-subject recap still surfaces the outreach send.
-      expect(after).toContain("Previous bookings shown:");
-      expect(after).toContain("Total email messages:");
-      expect(after).toContain("Total phone messages:");
-      expect(after).toContain("Newsletter");
+      assertStringIncludes(after, "Previous bookings shown:");
+      assertStringIncludes(after, "Total email messages:");
+      assertStringIncludes(after, "Total phone messages:");
+      assertStringIncludes(after, "Newsletter");
       // The private notes render as MARKDOWN (bold), never raw asterisks.
-      expect(after).toContain("<strong>Email VIP</strong> customer");
-      expect(after).toContain("<strong>Phone VIP</strong> customer");
-      expect(after).not.toContain("**Email VIP** customer");
+      assertStringIncludes(after, "<strong>Email VIP</strong> customer");
+      assertStringIncludes(after, "<strong>Phone VIP</strong> customer");
+      assert(
+        !after.includes("**Email VIP** customer"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("the Previous bookings table lists other bookings by the same contact", async () => {
@@ -231,13 +239,16 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       // Two previous bookings on file, each date-cell linking to its attendee,
       // the first's status name and the booked listing named in the items
       // column.
-      expect(html).toContain("Previous bookings shown:</strong> 2");
-      expect(html).toContain(`/admin/attendees/${first.id}`);
-      expect(html).toContain(`/admin/attendees/${third.id}`);
-      expect(html).toContain("Confirmed");
-      expect(html).toContain("Repeat");
+      assertStringIncludes(html, "Previous bookings shown:</strong> 2");
+      assertStringIncludes(html, `/admin/attendees/${first.id}`);
+      assertStringIncludes(html, `/admin/attendees/${third.id}`);
+      assertStringIncludes(html, "Confirmed");
+      assertStringIncludes(html, "Repeat");
       // The current attendee never links to itself in its own table.
-      expect(html).not.toContain(`<a href="/admin/attendees/${second.id}">`);
+      assert(
+        !html.includes(`<a href="/admin/attendees/${second.id}">`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a previous booking edited down to no real lines is not shown", async () => {
@@ -278,8 +289,11 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
 
       // Viewing the still-real booking, the emptied one neither counts nor links.
       const html = await (await adminGet(`/admin/attendees/${real.id}`)).text();
-      expect(html).toContain("Previous bookings shown:</strong> 0");
-      expect(html).not.toContain(`/admin/attendees/${emptied.id}`);
+      assertStringIncludes(html, "Previous bookings shown:</strong> 0");
+      assert(
+        !html.includes(`/admin/attendees/${emptied.id}`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("changing an attendee's email moves its Previous bookings link", async () => {
@@ -302,7 +316,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
         (await adminGet(`/admin/attendees/${anchor.id}`)).text();
 
       // The anchor initially sees the mover as a previous booking.
-      expect(await anchorPage()).toContain(`/admin/attendees/${mover.id}`);
+      assertStringIncludes(await anchorPage(), `/admin/attendees/${mover.id}`);
 
       // Move the mover to a different email via the edit form.
       const form = await buildAttendeeEditForm(mover.id, {
@@ -312,16 +326,20 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       await adminFormPost(`/admin/attendees/${mover.id}`, form);
 
       // The mover no longer shows against the shared email...
-      expect(await anchorPage()).not.toContain(`/admin/attendees/${mover.id}`);
+      assert(
+        !(await anchorPage()).includes(`/admin/attendees/${mover.id}`),
+        "the value should not contain the searched item",
+      );
       // ...but does show against its new email's contact (via the new attendee).
       const { attendee: newContact } = await createTestAttendeeDirect(
         listing.id,
         "New Contact",
         "moved-away@example.com",
       );
-      expect(
+      assertStringIncludes(
         await (await adminGet(`/admin/attendees/${newContact.id}`)).text(),
-      ).toContain(`/admin/attendees/${mover.id}`);
+        `/admin/attendees/${mover.id}`,
+      );
     });
 
     test("adding an email to an existing booking links it to that contact", async () => {
@@ -348,7 +366,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/attendees/${watcher.id}`)
       ).text();
-      expect(html).toContain(`/admin/attendees/${added.id}`);
+      assertStringIncludes(html, `/admin/attendees/${added.id}`);
     });
 
     test("editing a placeholder into a real booking links its token", async () => {
@@ -369,8 +387,9 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       );
       const watcherPage = async (): Promise<string> =>
         (await adminGet(`/admin/attendees/${watcher.id}`)).text();
-      expect(await watcherPage()).not.toContain(
-        `/admin/attendees/${placeholder.id}`,
+      assert(
+        !(await watcherPage()).includes(`/admin/attendees/${placeholder.id}`),
+        "the value should not contain the searched item",
       );
 
       await editPlaceholderToRealBooking(
@@ -379,7 +398,8 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
         "first-real@example.com",
       );
 
-      expect(await watcherPage()).toContain(
+      assertStringIncludes(
+        await watcherPage(),
         `/admin/attendees/${placeholder.id}`,
       );
     });
@@ -421,9 +441,10 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
         "Watcher",
         "fresh-contact@example.com",
       );
-      expect(
+      assertStringIncludes(
         await (await adminGet(`/admin/attendees/${watcher.id}`)).text(),
-      ).toContain(`/admin/attendees/${placeholder.id}`);
+        `/admin/attendees/${placeholder.id}`,
+      );
     });
 
     test("editing unrelated attendee fields skips unchanged contact token repair", async () => {

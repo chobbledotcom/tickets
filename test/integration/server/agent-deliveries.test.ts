@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -174,11 +175,11 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     const response = await awaitTestRequest("/admin/deliveries", { cookie });
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Bouncy Castle");
-    expect(html).toContain("Alice");
-    expect(html).toContain("Drop-off");
-    expect(html).toContain("Collection");
-    expect(html).toContain("09:00");
+    assertStringIncludes(html, "Bouncy Castle");
+    assertStringIncludes(html, "Alice");
+    assertStringIncludes(html, "Drop-off");
+    assertStringIncludes(html, "Collection");
+    assertStringIncludes(html, "09:00");
   });
 
   test("a one-day hire is collected the same day it is dropped off", async () => {
@@ -188,7 +189,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     expect(html.indexOf("Drop-off")).toBeLessThan(tomorrowIdx);
     expect(html.indexOf("Collection")).toBeLessThan(tomorrowIdx);
     // Nothing is scheduled for tomorrow.
-    expect(html).toContain("Nothing scheduled");
+    assertStringIncludes(html, "Nothing scheduled");
   });
 
   test("a two-day hire is collected the day after it is dropped off", async () => {
@@ -206,7 +207,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     });
     const response = await awaitTestRequest("/admin/deliveries", { cookie });
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("no logistics agents assigned");
+    assertStringIncludes(await response.text(), "no logistics agents assigned");
   });
 
   test("agent with agents but no bookings sees empty state", async () => {
@@ -217,7 +218,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
       username: "agent3",
     });
     const response = await awaitTestRequest("/admin/deliveries", { cookie });
-    expect(await response.text()).toContain("No deliveries scheduled");
+    assertStringIncludes(await response.text(), "No deliveries scheduled");
   });
 
   test("agent can mark a leg done and see it reflected", async () => {
@@ -239,7 +240,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     expectRedirect(markResponse, "/admin/deliveries");
 
     const after = await awaitTestRequest("/admin/deliveries", { cookie });
-    expect(await after.text()).toContain("Mark not done");
+    assertStringIncludes(await after.text(), "Mark not done");
 
     // Toggling it back off takes the "not done" message branch.
     const unmark = await markRequest(cookie, {
@@ -251,7 +252,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     });
     expectRedirect(unmark, "/admin/deliveries");
     const reverted = await awaitTestRequest("/admin/deliveries", { cookie });
-    expect(await reverted.text()).toContain("Mark done");
+    assertStringIncludes(await reverted.text(), "Mark done");
   });
 
   test("marking a leg the agent does not own is rejected", async () => {
@@ -275,7 +276,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
       listing_id: String(listingId),
     });
     const location = expectRedirect(response, "/admin/deliveries");
-    expect(location).toContain("flash");
+    assertStringIncludes(location, "flash");
   });
 
   test("marking with a date outside today or tomorrow is rejected", async () => {
@@ -297,7 +298,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     expectRedirect(response, "/admin/deliveries");
 
     const after = await awaitTestRequest("/admin/deliveries", { cookie });
-    expect(await after.text()).toContain("Mark done");
+    assertStringIncludes(await after.text(), "Mark done");
   });
 
   test("marking with missing ids is rejected", async () => {
@@ -392,13 +393,13 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     const html = await fetchDeliveriesHtml();
     // Staff (unlike agents) get the full navigation and the Calendar submenu
     // link to the deliveries page.
-    expect(html).toContain('id="main-nav"');
-    expect(html).toContain('href="/admin/deliveries"');
+    assertStringIncludes(html, 'id="main-nav"');
+    assertStringIncludes(html, 'href="/admin/deliveries"');
   });
 
   test("staff with no assigned agents see the no-agents prompt", async () => {
     const html = await fetchDeliveriesHtml();
-    expect(html).toContain("no logistics agents assigned");
+    assertStringIncludes(html, "no logistics agents assigned");
   });
 
   test("staff can open a future date and see that day's deliveries", async () => {
@@ -411,8 +412,8 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     const html = await fetchDeliveriesForDate(future);
     // The picked day's booking is shown, headed by its full date label (it is
     // neither today nor tomorrow).
-    expect(html).toContain("Future Castle");
-    expect(html).toContain(formatDateLabel(future));
+    assertStringIncludes(html, "Future Castle");
+    assertStringIncludes(html, formatDateLabel(future));
   });
 
   test("staff can mark a leg done on a future date they opened", async () => {
@@ -440,7 +441,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     expectRedirect(response, "/admin/deliveries");
 
     const html = await fetchDeliveriesForDate(future);
-    expect(html).toContain("Mark not done");
+    assertStringIncludes(html, "Mark not done");
   });
 
   test("staff run sheet offers a date picker linking to their delivery dates", async () => {
@@ -452,8 +453,8 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     const html = await fetchDeliveriesHtml();
     // The shared calendar picker renders, with the future delivery date as a
     // selectable link back into the run sheet.
-    expect(html).toContain("date-picker");
-    expect(html).toContain(`/admin/deliveries?date=${future}`);
+    assertStringIncludes(html, "date-picker");
+    assertStringIncludes(html, `/admin/deliveries?date=${future}`);
   });
 
   test("an agent cannot steer the date — the ?date= param is ignored", async () => {
@@ -475,9 +476,15 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     const html = await response.text();
     // The agent stays pinned to today and tomorrow: today's booking shows, the
     // future one the param asked for does not, and no date picker is offered.
-    expect(html).toContain("Today Castle");
-    expect(html).not.toContain("Future Castle");
-    expect(html).not.toContain("date-picker");
+    assertStringIncludes(html, "Today Castle");
+    assert(
+      !html.includes("Future Castle"),
+      "the value should not contain the searched item",
+    );
+    assert(
+      !html.includes("date-picker"),
+      "the value should not contain the searched item",
+    );
   });
 
   test("logging in as an agent lands on the run sheet", async () => {

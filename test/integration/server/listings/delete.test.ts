@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -130,7 +132,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
         cookie,
       );
       const html = await page.text();
-      expect(html).toContain("does not match");
+      assertStringIncludes(html, "does not match");
     });
 
     test("deletes listing with matching identifier (case insensitive)", async () => {

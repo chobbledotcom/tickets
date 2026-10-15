@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
@@ -39,7 +40,8 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         "2026-12-25",
         "2026-12-26",
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         '<a class="active" href="/admin/holidays">Holidays</a>',
       );
     });
@@ -72,7 +74,10 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         "2026-12-25",
         "2026-12-26",
       );
-      expect(html).not.toContain(`/admin/holidays/${holiday.id}/delete`);
+      assert(
+        !html.includes(`/admin/holidays/${holiday.id}/delete`),
+        "the value should not contain the searched item",
+      );
     });
 
     test("returns 404 for non-existent holiday", async () => {

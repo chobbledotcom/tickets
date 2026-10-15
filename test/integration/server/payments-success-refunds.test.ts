@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -113,7 +115,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         expect(response.status).toBe(410);
         const body = await response.text();
-        expect(body).toContain("Concealed Member XYZ");
+        assertStringIncludes(body, "Concealed Member XYZ");
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();
@@ -174,8 +176,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         expect(response.status).toBe(410);
         const body = await response.text();
-        expect(body).toContain("no longer accepting registrations");
-        expect(body).not.toContain("Vanished Member XYZ");
+        assertStringIncludes(body, "no longer accepting registrations");
+        assert(
+          !body.includes("Vanished Member XYZ"),
+          "the value should not contain the searched item",
+        );
         expect(mockRefund.calls[0]!.args).toEqual([
           stripeRefundRequestShape("pi_stale_pkg_group", 1000),
         ]);

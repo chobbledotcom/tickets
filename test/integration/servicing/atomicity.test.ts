@@ -10,6 +10,7 @@
  * (update) — so no half-saved service event ever remains.
  */
 // jscpd:ignore-start
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";

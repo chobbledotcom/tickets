@@ -16,6 +16,7 @@
  *   - `booked_quantity` keeps counting every quantity > 0 row regardless of kind.
  */
 // jscpd:ignore-start
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#accounting/accounts.ts";

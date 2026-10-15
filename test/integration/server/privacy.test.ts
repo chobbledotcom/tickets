@@ -2,6 +2,7 @@
  * Saving orphan settings skips the background prune so old settings cannot
  * race the request; the purge test therefore exercises the handler itself. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert, queryOne } from "#db/client.ts";
@@ -112,7 +113,10 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
     });
 
     test("does not show an empty payment-work queue", async () => {
-      expect(await page()).not.toContain("Outstanding payment work");
+      assert(
+        !(await page()).includes("Outstanding payment work"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("keeps payment work reachable after its last listing is deleted", async () => {
@@ -141,11 +145,17 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       const response = await adminGet("/admin/privacy");
       const html = await response.text();
       expect(response.status).toBe(200);
-      expect(html).toContain("The normal cleanup queue is empty right now.");
-      expect(html).not.toContain("There are no orphaned records right now.");
-      expect(html).toContain("Outstanding payment work");
-      expect(html).toContain(`href="/admin/attendees/${attendee.id}"`);
-      expect(html).toContain(`Open attendee ${attendee.id}`);
+      assertStringIncludes(
+        html,
+        "The normal cleanup queue is empty right now.",
+      );
+      assert(
+        !html.includes("There are no orphaned records right now."),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(html, "Outstanding payment work");
+      assertStringIncludes(html, `href="/admin/attendees/${attendee.id}"`);
+      assertStringIncludes(html, `Open attendee ${attendee.id}`);
       expect((await adminGet(`/admin/attendees/${attendee.id}`)).status).toBe(
         200,
       );
@@ -168,75 +178,105 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       }
       const firstHtml = await first.text();
       for (const attendeeId of attendeeIds.slice(0, 20)) {
-        expect(firstHtml).toContain(`href="/admin/attendees/${attendeeId}"`);
+        assertStringIncludes(
+          firstHtml,
+          `href="/admin/attendees/${attendeeId}"`,
+        );
       }
-      expect(firstHtml).not.toContain(
-        `href="/admin/attendees/${attendeeIds[20]}"`,
+      assert(
+        !firstHtml.includes(`href="/admin/attendees/${attendeeIds[20]}"`),
+        "the value should not contain the searched item",
       );
-      expect(firstHtml).toContain(
+      assertStringIncludes(
+        firstHtml,
         `href="/admin/privacy?work_after=${attendeeIds[19]}"`,
       );
-      expect(firstHtml).toContain('rel="next"');
-      expect(firstHtml).not.toContain('rel="prev"');
+      assertStringIncludes(firstHtml, 'rel="next"');
+      assert(
+        !firstHtml.includes('rel="prev"'),
+        "the value should not contain the searched item",
+      );
 
       const queueQueries = queries.filter((sql) =>
         sql.includes("SELECT DISTINCT payment.attendee_id AS id"),
       );
       expect(queueQueries).toHaveLength(1);
-      expect(queueQueries[0]).toContain("LIMIT ?");
-      expect(queueQueries[0]).not.toContain("pii_blob");
+      assertStringIncludes(queueQueries[0] ?? "", "LIMIT ?");
+      assert(
+        queueQueries[0]?.includes("pii_blob") === false,
+        "the value should not contain the searched item",
+      );
 
       const second = await adminGet(
         `/admin/privacy?work_after=${attendeeIds[19]}`,
       );
       const secondHtml = await second.text();
       for (const attendeeId of attendeeIds.slice(20, 40)) {
-        expect(secondHtml).toContain(`href="/admin/attendees/${attendeeId}"`);
+        assertStringIncludes(
+          secondHtml,
+          `href="/admin/attendees/${attendeeId}"`,
+        );
       }
-      expect(secondHtml).not.toContain(
-        `href="/admin/attendees/${attendeeIds[19]}"`,
+      assert(
+        !secondHtml.includes(`href="/admin/attendees/${attendeeIds[19]}"`),
+        "the value should not contain the searched item",
       );
-      expect(secondHtml).toContain(
+      assertStringIncludes(
+        secondHtml,
         `href="/admin/privacy?work_before=${attendeeIds[20]}"`,
       );
-      expect(secondHtml).toContain(
+      assertStringIncludes(
+        secondHtml,
         `href="/admin/privacy?work_after=${attendeeIds[39]}"`,
       );
-      expect(secondHtml).toContain('rel="prev"');
-      expect(secondHtml).toContain('rel="next"');
+      assertStringIncludes(secondHtml, 'rel="prev"');
+      assertStringIncludes(secondHtml, 'rel="next"');
 
       const last = await adminGet(
         `/admin/privacy?work_after=${attendeeIds[39]}`,
       );
       const lastHtml = await last.text();
-      expect(lastHtml).toContain(`href="/admin/attendees/${attendeeIds[40]}"`);
-      expect(lastHtml).toContain(
+      assertStringIncludes(
+        lastHtml,
+        `href="/admin/attendees/${attendeeIds[40]}"`,
+      );
+      assertStringIncludes(
+        lastHtml,
         `href="/admin/privacy?work_before=${attendeeIds[40]}"`,
       );
-      expect(lastHtml).not.toContain('rel="next"');
+      assert(
+        !lastHtml.includes('rel="next"'),
+        "the value should not contain the searched item",
+      );
 
       const previous = await adminGet(
         `/admin/privacy?work_before=${attendeeIds[40]}`,
       );
       const previousHtml = await previous.text();
-      expect(previousHtml).toContain(
+      assertStringIncludes(
+        previousHtml,
         `href="/admin/attendees/${attendeeIds[20]}"`,
       );
-      expect(previousHtml).toContain(
+      assertStringIncludes(
+        previousHtml,
         `href="/admin/privacy?work_before=${attendeeIds[20]}"`,
       );
-      expect(previousHtml).toContain('rel="prev"');
-      expect(previousHtml).toContain('rel="next"');
+      assertStringIncludes(previousHtml, 'rel="prev"');
+      assertStringIncludes(previousHtml, 'rel="next"');
 
       const firstAgain = await adminGet(
         `/admin/privacy?work_before=${attendeeIds[20]}`,
       );
       const firstAgainHtml = await firstAgain.text();
-      expect(firstAgainHtml).toContain(
+      assertStringIncludes(
+        firstAgainHtml,
         `href="/admin/attendees/${attendeeIds[0]}"`,
       );
-      expect(firstAgainHtml).toContain('rel="next"');
-      expect(firstAgainHtml).not.toContain('rel="prev"');
+      assertStringIncludes(firstAgainHtml, 'rel="next"');
+      assert(
+        !firstAgainHtml.includes('rel="prev"'),
+        "the value should not contain the searched item",
+      );
     });
 
     test("defaults malformed payment-work cursors to the first page", async () => {
@@ -244,7 +284,8 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       const response = await adminGet(
         "/admin/privacy?work_after=not-an-id&work_before=also-not-an-id",
       );
-      expect(await response.text()).toContain(
+      assertStringIncludes(
+        await response.text(),
         `href="/admin/attendees/${attendeeId}"`,
       );
     });
@@ -256,33 +297,46 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         `/admin/privacy?work_after=${highCursor}`,
       );
       const afterEndHtml = await afterEnd.text();
-      expect(afterEndHtml).toContain("There are no records on this page.");
-      expect(afterEndHtml).toContain(
+      assertStringIncludes(afterEndHtml, "There are no records on this page.");
+      assertStringIncludes(
+        afterEndHtml,
         `href="/admin/privacy?work_before=${highCursor + 1}"`,
       );
-      expect(afterEndHtml).toContain('rel="prev"');
-      expect(afterEndHtml).not.toContain("undefined");
-      expect(
+      assertStringIncludes(afterEndHtml, 'rel="prev"');
+      assert(
+        !afterEndHtml.includes("undefined"),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(
         await (
           await adminGet(`/admin/privacy?work_before=${highCursor + 1}`)
         ).text(),
-      ).toContain(`href="/admin/attendees/${attendeeId}"`);
+        `href="/admin/attendees/${attendeeId}"`,
+      );
 
       const beforeStart = await adminGet(
         `/admin/privacy?work_before=${attendeeId}`,
       );
       const beforeStartHtml = await beforeStart.text();
-      expect(beforeStartHtml).toContain("There are no records on this page.");
-      expect(beforeStartHtml).toContain(
+      assertStringIncludes(
+        beforeStartHtml,
+        "There are no records on this page.",
+      );
+      assertStringIncludes(
+        beforeStartHtml,
         `href="/admin/privacy?work_after=${attendeeId - 1}"`,
       );
-      expect(beforeStartHtml).toContain('rel="next"');
-      expect(beforeStartHtml).not.toContain("undefined");
-      expect(
+      assertStringIncludes(beforeStartHtml, 'rel="next"');
+      assert(
+        !beforeStartHtml.includes("undefined"),
+        "the value should not contain the searched item",
+      );
+      assertStringIncludes(
         await (
           await adminGet(`/admin/privacy?work_after=${attendeeId - 1}`)
         ).text(),
-      ).toContain(`href="/admin/attendees/${attendeeId}"`);
+        `href="/admin/attendees/${attendeeId}"`,
+      );
     });
   });
 

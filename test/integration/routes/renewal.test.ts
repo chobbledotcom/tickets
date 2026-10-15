@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -89,23 +90,29 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         "Renew Renewal Test Site",
       );
       // Both tiers must appear as separately-selectable picker rows.
-      expect(html).toContain(`quantity_${monthly.id}`);
-      expect(html).toContain(`quantity_${annual.id}`);
-      expect(html).toContain("Monthly tier");
-      expect(html).toContain("Annual tier");
+      assertStringIncludes(html, `quantity_${monthly.id}`);
+      assertStringIncludes(html, `quantity_${annual.id}`);
+      assertStringIncludes(html, "Monthly tier");
+      assertStringIncludes(html, "Annual tier");
       // Counts price months per unit, not tickets.
-      expect(html).toContain('<option value="1">1 month</option>');
-      expect(html).toContain('<option value="1">12 months</option>');
+      assertStringIncludes(html, '<option value="1">1 month</option>');
+      assertStringIncludes(html, '<option value="1">12 months</option>');
       // The form posts back to /renew/?t=… so the token survives submission.
-      expect(html).toContain(`/renew/?t=${encodeURIComponent(token)}`);
-      expect(html).toContain("csrf_token");
+      assertStringIncludes(html, `/renew/?t=${encodeURIComponent(token)}`);
+      assertStringIncludes(html, "csrf_token");
     });
 
     test("does not show terms and conditions or agreement checkbox", async () => {
       const { response } = await visitRenewalPicker();
       const html = await response.text();
-      expect(html).not.toContain("agree_terms");
-      expect(html).not.toContain("terms-agree");
+      assert(
+        !html.includes("agree_terms"),
+        "the value should not contain the searched item",
+      );
+      assert(
+        !html.includes("terms-agree"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("marks renewal picker as noindex", async () => {
@@ -117,7 +124,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     test("shows the current deadline in the page", async () => {
       const { response } = await visitRenewalPicker();
       const html = await response.text();
-      expect(html).toContain("Tuesday 1 January 2030");
+      assertStringIncludes(html, "Tuesday 1 January 2030");
     });
 
     test("omits the 'current deadline' wording when no deadline is set", async () => {
@@ -140,8 +147,11 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
       );
       const html = await response.text();
-      expect(html).toContain("Pick a tier and quantity below");
-      expect(html).not.toContain("Current deadline:");
+      assertStringIncludes(html, "Pick a tier and quantity below");
+      assert(
+        !html.includes("Current deadline:"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("renders the postcode search for an address-collecting tier", async () => {
@@ -167,7 +177,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
 
       const html = await response.text();
       expect(response.status).toBe(200);
-      expect(html).toContain("data-address-lookup");
+      assertStringIncludes(html, "data-address-lookup");
     });
 
     test("returns 404 for unknown token", async () => {
@@ -194,7 +204,10 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         "Renewal Unavailable",
         "no longer valid",
       );
-      expect(html).not.toContain("quantity_");
+      assert(
+        !html.includes("quantity_"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("excludes inactive tier listings from the picker", async () => {
@@ -219,8 +232,11 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
       );
       const html = await response.text();
-      expect(html).toContain(`quantity_${active.id}`);
-      expect(html).not.toContain(`quantity_${stale.id}`);
+      assertStringIncludes(html, `quantity_${active.id}`);
+      assert(
+        !html.includes(`quantity_${stale.id}`),
+        "the value should not contain the searched item",
+      );
     });
   });
 

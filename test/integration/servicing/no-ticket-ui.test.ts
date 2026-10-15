@@ -13,6 +13,8 @@
  *     attendee ticket/QR/wallet panel nor the contact/payment fields.
  */
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -70,9 +72,12 @@ describeWithEnv(
       await createTestListing({ maxAttendees: 10, name: "Servicing Target" });
       const body = await renderAdminPage("/admin/servicing/new");
       for (const field of SERVICING_CREATE_CONTACT_FIELDS) {
-        expect(body).not.toContain(field);
+        assert(
+          !body.includes(field),
+          "the value should not contain the searched item",
+        );
       }
-      expect(body).toContain('name="name"');
+      assertStringIncludes(body, 'name="name"');
       expect(body).toMatch(/day_count|start_date/);
     });
   },

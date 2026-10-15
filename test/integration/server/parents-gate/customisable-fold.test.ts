@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -86,7 +88,7 @@ describeWithEnv(
         date,
         ...parentField(parent, "1"),
       });
-      expect(html).toContain("£30");
+      assertStringIncludes(html, "£30");
     });
 
     test("a customisable child under a non-customisable parent marks the order customisable (dayCount carried)", async () => {
@@ -152,8 +154,11 @@ describeWithEnv(
       });
       // The order owes the single 2-day span (£18 + £25 = £43), not a
       // doubled-duration reprice that prices both lines at an unpriced 4-day span.
-      expect(html).toContain("£43");
-      expect(html).not.toContain("£0");
+      assertStringIncludes(html, "£43");
+      assert(
+        !html.includes("£0"),
+        "the value should not contain the searched item",
+      );
     });
 
     test("a customisable parent's child folds at the parent's chosen duration", async () => {

@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -47,7 +49,10 @@ describeWithEnv(
           "/ticket/reserved",
           "Thank you for your order",
         );
-        expect(html).not.toContain("view your ticket");
+        assert(
+          !html.includes("view your ticket"),
+          "the value should not contain the searched item",
+        );
       });
 
       test("shows ticket link when tokens are provided", async () => {
@@ -74,7 +79,10 @@ describeWithEnv(
 
       test("excludes iframe-resizer child script without iframe param", async () => {
         const html = await assertPublicHtml("/ticket/reserved?tokens=abc123");
-        expect(html).not.toContain("iframe-resizer-child.js");
+        assert(
+          !html.includes("iframe-resizer-child.js"),
+          "the value should not contain the searched item",
+        );
       });
 
       test("shows email notice when email sending is configured", async () => {
@@ -101,7 +109,10 @@ describeWithEnv(
           "/ticket/reserved?tokens=abc123",
           "Thank you for your order",
         );
-        expect(html).not.toContain("Junk/Spam");
+        assert(
+          !html.includes("Junk/Spam"),
+          "the value should not contain the searched item",
+        );
       });
     });
 
@@ -142,8 +153,8 @@ describeWithEnv(
         );
         expect(response.status).toBe(302);
         const location = response.headers.get("location") || "";
-        expect(location).toContain("/ticket/reserved");
-        expect(location).toContain("iframe=true");
+        assertStringIncludes(location, "/ticket/reserved");
+        assertStringIncludes(location, "iframe=true");
       });
     });
 

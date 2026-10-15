@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { MANUAL_ATTENDEE_CHARGE } from "#accounting/manual-entries.ts";
@@ -23,20 +24,22 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Edit money change");
-    expect(html).toContain('name="amount"');
-    expect(html).toContain('value="12.34"');
-    expect(html).toContain('name="occurred_at"');
-    expect(html).toContain('value="2026-06-22T09:30"');
-    expect(html).toContain("Delete money change");
-    expect(html).toContain(
+    assertStringIncludes(html, "Edit money change");
+    assertStringIncludes(html, 'name="amount"');
+    assertStringIncludes(html, 'value="12.34"');
+    assertStringIncludes(html, 'name="occurred_at"');
+    assertStringIncludes(html, 'value="2026-06-22T09:30"');
+    assertStringIncludes(html, "Delete money change");
+    assertStringIncludes(
+      html,
       "Warning: This permanently deletes this money change.",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `Type the exact amount &quot;${formatCurrency(1234)}&quot; to confirm.`,
     );
-    expect(html).toContain(formatCurrency(1234));
-    expect(html).toContain('name="confirm_identifier"');
+    assertStringIncludes(html, formatCurrency(1234));
+    assertStringIncludes(html, 'name="confirm_identifier"');
   });
 
   test("edit pages without a return_url fall back to the ledger", async () => {
@@ -46,10 +49,14 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     const response = await adminGet(`/admin/ledger/entries/${entry!.id}/edit`);
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'name="return_url" type="hidden" value="/admin/ledger"',
     );
-    expect(html).not.toContain('value="/null"');
+    assert(
+      !html.includes('value="/null"'),
+      "the value should not contain the searched item",
+    );
   });
 
   test("404s edit and delete maintenance routes for checkout-event transfers", async () => {
@@ -127,7 +134,8 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
         },
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
         `/admin/ledger/entries/${entry!.id}/edit`,
       );
       const [unchanged] = await allTransfers();
@@ -166,7 +174,8 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
       confirm_identifier: "£0.01",
       return_url: `/admin/attendees/${attendeeId}`,
     });
-    expect(wrong.response.headers.get("location")).toContain(
+    assertStringIncludes(
+      wrong.response.headers.get("location") ?? "",
       `/admin/ledger/entries/${entry!.id}/edit`,
     );
     expect(await allTransfers()).toHaveLength(1);
@@ -205,11 +214,15 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     const response = await adminGet(filteredPath);
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `/admin/ledger/entries/${entry!.id}/edit?return_url=${encodeURIComponent(
         filteredPath,
       )}`,
     );
-    expect(html).not.toContain("return_url=NaN");
+    assert(
+      !html.includes("return_url=NaN"),
+      "the value should not contain the searched item",
+    );
   });
 });

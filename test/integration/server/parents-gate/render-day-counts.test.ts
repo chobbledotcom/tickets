@@ -1,5 +1,6 @@
 // jscpd:ignore-start
-import { expect } from "@std/expect";
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -240,8 +241,8 @@ describeWithEnv(
       const html = await bookingPageHtml(`${parent.slug}+${sibling.slug}`);
       // Both options survive: the multi-listing page is not constrained by the
       // parent's 2-day-only child (which on its own page would drop the 1-day).
-      expect(html).toContain(">1 day");
-      expect(html).toContain(">2 days");
+      assertStringIncludes(html, ">1 day");
+      assertStringIncludes(html, ">2 days");
     });
 
     test("a customisable parent builds its day-count union from SELECTABLE children only", async () => {
@@ -256,8 +257,11 @@ describeWithEnv(
       await deactivateTestListing(inactiveOneDay.id);
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).toContain(">2 days");
-      expect(html).not.toContain(">1 day");
+      assertStringIncludes(html, ">2 days");
+      assert(
+        !html.includes(">1 day"),
+        "the value should not contain the searched item",
+      );
     });
   },
 );

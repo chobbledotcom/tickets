@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -32,13 +33,15 @@ describeWithEnv("server previous bookings", { db: true }, () => {
     }
 
     const html = await (await adminGet(`/admin/attendees/${viewer.id}`)).text();
-    expect(html).toContain("Previous bookings shown:</strong> 100");
+    assertStringIncludes(html, "Previous bookings shown:</strong> 100");
     // The oldest booking falls outside the cap window and is not linked.
-    expect(html).not.toContain(
-      `href="/admin/attendees/${previous[0]!.attendee.id}"`,
+    assert(
+      !html.includes(`href="/admin/attendees/${previous[0]!.attendee.id}"`),
+      "the value should not contain the searched item",
     );
     // The newest booking is inside the cap window and is linked.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `href="/admin/attendees/${previous[previous.length - 1]!.attendee.id}"`,
     );
   });
@@ -65,8 +68,11 @@ describeWithEnv("server previous bookings", { db: true }, () => {
     );
 
     const html = await (await adminGet(`/admin/attendees/${viewer.id}`)).text();
-    expect(html).toContain(`href="/admin/attendees/${previous.id}"`);
-    expect(html).toContain('<td class="col-amount">£10</td>');
-    expect(html).not.toContain('<td class="col-amount">£20</td>');
+    assertStringIncludes(html, `href="/admin/attendees/${previous.id}"`);
+    assertStringIncludes(html, '<td class="col-amount">£10</td>');
+    assert(
+      !html.includes('<td class="col-amount">£20</td>'),
+      "the value should not contain the searched item",
+    );
   });
 });

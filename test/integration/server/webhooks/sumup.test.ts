@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -137,7 +139,8 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       // The page's copy and link contract live with the classify and
       // template tests; this route-level leg proves the staged row opened,
       // the reload scheduled itself, and no error was paged.
-      expect(await response.text()).toContain(
+      assertStringIncludes(
+        await response.text(),
         "30;url=/payment/success?session_id=",
       );
       expect(logLogged(debugSpy, "not confirmed yet")).toBe(true);
@@ -169,8 +172,9 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       // Nothing booked yet: the payment is unconfirmed, so the buyer is
       // still waiting rather than holding a ticket.
       expect(waiting.status).toBe(200);
-      expect(await waiting.text()).not.toContain(
-        'data-payment-result="success"',
+      assert(
+        !(await waiting.text()).includes('data-payment-result="success"'),
+        "the value should not contain the searched item",
       );
 
       status = "PAID";
@@ -185,10 +189,13 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       );
       expect(returned.status).toBe(302);
       const tokensLocation = returned.headers.get("location") ?? "";
-      expect(tokensLocation).toContain("/payment/success?tokens=");
+      assertStringIncludes(tokensLocation, "/payment/success?tokens=");
       const success = await handleRequest(mockRequest(tokensLocation));
       expect(success.status).toBe(200);
-      expect(await success.text()).toContain('data-payment-result="success"');
+      assertStringIncludes(
+        await success.text(),
+        'data-payment-result="success"',
+      );
       await expectBookedExactlyOnce();
     } finally {
       restore.restore();

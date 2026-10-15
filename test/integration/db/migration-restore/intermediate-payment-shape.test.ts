@@ -7,6 +7,7 @@
  * Here the dormant tables exist in the shape the intermediate build deployed.
  */
 
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -114,8 +115,8 @@ describeWithEnv(
 
       await verifyCurrentAppSchema();
       const applied = await appliedMigrationIds();
-      expect(applied).toContain("2026-08-04_login_attempt_stamp");
-      expect(applied).toContain("2026-08-10_refund_authority_records");
+      assertArrayIncludes(applied, ["2026-08-04_login_attempt_stamp"]);
+      assertArrayIncludes(applied, ["2026-08-10_refund_authority_records"]);
 
       // The redefinition replaced the foreign shape: the refund columns it
       // adds are present, and the columns it dropped are gone. An upgrade
@@ -142,11 +143,14 @@ describeWithEnv(
       await expect(initDb()).rejects.toThrow(
         "refusing to reinterpret stored payment history",
       );
-      expect(await appliedMigrationIds()).toContain(
+      assertArrayIncludes((await appliedMigrationIds()) ?? [], [
         "2026-08-04_login_attempt_stamp",
-      );
-      expect(await appliedMigrationIds()).not.toContain(
-        "2026-08-10_refund_authority_records",
+      ]);
+      assert(
+        !(await appliedMigrationIds()).includes(
+          "2026-08-10_refund_authority_records",
+        ),
+        "the value should not contain the searched item",
       );
 
       const stored = await getDb().execute(

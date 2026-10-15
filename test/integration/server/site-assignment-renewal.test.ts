@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -71,7 +72,7 @@ describeWithEnv(
 
         const renewalUrlCall = secretCalls.find((c) => c[1] === "RENEWAL_URL");
         expect(renewalUrlCall).toBeDefined();
-        expect(renewalUrlCall![2]).toContain("/renew/?t=");
+        assertStringIncludes(renewalUrlCall![2] ?? "", "/renew/?t=");
       });
 
       test("skips assignment and logs DATA_INVALID when initial_site_months is 0", async () => {
