@@ -11,6 +11,7 @@ import {
   MarkdownProse,
   type PublicNavProps,
   publicPage,
+  titleWithSiteName,
 } from "./shared.tsx";
 
 /** Public site page type */
@@ -30,9 +31,12 @@ export const publicSitePage = (
     home: t("public.home"),
     terms: t("public.terms_and_conditions"),
   };
-  const pageTitle = websiteTitle
-    ? `${titles[pageType]} - ${websiteTitle}`
-    : titles[pageType];
+  // The homepage title is the site name alone. The page label is redundant
+  // there, and every other page keeps it.
+  const pageTitle =
+    pageType === "home" && websiteTitle
+      ? websiteTitle
+      : titleWithSiteName(titles[pageType], websiteTitle);
 
   return publicPage(
     pageTitle,
