@@ -229,47 +229,79 @@ const insideErrorCall = (before: string): boolean => {
   return true;
 };
 
+/** The one linking token that may sit between the noun and the quotation:
+ * the noun names the span, "e.g." introduces it, and no other word may. A
+ * double quote between noun and token ends the construction. */
+const NOUN_THROUGH_EG = /\b(?:error|message)\b[^"]*\be\.g\.\s*$/i;
+
 /** The rule for a double-quoted span: it is machine-owned only when it
  * names an error message or code. The text before it decides — a still
  * open error constructor call holds it, the words "error" or "message"
- * sit before it, or a colon does. A quotation behind any other word is
- * prose, and the rules judge it. */
+ * sit before it, a colon does, or the noun links it through the one
+ * linking token "e.g.". A quotation behind any other word is prose, and
+ * the rules judge it. */
 const errorOrCodeQuote = (before: string): boolean =>
   insideErrorCall(before) ||
   /\b(?:error|message)\s*$/i.test(before) ||
-  /:\s*$/.test(before);
+  /:\s*$/.test(before) ||
+  NOUN_THROUGH_EG.test(before);
+
+/** One prose part at its own source position: a whitespace run becomes one
+ * space, any other text stays whole, and `as` overrides the text whole. */
+const partOf = (
+  source: ProseBlock,
+  text: string,
+  at: number,
+  as?: string,
+): ProseBlock =>
+  replacement(
+    { columns: [source.columns[at]!], lines: [source.lines[at]!], text },
+    as ?? (/\s/.test(text) ? " " : text),
+  );
+
+/** The parts one quoted span adds. A machine-owned span becomes one
+ * placeholder at the opening quote — and when the noun links it through
+ * "e.g.", the linking token is blanked too, or the wordy rule would judge
+ * the token that made the span exempt. A prose span keeps its words, each
+ * whitespace run as one space, each part at its own source position. */
+const quotedPartsOf = (
+  source: ProseBlock,
+  text: string,
+  at: number,
+  parts: ProseBlock[],
+  eGPart: number,
+): ProseBlock[] => {
+  if (!errorOrCodeQuote(source.text.slice(0, at))) {
+    return [...text.matchAll(/\s+|[^\s]/g)].map((inner) =>
+      partOf(source, inner[0], at + inner.index!),
+    );
+  }
+  if (eGPart >= 0 && NOUN_THROUGH_EG.test(source.text.slice(0, at))) {
+    parts[eGPart] = replacement(parts[eGPart]!, "%");
+  }
+  return [partOf(source, text, at, "%")];
+};
 
 /** Collapse whitespace, so the block's identity is stable under rewrapping
  * and exempt-span length changes. */
 const normalizeInBlock = (source: ProseBlock): ProseBlock => {
   const parts: ProseBlock[] = [];
-  // One prose part at its own source position: a whitespace run becomes one
-  // space, any other text stays whole, and `as` overrides the text whole.
-  const part = (text: string, at: number, as?: string): ProseBlock =>
-    replacement(
-      { columns: [source.columns[at]!], lines: [source.lines[at]!], text },
-      as ?? (/\s/.test(text) ? " " : text),
-    );
+  // The parts index of the last "e.g." token: the linking exemption swaps
+  // it for the placeholder. No quote can reuse an older token's index,
+  // because the exemption's tail test only holds while whitespace
+  // separates the token from the quote.
+  let eGPart = -1;
   for (const match of source.text.matchAll(
-    /"(?:[^"\\]|\\[\s\S])*"|\s+|[^\s]/g,
+    /"(?:[^"\\]|\\[\s\S])*"|\s+|\b[eE]\.[gG]\.|[^\s]/g,
   )) {
     const text = match[0];
     const at = match.index;
     if (text.startsWith('"') && text.length > 1) {
-      if (errorOrCodeQuote(source.text.slice(0, at))) {
-        // The quotation is machine-owned: the whole span becomes one
-        // placeholder at the opening quote.
-        parts.push(part(text, at, "%"));
-        continue;
-      }
-      // The quotation is prose: its words stay, each whitespace run as one
-      // space, each part at its own source position.
-      for (const inner of text.matchAll(/\s+|[^\s]/g)) {
-        parts.push(part(inner[0], at + inner.index!));
-      }
+      parts.push(...quotedPartsOf(source, text, at, parts, eGPart));
       continue;
     }
-    parts.push(part(text, at));
+    if (/^[eE]\.[gG]\.$/.test(text)) eGPart = parts.length;
+    parts.push(partOf(source, text, at));
   }
   const joined = joinText(parts);
   const start = joined.text.length - joined.text.trimStart().length;
