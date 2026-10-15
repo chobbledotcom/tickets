@@ -90,10 +90,11 @@ export const expectManualAddWebhook = (
 };
 
 /** Asserts the logs hold exactly one error and answers it. */
-export const expectOneError = (logs: string[], code: string): string => {
+export const expectOneError = (
+  logs: string[],
+  code: string,
+): string | undefined => {
   expect(logs).toHaveLength(1);
-  const [log] = logs;
-  if (!log) throw new Error("Expected one error log");
-  expect(log).toContain(code);
-  return log;
+  expect(logs[0]).toContain(code);
+  return logs[0];
 };
