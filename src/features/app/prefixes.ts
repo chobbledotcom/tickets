@@ -23,18 +23,19 @@ import {
   contactPrefixHandler,
   customCssPrefixHandler,
   disabledPublicSiteGet,
+  exportLoader,
   feedLoader,
-  handlerLoader,
+  googleWalletLoader,
   inlineLoader,
   legacyEventsRedirectHandler,
   loadPublicPages,
   orderJsPrefixHandler,
-  type PrefixLoaderThunk,
+  type PrefixLoader,
   readOnlyInfoHandler,
   requirePublicSiteGet,
-  routesObjectLoader,
   routeTableLoader,
   ticketLoader,
+  walletLoader,
 } from "./prefix-loaders.ts";
 import {
   ADMIN_SETTINGS,
@@ -59,7 +60,7 @@ export type PrefixSpec = {
    * How the prefix loads its handler. Absent only for `setup`, which the
    * setup router serves before main dispatch (see request.ts).
    */
-  loader?: PrefixLoaderThunk;
+  loader?: PrefixLoader;
   /** Setting keys beyond infra that the handlers read. Empty = infra only. */
   settings: readonly string[];
 };
@@ -99,7 +100,11 @@ export const PREFIX_ROUTES = {
   // --- Everything (can touch any setting) ---
   admin: {
     groups: [],
-    loader: handlerLoader(() => import("#routes/admin/index.ts"), "routeAdmin"),
+    loader: exportLoader(
+      "handler",
+      () => import("#routes/admin/index.ts"),
+      "routeAdmin",
+    ),
     settings: ADMIN_SETTINGS,
   },
   api: {
@@ -109,7 +114,8 @@ export const PREFIX_ROUTES = {
   },
   attachment: {
     groups: [],
-    loader: routesObjectLoader(
+    loader: exportLoader(
+      "routes-object",
       () => import("#routes/attachments.ts"),
       "attachmentRoutes",
     ),
@@ -137,7 +143,11 @@ export const PREFIX_ROUTES = {
       "listing-qr",
       "validation",
     ],
-    loader: handlerLoader(() => import("#routes/checkin.ts"), "routeCheckin"),
+    loader: exportLoader(
+      "handler",
+      () => import("#routes/checkin.ts"),
+      "routeCheckin",
+    ),
     settings: [
       CONFIG_KEYS.COUNTRY,
       CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
@@ -160,7 +170,8 @@ export const PREFIX_ROUTES = {
   },
   demo: {
     groups: [...ADMIN_SHELL_MESSAGE_GROUPS, "login", "settings", "validation"],
-    loader: handlerLoader(
+    loader: exportLoader(
+      "handler",
       () => import("#routes/admin/database-reset.ts"),
       "routeDatabaseReset",
     ),
@@ -179,22 +190,24 @@ export const PREFIX_ROUTES = {
   },
   gwallet: {
     groups: publicMessageGroups("tickets"),
-    loader: handlerLoader(
-      () => import("#routes/wallet/google.ts"),
-      "routeGoogleWallet",
-    ),
+    loader: googleWalletLoader,
     settings: [...GOOGLE_WALLET_SETTINGS, CONFIG_KEYS.COUNTRY],
   },
   // --- Infra-only routes (binary/JSON responses or pure redirects) ---
   image: {
     groups: [],
-    loader: handlerLoader(() => import("#routes/images.ts"), "routeImage"),
+    loader: exportLoader(
+      "handler",
+      () => import("#routes/images.ts"),
+      "routeImage",
+    ),
     settings: [],
   },
   // Inter-instance machine endpoint: reads built_sites + an env key only.
   instance: {
     groups: [],
-    loader: routesObjectLoader(
+    loader: exportLoader(
+      "routes-object",
       () => import("#routes/instance.ts"),
       "instanceRoutes",
     ),
@@ -202,7 +215,11 @@ export const PREFIX_ROUTES = {
   },
   join: {
     groups: JOIN_MESSAGE_GROUPS,
-    loader: handlerLoader(() => import("#routes/join.ts"), "routeJoin"),
+    loader: exportLoader(
+      "handler",
+      () => import("#routes/join.ts"),
+      "routeJoin",
+    ),
     settings: [],
   },
   listings: {
@@ -223,7 +240,11 @@ export const PREFIX_ROUTES = {
   news: {
     gate: disabledPublicSiteGet,
     groups: publicMessageGroups("news", "public-site"),
-    loader: handlerLoader(() => import("#routes/public/news.ts"), "routeNews"),
+    loader: exportLoader(
+      "handler",
+      () => import("#routes/public/news.ts"),
+      "routeNews",
+    ),
     settings: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY],
   },
   order: {
@@ -237,7 +258,8 @@ export const PREFIX_ROUTES = {
       "tickets",
       "validation",
     ),
-    loader: handlerLoader(
+    loader: exportLoader(
+      "handler",
       () => import("#routes/public/order.ts"),
       "routeOrder",
     ),
@@ -263,7 +285,8 @@ export const PREFIX_ROUTES = {
   page: {
     gate: disabledPublicSiteGet,
     groups: publicMessageGroups("public-site", "site-pages"),
-    loader: handlerLoader(
+    loader: exportLoader(
+      "handler",
       () => import("#routes/public/site-page.ts"),
       "routeSitePage",
     ),
@@ -272,7 +295,8 @@ export const PREFIX_ROUTES = {
   // --- Checkout / payment (bare layout, no public nav) ---
   pay: {
     groups: publicMessageGroups("ledger", "payment", "tickets", "validation"),
-    loader: handlerLoader(
+    loader: exportLoader(
+      "handler",
       () => import("#routes/public/balance.ts"),
       "routeBalance",
     ),
@@ -280,7 +304,8 @@ export const PREFIX_ROUTES = {
   },
   payment: {
     groups: ["payment", "validation"],
-    loader: handlerLoader(
+    loader: exportLoader(
+      "handler",
       () => import("#routes/api/webhooks.ts"),
       "routePayment",
     ),
@@ -317,7 +342,8 @@ export const PREFIX_ROUTES = {
   // --- Inbound SMS webhook (JSON only) ---
   sms: {
     groups: [],
-    loader: handlerLoader(
+    loader: exportLoader(
+      "handler",
       () => import("#routes/api/sms-webhook.ts"),
       "routeSmsWebhook",
     ),
@@ -329,7 +355,8 @@ export const PREFIX_ROUTES = {
   // --- Ticket view + wallet passes ---
   t: {
     groups: publicMessageGroups("listing-qr", "payment", "tickets"),
-    loader: handlerLoader(
+    loader: exportLoader(
+      "handler",
       () => import("#routes/tickets/index.ts"),
       "routeTicketView",
     ),
@@ -378,7 +405,8 @@ export const PREFIX_ROUTES = {
   },
   v1: {
     groups: ["tickets"],
-    loader: handlerLoader(
+    loader: exportLoader(
+      "handler",
       () => import("#routes/wallet/webservice.ts"),
       "routeWalletWebservice",
     ),
@@ -386,10 +414,7 @@ export const PREFIX_ROUTES = {
   },
   wallet: {
     groups: publicMessageGroups("tickets"),
-    loader: handlerLoader(
-      () => import("#routes/wallet/index.ts"),
-      "routeWallet",
-    ),
+    loader: walletLoader,
     settings: [...APPLE_WALLET_SETTINGS, CONFIG_KEYS.COUNTRY],
   },
 } satisfies Record<string, PrefixSpec>;

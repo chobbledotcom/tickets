@@ -44,7 +44,7 @@ describe("the matchers read code, not raw text", () => {
     expectNotImported('const hint = `import { foo } from "./x.ts"`;', "foo");
   });
 
-  for (const builder of ["lazyExport", "handlerLoader"]) {
+  for (const builder of ["lazyExport", "exportLoader"]) {
     test(`still detects a ${builder} entry beside a comment`, () => {
       const content = [
         "// The route table defers each page's module.",

@@ -10,36 +10,36 @@ import { describe, it as test } from "@std/testing/bdd";
 import { isSymbolImported } from "#test/scripts/code-quality/detectors.ts";
 
 describe("isSymbolImported over loader builders", () => {
-  test("detects a handlerLoader declaration entry by its quoted name", () => {
+  test("detects a handler entry by its quoted name", () => {
     expect(
       isSymbolImported(
         "routeFoo",
-        'handlerLoader(() => import("#routes/foo.ts"), "routeFoo")',
+        'exportLoader("handler", () => import("#routes/foo.ts"), "routeFoo")',
       ),
     ).toBe(true);
   });
 
-  test("detects a handlerLoader entry split across lines", () => {
+  test("detects an entry split across lines", () => {
     expect(
       isSymbolImported(
         "routeFoo",
-        'handlerLoader(\n  () => import("#routes/foo.ts"),\n  "routeFoo",\n)',
+        'exportLoader(\n  "handler",\n  () => import("#routes/foo.ts"),\n  "routeFoo",\n)',
       ),
     ).toBe(true);
   });
 
-  test("detects a routesObjectLoader entry by its quoted name", () => {
+  test("detects a routes-object entry by its quoted name", () => {
     expect(
       isSymbolImported(
         "fooRoutes",
-        'routesObjectLoader(\n  () => import("#routes/foo.ts"),\n  "fooRoutes",\n)',
+        'exportLoader(\n  "routes-object",\n  () => import("#routes/foo.ts"),\n  "fooRoutes",\n)',
       ),
     ).toBe(true);
   });
 
   test("does not count a builder call without a dynamic import", () => {
     expect(
-      isSymbolImported("routeFoo", 'handlerLoader(load, "routeFoo")'),
+      isSymbolImported("routeFoo", 'exportLoader("handler", load, "routeFoo")'),
     ).toBe(false);
   });
 });

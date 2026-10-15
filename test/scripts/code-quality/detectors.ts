@@ -244,7 +244,7 @@ export const isUsedInSameFile = (
  * in a comment or a string registers nothing.
  */
 const IMPORT_CLAUSES =
-  /import\s*\{([^}]*)\}|(?:const|let|var)\s*\{([^{}]*)\}\s*=\s*await\s+import\(|(?:lazyExport|handlerLoader|routesObjectLoader)\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/g;
+  /import\s*\{([^}]*)\}|(?:const|let|var)\s*\{([^{}]*)\}\s*=\s*await\s+import\(|(?:lazyExport|exportLoader)\(\s*(?:"[\w-]+",\s*)?\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/g;
 
 /**
  * The source-side names one IMPORT_CLAUSES match pulls in: the first word of

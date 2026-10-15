@@ -1,11 +1,17 @@
 /* jscpd:ignore-start -- imports */
+import { once } from "#fp";
 import { t, withMessageGroups } from "#i18n";
 import type { MessageGroup } from "#locales/manifest.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { notFoundResponse, redirectResponse } from "#routes/response.ts";
+import {
+  createRouter,
+  defineRoutes,
+  type RouteHandlerFn,
+} from "#routes/router.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
 import { isReadOnly, isUpdateInProgress } from "#shared/env.ts";
-import type { PrefixLoaderThunk } from "./prefix-loaders.ts";
+import type { PrefixLoader } from "./prefix-loaders.ts";
 import { getPrefix, PREFIX_ROUTES, type PrefixSpec } from "./prefixes.ts";
 import { readOnlyBlock } from "./read-only.ts";
 import { isSetupPath } from "./rules.ts";
@@ -31,9 +37,47 @@ const lazyRoute =
   async (request, path, method) =>
     (await load())(request, path, method);
 
+/**
+ * Build one prefix's dispatch thunk from its declared loader. The pick
+ * names are compile-checked at the builder call sites. The paired fold test
+ * freezes every pick and route table. A wrong shape fails loudly on the
+ * first dispatch.
+ */
+const dispatchThunk = (
+  loader: PrefixLoader,
+): (() => Promise<PathMethodRoute>) => {
+  if (loader.kind === "inline") return once(async () => loader.handler);
+  const module = once(
+    async () => (await loader.load()) as Record<string, unknown>,
+  );
+  switch (loader.kind) {
+    case "handler":
+      return async () => (await module())[loader.pick] as PathMethodRoute;
+    case "routes-object":
+      return async () =>
+        createRouter(
+          (await module())[loader.pick] as Record<string, RouteHandlerFn>,
+        );
+    case "route-table":
+      return async () =>
+        createRouter(
+          defineRoutes(
+            Object.fromEntries(
+              await Promise.all(
+                Object.entries(loader.routes).map(async ([pattern, pick]) => [
+                  pattern,
+                  (await module())[pick] as RouteHandlerFn,
+                ]),
+              ),
+            ),
+          ),
+        );
+  }
+};
+
 const isServedEntry = (
   entry: [string, PrefixSpec],
-): entry is [string, PrefixSpec & { loader: PrefixLoaderThunk }] =>
+): entry is [string, PrefixSpec & { loader: PrefixLoader }] =>
   entry[1].loader !== undefined;
 
 /** The declaration as the fold reads it: every prefix as its spec. */
@@ -45,7 +89,11 @@ export const prefixHandlers: Record<string, PrefixRoute> = Object.fromEntries(
     .filter(isServedEntry)
     .map(([prefix, spec]) => [
       prefix,
-      prefixRoute(spec.groups, lazyRoute(spec.loader.run), spec.gate),
+      prefixRoute(
+        spec.groups,
+        lazyRoute(dispatchThunk(spec.loader)),
+        spec.gate,
+      ),
     ]),
 );
 

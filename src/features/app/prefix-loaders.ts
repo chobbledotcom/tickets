@@ -15,31 +15,26 @@ import {
   PUBLIC_API_MESSAGE_GROUPS,
 } from "#locales/groups.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
-import {
-  createRouter,
-  defineRoutes,
-  type RouteHandlerFn,
-} from "#routes/router.ts";
+import { createRouter, type RouteHandlerFn } from "#routes/router.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
 import { readOnlyPage } from "#templates/public/errors.tsx";
 /* jscpd:ignore-end */
 
 /**
- * What a loader loads and picks. The paired fold test
- * (test/features/app/prefix-fold.test.ts) freezes these facts from the
+ * How one prefix's dispatch is built: the lazy module load plus the export
+ * it names, or an inline handler this module owns. The dispatch fold reads
+ * every field. The paired fold test freezes the name fields from the
  * pre-fold tables and checks every entry against them.
  */
 export type PrefixLoader =
-  | { kind: "handler"; pick: string }
-  | { kind: "inline" }
-  | { kind: "route-table"; routes: Readonly<Record<string, string>> }
-  | { kind: "routes-object"; pick: string };
-
-/** The dispatch thunk a prefix serves through, plus its declared fact. */
-export type PrefixLoaderThunk = {
-  fact: PrefixLoader;
-  run: () => Promise<PathMethodRoute>;
-};
+  | { handler: PathMethodRoute; kind: "inline" }
+  | { kind: "handler"; load: () => Promise<unknown>; pick: string }
+  | {
+      kind: "route-table";
+      load: () => Promise<unknown>;
+      routes: Readonly<Record<string, string>>;
+    }
+  | { kind: "routes-object"; load: () => Promise<unknown>; pick: string };
 
 /** A gate that answers before message groups load. */
 export type PrefixGate = (path: string, method: string) => Response | null;
@@ -60,7 +55,8 @@ export const requirePublicSiteGet =
     path === expectedPath ? disabledPublicSiteGet(path, method) : null;
 
 /*
- * Loader builders. Import specifiers stay literal. esbuild bundles every
+ * Loader builders. Each returns the declaration's loader data, which the
+ * dispatch fold interprets. Import specifiers stay literal. esbuild bundles every
  * lazy target into the single edge file and still defers its evaluation
  * until first matched. Loaders shared by more than one prefix are named so
  * both prefixes reuse the same once-cached import.
@@ -90,84 +86,64 @@ type RoutesObjectKey<M> = KeysExtending<M, Record<string, RouteHandlerFn>>;
 /** The module keys whose value is a handler a route pattern can bind. */
 type TableHandlerKey<M> = KeysExtending<M, RouteHandlerFn>;
 
-/** A loader whose thunk resolves to the dispatch router. */
-type ResolvedLoader<F extends PrefixLoader> = {
-  fact: F;
-  run: () => Promise<PathMethodRoute>;
-};
-
-/** Load one handler export from the module. */
-export const handlerLoader = <M>(
+/**
+ * Load one named export from the module. A handler dispatches directly. A
+ * routes object goes through the router. The pick is compile-checked to
+ * exist on the module with the kind's shape. The paired fold test freezes
+ * every pick, and a wrong shape fails loudly on the first dispatch.
+ */
+export const exportLoader = <M>(
+  kind: "handler" | "routes-object",
   load: () => Promise<M>,
-  pick: HandlerKey<M>,
-): ResolvedLoader<{ kind: "handler"; pick: string }> => ({
-  fact: { kind: "handler", pick },
-  // The pick key is compile-checked to exist on the module (HandlerKey). The
-  // cast names the handler shape. The paired fold test pins every pick, and
-  // a wrong shape fails loudly on the first dispatch.
-  run: lazyExport(load, pick) as () => Promise<PathMethodRoute>,
-});
-
-/** Load a module whose named export is a route table ready for the router. */
-export const routesObjectLoader = <M>(
-  load: () => Promise<M>,
-  pick: RoutesObjectKey<M>,
-): ResolvedLoader<{ kind: "routes-object"; pick: string }> => ({
-  fact: { kind: "routes-object", pick },
-  // See handlerLoader. The pick key is compile-checked. The shape is pinned
-  // by the paired fold test and the prefix's dispatch tests.
-  run: once(async () =>
-    createRouter((await load())[pick] as Record<string, RouteHandlerFn>),
-  ),
-});
+  pick: HandlerKey<M> | RoutesObjectKey<M>,
+): Extract<PrefixLoader, { kind: typeof kind }> =>
+  ({ kind, load, pick }) as Extract<PrefixLoader, { kind: typeof kind }>;
 
 /** Bind named handler exports from the module to method-path patterns. */
 export const routeTableLoader = <M>(
   load: () => Promise<M>,
   routes: Readonly<Record<string, TableHandlerKey<M>>>,
-): ResolvedLoader<{
-  kind: "route-table";
-  routes: Readonly<Record<string, string>>;
-}> => ({
-  fact: { kind: "route-table", routes },
-  // See handlerLoader. Every pattern key is compile-checked to name a module
-  // export. The shape is pinned by the paired fold test and by the dispatch
-  // tests for each table-bound prefix.
-  run: once(async () => {
-    const module = await load();
-    return createRouter(
-      defineRoutes(
-        Object.fromEntries(
-          Object.entries(routes).map(([pattern, key]) => [
-            pattern,
-            module[key],
-          ]),
-        ) as Record<string, RouteHandlerFn>,
-      ),
-    );
-  }),
+): Extract<PrefixLoader, { kind: "route-table" }> => ({
+  kind: "route-table",
+  load,
+  routes,
 });
 
 /** Serve a handler that this module defines instead of importing. */
 export const inlineLoader = (
   handler: PathMethodRoute,
-): { fact: { kind: "inline" }; run: () => Promise<PathMethodRoute> } => ({
-  fact: { kind: "inline" },
-  run: () => Promise.resolve(handler),
+): Extract<PrefixLoader, { kind: "inline" }> => ({
+  handler,
+  kind: "inline",
 });
 
 /*
- * Loaders shared by more than one prefix entry.
+ * Loaders the declaration references by name. A loader shared by more than
+ * one prefix reuses one once-cached import.
  */
 
-export const feedLoader = handlerLoader(
+export const feedLoader = exportLoader(
+  "handler",
   () => import("#routes/feeds.ts"),
   "routeFeed",
 );
 
-export const ticketLoader = handlerLoader(
+export const ticketLoader = exportLoader(
+  "handler",
   () => import("#routes/public/ticket-routes.ts"),
   "routeTicket",
+);
+
+export const googleWalletLoader = exportLoader(
+  "handler",
+  () => import("#routes/wallet/google.ts"),
+  "routeGoogleWallet",
+);
+
+export const walletLoader = exportLoader(
+  "handler",
+  () => import("#routes/wallet/index.ts"),
+  "routeWallet",
 );
 
 /** The public pages module, shared by the page prefixes and contact. */

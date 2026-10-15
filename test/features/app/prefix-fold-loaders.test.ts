@@ -13,13 +13,20 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { PrefixLoader } from "#routes/app/prefix-loaders.ts";
 import { PREFIX_ROUTES, type PrefixSpec } from "#routes/app/prefixes.ts";
 import { prefixHandlers } from "#routes/app/routes.ts";
 
 /** One loader fact per prefix, frozen from the pre-fold tables. `setup` has
- * none: the setup router serves it before main dispatch. */
-const FROZEN_LOADERS: Record<string, PrefixLoader | undefined> = {
+ * none: the setup router serves it before main dispatch. The name fields are
+ * the frozen dispatch contract; the module load and inline handler live in
+ * production code only. */
+type FrozenLoader =
+  | { kind: "handler"; pick: string }
+  | { kind: "inline" }
+  | { kind: "route-table"; routes: Readonly<Record<string, string>> }
+  | { kind: "routes-object"; pick: string };
+
+const FROZEN_LOADERS: Record<string, FrozenLoader | undefined> = {
   "": { kind: "route-table", routes: { "GET /": "handleHome" } },
   "address-lookup": {
     kind: "route-table",
@@ -109,12 +116,31 @@ const FROZEN_SPECIFIERS = [
   "#routes/wallet/webservice.ts",
 ];
 
-/** The loader must keep its kind, module exports, and bound patterns. */
-const assertLoader = (name: string, loader: PrefixLoader | undefined): void => {
+/**
+ * The loader must keep its kind, module exports, and bound patterns. The
+ * declaration's loader data carries the module load too; the frozen facts
+ * name the dispatch contract, and the import-target test pins the modules.
+ */
+const assertLoader = (name: string, loader: FrozenLoader | undefined): void => {
   const table: Record<string, PrefixSpec> = PREFIX_ROUTES;
   const spec = table[name];
   if (!spec) throw new Error(`prefix "${name}" is no longer declared`);
-  expect(spec.loader?.fact).toEqual(loader);
+  const declared = spec.loader;
+  if (declared === undefined) {
+    expect(loader).toBeUndefined();
+    return;
+  }
+  if (declared.kind === "inline") {
+    // The inline handler's behavior is pinned by the guard probes here and
+    // by the app router's dispatch tests.
+    expect(loader?.kind).toBe("inline");
+    return;
+  }
+  const named =
+    declared.kind === "route-table"
+      ? { kind: declared.kind, routes: declared.routes }
+      : { kind: declared.kind, pick: declared.pick };
+  expect(named).toEqual(loader);
 };
 
 describe("prefix fold equivalence (loaders)", () => {

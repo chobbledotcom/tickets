@@ -16,11 +16,10 @@ import {
  * matcher.
  */
 const BUILDER_CLAUSE =
-  /(?:lazyExport|handlerLoader|routesObjectLoader)\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/y;
+  /(?:lazyExport|exportLoader)\(\s*(?:"[\w-]+",\s*)?\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/y;
 
 /** Whether one of the loader builders starts at `i`. */
-const BUILDER_CLAUSE_PREFIX =
-  /^(?:lazyExport|handlerLoader|routesObjectLoader)\(/;
+const BUILDER_CLAUSE_PREFIX = /^(?:lazyExport|exportLoader)\(/;
 
 /** One span blanked to spaces, newlines kept so line offsets stay fixed. */
 const blankRange = (
