@@ -157,7 +157,10 @@ describeWithEnv("admitting one recovery per attendee", { db: true }, () => {
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
-    webhookReply = () => held.then(() => new Response("{}"));
+    webhookReply = async () => {
+      await held;
+      return new Response("{}");
+    };
 
     const first = resend(attendee.id, "Racing Buyer");
     const second = await resend(attendee.id, "Racing Buyer");

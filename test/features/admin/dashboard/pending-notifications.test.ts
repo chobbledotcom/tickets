@@ -19,7 +19,7 @@ describeWithEnv(
 
       await expectHtml(await adminGet("/admin"), {
         contains: [
-          "2 bookings have unsent notifications",
+          "2 attendees have unsent notifications",
           'href="/admin/attendees"',
         ],
       });
