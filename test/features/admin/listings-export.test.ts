@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
 import { moveTickets } from "#db/attendees/update.ts";

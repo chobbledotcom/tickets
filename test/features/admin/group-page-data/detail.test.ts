@@ -206,7 +206,7 @@ describeWithEnv(
         assertStringIncludes(addForm?.body ?? "", `value="${inOtherGroup.id}"`);
         // …while the target's own member is not (no add-form checkbox for it).
         assert(
-          !(addForm?.body).includes(`value="${ownMember.id}"`),
+          addForm?.body?.includes(`value="${ownMember.id}"`) === false,
           "the value should not contain the searched item",
         );
       });

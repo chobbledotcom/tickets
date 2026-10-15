@@ -221,7 +221,7 @@ describeWithEnv("API package booking", { db: true }, () => {
       quantity: 1,
     });
     expect(noDate.response.status).toBe(400);
-    assertStringIncludes(noDate.body.error, "valid date");
+    assertStringIncludes(noDate.body.error ?? "", "valid date");
 
     const { package: pkg } = await (
       await apiGet(`/api/packages/${group.slug}`)
@@ -232,7 +232,7 @@ describeWithEnv("API package booking", { db: true }, () => {
       quantity: 1,
     });
     expect(noDays.response.status).toBe(400);
-    assertStringIncludes(noDays.body.error, "days");
+    assertStringIncludes(noDays.body.error ?? "", "days");
   });
 
   test("POST books a customisable bundle at the chosen span's package prices", async () => {
@@ -279,14 +279,14 @@ describeWithEnv("API package booking", { db: true }, () => {
       quantity: 1,
     });
     expect(unknown.response.status).toBe(400);
-    assertStringIncludes(unknown.body.error, "not a member");
+    assertStringIncludes(unknown.body.error ?? "", "not a member");
 
     const malformed = await apiBookPackage(group.slug, {
       children: [{ quantity: 1, slug: child.slug }],
       quantity: 1,
     });
     expect(malformed.response.status).toBe(400);
-    assertStringIncludes(malformed.body.error, "parent");
+    assertStringIncludes(malformed.body.error ?? "", "parent");
 
     // A garbage customPrice is a schema parse failure — never NaN stored as a
     // price.
@@ -305,7 +305,7 @@ describeWithEnv("API package booking", { db: true }, () => {
       quantity: 1,
     });
     expect(childless.response.status).toBe(400);
-    assertStringIncludes(childless.body.error, "not a child");
+    assertStringIncludes(childless.body.error ?? "", "not a child");
   });
 
   test("POST creates a paid checkout carrying the package id; a hidden package's items keep its name", async () => {
@@ -337,7 +337,10 @@ describeWithEnv("API package booking", { db: true }, () => {
     try {
       const visible = await apiBookPackage(group.slug, { quantity: 1 });
       expect(visible.response.status).toBe(200);
-      assertStringIncludes(visible.body.booking!.checkoutUrl, "stripe.test");
+      assertStringIncludes(
+        visible.body.booking!.checkoutUrl ?? "",
+        "stripe.test",
+      );
       // The package id rides per line now: every member item carries it.
       expect(intents[0]!.items.map((i) => i.packageGroupId)).toEqual([
         group.id,

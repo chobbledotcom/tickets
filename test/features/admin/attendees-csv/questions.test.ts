@@ -123,7 +123,7 @@ describe("CSV with custom questions", () => {
       [commaQuestion],
       new Map([[1, [30]]]),
     );
-    assertStringIncludes(header, '"Name, as printed on ticket"');
+    assertStringIncludes(header ?? "", '"Name, as printed on ticket"');
   });
 
   test("escapes commas in answer text", () => {
@@ -136,7 +136,7 @@ describe("CSV with custom questions", () => {
       [q],
       new Map([[1, [40]]]),
     );
-    assertStringIncludes(row, '"Nuts, dairy"');
+    assertStringIncludes(row ?? "", '"Nuts, dairy"');
   });
 
   test("escapes quotes in answer text per RFC 4180", () => {
@@ -146,7 +146,7 @@ describe("CSV with custom questions", () => {
       [q],
       new Map([[1, [50]]]),
     );
-    assertStringIncludes(row, '"She said ""hi"""');
+    assertStringIncludes(row ?? "", '"She said ""hi"""');
   });
 
   test("ignores answer IDs that do not belong to any of the provided questions", () => {
@@ -158,7 +158,7 @@ describe("CSV with custom questions", () => {
     // The unknown answer must not leak into the column or appear as "undefined"
     expect(row!.endsWith(",Small")).toBe(true);
     assert(
-      !row.includes("undefined"),
+      row?.includes("undefined") === false,
       "the value should not contain the searched item",
     );
   });

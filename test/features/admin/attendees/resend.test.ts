@@ -410,9 +410,9 @@ describeWithEnv(
         t("success.notification_resent"),
       )(response);
       const resent = buyerEmailTexts("wording@example.com").at(-1);
-      assertStringIncludes(resent, "Anything else?: Coming by train");
+      assertStringIncludes(resent ?? "", "Anything else?: Coming by train");
       assert(
-        !resent.includes("Coming by bus"),
+        resent !== undefined && !resent.includes("Coming by bus"),
         "the value should not contain the searched item",
       );
     });

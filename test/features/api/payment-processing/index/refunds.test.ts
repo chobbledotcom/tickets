@@ -174,7 +174,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     expect(result.success).toBe(false);
     if (result.success) throw new Error("Expected a capacity failure");
     assertStringIncludes(
-      result.detail,
+      result.detail ?? "",
       "sold out while you were completing payment",
     );
     expect(

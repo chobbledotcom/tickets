@@ -7,7 +7,7 @@
  * details are posted.
  */
 
-import { assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAllListings } from "#db/listings/records.ts";
@@ -108,7 +108,7 @@ describeWithEnv("what a create writes down", { db: true }, () => {
       buildCreateListingForm(testListingInput({ name: "Logged Create" })),
     );
 
-    assertArrayIncludes(await activityMessages(), [
+    assertArrayIncludes((await activityMessages()) ?? [], [
       "Listing 'Logged Create' created",
     ]);
   });

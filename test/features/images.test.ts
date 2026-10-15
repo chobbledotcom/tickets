@@ -63,9 +63,9 @@ describeWithEnv(
           () => new Response("Not Found", { status: 404 }),
           async () => {
             await expectBrokenImageResponse(await proxyRequest());
-            assertStringIncludes(errors.lastMessage(), "E_IMAGE_BROKEN");
+            assertStringIncludes(errors.lastMessage() ?? "", "E_IMAGE_BROKEN");
             assertStringIncludes(
-              errors.lastMessage(),
+              errors.lastMessage() ?? "",
               "abc123-def4-5678-9abc-def012345678.jpg is missing from storage",
             );
           },
@@ -77,9 +77,9 @@ describeWithEnv(
           () => new Response("not encrypted bytes", { status: 200 }),
           async () => {
             await expectBrokenImageResponse(await proxyRequest());
-            assertStringIncludes(errors.lastMessage(), "E_IMAGE_BROKEN");
+            assertStringIncludes(errors.lastMessage() ?? "", "E_IMAGE_BROKEN");
             assertStringIncludes(
-              errors.lastMessage(),
+              errors.lastMessage() ?? "",
               "abc123-def4-5678-9abc-def012345678.jpg could not be decrypted",
             );
           },

@@ -506,7 +506,8 @@ describe("validateParsedForm", () => {
       }),
     );
     expect(result.valid).toBe(false);
-    if (!result.valid) assertStringIncludes(result.dateError, "start date");
+    if (!result.valid)
+      assertStringIncludes(result.dateError ?? "", "start date");
   });
 
   test("passes a booked daily listing with a valid start date", () => {

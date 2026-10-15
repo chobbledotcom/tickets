@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -83,8 +83,8 @@ describeWithEnv("route responses", { db: true }, () => {
       const result = await withCookie(response, "second=two; Path=/");
       const cookies = result.headers.getSetCookie();
       expect(cookies.length).toBe(2);
-      assertStringIncludes(cookies, "first=one; Path=/");
-      assertStringIncludes(cookies, "second=two; Path=/");
+      assertArrayIncludes(cookies, ["first=one; Path=/"]);
+      assertArrayIncludes(cookies, ["second=two; Path=/"]);
     });
 
     test("preserves response status", async () => {
@@ -140,7 +140,7 @@ describeWithEnv("route responses", { db: true }, () => {
         const response = redirect("/admin/settings", "Saved", true);
         expectRedirectWithFlash("/admin/settings", "Saved")(response);
         assert(
-          !response.headers.get("location").includes("success="),
+          response.headers.get("location")?.includes("success=") === false,
           "the value should not contain the searched item",
         );
       }));

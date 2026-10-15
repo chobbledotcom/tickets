@@ -1,4 +1,4 @@
-import { assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
@@ -70,7 +70,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(id).toBeGreaterThan(0);
       expect(await storedFeatureEnabled("questions")).toBe(true);
       // The creation lands in the activity log with the row's kind and name.
-      assertArrayIncludes(await activityMessages(), [
+      assertArrayIncludes((await activityMessages()) ?? [], [
         "Question 'What size?' created",
       ]);
     });

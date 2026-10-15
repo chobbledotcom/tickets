@@ -112,9 +112,9 @@ describeWithEnv("admin email templates", { db: true }, () => {
     }
     // Not merely prefixed: the plaintext must not be sitting there beside it.
     assert(
-      !settings
+      settings
         .getCachedRaw(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT)
-        .includes("listing_names"),
+        ?.includes("listing_names") === false,
       "the value should not contain the searched item",
     );
 

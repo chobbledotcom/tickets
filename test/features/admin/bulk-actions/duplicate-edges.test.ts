@@ -1,4 +1,4 @@
-import { assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingAttributeOptions } from "#db/attributes.ts";
@@ -120,12 +120,12 @@ describeWithEnv(
 
       expect(response.status).toBe(302);
       const message = parseFlashCookie(response).error;
-      assertStringIncludes(
+      assertArrayIncludes(
         [
           dropWarning(`${first}; ${second}`),
           dropWarning(`${second}; ${first}`),
         ],
-        message,
+        [message],
       );
     });
 

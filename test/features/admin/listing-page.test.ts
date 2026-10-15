@@ -4,7 +4,7 @@
  * link that renders is always one the viewer can follow.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
@@ -32,7 +32,7 @@ describeWithEnv("the listing page", { db: true }, () => {
 
     expect(response.status).toBe(200);
     assertStringIncludes(html, "<h1>Listing: Castle Hire</h1>");
-    assertStringIncludes(tabsOf(html, listing.id), "attendees");
+    assertArrayIncludes(tabsOf(html, listing.id) ?? [], ["attendees"]);
   });
 
   test("marks the listings list as the section it belongs to", async () => {

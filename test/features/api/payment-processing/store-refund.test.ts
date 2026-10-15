@@ -201,9 +201,10 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       }
       // The note's name is the once-only latch a resumed delivery checks; it
       // carries only the blind reference index, never the real reference.
-      assertStringIncludes(row.system_name, "refund_unreturned");
+      assertStringIncludes(row.system_name ?? "", "refund_unreturned");
       assert(
-        !row.system_name.includes("pi_cs_plain_explanation"),
+        row.system_name !== null &&
+          !row.system_name.includes("pi_cs_plain_explanation"),
         "the value should not contain the searched item",
       );
       assert(

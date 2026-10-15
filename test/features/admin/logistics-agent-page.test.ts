@@ -4,7 +4,7 @@
  * user who can drive may be assigned, so that filter is checked directly.
  */
 
-import { assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { loadAgentUserOptions } from "#routes/admin/logistics-agent-page.tsx";

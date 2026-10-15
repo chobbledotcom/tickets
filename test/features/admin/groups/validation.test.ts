@@ -62,7 +62,7 @@ describeWithEnv("admin group validation", { db: true }, () => {
       await groupInput({ isPackage: true, name: group.name, slug: group.slug }),
       group.id,
     );
-    assertStringIncludes(error, "Package child");
+    assertStringIncludes(error ?? "", "Package child");
   });
 
   test("a visible package with no bookings can be un-packaged", async () => {

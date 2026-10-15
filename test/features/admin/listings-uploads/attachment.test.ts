@@ -3,7 +3,7 @@
  * record an upload writes, the file it clears away, and how a rejection reads.
  */
 
-import { assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
@@ -89,7 +89,7 @@ describeWithEnv("uploading a listing's attachment", { db: true }, () => {
     await withStorageMock(async () => {
       await upload(leaflet());
 
-      assertArrayIncludes(await activityMessages(), [
+      assertArrayIncludes((await activityMessages()) ?? [], [
         "Attachment uploaded for listing",
       ]);
     });
@@ -227,7 +227,7 @@ describeWithEnv("removing a listing's attachment", { db: true }, () => {
         storageCalls.some((url) => url.endsWith("/stored-leaflet.pdf")),
       ).toBe(true);
       expect(await storedAttachment(listing.id)).toEqual({ name: "", url: "" });
-      assertArrayIncludes(await activityMessages(), [
+      assertArrayIncludes((await activityMessages()) ?? [], [
         "Attachment removed for 'Had A Leaflet'",
       ]);
     });

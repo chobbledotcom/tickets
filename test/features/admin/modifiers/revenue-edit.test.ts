@@ -89,7 +89,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const entry = log.find((e) => e.message.includes("revenue adjusted"));
       expect(entry?.message).toBe("Modifier 'Promo' revenue adjusted");
       assert(
-        !(entry?.message).includes("12.34"),
+        entry?.message?.includes("12.34") === false,
         "the value should not contain the searched item",
       );
     });

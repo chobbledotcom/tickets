@@ -27,7 +27,10 @@ describeWithEnv("db > modifier child-add-on reachability", { db: true }, () => {
     const { child } = await makeParent();
     await optInAddOnForListings("Link extra", [child.id]);
 
-    assertStringIncludes(await saveFor("Link extra", [child.id]), "Link extra");
+    assertStringIncludes(
+      (await saveFor("Link extra", [child.id])) ?? "",
+      "Link extra",
+    );
   });
 
   test("a bookable_alone child serves its own page and resolves the save", async () => {

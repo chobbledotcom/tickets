@@ -42,7 +42,7 @@ describe("generateAttendeesCsv", () => {
     assertStringIncludes(lines[1] ?? "", "/t/real-tok");
     assertStringIncludes(lines[2] ?? "", "ghost-tok");
     assert(
-      !lines[2].includes("/t/ghost-tok"),
+      lines[2]?.includes("/t/ghost-tok") === false,
       "the value should not contain the searched item",
     );
     expect(lines[2]!.endsWith("ghost-tok,")).toBe(true);

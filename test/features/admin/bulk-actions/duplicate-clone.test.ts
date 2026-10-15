@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -45,7 +46,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         response,
         "Duplicated 'Priced Source' to 'Priced Copy' (x1 listings)",
       );
-      assertArrayIncludes(await activityMessages(), [
+      assertArrayIncludes((await activityMessages()) ?? [], [
         "Group 'Priced Source' duplicated to 'Priced Copy' with x1 listings",
       ]);
 

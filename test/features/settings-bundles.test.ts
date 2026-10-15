@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { CONFIG_KEYS } from "#db/settings.ts";
@@ -18,14 +18,13 @@ describe("settings bundles", () => {
   });
 
   test("loads the schema hash for admin routes", () => {
-    assertStringIncludes(settingsForPath("/admin"), "db_schema_hash");
+    assertArrayIncludes(settingsForPath("/admin"), ["db_schema_hash"]);
   });
 
   test("loads the admin bundle for the welcome-dismiss POST", () => {
-    assertStringIncludes(
-      settingsForPath("/admin/welcome/dismiss"),
+    assertArrayIncludes(settingsForPath("/admin/welcome/dismiss"), [
       CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
-    );
+    ]);
   });
 
   test("keeps the home page bundle narrower than the full settings list", () => {
@@ -36,17 +35,15 @@ describe("settings bundles", () => {
   });
 
   test("uses the full settings list for inherited object property names", () => {
-    assertStringIncludes(
-      settingsForPath("/constructor"),
+    assertArrayIncludes(settingsForPath("/constructor"), [
       CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
-    );
+    ]);
   });
 
   test("does not reserve a settings bundle for the early scheduled route", () => {
-    assertStringIncludes(
-      settingsForPath("/scheduled"),
+    assertArrayIncludes(settingsForPath("/scheduled"), [
       CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
-    );
+    ]);
   });
 
   describe("what every response reads", () => {

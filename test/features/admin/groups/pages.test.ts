@@ -58,7 +58,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toMatch(/^\/admin\/groups\/\d+/);
-    assertStringIncludes(parseFlashCookie(response).success, "Group");
+    assertStringIncludes(parseFlashCookie(response).success ?? "", "Group");
   });
 
   test("sends the operator back to the group list after deleting one", async () => {
@@ -71,7 +71,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
       },
     );
     expect(response.headers.get("location")).toMatch(/^\/admin\/groups(\?|$)/);
-    assertStringIncludes(parseFlashCookie(response).success, "Group");
+    assertStringIncludes(parseFlashCookie(response).success ?? "", "Group");
   });
 
   test("adds an uploaded image to the group", async () => {

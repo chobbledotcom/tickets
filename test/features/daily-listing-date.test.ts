@@ -3,7 +3,7 @@
  * read time. The stored row keeps the date, so switching the type back to
  * standard brings it back on every surface. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeePiiBlobsForListings } from "#db/attendees/pii.ts";
@@ -188,7 +188,10 @@ describeWithEnv(
         Date.now(),
       );
       const ownBlobs = await getAttendeePiiBlobsForListings([listing.id]);
-      assertStringIncludes(blobs, ownBlobs[0]);
+      assert(
+        blobs.includes(ownBlobs[0]!),
+        "the attendee's own blob is in the audience blobs",
+      );
     });
 
     test("the derived dated fact is false while the listing is daily", async () => {

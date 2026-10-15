@@ -2,6 +2,7 @@
  *  the declarative parent scenarios and the /listings card-state asserts that
  *  more than one discovery suite reads. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { listingChildren } from "#db/listing-parents.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

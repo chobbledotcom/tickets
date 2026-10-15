@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ExistingLine } from "#db/attendees/atomic-update.ts";
@@ -281,8 +281,8 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
         (listing) => listing.name,
       );
 
-      assertStringIncludes(names, active.name);
-      assertStringIncludes(names, inactiveBooked.name);
+      assertArrayIncludes(names, [active.name]);
+      assertArrayIncludes(names, [inactiveBooked.name]);
       assert(
         !names.includes(inactiveUnbooked.name),
         "the value should not contain the searched item",

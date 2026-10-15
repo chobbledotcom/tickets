@@ -111,7 +111,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
 
     test("treats a value that is not a string as a mismatch", () => {
       assertStringIncludes(
-        verifyIdentifierOrJsonError("Test", { not: "a string" }),
+        verifyIdentifierOrJsonError("Test", { not: "a string" }) ?? "",
         "does not match",
       );
     });

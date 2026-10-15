@@ -185,13 +185,14 @@ describeWithEnv(
       const memberQueries = batchedMemberQueries(seen);
       expect(memberQueries.length).toBe(1);
       const [memberQuery] = memberQueries;
-      assertStringIncludes(memberQuery, "GROUP BY listing.id");
+      assertStringIncludes(memberQuery ?? "", "GROUP BY listing.id");
       assert(
-        !memberQuery.includes("GROUP BY listing.id,"),
+        memberQuery !== undefined &&
+          !memberQuery.includes("GROUP BY listing.id,"),
         "the value should not contain the searched item",
       );
       assertStringIncludes(
-        memberQuery,
+        memberQuery ?? "",
         "ORDER BY listing.created DESC, listing.id DESC",
       );
     });

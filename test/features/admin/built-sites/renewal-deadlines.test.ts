@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BuiltSite } from "#db/built-sites/types.ts";
@@ -38,8 +38,8 @@ describeWithEnv(
           true,
         );
 
-        assertStringIncludes(secretNames, "READ_ONLY_FROM");
-        assertStringIncludes(secretNames, "RENEWAL_URL");
+        assertArrayIncludes(secretNames, ["READ_ONLY_FROM"]);
+        assertArrayIncludes(secretNames, ["RENEWAL_URL"]);
         assertArrayIncludes(
           (await getAllActivityLog()).map(({ message }) => message),
           ["Admin re-synced deadline for 'Resync Site'"],
@@ -55,7 +55,7 @@ describeWithEnv(
           false,
         );
 
-        assertStringIncludes(secretNames, "READ_ONLY_FROM");
+        assertArrayIncludes(secretNames, ["READ_ONLY_FROM"]);
         assert(
           !secretNames.includes("RENEWAL_URL"),
           "the value should not contain the searched item",

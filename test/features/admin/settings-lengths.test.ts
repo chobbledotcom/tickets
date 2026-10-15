@@ -44,7 +44,7 @@ describeWithEnv("settings length refusals", { db: true }, () => {
       const control = html.match(
         new RegExp(`<(?:input|textarea)\\b[^>]*name="${name}"[^>]*>`),
       );
-      assertStringIncludes(control?.[0], `maxlength="${limit}"`, name);
+      assertStringIncludes(control?.[0] ?? "", `maxlength="${limit}"`, name);
     }
   });
 

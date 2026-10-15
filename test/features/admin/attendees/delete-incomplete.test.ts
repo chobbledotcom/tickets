@@ -6,6 +6,7 @@
  * told why.
  */
 
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -48,7 +49,7 @@ describeWithEnv("clearing a stuck registration", { db: true }, () => {
       t("success.incomplete_removed"),
     )(response);
     expect(await getAttendeesRaw(listing.id)).toHaveLength(0);
-    assertArrayIncludes(await activityMessages(), [
+    assertArrayIncludes((await activityMessages()) ?? [], [
       "Incomplete attendee deleted from 'Paid Listing'",
     ]);
   });

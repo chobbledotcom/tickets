@@ -7,7 +7,7 @@
  * to read that data at all.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
@@ -57,7 +57,7 @@ describeWithEnv("inviting a user", { db: true }, () => {
     const { response } = await invite("loggedinvite", "manager");
 
     expect(response.status).toBe(302);
-    assertArrayIncludes(await activityMessages(), [
+    assertArrayIncludes((await activityMessages()) ?? [], [
       "User 'loggedinvite' invited as manager",
     ]);
   });
@@ -291,7 +291,7 @@ describeWithEnv("choosing which vans an agent drives", { db: true }, () => {
     });
 
     await expectFlashRedirect(LIST_PATH, t("success.agents_updated"))(response);
-    assertArrayIncludes(await activityMessages(), [
+    assertArrayIncludes((await activityMessages()) ?? [], [
       "Agents updated for user 'loggeddriver'",
     ]);
   });

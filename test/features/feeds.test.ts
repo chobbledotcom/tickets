@@ -89,10 +89,11 @@ describeWithEnv("listing feed contracts", { db: true }, () => {
       "SUMMARY:Weekend bundle",
     );
     assert(
-      !packageEntry!.split("\r\nEND:VLISTING")[0].includes("LOCATION:"),
+      packageEntry!.split("\r\nEND:VLISTING")[0]?.includes("LOCATION:") ===
+        false,
       "the value should not contain the searched item",
     );
-    assertStringIncludes(packageEntry, "\r\nEND:VLISTING");
+    assertStringIncludes(packageEntry ?? "", "\r\nEND:VLISTING");
   });
 
   test("uses newlines between RSS documents, items, and details", async () => {

@@ -120,7 +120,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         "#templates/fields/validators.ts"
       );
       const result = validateUsername("user name");
-      assertStringIncludes(result, "letters, numbers");
+      assertStringIncludes(result ?? "", "letters, numbers");
     });
 
     test("validateUsername accepts valid username", async () => {

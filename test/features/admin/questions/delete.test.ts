@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
@@ -59,7 +60,7 @@ describeWithEnv(
           true,
         )(response);
         expectStatus(404)(await adminGet(`/admin/questions/${id}`));
-        assertArrayIncludes(await activityMessages(), [
+        assertArrayIncludes((await activityMessages()) ?? [], [
           "Question 'Doomed question?' deleted",
         ]);
       });

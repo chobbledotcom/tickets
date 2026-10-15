@@ -84,9 +84,9 @@ describeWithEnv("custom.css handler", { db: true, triggers: true }, () => {
     await settings.update.customCss("body { color: red; }");
     const before = await handleRequest(mockRequest("/"));
     assert(
-      !before.headers
+      before.headers
         .get("content-security-policy")
-        .includes("fonts.bunny.net"),
+        ?.includes("fonts.bunny.net") === false,
       "the value should not contain the searched item",
     );
 

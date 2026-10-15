@@ -1,4 +1,5 @@
 import type { TransactionMode } from "@libsql/client";
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -40,7 +41,7 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
         "15-20 minutes",
         "20-30 minutes",
       ]);
-      assertArrayIncludes(await activityMessages(), [
+      assertArrayIncludes((await activityMessages()) ?? [], [
         "Attribute option '20-30 minutes' added to Game Length",
       ]);
     });
@@ -145,7 +146,7 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
           text: "2-4 players",
         },
       ]);
-      assertArrayIncludes(await activityMessages(), [
+      assertArrayIncludes((await activityMessages()) ?? [], [
         "Attribute option '2-4 players' updated in Player Count",
       ]);
     });
@@ -192,7 +193,7 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
       expect((await getAttributeWithOptions(attribute.id))?.options).toEqual(
         [],
       );
-      assertArrayIncludes(await activityMessages(), [
+      assertArrayIncludes((await activityMessages()) ?? [], [
         "Attribute option '5 minutes' deleted from Game Length",
       ]);
     });

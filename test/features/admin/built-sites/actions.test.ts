@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -122,8 +122,8 @@ describeWithEnv(
         )(response);
 
         const setNames = secrets.setCalls.map((c) => c.name);
-        assertStringIncludes(setNames, "NTFY_URL");
-        assertStringIncludes(setNames, "DB_URL");
+        assertArrayIncludes(setNames, ["NTFY_URL"]);
+        assertArrayIncludes(setNames, ["DB_URL"]);
         // The unreproducible encryption key is never set.
         assert(
           !setNames.includes("DB_ENCRYPTION_KEY"),

@@ -143,7 +143,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const themeFormMatch = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
       expect(themeFormMatch).toBeDefined();
       assert(
-        !(themeFormMatch?.[0]).includes("Business email updated"),
+        themeFormMatch?.[0]?.includes("Business email updated") === false,
         "the value should not contain the searched item",
       );
     });

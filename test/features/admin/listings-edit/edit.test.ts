@@ -3,7 +3,7 @@
  * the bookings already taken, and what the operator is told afterwards.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeUpdate } from "#db/client.ts";
@@ -124,7 +124,7 @@ describeWithEnv("what a saved edit says afterwards", { db: true }, () => {
       buildUpdateListingForm({ name: "After Log" }, listing),
     );
 
-    assertArrayIncludes(await activityMessages(), [
+    assertArrayIncludes((await activityMessages()) ?? [], [
       "Listing 'After Log' updated",
     ]);
   });
@@ -202,7 +202,7 @@ describeWithEnv("changing how long a daily stay runs", { db: true }, () => {
     );
 
     expect(flashOf(response)).toBe("Listing updated");
-    assertArrayIncludes(await activityMessages(), [
+    assertArrayIncludes((await activityMessages()) ?? [], [
       "Listing 'Retreat' duration changed to 4 day(s)",
     ]);
   });
@@ -277,7 +277,7 @@ describeWithEnv("changing how long a daily stay runs", { db: true }, () => {
     expect(flashOf(response)).toBe(
       "Listing updated Warning: group capacity exceeded on 2026-09-02",
     );
-    assertArrayIncludes(await activityMessages(), [
+    assertArrayIncludes((await activityMessages()) ?? [], [
       "Duration change caused group capacity overflow on 2026-09-02",
     ]);
   });

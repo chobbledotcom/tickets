@@ -3,7 +3,7 @@
  * sends the operator back to, and the one row it refuses.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { activityMessages } from "#test-utils/activity-log.ts";
@@ -26,14 +26,12 @@ describeWithEnv("what a check-in writes down", { db: true }, () => {
     await checkIn(listing.id, attendee.id, { check_in: "false" });
 
     const history = await activityMessages();
-    assertStringIncludes(
-      history,
+    assertArrayIncludes(history, [
       "Attendee checked in 1 ticket for 'Sports Day'",
-    );
-    assertStringIncludes(
-      history,
+    ]);
+    assertArrayIncludes(history, [
       "Attendee checked out 1 ticket for 'Sports Day'",
-    );
+    ]);
   });
 
   test("says which way round it went", async () => {

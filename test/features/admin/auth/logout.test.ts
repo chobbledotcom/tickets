@@ -47,7 +47,7 @@ describeWithEnv("server (admin logout)", { db: true }, () => {
       const sessionCookie = response.headers
         .getSetCookie()
         .find((c) => c.startsWith(`${getSessionCookieName()}=`));
-      assertStringIncludes(sessionCookie, "Max-Age=0");
+      assertStringIncludes(sessionCookie ?? "", "Max-Age=0");
     });
   });
 

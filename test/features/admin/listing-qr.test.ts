@@ -414,7 +414,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
         error?: string;
       };
       expect(body.ok).toBe(false);
-      assertStringIncludes(body.error, "Quantity must be at most 2.");
+      assertStringIncludes(body.error ?? "", "Quantity must be at most 2.");
     });
 
     test("signs a different token each minute (fresh expiry)", async () => {

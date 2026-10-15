@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getActiveHolidays } from "#db/holidays.ts";
@@ -29,7 +29,7 @@ describeWithEnv(
       await enablePublicApi();
       const { parent, child } = await makeParent();
       const slugs = await apiListingSlugs();
-      assertStringIncludes(slugs, parent.slug);
+      assertArrayIncludes(slugs, [parent.slug]);
       assert(
         !slugs.includes(child.slug),
         "the value should not contain the searched item",

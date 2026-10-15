@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { updateBuiltSiteRenewalState } from "#db/built-sites.ts";
@@ -99,7 +99,7 @@ describeWithEnv(
 
         // Rotate only re-pushes RENEWAL_URL, not READ_ONLY_FROM.
         const secretNames = secretNamesOf(suite.secretStub);
-        assertStringIncludes(secretNames, "RENEWAL_URL");
+        assertArrayIncludes(secretNames, ["RENEWAL_URL"]);
         assert(
           !secretNames.includes("READ_ONLY_FROM"),
           "the value should not contain the searched item",

@@ -1,4 +1,4 @@
-import { assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -153,7 +153,7 @@ describeWithEnv(
       ).rejects.toThrow("provider call broke");
 
       expect(claim.unrecorded).toEqual([[returnedSession]]);
-      assertStringIncludes(claim.released[0] ?? "", returnedSession);
+      assertArrayIncludes(claim.released[0] ?? [], [returnedSession]);
     });
   },
 );

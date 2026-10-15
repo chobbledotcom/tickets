@@ -83,7 +83,7 @@ describeWithEnv("settlePaymentCallback", { db: true }, () => {
 
     expect(outcome.kind).toBe("unpaid");
     assertStringIncludes(
-      "detail" in outcome && outcome.detail,
+      ("detail" in outcome && outcome.detail) || "",
       "status=unpaid",
     );
   });
@@ -97,7 +97,7 @@ describeWithEnv("settlePaymentCallback", { db: true }, () => {
     );
 
     assertStringIncludes(
-      "detail" in outcome && outcome.detail,
+      ("detail" in outcome && outcome.detail) || "",
       "Recovery check",
     );
   });
@@ -123,7 +123,7 @@ describeWithEnv("settlePaymentCallback", { db: true }, () => {
 
     expect(outcome.kind).toBe("held");
     assertStringIncludes(
-      "detail" in outcome && outcome.detail,
+      ("detail" in outcome && outcome.detail) || "",
       "Payment is being processed",
     );
   });

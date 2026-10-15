@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -173,7 +173,9 @@ describeWithEnv(
           "Listings added to group",
         )(response);
 
-        assertStringIncludes(await listingGroups.getIds(listing1.id), group.id);
+        assertArrayIncludes(await listingGroups.getIds(listing1.id), [
+          group.id,
+        ]);
         expect(await listingGroups.getIds(listing2.id)).toEqual([]);
         // The assignment is recorded in the activity log.
         const { getAllActivityLog } = await import(

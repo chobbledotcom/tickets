@@ -3,7 +3,7 @@
  * asks how many tickets, the ticket page reads the part count, and the
  * staff quantity page stays shut. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { moveTickets } from "#db/attendees/update.ts";
@@ -71,7 +71,7 @@ describeWithEnv("a scanner login and part bookings", { db: true }, () => {
     });
 
     expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 2 }]);
-    assertArrayIncludes(await activityMessages(), [
+    assertArrayIncludes((await activityMessages()) ?? [], [
       "Attendee checked in 2 tickets via scanner for 'Doors'",
     ]);
   });

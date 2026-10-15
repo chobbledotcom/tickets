@@ -76,7 +76,7 @@ describePublicApi(() => {
         name: "Alice",
       });
       expect(response.status).toBe(400);
-      assertStringIncludes(body.error, "website");
+      assertStringIncludes(body.error ?? "", "website");
     });
 
     test("returns 400 when required name is missing", async () => {

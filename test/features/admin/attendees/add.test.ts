@@ -7,6 +7,7 @@
  * rather than as anything else.
  */
 
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryOne } from "#db/client.ts";
@@ -133,7 +134,7 @@ describeWithEnv("adding to a listing with no dates", { db: true }, () => {
       quantity: "1",
     });
 
-    assertArrayIncludes(await activityMessages(), [
+    assertArrayIncludes((await activityMessages()) ?? [], [
       "Attendee 'Written Down' added manually",
     ]);
   });

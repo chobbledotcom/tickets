@@ -1,4 +1,4 @@
-import { assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
@@ -86,7 +86,7 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
         "No options yet.",
       );
       expect(await storedFeatureEnabled("attributes")).toBe(true);
-      assertArrayIncludes(await activityMessages(), [
+      assertArrayIncludes((await activityMessages()) ?? [], [
         "Attribute 'Terrain' created",
       ]);
     });
@@ -165,7 +165,7 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
       expect((await getAttributeWithOptions(attribute.id))?.name).toBe(
         "New name",
       );
-      assertArrayIncludes(await activityMessages(), [
+      assertArrayIncludes((await activityMessages()) ?? [], [
         "Attribute 'New name' updated",
       ]);
     });
@@ -259,7 +259,7 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
       )(response);
       expect(await getAttributeWithOptions(attribute.id)).toBeNull();
       expectStatus(404)(await adminGet(`/admin/attributes/${attribute.id}`));
-      assertArrayIncludes(await activityMessages(), [
+      assertArrayIncludes((await activityMessages()) ?? [], [
         "Attribute 'Audience' deleted",
       ]);
     });

@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 
-import { assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -92,7 +92,7 @@ describeAdminSettings(() => {
 
       expect(response.status).toBe(302);
       await settingsAsStored();
-      assertStringIncludes(DEMO_PAGE_TEXT, settings.siteFooter);
+      assertArrayIncludes(DEMO_PAGE_TEXT, [settings.siteFooter ?? ""]);
     });
 
     test("settings page shows the Site footer section", async () => {

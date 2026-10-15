@@ -164,14 +164,18 @@ describeWithEnv("the group page", { db: true }, () => {
     const [beforeZone, insideZone] = html.split('class="entity-danger-zone"');
 
     assertStringIncludes(
-      beforeZone,
+      beforeZone ?? "",
       `href="/admin/groups/${group.id}/export.json"`,
     );
     assert(
-      !beforeZone.includes(`href="/admin/groups/${group.id}/delete"`),
+      beforeZone !== undefined &&
+        !beforeZone.includes(`href="/admin/groups/${group.id}/delete"`),
       "the value should not contain the searched item",
     );
-    assertStringIncludes(insideZone, `href="/admin/groups/${group.id}/delete"`);
+    assertStringIncludes(
+      insideZone ?? "",
+      `href="/admin/groups/${group.id}/delete"`,
+    );
   });
 
   test("keeps a hidden member in the roster while its group withholds the public share links", async () => {

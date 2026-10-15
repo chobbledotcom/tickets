@@ -98,9 +98,9 @@ describe("admin > listing defaults form parse > bookable days", () => {
     const error = parse(
       "default_bookable_days_enabled=1&default_bookable_days=Funday&default_bookable_days=Monday",
     ).error;
-    assertStringIncludes(error, "Invalid day: Funday");
+    assertStringIncludes(error ?? "", "Invalid day: Funday");
     assertStringIncludes(
-      error,
+      error ?? "",
       "Use: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday",
     );
   });
@@ -109,9 +109,9 @@ describe("admin > listing defaults form parse > bookable days", () => {
     const error = parse(
       "default_bookable_days_enabled=1&default_bookable_days=Monday&default_bookable_days=Funday&default_bookable_days=Someday",
     ).error;
-    assertStringIncludes(error, "Invalid day: Funday");
+    assertStringIncludes(error ?? "", "Invalid day: Funday");
     assert(
-      !error.includes("Invalid day: Someday"),
+      error !== null && !error.includes("Invalid day: Someday"),
       "the value should not contain the searched item",
     );
   });

@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -47,7 +48,7 @@ describeWithEnv(
         `/admin/built-sites/${site.id}/maintenance`,
       );
       expect(monitored).not.toBe("");
-      assertArrayIncludes(await activityMessages(), [
+      assertArrayIncludes((await activityMessages()) ?? [], [
         `Added Uptime Kuma monitor for '${monitored}'`,
       ]);
     });

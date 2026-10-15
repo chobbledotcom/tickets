@@ -65,11 +65,11 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     );
     expect(confirmations).toHaveLength(1);
     assert(
-      !(confirmations[0]?.message).includes(refund.attendeeName),
+      confirmations[0]?.message?.includes(refund.attendeeName) === false,
       "the value should not contain the searched item",
     );
     assert(
-      !(confirmations[0]?.message).includes(refund.reference.reference),
+      confirmations[0]?.message?.includes(refund.reference.reference) === false,
       "the value should not contain the searched item",
     );
     const notes = await getNotesFor(target, refund.privateKey);

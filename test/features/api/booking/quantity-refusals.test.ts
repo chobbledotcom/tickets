@@ -95,7 +95,7 @@ describePublicApi(() => {
     // least 3 per purchase, so the fold refuses before any booking lands.
     const below = await apiBookPackage(group.slug, { quantity: 2 });
     expect(below.response.status).toBe(400);
-    assertStringIncludes(below.body.error, "sells at least 3");
+    assertStringIncludes(below.body.error ?? "", "sells at least 3");
     expect((await getAttendeesRaw(member.id)).length).toBe(0);
 
     // At the fold's cap: five of ten spots go, and the booking lands as one

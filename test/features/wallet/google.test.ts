@@ -82,8 +82,8 @@ describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
 
     const response = await awaitTestRequest(`/gwallet/${token}`);
     const cacheControl = response.headers.get("Cache-Control");
-    assertStringIncludes(cacheControl, "public");
-    assertStringIncludes(cacheControl, "s-maxage=3600");
+    assertStringIncludes(cacheControl ?? "", "public");
+    assertStringIncludes(cacheControl ?? "", "s-maxage=3600");
   });
 
   test("returns null for non-GET methods", async () => {

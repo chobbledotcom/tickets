@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
@@ -34,7 +35,7 @@ describeWithEnv("server (listing attributes tab save)", { db: true }, () => {
       expect(
         selected.get(listing.id)![0]!.options.map((option) => option.text),
       ).toEqual(["Easy"]);
-      assertArrayIncludes(await activityMessages(), [
+      assertArrayIncludes((await activityMessages()) ?? [], [
         "Attributes updated for 'Climbing' (1 option)",
       ]);
     });

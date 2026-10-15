@@ -188,7 +188,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       }),
       (json) => {
         expect(json.processed).toBe(false);
-        assertStringIncludes(json.error, "saved your details");
+        assertStringIncludes(json.error ?? "", "saved your details");
       },
     );
   });
@@ -275,8 +275,8 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
     expect(result).not.toBeInstanceOf(Promise);
     expect(result.status).toBe(404);
     expect(result.success).toBe(false);
-    assertStringIncludes(result.detail, "Post-payment listing not found");
-    assertStringIncludes(result.detail, "cs_404");
+    assertStringIncludes(result.detail ?? "", "Post-payment listing not found");
+    assertStringIncludes(result.detail ?? "", "cs_404");
     expect(result.error).toBe("Listing not found");
   });
 
@@ -300,7 +300,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       expect(result.refunded).toBe(true);
       expect(result.status).toBe(409);
       assertStringIncludes(result.error.toLowerCase(), "price");
-      assertStringIncludes(result.detail, "1000");
+      assertStringIncludes(result.detail ?? "", "1000");
     });
   });
 
