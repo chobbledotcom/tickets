@@ -11,7 +11,10 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createTestAttendee,
+  readPendingNotificationFlags,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { webhookMeta } from "#test-utils/factories.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
@@ -158,4 +161,10 @@ export const bookedLine = async (
     entry: { attendee, listing: loaded! } as CreatedEntry,
     listingId: listing.id,
   };
+};
+
+/** Reads the booking's one attendee's pending notification flags back. */
+export const readBookingFlags = async (listingId: number) => {
+  const attendee = (await getAttendeesRaw(listingId))[0]!;
+  return readPendingNotificationFlags(attendee.id);
 };

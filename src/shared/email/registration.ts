@@ -22,6 +22,7 @@ import {
 } from "#shared/email-renderer.ts";
 import {
   loadRegistrationPackageFacts,
+  RegistrationDeliveryError,
   type RegistrationDeliveryResult,
   type RegistrationPackageFacts,
   waitForRegistrationDeliveries,
@@ -205,23 +206,37 @@ export const sendRegistrationEmails = async (
       promise: Promise.reject(error),
     })),
   ];
-  const sideFailed = async (buyerCopy: boolean): Promise<boolean> =>
-    (
-      await Promise.allSettled(
-        attempts
-          .filter((one) => one.buyerCopy === buyerCopy)
-          .map((one) => one.promise),
-      )
-    ).some(
-      (one) =>
-        one.status === "rejected" ||
-        (one.status === "fulfilled" && !one.value.delivered),
-    );
-  return {
-    ...(await waitForRegistrationDeliveries(
-      attempts.map((one) => one.promise),
-    )),
-    buyerFailed: await sideFailed(true),
-    ownerFailed: await sideFailed(false),
-  };
+  const settled = await Promise.allSettled(attempts.map((one) => one.promise));
+  const sideFailed = (buyerCopy: boolean): boolean =>
+    settled
+      .filter((_, index) => attempts[index]!.buyerCopy === buyerCopy)
+      .some(
+        (one) =>
+          one.status === "rejected" ||
+          (one.status === "fulfilled" && !one.value.delivered),
+      );
+  const buyerFailed = sideFailed(true);
+  const ownerFailed = sideFailed(false);
+  try {
+    return {
+      ...(await waitForRegistrationDeliveries(
+        attempts.map((one) => one.promise),
+      )),
+      buyerFailed,
+      ownerFailed,
+    };
+  } catch (error) {
+    // The combined throw carries the per-message outcomes with it. The flag
+    // reconciliation then reads a template error's send as accepted or
+    // refused per side.
+    if (error instanceof RegistrationDeliveryError) {
+      throw new RegistrationDeliveryError(
+        error.failed,
+        error.reasons,
+        buyerFailed,
+        ownerFailed,
+      );
+    }
+    throw error;
+  }
 };

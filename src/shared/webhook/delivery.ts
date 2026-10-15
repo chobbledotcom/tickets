@@ -211,10 +211,18 @@ const settleFlagOwningSend = async (
   // A failed clear batch leaves the flags up. The admin already reads a
   // raised flag as an owed send. Log the batch's failure, and do not mask
   // the delivery errors' report and throw.
+  // The email side's per-message outcomes ride both settled states: the
+  // fulfilled value, and a template error's enriched RegistrationDeliveryError.
+  // Any other rejection threw before a delivery was attempted, so no side
+  // speaks.
+  const emailSide =
+    emailResult.status === "fulfilled"
+      ? emailResult.value
+      : emailResult.reason instanceof RegistrationDeliveryError
+        ? emailResult.reason
+        : undefined;
   const buyerFlagClears =
-    attempted.email &&
-    emailResult.status === "fulfilled" &&
-    !emailResult.value.buyerFailed;
+    attempted.email && emailSide !== undefined && !emailSide.buyerFailed;
   const clears = [
     ...(attempted.webhooks && acceptedDelivery(webhookResult)
       ? [clearPendingFlagStatement("webhooks", clearPendingFlagsFor)]
@@ -232,7 +240,7 @@ const settleFlagOwningSend = async (
     });
   }
   const ownerFailureUnrepresented =
-    emailResult.status === "fulfilled" && emailResult.value.ownerFailed;
+    emailSide !== undefined ? emailSide.ownerFailed : false;
   if (errors.length > 0 || ownerFailureUnrepresented) {
     await reportRegistrationDeliveryError(ownerFailureUnrepresented);
   }

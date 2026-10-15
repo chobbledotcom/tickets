@@ -26,6 +26,11 @@ export class RegistrationDeliveryError extends Error {
   constructor(
     readonly failed: boolean,
     readonly reasons: readonly unknown[],
+    /** Whether the buyer's own confirmation delivery failed. The email side
+     * sets both split fields when it knows the per-message outcomes. A send
+     * that threw before any delivery was attempted leaves them false. */
+    readonly buyerFailed = false,
+    readonly ownerFailed = false,
   ) {
     super("Unexpected registration delivery failure");
   }
