@@ -107,7 +107,11 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
 
     expect(body).toContain(formatSignedCurrency(25000, true));
     expect(body).toContain(formatSignedCurrency(0, true));
-    // No costs were taken away, so the net is exactly the income.
-    expect(body).toContain(formatSignedCurrency(25000, false));
+    // The income row already contains the net's unsigned string, so the net
+    // assertion reads the net row's own cell.
+    const netRowStart = body.indexOf("Net after service costs");
+    const dueRowStart = body.indexOf("Customer balances due");
+    const netRow = body.slice(netRowStart, dueRowStart);
+    expect(netRow).toContain(formatSignedCurrency(25000, false));
   });
 });
