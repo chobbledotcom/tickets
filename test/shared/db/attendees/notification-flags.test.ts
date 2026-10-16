@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  claimOutstandingNotificationFlags,
   countAttendeesWithPendingFlags,
   restoreClaimedNotificationFlags,
 } from "#db/attendees/notification-flags.ts";
@@ -57,6 +58,13 @@ describeWithEnv("the pending-notification count", { db: true }, () => {
 });
 
 describeWithEnv("restoring a recovery's claimed flags", { db: true }, () => {
+  test("claims nothing for an attendee that does not exist", async () => {
+    // A row the claim cannot read has no flags to zero: the claim returns
+    // no sides instead of throwing, and the resend's own 404 check is what
+    // refuses the press.
+    expect(await claimOutstandingNotificationFlags(999999)).toEqual([]);
+  });
+
   test("raises only the claimed sides and leaves the others alone", async () => {
     const { attendee } = await bookTestAttendeeWithFlags("Leased Buyer", 2, 1);
     // The claim flipped both sides down; the release restores the captured

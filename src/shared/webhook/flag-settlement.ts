@@ -40,26 +40,31 @@ const acceptedDelivery = (
 /** The flag writes one settled send earned. A side whose send cleared writes
  * a clear. A claimed side whose send did not clear writes its captured
  * value back, so the release keeps the badge's own colour. */
-const earnedFlagStatements = (
+const earnedFlagWrites = (
   clearPendingFlagsFor: readonly number[],
   cleared: Record<PendingNotificationSide, boolean>,
   recovered: RecoveredSides,
-): SqlStatement[] =>
-  (["email", "webhooks"] as const).flatMap((side) => {
+): { clears: SqlStatement[]; restores: SqlStatement[] } => {
+  const clears: SqlStatement[] = [];
+  const restores: SqlStatement[] = [];
+  for (const side of ["email", "webhooks"] as const) {
     if (cleared[side]) {
-      return [clearPendingFlagStatement(side, clearPendingFlagsFor)];
+      clears.push(clearPendingFlagStatement(side, clearPendingFlagsFor));
+      continue;
     }
     const claimed = recovered?.find((one) => one.side === side);
-    return claimed
-      ? [
-          restorePendingFlagStatement(
-            side,
-            clearPendingFlagsFor,
-            claimed.previous,
-          ),
-        ]
-      : [];
-  });
+    if (claimed) {
+      restores.push(
+        restorePendingFlagStatement(
+          side,
+          clearPendingFlagsFor,
+          claimed.previous,
+        ),
+      );
+    }
+  }
+  return { clears, restores };
+};
 
 /** Clear the pending flags one flag-owning send earned, and restore each
  * claimed side that did not clear to its captured value. A side clears only
@@ -88,17 +93,32 @@ export const settleFlagOwningSend = async (
     attempted.email && emailSide !== undefined && !emailSide.buyerFailed;
   const webhooksFlagClears =
     attempted.webhooks && acceptedDelivery(webhookResult);
-  const statements = earnedFlagStatements(
+  const { clears, restores } = earnedFlagWrites(
     clearPendingFlagsFor,
     { email: buyerFlagClears, webhooks: webhooksFlagClears },
     recovered,
   );
+  const statements = [...clears, ...restores];
   if (statements.length > 0) {
     await executeBatch(statements).catch(async (error) => {
       await logError({
         code: ErrorCode.DB_QUERY,
         detail: `The pending-flag settle batch failed: ${String(error)}`,
       });
+      // The batch is one transaction, and none of its writes landed. A
+      // claimed side that did not clear is still zero and hides its owed
+      // send. Give each restore its own write. One refused value's
+      // failure then does not hide the others. A restore that still fails
+      // is logged with its side. That flag stays zero until the admin
+      // investigates the logged incident.
+      for (const restore of restores) {
+        await executeBatch([restore]).catch(async (restoreError) => {
+          await logError({
+            code: ErrorCode.DB_QUERY,
+            detail: `A pending-flag restore was still refused and its owed send stays hidden: ${String(restoreError)}`,
+          });
+        });
+      }
     });
   }
   return emailSide !== undefined ? emailSide.ownerFailed : false;

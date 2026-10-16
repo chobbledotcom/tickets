@@ -1,6 +1,7 @@
 import { logActivities } from "#db/activity-log.ts";
 import {
   type ClaimedNotificationSide,
+  type PendingNotificationSide,
   restoreClaimedNotificationFlags,
 } from "#db/attendees/notification-flags.ts";
 import type { WebhookBookingSource } from "#db/contact-tokens.ts";
@@ -197,6 +198,40 @@ type RegistrationSend = {
   recoverSides?: RecoveredSides;
 };
 
+/** Which sides this send will attempt. Reading the email setup can reject
+ * (an unknown stored provider). The claim is a lease for sends that never
+ * run. A refusal here releases it and reports. The flags keep saying what
+ * is still owed. */
+const attemptedSides = async (
+  send: RegistrationSend,
+  sides: Record<PendingNotificationSide, boolean>,
+): Promise<{ email: boolean; webhooks: boolean }> => {
+  const webhooks =
+    Boolean(sides.webhooks) &&
+    registrationWebhookUrls(send.entries).length > 0;
+  try {
+    return {
+      email:
+        Boolean(sides.email) && buyerConfirmationAttempted(send.entries),
+      webhooks,
+    };
+  } catch (error) {
+    if (
+      send.recoverSides !== undefined &&
+      send.clearPendingFlagsFor !== undefined
+    ) {
+      await restoreClaimedNotificationFlags(
+        send.clearPendingFlagsFor[0]!,
+        send.recoverSides,
+      );
+    }
+    await reportRegistrationDeliveryError(
+      send.clearPendingFlagsFor === undefined,
+    );
+    throw error;
+  }
+};
+
 const sendRegistrationNotifications = async (
   send: RegistrationSend,
 ): Promise<void> => {
@@ -207,9 +242,8 @@ const sendRegistrationNotifications = async (
   // far side saw nothing, so it must not clear the flag that says a send is
   // owed. The email flag is the buyer's confirmation. The owner's admin copy
   // alone is a different message and never clears it.
-  const webhooksAttempted =
-    sides.webhooks && registrationWebhookUrls(entries).length > 0;
-  const emailAttempted = sides.email && buyerConfirmationAttempted(entries);
+  const { email: emailAttempted, webhooks: webhooksAttempted } =
+    await attemptedSides(send, sides);
   const skippedDelivery = (): RegistrationDeliveryResult => ({ failed: false });
   // A skipped email side is a hard non-attempt: a recovery that did not
   // claim the buyer's confirmation must never queue it.
