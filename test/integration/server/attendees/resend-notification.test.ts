@@ -70,9 +70,11 @@ describeWithEnv(
       };
 
       /** Book one new attendee, resend their notification, and return the
-       * registration webhook's ticket lines. No wait is needed: handleRequest
-       * flushes pending work (the fire-and-forget webhook) in its finally
-       * before returning the response, so the dispatch has completed. */
+       * registration webhook's ticket lines. The press chooses the webhook
+       * side: these tests read the webhook's payload. No wait is needed:
+       * handleRequest flushes pending work (the fire-and-forget webhook) in
+       * its finally before returning the response, so the dispatch has
+       * completed. */
       const resendTickets = async (
         bookings: AttendeeInput["bookings"],
         name: string,
@@ -82,7 +84,7 @@ describeWithEnv(
         using webhookFetch = stubFetch(new Response());
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}/resend-notification`,
-          { confirm_identifier: name },
+          { confirm_identifier: name, resend_sides: "webhooks" },
         );
         expect(response.status).toBe(302);
         expect(webhookFetch.calls.length).toBe(1);
@@ -159,13 +161,19 @@ describeWithEnv(
       });
 
       /** Raise the fixture attendee's owed-send flags and press the resend,
-       * answering with the route's redirect. */
+       * answering with the route's redirect. The press chooses the webhook
+       * side: the fixture listing carries a webhook address, and the tests
+       * that share this press count its webhook requests. */
       const pressResend = async (ctx: AdminTestContext): Promise<Response> => {
         await markNotificationSendsOwed(ctx.attendee.id);
         return handleRequest(
           mockFormRequest(
             `/admin/attendees/${ctx.attendee.id}/resend-notification`,
-            { confirm_identifier: "John Doe", csrf_token: ctx.csrfToken },
+            {
+              confirm_identifier: "John Doe",
+              csrf_token: ctx.csrfToken,
+              resend_sides: "webhooks",
+            },
             ctx.cookie,
           ),
         );
