@@ -233,9 +233,7 @@ const handleAdminResendNotificationGet = attendeeActions[
  * the refund. */
 const bookingEntries = async (attendeeId: number): Promise<EmailEntry[]> => {
   const pk = await requireRequestPrivateKey();
-  const rows = await getAttendeeBookingRowsRaw(attendeeId, {
-    kind: "whole",
-  });
+  const rows = await getAttendeeBookingRowsRaw(attendeeId);
   // The route already verified this attendee's active line, so its booking
   // rows exist, decrypt with the same key, and each names a live listing.
   return attendeeListingEntries(rows, pk);

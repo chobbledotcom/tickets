@@ -10,6 +10,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { claimOutstandingNotificationFlags } from "#db/attendees/notification-flags.ts";
 import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
@@ -437,5 +438,12 @@ describeWithEnv("admitting one recovery per attendee", { db: true }, () => {
     });
 
     await recoverAllSides(attendee.id, "Email Provider Fault");
+  });
+
+  test("a claim for a missing attendee claims nothing", async () => {
+    // Another admin can delete the attendee between the route's load and
+    // the claim. The claim then reads no row and claims nothing, so the
+    // press refuses the way a nothing-owed press does.
+    expect(await claimOutstandingNotificationFlags(999_999)).toEqual([]);
   });
 });
