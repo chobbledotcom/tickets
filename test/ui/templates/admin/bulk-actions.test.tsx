@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import {
@@ -324,5 +325,38 @@ describe("admin bulk action templates", () => {
     // An activate-flipping page still sits in the Groups nav section, so the
     // nav highlights Groups the way the landing does.
     expect(html).toContain('<a class="active" href="/admin/groups"');
+  });
+
+  describe("the bulk-actions page shells", () => {
+    test("renders the landing page shell with the group nav and actions", () => {
+      const html = adminBulkActionsPage(GROUP, [ACTIVE], OWNER_SESSION);
+
+      expect(html).toContain('data-page-family="admin"');
+      expect(html).toContain('<a class="active" href="/admin/groups">');
+      expect(html).toContain(
+        "<title>Bulk Actions: Summer &lt;Crew&gt;</title>",
+      );
+      expect(html).toContain(`<h1>${t("bulk_actions.page_title")}</h1>`);
+      expect(html).toContain('href="/admin/groups/17/bulk-actions/duplicate"');
+      expect(html).toContain('href="/admin/groups/17/bulk-actions/deactivate"');
+      expect(html).not.toContain("/bulk-actions/reactivate");
+    });
+
+    test("renders the duplicate page shell with its error flash", () => {
+      const html = adminDuplicateGroupPage(
+        GROUP,
+        [ACTIVE],
+        OWNER_SESSION,
+        "Group name is taken",
+      );
+
+      expect(html).toContain('data-page-family="admin"');
+      expect(html).toContain('<a class="active" href="/admin/groups">');
+      expect(html).toContain("Group name is taken");
+      expect(html).toContain('id="duplicate-group-form"');
+      expect(html).toContain(
+        'action="/admin/groups/17/bulk-actions/duplicate"',
+      );
+    });
   });
 });

@@ -1,10 +1,7 @@
 // jscpd:ignore-start -- fixtures mirror the sibling editor tests
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { AttendeeStatus } from "#db/attendee-statuses.ts";
-import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
-import type { ParsedAttendeeForm } from "#routes/admin/attendee-form-model.ts";
 import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
 import {
   AttendeeFormPanel,
@@ -16,66 +13,9 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { attendeeFormLine } from "#test-utils/attendee-form-factories.ts";
-import { formData } from "./fixtures.ts";
+import { data, parsed, question, statuses } from "./fixtures.ts";
 
 // jscpd:ignore-end
-
-const parsed = (
-  overrides: Partial<ParsedAttendeeForm> = {},
-): ParsedAttendeeForm => ({
-  address: "",
-  dayCount: 1,
-  email: "",
-  lines: [attendeeFormLine()],
-  name: "Test",
-  phone: "",
-  returnUrl: "",
-  special_instructions: "",
-  startDate: "",
-  statusId: null,
-  ...overrides,
-});
-
-const statuses = (): AttendeeStatus[] => [
-  {
-    id: 4,
-    // The public default is not the paid default, so a mutant that resolves
-    // the selection with the wrong flag cannot pass.
-    is_paid_default: false,
-    is_public_default: true,
-    is_reservation: false,
-    name: "Confirmed",
-    reservation_amount: "0",
-    sort_order: 1,
-  },
-  {
-    id: 9,
-    is_paid_default: true,
-    is_public_default: false,
-    is_reservation: false,
-    name: "Cancelled",
-    reservation_amount: "0",
-    sort_order: 2,
-  },
-];
-
-const question = (): QuestionWithAnswers => ({
-  answers: [
-    { active: true, id: 61, question_id: 6, sort_order: 1, text: "Vegan" },
-    { active: true, id: 62, question_id: 6, sort_order: 2, text: "Standard" },
-  ],
-  display_type: "radio",
-  id: 6,
-  text: "Meal preference",
-});
-
-const data = (
-  overrides: Partial<AttendeeFormTemplateData> = {},
-): AttendeeFormTemplateData =>
-  formData(parsed(), {
-    statuses: statuses(),
-    ...overrides,
-  });
 
 const render = (overrides: Partial<AttendeeFormTemplateData> = {}): string =>
   String(AttendeeFormPanel({ data: data(overrides) }));

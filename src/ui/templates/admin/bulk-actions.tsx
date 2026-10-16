@@ -21,7 +21,7 @@ import { savedFormValueOrNull } from "#shared/forms/saved-data.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
-import { AdminPage } from "#templates/admin/admin-page-spec.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { DeactivationEffects } from "#templates/components/deactivation-effects.tsx";
 import { JsonScript } from "#templates/components/json-script.tsx";
@@ -124,53 +124,54 @@ export const adminBulkActionsPage = (
 ): string => {
   const hasActive = listings.some((e) => e.active);
   const allDeactivated = listings.length > 0 && !hasActive;
-  return String(
-    <AdminPage
-      active={{ section: "/admin/groups" }}
-      session={session}
-      title={t("bulk_actions.title_bulk", { name: group.name })}
-    >
-      <BackToGroupLink group={group} toBulkActions={false} />
-      <div class="prose">
-        <h1>{t("bulk_actions.page_title")}</h1>
-        <p>
-          <CountThenGroup
-            count={listings.length}
-            group={group}
-            messageKey="bulk_actions.landing_description"
-          />
-        </p>
-      </div>
+  return renderAdminPageSpec({
+    active: { section: "/admin/groups" },
+    body: (
+      <>
+        <BackToGroupLink group={group} toBulkActions={false} />
+        <div class="prose">
+          <h1>{t("bulk_actions.page_title")}</h1>
+          <p>
+            <CountThenGroup
+              count={listings.length}
+              group={group}
+              messageKey="bulk_actions.landing_description"
+            />
+          </p>
+        </div>
 
-      <ul>
-        <li>
-          <a href={`/admin/groups/${group.id}/bulk-actions/duplicate`}>
-            {t("bulk_actions.action_duplicate_group")}
-          </a>
-          {" — "}
-          {t("bulk_actions.action_duplicate_group_desc")}
-        </li>
-        {hasActive && (
+        <ul>
           <li>
-            <a href={`/admin/groups/${group.id}/bulk-actions/deactivate`}>
-              {t("bulk_actions.action_deactivate_group")}
+            <a href={`/admin/groups/${group.id}/bulk-actions/duplicate`}>
+              {t("bulk_actions.action_duplicate_group")}
             </a>
             {" — "}
-            {t("bulk_actions.action_deactivate_group_desc")}
+            {t("bulk_actions.action_duplicate_group_desc")}
           </li>
-        )}
-        {allDeactivated && (
-          <li>
-            <a href={`/admin/groups/${group.id}/bulk-actions/reactivate`}>
-              {t("bulk_actions.action_reactivate_group")}
-            </a>
-            {" — "}
-            {t("bulk_actions.action_reactivate_group_desc")}
-          </li>
-        )}
-      </ul>
-    </AdminPage>,
-  );
+          {hasActive && (
+            <li>
+              <a href={`/admin/groups/${group.id}/bulk-actions/deactivate`}>
+                {t("bulk_actions.action_deactivate_group")}
+              </a>
+              {" — "}
+              {t("bulk_actions.action_deactivate_group_desc")}
+            </li>
+          )}
+          {allDeactivated && (
+            <li>
+              <a href={`/admin/groups/${group.id}/bulk-actions/reactivate`}>
+                {t("bulk_actions.action_reactivate_group")}
+              </a>
+              {" — "}
+              {t("bulk_actions.action_reactivate_group_desc")}
+            </li>
+          )}
+        </ul>
+      </>
+    ),
+    session,
+    title: t("bulk_actions.title_bulk", { name: group.name }),
+  });
 };
 
 /** One duplicate-preview column. The client-side preview recomputation reads

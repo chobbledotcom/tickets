@@ -32,7 +32,7 @@ import {
 } from "#shared/ledger-links.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { AdminPage } from "#templates/admin/admin-page-spec.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
   LedgerDateRange,
@@ -329,11 +329,12 @@ export const adminLedgerShell = (
   session: AdminSession,
   children: Child,
 ): string =>
-  String(
-    <AdminPage active="/admin/ledger" session={session} title={t(titleKey)}>
-      {children}
-    </AdminPage>,
-  );
+  renderAdminPageSpec({
+    active: "/admin/ledger",
+    body: children,
+    session,
+    title: t(titleKey),
+  });
 
 /** The range-scoped stats table: a key/value figure table, headed by the
  *  listing name when scoped to one listing (the whole-business view needs no

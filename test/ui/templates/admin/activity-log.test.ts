@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as bddTest, describe } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { ErrorCode, formatErrorMessage } from "#shared/logger.ts";
 import {
@@ -320,6 +321,36 @@ describe("activity log templates", () => {
       const html = adminListingActivityLogPage(listing, entries, OWNER_SESSION);
       expect(html).not.toContain("<th>Attendee</th>");
       expect(html).not.toContain('href="/admin/attendees/7"');
+    });
+  });
+
+  describe("the activity log page shell", () => {
+    test("renders the full page shell around the global entries", () => {
+      const html = adminGlobalActivityLogPage(
+        [logEntry({ message: "System started" })],
+        false,
+        OWNER_SESSION,
+        emptyRefs(),
+      );
+      expect(html).toContain('data-page-family="admin"');
+      // The admin nav has no Log item, so the page lights no nav link.
+      expect(html).not.toContain('<a class="active" href="/admin/log">');
+      expect(html).toContain(`<title>${t("admin.log.heading")}</title>`);
+      expect(html).toContain("<td>System started</td>");
+      expect(html).toContain(`${t("admin.log.guide_link")}`);
+    });
+
+    test("titles the listing-scoped page with the listing name", () => {
+      const listing = testListingWithCount({ id: 7, name: "Boathouse" });
+      const html = adminListingActivityLogPage(
+        listing,
+        [logEntry({})],
+        OWNER_SESSION,
+      );
+
+      expect(html).toContain(
+        `<title>${t("admin.log.heading")}: Boathouse</title>`,
+      );
     });
   });
 });
