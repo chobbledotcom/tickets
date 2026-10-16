@@ -273,8 +273,8 @@ const loopChecks = async (
  * not answer better on a later check. The schedule is only for a 2xx page
  * that does not show the update message yet. With `expectedBuildTag`, the
  * page must also name that build. An active page from any other build
- * keeps the wait polling. A run-out names the last failure. The wait
- * throws when it runs out, and the caller keeps the update flag set. */
+ * keeps the wait polling. The wait throws when it runs out, and the
+ * caller keeps the update flag set. */
 export const waitForUpdatePage = async (
   options: UpdateWaitOptions,
 ): Promise<void> => {
