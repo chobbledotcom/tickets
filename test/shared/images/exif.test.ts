@@ -23,10 +23,20 @@ const wideImage = (): RawImage => ({
 const reds = (image: RawImage): number[] =>
   Array.from(image.data).filter((_, index) => index % 4 === 0);
 
+/** One IFD0 entry, laid out the way a camera writes it: tag, type, count,
+ * then the inline value. `declaredEntries` is the count the IFD header
+ * declares; the table itself always holds the one entry. */
+interface ExifEntry {
+  count: number;
+  declaredEntries?: number;
+  tag: number;
+  type: number;
+  value: number;
+}
+
 /** Wrap raw JPEG bytes in a hand-built APP1 Exif segment whose IFD0 carries
- * the given orientation, mirroring what a camera writes. The entry's count
- * field defaults to 1, the value the TIFF specification requires. */
-const jpegWithOrientation = (orientation: number, count = 1): Uint8Array =>
+ * the given entry, mirroring the layout a camera writes. */
+const jpegWithEntry = (entry: ExifEntry): Uint8Array =>
   Uint8Array.from([
     0xff,
     0xd8,
@@ -66,17 +76,17 @@ const jpegWithOrientation = (orientation: number, count = 1): Uint8Array =>
     0x00,
     0x00,
     0x00,
-    0x01,
+    entry.declaredEntries ?? 1,
     0x00,
-    0x12,
-    0x01,
-    0x03,
+    entry.tag & 0xff,
+    entry.tag >> 8,
+    entry.type & 0xff,
+    entry.type >> 8,
+    entry.count,
     0x00,
-    count,
     0x00,
     0x00,
-    0x00,
-    orientation,
+    entry.value,
     0x00,
     0x00,
     0x00,
@@ -87,6 +97,12 @@ const jpegWithOrientation = (orientation: number, count = 1): Uint8Array =>
     0xff,
     0xd9,
   ]);
+
+/** Wrap raw JPEG bytes in a hand-built APP1 Exif segment whose IFD0 carries
+ * the given orientation, mirroring what a camera writes. The entry's count
+ * field defaults to 1, the value the TIFF specification requires. */
+const jpegWithOrientation = (orientation: number, count = 1): Uint8Array =>
+  jpegWithEntry({ count, tag: 0x0112, type: 3, value: orientation });
 
 describe("readJpegOrientation", () => {
   test("reads the orientation tag from a little-endian TIFF", () => {
@@ -136,6 +152,64 @@ describe("readJpegOrientation", () => {
     // plausible orientation sits in it.
     expect(readJpegOrientation(jpegWithOrientation(6, 0))).toBe(1);
     expect(readJpegOrientation(jpegWithOrientation(6, 2))).toBe(1);
+  });
+
+  test("skips a standalone marker while scanning for Exif", () => {
+    // A marker with no length field carries no payload; the scan steps over
+    // it and reads the Exif segment behind it.
+    const withStandalone = Uint8Array.from([
+      0xff,
+      0xd8,
+      0xff,
+      0xd0, // SOI, RST0
+      ...jpegWithOrientation(6).subarray(2),
+    ]);
+    expect(readJpegOrientation(withStandalone)).toBe(6);
+  });
+
+  test("returns 1 when the segment chain ends without Exif", () => {
+    // The last APPn segment fills the rest of the file exactly, so the scan
+    // runs out of segments without meeting an Exif payload.
+    const app0Only = Uint8Array.from([
+      0xff, 0xd8, 0xff, 0xe0, 0x00, 0x04, 0x12, 0x34,
+    ]);
+    expect(readJpegOrientation(app0Only)).toBe(1);
+  });
+
+  test("returns 1 when the table holds no orientation entry", () => {
+    // The first entry names a different tag, so the scan reads on past it
+    // and finds nothing.
+    expect(
+      readJpegOrientation(
+        jpegWithEntry({ count: 1, tag: 0x010e, type: 3, value: 6 }),
+      ),
+    ).toBe(1);
+  });
+
+  test("returns 1 when the entry table is truncated", () => {
+    // The header declares two entries; the table holds one non-matching one,
+    // so the second entry would run past the segment's end.
+    expect(
+      readJpegOrientation(
+        jpegWithEntry({
+          count: 1,
+          declaredEntries: 2,
+          tag: 0x010e,
+          type: 3,
+          value: 6,
+        }),
+      ),
+    ).toBe(1);
+  });
+
+  test("returns 1 for an orientation entry whose type is not SHORT", () => {
+    // TIFF defines the orientation entry as SHORT; a LONG entry's inline
+    // field means something else, so the tag reads as unusable.
+    expect(
+      readJpegOrientation(
+        jpegWithEntry({ count: 1, tag: 0x0112, type: 4, value: 6 }),
+      ),
+    ).toBe(1);
   });
 
   test("returns 1 once the scan starts, with no Exif ahead of it", () => {

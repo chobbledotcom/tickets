@@ -74,19 +74,9 @@ const insertExifOrientation = (
   // The orientation value sits in the entry's inline value field.
   payload[EXIF_HEADER_BYTES.length + 18] = orientation;
 
-  // Walk the segment chain from SOI to the first non-APPn marker; APP1 goes
-  // right there, after any APP0 the encoder wrote.
-  let insertAt = SOI_LENGTH;
-  let cursor = SOI_LENGTH;
-  while (cursor + 4 <= jpeg.length) {
-    if (jpeg[cursor] !== 0xff) break;
-    const marker = jpeg[cursor + 1]!;
-    if (marker === 0xe1) break; // the file already carries Exif: leave it be
-    if (marker < 0xe0 || marker > 0xef) break; // no longer an APPn segment
-    const length = (jpeg[cursor + 2]! << 8) | jpeg[cursor + 3]!;
-    insertAt = cursor + 2 + length;
-    cursor = insertAt;
-  }
+  // APP0 sits right after SOI; the APP1 goes right there, after it.
+  const app0Length = (jpeg[4]! << 8) | jpeg[5]!;
+  const insertAt = SOI_LENGTH + 2 + app0Length;
 
   const segmentLength = payload.length + 2;
   const out = new Uint8Array(jpeg.length + 2 + segmentLength);

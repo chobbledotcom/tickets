@@ -137,9 +137,9 @@ const copyPixel = (
 type PixelMapper = (image: RawImage, x: number, y: number) => [number, number];
 
 /** The pixel mapping per orientation: where the destination pixel at (x, y)
- * reads its source from. Widths and heights swap for the quarter turns. */
-const MAPPINGS: Record<ExifOrientation, PixelMapper> = {
-  1: (_image, x, y) => [x, y],
+ * reads its source from. Widths and heights swap for the quarter turns.
+ * Orientation 1 has no cell: the transform returns the input directly. */
+const MAPPINGS: Record<Exclude<ExifOrientation, 1>, PixelMapper> = {
   2: (image, x, y) => [image.width - 1 - x, y], // mirror left-right
   3: (image, x, y) => [image.width - 1 - x, image.height - 1 - y], // 180°
   4: (image, x, y) => [x, image.height - 1 - y], // mirror top-bottom
