@@ -334,16 +334,12 @@ describe("runUpdateMode", () => {
     ).rejects.toThrow(/Delete UPDATE_IN_PROGRESS failed \(400\)/);
   });
 
-  test("a failed page check keeps the wait polling", async () => {
+  test("a failed page check aborts the end wait with the flag still set", async () => {
     const calls: { init: RequestInit; url: string }[] = [];
-    let pageCalls = 0;
     const fetchText: FetchText = (url, init) => {
       calls.push({ init, url });
       if (url === READ_ONLY_URL) {
-        pageCalls += 1;
-        return pageCalls === 1
-          ? Promise.resolve(response(false, 503, "busy"))
-          : Promise.resolve(response(true, 200, activePage));
+        return Promise.resolve(response(false, 503, "busy"));
       }
       return Promise.resolve(
         response(
@@ -353,11 +349,36 @@ describe("runUpdateMode", () => {
         ),
       );
     };
-    const code = await runUpdateMode(
+    const error = await runUpdateMode(
       ["end", "42", "https://site.example", END_BUILD_TAG],
       io(fetchText),
+    ).catch((caught: unknown) => caught);
+    // One page check, then the abort: no secret list, no delete, so the
+    // flag stays set for the re-run.
+    expect((error as Error).message).toMatch(
+      /The last page check failed: The update page check failed \(HTTP 503\)/,
     );
-    expect(code).toBe(0);
-    expect(pageCalls).toBe(2);
+    expect((error as Error).message).toMatch(/UPDATE_IN_PROGRESS is still set/);
+    expect(calls.length).toBe(1);
+    expect(calls[0]?.url).toBe(READ_ONLY_URL);
+  });
+
+  test("a missing site URL fails before any flag write", async () => {
+    // The deploy workflows pass the site URL from a JSON payload; a site
+    // whose URL is missing arrives as jq's "null" or an empty argument.
+    for (const siteUrl of ["null", ""]) {
+      const logged: string[] = [];
+      const { calls, fetchText } = stubFetch([], []);
+      const code = await runUpdateMode(["begin", "42", siteUrl], {
+        accessKey: "key",
+        fetchText,
+        log: (line) => logged.push(line),
+      });
+      expect(code).toBe(1);
+      expect(logged.join("\n")).toContain(
+        "The deploy passed no site URL for script 42",
+      );
+      expect(calls).toEqual([]);
+    }
   });
 });
