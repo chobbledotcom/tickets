@@ -339,4 +339,29 @@ describe("markdown", () => {
       ).toBe("See [Ada](/admin/attendees/5).");
     });
   });
+
+  describe("short-form image references", () => {
+    test("renders an img#id image through the id-addressed proxy route", () => {
+      const result = renderMarkdown("![Hero](img#7)");
+      expect(result).toContain('<img src="/image/id/7" alt="Hero">');
+    });
+
+    test("keeps a img#id link target as the author wrote it", () => {
+      const result = renderMarkdown("[docs](img#7)");
+      expect(result).toContain('href="img#7"');
+      expect(result).not.toContain("/image/id/");
+    });
+
+    test("leaves img#id references inside code spans alone", () => {
+      const result = renderMarkdown("`![Hero](img#7)`");
+      expect(result).toContain("<code>![Hero](img#7)</code>");
+      expect(result).not.toContain("/image/id/");
+    });
+
+    test("leaves plain img#text prose alone", () => {
+      const result = renderMarkdown("see img#7 for the poster");
+      expect(result).toContain("<p>see img#7 for the poster</p>");
+      expect(result).not.toContain("/image/id/");
+    });
+  });
 });

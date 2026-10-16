@@ -158,18 +158,32 @@ export interface Toolbar {
   update: (state: EditorState) => void;
 }
 
+/** A toolbar button carrying its visible text and accessible name. It
+ * preserves the editor selection: a mousedown that shifts focus to the button
+ * would collapse it before the command runs. */
+export const createToolbarButton = (
+  className: string,
+  text: string,
+  label: string,
+): HTMLButtonElement => {
+  const button = createButton(className);
+  button.textContent = text;
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  button.addEventListener("mousedown", (event) => event.preventDefault());
+  return button;
+};
+
 /** Build the toolbar DOM for one editor view. */
 export const createToolbar = (view: EditorView): Toolbar => {
   const dom = document.createElement("div");
   dom.className = "md-toolbar";
   const buttons = TOOLBAR_ITEMS.map((item) => {
-    const button = createButton(`md-toolbar-button md-toolbar-${item.key}`);
-    button.textContent = item.text;
-    button.title = item.label;
-    button.setAttribute("aria-label", item.label);
-    // Preserve the editor selection: a mousedown that shifts focus to the
-    // button would collapse it before the command runs.
-    button.addEventListener("mousedown", (event) => event.preventDefault());
+    const button = createToolbarButton(
+      `md-toolbar-button md-toolbar-${item.key}`,
+      item.text,
+      item.label,
+    );
     button.addEventListener("click", () => item.run(view));
     dom.appendChild(button);
     return { button, item };
