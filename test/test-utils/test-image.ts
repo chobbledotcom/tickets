@@ -16,6 +16,87 @@ const TEST_JPEG =
 /** A fixed valid 120×90 JPEG, avoiding an encoder-WASM fetch in test setup. */
 export const testJpeg = (): Uint8Array => Uint8Array.fromBase64(TEST_JPEG);
 
+const SOI_LENGTH = 2;
+const EXIF_TIFF_PAYLOAD = Uint8Array.from([
+  // TIFF header: little-endian byte order, magic 42, IFD0 at offset 8.
+  0x49,
+  0x49,
+  0x2a,
+  0x00,
+  0x08,
+  0x00,
+  0x00,
+  0x00,
+  // IFD0: one entry.
+  0x01,
+  0x00,
+  // Tag 0x0112 (orientation), type SHORT, count 1, value follows inline.
+  0x12,
+  0x01,
+  0x03,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00, // placeholder: the orientation value fills bytes 8-9
+  // Next-IFD offset: none.
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+]);
+
+const EXIF_HEADER_BYTES = Uint8Array.from([
+  0x45,
+  0x78,
+  0x69,
+  0x66,
+  0x00,
+  0x00, // "Exif\0\0"
+]);
+
+/** Insert an APP1 segment carrying an Exif orientation tag after the JPEG's
+ * first APP0 segment, returning new bytes. The value is the EXIF orientation
+ * (1–8) the camera would have written. */
+const insertExifOrientation = (
+  jpeg: Uint8Array,
+  orientation: number,
+): Uint8Array => {
+  const payload = new Uint8Array(
+    EXIF_HEADER_BYTES.length + EXIF_TIFF_PAYLOAD.length,
+  );
+  payload.set(EXIF_HEADER_BYTES);
+  payload.set(EXIF_TIFF_PAYLOAD, EXIF_HEADER_BYTES.length);
+  // The orientation value sits in the entry's inline value field.
+  payload[EXIF_HEADER_BYTES.length + 18] = orientation;
+
+  // APP0 sits right after SOI; the APP1 goes right there, after it.
+  const app0Length = (jpeg[4]! << 8) | jpeg[5]!;
+  const insertAt = SOI_LENGTH + 2 + app0Length;
+
+  const segmentLength = payload.length + 2;
+  const out = new Uint8Array(jpeg.length + 2 + segmentLength);
+  out.set(jpeg.subarray(0, insertAt));
+  out[insertAt] = 0xff;
+  out[insertAt + 1] = 0xe1;
+  out[insertAt + 2] = segmentLength >> 8;
+  out[insertAt + 3] = segmentLength & 0xff;
+  out.set(payload, insertAt + 4);
+  out.set(jpeg.subarray(insertAt), insertAt + 4 + payload.length);
+  return out;
+};
+
+/** A real 120×90 JPEG carrying an EXIF orientation tag, so pipeline tests can
+ * exercise the tag a camera writes. Orientation 6 stores the pixels a
+ * quarter-turn counter-clockwise of the upright view, the most common camera
+ * value. */
+export const orientedTestJpeg = (orientation: number): Uint8Array =>
+  insertExifOrientation(testJpeg(), orientation);
+
 /** Assert `bytes` is a WebP container ("RIFF"…"WEBP" header). */
 export const expectWebpContainer = (bytes: Uint8Array): void => {
   expect([...bytes.slice(0, 4)]).toEqual([0x52, 0x49, 0x46, 0x46]); // "RIFF"
