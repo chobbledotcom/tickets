@@ -17,7 +17,12 @@ import {
 } from "#shared/email/registration.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { fetchText, ResponseBodyTooLargeError } from "#shared/fetch.ts";
-import { ErrorCode, logError, logErrorLocal } from "#shared/logger.ts";
+import {
+  ErrorCode,
+  logDbError,
+  logError,
+  logErrorLocal,
+} from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import {
@@ -324,12 +329,20 @@ const queueRegistrationNotifications = async (
   } catch (error) {
     // The claim is a lease for sends that never ran. A preparation failure
     // before the send starts releases it, so the flags keep saying what is
-    // still owed. A recovery claims one attendee.
+    // still owed. A recovery claims one attendee. A failed restore leaves
+    // the lease held and is logged below, but it must not replace the
+    // preparation failure as the reason this press failed.
     if (recoverSides !== undefined && clearPendingFlagsFor !== undefined) {
-      await restoreClaimedNotificationFlags(
-        clearPendingFlagsFor[0]!,
-        recoverSides,
-      );
+      try {
+        await restoreClaimedNotificationFlags(
+          clearPendingFlagsFor[0]!,
+          recoverSides,
+        );
+      } catch (restoreError) {
+        // A failed restore leaves the lease held. The flags keep saying
+        // what is still owed, and the operator repairs the row.
+        logDbError("Restoring a recovery's claimed flags failed", restoreError);
+      }
     }
     await reportRegistrationDeliveryError(clearPendingFlagsFor === undefined);
     throw error;

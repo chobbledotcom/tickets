@@ -364,6 +364,55 @@ describeWithEnv("admitting one recovery per attendee", { db: true }, () => {
     });
   });
 
+  test("a failed restore keeps the original failure and the lease", async () => {
+    // The restore is a best-effort bookkeeping write. When the database
+    // refuses it too, the press still fails with the original error — not
+    // the restore's — and the lease stays held: the flags read zero while
+    // the logged incident says a restore failed, for the operator to
+    // repair.
+    await configureTestEmail();
+    const { attendee, listing } = await bookTestAttendeeWithFlags(
+      "Restore Fault Buyer",
+      2,
+      1,
+    );
+    await addWebhook(listing.id);
+    await execute(
+      `CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
+       WHEN NEW.attendee_id = ${attendee.id}
+       BEGIN
+         SELECT RAISE(ABORT, 'activity rejected');
+       END`,
+      [],
+    );
+    await execute(
+      `CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
+       WHEN NEW.id = ${attendee.id}
+         AND (NEW.email_pending > OLD.email_pending
+           OR NEW.webhooks_pending > OLD.webhooks_pending)
+       BEGIN
+         SELECT RAISE(ABORT, 'restore rejected');
+       END`,
+      [],
+    );
+    try {
+      // The refused activity write surfaces as the press's own rejection,
+      // not the restore's.
+      await expect(resend(attendee.id, "Restore Fault Buyer")).rejects.toThrow(
+        "activity rejected",
+      );
+      // The lease is still held: the claim's zeros stand because the
+      // restore could not land.
+      expect(await readPendingNotificationFlags(attendee.id)).toEqual({
+        email: 0,
+        webhooks: 0,
+      });
+    } finally {
+      await execute("DROP TRIGGER IF EXISTS reject_resend_activity", []);
+      await execute("DROP TRIGGER IF EXISTS reject_flag_restore", []);
+    }
+  });
+
   test("an unknown provider preserves an email-only recovery's flag", async () => {
     // With no webhook URL the protected preparation itself reads the email
     // setup and refuses an unknown stored provider. The lease releases
