@@ -8,7 +8,7 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import { ReturnUrlField } from "#shared/return-url-field.tsx";
-import { flashProps } from "#templates/admin/admin-page.tsx";
+import { flashProps } from "#templates/admin/admin-page-spec.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { getLoginForm } from "#templates/fields/admin.ts";
 import { layoutPage } from "#templates/layout-page.tsx";

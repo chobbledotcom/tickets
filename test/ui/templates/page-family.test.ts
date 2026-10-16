@@ -6,7 +6,7 @@ import { t } from "#i18n";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { buildForest, buildNavModel } from "#shared/site-pages/core.ts";
 import type { TargetMap } from "#shared/site-pages/types.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { AdminPage } from "#templates/admin/admin-page-spec.tsx";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
 import { joinErrorPage } from "#templates/join.tsx";
 import { type PublicNavProps, publicPage } from "#templates/public/shared.tsx";

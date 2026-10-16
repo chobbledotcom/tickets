@@ -32,7 +32,7 @@ import {
 } from "#shared/ledger-links.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { AdminPage } from "#templates/admin/admin-page-spec.tsx";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
   LedgerDateRange,

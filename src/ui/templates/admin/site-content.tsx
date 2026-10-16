@@ -7,7 +7,7 @@
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { Flash } from "#shared/forms/flash.tsx";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { AdminPage } from "#templates/admin/admin-page-spec.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import {

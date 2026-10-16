@@ -16,7 +16,7 @@ import { type Field, requireChoiceOptions } from "#shared/forms/field.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { AdminPage } from "#templates/admin/admin-page-spec.tsx";
 import {
   ServicingEventEditLink,
   servicingEventDateLabel,

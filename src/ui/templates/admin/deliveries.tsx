@@ -14,8 +14,10 @@
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
-import { flashProps } from "#templates/admin/admin-page.tsx";
-import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
+import {
+  flashProps,
+  renderAdminPageSpec,
+} from "#templates/admin/admin-page-spec.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";

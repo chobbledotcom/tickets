@@ -23,7 +23,8 @@ import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import { parseDateString } from "#shared/validation/date-string.ts";
-import { AdminPage, renderAdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPage } from "#templates/admin/admin-page.tsx";
+import { AdminPage } from "#templates/admin/admin-page-spec.tsx";
 import { ListingEditor } from "#templates/admin/attendee-form/listing-editor.tsx";
 import { LogisticsSection } from "#templates/admin/attendee-form/logistics.tsx";
 import type {

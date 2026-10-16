@@ -20,7 +20,8 @@ import {
 import { savedFormValueOrNull } from "#shared/forms/saved-data.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
+import { errorAdminPage } from "#templates/admin/admin-page.tsx";
+import { AdminPage } from "#templates/admin/admin-page-spec.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { DeactivationEffects } from "#templates/components/deactivation-effects.tsx";
 import { JsonScript } from "#templates/components/json-script.tsx";

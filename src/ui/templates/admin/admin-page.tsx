@@ -1,7 +1,7 @@
 /**
- * Shared admin-page scaffolding: Layout plus AdminNav, with the page title set
- * and the page body inside. The optional `flash` prop renders straight after
- * the nav, so one call opens a page and no opener can drift.
+ * The admin-page openers: the families every admin page opens through. Each
+ * renders via the AdminPageSpec module's renderer. The edit-panel and
+ * listing-link helpers the page modules share also live here.
  */
 
 /* jscpd:ignore-start */
@@ -14,64 +14,16 @@ import type {
 import { adminPath } from "#shared/admin-surface.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import {
+  AdminPage,
+  type AdminPageProps,
   type FlashPageRenderer,
   renderAdminPageSpec,
 } from "#templates/admin/admin-page-spec.tsx";
-import { AdminNav, type NavActive } from "#templates/admin/nav.tsx";
+import type { NavActive } from "#templates/admin/nav.tsx";
 import { linkCell } from "#templates/components/link-cell.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { Layout } from "#templates/layout.tsx";
-import type { AdminSession, Theme } from "#types";
+import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
-
-export type AdminPageProps = {
-  title: string;
-  session: AdminSession;
-  active: NavActive;
-  bodyClass?: string;
-  /** Page identity/custom-CSS hook. Defaults to admin-page. */
-  contentClassName?: string;
-  /** Optional page theme forwarded to <Layout> — the settings/debug pages
-   *  preview the site's saved theme (`s.theme`) rather than the viewer's. */
-  theme?: Theme;
-  /** Optional flash notice (or any markup) rendered right after <AdminNav>.
-   *  Pass a `<Flash .../>` element — or use `flashProps(error, success)` to
-   *  build its props. */
-  flash?: Child;
-  /** Optional page action row, rendered as `<p class="actions">…</p>` right
-   *  after the flash (before the body). Pass the action *contents* (e.g. an
-   *  `<ActionButton>` and a `<GuideLink>`); AdminPage wraps them so the
-   *  action-row scaffold can't drift per page. Omit when a page has no
-   *  actions. */
-  actions?: Child;
-  children: Child;
-};
-
-/** Render an admin page wrapped in <Layout> + <AdminNav>. */
-export const AdminPage = ({
-  title,
-  session,
-  active,
-  bodyClass,
-  contentClassName = "admin-page",
-  theme,
-  flash,
-  actions,
-  children,
-}: AdminPageProps): JSX.Element => (
-  <Layout
-    beforeContent={<AdminNav active={active} session={session} />}
-    {...(bodyClass !== undefined ? { bodyClass } : {})}
-    contentClassName={contentClassName}
-    family="admin"
-    {...(theme !== undefined ? { theme } : {})}
-    title={title}
-  >
-    {flash}
-    {actions !== undefined && <p class="actions">{actions}</p>}
-    {children}
-  </Layout>
-);
 
 /** A link to a listing's admin page showing its name. Owned here so the same
  *  admin listing link is not re-authored across the attendee form and the
@@ -118,41 +70,6 @@ const openWithNotices = (
     session,
     title,
   });
-
-/** The `<h1>` heading plus error/success Flash notice that opens most admin
- *  forms. Shared so the heading-then-flash pair is authored once. */
-export const FormHeader = ({
-  title,
-  error,
-  info,
-  success,
-}: {
-  title: string;
-  error?: string | undefined;
-  info?: string | undefined;
-  success?: string | undefined;
-}): JSX.Element => (
-  <>
-    <h1>{title}</h1>
-    <Flash error={error} info={info} success={success} />
-  </>
-);
-
-/** Build the props for an optional error/success Flash notice. The dashboards
- *  and landing pages share the
- *    <Flash {...(error !== undefined ? { error } : {})}
- *           {...(success !== undefined ? { success } : {})} />
- *  pattern; this helper centralises it and keeps exactOptionalPropertyTypes
- *  satisfied at the call sites. */
-export const flashProps = (
-  error?: string,
-  success?: string,
-  info?: string,
-): { error?: string; success?: string; info?: string } => ({
-  ...(error !== undefined ? { error } : {}),
-  ...(success !== undefined ? { success } : {}),
-  ...(info !== undefined ? { info } : {}),
-});
 
 /**
  * Curried admin-page opener for the list pages (holidays, logistics) and

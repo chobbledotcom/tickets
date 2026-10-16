@@ -7,9 +7,9 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { flashProps } from "#templates/admin/admin-page.tsx";
 import {
   type AdminPageListPart,
+  flashProps,
   renderAdminPageSpec,
 } from "#templates/admin/admin-page-spec.tsx";
 import {

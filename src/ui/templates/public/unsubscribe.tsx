@@ -12,7 +12,7 @@ import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
-import { flashProps } from "#templates/admin/admin-page.tsx";
+import { flashProps } from "#templates/admin/admin-page-spec.tsx";
 import { RawParagraph } from "#templates/components/prose-heading.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import { Layout } from "#templates/layout.tsx";

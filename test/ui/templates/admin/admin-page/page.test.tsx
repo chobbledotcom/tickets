@@ -7,11 +7,13 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { Flash } from "#shared/forms/flash.tsx";
 import {
-  AdminPage,
   adminListingLink,
   flashDataPage,
 } from "#templates/admin/admin-page.tsx";
-import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
+import {
+  AdminPage,
+  renderAdminPageSpec,
+} from "#templates/admin/admin-page-spec.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
