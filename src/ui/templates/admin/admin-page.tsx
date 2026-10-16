@@ -138,15 +138,17 @@ export const adminFormPage = ({
 export const FormHeader = ({
   title,
   error,
+  info,
   success,
 }: {
   title: string;
   error?: string | undefined;
+  info?: string | undefined;
   success?: string | undefined;
 }): JSX.Element => (
   <>
     <h1>{title}</h1>
-    <Flash error={error} success={success} />
+    <Flash error={error} info={info} success={success} />
   </>
 );
 
