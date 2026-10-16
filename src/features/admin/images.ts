@@ -34,8 +34,9 @@ import {
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
-import { htmlResponse, redirect } from "#routes/response.ts";
+import { htmlResponse, jsonResponse, redirect } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { sortByName } from "#shared/name-order.ts";
 import { featureGate } from "#shared/response-steps.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { deleteImageStorageFilesStrict } from "#shared/storage-cleanup.ts";
@@ -274,11 +275,22 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
     return redirect("/admin/images", t("images.deleted"), true);
   });
 
+/** The image list the editor's image dropdown offers: every image's id and
+ * name, in name order. No URLs or thumbnails — the client needs nothing more
+ * to insert the short-form reference. */
+const handleImageOptionsGet: TypedRouteHandler<"GET /admin/images/options"> =
+  contentResponsePage(async () => {
+    const images = isStorageEnabled() ? await getAllImages() : [];
+    const options = sortByName(images).map(({ id, name }) => ({ id, name }));
+    return jsonResponse({ images: options });
+  });
+
 export const adminHandlers = defineRoutes({
   "GET /admin/images": handleImagesListGet,
   "GET /admin/images/:id/delete": handleImageDeleteGet,
   "GET /admin/images/:id/edit": handleImageEditGet,
   "GET /admin/images/new": handleImageNewGet,
+  "GET /admin/images/options": handleImageOptionsGet,
   "POST /admin/images": handleImageCreatePost,
   "POST /admin/images/:id/delete": handleImageDeletePost,
   "POST /admin/images/:id/edit": handleImageEditPost,

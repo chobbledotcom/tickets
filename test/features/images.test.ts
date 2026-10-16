@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { encryptBytes } from "#crypto/encryption.ts";
 import { handleRequest } from "#routes";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectBrokenImageResponse,
   expectHtmlResponse,
@@ -162,6 +163,23 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/image/abcdef123456"),
         );
+        expect(response.status).toBe(404);
+      });
+    });
+
+    describe("GET /image/id/:id (short-form image route)", () => {
+      test("redirects to the image's canonical proxy URL", async () => {
+        const image = await makeImage("Hero");
+        const response = await handleRequest(
+          mockRequest(`/image/id/${image.id}`),
+        );
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe("/image/hero.webp");
+        expect(response.headers.get("cache-control")).toBe("no-store");
+      });
+
+      test("404s for an unknown id", async () => {
+        const response = await handleRequest(mockRequest("/image/id/424242"));
         expect(response.status).toBe(404);
       });
     });

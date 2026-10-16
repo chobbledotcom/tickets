@@ -7,6 +7,7 @@
  */
 
 import { decryptBytes } from "#crypto/encryption.ts";
+import { getImageById } from "#db/images.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import type { createRouter } from "#routes/router.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
@@ -61,6 +62,22 @@ const handleImageRequest = async (filename: string): Promise<Response> => {
   }
 };
 
+/** Serve an id-addressed image reference: redirect to the image's canonical
+ * proxy URL. The browser then caches the immutable file, while metadata edits
+ * take effect on the next request. An unknown id 404s — the markdown <img>
+ * then falls back to its alt text, the standard markdown behaviour. */
+const routeImageIdRequest = async (id: number): Promise<Response> => {
+  const image = await getImageById(id);
+  if (!image) return notFoundResponse();
+  return new Response(null, {
+    headers: {
+      "cache-control": "no-store",
+      location: getImageProxyUrl(image.filename),
+    },
+    status: 302,
+  });
+};
+
 /** Route image requests: GET /image/:filename */
 export const routeImage: RouterFn = async (_, path, method) => {
   if (method !== "GET") return null;
@@ -70,6 +87,9 @@ export const routeImage: RouterFn = async (_, path, method) => {
   if (path === getImageProxyUrl(BROKEN_IMAGE_FILENAME)) {
     return brokenImageResponse();
   }
+
+  const idMatch = path.match(/^\/image\/id\/(\d+)$/);
+  if (idMatch?.[1]) return await routeImageIdRequest(Number(idMatch[1]));
 
   const match = path.match(/^\/image\/([a-f0-9-]+\.\w+)$/);
   if (!match?.[1]) return null;

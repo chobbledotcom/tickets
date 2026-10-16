@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createNewsPost } from "#db/news-posts.ts";
 import { handleRequest } from "#routes";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
@@ -38,5 +39,22 @@ describeWithEnv("public /news routes", { db: true }, () => {
 
     const unknown = await handleRequest(mockRequest("/news/no-such-post"));
     expect(unknown.status).toBe(404);
+  });
+
+  test("a post's img#id image reference renders the id-addressed proxy URL", async () => {
+    await enablePublicSite();
+    const image = await makeImage("Hero");
+    const post = await createNewsPost({
+      content: `![Hero](img#${image.id})`,
+      metaDescription: "Poster description",
+      metaTitle: "Poster title",
+      name: "Poster Drop",
+      snippet: "Poster in one line",
+    });
+    const page = await handleRequest(mockRequest(`/news/${post.slug}`));
+    expect(page.status).toBe(200);
+    const body = await page.text();
+    expect(body).toContain(`src="/image/id/${String(image.id)}"`);
+    expect(body).toContain('alt="Hero"');
   });
 });

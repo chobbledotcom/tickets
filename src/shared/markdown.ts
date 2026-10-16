@@ -11,6 +11,7 @@ import { assert } from "@std/assert";
 import { Lexer, Marked, type Token, type Tokens } from "marked";
 import { once } from "#fp";
 import { escapeHtml } from "#jsx/escape-html.ts";
+import { getImageIdProxyUrl } from "#shared/image-proxy-url.ts";
 
 /** URL schemes permitted in links and images. */
 const SAFE_URL_SCHEMES = ["http:", "https:", "mailto:", "tel:"] as const;
@@ -48,6 +49,14 @@ const md = once(
         },
       },
       walkTokens: (token) => {
+        // A short-form image reference (`![alt](img#7)`) written by the
+        // editor's image dropdown resolves to the id-addressed proxy route.
+        // An id no image serves 404s there, so the <img> falls back to its
+        // alt text. Links and code spans never carry the rewrite.
+        if (token.type === "image" && typeof token.href === "string") {
+          const id = token.href.match(/^img#(\d+)$/)?.[1];
+          if (id) token.href = getImageIdProxyUrl(Number(id));
+        }
         if (hasHref(token) && !isSafeUrl(token.href)) token.href = "";
       },
     }),
