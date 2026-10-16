@@ -106,6 +106,15 @@ describe("markdown editor setup", () => {
     expect(serializeMarkdown(state.doc)).toBe("one");
   });
 
+  test("Tab reports applicable without dispatching", () => {
+    const initial = createEditorState("* one\n* two");
+    const state = initial.apply(
+      initial.tr.setSelection(TextSelection.create(initial.doc, 12)),
+    );
+    expect(editorKeymap().Tab!(state)).toBe(true);
+    expect(state.doc.firstChild?.childCount).toBe(2);
+  });
+
   test("Shift-Enter exits a code block instead of breaking inside it", () => {
     const initial = createEditorState("```\ncode\n```");
     let state = initial.apply(

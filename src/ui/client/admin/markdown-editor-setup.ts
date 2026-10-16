@@ -67,12 +67,10 @@ const insertHardBreak: Command = chainCommands(exitCode, (state, dispatch) => {
 
 /**
  * Fix the attrs of a fresh nested list on the sunk transaction. The list
- * around the caret gets `tight: true` when the document before the command
- * holds no list of the same type at the mapped-back position. A list that
- * already existed keeps its own flag.
+ * around the caret gets `tight: true` when it carries the schema's
+ * `tight: false` default.
  */
-const tightenFreshNestedList = (before: Node, tr: Transaction): Transaction => {
-  const back = tr.mapping.invert();
+const tightenFreshNestedList = (tr: Transaction): Transaction => {
   const $from = tr.selection.$from;
   let fixed = tr;
   for (let depth = $from.depth; depth > 0; depth--) {
@@ -84,14 +82,10 @@ const tightenFreshNestedList = (before: Node, tr: Transaction): Transaction => {
       continue;
     }
     if (!node.attrs.tight) {
-      const start = $from.before(depth);
-      const oldNode = before.nodeAt(back.map(start, -1));
-      if (oldNode?.type !== node.type) {
-        fixed = fixed.setNodeMarkup(start, undefined, {
-          ...node.attrs,
-          tight: true,
-        });
-      }
+      fixed = fixed.setNodeMarkup($from.before(depth), undefined, {
+        ...node.attrs,
+        tight: true,
+      });
     }
     break;
   }
@@ -107,7 +101,7 @@ const tightenFreshNestedList = (before: Node, tr: Transaction): Transaction => {
 const sinkListItemTight = (): Command => (state, dispatch) => {
   if (!dispatch) return sinkListItem(schema.nodes.list_item)(state);
   const ok = sinkListItem(schema.nodes.list_item)(state, (tr: Transaction) => {
-    dispatch(tightenFreshNestedList(state.doc, tr));
+    dispatch(tightenFreshNestedList(tr));
   });
   return ok;
 };
