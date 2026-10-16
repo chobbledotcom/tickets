@@ -668,7 +668,11 @@ before deploying to it (the staging push-to-`main` trigger is the one exception
   publishing is enabled. A manual run backs up by
   default (needing those backup secrets, or the key pasted in) and can untick
   **Back up the database before deploying** to skip it — the escape hatch for
-  when the backup itself is broken.
+  when the backup itself is broken. Production's update-mode wait polls the
+  `MAIN_SITE_URL` secret (the production site's https origin) when no script
+  id is given, the same way the script id falls back to `BUNNY_SCRIPT_ID`; a
+  run with an overridden script id looks that site's URL up on the main
+  instance.
 
 **Optional static CDN builds:** set all five repository secrets `CDN_URL`,
 `CDN_BUNNY_STORAGE_ZONE_NAME`, `CDN_BUNNY_STORAGE_ZONE_KEY`,
