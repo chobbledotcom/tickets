@@ -8,11 +8,15 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { flashProps } from "#templates/admin/admin-page.tsx";
-import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
+import {
+  type AdminPageListPart,
+  renderAdminPageSpec,
+} from "#templates/admin/admin-page-spec.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { withEnv } from "#test-utils/env.ts";
 import type { AdminSession } from "#types";
 
 const BODY = <p>Opener body</p>;
@@ -119,6 +123,21 @@ describe("the spec's shell", () => {
 
     expect(html).toContain('data-theme="dark"');
   });
+
+  test("forwards custom shell and body classes", () => {
+    const html = renderAdminPageSpec({
+      active: "/admin/settings",
+      body: BODY,
+      bodyClass: "custom-body",
+      contentClassName: "custom-shell",
+      session: OWNER_SESSION,
+      title: "Advanced",
+    });
+
+    expect(html).toContain('<body class="custom-body"');
+    expect(html).toContain('class="page-regions custom-shell"');
+    expect(html).not.toContain('class="page-regions admin-page"');
+  });
 });
 
 describe("the spec's form facet", () => {
@@ -185,7 +204,10 @@ describe("the spec's form facet", () => {
 describe("the spec's list facet", () => {
   beforeAll(setupAdminPageTest);
 
-  const listSpec = (items: string[]): string =>
+  const listSpec = (
+    items: string[],
+    reorder?: AdminPageListPart<string>["reorder"],
+  ): string =>
     renderAdminPageSpec({
       active: "/admin/groups",
       list: {
@@ -196,6 +218,7 @@ describe("the spec's list facet", () => {
         guideFooter: <a href="/admin/guide">Guide</a>,
         intro: <h2>Groups</h2>,
         items,
+        ...(reorder !== undefined ? { reorder } : {}),
       },
       session: OWNER_SESSION,
       title: "Groups",
@@ -213,6 +236,43 @@ describe("the spec's list facet", () => {
 
     expect(empty).toContain("Nothing yet");
     expect(empty).toContain('<a href="/admin/guide">Guide</a>');
+  });
+
+  test("renders the table for a single item, not the empty note", () => {
+    const solo = listSpec(["only"]);
+
+    expect(solo).toContain("<p>only</p>");
+    expect(solo).not.toContain("Nothing yet");
+  });
+
+  test("adds the move column to a reorderable list", () => {
+    using _writable = withEnv({ READ_ONLY_FROM: undefined });
+    const html = listSpec(["one", "two"], {
+      action: (name) => (direction) =>
+        `/admin/groups/${name}/move-${direction}`,
+      header: () => "Move",
+    });
+
+    expect(html).toContain('<th class="col-reorder">');
+    expect(html).toContain("/admin/groups/two/move-up");
+    expect(html).toContain("/admin/groups/one/move-down");
+    expect(html).not.toContain("/admin/groups/one/move-up");
+    expect(html).toContain("▲");
+    expect(html).toContain("▼");
+  });
+
+  test("omits the move column when the site is read-only", () => {
+    using _readOnly = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = listSpec(["one", "two"], {
+      action: (name) => (direction) =>
+        `/admin/groups/${name}/move-${direction}`,
+      header: () => "Move",
+    });
+
+    expect(html).not.toContain('class="col-reorder"');
+    expect(html).not.toContain("/admin/groups/one/move-up");
+    expect(html).not.toContain("▲");
+    expect(html).toContain("<p>one</p>");
   });
 });
 

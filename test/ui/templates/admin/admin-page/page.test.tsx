@@ -120,6 +120,7 @@ describe("the page staff and agents share", () => {
     const html = staffPage(OWNER_SESSION);
 
     expect(html).toContain("<h1>For staff</h1>");
+    expect(html).not.toContain('<header class="agent-header">');
     expect(html).toContain("<p>Run sheet</p>");
   });
 
@@ -127,7 +128,9 @@ describe("the page staff and agents share", () => {
     const html = staffPage(AGENT_SESSION);
 
     expect(html).not.toContain("<h1>For staff</h1>");
-    expect(html).toContain("Deliveries");
+    expect(html).toContain(
+      '<header class="agent-header"><h1>Deliveries</h1></header>',
+    );
     expect(html).toContain("<p>Run sheet</p>");
   });
 });
@@ -145,11 +148,17 @@ describe("the run-sheet opener staff and agents share", () => {
     });
 
   test("shows the staff heading to staff and the agent header to agents", () => {
-    expect(runSheet(OWNER_SESSION)).toContain("<h1>For staff</h1>");
+    const staff = runSheet(OWNER_SESSION);
+
+    expect(staff).toContain("<h1>For staff</h1>");
+    expect(staff).not.toContain('<header class="agent-header">');
 
     const agent = runSheet(AGENT_SESSION);
 
     expect(agent).not.toContain("<h1>For staff</h1>");
+    expect(agent).toContain(
+      '<header class="agent-header"><h1>Deliveries</h1></header>',
+    );
     expect(agent).toContain("<p>Run sheet</p>");
   });
 });
