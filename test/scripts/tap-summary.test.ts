@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  type CompactFailure,
   type CompactTapSummary,
-  type JunitErroredTest,
   junitErroredTests,
-  junitErrorFiles,
+  type JunitErroredTest,
   printCompactSummary,
 } from "#scripts/tap-summary.ts";
 import { capturingConsole } from "#test-utils/captured-console.ts";
@@ -38,6 +38,33 @@ const printed = (
       junitErrored,
     ),
   );
+
+/** Prints the hosted shape: twelve green members, one Turso failure, and
+ * the errored JUnit record the runner wrote for it. */
+const printedCancellation = (
+  failure: CompactFailure,
+  errored: JunitErroredTest[],
+): Promise<{ errors: string[]; logs: string[] }> =>
+  printed(
+    summary({
+      failed: 1,
+      failures: [failure],
+      fileEstimate: 13,
+      passed: 12,
+    }),
+    1,
+    "",
+    [],
+    errored,
+  );
+
+const TURSO_RECORD: JunitErroredTest = {
+  column: 1,
+  file: "./test/scripts/turso-migration-file.test.ts",
+  line: 121,
+  message: "Cancelled",
+  name: "Turso migration file",
+};
 
 describe("printing the run summary", () => {
   test("reports a pass when nothing failed and the run exited cleanly", async () => {
@@ -145,30 +172,12 @@ describe("printing the run summary", () => {
     // The hosted shape: every member test passed, then an uncaught error
     // cancelled the suite mid-file. Deno's TAP carries no diagnostic, so
     // the JUnit's errored record is the only attribution there is.
-    const { errors } = await printed(
-      summary({
-        failed: 1,
-        failures: [
-          {
-            message: "No TAP diagnostic was emitted for this failure.",
-            name: "Turso migration file",
-          },
-        ],
-        fileEstimate: 13,
-        passed: 12,
-      }),
-      1,
-      "",
-      [],
-      [
-        {
-          column: 1,
-          file: "./test/scripts/turso-migration-file.test.ts",
-          line: 121,
-          message: "Cancelled",
-          name: "Turso migration file",
-        },
-      ],
+    const { errors } = await printedCancellation(
+      {
+        message: "No TAP diagnostic was emitted for this failure.",
+        name: "Turso migration file",
+      },
+      [TURSO_RECORD],
     );
 
     expect(errors).toEqual([
@@ -176,6 +185,95 @@ describe("printing the run summary", () => {
       "\nFailed tests:",
       "  ./test/scripts/turso-migration-file.test.ts:121:1 - Turso migration file",
       "  deno's runner cancelled this suite after an uncaught error. Its JUnit record says \"Cancelled\"; deno's TAP output carries no rejection text.",
+    ]);
+  });
+
+  test("decodes the JUnit name before matching the failure", async () => {
+    // XML escapes '&' in stored names while TAP carries the raw character.
+    // The record flows through the real JUnit parse, so the match proves
+    // the decode happened before the name comparison.
+    const errored = junitErroredTests(
+      [
+        '<testcase name="probe &amp; suite" classname="./probe.test.ts" line="14" col="1">',
+        '            <error message="Cancelled"/>',
+        "</testcase>",
+      ].join("\n"),
+    );
+
+    const { errors } = await printed(
+      summary({
+        failed: 1,
+        failures: [
+          {
+            message: "No TAP diagnostic was emitted for this failure.",
+            name: "probe & suite",
+          },
+        ],
+        fileEstimate: 3,
+        passed: 2,
+      }),
+      1,
+      "",
+      [],
+      errored,
+    );
+
+    expect(errors).toEqual([
+      "\nFAILED 2 passed, 1 failed",
+      "\nFailed tests:",
+      "  ./probe.test.ts:14:1 - probe & suite",
+      "  deno's runner cancelled this suite after an uncaught error. Its JUnit record says \"Cancelled\"; deno's TAP output carries no rejection text.",
+    ]);
+  });
+
+  test("keeps a TAP diagnostic location over a JUnit record", async () => {
+    // A failure whose diagnostic names a frame is already pinned down; the
+    // JUnit record must not move it.
+    const { errors } = await printedCancellation(
+      {
+        location: { column: 3, file: "./src/shared/real.ts", line: 9 },
+        message: "Values are not strictly equal.",
+        name: "Turso migration file",
+      },
+      [TURSO_RECORD],
+    );
+
+    expect(errors).toEqual([
+      "\nFAILED 12 passed, 1 failed",
+      "\nFailed tests:",
+      "  ./src/shared/real.ts:9:3 - Turso migration file",
+    ]);
+  });
+
+  test("does not attribute a repeated suite name", async () => {
+    // Two errored records with one name cannot say which declare site
+    // applies, so the failure keeps its unknown location.
+    const record = {
+      column: 1,
+      file: "./first.test.ts",
+      line: 5,
+      message: "Cancelled",
+      name: "repeated suite",
+    };
+    const { errors } = await printed(
+      summary({
+        failed: 1,
+        failures: [
+          { message: "No TAP diagnostic was emitted.", name: "repeated suite" },
+        ],
+        fileEstimate: 2,
+        passed: 1,
+      }),
+      1,
+      "",
+      [],
+      [record, { ...record, file: "./second.test.ts", line: 9 }],
+    );
+
+    expect(errors).toEqual([
+      "\nFAILED 1 passed, 1 failed",
+      "\nFailed tests:",
+      "  unknown location - repeated suite",
     ]);
   });
 
@@ -374,104 +472,5 @@ describe("printing the run summary", () => {
       "\nStdout lines deno printed beside the TAP results:",
     );
     expect(errors).toContain("error: Uncaught TypeError: boom");
-  });
-});
-
-describe("reading deno's JUnit report for uncaught errors", () => {
-  test("names the suites whose tests carry error entries", () => {
-    const xml = [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<testsuites name="deno test" tests="3" failures="0" errors="2">',
-      '    <testsuite name="./fine.test.ts" tests="1" errors="0" failures="0">',
-      '        <testcase name="fine" classname="./fine.test.ts">',
-      "        </testcase>",
-      "    </testsuite>",
-      '    <testsuite name="./uncaught.test.ts" tests="2" errors="2" failures="0">',
-      '        <testcase name="starts" classname="./uncaught.test.ts">',
-      '            <error message="Cancelled"/>',
-      "        </testcase>",
-      "    </testsuite>",
-      "</testsuites>",
-    ].join("\n");
-
-    expect(junitErrorFiles(xml)).toEqual(["./uncaught.test.ts"]);
-  });
-
-  test("answers nothing when the report holds no error entries", () => {
-    const xml =
-      '<testsuite name="./fine.test.ts" tests="1" errors="0" failures="0"></testsuite>';
-
-    expect(junitErrorFiles(xml)).toEqual([]);
-  });
-
-  test("reads each errored testcase with its declare site and message", () => {
-    const xml = [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<testsuites name="deno test" tests="4" failures="0" errors="1">',
-      '    <testsuite name="./probe.test.ts" tests="1" disabled="0" errors="1" failures="0">',
-      '        <testcase name="probe suite" classname="./probe.test.ts" time="0.000" line="14" col="1">',
-      '            <error message="Cancelled"/>',
-      "        </testcase>",
-      "    </testsuite>",
-      '    <testsuite name="./fine.test.ts" tests="1" disabled="0" errors="0" failures="0">',
-      '        <testcase name="fine" classname="./fine.test.ts">',
-      "        </testcase>",
-      "    </testsuite>",
-      "</testsuites>",
-    ].join("\n");
-
-    expect(junitErroredTests(xml)).toEqual([
-      {
-        column: 1,
-        file: "./probe.test.ts",
-        line: 14,
-        message: "Cancelled",
-        name: "probe suite",
-      },
-    ]);
-  });
-
-  test("answers nothing when no testcase carries an error entry", () => {
-    const xml =
-      '<testcase name="fine" classname="./fine.test.ts" line="3" col="1"></testcase>';
-
-    expect(junitErroredTests(xml)).toEqual([]);
-  });
-
-  test("keeps a record with absent attributes as empty values", () => {
-    // A record the JUnit writer left with no classname, name, line, column,
-    // or message still parses, so a malformed report cannot crash the
-    // summary that a failing run reads.
-    const xml = ["<testcase>", "            <error/>", "</testcase>"].join(
-      "\n",
-    );
-
-    expect(junitErroredTests(xml)).toEqual([
-      {
-        column: undefined,
-        file: "",
-        line: undefined,
-        message: "",
-        name: "",
-      },
-    ]);
-  });
-
-  test("reads non-numeric line and column as absent", () => {
-    const xml = [
-      '<testcase name="wordy" classname="./w.test.ts" line="top" col="left">',
-      '            <error message="Cancelled"/>',
-      "</testcase>",
-    ].join("\n");
-
-    expect(junitErroredTests(xml)).toEqual([
-      {
-        column: undefined,
-        file: "./w.test.ts",
-        line: undefined,
-        message: "Cancelled",
-        name: "wordy",
-      },
-    ]);
   });
 });

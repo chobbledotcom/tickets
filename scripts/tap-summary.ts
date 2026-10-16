@@ -56,11 +56,57 @@ export type JunitErroredTest = {
   name: string;
 };
 
-const xmlAttribute = (tag: string, attribute: string): string | undefined =>
-  tag.match(new RegExp(`\\b${attribute}="([^"]*)"`))?.[1];
+const XML_ENTITIES: Record<string, string> = {
+  amp: "&",
+  apos: "'",
+  gt: ">",
+  lt: "<",
+  quot: '"',
+};
 
-const xmlNumber = (tag: string, attribute: string): number | undefined => {
-  const parsed = Number(xmlAttribute(tag, attribute));
+/** XML permits code points up to U+10FFFF; anything outside that range
+ * stays as the entity text it came from rather than crashing the summary
+ * a failing run reads. */
+const decodedCodePoint = (code: number, text: string): string =>
+  Number.isInteger(code) && code > 0 && code <= 0x10ffff
+    ? String.fromCodePoint(code)
+    : text;
+
+const decodeXmlEntities = (value: string): string =>
+  value.replace(
+    /&(?:#(?<decimal>\d+)|#x(?<hexadecimal>[0-9a-fA-F]+)|(?<word>[A-Za-z][A-Za-z0-9]*));/g,
+    (text, decimal, hexadecimal, word) => {
+      if (decimal !== undefined) {
+        return decodedCodePoint(Number(decimal), text);
+      }
+      if (hexadecimal !== undefined) {
+        return decodedCodePoint(Number.parseInt(hexadecimal, 16), text);
+      }
+      return XML_ENTITIES[word.toLowerCase()] ?? text;
+    },
+  );
+
+const ATTRIBUTE_PATTERNS = {
+  classname: /\bclassname="([^"]*)"/,
+  col: /\bcol="([^"]*)"/,
+  line: /\bline="([^"]*)"/,
+  message: /\bmessage="([^"]*)"/,
+  name: /\bname="([^"]*)"/,
+} as const;
+
+type XmlAttribute = keyof typeof ATTRIBUTE_PATTERNS;
+
+/** The decoded attribute value, or "" when the record carries none. */
+const xmlAttribute = (tag: string, attribute: XmlAttribute): string =>
+  decodeXmlEntities(ATTRIBUTE_PATTERNS[attribute].exec(tag)?.[1] ?? "");
+
+const xmlNumber = (
+  tag: string,
+  attribute: XmlAttribute,
+): number | undefined => {
+  const raw = ATTRIBUTE_PATTERNS[attribute].exec(tag)?.[1];
+  if (raw === undefined) return;
+  const parsed = Number(decodeXmlEntities(raw));
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
@@ -75,10 +121,10 @@ export const junitErroredTests = (junit: string): JunitErroredTest[] => {
     if (errorTag === undefined) continue;
     errored.push({
       column: xmlNumber(tag, "col"),
-      file: xmlAttribute(tag, "classname") ?? "",
+      file: xmlAttribute(tag, "classname"),
       line: xmlNumber(tag, "line"),
-      message: xmlAttribute(errorTag, "message") ?? "",
-      name: xmlAttribute(tag, "name") ?? "",
+      message: xmlAttribute(errorTag, "message"),
+      name: xmlAttribute(tag, "name"),
     });
   }
   return errored;
@@ -165,6 +211,19 @@ const printNoFailedTestFacts = ({
   console.error(`The last result shown was: ${last}`);
 };
 
+/** The JUnit record for one failure: only a diagnostic-less failure whose
+ * name identifies exactly one errored record is attributed. A TAP
+ * diagnostic already pins the failure down, and a repeated name cannot
+ * say which record is the right one. */
+const junitAttribution = (
+  failure: CompactFailure,
+  errored: JunitErroredTest[],
+): JunitErroredTest | undefined => {
+  if (failure.location !== undefined) return;
+  const matches = errored.filter((test) => test.name === failure.name);
+  return matches.length === 1 ? matches[0] : undefined;
+};
+
 const printFailures = (
   summary: CompactTapSummary,
   errored: JunitErroredTest[],
@@ -172,10 +231,7 @@ const printFailures = (
   if (summary.failures.length === 0) return;
   console.error("\nFailed tests:");
   for (const failure of summary.failures) {
-    // A diagnostic-less failure whose name matches an errored JUnit record
-    // is the suite deno's runner cancelled mid-file: the JUnit's declare
-    // site is the true location, so name it instead of "unknown location".
-    const recorded = errored.find((test) => test.name === failure.name);
+    const recorded = junitAttribution(failure, errored);
     const location: Location | undefined = recorded
       ? {
           column: recorded.column,
