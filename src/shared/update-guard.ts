@@ -298,11 +298,9 @@ const beginTimedOutBase = (totalMs: number): string =>
 const beginTimedOutError = async (
   revert: () => Promise<void>,
   poll: UpdatePoll,
+  segments: readonly number[],
 ): Promise<Error> => {
-  const totalMs =
-    UPDATE_BEGIN_FIRST_WAIT_MS +
-    UPDATE_BEGIN_SECOND_WAIT_MS +
-    UPDATE_BEGIN_THIRD_WAIT_MS;
+  const totalMs = segments.reduce((sum, segment) => sum + segment, 0);
   const detail =
     poll.lastError === null
       ? ""
@@ -338,12 +336,8 @@ export const waitForBeginPropagation = async (
     UPDATE_BEGIN_THIRD_WAIT_MS,
   ];
   await loopChecks(options, {
-    gap: (checked) =>
-      checked === 1
-        ? UPDATE_BEGIN_FIRST_WAIT_MS
-        : checked === 2
-          ? UPDATE_BEGIN_SECOND_WAIT_MS
-          : UPDATE_BEGIN_THIRD_WAIT_MS,
+    // giveUp ends the loop at segments.length, so the index stays in range.
+    gap: (checked) => segments[checked - 1]!,
     giveUp: async (checked, poll) => {
       // One line per check, naming the elapsed segment: a long propagation
       // window stays visible without noise.
@@ -354,7 +348,7 @@ export const waitForBeginPropagation = async (
         `The site still does not show its update page ${Math.round(elapsed / 1000)} seconds after the flag was set.`,
       );
       if (checked < segments.length) return null;
-      return await beginTimedOutError(revert, poll);
+      return await beginTimedOutError(revert, poll, segments);
     },
   });
 };
