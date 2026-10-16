@@ -127,6 +127,34 @@ describe("markdown editor input rules", () => {
     );
   });
 
+  test("Tab-sinking a cross-depth selection tightens only the new list", () => {
+    // The selection spans outer items b and c but starts inside the nested
+    // list under b. The command creates one fresh list under a containing
+    // b and c; the pre-existing list holding x keeps its own flag.
+    const bullet = enhanced("* a\n* b\n  * x\n* c");
+    select(bullet.handle.view, 13, 21);
+    editorKeymap().Tab!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    expect(bullet.textarea.value).toBe("* a\n  * b\n    * x\n  * c");
+
+    const ordered = enhanced("1. a\n2. b\n   1. x\n3. c");
+    select(ordered.handle.view, 13, 21);
+    editorKeymap().Tab!(ordered.handle.view.state, (tr) =>
+      ordered.handle.view.dispatch(tr),
+    );
+    expect(ordered.textarea.value).toBe("1. a\n   1. b\n      1. x\n   2. c");
+  });
+
+  test("Tab-sinking keeps a loose pre-existing descendant loose", () => {
+    const bullet = enhanced("* a\n* b\n  * x\n\n  * y\n* c");
+    select(bullet.handle.view, 13, 26);
+    editorKeymap().Tab!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    expect(bullet.textarea.value).toBe("* a\n  * b\n    * x\n\n    * y\n  * c");
+  });
+
   test("typing '3. ' starts an ordered list at 3", () => {
     const { handle, textarea } = enhanced("");
     typeText(handle.view, "3. third");

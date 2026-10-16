@@ -46,11 +46,13 @@ export const serializeMarkdown = (doc: Node): string =>
 
 /**
  * True when the markdown survives a parse→serialize round trip unchanged
- * (modulo outer whitespace) — i.e. the rich editor can hold it without
- * rewriting anything. False for syntax outside the CommonMark schema (GFM
- * tables collapse to a paragraph) and for spellings the serializer would
- * normalize (`- ` bullets become `* `), where a rich-mode edit anywhere in
- * the field would silently rewrite the stored text.
+ * (modulo outer whitespace). The rich editor can hold such markdown without
+ * rewriting anything.
+ *
+ * False for syntax outside the CommonMark schema: GFM tables collapse to a
+ * paragraph. False also for spellings the serializer normalizes, for example
+ * `- ` bullets become `* `. A rich-mode edit anywhere in the field would
+ * silently rewrite the stored text.
  */
 export const roundTripsCleanly = (text: string): boolean =>
   serializeMarkdown(parseMarkdown(text)).trim() === text.trim();
@@ -66,10 +68,13 @@ const insertHardBreak: Command = chainCommands(exitCode, (state, dispatch) => {
 });
 
 /**
- * Fix the attrs of a fresh nested list on the sunk transaction. The list
- * around the caret gets `tight: true` when the document before the command
- * holds no list of the same type at the mapped-back position. A list the
- * command reused instead of creating keeps its own flag.
+ * Fix the attrs of nested lists on the sunk transaction. A cross-depth
+ * selection can sink a range whose mapped caret starts inside a pre-existing
+ * nested list while a freshly created ancestor sits further up the chain, so
+ * every list around the caret is checked: a list gets `tight: true` when the
+ * document before the command holds no list of the same type at the
+ * mapped-back position. Lists the command reused instead of created keep
+ * their own flags.
  */
 const tightenFreshNestedList = (before: Node, tr: Transaction): Transaction => {
   const back = tr.mapping.invert();
@@ -93,7 +98,6 @@ const tightenFreshNestedList = (before: Node, tr: Transaction): Transaction => {
         });
       }
     }
-    break;
   }
   return fixed;
 };
