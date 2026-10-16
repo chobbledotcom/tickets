@@ -2,12 +2,18 @@
  * The update-mode CLI the deploy workflows call around every site code
  * update:
  *
- *   begin <script-id> <site-url>  set UPDATE_IN_PROGRESS, then wait until the
- *                                 site serves its update page
+ *   begin <script-id> <site-url>  set UPDATE_IN_PROGRESS, then check the
+ *                                 site at 10, 30, and 60 seconds until it
+ *                                 serves its update page
  *   end <script-id> <site-url>    wait until the new build serves, then
  *                                 remove UPDATE_IN_PROGRESS
  *
- * `begin` runs before the code upload, `end` after it. Any failure leaves
+ * `begin` runs before the code upload, `end` after it. The checks are
+ * single hits, and the gaps between them stay quiet: the gap lets the old
+ * app stop serving and the flag set, where immediate repeated checking
+ * kept the old app online and raced the propagation. A begin run-out
+ * removes UPDATE_IN_PROGRESS again, so the site accepts writes, and the
+ * error says to re-run the deploy. Any other failure leaves
  * UPDATE_IN_PROGRESS set: a site stuck read-only is safer than a
  * half-migrated one, and a re-run of the same update lifts the flag on
  * success. The operator can also remove the variable by hand in the Bunny
@@ -28,6 +34,7 @@ import {
   UPDATE_IN_PROGRESS_VAR,
   type UpdateIoOptions,
   type UpdatePollIo,
+  waitForBeginPropagation,
   waitForUpdatePage,
   waitOptionsFrom,
 } from "#shared/update-guard.ts";
@@ -113,6 +120,14 @@ const deleteUpdateSecret = async (
   }
 };
 
+/** Remove the update flag: find it by name, then delete it. A script that
+ * holds no flag is already lifted (a re-run after a manual clear, for
+ * example). */
+const liftUpdateFlag = async (io: ScopedIo): Promise<void> => {
+  const secretId = await findUpdateSecretId(io);
+  if (secretId !== null) await deleteUpdateSecret(io, secretId);
+};
+
 /** Fetch the site's read-only page. A non-200 answer throws so the wait
  * retries it instead of reading a broken page as "unsupported". */
 const fetchReadOnlyPage = async (site: {
@@ -153,7 +168,12 @@ export const runUpdateMode = async (
   if (command === "begin") {
     io.log(`Setting ${UPDATE_IN_PROGRESS_VAR} on script ${scriptId}..`);
     await upsertUpdateSecret(scopedIo, UPDATE_FLAG_VALUE);
-    await waitForUpdatePage(waitOptionsFrom(scopedIo, true));
+    // The schedule checks at 10, 30, and 60 seconds and stays quiet
+    // between them. A run-out reverts the flag, so the site accepts
+    // writes again.
+    await waitForBeginPropagation(waitOptionsFrom(scopedIo, true), () =>
+      liftUpdateFlag(scopedIo),
+    );
     return 0;
   }
 
@@ -161,9 +181,6 @@ export const runUpdateMode = async (
   // build still serves must not lift the flag before the new build serves.
   await waitForUpdatePage(waitOptionsFrom(scopedIo, false, buildTag));
   io.log(`Removing ${UPDATE_IN_PROGRESS_VAR} from script ${scriptId}..`);
-  const secretId = await findUpdateSecretId(scopedIo);
-  // Nothing to remove: the flag was already lifted (a re-run after a manual
-  // clear, for example).
-  if (secretId !== null) await deleteUpdateSecret(scopedIo, secretId);
+  await liftUpdateFlag(scopedIo);
   return 0;
 };
