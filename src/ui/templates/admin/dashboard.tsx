@@ -28,7 +28,7 @@ import {
 } from "#shared/listing-group-view.ts";
 import type { ListingColumnKey } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
-import { AdminPage, flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
 import { HolidayTable } from "#templates/admin/holidays.tsx";
 import {
@@ -260,42 +260,44 @@ export const adminDashboardPage = (
   );
   const filterHtml = `${typeFilterHtml}${attributeFilterHtml}`;
 
-  return flashAdminPage(t("terms.listings"), "/admin/")(
+  return renderAdminPageSpec({
+    active: "/admin/",
+    body: (
+      <>
+        {showWelcome && !isReadOnly() && <WelcomeBanner />}
+
+        {!isReadOnly() && <DashboardQuickActions />}
+
+        <ListingsTableBlock
+          columnKeys={columnKeys}
+          filters={filters}
+          headerHtml={filterHtml}
+          listings={shownListings}
+        />
+
+        {stats && <Raw html={activeListingStatsSection(stats)} />}
+
+        {upcomingHolidays.length > 0 && (
+          <Raw html={upcomingHolidaysSection(upcomingHolidays)} />
+        )}
+
+        {upcomingServicingEvents.length > 0 && (
+          <Raw html={upcomingServicingSection(upcomingServicingEvents)} />
+        )}
+
+        {newestAttendees.length > 0 && (
+          <Raw html={newestAttendeesSection(newestAttendees, listings)} />
+        )}
+
+        <GuideFooter href="/admin/guide#dashboard">
+          {t("admin.dashboard.guide_link")}
+        </GuideFooter>
+      </>
+    ),
+    flash: { error: imageError, success: successMessage },
     session,
-    imageError,
-    successMessage,
-  )(
-    <>
-      {showWelcome && !isReadOnly() && <WelcomeBanner />}
-
-      {!isReadOnly() && <DashboardQuickActions />}
-
-      <ListingsTableBlock
-        columnKeys={columnKeys}
-        filters={filters}
-        headerHtml={filterHtml}
-        listings={shownListings}
-      />
-
-      {stats && <Raw html={activeListingStatsSection(stats)} />}
-
-      {upcomingHolidays.length > 0 && (
-        <Raw html={upcomingHolidaysSection(upcomingHolidays)} />
-      )}
-
-      {upcomingServicingEvents.length > 0 && (
-        <Raw html={upcomingServicingSection(upcomingServicingEvents)} />
-      )}
-
-      {newestAttendees.length > 0 && (
-        <Raw html={newestAttendeesSection(newestAttendees, listings)} />
-      )}
-
-      <GuideFooter href="/admin/guide#dashboard">
-        {t("admin.dashboard.guide_link")}
-      </GuideFooter>
-    </>,
-  );
+    title: t("terms.listings"),
+  });
 };
 
 /** Admin listings index page with active and deactivated listings split. */
@@ -353,42 +355,46 @@ export const adminListingsPage = (
     }),
   );
 
-  return String(
-    <AdminPage
-      active="/admin/listings"
-      session={session}
-      title={t("terms.listings")}
-    >
-      <ListingsTableBlock
-        {...tableOptions}
-        csvExport={!isEditor}
-        csvHref={csvExportHref({
-          activeAttributes: activeAttributeFilters,
-          groupId: activeGroupId,
-          type: "all",
-        })}
-        headerHtml={`${groupFilterHtml}${attributeFilterHtml}`}
-        listings={filterByAttribute(activeListings)}
-      />
-
-      {deactivatedListings.length > 0 && (
-        <>
-          <h2>{t("admin.dashboard.deactivated")}</h2>
-          {renderListingsTableSection({
-            ...tableOptions,
-            emptyText: t("admin.dashboard.no_listings"),
-            listings: filterByAttribute(deactivatedListings),
+  return renderAdminPageSpec({
+    active: "/admin/listings",
+    body: (
+      <>
+        <ListingsTableBlock
+          {...tableOptions}
+          csvExport={!isEditor}
+          csvHref={csvExportHref({
+            activeAttributes: activeAttributeFilters,
+            groupId: activeGroupId,
+            type: "all",
           })}
-        </>
-      )}
+          headerHtml={`${groupFilterHtml}${attributeFilterHtml}`}
+          listings={filterByAttribute(activeListings)}
+        />
 
-      {multiBookingListings.length >= 2 && (
-        <Raw html={multiBookingSection(multiBookingListings)} />
-      )}
+        {deactivatedListings.length > 0 && (
+          <>
+            <h2>{t("admin.dashboard.deactivated")}</h2>
+            {renderListingsTableSection({
+              ...tableOptions,
+              emptyText: t("admin.dashboard.no_listings"),
+              listings: filterByAttribute(deactivatedListings),
+            })}
+          </>
+        )}
 
-      <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#listings">
-        {t("admin.listings.guide_link")}
-      </GuideFooter>
-    </AdminPage>,
-  );
+        {multiBookingListings.length >= 2 && (
+          <Raw html={multiBookingSection(multiBookingListings)} />
+        )}
+
+        <GuideFooter
+          adminLevel={session.adminLevel}
+          href="/admin/guide#listings"
+        >
+          {t("admin.listings.guide_link")}
+        </GuideFooter>
+      </>
+    ),
+    session,
+    title: t("terms.listings"),
+  });
 };

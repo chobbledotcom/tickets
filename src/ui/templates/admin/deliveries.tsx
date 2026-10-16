@@ -14,7 +14,8 @@
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
-import { flashProps, staffAdminPage } from "#templates/admin/admin-page.tsx";
+import { flashProps } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
@@ -191,9 +192,9 @@ export const agentDeliveriesPage = (
   session: AdminSession,
   dateNav: DeliveriesDateNav | null,
 ): string =>
-  staffAdminPage({
+  renderAdminPageSpec({
     active: "/admin/deliveries",
-    children: (
+    body: (
       <>
         <Flash {...flashProps(opts.error, opts.success)} />
         {/* The route supplies a picker only for staff; agents get null and so
@@ -241,5 +242,6 @@ export const agentDeliveriesPage = (
       </>
     ),
     session,
+    staff: {},
     title: t("deliveries.title"),
   });

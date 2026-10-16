@@ -20,7 +20,7 @@ import type { FlankingNav, TabLink } from "#shared/entity-pages/core.ts";
 import { getFlashFormId } from "#shared/flash-context.ts";
 import { requestFlash } from "#shared/forms/flash.tsx";
 import { ActivityLogTable } from "#templates/admin/activity-log.tsx";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import type { NavActive } from "#templates/admin/nav.tsx";
 import { ActionButton, type IconName } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
@@ -238,33 +238,34 @@ export interface EntityPageView {
  * in order. Peer regions use page spacing; each section keeps its related
  * heading, table, and actions together as one block. Empty sections disappear. */
 export const entityPageView = (view: EntityPageView): string =>
-  String(
-    <AdminPage
-      active={view.navActive}
-      contentClassName="entity-page"
-      session={view.session}
-      title={view.title}
-    >
-      {getFlashFormId() === undefined && requestFlash()}
-      <div class="prose entity-header">
-        {view.titleNav ? (
-          <div class="title-nav">
-            {view.titleNav.before}
+  renderAdminPageSpec({
+    active: view.navActive,
+    body: (
+      <>
+        {getFlashFormId() === undefined && requestFlash()}
+        <div class="prose entity-header">
+          {view.titleNav ? (
+            <div class="title-nav">
+              {view.titleNav.before}
+              <h1>{view.title}</h1>
+              {view.titleNav.after}
+            </div>
+          ) : (
             <h1>{view.title}</h1>
-            {view.titleNav.after}
-          </div>
-        ) : (
-          <h1>{view.title}</h1>
-        )}
-        {view.proseExtra}
-      </div>
-      {view.banner}
-      <TabStrip tabs={view.tabs} />
-      <PageRegions className="entity-tab-panel">
-        {compact(view.sections.map(renderSection)).map((section) => (
-          <PageBlock>{section}</PageBlock>
-        ))}
-      </PageRegions>
-      {view.guideFooter}
-    </AdminPage>,
-  );
+          )}
+          {view.proseExtra}
+        </div>
+        {view.banner}
+        <TabStrip tabs={view.tabs} />
+        <PageRegions className="entity-tab-panel">
+          {compact(view.sections.map(renderSection)).map((section) => (
+            <PageBlock>{section}</PageBlock>
+          ))}
+        </PageRegions>
+        {view.guideFooter}
+      </>
+    ),
+    contentClassName: "entity-page",
+    session: view.session,
+    title: view.title,
+  });

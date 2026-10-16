@@ -94,97 +94,100 @@ const RetentionNote = ({
   );
 };
 
+const renderBody = (state: BackupPageState): JSX.Element => (
+  <>
+    {!state.isRemote && (
+      <p>
+        <em>{t("backup.local_database_warning")}</em>
+      </p>
+    )}
+
+    {!state.storageEnabled && (
+      <p>
+        <em>{t("backup.storage_not_configured")}</em>
+      </p>
+    )}
+
+    <ProseSection
+      bare
+      footer={
+        <pre>
+          <code>{state.encryptionKey}</code>
+        </pre>
+      }
+      title={t("backup.encryption_key_heading")}
+    >
+      <p>{t("backup.encryption_key_description")}</p>
+    </ProseSection>
+
+    {state.storageEnabled && (
+      <>
+        <ProseSection
+          bare
+          footer={
+            !state.createBlocked && (
+              <SaveForm
+                action="/admin/backup/create"
+                class="no-bg"
+                id="backup-create"
+                submitIcon="plus"
+                submitLabel={t("backup.create_button")}
+              />
+            )
+          }
+          title={t("backup.create_backup_heading")}
+        >
+          {state.createBlocked ? (
+            <Raw html={t("backup.create_too_large", state.createBlocked)} />
+          ) : (
+            <p>{t("backup.create_backup_description")}</p>
+          )}
+        </ProseSection>
+
+        <section>
+          <h2>{t("backup.existing_backups_heading")}</h2>
+          <p>
+            {state.storageZone
+              ? t("backup.stored_in_zone", {
+                  folder: state.backupFolder,
+                  zone: state.storageZone,
+                })
+              : t("backup.stored_in_folder", { folder: state.backupFolder })}
+          </p>
+          {state.listingError ? (
+            <p>
+              <em>
+                {t("backup.listing_error", { error: state.listingError })}
+              </em>
+            </p>
+          ) : state.backups.length === 0 ? (
+            <p>
+              <em>{t("backup.no_backups_found")}</em>
+            </p>
+          ) : (
+            <>
+              <RetentionNote
+                backups={state.backups}
+                maxBackups={state.maxBackups}
+              />
+              {renderTable(backupsTable, state.backups)}
+            </>
+          )}
+        </section>
+      </>
+    )}
+    <ProseSection bare title={t("backup.restore_heading")}>
+      <Raw html={t("backup.restore_console_description")} />
+    </ProseSection>
+    <GuideFooter href="/admin/guide#backups">
+      {t("backup.guide_link")}
+    </GuideFooter>
+  </>
+);
+
+/** Admin backup/restore page. */
 export const adminBackupPage = flashDataPage<BackupPageState>(
   "backup.page_title",
   "/admin/backup",
-  (state) => (
-    <>
-      {!state.isRemote && (
-        <p>
-          <em>{t("backup.local_database_warning")}</em>
-        </p>
-      )}
-
-      {!state.storageEnabled && (
-        <p>
-          <em>{t("backup.storage_not_configured")}</em>
-        </p>
-      )}
-
-      <ProseSection
-        bare
-        footer={
-          <pre>
-            <code>{state.encryptionKey}</code>
-          </pre>
-        }
-        title={t("backup.encryption_key_heading")}
-      >
-        <p>{t("backup.encryption_key_description")}</p>
-      </ProseSection>
-
-      {state.storageEnabled && (
-        <>
-          <ProseSection
-            bare
-            footer={
-              !state.createBlocked && (
-                <SaveForm
-                  action="/admin/backup/create"
-                  class="no-bg"
-                  id="backup-create"
-                  submitIcon="plus"
-                  submitLabel={t("backup.create_button")}
-                />
-              )
-            }
-            title={t("backup.create_backup_heading")}
-          >
-            {state.createBlocked ? (
-              <Raw html={t("backup.create_too_large", state.createBlocked)} />
-            ) : (
-              <p>{t("backup.create_backup_description")}</p>
-            )}
-          </ProseSection>
-
-          <section>
-            <h2>{t("backup.existing_backups_heading")}</h2>
-            <p>
-              {state.storageZone
-                ? t("backup.stored_in_zone", {
-                    folder: state.backupFolder,
-                    zone: state.storageZone,
-                  })
-                : t("backup.stored_in_folder", { folder: state.backupFolder })}
-            </p>
-            {state.listingError ? (
-              <p>
-                <em>
-                  {t("backup.listing_error", { error: state.listingError })}
-                </em>
-              </p>
-            ) : state.backups.length === 0 ? (
-              <p>
-                <em>{t("backup.no_backups_found")}</em>
-              </p>
-            ) : (
-              <>
-                <RetentionNote
-                  backups={state.backups}
-                  maxBackups={state.maxBackups}
-                />
-                {renderTable(backupsTable, state.backups)}
-              </>
-            )}
-          </section>
-        </>
-      )}
-      <ProseSection bare title={t("backup.restore_heading")}>
-        <Raw html={t("backup.restore_console_description")} />
-      </ProseSection>
-      <GuideFooter href="/admin/guide#backups">
-        {t("backup.guide_link")}
-      </GuideFooter>
-    </>
-  ),
+  renderBody,
 );

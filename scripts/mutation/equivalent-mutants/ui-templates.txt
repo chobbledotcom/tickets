@@ -29,7 +29,7 @@ src/ui/templates/admin/questions.tsx::adminQuestionPage.count~13bitn3  ?? → ||
 # calendar page detail table — the rows the calendar builds are the attendees
 # count row plus at least one checked-in row, so sharedRows.length is 0 or >= 2
 # and `> 0` and `> 1` agree on both.
-src/ui/templates/admin/calendar.tsx::adminCalendarPage~1bmsecb  0→1 audited:06og66x # sharedRows is buildSharedDetailRows output without skipAttendees: one attendee-count row plus buildCheckedInRows (always at least one row), so the length is 0 or at least 2 — `> 0` and `> 1` pick the same branch on both
+src/ui/templates/admin/calendar.tsx::adminCalendarPage.body~1bmsecb  0→1 audited:1j03zra # sharedRows is buildSharedDetailRows output without skipAttendees: one attendee-count row plus buildCheckedInRows (always at least one row), so the length is 0 or at least 2 — `> 0` and `> 1` pick the same branch on both
 
 # questions list page (ui/templates/admin/questions.tsx) — column keys the page
 # never reads back, and a Map.get fallback over always-truthy arrays.

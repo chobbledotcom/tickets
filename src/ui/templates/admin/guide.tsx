@@ -7,7 +7,7 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { accountsSections } from "#templates/admin/guide/accounts.tsx";
 import {
   type GuideHostConfig,
@@ -63,36 +63,36 @@ const guideShell = ({
   sections,
   session,
   title,
-}: GuideShellProps): JSX.Element => (
-  <AdminPage
-    active={active}
-    bodyClass="guide"
-    contentClassName="guide-page"
-    session={session}
-    title={title}
-  >
-    <div class="prose">
-      <h2>{heading}</h2>
-      {proseExtra}
-    </div>
-    {sections}
-  </AdminPage>
-);
+}: GuideShellProps): string =>
+  renderAdminPageSpec({
+    active,
+    body: (
+      <>
+        <div class="prose">
+          <h2>{heading}</h2>
+          {proseExtra}
+        </div>
+        {sections}
+      </>
+    ),
+    bodyClass: "guide",
+    contentClassName: "guide-page",
+    session,
+    title,
+  });
 
 export const adminGuidePage = (
   adminSession: AdminSession,
   hostConfig?: GuideHostConfig,
 ): string =>
-  String(
-    guideShell({
-      active: "/admin/guide",
-      heading: t("guide.title"),
-      proseExtra: <p class="search-hint">{t("guide.search_hint")}</p>,
-      sections: renderGuideSections(guideSections(hostConfig)),
-      session: adminSession,
-      title: t("guide.title"),
-    }),
-  );
+  guideShell({
+    active: "/admin/guide",
+    heading: t("guide.title"),
+    proseExtra: <p class="search-hint">{t("guide.search_hint")}</p>,
+    sections: renderGuideSections(guideSections(hostConfig)),
+    session: adminSession,
+    title: t("guide.title"),
+  });
 
 /**
  * Standalone markdown formatting-help page. The full guide is staff-only (its
@@ -102,12 +102,10 @@ export const adminGuidePage = (
  * section so that link never dead-ends.
  */
 export const adminFormattingHelpPage = (adminSession: AdminSession): string =>
-  String(
-    guideShell({
-      active: "",
-      heading: t("guide.sections.text_formatting"),
-      sections: renderGuideSections([textFormattingSection]),
-      session: adminSession,
-      title: t("guide.sections.text_formatting"),
-    }),
-  );
+  guideShell({
+    active: "",
+    heading: t("guide.sections.text_formatting"),
+    sections: renderGuideSections([textFormattingSection]),
+    session: adminSession,
+    title: t("guide.sections.text_formatting"),
+  });
