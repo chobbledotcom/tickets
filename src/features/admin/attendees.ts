@@ -27,7 +27,7 @@ import type { EmailEntry } from "#shared/email.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms/validation.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
-import { logDbError } from "#shared/logger.ts";
+import { bestEffort } from "#shared/logger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   logAndNotifyRegistration,
@@ -346,13 +346,12 @@ const resendNotification = async (
     // flags keep saying what is still owed and the recovery stays
     // retryable. A failed restore leaves the lease held and is logged, but
     // it must not replace the original failure.
-    try {
-      await restoreClaimedNotificationFlags(attendeeId, claimed);
-    } catch (restoreError) {
-      // A failed restore leaves the lease held. The flags keep saying what
-      // is still owed, and the operator repairs the row.
-      logDbError("Restoring a recovery's claimed flags failed", restoreError);
-    }
+    await bestEffort(
+      "Restoring a recovery's claimed flags failed",
+      async () => {
+        await restoreClaimedNotificationFlags(attendeeId, claimed);
+      },
+    );
     throw error;
   }
   return redirect(actionsTab, t("success.notification_resent"), true, {
