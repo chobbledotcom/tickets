@@ -149,7 +149,7 @@ export type HonourResult =
       freeTexts: FreeTextAnswers | undefined;
       ok: true;
     }
-  | { ok: null; error: unknown; freeTexts?: FreeTextAnswers | undefined }
+  | { ok: null; error: unknown }
   | {
       ok: false;
       reason: "sold_out" | "capacity_exceeded" | "unexpected_error";
@@ -294,9 +294,7 @@ export const createAttendeeForSession = async (
       prepared.completion.ride,
     );
   } catch (error) {
-    // The batch's outcome is unknown, but the staged free texts were read
-    // before it opened. A recovery that queues the sends needs them.
-    return { error, freeTexts: prepared.completion.freeTexts, ok: null };
+    return { error, ok: null };
   }
   if (result === "sold-out") {
     return {
