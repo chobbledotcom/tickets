@@ -44,6 +44,48 @@ export const formatLocation = (location?: Location): string =>
       }`
     : "unknown location";
 
+/** One errored <testcase> deno's JUnit report recorded: the suite the
+ * runner cancelled after an uncaught error, at the file and declare site
+ * the suite was written at. Deno's TAP output drops an uncaught error's
+ * text entirely, so this record is the only attribution the run carries. */
+export type JunitErroredTest = {
+  column?: number | undefined;
+  file: string;
+  line?: number | undefined;
+  message: string;
+  name: string;
+};
+
+const xmlAttribute = (tag: string, attribute: string): string | undefined =>
+  tag.match(new RegExp(`\\b${attribute}="([^"]*)"`))?.[1];
+
+const xmlNumber = (tag: string, attribute: string): number | undefined => {
+  const parsed = Number(xmlAttribute(tag, attribute));
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+/** The errored <testcase> entries in deno's JUnit report, in report order. */
+export const junitErroredTests = (junit: string): JunitErroredTest[] => {
+  const errored: JunitErroredTest[] = [];
+  const testcase = /<testcase\b([^>]*)>([\s\S]*?)<\/testcase>/g;
+  for (const match of junit.matchAll(testcase)) {
+    const tag = match[1];
+    const body = match[2];
+    if (tag === undefined || body === undefined) continue;
+    const error = body.match(/<error\b([^>]*)>/);
+    const errorTag = error?.[1];
+    if (errorTag === undefined) continue;
+    errored.push({
+      column: xmlNumber(tag, "col"),
+      file: xmlAttribute(tag, "classname") ?? "",
+      line: xmlNumber(tag, "line"),
+      message: xmlAttribute(errorTag, "message") ?? "",
+      name: xmlAttribute(tag, "name") ?? "",
+    });
+  }
+  return errored;
+};
+
 /** Strip the escape sequences, then keep every line Deno's own failure line
  *  does not already cover. */
 const usefulStderr = (stderr: string): string =>
@@ -125,11 +167,30 @@ const printNoFailedTestFacts = ({
   console.error(`The last result shown was: ${last}`);
 };
 
-const printFailures = (summary: CompactTapSummary): void => {
+const printFailures = (
+  summary: CompactTapSummary,
+  errored: JunitErroredTest[],
+): void => {
   if (summary.failures.length === 0) return;
   console.error("\nFailed tests:");
   for (const failure of summary.failures) {
-    console.error(`  ${formatLocation(failure.location)} - ${failure.name}`);
+    // A diagnostic-less failure whose name matches an errored JUnit record
+    // is the suite deno's runner cancelled mid-file: the JUnit's declare
+    // site is the true location, so name it instead of "unknown location".
+    const recorded = errored.find((test) => test.name === failure.name);
+    const location: Location | undefined = recorded
+      ? {
+          column: recorded.column,
+          file: recorded.file,
+          line: recorded.line,
+        }
+      : failure.location;
+    console.error(`  ${formatLocation(location)} - ${failure.name}`);
+    if (recorded) {
+      console.error(
+        `  deno's runner cancelled this suite after an uncaught error. Its JUnit record says "${recorded.message}"; deno's TAP output carries no rejection text.`,
+      );
+    }
   }
 };
 
@@ -138,6 +199,7 @@ export const printCompactSummary = (
   status: { code: number; signal?: string | null },
   stderrText: string,
   junitErrorFiles: string[] = [],
+  junitErrored: JunitErroredTest[] = [],
 ): void => {
   const extra = usefulStderr(stderrText);
   // The shortfall counts results that never arrived. A dropped parent
@@ -176,7 +238,7 @@ export const printCompactSummary = (
 
   if (summary.failed > 0) printJunitErrorFiles(junitErrorFiles);
 
-  printFailures(summary);
+  printFailures(summary, junitErrored);
 
   // Always surface stderr on a failing run: an uncaught error in a test
   // module (which aborts that module's remaining tests) is only reported

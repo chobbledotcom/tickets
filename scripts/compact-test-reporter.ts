@@ -12,6 +12,7 @@ import {
   type CompactFailure,
   type CompactTapSummary,
   formatLocation,
+  junitErroredTests,
   junitErrorFiles,
   type Location,
   printCompactSummary,
@@ -348,6 +349,7 @@ export const runCompactDenoTest = async (
       { code: status.code, signal: status.signal },
       stderrText,
       junitErrorFiles(junit),
+      junitErroredTests(junit),
     );
     // A filtered run that executed nothing did not select any test. A failed
     // run has its own cause to report, so only a clean exit names the filter.
