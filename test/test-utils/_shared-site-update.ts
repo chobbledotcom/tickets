@@ -63,6 +63,32 @@ export const stubBunnyUpdateFlag = (): Stub =>
     Promise.resolve({ ok: true as const }),
   );
 
+/** A wait clock the update-wait tests step forward on every sleep, so a
+ * timed-out wait needs no real delay. */
+export const fakeClock = (): {
+  now: () => number;
+  sleep: (ms: number) => Promise<void>;
+} => {
+  let time = 0;
+  return {
+    now: () => time,
+    sleep: async (ms) => {
+      time += ms;
+    },
+  };
+};
+
+/** The body of a /read-only page serving `state`, naming `buildTag` when
+ * the caller pins one. */
+export const page = (
+  state: "unsupported" | "supported" | "active",
+  buildTag?: string,
+): string => {
+  if (state === "unsupported") return "<html><head></head></html>";
+  const tag = buildTag === undefined ? "" : updateBuildTagMeta(buildTag);
+  return `<html><head>${updatePageMeta(state)}${tag}</head></html>`;
+};
+
 /** An update guard io that records every call in `calls`, in order. The page
  * fetch serves `pages` one by one. After the list runs out, it answers with
  * the active update page, so both waits pass at once. `overrides` stands in

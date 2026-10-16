@@ -129,7 +129,7 @@ const liftUpdateFlag = async (io: ScopedIo): Promise<void> => {
 };
 
 /** Fetch the site's read-only page. A non-200 answer throws so the wait
- * retries it instead of reading a broken page as "unsupported". */
+ * ends instead of reading a broken page as "unsupported". */
 const fetchReadOnlyPage = async (site: {
   fetchText: FetchText;
   siteUrl: string;
@@ -156,6 +156,16 @@ export const runUpdateMode = async (
     (command === "end" && buildTag === undefined)
   ) {
     io.log(USAGE);
+    return 1;
+  }
+  // The deploy workflows pass the site URL from a JSON payload. A site
+  // whose URL is missing arrives as the string "null" (jq's rendering of a
+  // JSON null) or an empty argument. Either must fail here, before the
+  // flag write, not become a https://null page request.
+  if (siteUrl.trim() === "" || siteUrl.trim() === "null") {
+    io.log(
+      `The deploy passed no site URL for script ${scriptId}, so the update-mode wait has no page to check. Give the deploy the site's URL and re-run it.`,
+    );
     return 1;
   }
   const scopedIo: ScopedIo = {
