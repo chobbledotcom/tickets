@@ -1,10 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { PRICE_TYPE_GROUP } from "#db/price-types.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { t, withMessageGroups } from "#i18n";
+import { flushPendingWork } from "#shared/pending-work.ts";
 import {
   RegistrationDeliveryError,
   type RegistrationPackageFacts,
@@ -26,6 +27,7 @@ import {
 } from "#test/shared/webhook/helpers.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookTestAttendeeWithFlags } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
@@ -44,6 +46,15 @@ const registrationLogs = (
     );
     return errorSpy.calls.map(({ args }) => String(args[0]));
   });
+
+/** Expect exactly one delivery-failure activity line from this run. */
+const expectOneFailureActivity = async (): Promise<void> => {
+  expect(
+    (await activityMessages()).filter(
+      (message) => message === "Registration notification delivery failed.",
+    ),
+  ).toHaveLength(1);
+};
 
 describeWithEnv("registration delivery errors", { db: true }, () => {
   const fetchSpy = stubWebhookFetch();
@@ -110,11 +121,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     expectOneError(logs, "E_REGISTRATION_DELIVERY");
     expect(fetchSpy.calls).toHaveLength(1);
-    expect(
-      (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed.",
-      ),
-    ).toHaveLength(1);
+    await expectOneFailureActivity();
   });
 
   test("rejects an unknown stored email provider before sending", async () => {
@@ -130,11 +137,73 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     expectOneError(logs, "E_REGISTRATION_DELIVERY");
     expect(fetchSpy.calls).toEqual([]);
-    expect(
-      (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed.",
-      ),
-    ).toHaveLength(1);
+    await expectOneFailureActivity();
+  });
+
+  test("a failed release keeps the original refusal and still reports it", async () => {
+    // A recovery's provider refusal throws before any send. The claim's
+    // release then fails too, because the database refuses the restore. The
+    // boundary must log the release failure, still report the delivery
+    // refusal, and still throw the original error: neither failure may
+    // swallow the other.
+    await configureTestEmail();
+    const { attendee } = await bookTestAttendeeWithFlags("Masked Buyer", 2, 1);
+    // The claim has already run: it zeroed both flags and captured these
+    // values, which is the state the boundary's release meets.
+    await execute(
+      "UPDATE attendees SET email_pending = 0, webhooks_pending = 0 WHERE id = ?",
+      [attendee.id],
+    );
+    await execute(
+      `CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
+       WHEN NEW.email_pending = 2 AND OLD.email_pending = 0
+       BEGIN
+         SELECT RAISE(ABORT, 'restore rejected');
+       END`,
+      [],
+    );
+    await settings.update.email.provider("unknown-provider");
+    try {
+      const logs = await withErrorSpy(async (errorSpy) => {
+        await withRequestContext(async () => {
+          await logAndNotifyRegistration(
+            [
+              makeEntry(
+                { webhook_url: "https://hook.example.com/registration" },
+                { email: attendee.email, id: attendee.id },
+              ),
+            ],
+            {
+              clearPendingFlagsFor: [attendee.id],
+              recoverSides: [
+                { previous: 2, side: "email" },
+                { previous: 1, side: "webhooks" },
+              ],
+              source: "public",
+            },
+          );
+          await flushPendingWork();
+        });
+        return errorSpy.calls.map(({ args }) => String(args[0]));
+      });
+      const report = logs.join("\n");
+      // The delivery refusal is still reported, and the release failure is
+      // reported with its name beside it.
+      expect(report).toContain("E_REGISTRATION_DELIVERY");
+      expect(report).toContain("A recovery's flag restore failed");
+      // The refused restore leaves the claimed flags at zero: the raised
+      // values could not land, and the logged incident names the state.
+      const row = await queryOne<{
+        email_pending: number;
+        webhooks_pending: number;
+      }>("SELECT email_pending, webhooks_pending FROM attendees WHERE id = ?", [
+        attendee.id,
+      ]);
+      expect(row).toEqual({ email_pending: 0, webhooks_pending: 0 });
+    } finally {
+      await execute("DROP TRIGGER IF EXISTS reject_flag_restore", []);
+      await settings.update.email.provider("resend");
+    }
   });
 
   test("reports an error while a notification channel is prepared", async () => {
@@ -153,11 +222,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
       privateValue,
     );
-    expect(
-      (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed.",
-      ),
-    ).toHaveLength(1);
+    await expectOneFailureActivity();
   });
 
   test("records an email refusal when the webhook throws", async () => {
@@ -201,11 +266,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       ),
     );
 
-    expect(
-      (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed.",
-      ),
-    ).toHaveLength(1);
+    await expectOneFailureActivity();
   });
 
   test("keeps raw delivery errors out of the incident fan-out", async () => {
@@ -309,11 +370,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     expect(fetchSpy.calls).toHaveLength(3);
     expect(logs).toEqual([]);
-    expect(
-      (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed.",
-      ),
-    ).toHaveLength(1);
+    await expectOneFailureActivity();
   });
 
   test("reports a failure-activity write error locally", async () => {
