@@ -124,7 +124,11 @@ describe("the spec's shell", () => {
 describe("the spec's form facet", () => {
   beforeAll(setupAdminPageTest);
 
-  const formSpec = (flash?: { error?: string; success?: string }): string =>
+  const formSpec = (flash?: {
+    error?: string;
+    info?: string;
+    success?: string;
+  }): string =>
     renderAdminPageSpec({
       active: "/admin/settings",
       form: {
@@ -162,6 +166,18 @@ describe("the spec's form facet", () => {
     expect(html).toContain("<h1>Recalculate</h1>");
     expect(html.indexOf("<h1>Recalculate</h1>")).toBeLessThan(
       html.indexOf("Saved"),
+    );
+  });
+
+  test("shows an info-only notice between the heading and the fields", () => {
+    const html = formSpec({ info: "Copied the key" });
+
+    expect(html).toContain("Copied the key");
+    expect(html.indexOf("<h1>Recalculate</h1>")).toBeLessThan(
+      html.indexOf("Copied the key"),
+    );
+    expect(html.indexOf("Copied the key")).toBeLessThan(
+      html.indexOf("<p>Opener body</p>"),
     );
   });
 });

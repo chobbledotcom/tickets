@@ -120,6 +120,7 @@ export const renderAdminPageSpec = <TItem,>(
       <CsrfForm action={spec.form.action}>
         <FormHeader
           error={spec.form.flash?.error}
+          info={spec.form.flash?.info}
           success={spec.form.flash?.success}
           title={spec.title}
         />
