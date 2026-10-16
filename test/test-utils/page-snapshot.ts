@@ -8,9 +8,12 @@ export const assertPageMatchesSnapshot = (
   actual: string,
 ): void => {
   const normalize = (html: string): string =>
+    // Mask only the token's value. Other attributes may sit between the name
+    // and the value (the renderer emits name, type, value), and the lookbehind
+    // keeps longer names such as data-name out of the mask.
     html.replace(
-      /name="csrf_token" value="[^"]*"/g,
-      'name="csrf_token" value="N"',
+      /(?<![-\w])(name="csrf_token"[^>]*? value=")[^"]*(")/g,
+      "$1$2",
     );
   assertEquals(normalize(actual), normalize(Deno.readTextFileSync(snapshot)));
 };
