@@ -7,7 +7,7 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { flashDataPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
 /* jscpd:ignore-start */
 import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
@@ -16,6 +16,7 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { builderForm } from "#templates/fields/builder.ts";
+import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
 
 export type BuiltSiteDisplay = {
@@ -74,21 +75,32 @@ const BuiltSitesTable = ({
     renderTable(builtSitesTable, sites)
   );
 
-export const adminBuilderPage = flashDataPage<BuiltSiteDisplay[]>(
-  "builder.site_builder_title",
-  undefined,
-  (sites) => (
-    <>
-      <h2>{t("builder.site_builder_title")}</h2>
+const renderBody = (sites: BuiltSiteDisplay[]): JSX.Element => (
+  <>
+    <h2>{t("builder.site_builder_title")}</h2>
 
-      <BuilderForm />
+    <BuilderForm />
 
-      <ProseSection
-        footer={<BuiltSitesTable sites={sites} />}
-        title={t("builder.built_sites_title")}
-      />
+    <ProseSection
+      footer={<BuiltSitesTable sites={sites} />}
+      title={t("builder.built_sites_title")}
+    />
 
-      <BuiltSitesGuideFooter />
-    </>
-  ),
+    <BuiltSitesGuideFooter />
+  </>
 );
+
+/** Admin builder page. */
+export const adminBuilderPage = (
+  session: AdminSession,
+  sites: BuiltSiteDisplay[],
+  error?: string,
+  success?: string,
+): string =>
+  renderAdminPageSpec<BuiltSiteDisplay[]>({
+    active: "/admin/settings",
+    body: renderBody(sites),
+    flash: { error, success },
+    session,
+    title: t("builder.site_builder_title"),
+  });

@@ -9,13 +9,13 @@ import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { booleanToCheckbox } from "#shared/forms/values.ts";
 import { visitSiteUrl } from "#shared/site-address.ts";
 import { editPanel, flashFormPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import {
   BuiltSitesGuideFooter,
   BuiltSitesListActions,
   BuiltSitesListBody,
 } from "#templates/admin/built-sites/list-parts.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
-import { AdminListPage } from "#templates/admin/list-page.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { saveFormComponent } from "#templates/components/save-form.tsx";
 import { getBuiltSiteForm } from "#templates/fields/admin.ts";
@@ -33,10 +33,10 @@ export const adminBuiltSitesPage = (
     .map((site) => site.hostingId)
     .join("|");
 
-  return AdminListPage({
+  return renderAdminPageSpec({
     actions: <BuiltSitesListActions />,
     active: "/admin/built-sites",
-    children: (
+    body: (
       <>
         <BuiltSitesListBody
           hostingIds={hostingIds}
@@ -47,8 +47,8 @@ export const adminBuiltSitesPage = (
         <BuiltSitesGuideFooter />
       </>
     ),
+    flash: { success: successMessage },
     session,
-    successMessage,
     title: t("built_sites.list_title"),
   });
 };

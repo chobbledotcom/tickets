@@ -114,7 +114,9 @@ export const adminUsersPage = (
   session: AdminSession,
   opts: UsersPageOpts,
 ): string =>
-  flashOptsPage(t("terms.users"), "/admin/users")(session, opts)(
+  flashOptsPage(t("terms.users"), "/admin/users")(
+    session,
+    opts,
     <>
       {opts.inviteLink && (
         <div class="success" role="alert">
