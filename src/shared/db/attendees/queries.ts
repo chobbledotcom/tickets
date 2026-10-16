@@ -262,9 +262,6 @@ export const hasActiveBookingLine = (
 export type FirstBooking = {
   readonly active: boolean;
   readonly listingId: number;
-  /** The selected row's package group: a resend of this booking rehydrates
-   * this package alone, or every standalone line when it holds none. */
-  readonly packageGroupId: number;
 };
 
 /** The first real booking, or a no-quantity placeholder when no real one
@@ -275,11 +272,9 @@ export const getFirstBooking = async (
 ): Promise<FirstBooking | null> => {
   const row = await queryOne<{
     listing_id: number;
-    package_group_id: number;
     quantity: number;
   }>(
     `SELECT listingAttendee.listing_id
-              , listingAttendee.package_group_id
               , listingAttendee.quantity
          FROM listing_attendees AS listingAttendee
         WHERE listingAttendee.attendee_id = ?
@@ -293,7 +288,6 @@ export const getFirstBooking = async (
     : {
         active: Number(row.quantity) > 0,
         listingId: Number(row.listing_id),
-        packageGroupId: Number(row.package_group_id),
       };
 };
 
