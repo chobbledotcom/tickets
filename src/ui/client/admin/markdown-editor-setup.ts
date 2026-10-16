@@ -96,9 +96,15 @@ const linkRule = (): InputRule =>
 
 /** Markdown-style block shortcuts: `- `, `1. `, `> `, `# `–`###### `, ```. */
 export const editorInputRules = (): InputRule[] => [
-  wrappingInputRule(/^\s*([-+*])\s$/, schema.nodes.bullet_list),
+  // The markdown schema defaults new lists to `tight: false`, which the
+  // serializer writes out with a blank line between the items. Lists the
+  // user builds by typing stay tight.
+  wrappingInputRule(/^\s*([-+*])\s$/, schema.nodes.bullet_list, () => ({
+    tight: true,
+  })),
   wrappingInputRule(/^(\d+)\.\s$/, schema.nodes.ordered_list, (match) => ({
     order: Number(match[1]),
+    tight: true,
   })),
   wrappingInputRule(/^\s*>\s$/, schema.nodes.blockquote),
   textblockTypeInputRule(/^(#{1,6})\s$/, schema.nodes.heading, (match) => ({

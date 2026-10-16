@@ -23,6 +23,11 @@ describe("markdown editor setup", () => {
     expect(serializeMarkdown(parseMarkdown(source))).toBe(source);
   });
 
+  test("keeps an intentionally loose list loose", () => {
+    const source = "* one\n\n* two\n\n* three";
+    expect(serializeMarkdown(parseMarkdown(source))).toBe(source);
+  });
+
   test("round-trips Liquid placeholders untouched", () => {
     const source = "Hi {{ attendee_name }}, see {{ listing_name }}.";
     expect(serializeMarkdown(parseMarkdown(source))).toBe(source);

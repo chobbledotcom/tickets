@@ -20,7 +20,10 @@ import {
   enhanceMarkdownTextarea,
   initMarkdownEditor,
 } from "#src/ui/client/admin/markdown-editor.ts";
-import { serializeMarkdown } from "#src/ui/client/admin/markdown-editor-setup.ts";
+import {
+  editorKeymap,
+  serializeMarkdown,
+} from "#src/ui/client/admin/markdown-editor-setup.ts";
 import {
   cleanup,
   enhanced,
@@ -49,6 +52,26 @@ describe("markdown editor input rules", () => {
     typeText(handle.view, "- milk");
     expect(handle.view.state.doc.firstChild?.type.name).toBe("bullet_list");
     expect(textarea.value).toBe("* milk");
+  });
+
+  test("typing a second list item keeps the list tight", () => {
+    // Enter after a list item starts the next item; the saved markdown must
+    // not grow a blank line between the items.
+    const bullet = enhanced("");
+    typeText(bullet.handle.view, "- milk");
+    editorKeymap().Enter!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    typeText(bullet.handle.view, "honey");
+    expect(bullet.textarea.value).toBe("* milk\n* honey");
+
+    const ordered = enhanced("");
+    typeText(ordered.handle.view, "1. milk");
+    editorKeymap().Enter!(ordered.handle.view.state, (tr) =>
+      ordered.handle.view.dispatch(tr),
+    );
+    typeText(ordered.handle.view, "honey");
+    expect(ordered.textarea.value).toBe("1. milk\n2. honey");
   });
 
   test("typing '3. ' starts an ordered list at 3", () => {

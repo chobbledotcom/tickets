@@ -130,14 +130,14 @@ export const TOOLBAR_ITEMS: ToolbarItem[] = [
     isActive: inAncestor(nodes.bullet_list),
     key: "bullet",
     label: "Bulleted list",
-    run: runCommand(wrapInList(nodes.bullet_list)),
+    run: runCommand(wrapInList(nodes.bullet_list, { tight: true })),
     text: "• List",
   },
   {
     isActive: inAncestor(nodes.ordered_list),
     key: "ordered",
     label: "Numbered list",
-    run: runCommand(wrapInList(nodes.ordered_list)),
+    run: runCommand(wrapInList(nodes.ordered_list, { tight: true })),
     text: "1. List",
   },
   {
