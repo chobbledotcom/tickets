@@ -14,8 +14,6 @@ import type {
 import { adminPath } from "#shared/admin-surface.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import {
-  AdminPage,
-  type AdminPageProps,
   type FlashPageRenderer,
   renderAdminPageSpec,
 } from "#templates/admin/admin-page-spec.tsx";
@@ -33,24 +31,15 @@ export const adminListingLink = linkCell(
   (listing) => listing.name,
 );
 
-/** Render an <AdminPage> to an HTML string from its props and body — the one
- *  `String(<AdminPage …>{body}</AdminPage>)` wrapper every admin opener below
- *  shares, so the props each opener sets (flash+actions, theme, or none) are the
- *  only difference between them. */
-const stringifyAdminPage = (
-  props: Omit<AdminPageProps, "children">,
-  children: Child,
-): string => String(<AdminPage {...props}>{children}</AdminPage>);
-
-/** Render an admin page to an HTML string with no flash — the plain
- *  `String(<AdminPage active session title>…</AdminPage>)` wrapper shared by
- *  the bulk-email pages, the Site-tab collection pages, and the API-keys pages. */
+/** Render an admin page to an HTML string with no flash — the plain wrapper
+ *  the confirm pages, the bulk-email page, the Site-tab collection pages, and
+ *  the API-keys pages share. */
 export const renderAdminPage = (
   active: NavActive,
   session: AdminSession,
   title: string,
   children: Child,
-): string => stringifyAdminPage({ active, session, title }, children);
+): string => openWithNotices(active, title, children, session);
 
 /** The one notice-carrying page render the openers share: the spec's flash
  *  bag carries whatever the route passed back, and an empty bag renders no
@@ -71,53 +60,11 @@ const openWithNotices = (
     title,
   });
 
-/**
- * Curried admin-page opener for the list pages (holidays, logistics) and
- * dashboards (update, builder) that share the
- *   (session, [...flash args]) => String(<AdminPage active="/admin/settings"
- *   flash={...} session=session title={title}>){body})()
- * shape. The `flash` builder receives whatever args the specialisation
- * forwards and returns the Flash element (or null); the two exports below
- * specialise it for the success-message list pages and the error/success
- * dashboard pages. The returned body receiver also takes an optional
- * `actions` arg — when supplied, AdminPage renders it as the page's action
- * row so the `<p class="actions">` scaffold lives in one place.
- */
-const curriedAdminPage =
-  <FlashArgs extends unknown[]>(
-    title: string,
-    active: NavActive,
-    flash: (...args: FlashArgs) => JSX.Element | null,
-  ) =>
-  (session: AdminSession, ...flashArgs: FlashArgs) =>
-  (body: Child, actions?: Child): string =>
-    stringifyAdminPage(
-      { actions, active, flash: flash(...flashArgs), session, title },
-      body,
-    );
-
-/** Build a titled admin opener from just its `flash` builder — the shared
- *  `(title, active?) => curriedAdminPage(title, active, flash)` shape the three
- *  specialisations below only differ in the flash argument shape of. */
-const adminOpenerFor =
-  <FlashArgs extends unknown[]>(
-    flash: (...args: FlashArgs) => JSX.Element | null,
-  ) =>
-  (title: string, active: NavActive = "/admin/settings") =>
-    curriedAdminPage(title, active, flash);
-
-/** List-page admin opener: takes the page title (and optional `active`),
- *  returns a function taking (session, successMessage) and producing a
- *  page-body receiver. Renders a success Flash when successMessage is set. */
-export const successAdminPage = adminOpenerFor((success?: string) =>
-  success === undefined ? null : <Flash success={success} />,
-);
-
 /** CRUD edit-page admin opener: takes the page title (and optional `active`),
  *  returns a function taking (session, error) and producing a page-body
  *  receiver. Renders an error Flash when error is set; otherwise no Flash.
  *  Used by the holiday/logistics edit pages. */
-export const errorFlash = (error?: string): JSX.Element | null =>
+const errorFlash = (error?: string): JSX.Element | null =>
   error === undefined ? null : <Flash error={error} />;
 
 /** Wrap an entity edit panel with its optional rejected-form error. */
@@ -145,7 +92,14 @@ export const recordEditPanel =
       </SaveForm>,
     );
 
-export const errorAdminPage = adminOpenerFor(errorFlash);
+/** The detail, edit, and guard pages: one error notice over a bespoke body.
+ *  Binds the title and nav link once; the renderer takes the viewer and the
+ *  rejection notice, then the body. */
+export const errorAdminPage =
+  (title: string, active: NavActive) =>
+  (session: AdminSession, error: string | undefined) =>
+  (body: Child): string =>
+    openWithNotices(active, title, body, session, error);
 
 /** Bind a dashboard page to its title, nav link, and a body built from the
  *  loaded data; the renderer carries the notices its route passes back — the
@@ -171,40 +125,38 @@ export function flashDataPage<Data>(
     );
 }
 
-/** The error/success notices a page carries in one bag, so a page function can
- *  take a single `opts` argument instead of positional notice params. */
-export type FlashOpts = {
-  error?: string | undefined;
-  success?: string | undefined;
-};
-
-/** Curried opener for pages that carry their error/success notices inside a
- *  single `opts` object (the Site tab and the users pages). Binds the title
- *  and nav highlight, then takes the session plus that opts object, and
- *  returns the page-body receiver. */
+/** The pages that carry their error/success notices in one opts bag (the
+ *  users list, the site tab). Binds the title and nav highlight once. */
 export const flashOptsPage =
   (title: string, active: string) =>
-  (session: AdminSession, opts: FlashOpts) =>
-  (body: Child): string =>
+  (
+    session: AdminSession,
+    opts: { error?: string | undefined; success?: string | undefined },
+    body: Child,
+  ): string =>
     openWithNotices(active, title, body, session, opts.error, opts.success);
 
-/** Bind a collection page to its title and nav highlight once. The returned
- *  function renders the whole page from the items it lists, the viewer's
- *  session, and an optional success notice — the exact signature the
- *  list-page routes (groups, logistics) call with. */
+/** Bind a list page to its title, nav link, and a body built from the items
+ *  and the viewer; the renderer carries a write's success notice — the exact
+ *  signature the list-page routes call with. */
 export const successListPage =
   <Items,>(
     titleKey: string,
-    active: string,
+    active: NavActive,
     body: (items: Items, session: AdminSession) => Child,
   ): ((
     items: Items,
     session: AdminSession,
     successMessage?: string,
   ) => string) =>
-  (items: Items, session: AdminSession, successMessage?: string): string =>
-    successAdminPage(t(titleKey), active)(session, successMessage)(
+  (items, session, successMessage) =>
+    openWithNotices(
+      active,
+      t(titleKey),
       body(items, session),
+      session,
+      undefined,
+      successMessage,
     );
 
 /** A page that edits a many-to-many assignment: given the record, the list of

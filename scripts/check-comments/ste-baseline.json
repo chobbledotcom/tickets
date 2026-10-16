@@ -2444,10 +2444,8 @@
     "semicolon": 2
   },
   "src/ui/templates/admin/admin-page.tsx": {
-    "wordy": 1,
-    "contraction": 1,
     "long-sentence": 7,
-    "semicolon": 6
+    "semicolon": 5
   },
   "src/ui/templates/admin/agent-header.tsx": {
     "banned-modal": 1
