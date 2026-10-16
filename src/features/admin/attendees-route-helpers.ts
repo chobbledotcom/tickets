@@ -250,13 +250,6 @@ type AttendeeActionPagePreparation<Data> = (
   data: Data,
 ) => AttendeeActionPage<Data> | Promise<AttendeeActionPage<Data>>;
 
-/** A page with no data-dependent admission work. */
-export const attendeeActionPage =
-  <Data>(
-    render: AttendeeActionRenderer<Data>,
-  ): AttendeeActionPagePreparation<Data> =>
-  () => ({ reason: null, render });
-
 type AttendeeActionRoute = ParamsRoute<AttendeeIdRouteParams>;
 
 type AttendeeActionDefinition<

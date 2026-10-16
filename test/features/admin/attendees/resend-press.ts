@@ -56,15 +56,6 @@ export const recoverAllSides = async (
   });
 };
 
-/** Whether this fetch call is the buyer's confirmation email request, which
- * every stub answers with an acceptance. */
-export const isEmailRequest = (init?: RequestInit): boolean => {
-  const body = JSON.parse((init?.body as string) ?? "{}") as {
-    to?: string[];
-  };
-  return Array.isArray(body.to);
-};
-
 /** The press's success flash, then what its fetch moved: the named counts
  * of webhook and buyer-email requests, and the flags it left. The counts
  * are cumulative over the stub's calls. */
@@ -83,9 +74,13 @@ export const expectResendPress = async (
     String(args[0]).startsWith("https://hook.example.com"),
   );
   expect(webhookRequests).toHaveLength(counts.webhooks);
-  const emailRequests = calls.filter(({ args }) =>
-    isEmailRequest(args[1] as RequestInit),
-  );
+  // The buyer confirmation's provider request carries a `to` array; the
+  // registration webhook's payload does not.
+  const emailRequests = calls.filter(({ args }) => {
+    const [, options] = args as [string, RequestInit];
+    const body = JSON.parse(options.body as string) as { to?: string[] };
+    return Array.isArray(body.to);
+  });
   expect(emailRequests).toHaveLength(counts.buyerEmails);
   expect(await readPendingNotificationFlags(attendeeId)).toEqual(flags);
 };
