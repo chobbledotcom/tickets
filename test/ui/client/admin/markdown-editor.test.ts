@@ -28,6 +28,7 @@ import {
   cleanup,
   enhanced,
   installDom,
+  select,
 } from "#test-utils/markdown-editor-dom.ts";
 
 afterEach(cleanup);
@@ -72,6 +73,20 @@ describe("markdown editor input rules", () => {
     );
     typeText(ordered.handle.view, "honey");
     expect(ordered.textarea.value).toBe("1. milk\n2. honey");
+  });
+
+  test("Tab-joining a stored loose nested list keeps it loose", () => {
+    const bullet = enhanced("* parent\n  * child one\n\n  * child two\n* next");
+    // The caret in the last top-level item's text; Tab sinks it under the
+    // parent, where the command reuses the existing loose nested list
+    // instead of creating one. The reused list keeps its flag.
+    select(bullet.handle.view, 45);
+    editorKeymap().Tab!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    expect(bullet.textarea.value).toBe(
+      "* parent\n  * child one\n\n  * child two\n\n  * next",
+    );
   });
 
   test("Tab-nesting an item keeps the nested list tight", () => {
