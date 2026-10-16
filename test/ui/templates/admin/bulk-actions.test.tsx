@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
 import { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import {
@@ -14,6 +13,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
+import { assertPageMatchesSnapshot } from "#test-utils/page-snapshot.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
@@ -328,21 +328,16 @@ describe("admin bulk action templates", () => {
   });
 
   describe("the bulk-actions page shells", () => {
-    test("renders the landing page shell with the group nav and actions", () => {
+    test("renders the landing page identically to the parent build", () => {
       const html = adminBulkActionsPage(GROUP, [ACTIVE], OWNER_SESSION);
 
-      expect(html).toContain('data-page-family="admin"');
-      expect(html).toContain('<a class="active" href="/admin/groups">');
-      expect(html).toContain(
-        "<title>Bulk Actions: Summer &lt;Crew&gt;</title>",
+      assertPageMatchesSnapshot(
+        new URL("./bulk-landing.snapshot.html", import.meta.url),
+        html,
       );
-      expect(html).toContain(`<h1>${t("bulk_actions.page_title")}</h1>`);
-      expect(html).toContain('href="/admin/groups/17/bulk-actions/duplicate"');
-      expect(html).toContain('href="/admin/groups/17/bulk-actions/deactivate"');
-      expect(html).not.toContain("/bulk-actions/reactivate");
     });
 
-    test("renders the duplicate page shell with its error flash", () => {
+    test("renders the duplicate page identically to the parent build", () => {
       const html = adminDuplicateGroupPage(
         GROUP,
         [ACTIVE],
@@ -350,12 +345,9 @@ describe("admin bulk action templates", () => {
         "Group name is taken",
       );
 
-      expect(html).toContain('data-page-family="admin"');
-      expect(html).toContain('<a class="active" href="/admin/groups">');
-      expect(html).toContain("Group name is taken");
-      expect(html).toContain('id="duplicate-group-form"');
-      expect(html).toContain(
-        'action="/admin/groups/17/bulk-actions/duplicate"',
+      assertPageMatchesSnapshot(
+        new URL("./bulk-duplicate.snapshot.html", import.meta.url),
+        html,
       );
     });
   });

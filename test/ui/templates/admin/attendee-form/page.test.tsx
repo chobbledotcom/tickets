@@ -1,9 +1,7 @@
-/** The attendee-form pages' shells: the spec render around the create form
- *  and the prose-headed attendees page. */
+/** The attendee-form pages' whole-page equality: both shells render the exact
+ *  markup the parent build rendered for the same inputs. */
 
-import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
 import {
   AttendeesPage,
   attendeeFormPage,
@@ -12,22 +10,22 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { assertPageMatchesSnapshot } from "#test-utils/page-snapshot.ts";
 import { data } from "./fixtures.ts";
 
 describe("attendee form page shells", () => {
   beforeAll(setupAdminPageTest);
 
-  test("renders the create page shell around the form panel", () => {
+  test("renders the create page identically to the parent build", () => {
     const html = attendeeFormPage(data(), OWNER_SESSION);
 
-    expect(html).toContain('data-page-family="admin"');
-    expect(html).toContain(`<title>${t("attendee_form.title_create")}</title>`);
-    expect(html).toContain('id="attendee-form"');
-    expect(html).toContain('<form action="/admin/attendees/new"');
-    expect(html).toContain("<h1>Add new attendee</h1>");
+    assertPageMatchesSnapshot(
+      new URL("./attendee-create.snapshot.html", import.meta.url),
+      html,
+    );
   });
 
-  test("renders the attendees page shell with its prose heading", () => {
+  test("renders the attendees page identically to the parent build", () => {
     const html = AttendeesPage({
       active: "/admin/attendees",
       children: <p>The body</p>,
@@ -36,13 +34,9 @@ describe("attendee form page shells", () => {
       title: "Attendees",
     });
 
-    expect(html).toContain('data-page-family="admin"');
-    expect(html).toContain('<a class="active" href="/admin/attendees">');
-    expect(html).toContain("<h1>Attendees</h1>");
-    expect(html).toContain("<p>The intro</p>");
-    expect(html).toContain("<p>The body</p>");
-    expect(html.indexOf("<h1>Attendees</h1>")).toBeLessThan(
-      html.indexOf("<p>The body</p>"),
+    assertPageMatchesSnapshot(
+      new URL("./attendee-page.snapshot.html", import.meta.url),
+      html,
     );
   });
 });
