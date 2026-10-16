@@ -1,7 +1,7 @@
 /* jscpd:ignore-start */
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { adminFormPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import type { NavActive } from "#templates/admin/nav.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
@@ -69,20 +69,21 @@ export const adminRecalculatePage = ({
   submitLabel: string;
   title: string;
 }): string =>
-  adminFormPage({
-    action,
+  renderAdminPageSpec({
     active,
-    children: (
-      <>
-        <div class="prose">
-          <p>{description}</p>
-        </div>
-        {renderTable(recalculateTable(currentLabel, recalculatedLabel), rows)}
-        <SubmitButton icon="save">{submitLabel}</SubmitButton>
-      </>
-    ),
-    error,
+    form: {
+      action,
+      fields: (
+        <>
+          <div class="prose">
+            <p>{description}</p>
+          </div>
+          {renderTable(recalculateTable(currentLabel, recalculatedLabel), rows)}
+          <SubmitButton icon="save">{submitLabel}</SubmitButton>
+        </>
+      ),
+      flash: { error, success },
+    },
     session,
-    success,
     title,
   });

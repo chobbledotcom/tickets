@@ -13,7 +13,7 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { MessageFields } from "#shared/forms/message-fields.tsx";
 import { renderMarkdown } from "#shared/markdown.ts";
-import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { RawParagraph } from "#templates/components/prose-heading.tsx";
 import type { AdminSession } from "#types";
@@ -53,22 +53,24 @@ export const adminSupportPage = (opts: {
   success?: string | undefined;
   error?: string | undefined;
 }): string =>
-  flashAdminPage(t("support.page_title"), "/admin/support")(
-    opts.session,
-    opts.error,
-    opts.success,
-  )(
-    <>
-      <div class="prose">
-        {opts.supportText ? (
-          <Raw html={renderMarkdown(opts.supportText)} />
-        ) : (
-          <RawParagraph html={t("support.missing_text")} />
-        )}
-      </div>
-      {opts.formActive && <SupportForm nagLabel={opts.nagLabel} />}
-      <GuideFooter href="/admin/guide#support">
-        {t("support.guide_link")}
-      </GuideFooter>
-    </>,
-  );
+  renderAdminPageSpec({
+    active: "/admin/support",
+    body: (
+      <>
+        <div class="prose">
+          {opts.supportText ? (
+            <Raw html={renderMarkdown(opts.supportText)} />
+          ) : (
+            <RawParagraph html={t("support.missing_text")} />
+          )}
+        </div>
+        {opts.formActive && <SupportForm nagLabel={opts.nagLabel} />}
+        <GuideFooter href="/admin/guide#support">
+          {t("support.guide_link")}
+        </GuideFooter>
+      </>
+    ),
+    flash: { error: opts.error, success: opts.success },
+    session: opts.session,
+    title: t("support.page_title"),
+  });

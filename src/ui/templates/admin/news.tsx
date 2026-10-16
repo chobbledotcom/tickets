@@ -16,7 +16,7 @@ import {
 } from "#routes/admin/news-form.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { adminFormPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { prefixedDeletePage } from "#templates/admin/confirm-page.tsx";
 import { rowDeleteLink } from "#templates/admin/delete-link.tsx";
 import {
@@ -76,16 +76,18 @@ export const adminNewsNewPage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  adminFormPage({
-    action: LIST,
+  renderAdminPageSpec({
     active: ACTIVE,
-    children: (
-      <>
-        <Raw html={newsPostForm.render()} />
-        <SubmitButton icon="plus">{t("news.create_submit")}</SubmitButton>
-      </>
-    ),
-    error,
+    form: {
+      action: LIST,
+      fields: (
+        <>
+          <Raw html={newsPostForm.render()} />
+          <SubmitButton icon="plus">{t("news.create_submit")}</SubmitButton>
+        </>
+      ),
+      flash: { error },
+    },
     session,
     title: t("news.new_title"),
   });

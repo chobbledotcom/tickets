@@ -10,7 +10,7 @@ import { formatDatetimeShort } from "#shared/dates.ts";
 import { SMS_MESSAGE_MAX_LENGTH } from "#shared/sms/message-limit.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
@@ -106,29 +106,28 @@ const ComposeForm = ({
   );
 
 export const smsPage = (session: AdminSession, opts: SmsPageOptions): string =>
-  flashAdminPage(
-    opts.target
+  renderAdminPageSpec({
+    active: "/admin/",
+    body: (
+      <>
+        <p>{t("sms.queue.awaiting", { count: opts.queueCount })}</p>
+
+        {opts.target && (
+          <Raw
+            html={ComposeForm({
+              attendee: opts.target.attendee,
+              configured: opts.configured,
+              history: opts.history,
+              listing: opts.target.listing,
+            })}
+          />
+        )}
+        <GuideFooter href="/admin/guide#sms">{t("sms.guide_link")}</GuideFooter>
+      </>
+    ),
+    flash: { error: opts.flash.error, success: opts.flash.success },
+    session,
+    title: opts.target
       ? t("sms.contact.title", { name: opts.target.attendee.name })
       : t("sms.page.title"),
-    "/admin/",
-  )(
-    session,
-    opts.flash.error,
-    opts.flash.success,
-  )(
-    <>
-      <p>{t("sms.queue.awaiting", { count: opts.queueCount })}</p>
-
-      {opts.target && (
-        <Raw
-          html={ComposeForm({
-            attendee: opts.target.attendee,
-            configured: opts.configured,
-            history: opts.history,
-            listing: opts.target.listing,
-          })}
-        />
-      )}
-      <GuideFooter href="/admin/guide#sms">{t("sms.guide_link")}</GuideFooter>
-    </>,
-  );
+  });

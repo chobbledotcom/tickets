@@ -2,7 +2,7 @@ import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
-import type { FlashPageRenderer } from "#templates/admin/admin-page.tsx";
+import type { FlashPageRenderer } from "#templates/admin/admin-page-spec.tsx";
 import { adminRecalculatePage } from "#templates/admin/recalculate.tsx";
 import type { IconName } from "#templates/components/actions.tsx";
 import { mappedItems } from "#templates/components/item-list.tsx";

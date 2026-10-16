@@ -92,6 +92,15 @@ const listBody = <TItem,>(list: AdminPageListPart<TItem>): JSX.Element => (
   </>
 );
 
+/** The render function a flash-carrying admin page exposes: given the viewer's
+ *  session and optional error/success notices, it returns the page HTML. Shared
+ *  by the single-form pages and the resource pages. */
+export type FlashPageRenderer = (
+  session: AdminSession,
+  error?: string,
+  success?: string,
+) => string;
+
 /** Open an admin page from its spec — the one render function every admin
  *  page goes through. */
 export const renderAdminPageSpec = <TItem,>(
