@@ -34,7 +34,7 @@ import {
   sinkListItem,
   splitListItem,
 } from "prosemirror-schema-list";
-import { type Command, EditorState } from "prosemirror-state";
+import { type Command, EditorState, type Transaction } from "prosemirror-state";
 
 /** Parse markdown text into an editing document. */
 export const parseMarkdown = (text: string): Node =>
@@ -66,6 +66,53 @@ const insertHardBreak: Command = chainCommands(exitCode, (state, dispatch) => {
 });
 
 /**
+ * Fix the attrs of a fresh nested list on the sunk transaction. The list
+ * around the caret gets `tight: true` when the document before the command
+ * holds no list of the same type at the mapped-back position. A list that
+ * already existed keeps its own flag.
+ */
+const tightenFreshNestedList = (before: Node, tr: Transaction): Transaction => {
+  const back = tr.mapping.invert();
+  const $from = tr.selection.$from;
+  let fixed = tr;
+  for (let depth = $from.depth; depth > 0; depth--) {
+    const node = $from.node(depth);
+    if (
+      node.type !== schema.nodes.bullet_list &&
+      node.type !== schema.nodes.ordered_list
+    ) {
+      continue;
+    }
+    if (!node.attrs.tight) {
+      const start = $from.before(depth);
+      const oldNode = before.nodeAt(back.map(start, -1));
+      if (oldNode?.type !== node.type) {
+        fixed = fixed.setNodeMarkup(start, undefined, {
+          ...node.attrs,
+          tight: true,
+        });
+      }
+    }
+    break;
+  }
+  return fixed;
+};
+
+/**
+ * Tab: sink the list item. A nested list the command creates anew carries
+ * the schema's `tight: false` default. The serializer writes a blank line
+ * between the items of such a list, so the attrs are fixed on the command's
+ * own transaction.
+ */
+const sinkListItemTight = (): Command => (state, dispatch) => {
+  if (!dispatch) return sinkListItem(schema.nodes.list_item)(state);
+  const ok = sinkListItem(schema.nodes.list_item)(state, (tr: Transaction) => {
+    dispatch(tightenFreshNestedList(state.doc, tr));
+  });
+  return ok;
+};
+
+/**
  * The editor's own key bindings; `baseKeymap` (added separately, after this
  * map) handles everything else, so each binding here only needs to cover its
  * specific structure and can fall through by returning false.
@@ -80,7 +127,7 @@ export const editorKeymap = (): Record<string, Command> => ({
   "Shift-Enter": insertHardBreak,
   "Shift-Mod-z": redo,
   "Shift-Tab": liftListItem(schema.nodes.list_item),
-  Tab: sinkListItem(schema.nodes.list_item),
+  Tab: sinkListItemTight(),
 });
 
 /** Typing `[text](url)` converts to a real link, matching the markdown

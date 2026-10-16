@@ -74,6 +74,44 @@ describe("markdown editor input rules", () => {
     expect(ordered.textarea.value).toBe("1. milk\n2. honey");
   });
 
+  test("Tab-nesting an item keeps the nested list tight", () => {
+    // Enter, then Tab on the second item sinks it under the first: the
+    // nested list the command creates must save tight.
+    const bullet = enhanced("");
+    typeText(bullet.handle.view, "- parent");
+    editorKeymap().Enter!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    typeText(bullet.handle.view, "child one");
+    editorKeymap().Tab!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    editorKeymap().Enter!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    typeText(bullet.handle.view, "child two");
+    expect(bullet.textarea.value).toBe(
+      "* parent\n  * child one\n  * child two",
+    );
+
+    const ordered = enhanced("");
+    typeText(ordered.handle.view, "1. parent");
+    editorKeymap().Enter!(ordered.handle.view.state, (tr) =>
+      ordered.handle.view.dispatch(tr),
+    );
+    typeText(ordered.handle.view, "child one");
+    editorKeymap().Tab!(ordered.handle.view.state, (tr) =>
+      ordered.handle.view.dispatch(tr),
+    );
+    editorKeymap().Enter!(ordered.handle.view.state, (tr) =>
+      ordered.handle.view.dispatch(tr),
+    );
+    typeText(ordered.handle.view, "child two");
+    expect(ordered.textarea.value).toBe(
+      "1. parent\n   1. child one\n   2. child two",
+    );
+  });
+
   test("typing '3. ' starts an ordered list at 3", () => {
     const { handle, textarea } = enhanced("");
     typeText(handle.view, "3. third");
