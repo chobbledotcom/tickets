@@ -9,9 +9,9 @@ import { Flash } from "#shared/forms/flash.tsx";
 import {
   AdminPage,
   adminListingLink,
-  renderAdminPage,
-  staffAdminPage,
+  flashDataPage,
 } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
@@ -90,12 +90,12 @@ describe("rendering an admin page to a string", () => {
   beforeAll(setupAdminPageTest);
 
   test("marks the nav link the page belongs to", () => {
-    const html = renderAdminPage(
-      "/admin/settings",
-      OWNER_SESSION,
-      "Plain page",
-      <p>Plain body</p>,
-    );
+    const html = renderAdminPageSpec({
+      active: "/admin/settings",
+      body: <p>Plain body</p>,
+      session: OWNER_SESSION,
+      title: "Plain page",
+    });
 
     expect(html).toContain("<title>Plain page</title>");
     expect(html).toContain('<a class="active" href="/admin/settings">');
@@ -107,11 +107,11 @@ describe("the page staff and agents share", () => {
   beforeAll(setupAdminPageTest);
 
   const staffPage = (session: AdminSession): string =>
-    staffAdminPage({
+    renderAdminPageSpec({
       active: "/admin/deliveries",
-      children: <p>Run sheet</p>,
+      body: <p>Run sheet</p>,
       session,
-      staffHeading: <h1>For staff</h1>,
+      staff: { heading: <h1>For staff</h1> },
       title: "Deliveries",
     });
 
@@ -128,5 +128,40 @@ describe("the page staff and agents share", () => {
     expect(html).not.toContain("<h1>For staff</h1>");
     expect(html).toContain("Deliveries");
     expect(html).toContain("<p>Run sheet</p>");
+  });
+});
+
+describe("the data-page opener the backup and update dashboards share", () => {
+  beforeAll(setupAdminPageTest);
+
+  const opener = (active: string | undefined) =>
+    flashDataPage<{ note: string }>("backup.page_title", active, ({ note }) => (
+      <p>{note}</p>
+    ));
+
+  test("marks the nav section the caller names, and renders the body and notices", () => {
+    const html = opener("/admin/backup")(
+      OWNER_SESSION,
+      { note: "Snapshot" },
+      "Restore failed",
+      "Backup saved",
+    );
+
+    expect(html).toContain("<title>Database backup</title>");
+    expect(html).toContain('class="active" href="/admin/backup"');
+    expect(html).toContain("<p>Snapshot</p>");
+    expect(html).toContain("Restore failed");
+    expect(html).toContain("Backup saved");
+    expect(html.indexOf("Restore failed")).toBeLessThan(
+      html.indexOf("<p>Snapshot</p>"),
+    );
+  });
+
+  test("falls back to the settings section when the caller names none", () => {
+    const html = opener(undefined)(OWNER_SESSION, { note: "Snapshot" });
+
+    expect(html).toContain('class="active" href="/admin/settings"');
+    expect(html).not.toContain('class="active" href="/admin/backup"');
+    expect(html).toContain("<p>Snapshot</p>");
   });
 });
