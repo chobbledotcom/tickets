@@ -15,7 +15,8 @@ import { formatDateLabel } from "#shared/date-labels.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
-import { AdminPage, adminListingLink } from "#templates/admin/admin-page.tsx";
+import { adminListingLink } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
@@ -239,19 +240,20 @@ export const adminListingQrPage = ({
   error,
   result,
 }: AdminListingQrPageOptions): string =>
-  String(
-    <AdminPage
-      active="/admin/"
-      session={session}
-      title={t("listing_qr.title", { name: listing.name })}
-    >
-      {ListingQrPanel({
-        bookableDates,
-        canDirectCheckout,
-        listing,
-        values,
-        ...(error !== undefined ? { error } : {}),
-        ...(result !== undefined ? { result } : {}),
-      })}
-    </AdminPage>,
-  );
+  renderAdminPageSpec({
+    active: "/admin/",
+    body: (
+      <>
+        {ListingQrPanel({
+          bookableDates,
+          canDirectCheckout,
+          listing,
+          values,
+          ...(error !== undefined ? { error } : {}),
+          ...(result !== undefined ? { result } : {}),
+        })}
+      </>
+    ),
+    session,
+    title: t("listing_qr.title", { name: listing.name }),
+  });

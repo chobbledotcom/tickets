@@ -19,7 +19,7 @@ import {
   agentFilterParam,
   renderAgentFilter,
 } from "#shared/logistics-filter.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import {
   AvailabilityChecker,
   type AvailabilityRow,
@@ -129,53 +129,56 @@ export const adminCalendarPage = (
         })
       : [];
 
-  return String(
-    <AdminPage
-      active="/admin/calendar"
-      session={session}
-      title={t("admin.calendar.title")}
-    >
-      <article id="attendees">
-        <DatePicker
-          ariaLabel="Select a date"
-          clearHref={link(
-            { agent: "all", date: null, month: null },
-            "#attendees",
+  return renderAdminPageSpec({
+    active: "/admin/calendar",
+    body: (
+      <>
+        <article id="attendees">
+          <DatePicker
+            ariaLabel="Select a date"
+            clearHref={link(
+              { agent: "all", date: null, month: null },
+              "#attendees",
+            )}
+            dates={availableDates}
+            dayHref={(value) =>
+              link({ date: value, month: null }, "#attendees")
+            }
+            monthHref={(month) => link({ month }, "#calendar")}
+            selected={dateFilter}
+            today={today}
+            viewMonth={viewMonth}
+          />
+          {dateFilter && (
+            <p>
+              <strong>{formatDateLabel(dateFilter)}</strong>
+            </p>
           )}
-          dates={availableDates}
-          dayHref={(value) => link({ date: value, month: null }, "#attendees")}
-          monthHref={(month) => link({ month }, "#calendar")}
-          selected={dateFilter}
-          today={today}
-          viewMonth={viewMonth}
-        />
-        {dateFilter && (
-          <p>
-            <strong>{formatDateLabel(dateFilter)}</strong>
-          </p>
-        )}
-        <AvailabilityChecker date={dateFilter} rows={availabilityRows} />
-        {sharedRows.length > 0 && <DetailTable rows={sharedRows} />}
-        {agents.length > 0 && (
-          <Raw html={renderAgentFilter(agentFilter, agents, agentHref)} />
-        )}
-        {AttendeeTable({
-          allowedDomain,
-          emptyMessage,
-          phonePrefix,
-          questionData,
-          returnUrl,
-          rows: tableRows,
-          showDate: false,
-          showListing: true,
-        })}
-        {dateFilter && attendees.length > 0 && (
-          <div class="table-actions">
-            <a href={exportHref}>{t("admin.calendar.export_csv")}</a>
-          </div>
-        )}
-      </article>
-      <GuideFooter href="/admin/guide#calendar">Calendar guide</GuideFooter>
-    </AdminPage>,
-  );
+          <AvailabilityChecker date={dateFilter} rows={availabilityRows} />
+          {sharedRows.length > 0 && <DetailTable rows={sharedRows} />}
+          {agents.length > 0 && (
+            <Raw html={renderAgentFilter(agentFilter, agents, agentHref)} />
+          )}
+          {AttendeeTable({
+            allowedDomain,
+            emptyMessage,
+            phonePrefix,
+            questionData,
+            returnUrl,
+            rows: tableRows,
+            showDate: false,
+            showListing: true,
+          })}
+          {dateFilter && attendees.length > 0 && (
+            <div class="table-actions">
+              <a href={exportHref}>{t("admin.calendar.export_csv")}</a>
+            </div>
+          )}
+        </article>
+        <GuideFooter href="/admin/guide#calendar">Calendar guide</GuideFooter>
+      </>
+    ),
+    session,
+    title: t("admin.calendar.title"),
+  });
 };

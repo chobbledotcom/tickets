@@ -8,7 +8,7 @@ import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { FieldValues } from "#shared/forms/values.ts";
 import { inferTemplate, LISTING_TEMPLATES } from "#shared/listing-templates.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import type { ChildProps } from "#templates/components/child-props.ts";
 import type { AdminSession, Group, ListingWithCount } from "#types";
@@ -41,11 +41,12 @@ const listingNewAdminPage = (
   title: string,
   body: Child,
 ): string =>
-  String(
-    <AdminPage active="/admin/listing/new" session={session} title={title}>
-      {body}
-    </AdminPage>,
-  );
+  renderAdminPageSpec({
+    active: "/admin/listing/new",
+    body,
+    session,
+    title,
+  });
 
 const createListingFormPage = ({
   beforeForm,

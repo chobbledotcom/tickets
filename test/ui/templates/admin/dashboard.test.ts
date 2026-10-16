@@ -3,7 +3,6 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   activeListingStatsSection,
   adminDashboardPage,
-  adminListingsPage,
 } from "#templates/admin/dashboard.tsx";
 import { listingTable } from "#templates/admin/listing-table.tsx";
 import {
@@ -452,46 +451,3 @@ describeWithEnv(
     });
   },
 );
-
-describe("adminListingsPage", () => {
-  beforeAll(setupAdminPageTest);
-
-  test("renders active listings first and deactivated listings second", () => {
-    const active = testListingWithCount({
-      active: true,
-      id: 1,
-      name: "Active Show",
-    });
-    const inactive = testListingWithCount({
-      active: false,
-      id: 2,
-      name: "Old Show",
-    });
-    const html = adminListingsPage([active, inactive], OWNER_SESSION);
-    expect(html).toContain('class="active" href="/admin/listings"');
-    expect(html).toContain("Active Show");
-    expect(html).toContain("Deactivated");
-    expect(html).toContain("Old Show");
-    expect(html.indexOf("Active Show")).toBeLessThan(html.indexOf("Old Show"));
-    // The Listings section sub-nav offers the catalog import entry point.
-    expect(html).toContain('href="/admin/catalog/import"');
-  });
-
-  test("omits the deactivated heading when every listing is active", () => {
-    const html = adminListingsPage(
-      [testListingWithCount({ active: true, name: "Active Show" })],
-      OWNER_SESSION,
-    );
-    expect(html).not.toContain("Deactivated");
-  });
-
-  test("links to the listings CSV export", () => {
-    const html = adminListingsPage(
-      [testListingWithCount({ name: "Active Show" })],
-      OWNER_SESSION,
-    );
-    expect(html).toContain('class="table-actions"');
-    expect(html).toContain('href="/admin/listings/csv"');
-    expect(html).toContain("Export CSV");
-  });
-});

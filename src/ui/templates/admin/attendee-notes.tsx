@@ -11,19 +11,18 @@
  */
 
 import { groupNotesByTargetId } from "#db/notes/target.ts";
-import type { SystemNote } from "#db/notes/types.ts";
 /* jscpd:ignore-start */
+import type { SystemNote } from "#db/notes/types.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import { Flash } from "#shared/forms/flash.tsx";
 import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
 import { renderField } from "#shared/forms/rendering.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown, withoutLinksTo } from "#shared/markdown.ts";
 import { withReturnUrl } from "#shared/return-url-field.tsx";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
@@ -45,11 +44,11 @@ const attendeeUrl = (attendeeId: number): string =>
   `/admin/attendees/${attendeeId}`;
 
 /** The are-you-sure delete page for one note, returning to `returnUrl`. */
+const noteDeleteAction = (note: SystemNote): string =>
+  `/admin/attendee/${note.entity_id}/note/${note.id}/delete`;
+
 const deleteNoteUrl = (note: SystemNote, returnUrl: string): string =>
-  withReturnUrl(
-    `/admin/attendee/${note.entity_id}/note/${note.id}/delete`,
-    returnUrl,
-  );
+  withReturnUrl(noteDeleteAction(note), returnUrl);
 
 /** One note plus whether the viewer is an owner (the only role allowed to
  * open the ledger pages a note may link to). */
@@ -211,37 +210,38 @@ export const adminNoteNewPage = ({
   returnUrl,
   error,
 }: { attendeeId: number; attendeeName: string } & NotePageProps): string =>
-  String(
-    <AdminPage
-      active={{ section: "/admin/attendees" }}
-      flash={<Flash error={error} />}
-      session={session}
-      title={t("notes.add_title")}
-    >
-      <div class="prose">
-        <h1>{t("notes.add_heading", { name: attendeeName })}</h1>
-      </div>
-      <CsrfForm action={`/admin/attendee/${attendeeId}/note`}>
-        {hiddenInputs([["return_url", returnUrl]])}
-        <Raw
-          html={renderField({
-            hint: t("notes.note_hint"),
-            hintHtml: formattingHint(),
-            label: t("notes.note_label"),
-            markdown: true,
-            maxlength: MAX_TEXTAREA_LENGTH,
-            name: "note",
-            required: true,
-            type: "textarea",
-          })}
-        />
-        <NoteActions
-          returnUrl={returnUrl}
-          submit={<SubmitButton icon="save">{t("notes.save")}</SubmitButton>}
-        />
-      </CsrfForm>
-    </AdminPage>,
-  );
+  renderAdminPageSpec({
+    active: { section: "/admin/attendees" },
+    body: (
+      <>
+        <div class="prose">
+          <h1>{t("notes.add_heading", { name: attendeeName })}</h1>
+        </div>
+        <CsrfForm action={`/admin/attendee/${attendeeId}/note`}>
+          {hiddenInputs([["return_url", returnUrl]])}
+          <Raw
+            html={renderField({
+              hint: t("notes.note_hint"),
+              hintHtml: formattingHint(),
+              label: t("notes.note_label"),
+              markdown: true,
+              maxlength: MAX_TEXTAREA_LENGTH,
+              name: "note",
+              required: true,
+              type: "textarea",
+            })}
+          />
+          <NoteActions
+            returnUrl={returnUrl}
+            submit={<SubmitButton icon="save">{t("notes.save")}</SubmitButton>}
+          />
+        </CsrfForm>
+      </>
+    ),
+    flash: { error },
+    session,
+    title: t("notes.add_title"),
+  });
 
 /**
  * The are-you-sure delete page. Shows the note being deleted then a plain
@@ -257,7 +257,7 @@ export const adminNoteDeletePage = ({
   error,
 }: { note: SystemNote } & NotePageProps): string =>
   ConfirmPage({
-    action: `/admin/attendee/${note.entity_id}/note/${note.id}/delete`,
+    action: noteDeleteAction(note),
     active: { section: "/admin/attendees" },
     buttonText: t("notes.delete_submit"),
     children: (

@@ -5,15 +5,15 @@
  * from the page's {@link AttendeeListSetup}.
  */
 
-import type { SystemNote } from "#db/notes/types.ts";
 /* jscpd:ignore-start */
+import type { SystemNote } from "#db/notes/types.ts";
 import { t } from "#i18n";
 import type {
   AttendeeListSetup,
   AttendeeListState,
   AttendeeSort,
 } from "#shared/attendee-list-controls.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import { FilteredAttendeeTable } from "#templates/attendee-table/controls.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
@@ -43,37 +43,38 @@ export type AttendeesListPageProps = {
 
 /** Admin attendees browser page */
 export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
-  String(
-    <AdminPage
-      active={NAV_ACTIVE}
-      session={props.session}
-      title={t("terms.attendees")}
-    >
-      <PageBlock>
-        <AttendeeNotesSummary
-          isOwner={isOwnerRole(props.session.adminLevel)}
-          names={props.names}
-          notes={props.systemNotes}
-        />
+  renderAdminPageSpec({
+    active: NAV_ACTIVE,
+    body: (
+      <>
+        <PageBlock>
+          <AttendeeNotesSummary
+            isOwner={isOwnerRole(props.session.adminLevel)}
+            names={props.names}
+            notes={props.systemNotes}
+          />
 
-        <FilteredAttendeeTable
-          hasNext={props.hasNext}
-          options={{
-            allowedDomain: props.allowedDomain,
-            emptyMessage: t("attendees_list.no_attendees_yet"),
-            phonePrefix: props.phonePrefix,
-            presorted: true,
-            rows: props.rows,
-            showCheckin: false,
-            showDate: false,
-            showListing: true,
-          }}
-          view={{ setup: props.setup, state: props.state }}
-        />
-      </PageBlock>
+          <FilteredAttendeeTable
+            hasNext={props.hasNext}
+            options={{
+              allowedDomain: props.allowedDomain,
+              emptyMessage: t("attendees_list.no_attendees_yet"),
+              phonePrefix: props.phonePrefix,
+              presorted: true,
+              rows: props.rows,
+              showCheckin: false,
+              showDate: false,
+              showListing: true,
+            }}
+            view={{ setup: props.setup, state: props.state }}
+          />
+        </PageBlock>
 
-      <GuideFooter href="/admin/guide#attendees">
-        {t("attendees_list.guide_link")}
-      </GuideFooter>
-    </AdminPage>,
-  );
+        <GuideFooter href="/admin/guide#attendees">
+          {t("attendees_list.guide_link")}
+        </GuideFooter>
+      </>
+    ),
+    session: props.session,
+    title: t("terms.attendees"),
+  });
