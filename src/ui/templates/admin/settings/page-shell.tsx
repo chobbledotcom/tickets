@@ -15,7 +15,7 @@ import type { AdminSession, Theme } from "#types";
 /** Open a settings page: pass the title (and optional nav path), then the
  * session and the site's saved theme, then the page body. The settings guide
  * footer is always appended after the body. The nav path defaults to the
- * settings page, as {@link renderAdminPageSpec}'s themed pages always did. */
+ * settings page. */
 export const settingsPage =
   (title: string, active?: NavActive) =>
   (session: AdminSession, theme: Theme) =>
