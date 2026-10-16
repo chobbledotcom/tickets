@@ -437,4 +437,41 @@ describe("reading deno's JUnit report for uncaught errors", () => {
 
     expect(junitErroredTests(xml)).toEqual([]);
   });
+
+  test("keeps a record with absent attributes as empty values", () => {
+    // A record the JUnit writer left with no classname, name, line, column,
+    // or message still parses, so a malformed report cannot crash the
+    // summary that a failing run reads.
+    const xml = ["<testcase>", "            <error/>", "</testcase>"].join(
+      "\n",
+    );
+
+    expect(junitErroredTests(xml)).toEqual([
+      {
+        column: undefined,
+        file: "",
+        line: undefined,
+        message: "",
+        name: "",
+      },
+    ]);
+  });
+
+  test("reads non-numeric line and column as absent", () => {
+    const xml = [
+      '<testcase name="wordy" classname="./w.test.ts" line="top" col="left">',
+      '            <error message="Cancelled"/>',
+      "</testcase>",
+    ].join("\n");
+
+    expect(junitErroredTests(xml)).toEqual([
+      {
+        column: undefined,
+        file: "./w.test.ts",
+        line: undefined,
+        message: "Cancelled",
+        name: "wordy",
+      },
+    ]);
+  });
 });

@@ -67,13 +67,11 @@ const xmlNumber = (tag: string, attribute: string): number | undefined => {
 /** The errored <testcase> entries in deno's JUnit report, in report order. */
 export const junitErroredTests = (junit: string): JunitErroredTest[] => {
   const errored: JunitErroredTest[] = [];
-  const testcase = /<testcase\b([^>]*)>([\s\S]*?)<\/testcase>/g;
-  for (const match of junit.matchAll(testcase)) {
-    const tag = match[1];
-    const body = match[2];
-    if (tag === undefined || body === undefined) continue;
-    const error = body.match(/<error\b([^>]*)>/);
-    const errorTag = error?.[1];
+  const testcase = /<testcase\b(?<tag>[^>]*)>(?<body>[\s\S]*?)<\/testcase>/g;
+  for (const { groups } of junit.matchAll(testcase)) {
+    const { tag, body } = groups as { tag: string; body: string };
+    const error = body.match(/<error\b(?<errorTag>[^>]*)>/);
+    const errorTag = error?.groups?.errorTag;
     if (errorTag === undefined) continue;
     errored.push({
       column: xmlNumber(tag, "col"),
