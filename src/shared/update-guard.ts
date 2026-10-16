@@ -219,21 +219,26 @@ const waitClockFrom = (
 
 /** The plan one wait follows: the quiet gap before each check, and what
  * happens after a check that still finds the page unchanged. Keep waiting,
- * or raise the run-out. */
+ * or end the wait with an error the loop raises. */
 type UpdateWaitPlan = {
   gap: (checked: number) => number;
-  giveUp: (checked: number, poll: UpdatePoll) => Promise<void>;
+  /** One unchanged check's verdict: null keeps the wait going, and an
+   * error ends it. */
+  giveUp: (checked: number, poll: UpdatePoll) => Promise<Error | null>;
 };
 
 /** The check loop both waits share: sleep the plan's gap, poll, and end
- * the wait on a ready page or a pre-update-mode build. The plan's giveUp
- * keeps the wait going or raises its run-out. */
+ * the wait on a ready page or a pre-update-mode build. A check that still
+ * finds the page unchanged asks the plan. A non-null verdict ends the
+ * loop, and the loop raises that error. */
 const loopChecks = async (
   options: UpdateWaitOptions,
   plan: UpdateWaitPlan,
 ): Promise<void> => {
   const { sleep } = waitClockFrom(options);
-  for (let checked = 1; ; checked += 1) {
+  let checked = 1;
+  let runOut: Error | null = null;
+  while (runOut === null) {
     await sleep(plan.gap(checked));
     const poll = await pollOnce(options);
     const decision = checkDecision(options, poll);
@@ -242,8 +247,10 @@ const loopChecks = async (
       options.log?.(UNSUPPORTED_SKIP_MESSAGE);
       return;
     }
-    await plan.giveUp(checked, poll);
+    runOut = await plan.giveUp(checked, poll);
+    checked += 1;
   }
+  throw runOut;
 };
 
 /** Poll the site's read-only page until the update page shows. A failed
@@ -260,8 +267,8 @@ export const waitForUpdatePage = async (
   await loopChecks(options, {
     gap: (checked) => (checked === 1 ? 0 : UPDATE_WAIT_INTERVAL_MS),
     giveUp: async (_checked, poll) => {
-      if (now() < deadline) return;
-      throw new Error(
+      if (now() < deadline) return null;
+      return new Error(
         waitTimedOut(
           UPDATE_WAIT_TIMEOUT_MS,
           poll.lastError,
@@ -343,8 +350,8 @@ export const waitForBeginPropagation = async (
       options.log?.(
         `The site still does not show its update page ${Math.round(elapsed / 1000)} seconds after the flag was set.`,
       );
-      if (checked < segments.length) return;
-      throw await beginTimedOutError(revert, poll);
+      if (checked < segments.length) return null;
+      return await beginTimedOutError(revert, poll);
     },
   });
 };
