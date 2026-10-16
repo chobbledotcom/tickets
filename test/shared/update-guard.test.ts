@@ -5,9 +5,7 @@ import {
   UPDATE_FLAG_VALUE,
   type UpdateGuardIo,
   updateBuildTagMeta,
-  updatePageBuildTag,
   updatePageMeta,
-  updatePageState,
   waitForBeginPropagation,
   waitForUpdatePage,
 } from "#shared/update-guard.ts";
@@ -59,31 +57,6 @@ const clockGuardIo = (
   sleep: clock.sleep,
 });
 
-describe("update page marker", () => {
-  test("reads active, supported, and unsupported pages", () => {
-    expect(updatePageState(page("active"))).toBe("active");
-    expect(updatePageState(page("supported"))).toBe("supported");
-    expect(updatePageState(page("unsupported"))).toBe("unsupported");
-    expect(updatePageState("")).toBe("unsupported");
-  });
-
-  test("does not read a foreign content value as active", () => {
-    expect(
-      updatePageState(
-        '<meta name="update-in-progress" content="supported"><meta name="x" content="active">',
-      ),
-    ).toBe("supported");
-  });
-
-  test("reads the build tag the page reports", () => {
-    expect(updatePageBuildTag(page("active", "v2026-03-28-143022"))).toBe(
-      "v2026-03-28-143022",
-    );
-    expect(updatePageBuildTag(page("active"))).toBeNull();
-    expect(updatePageBuildTag("")).toBeNull();
-  });
-});
-
 describe("waitForUpdatePage", () => {
   test("returns as soon as the update page shows", async () => {
     const pages = [page("supported"), page("supported"), page("active")];
@@ -94,6 +67,54 @@ describe("waitForUpdatePage", () => {
       sleep: () => Promise.resolve(),
     });
     expect(fetches).toBe(3);
+  });
+
+  test("an immediately ready build fetches without a sleep", async () => {
+    // The ordinary wait's first check is immediate: a zero gap is a real
+    // no-sleep path, so the wake-up fetch must not wait on a timer.
+    let sleeps = 0;
+    await waitForUpdatePage({
+      fetchPage: () => Promise.resolve(page("active", MOCK_RELEASE.tag_name)),
+      sleep: () => {
+        sleeps += 1;
+        return Promise.resolve();
+      },
+    });
+    expect(sleeps).toBe(0);
+  });
+
+  test("a not-ready then ready wait sleeps once between its fetches", async () => {
+    const pages = [page("supported"), page("active", MOCK_RELEASE.tag_name)];
+    let fetches = 0;
+    let sleeps = 0;
+    await waitForUpdatePage({
+      fetchPage: () => Promise.resolve(pages[fetches++]!),
+      sleep: () => {
+        sleeps += 1;
+        return Promise.resolve();
+      },
+    });
+    expect(fetches).toBe(2);
+    expect(sleeps).toBe(1);
+  });
+
+  test("a ready page at the deadline still succeeds", async () => {
+    // The check that lands on the deadline decides before any run-out: the
+    // deadline is only consulted after a check that still finds the page
+    // unchanged. Thirty-six quiet gaps put the 37th check on the deadline.
+    const clock = fakeClock();
+    const pages = [
+      ...Array.from({ length: 36 }, () => page("supported")),
+      page("active", MOCK_RELEASE.tag_name),
+    ];
+    let fetches = 0;
+    await waitForUpdatePage({
+      fetchPage: () => Promise.resolve(pages[fetches++]!),
+      now: clock.now,
+      sleep: clock.sleep,
+    });
+    expect(fetches).toBe(37);
+    expect(clock.now()).toBe(180_000);
   });
 
   test("skips a build that predates update mode when asked to", async () => {

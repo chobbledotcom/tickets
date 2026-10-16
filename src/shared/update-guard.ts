@@ -239,7 +239,10 @@ const loopChecks = async (
   let checked = 1;
   let runOut: Error | null = null;
   while (runOut === null) {
-    await sleep(plan.gap(checked));
+    // Zero is a real no-sleep path: the ordinary wait's first check must
+    // fetch immediately, not on a timer.
+    const gap = plan.gap(checked);
+    if (gap > 0) await sleep(gap);
     const poll = await pollOnce(options);
     const decision = checkDecision(options, poll);
     if (decision === "ready") return;
