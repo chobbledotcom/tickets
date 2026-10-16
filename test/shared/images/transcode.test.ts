@@ -9,6 +9,7 @@ import { transcodeToWebp } from "#shared/images/transcode.ts";
 import {
   expectWebpContainer,
   makeTestPng,
+  orientedTestJpeg,
   testJpeg,
 } from "#test-utils/test-image.ts";
 
@@ -48,6 +49,16 @@ describe("transcodeToWebp", () => {
     ]);
     // Small source, unchanged size, valid WebP out.
     expect(await webpDims(full!)).toEqual({ height: 90, width: 120 });
+  });
+
+  test("bakes a JPEG's EXIF orientation into the pixels", async () => {
+    // Orientation 6 stores the sensor's pixels a quarter-turn off the upright
+    // view; the wasm decoder ignores the tag, so the transform must bake it
+    // in — the upright photo is portrait, not the stored landscape.
+    const [full] = await transcodeToWebp(orientedTestJpeg(6), "image/jpeg", [
+      FULL_IMAGE_TARGET,
+    ]);
+    expect(await webpDims(full!)).toEqual({ height: 120, width: 90 });
   });
 
   test("returns an empty list when given no targets", async () => {

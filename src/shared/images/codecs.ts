@@ -17,6 +17,7 @@ import webpDecode, { init as webpDecInit } from "@jsquash/webp/decode.js";
 import webpEncode, { init as webpEncInit } from "@jsquash/webp/encode.js";
 import { simd } from "wasm-feature-detect";
 import { onceSuccessful } from "#shared/once-successful.ts";
+import { applyExifOrientation, readJpegOrientation } from "./exif.ts";
 import type { DecodableMime } from "./formats.ts";
 import type { RawImage } from "./types.ts";
 import {
@@ -69,7 +70,12 @@ const DECODERS: Record<
   "image/webp": webpDecode,
 };
 
-/** Decode encoded image bytes of the given MIME type into RGBA pixels. */
+/** Decode encoded image bytes of the given MIME type into RGBA pixels.
+ *
+ * A JPEG's pixels are stored in scanline order. The upright view lives in its
+ * EXIF orientation tag, which the wasm decoder ignores. The tag is read and
+ * baked into the pixels, so every re-encoded variant displays upright. PNG
+ * and WebP uploads carry no camera orientation. */
 export const decodeImage = async (
   data: Uint8Array,
   mime: DecodableMime,
@@ -77,7 +83,10 @@ export const decodeImage = async (
   const codecs = await ensureCodecs();
   const start = data.byteOffset;
   const encoded = data.buffer.slice(start, start + data.byteLength);
-  return codecs.decode[mime](encoded as ArrayBuffer);
+  const image = await codecs.decode[mime](encoded as ArrayBuffer);
+  return mime === "image/jpeg"
+    ? applyExifOrientation(image, readJpegOrientation(data))
+    : image;
 };
 
 /** Encode RGBA pixels to WebP at the given quality (0–100). */
