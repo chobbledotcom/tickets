@@ -37,6 +37,7 @@ import { captureServerError } from "#shared/sentry.ts";
 import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { isSafeServerFetchUrl } from "#shared/url-safety.ts";
 import {
+  type ChosenSides,
   selectedSides,
   settleFlagOwningSend,
 } from "#shared/webhook/flag-settlement.ts";
@@ -93,7 +94,11 @@ export const sendWebhook = async (
   }
 };
 
-const registrationWebhookUrls = (entries: RegistrationEntry[]): string[] =>
+/** The distinct registration webhook addresses the entries' listings carry.
+ * This is the check that says a re-send has a webhook side to offer. */
+export const registrationWebhookUrls = (
+  entries: RegistrationEntry[],
+): string[] =>
   unique(
     mapNotNullish(
       (entry: RegistrationEntry) => entry.listing.webhook_url || null,
@@ -201,6 +206,9 @@ type RegistrationSend = {
   freeTexts?: FreeTextAnswers | undefined;
   clearPendingFlagsFor?: FlagOwningAttendees;
   recoverSides?: RecoveredSides;
+  /** The sides a manual press chose. When set, it alone decides what this
+   * send attempts. The claimed sides it holds decide what settles. */
+  sides?: ChosenSides | undefined;
 };
 
 /** Which sides this send will attempt. Reading the email setup can reject
@@ -249,7 +257,7 @@ const sendRegistrationNotifications = async (
   send: RegistrationSend,
 ): Promise<void> => {
   const { entries, currency } = send;
-  const sides = selectedSides(send.recoverSides);
+  const sides = selectedSides(send.recoverSides, send.sides);
   // A send that had nothing to attempt — no email config or buyer address,
   // no webhook URL — reports `failed: false`. That is not an acceptance: the
   // far side saw nothing, so it must not clear the flag that says a send is
@@ -317,6 +325,7 @@ const queueRegistrationNotifications = async (
   freeTexts?: FreeTextAnswers,
   clearPendingFlagsFor?: FlagOwningAttendees,
   recoverSides?: RecoveredSides,
+  sides?: ChosenSides,
 ): Promise<void> => {
   let packageFacts: RegistrationPackageFacts | undefined;
   try {
@@ -354,6 +363,7 @@ const queueRegistrationNotifications = async (
       freeTexts,
       packageFacts,
       recoverSides,
+      sides,
       source,
     }),
   );
@@ -398,6 +408,12 @@ export interface NotifyRegistrationOptions {
    * its flag raised back up: the claim flipped it down, and the flag must
    * keep saying a send is owed. Leave this unset outside a recovery. */
   recoverSides?: RecoveredSides;
+  /** The sides a manual press chose on the re-send page. When set, it alone
+   * decides which sides queue, so a press whose choice is not owed sends
+   * anyway: the customer-service resend. `recoverSides` then only says
+   * which of the chosen sides this send owns for flag settlement. Leave
+   * unset outside the re-send, where every side queues. */
+  sides?: ChosenSides | undefined;
   /** Entries only the site assignment sees, in place of `entries`. The resend
    * passes its refunded plan rows here, so a claim recorded on a line refunded
    * later still serves the buyer. Defaults to `entries`. */
@@ -435,6 +451,7 @@ export const queueRegistrationSends: NotifyRegistration = async (
       options.freeTexts,
       options.clearPendingFlagsFor,
       options.recoverSides,
+      options.sides,
     ),
   );
   addPendingWork(

@@ -24,6 +24,9 @@ const resend = async (attendeeId: number, name: string) => {
   await markNotificationSendsOwed(attendeeId);
   return adminFormPost(`/admin/attendees/${attendeeId}/resend-notification`, {
     confirm_identifier: name,
+    // These tests exercise the webhook body, so the press chooses the
+    // webhook side.
+    resend_sides: "webhooks",
   });
 };
 

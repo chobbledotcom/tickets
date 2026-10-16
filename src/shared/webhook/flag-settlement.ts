@@ -19,17 +19,25 @@ import {
 /** The outstanding sides a recovery claimed. */
 type RecoveredSides = readonly ClaimedNotificationSide[] | undefined;
 
+/** The sides a press chose on the manual re-send. Absent on every other
+ * path, where the send decides its sides itself. */
+export type ChosenSides = Record<PendingNotificationSide, boolean>;
+
 /** Which sides a send queues. A recovery queues only the sides it claimed.
- * Every other path queues both. */
+ * Every other path queues both. A press that chose its sides queues exactly
+ * the chosen ones. The choice decides what goes out. The claimed sides it
+ * holds decide what the send settles. */
 export const selectedSides = (
   recovered: RecoveredSides,
-): Record<PendingNotificationSide, boolean> => ({
-  email:
-    recovered === undefined || recovered.some(({ side }) => side === "email"),
-  webhooks:
-    recovered === undefined ||
-    recovered.some(({ side }) => side === "webhooks"),
-});
+  chosen: ChosenSides | undefined,
+): ChosenSides =>
+  chosen ?? {
+    email:
+      recovered === undefined || recovered.some(({ side }) => side === "email"),
+    webhooks:
+      recovered === undefined ||
+      recovered.some(({ side }) => side === "webhooks"),
+  };
 
 /** Whether a send's far side accepted everything it was given: the send
  * settled, and none of its deliveries was refused. */

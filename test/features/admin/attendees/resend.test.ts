@@ -34,7 +34,7 @@ import {
 import { configureTestEmail } from "#test-utils/email.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { postListingSale, refundBookedOrder } from "#test-utils/ledger.ts";
-import { adminFormPost } from "#test-utils/session.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const resend = async (attendeeId: number, name: string) => {
   await markNotificationSendsOwed(attendeeId);
@@ -319,6 +319,47 @@ describeWithEnv(
     });
   },
 );
+
+describeWithEnv("the re-send page's send choice", { db: true }, () => {
+  const pageHtml = async (attendeeId: number): Promise<string> => {
+    const response = await adminGet(
+      `/admin/attendees/${attendeeId}/resend-notification`,
+    );
+    expect(response.status).toBe(200);
+    return response.text();
+  };
+
+  test("defaults to the email and offers no webhook when the listing has none", async () => {
+    const { attendee } = await setupListingAndAttendee({
+      name: "Email Only Choice",
+    });
+
+    const html = await pageHtml(attendee.id);
+
+    // The email is the only thing to send, so the form carries the choice
+    // hidden, and no radio offers a webhook that does not exist.
+    expect(html).toContain('name="resend_sides" type="hidden" value="email"');
+    expect(html).not.toContain('type="radio" value="webhooks"');
+    expect(html).not.toContain('type="radio" value="both"');
+  });
+
+  test("offers the email, webhook, and both choices when a webhook exists", async () => {
+    const { attendee } = await setupListingAndAttendee({
+      listing: { webhookUrl: "https://hook.example.com/registration" },
+      name: "Webhook Choice",
+    });
+
+    const html = await pageHtml(attendee.id);
+
+    expect(html).toContain(
+      'checked name="resend_sides" type="radio" value="email"',
+    );
+    expect(html).toContain('name="resend_sides" type="radio" value="webhooks"');
+    expect(html).toContain('name="resend_sides" type="radio" value="both"');
+    // The choice is a visible form field, not a hidden default.
+    expect(html).not.toContain('name="resend_sides" type="hidden"');
+  });
+});
 
 describeWithEnv("re-sending for a line with no places", { db: true }, () => {
   test("is refused, and says why", async () => {

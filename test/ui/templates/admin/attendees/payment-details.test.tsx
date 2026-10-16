@@ -210,7 +210,11 @@ describe("attendee refund confirmation pages", () => {
 
   test("the resend-notification page is safe, paid-aware, and explains itself", () => {
     const html = adminResendNotificationPage(
-      { attendee: testAttendee({ payment_id: "pi_6", price_paid: "1" }) },
+      {
+        attendee: testAttendee({ payment_id: "pi_6", price_paid: "1" }),
+        // No webhook exists, so the page carries the email choice hidden.
+        hasWebhook: false,
+      },
       OWNER_SESSION,
     );
     expect(html).toContain("Re-send Notification: John Doe");
