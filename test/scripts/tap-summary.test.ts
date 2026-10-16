@@ -3,8 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   type CompactFailure,
   type CompactTapSummary,
-  junitErroredTests,
   type JunitErroredTest,
+  junitErroredTests,
   printCompactSummary,
 } from "#scripts/tap-summary.ts";
 import { capturingConsole } from "#test-utils/captured-console.ts";
