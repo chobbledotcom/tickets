@@ -254,9 +254,10 @@ describe("the spec's list facet", () => {
     });
 
     expect(html).toContain('<th class="col-reorder">');
-    expect(html).toContain("/admin/groups/two/move-up");
     expect(html).toContain("/admin/groups/one/move-down");
+    expect(html).toContain("/admin/groups/two/move-up");
     expect(html).not.toContain("/admin/groups/one/move-up");
+    expect(html).not.toContain("/admin/groups/two/move-down");
     expect(html).toContain("▲");
     expect(html).toContain("▼");
   });
@@ -271,7 +272,11 @@ describe("the spec's list facet", () => {
 
     expect(html).not.toContain('class="col-reorder"');
     expect(html).not.toContain("/admin/groups/one/move-up");
+    expect(html).not.toContain("/admin/groups/one/move-down");
+    expect(html).not.toContain("/admin/groups/two/move-up");
+    expect(html).not.toContain("/admin/groups/two/move-down");
     expect(html).not.toContain("▲");
+    expect(html).not.toContain("▼");
     expect(html).toContain("<p>one</p>");
   });
 });
