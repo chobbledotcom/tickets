@@ -24,8 +24,9 @@ const reds = (image: RawImage): number[] =>
   Array.from(image.data).filter((_, index) => index % 4 === 0);
 
 /** Wrap raw JPEG bytes in a hand-built APP1 Exif segment whose IFD0 carries
- * the given orientation, mirroring what a camera writes. */
-const jpegWithOrientation = (orientation: number): Uint8Array =>
+ * the given orientation, mirroring what a camera writes. The entry's count
+ * field defaults to 1, the value the TIFF specification requires. */
+const jpegWithOrientation = (orientation: number, count = 1): Uint8Array =>
   Uint8Array.from([
     0xff,
     0xd8,
@@ -71,7 +72,7 @@ const jpegWithOrientation = (orientation: number): Uint8Array =>
     0x01,
     0x03,
     0x00,
-    0x01,
+    count,
     0x00,
     0x00,
     0x00,
@@ -127,6 +128,14 @@ describe("readJpegOrientation", () => {
     expect(readJpegOrientation(truncated)).toBe(1);
     // An orientation value outside 1–8 is malformed, not a transform.
     expect(readJpegOrientation(jpegWithOrientation(9))).toBe(1);
+  });
+
+  test("returns 1 for an orientation entry whose count is not 1", () => {
+    // TIFF defines the orientation entry as SHORT with count 1. With any
+    // other count the inline field carries no usable value, even when a
+    // plausible orientation sits in it.
+    expect(readJpegOrientation(jpegWithOrientation(6, 0))).toBe(1);
+    expect(readJpegOrientation(jpegWithOrientation(6, 2))).toBe(1);
   });
 
   test("returns 1 once the scan starts, with no Exif ahead of it", () => {

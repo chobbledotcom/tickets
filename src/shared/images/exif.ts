@@ -81,6 +81,9 @@ const orientationEntryValue = (
     if (readUint(tiff, at + 2, littleEndian, 2) !== 3) {
       return; // SHORT is the only type cameras write
     }
+    if (readUint(tiff, at + 4, littleEndian, 4) !== 1) {
+      return; // one value: only then does the inline field carry it
+    }
     return readUint(tiff, at + 8, littleEndian, 2);
   }
   return;
