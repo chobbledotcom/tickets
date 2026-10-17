@@ -237,5 +237,38 @@ describeWithEnv(
         expect(messages).toContain("Image 'New library image' uploaded");
       });
     });
+
+    describe("GET /admin/images/options (editor dropdown list)", () => {
+      test("lists every image as id and name in name order", async () => {
+        await makeImage("Zebra");
+        await makeImage("Alpha");
+        const response = await adminGet("/admin/images/options");
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain(
+          "application/json",
+        );
+        const body = await response.json();
+        expect(body).toEqual({
+          images: [
+            { id: await idOf("Alpha"), name: "Alpha" },
+            { id: await idOf("Zebra"), name: "Zebra" },
+          ],
+        });
+      });
+
+      const idOf = async (name: string): Promise<number> => {
+        const all = await getAllImages();
+        return all.find((image) => image.name === name)!.id;
+      };
+
+      test("serves an empty list when storage is disabled", async () => {
+        await makeImage("Hero");
+        const response = await withStorageDisabled(async () =>
+          adminGet("/admin/images/options"),
+        );
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ images: [] });
+      });
+    });
   },
 );
