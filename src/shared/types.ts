@@ -355,7 +355,7 @@ export interface Attendee extends ContactInfo {
   date: string | null;
   email_owed: number;
   email_pending: number;
-  /** Exclusive end of the booked range (YYYY-MM-DD, the midnight after the last booked day). Null for date-less bookings. */
+  /** Exclusive end of the booked range (YYYY-MM-DD). Null for date-less bookings. */
   end_date: string | null;
   id: number;
   kind: string;
@@ -364,7 +364,7 @@ export interface Attendee extends ContactInfo {
   lat: string;
   listing_id: number;
   lng: string;
-  /** Package group this booking row belongs to (0 = not a package); stamped on every row of a package order. */
+  /** Package group this booking row belongs to (0 = not a package). */
   package_group_id: number;
   payment_id: string;
   /** Owner-key-encrypted PII blob; "" on a just-created in-memory echo. */
