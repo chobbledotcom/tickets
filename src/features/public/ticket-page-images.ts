@@ -9,7 +9,7 @@ export type TicketPageTexts = {
   listings: readonly { listing: { description: string | null } }[];
   groupDescription?: string;
   terms?: string | null;
-  packages?: readonly { description: string }[];
+  packages: readonly { description: string }[];
 };
 
 /** The id→uid-URL table for one rendered ticket page's markdown. The texts
@@ -23,5 +23,5 @@ export const ticketPageImageUrls = (
     ...page.listings.map((entry) => entry.listing.description),
     page.groupDescription,
     page.terms,
-    ...(page.packages?.map((pkg) => pkg.description) ?? []),
+    ...page.packages.map((pkg) => pkg.description),
   ]);

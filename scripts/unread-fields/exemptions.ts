@@ -1,5 +1,6 @@
 import type { SiteDataBlob } from "#db/built-sites/blob.ts";
 import type { PublicListing } from "#routes/api/public-listing.ts";
+import type { TicketSharedContext } from "#routes/public/types.ts";
 import type { Step } from "#scripts/unread-fields/fields/steps.ts";
 import {
   compareFindingIdentities,
@@ -413,6 +414,37 @@ const exactExemptions = exactFieldExemptions([
   ),
 ]);
 
+const ticketSharedContext = exemptFieldsAt<TicketSharedContext>(
+  "src/features/public/types.ts",
+  [{ name: "TicketSharedContext" }],
+  {
+    evidence:
+      "renderCtx passes the whole ticket context to ticketPageImageUrls, whose structural TicketPageTexts param consumes the field for the page's image-url lookup",
+    kind: "dynamic-read",
+  },
+)({
+  actionUrl: "check",
+  addOns: "check",
+  cartDateItems: "check",
+  childDatesById: "check",
+  childrenByParentId: "check",
+  dates: "check",
+  galleryImages: "check",
+  galleryTarget: "check",
+  groupDescription: "exempt",
+  groupImage: "check",
+  groupName: "check",
+  packageGroupRemainingByGroupId: "check",
+  packageMemberGroupIds: "check",
+  packages: "check",
+  pageHidden: "check",
+  promoCodesEnabled: "check",
+  questionListingMap: "check",
+  questions: "check",
+  siteToken: "check",
+  terms: "check",
+});
+
 export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
   ...adminApiResources,
   ...bodyExemptions,
@@ -421,6 +453,7 @@ export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
   ...settingsPageStates,
   ...siteDataBlobs,
   ...sumupCheckoutRequests,
+  ...ticketSharedContext,
   ...webhookPayloads,
   groupScanChecksInAllListings,
   groupShowHiddenListings,
