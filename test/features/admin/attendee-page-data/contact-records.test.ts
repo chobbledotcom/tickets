@@ -42,7 +42,12 @@ describeWithEnv("attendee contact records", { db: true }, () => {
     );
 
     expect(records).toEqual({
-      email: { hashParam: base64ToBase64Url(hash), record: SAVED_RECORD },
+      email: {
+        hashParam: base64ToBase64Url(hash),
+        // The saved note names no images, so the table is empty.
+        imageUrls: new Map(),
+        record: SAVED_RECORD,
+      },
       phone: null,
     });
   });
