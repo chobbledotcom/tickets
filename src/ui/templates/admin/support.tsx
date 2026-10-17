@@ -48,6 +48,8 @@ const SupportForm = ({
 export const adminSupportPage = (opts: {
   session: AdminSession;
   supportText: string | null;
+  /** The id→uid-URL table for the support text's img#N references. */
+  imageUrls?: ReadonlyMap<number, string>;
   formActive: boolean;
   nagLabel: string | null;
   success?: string | undefined;
@@ -61,7 +63,7 @@ export const adminSupportPage = (opts: {
     <>
       <div class="prose">
         {opts.supportText ? (
-          <Raw html={renderMarkdown(opts.supportText)} />
+          <Raw html={renderMarkdown(opts.supportText, opts.imageUrls)} />
         ) : (
           <RawParagraph html={t("support.missing_text")} />
         )}

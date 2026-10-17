@@ -52,7 +52,7 @@ describe("questionTextContent", () => {
 describe("questionWrapper", () => {
   test("wraps a control in a label for simple text", () => {
     const html = String(
-      questionWrapper(radioQuestion("What size?"), undefined, () => (
+      questionWrapper({ q: radioQuestion("What size?") }, () => (
         <input name="q1" type="text" />
       )),
     );
@@ -66,7 +66,7 @@ describe("questionWrapper", () => {
     // Simple text labels the control implicitly via the wrapping <label>, so no
     // aria-labelledby is needed — the factory is called with no id.
     const html = String(
-      questionWrapper(radioQuestion("What size?"), undefined, (labelledBy) => (
+      questionWrapper({ q: radioQuestion("What size?") }, (labelledBy) => (
         <input aria-labelledby={labelledBy} name="q1" type="text" />
       )),
     );
@@ -75,9 +75,10 @@ describe("questionWrapper", () => {
 
   test("wraps a control in a div with prose for complex markdown", () => {
     const html = String(
-      questionWrapper(radioQuestion("What **size**?"), "100 200", () => (
-        <input name="q1" type="text" />
-      )),
+      questionWrapper(
+        { listingIds: "100 200", q: radioQuestion("What **size**?") },
+        () => <input name="q1" type="text" />,
+      ),
     );
     expect(html).toContain(
       '<div class="custom-question" data-listing-ids="100 200">',
@@ -91,13 +92,9 @@ describe("questionWrapper", () => {
     // The control sits outside any <label>, so it must reference the prose id to
     // stay named for assistive tech.
     const html = String(
-      questionWrapper(
-        radioQuestion("What **size**?"),
-        undefined,
-        (labelledBy) => (
-          <input aria-labelledby={labelledBy} name="q1" type="text" />
-        ),
-      ),
+      questionWrapper({ q: radioQuestion("What **size**?") }, (labelledBy) => (
+        <input aria-labelledby={labelledBy} name="q1" type="text" />
+      )),
     );
     expect(html).toContain('aria-labelledby="question-1-prose"');
     expect(html).toContain('<div class="prose" id="question-1-prose">');
@@ -107,7 +104,7 @@ describe("questionWrapper", () => {
 describe("questionFieldset", () => {
   test("wraps controls in a fieldset with a legend for simple text", () => {
     const html = String(
-      questionFieldset(radioQuestion("What size?"), undefined, [
+      questionFieldset({ q: radioQuestion("What size?") }, [
         <label>
           <input name="q1" type="radio" value="small" /> Small
         </label>,
@@ -123,11 +120,14 @@ describe("questionFieldset", () => {
 
   test("renders complex fieldset text as prose and names the group by it", () => {
     const html = String(
-      questionFieldset(radioQuestion("What **size**?"), "100 200", [
-        <label>
-          <input name="q1" type="radio" value="small" /> Small
-        </label>,
-      ]),
+      questionFieldset(
+        { listingIds: "100 200", q: radioQuestion("What **size**?") },
+        [
+          <label>
+            <input name="q1" type="radio" value="small" /> Small
+          </label>,
+        ],
+      ),
     );
 
     expect(html).toContain(

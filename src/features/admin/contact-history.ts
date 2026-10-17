@@ -1,3 +1,4 @@
+import { imageUrlsFor } from "#db/images.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 
 /**
@@ -69,6 +70,7 @@ export const handleContactHistoryGet: TypedRouteHandler<
         flashError: flash.error,
         flashSuccess: flash.success,
         hmac,
+        imageUrls: await imageUrlsFor([record.adminNotes]),
         record,
         session,
       }),

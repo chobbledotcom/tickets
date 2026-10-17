@@ -3,6 +3,7 @@
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
+import { imageUrlsFor } from "#db/images.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
@@ -76,8 +77,16 @@ const maintenanceTab = loadedPanelTab(
 const supportMessageTab = loadedPanelTab(
   "support-message",
   "built_sites.support_message_title",
-  loadSiteSupportMessage,
-  (site, message) => <SupportMessagePanel site={site} state={message} />,
+  async (site) => {
+    const message = await loadSiteSupportMessage(site);
+    return {
+      imageUrls: await imageUrlsFor(message.ok ? [message.value] : []),
+      message,
+    };
+  },
+  (site, { imageUrls, message }) => (
+    <SupportMessagePanel imageUrls={imageUrls} site={site} state={message} />
+  ),
 );
 
 /** One pager arrow, named for the site it lands on. */

@@ -93,8 +93,18 @@ export const imageFileColumns = imagesTable.read.pick([
 
 const imageUrlColumns = imagesTable.read.pick(["id", "filename"]);
 
+/** The id→uid-URL table the markdown render resolves the editor's `img#N`
+ * references against. Each entry maps one referenced image's id to its
+ * canonical filename URL, so no image is ever addressable by id. */
+export type ImageUrls = ReadonlyMap<number, string>;
+
 /** The markdown texts an image-url lookup scans. */
 type ImageUrlTexts = readonly (string | null | undefined)[];
+
+/** The id→uid-URL table for a set of notes, read from their bodies. */
+export const imageUrlsForNotes = async (
+  notes: readonly { note: string }[],
+): Promise<ImageUrls> => imageUrlsFor(notes.map((note) => note.note));
 
 /** The pieces of a rendered ticket page whose markdown can name an image. */
 export type TicketPageTexts = {
@@ -104,14 +114,11 @@ export type TicketPageTexts = {
   packages: readonly { description: string }[];
 };
 
-/** The id→uid-URL table the markdown render resolves the editor's `img#N`
- * references against. Each entry maps one referenced image's id to its
- * canonical filename URL, so no image is ever addressable by id. The read is
- * bounded by the ids the texts actually reference. It runs only when they
- * name any. */
+/** The read is bounded by the ids the texts actually reference. It runs only
+ * when they name any. */
 export const imageUrlsFor = async (
   texts: ImageUrlTexts,
-): Promise<ReadonlyMap<number, string>> => {
+): Promise<ImageUrls> => {
   const sources = texts.filter(
     (text): text is string => typeof text === "string",
   );

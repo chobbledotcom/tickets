@@ -65,6 +65,10 @@ export type RequestStore = {
    * seeding (src/shared/config.ts). Unset until the request seeds it, so
    * reads fall back instead of carrying another request's domain. */
   effectiveDomain?: string;
+  /** The site footer's id→uid-URL table, preloaded once at the request
+   * boundary for the Layout's synchronous footer render. Unset until the
+   * boundary seeds it, so reads render no image source. */
+  footerImageUrls?: ReadonlyMap<number, string>;
 };
 
 const requestScope = createScope<RequestStore>();
