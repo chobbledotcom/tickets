@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptBytes } from "#crypto/encryption.ts";
+import { imageUrlsFor } from "#db/images.ts";
 import { handleRequest } from "#routes";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectBrokenImageResponse,
   expectHtmlResponse,
@@ -164,6 +166,39 @@ describeWithEnv(
         );
         expect(response.status).toBe(404);
       });
+    });
+
+    test("never serves an id-addressed image route", async () => {
+      // The image library is not enumerable: an id path is just an unknown
+      // filename, whatever ids exist.
+      const image = await makeImage("Hero");
+      const known = await handleRequest(mockRequest(`/image/id/${image.id}`));
+      expect(known.status).toBe(404);
+      const unknown = await handleRequest(mockRequest("/image/id/424242"));
+      expect(unknown.status).toBe(404);
+    });
+
+    test("maps only the image ids the texts reference to their URL", async () => {
+      const hero = await makeImage("Hero");
+      await makeImage("Unreferenced");
+
+      const urls = await imageUrlsFor([
+        `![Poster](img#${hero.id})`,
+        "no references here",
+        null,
+        undefined,
+      ]);
+
+      expect(urls.size).toBe(1);
+      expect(urls.get(hero.id)).toBe(`/image/${hero.filename}`);
+    });
+
+    test("reads no images when the texts reference none", async () => {
+      await makeImage("Hero");
+
+      const urls = await imageUrlsFor(["plain text", null]);
+
+      expect(urls.size).toBe(0);
     });
   },
 );

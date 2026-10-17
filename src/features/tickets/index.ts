@@ -7,6 +7,7 @@
 import { hmacHash } from "#crypto/hashing.ts";
 /* jscpd:ignore-start -- imports */
 import { packageDisplaysForRows } from "#db/groups.ts";
+import { imageUrlsFor } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import {
@@ -86,6 +87,7 @@ const handleTicketView = withResolvedEntries(async (entries, tokens) => {
       settings.appleWallet.hasConfig,
       settings.googleWallet.hasConfig,
       packageDisplays,
+      await imageUrlsFor(entries.map((entry) => entry.listing.description)),
     ),
   );
 });
