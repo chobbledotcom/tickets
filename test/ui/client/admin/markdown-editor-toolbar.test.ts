@@ -8,7 +8,10 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { type EditorState, TextSelection } from "prosemirror-state";
-import { createEditorState } from "#src/ui/client/admin/markdown-editor-setup.ts";
+import {
+  createEditorState,
+  editorKeymap,
+} from "#src/ui/client/admin/markdown-editor-setup.ts";
 import { TOOLBAR_ITEMS } from "#src/ui/client/admin/markdown-editor-toolbar.ts";
 import {
   cleanup,
@@ -140,6 +143,30 @@ describe("markdown editor toolbar", () => {
     select(ordered.handle.view, 2);
     toolbarButton(ordered.window, "ordered").click();
     expect(ordered.textarea.value).toBe("1. one");
+  });
+
+  test("the list buttons keep the list tight across items", () => {
+    // Enter after a list item starts the second item; the saved markdown
+    // must not grow a blank line between the items.
+    const bullet = enhanced("one");
+    select(bullet.handle.view, 4);
+    toolbarButton(bullet.window, "bullet").click();
+    editorKeymap().Enter!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    bullet.handle.view.dispatch(bullet.handle.view.state.tr.insertText("two"));
+    expect(bullet.textarea.value).toBe("* one\n* two");
+
+    const ordered = enhanced("one");
+    select(ordered.handle.view, 4);
+    toolbarButton(ordered.window, "ordered").click();
+    editorKeymap().Enter!(ordered.handle.view.state, (tr) =>
+      ordered.handle.view.dispatch(tr),
+    );
+    ordered.handle.view.dispatch(
+      ordered.handle.view.state.tr.insertText("two"),
+    );
+    expect(ordered.textarea.value).toBe("1. one\n2. two");
   });
 
   test("the quote button wraps the block in a blockquote", () => {

@@ -20,11 +20,15 @@ import {
   enhanceMarkdownTextarea,
   initMarkdownEditor,
 } from "#src/ui/client/admin/markdown-editor.ts";
-import { serializeMarkdown } from "#src/ui/client/admin/markdown-editor-setup.ts";
+import {
+  editorKeymap,
+  serializeMarkdown,
+} from "#src/ui/client/admin/markdown-editor-setup.ts";
 import {
   cleanup,
   enhanced,
   installDom,
+  select,
 } from "#test-utils/markdown-editor-dom.ts";
 
 afterEach(cleanup);
@@ -49,6 +53,106 @@ describe("markdown editor input rules", () => {
     typeText(handle.view, "- milk");
     expect(handle.view.state.doc.firstChild?.type.name).toBe("bullet_list");
     expect(textarea.value).toBe("* milk");
+  });
+
+  test("typing a second list item keeps the list tight", () => {
+    // Enter after a list item starts the next item; the saved markdown must
+    // not grow a blank line between the items.
+    const bullet = enhanced("");
+    typeText(bullet.handle.view, "- milk");
+    editorKeymap().Enter!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    typeText(bullet.handle.view, "honey");
+    expect(bullet.textarea.value).toBe("* milk\n* honey");
+
+    const ordered = enhanced("");
+    typeText(ordered.handle.view, "1. milk");
+    editorKeymap().Enter!(ordered.handle.view.state, (tr) =>
+      ordered.handle.view.dispatch(tr),
+    );
+    typeText(ordered.handle.view, "honey");
+    expect(ordered.textarea.value).toBe("1. milk\n2. honey");
+  });
+
+  test("Tab-joining a stored loose nested list keeps it loose", () => {
+    const bullet = enhanced("* parent\n  * child one\n\n  * child two\n* next");
+    // The caret in the last top-level item's text; Tab sinks it under the
+    // parent, where the command reuses the existing loose nested list
+    // instead of creating one. The reused list keeps its flag.
+    select(bullet.handle.view, 45);
+    editorKeymap().Tab!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    expect(bullet.textarea.value).toBe(
+      "* parent\n  * child one\n\n  * child two\n\n  * next",
+    );
+  });
+
+  test("Tab-nesting an item keeps the nested list tight", () => {
+    // Enter, then Tab on the second item sinks it under the first: the
+    // nested list the command creates must save tight.
+    const bullet = enhanced("");
+    typeText(bullet.handle.view, "- parent");
+    editorKeymap().Enter!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    typeText(bullet.handle.view, "child one");
+    editorKeymap().Tab!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    editorKeymap().Enter!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    typeText(bullet.handle.view, "child two");
+    expect(bullet.textarea.value).toBe(
+      "* parent\n  * child one\n  * child two",
+    );
+
+    const ordered = enhanced("");
+    typeText(ordered.handle.view, "1. parent");
+    editorKeymap().Enter!(ordered.handle.view.state, (tr) =>
+      ordered.handle.view.dispatch(tr),
+    );
+    typeText(ordered.handle.view, "child one");
+    editorKeymap().Tab!(ordered.handle.view.state, (tr) =>
+      ordered.handle.view.dispatch(tr),
+    );
+    editorKeymap().Enter!(ordered.handle.view.state, (tr) =>
+      ordered.handle.view.dispatch(tr),
+    );
+    typeText(ordered.handle.view, "child two");
+    expect(ordered.textarea.value).toBe(
+      "1. parent\n   1. child one\n   2. child two",
+    );
+  });
+
+  test("Tab-sinking a cross-depth selection tightens only the new list", () => {
+    // The selection spans outer items b and c but starts inside the nested
+    // list under b. The command creates one fresh list under a containing
+    // b and c; the pre-existing list holding x keeps its own flag.
+    const bullet = enhanced("* a\n* b\n  * x\n* c");
+    select(bullet.handle.view, 13, 21);
+    editorKeymap().Tab!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    expect(bullet.textarea.value).toBe("* a\n  * b\n    * x\n  * c");
+
+    const ordered = enhanced("1. a\n2. b\n   1. x\n3. c");
+    select(ordered.handle.view, 13, 21);
+    editorKeymap().Tab!(ordered.handle.view.state, (tr) =>
+      ordered.handle.view.dispatch(tr),
+    );
+    expect(ordered.textarea.value).toBe("1. a\n   1. b\n      1. x\n   2. c");
+  });
+
+  test("Tab-sinking keeps a loose pre-existing descendant loose", () => {
+    const bullet = enhanced("* a\n* b\n  * x\n\n  * y\n* c");
+    select(bullet.handle.view, 13, 26);
+    editorKeymap().Tab!(bullet.handle.view.state, (tr) =>
+      bullet.handle.view.dispatch(tr),
+    );
+    expect(bullet.textarea.value).toBe("* a\n  * b\n    * x\n\n    * y\n  * c");
   });
 
   test("typing '3. ' starts an ordered list at 3", () => {

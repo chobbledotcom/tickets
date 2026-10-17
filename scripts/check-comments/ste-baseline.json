@@ -2369,9 +2369,9 @@
     "participle": 1
   },
   "src/ui/client/admin/markdown-editor-setup.ts": {
-    "long-sentence": 2,
-    "banned-modal": 2,
+    "banned-modal": 1,
     "participle": 1,
+    "long-sentence": 2,
     "semicolon": 1
   },
   "src/ui/client/admin/markdown-editor-toolbar.ts": {

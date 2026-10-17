@@ -23,6 +23,16 @@ describe("markdown editor setup", () => {
     expect(serializeMarkdown(parseMarkdown(source))).toBe(source);
   });
 
+  test("keeps an intentionally loose list loose", () => {
+    const source = "* one\n\n* two\n\n* three";
+    expect(serializeMarkdown(parseMarkdown(source))).toBe(source);
+  });
+
+  test("keeps an intentionally loose nested list loose", () => {
+    const source = "* parent\n  * child one\n\n  * child two";
+    expect(serializeMarkdown(parseMarkdown(source))).toBe(source);
+  });
+
   test("round-trips Liquid placeholders untouched", () => {
     const source = "Hi {{ attendee_name }}, see {{ listing_name }}.";
     expect(serializeMarkdown(parseMarkdown(source))).toBe(source);
@@ -94,6 +104,15 @@ describe("markdown editor setup", () => {
     const state = createEditorState("one");
     expect(editorKeymap()["Shift-Enter"]!(state)).toBe(true);
     expect(serializeMarkdown(state.doc)).toBe("one");
+  });
+
+  test("Tab reports applicable without dispatching", () => {
+    const initial = createEditorState("* one\n* two");
+    const state = initial.apply(
+      initial.tr.setSelection(TextSelection.create(initial.doc, 12)),
+    );
+    expect(editorKeymap().Tab!(state)).toBe(true);
+    expect(state.doc.firstChild?.childCount).toBe(2);
   });
 
   test("Shift-Enter exits a code block instead of breaking inside it", () => {
