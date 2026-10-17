@@ -23,8 +23,7 @@ import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import { parseDateString } from "#shared/validation/date-string.ts";
-import { renderAdminPage } from "#templates/admin/admin-page.tsx";
-import { AdminPage } from "#templates/admin/admin-page-spec.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { ListingEditor } from "#templates/admin/attendee-form/listing-editor.tsx";
 import { LogisticsSection } from "#templates/admin/attendee-form/logistics.tsx";
 import type {
@@ -345,15 +344,17 @@ export const AttendeesPage = (props: {
     session,
     title,
   } = props;
-  return renderAdminPage(
+  return renderAdminPageSpec({
     active,
+    body: (
+      <>
+        <ProseHeading heading={title}>{prose}</ProseHeading>
+        {children}
+      </>
+    ),
     session,
     title,
-    <>
-      <ProseHeading heading={title}>{prose}</ProseHeading>
-      {children}
-    </>,
-  );
+  });
 };
 
 /** Render the standalone create page (/admin/attendees/new). Edit renders
@@ -362,14 +363,11 @@ export const attendeeFormPage = (
   data: AttendeeFormTemplateData,
   session: AdminSession,
 ): string =>
-  String(
+  renderAdminPageSpec({
     // The title lives inside the form (see AttendeeEditForm), so the page shell
     // carries no prose heading of its own — just the <title> for the tab.
-    <AdminPage
-      active="/admin/attendees/new"
-      session={session}
-      title={t("attendee_form.title_create")}
-    >
-      <AttendeeFormPanel data={data} />
-    </AdminPage>,
-  );
+    active: "/admin/attendees/new",
+    body: <AttendeeFormPanel data={data} />,
+    session,
+    title: t("attendee_form.title_create"),
+  });

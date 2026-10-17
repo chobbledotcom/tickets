@@ -13,6 +13,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
+import { assertPageMatchesSnapshot } from "#test-utils/page-snapshot.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
@@ -324,5 +325,30 @@ describe("admin bulk action templates", () => {
     // An activate-flipping page still sits in the Groups nav section, so the
     // nav highlights Groups the way the landing does.
     expect(html).toContain('<a class="active" href="/admin/groups"');
+  });
+
+  describe("the bulk-actions page shells", () => {
+    test("renders the landing page identically to the parent build", () => {
+      const html = adminBulkActionsPage(GROUP, [ACTIVE], OWNER_SESSION);
+
+      assertPageMatchesSnapshot(
+        new URL("./bulk-landing.snapshot.html", import.meta.url),
+        html,
+      );
+    });
+
+    test("renders the duplicate page identically to the parent build", () => {
+      const html = adminDuplicateGroupPage(
+        GROUP,
+        [ACTIVE],
+        OWNER_SESSION,
+        "Group name is taken",
+      );
+
+      assertPageMatchesSnapshot(
+        new URL("./bulk-duplicate.snapshot.html", import.meta.url),
+        html,
+      );
+    });
   });
 });

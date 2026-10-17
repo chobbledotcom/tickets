@@ -13,6 +13,7 @@ import {
   setupTestEncryptionKey,
 } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { assertPageMatchesSnapshot } from "#test-utils/page-snapshot.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 const test = (name: string, body: () => void | Promise<void>): void => {
@@ -320,6 +321,35 @@ describe("activity log templates", () => {
       const html = adminListingActivityLogPage(listing, entries, OWNER_SESSION);
       expect(html).not.toContain("<th>Attendee</th>");
       expect(html).not.toContain('href="/admin/attendees/7"');
+    });
+  });
+
+  describe("the activity log page shell", () => {
+    test("renders the same whole page the parent build rendered", () => {
+      const html = adminGlobalActivityLogPage(
+        [logEntry({ message: "System started" })],
+        false,
+        OWNER_SESSION,
+        emptyRefs(),
+      );
+
+      assertPageMatchesSnapshot(
+        new URL("./activity-log-global.snapshot.html", import.meta.url),
+        html,
+      );
+    });
+
+    test("renders the listing-scoped page identically to the parent", () => {
+      const html = adminListingActivityLogPage(
+        testListingWithCount({ id: 7, name: "Boathouse" }),
+        [logEntry({})],
+        OWNER_SESSION,
+      );
+
+      assertPageMatchesSnapshot(
+        new URL("./activity-log-listing.snapshot.html", import.meta.url),
+        html,
+      );
     });
   });
 });
