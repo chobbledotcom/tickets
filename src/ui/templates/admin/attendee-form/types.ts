@@ -16,6 +16,9 @@ export interface AttendeeFormTemplateData extends SelectedQuestionAnswers {
   formError: string | null;
   hasDailyListings: boolean;
   hasMixedTimings: boolean;
+  /** The id→uid-URL table for the question texts' img#N references, built
+   * from the texts this form renders. */
+  imageUrls: ReadonlyMap<number, string>;
   lineWarnings: Map<number, string[]>;
   logistics?: AttendeeLogisticsData | undefined;
   mode: "create" | "edit";

@@ -1,3 +1,4 @@
+import { imageUrlsFor } from "#db/images.ts";
 import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin Support page routes — let the site operator message the platform host.
@@ -34,16 +35,18 @@ import { adminSupportPage } from "#templates/admin/support.tsx";
 const SUPPORT_PATH = "/admin/support";
 
 /** GET /admin/support — render the support page (404 when the feature is off). */
-const handleSupportGet = ownerResponsePage((session, _request, flash) => {
+const handleSupportGet = ownerResponsePage(async (session, _request, flash) => {
   if (!isSupportEnabled()) return notFoundResponse();
+  const supportText = getSupportPageText();
   return htmlResponse(
     adminSupportPage({
       error: flash.error,
       formActive: isSupportFormActive(),
+      imageUrls: await imageUrlsFor([supportText]),
       nagLabel: supportNagLabel(),
       session,
       success: flash.success,
-      supportText: getSupportPageText(),
+      supportText,
     }),
   );
 });

@@ -8,6 +8,7 @@ import {
   saveContactRecord,
 } from "#db/contact-preferences.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectHtml,
   expectRedirect,
@@ -110,6 +111,26 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       expect(record.visits).toBe(13);
       expect(record.adminNotes).toBe("Updated **note**");
       expect(record.lastSubject).toBe("Subject");
+    });
+
+    test("re-renders a rejected over-long note with its images resolved", async () => {
+      const image = await makeImage("Note Poster");
+      const hash = await hashEmail("noteposter@example.com");
+      const { response } = await adminFormPost(
+        `/admin/history/${base64ToBase64Url(hash)}`,
+        {
+          admin_notes: `![Note Poster](img#${image.id}) ${"x".repeat(MAX_TEXTAREA_LENGTH)}`,
+          public_booking_count: "4",
+        },
+      );
+      // Re-rendered in place with an error, not redirected.
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("characters or fewer");
+      // The note preview renders the saved-but-rejected note, and its image
+      // reference resolves through the image-url table like the GET path's.
+      expect(html).toContain('class="contact-notes"');
+      expect(html).toMatch(/<img src="\/image\//);
     });
 
     test("coerces blank/negative counters to zero", async () => {
