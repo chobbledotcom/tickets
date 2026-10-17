@@ -4,9 +4,9 @@
 
 import type { AttributeWithOptions } from "#db/attributes.ts";
 import type { AddOnOption } from "#db/modifier-resolve.ts";
+/* jscpd:ignore-start */
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
@@ -41,6 +41,7 @@ export const TicketPageHeader = ({
   headerDescription,
   headerImage,
   galleryImages,
+  imageUrls,
   listingAttributes,
   singleListing,
   pastDays,
@@ -49,6 +50,7 @@ export const TicketPageHeader = ({
   headerDescription: string | null | undefined;
   headerImage: ItemImageColumns | null;
   galleryImages: readonly Image[];
+  imageUrls?: ReadonlyMap<number, string>;
   listingAttributes: AttributeWithOptions[] | undefined;
   singleListing: ListingWithCount | null;
   pastDays: number | null;
@@ -66,7 +68,7 @@ export const TicketPageHeader = ({
       <h1>{headerName}</h1>
       {headerDescription && (
         <div class="description">
-          <Raw html={renderMarkdown(headerDescription)} />
+          <Raw html={renderMarkdown(headerDescription, imageUrls)} />
         </div>
       )}
       {singleListing?.date && (
@@ -181,6 +183,7 @@ export const TicketPageForm = ({
   hideQuantity,
   isPackage,
   isSingleListing,
+  imageUrls,
   questions,
   questionListingMap,
   terms,
@@ -205,6 +208,7 @@ export const TicketPageForm = ({
   hideQuantity: boolean;
   isPackage: boolean;
   isSingleListing: boolean;
+  imageUrls?: ReadonlyMap<number, string>;
   questions: QuestionWithAnswers[] | undefined;
   questionListingMap: QuestionListingMap | undefined;
   terms: string | null | undefined;
@@ -245,10 +249,10 @@ export const TicketPageForm = ({
 
       {questions &&
         questions.length > 0 &&
-        renderQuestions(questions, questionListingMap)}
+        renderQuestions(questions, questionListingMap, imageUrls)}
       {addOns && addOns.length > 0 && <AddOnsFieldset addOns={addOns} />}
       {promoCodesEnabled && <PromoCodeField prefilled={prefill?.promo} />}
-      {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
+      {terms && <Raw html={renderTermsAndCheckbox(terms, imageUrls)} />}
       {/* Continue is rendered first so it stays the form's default submit: an
           implicit submit (Enter in a text field) completes the booking, not the
           running total's /calculate action. */}
