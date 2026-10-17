@@ -56,18 +56,14 @@ export const createImageToolbarItem = (view: EditorView): HTMLElement => {
     "Image",
     "Insert image",
   );
+  button.setAttribute("aria-haspopup", "true");
+  button.setAttribute("aria-expanded", "false");
   button.addEventListener("click", () => {
     if (panel.hidden) open();
     else close();
   });
 
   control.append(button, panel);
-
-  // A click anywhere outside the control closes the panel. While the panel
-  // is hidden the permanent listener is a cheap no-op.
-  document.addEventListener("click", (event) => {
-    if (!panel.hidden && !control.contains(event.target as Node)) close();
-  });
 
   // One fetch per mount, cached. A failed load is never cached, so the next
   // open retries.
@@ -77,8 +73,11 @@ export const createImageToolbarItem = (view: EditorView): HTMLElement => {
     if (!response.ok) {
       throw new Error(`image options responded ${response.status}`);
     }
-    const { images } = (await response.json()) as { images: ImageOption[] };
-    return images;
+    const body = (await response.json()) as { images: unknown };
+    if (!Array.isArray(body.images)) {
+      throw new Error("image options responded without an images array");
+    }
+    return body.images as ImageOption[];
   };
   const loadOptions = (): Promise<ImageOption[]> => {
     options ??= fetchOptions();
@@ -117,8 +116,24 @@ export const createImageToolbarItem = (view: EditorView): HTMLElement => {
     }
   };
 
+  // A click anywhere outside the control closes the panel. Escape closes it
+  // and returns focus to the button. Both listeners live only while the
+  // panel is open, so a destroyed editor leaves nothing behind.
+  const onDocumentClick = (event: Event): void => {
+    if (!control.contains(event.target as Node)) close();
+  };
+  const onDocumentKeydown = (event: KeyboardEvent): void => {
+    if (event.key === "Escape") {
+      close();
+      button.focus();
+    }
+  };
+
   const open = (): void => {
     panel.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+    document.addEventListener("click", onDocumentClick);
+    document.addEventListener("keydown", onDocumentKeydown);
     panel.dataset.state = "loading";
     panel.replaceChildren(mutedLine("Loading…"));
     void settle();
@@ -126,6 +141,9 @@ export const createImageToolbarItem = (view: EditorView): HTMLElement => {
 
   const close = (): void => {
     panel.hidden = true;
+    button.setAttribute("aria-expanded", "false");
+    document.removeEventListener("click", onDocumentClick);
+    document.removeEventListener("keydown", onDocumentKeydown);
   };
 
   return control;
