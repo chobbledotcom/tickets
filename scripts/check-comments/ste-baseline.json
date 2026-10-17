@@ -243,8 +243,7 @@
     "contraction": 1
   },
   "src/features/public/site-page.ts": {
-    "long-sentence": 2,
-    "semicolon": 1
+    "long-sentence": 2
   },
   "src/features/public/ticket-form.ts": {
     "long-sentence": 6,

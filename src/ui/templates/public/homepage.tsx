@@ -2,6 +2,7 @@
 
 import type { TicketListing } from "#booking/model.ts";
 import type { ListingAttributesById } from "#db/attributes.ts";
+import type { ImageUrls } from "#db/images.ts";
 import { joinStrings, partition } from "#fp";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
@@ -189,6 +190,7 @@ const renderListingCard =
     childStateOf: (id: number) => ChildCardState,
     dateFilter: DailyDateFilter | null,
     attributesByListing: ListingAttributesById,
+    imageUrls: ImageUrls,
   ) =>
   (info: TicketListing): RenderedCard => {
     const { listing } = info;
@@ -199,7 +201,7 @@ const renderListingCard =
       ? `<p><strong>${escapeHtml(listing.location)}</strong></p>`
       : "";
     const descriptionHtml = listing.description
-      ? renderMarkdown(listing.description)
+      ? renderMarkdown(listing.description, imageUrls)
       : "";
     const attributesHtml = listingAttributesHtml(
       attributesByListing,
@@ -225,9 +227,13 @@ const renderListingCard =
 /** Render one group card (same style as a listing card). A package that's
  *  sold out for the searched date shows the same red "Sold Out" badge,
  *  inside its `.prose` block, instead of a Book link that could only fail. */
-const renderGroupCard = (group: Group, soldOut: boolean): string => {
+const renderGroupCard = (
+  group: Group,
+  soldOut: boolean,
+  imageUrls: ImageUrls,
+): string => {
   const descriptionHtml = group.description
-    ? renderMarkdown(group.description)
+    ? renderMarkdown(group.description, imageUrls)
     : "";
   if (soldOut) {
     return `<div class="prose"><h2>${escapeHtml(
@@ -260,6 +266,7 @@ export const homepagePage = (
   soldOutPackageIds: ReadonlySet<number>,
   requestedDate: string | null,
   attributesByListing: ListingAttributesById,
+  imageUrls: ImageUrls,
 ): string => {
   const title = titleWithSiteName(t("terms.listings"), websiteTitle);
 
@@ -279,7 +286,9 @@ export const homepagePage = (
   // regular groups and individual listings follow together. Each set is sorted by
   // decrypted name in app code (SQL can't order the encrypted column).
   const renderGroupCards = (gs: Group[]): string =>
-    joinStrings(gs.map((g) => renderGroupCard(g, soldOutPackageIds.has(g.id))));
+    joinStrings(
+      gs.map((g) => renderGroupCard(g, soldOutPackageIds.has(g.id), imageUrls)),
+    );
   const packageGroups = groups
     .filter((g) => g.is_package)
     .toSorted(compareGroupsByName);
@@ -301,7 +310,7 @@ export const homepagePage = (
       : partition((g: Group) => !soldOutPackageIds.has(g.id))
   )(packageGroups);
   const listingCards = listings.map(
-    renderListingCard(childStateOf, dateFilter, attributesByListing),
+    renderListingCard(childStateOf, dateFilter, attributesByListing, imageUrls),
   );
   const [availableCards, unavailableCards] = (
     requestedDate === null
