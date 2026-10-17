@@ -72,15 +72,16 @@ export const createImageToolbarItem = (view: EditorView): HTMLElement => {
   // One fetch per mount, cached. A failed load is never cached, so the next
   // open retries.
   let options: Promise<ImageOption[]> | null = null;
+  const fetchOptions = async (): Promise<ImageOption[]> => {
+    const response = await fetch("/admin/images/options");
+    if (!response.ok) {
+      throw new Error(`image options responded ${response.status}`);
+    }
+    const { images } = (await response.json()) as { images: ImageOption[] };
+    return images;
+  };
   const loadOptions = (): Promise<ImageOption[]> => {
-    options ??= fetch("/admin/images/options")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`image options responded ${response.status}`);
-        }
-        return response.json() as Promise<{ images: ImageOption[] }>;
-      })
-      .then(({ images }) => images);
+    options ??= fetchOptions();
     return options;
   };
 
@@ -101,23 +102,26 @@ export const createImageToolbarItem = (view: EditorView): HTMLElement => {
     }
   };
 
+  const settle = async (): Promise<void> => {
+    try {
+      const loaded = await loadOptions();
+      if (panel.hidden) return;
+      panel.dataset.state = "ready";
+      renderOptions(loaded);
+    } catch {
+      // A failed load is never cached, so the next open retries.
+      options = null;
+      if (panel.hidden) return;
+      panel.dataset.state = "error";
+      panel.replaceChildren(mutedLine(UNAVAILABLE_MESSAGE));
+    }
+  };
+
   const open = (): void => {
     panel.hidden = false;
     panel.dataset.state = "loading";
     panel.replaceChildren(mutedLine("Loading…"));
-    loadOptions().then(
-      (loaded) => {
-        if (panel.hidden) return;
-        panel.dataset.state = "ready";
-        renderOptions(loaded);
-      },
-      () => {
-        options = null;
-        if (panel.hidden) return;
-        panel.dataset.state = "error";
-        panel.replaceChildren(mutedLine(UNAVAILABLE_MESSAGE));
-      },
-    );
+    void settle();
   };
 
   const close = (): void => {

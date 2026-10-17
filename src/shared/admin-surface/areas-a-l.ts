@@ -217,6 +217,7 @@ export const AREAS_A_L = {
   images: {
     audience: CONTENT_ADMIN_LEVELS,
     view: {
+      imageOptions: "/admin/images/options",
       images: "/admin/images",
     },
     write: {
