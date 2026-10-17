@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { junitErroredTests } from "#scripts/tap-summary.ts";
+import { junitErroredTests, NO_TAP_DIAGNOSTIC } from "#scripts/tap-summary.ts";
 import {
   printed,
   printedCancellation,
@@ -99,9 +99,7 @@ describe("JUnit cancellation attribution", () => {
     const { errors } = await printed(
       summary({
         failed: 1,
-        failures: [
-          { message: "No TAP diagnostic was emitted.", name: "repeated suite" },
-        ],
+        failures: [{ message: NO_TAP_DIAGNOSTIC, name: "repeated suite" }],
         fileEstimate: 2,
         passed: 1,
       }),
@@ -212,9 +210,7 @@ describe("JUnit cancellation attribution", () => {
     const { errors } = await printed(
       summary({
         failed: 1,
-        failures: [
-          { message: "No TAP diagnostic was emitted.", name: "other suite" },
-        ],
+        failures: [{ message: NO_TAP_DIAGNOSTIC, name: "other suite" }],
         fileEstimate: 2,
         passed: 1,
       }),

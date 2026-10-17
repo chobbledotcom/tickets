@@ -238,7 +238,7 @@ const junitAttribution = (
       test.name === failure.name || test.name === unescapeTapName(failure.name),
   );
   const [match] = matches;
-  if (match === undefined || match.file === "") return;
+  if (matches.length !== 1 || match === undefined || match.file === "") return;
   return match;
 };
 
