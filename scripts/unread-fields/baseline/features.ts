@@ -119,7 +119,6 @@ export const FEATURE_BASELINE: readonly FindingIdentity[] = [
     "cartDateItems",
     "childDatesById",
     "galleryImages",
-    "groupDescription",
     "groupImage",
     "groupName",
     "promoCodesEnabled",

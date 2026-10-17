@@ -15,12 +15,6 @@ import { escapeHtml } from "#jsx/escape-html.ts";
 /** URL schemes permitted in links and images. */
 const SAFE_URL_SCHEMES = ["http:", "https:", "mailto:", "tel:"] as const;
 
-/** The image library lookup for the render in progress. The keys are the ids
- * the editor writes (`img#N`). The values are the images' canonical uid URLs.
- * `renderMarkdown` sets it around the synchronous parse and clears it after.
- * A parse never sees another call's table. */
-let renderImageUrls: ReadonlyMap<number, string> = new Map();
-
 /**
  * True when a link/image URL is safe to render. Relative URLs (no scheme) are
  * allowed; absolute URLs must use a scheme from {@link SAFE_URL_SCHEMES}.
@@ -41,10 +35,26 @@ const hasHref = (token: Token): token is Token & { href: string } =>
   (token.type === "link" || token.type === "image") &&
   typeof (token as { href?: unknown }).href === "string";
 
+/** The per-render token walk. A short-form image reference (`![alt](img#7)`)
+ * written by the editor's image dropdown resolves to the image's canonical
+ * uid URL from the table the call site preloaded. An id the table lacks
+ * renders nothing to load, so the <img> falls back to its alt text. Links
+ * and code spans never carry the rewrite. Unsafe URLs strip to nothing. */
+const walkTokensFor =
+  (imageUrls: ReadonlyMap<number, string>) =>
+  (token: Token): void => {
+    if (token.type === "image" && typeof token.href === "string") {
+      const id = token.href.match(/^img#(\d+)$/)?.[1];
+      if (id) token.href = imageUrls.get(Number(id)) ?? "";
+    }
+    if (hasHref(token) && !isSafeUrl(token.href)) token.href = "";
+  };
+
 /** Built on first render, not at module load — `new Marked(...)` compiles
  * marked's tokenizer regexes, so deferring it keeps that work off the cold boot
  * of requests that never render markdown. `once` returns synchronously, so the
- * synchronous render callers are unaffected. */
+ * synchronous render callers are unaffected. The token walk is per call, so
+ * each render carries its own image-url table. */
 const md = once(
   () =>
     new Marked({
@@ -52,18 +62,6 @@ const md = once(
         html({ raw }) {
           return escapeHtml(raw);
         },
-      },
-      walkTokens: (token) => {
-        // A short-form image reference (`![alt](img#7)`) written by the
-        // editor's image dropdown resolves to the image's canonical uid URL
-        // from the table the call site preloaded. An id the table lacks
-        // renders nothing to load, so the <img> falls back to its alt text.
-        // Links and code spans never carry the rewrite.
-        if (token.type === "image" && typeof token.href === "string") {
-          const id = token.href.match(/^img#(\d+)$/)?.[1];
-          if (id) token.href = renderImageUrls.get(Number(id)) ?? "";
-        }
-        if (hasHref(token) && !isSafeUrl(token.href)) token.href = "";
       },
     }),
 );
@@ -75,14 +73,8 @@ const md = once(
 export const renderMarkdown = (
   text: string,
   imageUrls: ReadonlyMap<number, string> = new Map(),
-): string => {
-  renderImageUrls = imageUrls;
-  try {
-    return md().parse(text) as string;
-  } finally {
-    renderImageUrls = new Map();
-  }
-};
+): string =>
+  md().parse(text, { walkTokens: walkTokensFor(imageUrls) }) as string;
 
 /** Inline token types that don't add any HTML structure beyond plain text
  * inside a `<p>`. If a paragraph contains only these, the rendered markdown is
