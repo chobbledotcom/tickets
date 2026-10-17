@@ -1,39 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  type CompactTapSummary,
-  junitErrorFiles,
-  printCompactSummary,
-} from "#scripts/tap-summary.ts";
-import { capturingConsole } from "#test-utils/captured-console.ts";
-
-const summary = (over: Partial<CompactTapSummary> = {}): CompactTapSummary => ({
-  droppedLines: [],
-  failed: 0,
-  failures: [],
-  fileEstimate: 0,
-  passed: 3,
-  sawTap: true,
-  skipped: 0,
-  suppressedResults: 0,
-  ...over,
-});
-
-/** Capture what the summary printed to each console stream. */
-const printed = (
-  result: CompactTapSummary,
-  status: number | { code: number; signal?: string | null },
-  stderrText: string,
-  junitErrorFiles: string[] = [],
-): Promise<{ errors: string[]; logs: string[] }> =>
-  capturingConsole(() =>
-    printCompactSummary(
-      result,
-      typeof status === "number" ? { code: status, signal: null } : status,
-      stderrText,
-      junitErrorFiles,
-    ),
-  );
+import { printed, summary } from "./tap-summary/printed-summary.ts";
 
 describe("printing the run summary", () => {
   test("reports a pass when nothing failed and the run exited cleanly", async () => {
@@ -300,33 +267,5 @@ describe("printing the run summary", () => {
       "\nStdout lines deno printed beside the TAP results:",
     );
     expect(errors).toContain("error: Uncaught TypeError: boom");
-  });
-});
-
-describe("reading deno's JUnit report for uncaught errors", () => {
-  test("names the suites whose tests carry error entries", () => {
-    const xml = [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<testsuites name="deno test" tests="3" failures="0" errors="2">',
-      '    <testsuite name="./fine.test.ts" tests="1" errors="0" failures="0">',
-      '        <testcase name="fine" classname="./fine.test.ts">',
-      "        </testcase>",
-      "    </testsuite>",
-      '    <testsuite name="./uncaught.test.ts" tests="2" errors="2" failures="0">',
-      '        <testcase name="starts" classname="./uncaught.test.ts">',
-      '            <error message="Cancelled"/>',
-      "        </testcase>",
-      "    </testsuite>",
-      "</testsuites>",
-    ].join("\n");
-
-    expect(junitErrorFiles(xml)).toEqual(["./uncaught.test.ts"]);
-  });
-
-  test("answers nothing when the report holds no error entries", () => {
-    const xml =
-      '<testsuite name="./fine.test.ts" tests="1" errors="0" failures="0"></testsuite>';
-
-    expect(junitErrorFiles(xml)).toEqual([]);
   });
 });
