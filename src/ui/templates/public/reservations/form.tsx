@@ -4,9 +4,9 @@
 
 import type { AttributeWithOptions } from "#db/attributes.ts";
 import type { AddOnOption } from "#db/modifier-resolve.ts";
+/* jscpd:ignore-start */
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
@@ -249,7 +249,7 @@ export const TicketPageForm = ({
 
       {questions &&
         questions.length > 0 &&
-        renderQuestions(questions, questionListingMap)}
+        renderQuestions(questions, questionListingMap, imageUrls)}
       {addOns && addOns.length > 0 && <AddOnsFieldset addOns={addOns} />}
       {promoCodesEnabled && <PromoCodeField prefilled={prefill?.promo} />}
       {terms && <Raw html={renderTermsAndCheckbox(terms, imageUrls)} />}

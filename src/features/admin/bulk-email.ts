@@ -26,8 +26,11 @@ import {
   insertEmailTemplate,
   updateEmailTemplate,
 } from "#db/email-templates.ts";
+/* jscpd:ignore-start */
+import { imageUrlsFor } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+/* jscpd:ignore-end */
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
   formPost,
@@ -337,6 +340,7 @@ const handlePreviewGet = ownerResponsePage(async (session) => {
       contactSummary: contactFrequencySummary(counts),
       disabledReason,
       draft,
+      imageUrls: await imageUrlsFor([draft.body]),
       mailtoLink: buildMailtoLink(
         sendable,
         draft.subject,
@@ -373,7 +377,7 @@ const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
     ? await getUnsubscribedHashSet()
     : new Set<string>();
   const payload = await buildBulkPayload({
-    bodyHtml: renderMarkdown(draft.body),
+    bodyHtml: renderMarkdown(draft.body, await imageUrlsFor([draft.body])),
     bodyText: draft.body,
     marketing: draft.marketing,
     recipients,

@@ -113,7 +113,7 @@ export const MarkdownProse = ({
   imageUrls,
 }: {
   markdown: string;
-  imageUrls?: ReadonlyMap<number, string>;
+  imageUrls?: ReadonlyMap<number, string> | undefined;
 }): JSX.Element | null =>
   markdown ? (
     <div class="prose">

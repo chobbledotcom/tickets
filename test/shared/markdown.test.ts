@@ -85,6 +85,30 @@ describe("markdown", () => {
       const result = renderMarkdown("[mail](mailto:a@b.com)");
       expect(result).toContain('<a href="mailto:a@b.com">mail</a>');
     });
+
+    test("renders an img#N reference with the mapped URL", () => {
+      const result = renderMarkdown(
+        "![poster](img#7)",
+        new Map([[7, "/img/abc"]]),
+      );
+      expect(result).toContain('<img src="/img/abc"');
+      expect(result).toContain('alt="poster"');
+    });
+
+    test("renders an img#N reference with no table entry as an empty src", () => {
+      const result = renderMarkdown("![poster](img#9)");
+      expect(result).toContain('src=""');
+      expect(result).toContain('alt="poster"');
+    });
+
+    test("strips an img#N reference when the mapped URL is unsafe", () => {
+      const result = renderMarkdown(
+        "![poster](img#7)",
+        new Map([[7, "javascript:alert(1)"]]),
+      );
+      expect(result).not.toContain("javascript:");
+      expect(result).toContain("poster");
+    });
   });
 
   describe("isSafeUrl", () => {

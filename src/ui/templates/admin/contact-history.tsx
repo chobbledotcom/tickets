@@ -31,6 +31,8 @@ export type ContactHistoryPageData = {
   flashSuccess?: string | undefined;
   /** Inline validation error from a rejected save (re-rendered in place). */
   formError?: string | null;
+  /** The id→uid-URL table for the record note's img#N references. */
+  imageUrls?: ReadonlyMap<number, string>;
 };
 
 /** A labelled non-negative integer field for one of the plaintext counters. */
@@ -60,6 +62,7 @@ export const contactHistoryPage = ({
   flashError,
   flashSuccess,
   formError,
+  imageUrls,
 }: ContactHistoryPageData): string =>
   AttendeesPage({
     children: (
@@ -117,7 +120,7 @@ export const contactHistoryPage = ({
         {record.adminNotes && (
           <section>
             <h2>{t("contact_history.note_preview_label")}</h2>
-            <ContactNotes notes={record.adminNotes} />
+            <ContactNotes imageUrls={imageUrls} notes={record.adminNotes} />
           </section>
         )}
 

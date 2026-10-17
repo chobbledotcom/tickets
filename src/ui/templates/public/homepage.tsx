@@ -2,6 +2,7 @@
 
 import type { TicketListing } from "#booking/model.ts";
 import type { ListingAttributesById } from "#db/attributes.ts";
+import type { ImageUrls } from "#db/images.ts";
 import { joinStrings, partition } from "#fp";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
@@ -189,7 +190,7 @@ const renderListingCard =
     childStateOf: (id: number) => ChildCardState,
     dateFilter: DailyDateFilter | null,
     attributesByListing: ListingAttributesById,
-    imageUrls: ReadonlyMap<number, string>,
+    imageUrls: ImageUrls,
   ) =>
   (info: TicketListing): RenderedCard => {
     const { listing } = info;
@@ -229,7 +230,7 @@ const renderListingCard =
 const renderGroupCard = (
   group: Group,
   soldOut: boolean,
-  imageUrls: ReadonlyMap<number, string>,
+  imageUrls: ImageUrls,
 ): string => {
   const descriptionHtml = group.description
     ? renderMarkdown(group.description, imageUrls)
@@ -265,7 +266,7 @@ export const homepagePage = (
   soldOutPackageIds: ReadonlySet<number>,
   requestedDate: string | null,
   attributesByListing: ListingAttributesById,
-  imageUrls: ReadonlyMap<number, string>,
+  imageUrls: ImageUrls,
 ): string => {
   const title = titleWithSiteName(t("terms.listings"), websiteTitle);
 

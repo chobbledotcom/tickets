@@ -4,6 +4,7 @@
  * enough to need a `<div class="prose">` block above the control.
  */
 
+import type { ImageUrls } from "#db/images.ts";
 /* jscpd:ignore-start */
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
@@ -21,8 +22,8 @@ const questionProseId = (q: QuestionWithAnswers): string =>
 
 /** The prose-HTML for a complex question text, wrapped in a styling div that
  * carries the id its control references via `aria-labelledby`. */
-const questionProse = (q: QuestionWithAnswers): string =>
-  `<div class="prose" id="${questionProseId(q)}">${renderMarkdown(q.text)}</div>`;
+const questionProse = (q: QuestionWithAnswers, imageUrls?: ImageUrls): string =>
+  `<div class="prose" id="${questionProseId(q)}">${renderMarkdown(q.text, imageUrls)}</div>`;
 
 /**
  * True when the question text is simple enough to label a control inline
@@ -35,11 +36,26 @@ export const hasSimpleQuestionText = (q: QuestionWithAnswers): boolean =>
  * The question text rendered as JSX-embeddable content: the raw text (auto-
  * escaped by JSX) when simple, or a prose div (Raw HTML) when complex.
  */
-export const questionTextContent = (q: QuestionWithAnswers): Child =>
-  hasSimpleQuestionText(q) ? q.text : <Raw html={questionProse(q)} />;
+export const questionTextContent = (
+  q: QuestionWithAnswers,
+  imageUrls?: ImageUrls,
+): Child =>
+  hasSimpleQuestionText(q) ? (
+    q.text
+  ) : (
+    <Raw html={questionProse(q, imageUrls)} />
+  );
+
+/** What both question wrappers receive: the question, its listing scope, and
+ * the image-url table for its markdown text. */
+type QuestionWrapArgs = {
+  imageUrls?: ImageUrls | undefined;
+  listingIds?: string | undefined;
+  q: QuestionWithAnswers;
+};
 
 /**
- * Build a single-control question (free-text input or select). The control is a
+ * Wrap a single-control question (free-text input or select). The control is a
  * factory so the wrapper can name it correctly in both layouts: when the text
  * is simple markdown the control sits inside a `<label>` (clicking it focuses
  * the control, and the label names it implicitly, so no extra prop is passed);
@@ -50,8 +66,7 @@ export const questionTextContent = (q: QuestionWithAnswers): Child =>
  * show/hide them.
  */
 export const questionWrapper = (
-  q: QuestionWithAnswers,
-  listingIds: string | undefined,
+  { imageUrls, listingIds, q }: QuestionWrapArgs,
   control: (labelledBy?: string) => JSX.Element,
 ): JSX.Element =>
   hasSimpleQuestionText(q) ? (
@@ -61,7 +76,7 @@ export const questionWrapper = (
     </label>
   ) : (
     <div class="custom-question" data-listing-ids={listingIds}>
-      <Raw html={questionProse(q)} />
+      <Raw html={questionProse(q, imageUrls)} />
       {control(questionProseId(q))}
     </div>
   );
@@ -73,8 +88,7 @@ export const questionWrapper = (
  * radio group stays labelled even without a `<legend>`.
  */
 export const questionFieldset = (
-  q: QuestionWithAnswers,
-  listingIds: string | undefined,
+  { imageUrls, listingIds, q }: QuestionWrapArgs,
   controls: JSX.Element[],
 ): JSX.Element =>
   hasSimpleQuestionText(q) ? (
@@ -88,7 +102,7 @@ export const questionFieldset = (
       class="custom-question"
       data-listing-ids={listingIds}
     >
-      {questionTextContent(q)}
+      {questionTextContent(q, imageUrls)}
       {controls}
     </fieldset>
   );
