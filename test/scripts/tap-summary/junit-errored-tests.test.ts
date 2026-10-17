@@ -5,7 +5,16 @@
  */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { junitErroredTests, junitErrorFiles } from "#scripts/tap-summary.ts";
+import {
+  type JunitErroredTest,
+  junitErroredTests,
+  junitErrorFiles,
+} from "#scripts/tap-summary.ts";
+
+/** Parses the report and expects exactly these errored records back. */
+const expectErrored = (xml: string, expected: JunitErroredTest[]): void => {
+  expect(junitErroredTests(xml)).toEqual(expected);
+};
 
 describe("reading deno's JUnit report for uncaught errors", () => {
   test("names the suites whose tests carry error entries", () => {
@@ -50,7 +59,7 @@ describe("reading deno's JUnit report for uncaught errors", () => {
       "</testsuites>",
     ].join("\n");
 
-    expect(junitErroredTests(xml)).toEqual([
+    expectErrored(xml, [
       {
         column: 1,
         file: "./probe.test.ts",
@@ -65,7 +74,29 @@ describe("reading deno's JUnit report for uncaught errors", () => {
     const xml =
       '<testcase name="fine" classname="./fine.test.ts" line="3" col="1"></testcase>';
 
-    expect(junitErroredTests(xml)).toEqual([]);
+    expectErrored(xml, []);
+  });
+
+  test("skips a self-closing passed testcase before an errored one", () => {
+    // quick-junit writes a passed testcase as a self-closing element. The
+    // errored record after it must keep its own declare site, and the
+    // passed test's attributes must not leak into it.
+    const xml = [
+      '<testcase name="fine" classname="./fine.test.ts" line="3" col="1"/>',
+      '<testcase name="probe suite" classname="./probe.test.ts" line="14" col="1">',
+      '            <error message="Cancelled"/>',
+      "</testcase>",
+    ].join("\n");
+
+    expectErrored(xml, [
+      {
+        column: 1,
+        file: "./probe.test.ts",
+        line: 14,
+        message: "Cancelled",
+        name: "probe suite",
+      },
+    ]);
   });
 
   test("keeps a record with absent attributes as empty values", () => {
@@ -76,7 +107,7 @@ describe("reading deno's JUnit report for uncaught errors", () => {
       "\n",
     );
 
-    expect(junitErroredTests(xml)).toEqual([
+    expectErrored(xml, [
       {
         column: undefined,
         file: "",
@@ -94,7 +125,7 @@ describe("reading deno's JUnit report for uncaught errors", () => {
       "</testcase>",
     ].join("\n");
 
-    expect(junitErroredTests(xml)).toEqual([
+    expectErrored(xml, [
       {
         column: undefined,
         file: "./w.test.ts",
@@ -125,7 +156,7 @@ describe("reading deno's JUnit report for uncaught errors", () => {
       "</testcase>",
     ].join("\n");
 
-    expect(junitErroredTests(xml)).toEqual([
+    expectErrored(xml, [
       {
         column: 3,
         file: "./only-classname.test.ts",

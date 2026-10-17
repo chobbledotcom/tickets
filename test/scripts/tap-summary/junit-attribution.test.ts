@@ -15,7 +15,7 @@ describe("JUnit cancellation attribution", () => {
     // the JUnit's errored record is the only attribution there is.
     const { errors } = await printedCancellation(
       {
-        message: "No TAP diagnostic was emitted for this failure.",
+        message: NO_TAP_DIAGNOSTIC,
         name: "Turso migration file",
       },
       [TURSO_RECORD],
@@ -46,7 +46,7 @@ describe("JUnit cancellation attribution", () => {
         failed: 1,
         failures: [
           {
-            message: "No TAP diagnostic was emitted for this failure.",
+            message: NO_TAP_DIAGNOSTIC,
             name: "probe & suite",
           },
         ],
@@ -148,7 +148,7 @@ describe("JUnit cancellation attribution", () => {
         failed: 1,
         failures: [
           {
-            message: "No TAP diagnostic was emitted for this failure.",
+            message: NO_TAP_DIAGNOSTIC,
             name: "Turso migration file",
           },
         ],
@@ -176,7 +176,7 @@ describe("JUnit cancellation attribution", () => {
         failed: 1,
         failures: [
           {
-            message: "No TAP diagnostic was emitted for this failure.",
+            message: NO_TAP_DIAGNOSTIC,
             name: "probe \\# suite",
           },
         ],

@@ -116,10 +116,16 @@ const xmlNumber = (
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
-/** The errored <testcase> entries in deno's JUnit report, in report order. */
+/** The errored <testcase> entries in deno's JUnit report, in report order.
+ *  quick-junit writes a passed testcase as a self-closing element, so the
+ *  opening tag must not accept one: a self-closing element has no body,
+ *  and matching it would run the body on to the next errored record's
+ *  closing tag, reporting the passed test's declare site and dropping the
+ *  errored record. */
 export const junitErroredTests = (junit: string): JunitErroredTest[] => {
   const errored: JunitErroredTest[] = [];
-  const testcase = /<testcase\b(?<tag>[^>]*)>(?<body>[\s\S]*?)<\/testcase>/g;
+  const testcase =
+    /<testcase\b(?<tag>[^>]*[^/])?>(?<body>[\s\S]*?)<\/testcase>/g;
   for (const { groups } of junit.matchAll(testcase)) {
     const { tag, body } = groups as { tag: string; body: string };
     const error = body.match(/<error\b(?<errorTag>[^>]*)>/);
