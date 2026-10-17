@@ -51,23 +51,32 @@ const withUploadServer = async (
   const address = server.addr;
   if (!("port" in address)) throw new Error("Expected a network address");
   // A server that answers before reading the body leaves the client still
-  // streaming after the upload has already settled. Ending those requests here
-  // keeps every socket's failure inside the test that made it.
-  const sent: ClientRequest[] = [];
+  // streaming after the upload has already settled. Aborting those requests
+  // here raises the break as each request's own "error" event, which the
+  // upload's handler consumes. A socket-level destroy instead races the
+  // polyfill's write task, which rejects with a bare "resource closed"
+  // string no watch may eat — the uncaught error that failed two hosted
+  // runs at an unknown location.
+  const controllers: AbortController[] = [];
   const transport: DatabaseUploadTransport = {
     request: (url, options, receive) => {
       expect(url.protocol).toBe("https:");
       const localUrl = new URL(url);
       localUrl.protocol = "http:";
-      const request = httpRequest(localUrl, options, receive);
-      sent.push(request);
-      return request;
+      const controller = new AbortController();
+      // The caller's own signal keeps working: a combined signal aborts the
+      // request when either side fires.
+      options.signal = options.signal
+        ? AbortSignal.any([options.signal, controller.signal])
+        : controller.signal;
+      controllers.push(controller);
+      return httpRequest(localUrl, options, receive);
     },
   };
   try {
     await run(`https://127.0.0.1:${address.port}`, transport);
   } finally {
-    for (const request of sent) request.destroy();
+    for (const controller of controllers) controller.abort();
     await server.shutdown();
     await server.finished;
   }
@@ -131,6 +140,17 @@ const uploadThroughScript = async (
     undefined,
     scriptedTransport(request, play),
   );
+};
+
+/** The server handler both early-answer tests share: read one chunk so the
+ * socket stays alive until the answer is on the wire, then answer with the
+ * padded rejection body while the write is still running. */
+const earlyAnswerHandler = async (request: Request): Promise<Response> => {
+  const body = request.body;
+  assertExists(body, "Expected an upload body");
+  const reader = body.getReader();
+  await reader.read();
+  return new Response(earlyAnswerBody, { status: 400 });
 };
 
 describe("Turso migration file", () => {
@@ -294,15 +314,60 @@ describe("Turso migration file", () => {
 
       await expectUploadRejection(
         path,
-        async (request) => {
-          const body = request.body;
-          assertExists(body, "Expected an upload body");
-          const reader = body.getReader();
-          await reader.read();
-          return new Response(earlyAnswerBody, { status: 400 });
-        },
+        earlyAnswerHandler,
         "error writing a body to connection",
       );
+    }));
+
+  /** The harness's teardown aborts the still-streaming request through the
+   * signal it plants, so the break surfaces as the request's own "error"
+   * event. A teardown that breaks the socket instead leaves the polyfill's
+   * write task rejecting with a bare "resource closed" string — an uncaught
+   * error at an unknown location that failed two hosted runs. The listener
+   * here only records: it never prevents the default, so a real escape
+   * still fails this file. */
+  test("the teardown aborts an in-flight upload with no stray rejections", () =>
+    withTempDir(async (dir) => {
+      const path = join(dir, "database.sqlite");
+      await Deno.writeFile(path, new Uint8Array(32_000_000));
+
+      const stray: string[] = [];
+      const onRejection = (event: PromiseRejectionEvent) => {
+        const reason = event.reason;
+        if (
+          !(
+            reason instanceof TypeError &&
+            reason.message === "Failed to fetch: request body stream errored"
+          )
+        ) {
+          stray.push(reason instanceof Error ? reason.message : String(reason));
+        }
+      };
+      globalThis.addEventListener("unhandledrejection", onRejection);
+      try {
+        for (let round = 0; round < 5; round += 1) {
+          await withUploadServer(earlyAnswerHandler, (dbUrl, transport) =>
+            expect(
+              uploadTursoDatabaseFile(
+                path,
+                uploadCredentials(dbUrl),
+                undefined,
+                transport,
+              ),
+            ).rejects.toThrow("error writing a body to connection"),
+          );
+        }
+        // One macrotask turn lets a rejection from the teardown's abort land
+        // while the listener still records it. The polyfill dispatches
+        // rejections on the platform's own schedule, so no deterministic
+        // clock can drive it.
+        const { promise, resolve } = Promise.withResolvers<void>();
+        setTimeout(resolve, 0);
+        await promise;
+      } finally {
+        globalThis.removeEventListener("unhandledrejection", onRejection);
+      }
+      expect(stray).toEqual([]);
     }));
 
   // The rejection surfaces whenever the polyfill's own internal task ends, so
