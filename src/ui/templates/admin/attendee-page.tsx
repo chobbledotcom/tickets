@@ -37,9 +37,13 @@ import type { Attendee } from "#types";
 /* jscpd:ignore-end */
 
 /** One channel's contact record plus the URL-safe HMAC param that keys its
- * /admin/history editor link. Null when the attendee has no value for that
- * channel. */
-export type ContactChannelData = { hashParam: string; record: ContactRecord };
+ * /admin/history editor link, and the image-url table for the record's
+ * markdown note. Null when the attendee has no value for that channel. */
+export type ContactChannelData = {
+  hashParam: string;
+  record: ContactRecord;
+  imageUrls?: ReadonlyMap<number, string>;
+};
 
 /** Per-channel contact records shown in the read-only history panel. */
 export type ContactRecordsByChannel = {
@@ -67,9 +71,15 @@ const Multiline = ({ text }: { text: string }): JSX.Element => (
 
 /** The owner's private note for a contact, rendered from markdown. Shared by
  * the attendee page's outreach panel and the contact-history editor's preview. */
-export const ContactNotes = ({ notes }: { notes: string }): JSX.Element => (
+export const ContactNotes = ({
+  imageUrls,
+  notes,
+}: {
+  imageUrls?: ReadonlyMap<number, string> | undefined;
+  notes: string;
+}): JSX.Element => (
   <div class="contact-notes">
-    <Raw html={renderMarkdown(notes)} />
+    <Raw html={renderMarkdown(notes, imageUrls)} />
   </div>
 );
 
@@ -164,12 +174,14 @@ const ContactRecordSection = ({
   channel: ContactChannelData;
   label: string;
 }): JSX.Element => {
-  const { hashParam, record } = channel;
+  const { hashParam, imageUrls, record } = channel;
   return (
     <ProseSection
       footer={
         <>
-          {record.adminNotes && <ContactNotes notes={record.adminNotes} />}
+          {record.adminNotes && (
+            <ContactNotes imageUrls={imageUrls} notes={record.adminNotes} />
+          )}
           <p>
             <a href={`/admin/history/${hashParam}`}>
               {t("attendee_form.edit_contact_record")}
@@ -343,6 +355,7 @@ export const attendeeBanner = ({
   statuses,
   notes,
   isOwner,
+  imageUrls,
 }: {
   attendee: Attendee;
   statuses: AttendeeStatus[];
@@ -361,7 +374,11 @@ export const attendeeBanner = ({
           </h2>
         </div>
       )}
-      <AttendeeNotesSection isOwner={isOwner} notes={notes} />
+      <AttendeeNotesSection
+        imageUrls={imageUrls}
+        isOwner={isOwner}
+        notes={notes}
+      />
     </PageBlock>
   );
 };
