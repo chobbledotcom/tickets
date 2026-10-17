@@ -14,7 +14,7 @@ import { flashConsumed } from "#shared/flash-context.ts";
 import { requestFlash } from "#shared/forms/flash.tsx";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import { getIframeMode } from "#shared/request-context.ts";
+import { currentRequestStore, getIframeMode } from "#shared/request-context.ts";
 import { renderAdminFooter } from "#templates/admin/footer.tsx";
 import { PageRegions } from "#templates/components/page-structure.tsx";
 import type { PageFamily } from "#templates/page-family.ts";
@@ -106,7 +106,12 @@ export const Layout = ({
               iframe embeds stay bare like the header image above. */}
           {family !== "admin" && !getIframeMode() && settings.siteFooter && (
             <footer class="site-footer">
-              <Raw html={renderMarkdown(settings.siteFooter)} />
+              <Raw
+                html={renderMarkdown(
+                  settings.siteFooter,
+                  currentRequestStore()?.footerImageUrls,
+                )}
+              />
             </footer>
           )}
           {bodyClass?.includes("iframe") && (

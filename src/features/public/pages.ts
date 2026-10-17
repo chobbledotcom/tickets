@@ -3,6 +3,7 @@
  */
 
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
+import { imageUrlsFor } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 /* jscpd:ignore-start */
@@ -53,12 +54,14 @@ const renderPublicPage: ResponseHandler<
 > = (pageType, getContent) =>
   requirePublicSite(async () => {
     const content = getContent();
+    const imageUrls = await imageUrlsFor([content]);
     return htmlResponse(
       publicSitePage(
         pageType,
         await publicNavProps(null),
         settings.websiteTitle,
         content,
+        imageUrls,
       ),
     );
   });
@@ -140,9 +143,14 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
       getSelectedAttributesForListings(listings.map((listing) => listing.id)),
     ]);
     const soldOutPackages = soldOutPackageIds(publicGroups, unavailableOnDate);
+    const homeListings = applyParentSoldOut(ticketListings, classification);
+    const imageUrls = await imageUrlsFor([
+      ...homeListings.map((entry) => entry.listing.description),
+      ...groups.map((group) => group.description),
+    ]);
     return htmlResponse(
       homepagePage(
-        applyParentSoldOut(ticketListings, classification),
+        homeListings,
         settings.websiteTitle,
         groups,
         childCardState(
@@ -154,6 +162,7 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
         soldOutPackages,
         requestedDate,
         attributesByListing,
+        imageUrls,
       ),
     );
   });
@@ -168,6 +177,7 @@ export const handlePublicTerms: ResponseHandler = () =>
             await publicNavProps(null),
             settings.websiteTitle,
             settings.terms,
+            await imageUrlsFor([settings.terms]),
           ),
         )
       : notFoundResponse(),
