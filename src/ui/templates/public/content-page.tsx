@@ -5,6 +5,7 @@
  * so each template file is just one `seoContentPage(...)` call.
  */
 
+import type { imageUrlsFor } from "#db/images.ts";
 import type { Image } from "#types";
 import { type PublicNavProps, publicSeoPage } from "./shared.tsx";
 
@@ -18,6 +19,7 @@ export const seoContentPage =
       item: T,
       images: readonly Image[],
       nav: PublicNavProps,
+      imageUrls: Awaited<ReturnType<typeof imageUrlsFor>>,
     ) => JSX.Element,
   ) =>
   (
@@ -25,5 +27,11 @@ export const seoContentPage =
     images: readonly Image[],
     nav: PublicNavProps,
     websiteTitle: string,
+    imageUrls: Awaited<ReturnType<typeof imageUrlsFor>>,
   ): string =>
-    publicSeoPage(item, nav, websiteTitle, options)(body(item, images, nav));
+    publicSeoPage(
+      item,
+      nav,
+      websiteTitle,
+      options,
+    )(body(item, images, nav, imageUrls));
