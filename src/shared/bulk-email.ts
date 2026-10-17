@@ -11,6 +11,7 @@
 
 import { decryptPiiBlob } from "#db/attendees/pii.ts";
 import { hashEmail } from "#db/contact-preferences.ts";
+import type { ImageUrls } from "#db/images.ts";
 import {
   filter,
   flatMap,
@@ -144,6 +145,16 @@ const unsubscribeUrl = (hash: string): string =>
   `https://${getEffectiveDomain()}/unsubscribe?email=${encodeURIComponent(
     hash,
   )}`;
+
+/** The image-url table an email body needs: email clients cannot read
+ * root-relative sources, so every uid URL carries the site's origin. */
+export const absoluteEmailImageUrls = (imageUrls: ImageUrls): ImageUrls =>
+  new Map(
+    [...imageUrls].map(([id, url]) => [
+      id,
+      url.startsWith("/") ? `https://${getEffectiveDomain()}${url}` : url,
+    ]),
+  );
 
 const FOOTER_INTRO =
   "You're receiving this because you registered for one of our listings.";
