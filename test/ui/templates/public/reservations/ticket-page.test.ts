@@ -33,6 +33,21 @@ describe("ticketPage — packages", () => {
   beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
+  /** The two-member kit every package-section test here shares. */
+  const tentAndChairListings = () => [
+    ticketListing({
+      id: 1,
+      name: "Tent",
+      slug: "tent1",
+    }),
+    ticketListing({
+      id: 2,
+      max_quantity: 10,
+      name: "Chair",
+      slug: "chr12",
+    }),
+  ];
+
   test("uses group header details before the single listing details", () => {
     const html = ticketPage({
       attributesByListing: new Map([
@@ -148,19 +163,7 @@ describe("ticketPage — packages", () => {
   });
 
   test("renders a package quantity selector and member rows with fixed quantities", () => {
-    const listings = [
-      ticketListing({
-        id: 1,
-        name: "Tent",
-        slug: "tent1",
-      }),
-      ticketListing({
-        id: 2,
-        max_quantity: 10,
-        name: "Chair",
-        slug: "chr12",
-      }),
-    ];
+    const listings = tentAndChairListings();
     const html = ticketPage({
       groupName: "Camp Kit",
       listings,
@@ -174,6 +177,23 @@ describe("ticketPage — packages", () => {
     expect(html).toContain("Chair");
     expect(html).toContain("&times;4");
     expect(html).not.toContain('name="quantity_1"');
+  });
+
+  test("resolves a package description's img#id reference to the image's uid URL", () => {
+    const html = ticketPage({
+      imageUrls: new Map([[9, "/image/kit-uid.webp"]]),
+      listings: tentAndChairListings(),
+      packages: [
+        pagePackage(5, [1, 2], {
+          description: "![Kit](img#9)",
+          quantities: new Map([[2, 4]]),
+        }),
+        pagePackage(7, [1], { name: "Tent Bundle" }),
+      ],
+      slugs: [PKG_SLUG],
+    });
+    expect(html).toContain('<img src="/image/kit-uid.webp" alt="Kit">');
+    expect(html).not.toContain("img#9");
   });
 
   test("limits package day counts to the days its required child supports", () => {
