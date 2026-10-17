@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ticketPageImageUrls } from "#routes/public/ticket-page-images.ts";
+import { ticketPageImageUrls } from "#db/images.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -26,5 +26,14 @@ describeWithEnv("the ticket page's image-url lookup", { db: true }, () => {
     });
     expect(urls.get(poster.id)).toBe(`/image/${poster.filename}`);
     expect(urls.size).toBe(1);
+  });
+
+  test("answers an empty table when no text names an image", async () => {
+    const urls = await ticketPageImageUrls({
+      listings: [{ listing: { description: "plain words" } }],
+      packages: [],
+      terms: "also plain",
+    });
+    expect(urls.size).toBe(0);
   });
 });
