@@ -44,6 +44,7 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import {
+  absoluteEmailImageUrls,
   buildBulkPayload,
   buildMailtoLink,
   contactFrequencySummary,
@@ -255,10 +256,12 @@ const handleComposeGet = ownerResponsePage(async (session, request) => {
 });
 
 /** POST /admin/emails/preview — validate, persist the draft, redirect to preview. */
-const handlePreviewPost = validatedEmailPost(async (fields) => {
-  await saveDraft({ ...fields });
-  return ok(PREVIEW_PATH, t("bulk_email.review_before_sending"));
-});
+const handlePreviewPost = validatedEmailPost(
+  async ({ body, marketing, subject, target }) => {
+    await saveDraft({ body, marketing, subject, target });
+    return ok(PREVIEW_PATH, t("bulk_email.review_before_sending"));
+  },
+);
 
 /** GET /admin/emails/preview — render the saved draft for confirmation. */
 const handlePreviewGet = ownerResponsePage(async (session) => {
@@ -320,7 +323,10 @@ const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
     ? await getUnsubscribedHashSet()
     : new Set<string>();
   const payload = await buildBulkPayload({
-    bodyHtml: renderMarkdown(draft.body, await imageUrlsFor([draft.body])),
+    bodyHtml: renderMarkdown(
+      draft.body,
+      absoluteEmailImageUrls(await imageUrlsFor([draft.body])),
+    ),
     bodyText: draft.body,
     marketing: draft.marketing,
     recipients,

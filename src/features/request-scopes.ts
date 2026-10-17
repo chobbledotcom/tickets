@@ -1,11 +1,6 @@
-import { imageUrlsFor } from "#db/images.ts";
-import { settings } from "#db/settings.ts";
 import { parseAcceptLanguage } from "#i18n";
 import { runWithPendingWork } from "#shared/pending-work.ts";
-import {
-  currentRequestStore,
-  runWithRequestContext,
-} from "#shared/request-context.ts";
+import { runWithRequestContext } from "#shared/request-context.ts";
 import { runWithSubrequestBudget } from "#shared/subrequest-budget.ts";
 
 /**
@@ -23,16 +18,9 @@ export const runWithRequestScopes = (
 ): Promise<Response> => {
   const locale = parseAcceptLanguage(request.headers.get("accept-language"));
   return runWithSubrequestBudget(() =>
-    runWithRequestContext(request, { clientIp, locale }, async () => {
-      // The Layout's footer renders synchronously, so its image-url table is
-      // preloaded here for the whole request. The read is bounded by the ids
-      // the footer text references and skipped entirely when it names none.
-      const store = currentRequestStore();
-      if (store) {
-        store.footerImageUrls = await imageUrlsFor([settings.siteFooter]);
-      }
-      return runWithPendingWork(fn);
-    }),
+    runWithRequestContext(request, { clientIp, locale }, () =>
+      runWithPendingWork(fn),
+    ),
   );
 };
 

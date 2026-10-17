@@ -11,6 +11,7 @@ describeWithEnv("the ticket page's image-url lookup", { db: true }, () => {
     const urls = await ticketPageImageUrls({
       listings: [],
       packages: [{ description: `![Flyer](img#${flyer.id})` }],
+      questions: [],
       terms: `![Poster](img#${poster.id})`,
     });
     expect(urls.get(poster.id)).toBe(`/image/${poster.filename}`);
@@ -22,6 +23,19 @@ describeWithEnv("the ticket page's image-url lookup", { db: true }, () => {
     const urls = await ticketPageImageUrls({
       listings: [{ listing: { description: `![Poster](img#${poster.id})` } }],
       packages: [],
+      questions: [],
+      terms: null,
+    });
+    expect(urls.get(poster.id)).toBe(`/image/${poster.filename}`);
+    expect(urls.size).toBe(1);
+  });
+
+  test("resolves an id named only in a question's text", async () => {
+    const poster = await makeImage("Poster");
+    const urls = await ticketPageImageUrls({
+      listings: [],
+      packages: [],
+      questions: [{ text: `![Poster](img#${poster.id})` }],
       terms: null,
     });
     expect(urls.get(poster.id)).toBe(`/image/${poster.filename}`);
@@ -32,6 +46,7 @@ describeWithEnv("the ticket page's image-url lookup", { db: true }, () => {
     const urls = await ticketPageImageUrls({
       listings: [{ listing: { description: "plain words" } }],
       packages: [],
+      questions: [],
       terms: "also plain",
     });
     expect(urls.size).toBe(0);

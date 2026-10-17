@@ -5,6 +5,7 @@ import { handleRequest } from "#routes";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 const makePost = (name: string, content?: string) =>
@@ -51,6 +52,21 @@ describeWithEnv("public /news routes", { db: true }, () => {
     expect(body).toContain(`src="/image/${image.filename}"`);
     expect(body).toContain('alt="Hero"');
     expect(body).not.toContain("/image/id/");
+  });
+
+  test("the site footer's img#id reference renders the image's uid URL", async () => {
+    await enablePublicSite();
+    const image = await makeImage("FooterPoster");
+    await adminFormPost("/admin/settings/site-footer", {
+      site_footer: `Thanks for coming.![FooterPoster](img#${image.id})`,
+    });
+    const post = await makePost("Footer Drop");
+    const body = await (
+      await handleRequest(mockRequest(`/news/${post.slug}`))
+    ).text();
+    expect(body).toContain(
+      `<img src="/image/${image.filename}" alt="FooterPoster">`,
+    );
   });
 
   test("a post's unknown img#id reference falls back to the alt text", async () => {

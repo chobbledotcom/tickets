@@ -93,6 +93,7 @@ export const handleContactHistoryPost: TypedRouteHandler<
             max: MAX_TEXTAREA_LENGTH,
           }),
           hmac,
+          imageUrls: await imageUrlsFor([updated.adminNotes]),
           record: updated,
           session,
         }),

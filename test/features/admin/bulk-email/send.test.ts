@@ -14,6 +14,7 @@ import {
   getAllActivityLog,
   getListingActivityLog,
 } from "#test-utils/activity-log.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { expectFlashRedirect, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -77,6 +78,28 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       expect(settings.bulkEmailDraft).toBe("");
       const log = await getAllActivityLog(10);
       expect(log.some((e) => e.message.includes("Sent bulk email"))).toBe(true);
+    });
+
+    test("sends an img#id reference as an absolute image URL", async () => {
+      useResend();
+      const image = await makeImage("Flyer");
+      const listing = await seedListingWithAttendees();
+      await adminFormPost("/admin/emails/preview", {
+        body: `![Flyer](img#${image.id})`,
+        listing_id: String(listing.id),
+        subject: "Update",
+      });
+      const { response } = await adminFormPost("/admin/emails/send", {});
+      await expectFlashRedirect(
+        "/admin/emails",
+        expect.stringContaining("Sent to 2 recipients"),
+      )(response);
+      // Email clients cannot read root-relative sources, so the sent HTML
+      // carries the site origin; the admin preview keeps the relative URL.
+      const body = fetch.getFetchJsonBody();
+      expect(body[0].html).toMatch(
+        new RegExp(`src="https://[^"]*/image/${image.filename}"`),
+      );
     });
 
     test("clears the draft when recording the contacts fails after the send", async () => {
