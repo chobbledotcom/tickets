@@ -21,9 +21,11 @@ import {
 } from "#test-utils/assertions.ts";
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { markNotificationSendsOwed } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import type { AdminTestContext } from "#test-utils/internal.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import type { Attendee } from "#types";
@@ -39,7 +41,7 @@ describeWithEnv(
 
       /** One new attendee booked with `bookings`, for tests that resend the
        * notification themselves. */
-      const firstBookedAttendee = async (
+      const firstBookedAttendeeInner = async (
         bookings: AttendeeInput["bookings"],
         name: string,
         email: string,
@@ -54,10 +56,25 @@ describeWithEnv(
         return result.attendees[0]!;
       };
 
+      /** Book one new attendee and raise the pending-notification flags the
+       * way a booking whose sends never went out leaves them, so the resend
+       * has sends to claim. */
+      const firstBookedAttendee = async (
+        bookings: AttendeeInput["bookings"],
+        name: string,
+        email: string,
+      ): Promise<Attendee> => {
+        const attendee = await firstBookedAttendeeInner(bookings, name, email);
+        await markNotificationSendsOwed(attendee.id);
+        return attendee;
+      };
+
       /** Book one new attendee, resend their notification, and return the
-       * registration webhook's ticket lines. No wait is needed: handleRequest
-       * flushes pending work (the fire-and-forget webhook) in its finally
-       * before returning the response, so the dispatch has completed. */
+       * registration webhook's ticket lines. The press chooses the webhook
+       * side: these tests read the webhook's payload. No wait is needed:
+       * handleRequest flushes pending work (the fire-and-forget webhook) in
+       * its finally before returning the response, so the dispatch has
+       * completed. */
       const resendTickets = async (
         bookings: AttendeeInput["bookings"],
         name: string,
@@ -67,7 +84,7 @@ describeWithEnv(
         using webhookFetch = stubFetch(new Response());
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}/resend-notification`,
-          { confirm_identifier: name },
+          { confirm_identifier: name, resend_sides: "webhooks" },
         );
         expect(response.status).toBe(302);
         expect(webhookFetch.calls.length).toBe(1);
@@ -143,16 +160,34 @@ describeWithEnv(
         expect(html).toContain("does not match");
       });
 
+      /** Raise the fixture attendee's owed-send flags and press the resend,
+       * answering with the route's redirect. The press chooses the webhook
+       * side: the fixture listing carries a webhook address, and the tests
+       * that share this press count its webhook requests. */
+      const pressResend = async (ctx: AdminTestContext): Promise<Response> => {
+        await markNotificationSendsOwed(ctx.attendee.id);
+        return handleRequest(
+          mockFormRequest(
+            `/admin/attendees/${ctx.attendee.id}/resend-notification`,
+            {
+              confirm_identifier: "John Doe",
+              csrf_token: ctx.csrfToken,
+              resend_sides: "webhooks",
+            },
+            ctx.cookie,
+          ),
+        );
+      };
+
       test("re-sends notification with matching name", async () => {
         using webhookFetch = stubFetch(new Response());
-        const { response, attendee } = await resendNotificationAction({
-          confirm_identifier: "John Doe",
-        })({
+        const ctx = await setupAdminTest({
           webhookUrl: "https://example.com/webhook",
         });
+        const response = await pressResend(ctx);
         expect(response.status).toBe(302);
         await expectFlashRedirect(
-          `/admin/attendees/${attendee.id}/actions`,
+          `/admin/attendees/${ctx.attendee.id}/actions`,
           "Notification re-sent",
         )(response);
 
@@ -162,18 +197,17 @@ describeWithEnv(
 
       test("logs activity when notification is re-sent", async () => {
         using _fetch = stubFetch(new Response());
-        const { response, listing } = await resendNotificationAction({
-          confirm_identifier: "John Doe",
-        })({
+        const ctx = await setupAdminTest({
           webhookUrl: "https://example.com/webhook",
         });
+        const response = await pressResend(ctx);
         expect(response.status).toBe(302);
 
         // Verify activity was logged
         const { getListingActivityLog } = await import(
           "#test-utils/activity-log.ts"
         );
-        const logs = await getListingActivityLog(listing.id);
+        const logs = await getListingActivityLog(ctx.listing.id);
         const resendLog = logs.find((l: { message: string }) =>
           l.message.includes("Notification re-sent"),
         );
@@ -244,10 +278,11 @@ describeWithEnv(
         expect(byName.get("Solo B")).toBe(2);
       });
 
-      test("a package resend never notifies another package or a standalone line", async () => {
-        // One attendee can hold several purchases. The selected package
-        // member's resend rehydrates ITS package alone — never the lines of
-        // another package on the same attendee.
+      test("a package member's resend carries every booking the attendee holds", async () => {
+        // One attendee can hold several purchases. A resend that carried only
+        // the selected package would never deliver the attendee's other
+        // purchases' tickets and never settle their flags, so the resend
+        // carries every live line the attendee holds in one send.
         const { createTestGroup } = await import(
           "#test-utils/db-helpers/groups.ts"
         );
@@ -284,14 +319,13 @@ describeWithEnv(
           "multi@example.com",
         );
         const names = tickets.map((t) => t.listing_name).sort();
-        // The selected booking is the duo's first member (lowest listing id),
-        // so the resend carries exactly the duo package.
-        expect(names).toEqual(["Duo A", "Duo B"]);
+        expect(names).toEqual(["Duo A", "Duo B", "Solo S", "Trio C"]);
       });
 
-      test("a standalone resend never notifies a package's lines", async () => {
-        // The mirror half: resending a standalone line leaves every package
-        // of the same attendee to its own members' resends.
+      test("a standalone resend carries every booking the attendee holds", async () => {
+        // The mirror half: a standalone line's resend also carries the
+        // attendee's packages, so no purchase is left unsent and its flags
+        // stay owed forever.
         const { createTestGroup } = await import(
           "#test-utils/db-helpers/groups.ts"
         );
@@ -320,8 +354,11 @@ describeWithEnv(
           "Mixed Buyer",
           "mixed@example.com",
         );
-        // The selected booking is the standalone line (lowest listing id).
-        expect(tickets.map((t) => t.listing_name)).toEqual(["Solo S"]);
+        expect(tickets.map((t) => t.listing_name).sort()).toEqual([
+          "Duo A",
+          "Duo B",
+          "Solo S",
+        ]);
       });
 
       test("a resend assigns the site a later plan line bought", async () => {

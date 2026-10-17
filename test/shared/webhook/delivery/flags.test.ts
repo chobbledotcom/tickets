@@ -63,7 +63,7 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
     );
   };
 
-  test("logs a failed pending-flag clear batch locally", async () => {
+  test("logs a failed pending-flag settle batch locally", async () => {
     // The accepted send earned a flag clear, but the batch died one database
     // call. Starving the budget one call short makes the batch fail: the
     // failure reaches the log, and the accepted send's report is not
@@ -103,9 +103,9 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
     });
 
     expect(expectOneError(logs, "E_DB_QUERY")).toContain(
-      "The pending-flag clear batch failed",
+      "The pending-flag settle batch failed",
     );
-    // The failed clear batch leaves both flags up, and no failure activity
+    // The failed settle batch leaves both flags up, and no failure activity
     // is written for a failure the raised flags represent.
     await expectFlagsAndActivity(
       attendee.id,

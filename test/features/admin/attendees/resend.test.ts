@@ -21,6 +21,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttendee,
+  markNotificationSendsOwed,
   submitAttendeeEdit,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -33,22 +34,27 @@ import {
 import { configureTestEmail } from "#test-utils/email.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { postListingSale, refundBookedOrder } from "#test-utils/ledger.ts";
-import { adminFormPost } from "#test-utils/session.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
-const resend = (attendeeId: number, name: string) =>
-  adminFormPost(`/admin/attendees/${attendeeId}/resend-notification`, {
+const resend = async (attendeeId: number, name: string) => {
+  await markNotificationSendsOwed(attendeeId);
+  return adminFormPost(`/admin/attendees/${attendeeId}/resend-notification`, {
     confirm_identifier: name,
   });
+};
 
-/** Resend, then assert only one line was notified and the named pooled site
- * stayed unclaimed. Returns every site for further assertions. */
+/** Resend, then assert the given number of lines were notified and the named
+ * pooled site stayed unclaimed. Returns every site for further assertions.
+ * The re-send notifies every live line the attendee holds, so the caller
+ * states how many its booking holds. */
 const resendLeavesSiteUnclaimed = async (
   attendeeId: number,
   name: string,
   siteName: string,
+  notifiedLines = 1,
 ) => {
   await resend(attendeeId, name);
-  expect(await registeredEntries()).toBe(1);
+  expect(await registeredEntries()).toBe(notifiedLines);
   const { builtSites } = await import("#db/built-sites.ts");
   const sites = await builtSites.getAll();
   expect(
@@ -273,10 +279,13 @@ describeWithEnv(
       );
       await insertBuiltSite("Second Site", "second.test", "", "", true);
 
+      // Both live lines notify: the standalone purchase and the package
+      // member. Neither send claims the second site.
       await resendLeavesSiteUnclaimed(
         attendee.id,
         "Two Purchases",
         "Second Site",
+        2,
       );
     });
 
@@ -310,6 +319,47 @@ describeWithEnv(
     });
   },
 );
+
+describeWithEnv("the re-send page's send choice", { db: true }, () => {
+  const pageHtml = async (attendeeId: number): Promise<string> => {
+    const response = await adminGet(
+      `/admin/attendees/${attendeeId}/resend-notification`,
+    );
+    expect(response.status).toBe(200);
+    return response.text();
+  };
+
+  test("defaults to the email and offers no webhook when the listing has none", async () => {
+    const { attendee } = await setupListingAndAttendee({
+      name: "Email Only Choice",
+    });
+
+    const html = await pageHtml(attendee.id);
+
+    // The email is the only thing to send, so the form carries the choice
+    // hidden, and no radio offers a webhook that does not exist.
+    expect(html).toContain('name="resend_sides" type="hidden" value="email"');
+    expect(html).not.toContain('type="radio" value="webhooks"');
+    expect(html).not.toContain('type="radio" value="both"');
+  });
+
+  test("offers the email, webhook, and both choices when a webhook exists", async () => {
+    const { attendee } = await setupListingAndAttendee({
+      listing: { webhookUrl: "https://hook.example.com/registration" },
+      name: "Webhook Choice",
+    });
+
+    const html = await pageHtml(attendee.id);
+
+    expect(html).toContain(
+      'checked name="resend_sides" type="radio" value="email"',
+    );
+    expect(html).toContain('name="resend_sides" type="radio" value="webhooks"');
+    expect(html).toContain('name="resend_sides" type="radio" value="both"');
+    // The choice is a visible form field, not a hidden default.
+    expect(html).not.toContain('name="resend_sides" type="hidden"');
+  });
+});
 
 describeWithEnv("re-sending for a line with no places", { db: true }, () => {
   test("is refused, and says why", async () => {

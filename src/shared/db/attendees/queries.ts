@@ -10,7 +10,6 @@ import { decryptAttendeeFields, decryptPiiBlob } from "#db/attendees/pii.ts";
 import {
   ATTENDEE_FIELDS,
   type AttendeeRowFor,
-  type AttendeeWhere,
   type GetAttendeesQuery,
   getAttendees,
   pricePaidFromLedger,
@@ -85,37 +84,14 @@ export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
     where: { listingIds: [listingId] },
   });
 
-/** Which lines one resend reads: the member lines of one package group,
- * every standalone line the attendee holds, or every line the attendee holds
- * (the site assignment's view, because one site serves the whole buyer). */
-export type BookingScope =
-  | { kind: "package"; packageGroupId: number }
-  | { kind: "standalone" }
-  | { kind: "whole" };
-
-/** The row filter each resend scope adds. */
-const scopeWhere = (scope: BookingScope): Partial<AttendeeWhere> => {
-  switch (scope.kind) {
-    case "package":
-      return { packageGroupId: scope.packageGroupId };
-    case "standalone":
-      return { standaloneOnly: true };
-    case "whole":
-      return {};
-  }
-};
-
 /**
- * One attendee's raw booking rows (real lines only — quantity > 0) within one
- * resend scope. Lets a listing-scoped action rehydrate the WHOLE purchase the
- * selected line belongs to — every standalone line for a standalone attendee,
- * or every package member line for a package row — so a per-member
- * notification resend doesn't treat a single member row as the complete
- * purchase, and never pulls another package into the confirmation.
+ * One attendee's raw booking rows (real lines only — quantity > 0): every
+ * line the attendee holds, whatever its kind, because one site serves the
+ * whole buyer and a per-member notification resend must not treat a single
+ * member row as the complete purchase.
  */
 export const getAttendeeBookingRowsRaw = (
   attendeeId: number,
-  scope: BookingScope,
 ): Promise<Attendee[]> =>
   loadAttendeeRows({
     // No kind filter: the attendee id already pins one attendee, and its rows
@@ -125,7 +101,6 @@ export const getAttendeeBookingRowsRaw = (
       attendeeIds: [attendeeId],
       kind: "attendee-or-servicing",
       realLinesOnly: true,
-      ...scopeWhere(scope),
     },
   });
 
@@ -262,9 +237,6 @@ export const hasActiveBookingLine = (
 export type FirstBooking = {
   readonly active: boolean;
   readonly listingId: number;
-  /** The selected row's package group: a resend of this booking rehydrates
-   * this package alone, or every standalone line when it holds none. */
-  readonly packageGroupId: number;
 };
 
 /** The first real booking, or a no-quantity placeholder when no real one
@@ -275,11 +247,9 @@ export const getFirstBooking = async (
 ): Promise<FirstBooking | null> => {
   const row = await queryOne<{
     listing_id: number;
-    package_group_id: number;
     quantity: number;
   }>(
     `SELECT listingAttendee.listing_id
-              , listingAttendee.package_group_id
               , listingAttendee.quantity
          FROM listing_attendees AS listingAttendee
         WHERE listingAttendee.attendee_id = ?
@@ -293,7 +263,6 @@ export const getFirstBooking = async (
     : {
         active: Number(row.quantity) > 0,
         listingId: Number(row.listing_id),
-        packageGroupId: Number(row.package_group_id),
       };
 };
 

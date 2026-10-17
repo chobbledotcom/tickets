@@ -6,6 +6,7 @@
 
 import { expect } from "@std/expect";
 import { spy } from "@std/testing/mock";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { bracket, map } from "#fp";
 import type { WebhookListing, WebhookPayload } from "#shared/webhook.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
@@ -25,6 +26,23 @@ export const withErrorSpy = bracket(
   () => spy(console, "error"),
   (s: { restore: () => void }) => s.restore(),
 );
+
+/** Point the confirmation templates at filters that do not exist, so
+ * rendering falls back to the default and reports the template error. */
+export const setBrokenConfirmationTemplate = async (): Promise<void> => {
+  await settings.update.email.template(
+    "confirmation",
+    "subject",
+    "{{ subject | missing_subject_filter }}",
+  );
+  await settings.update.email.template(
+    "confirmation",
+    "html",
+    "{{ html | missing_html_filter }}",
+  );
+  settings.invalidateCache();
+  await settings.loadKeys(ALL_SETTINGS_KEYS);
+};
 
 /** A stored listing plus a webhook URL, as listing overrides. */
 export const listingFromDb = (

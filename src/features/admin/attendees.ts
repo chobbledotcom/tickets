@@ -3,9 +3,10 @@
 import { logActivity } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import {
-  type BookingScope,
-  getAttendeeBookingRowsRaw,
-} from "#db/attendees/queries.ts";
+  claimOutstandingNotificationFlags,
+  restoreClaimedNotificationFlags,
+} from "#db/attendees/notification-flags.ts";
+import { getAttendeeBookingRowsRaw } from "#db/attendees/queries.ts";
 import { storedBookingSource } from "#db/contact-tokens.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { hasAnyPaymentReference } from "#db/payment-references.ts";
@@ -26,11 +27,14 @@ import type { EmailEntry } from "#shared/email.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms/validation.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
+import { bestEffort } from "#shared/logger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   logAndNotifyRegistration,
   queueManualAddWebhooks,
+  registrationWebhookUrls,
 } from "#shared/webhook/delivery.ts";
+import type { ChosenSides } from "#shared/webhook/flag-settlement.ts";
 import { adminResendNotificationPage } from "#templates/admin/attendees.tsx";
 import {
   type AddAttendeeFormValues,
@@ -68,7 +72,6 @@ import {
 import { handleMergePost } from "./attendees-merge.ts";
 import {
   type AttendeeWithBooking,
-  attendeeActionPage,
   attendeeActions,
   attendeeFormAction,
   attendeeListingEntries,
@@ -219,44 +222,79 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
 
 const handleAdminResendNotificationGet = attendeeActions[
   "resend-notification"
-].page(attendeeActionPage(adminResendNotificationPage));
+].page(async ({ attendee }) => {
+  // The send choice is part of the page: the webhook option exists only
+  // when a live line's listing carries a webhook address.
+  const entries = await bookingEntries(attendee.id);
+  const hasWebhook =
+    registrationWebhookUrls(entries.filter((entry) => !entry.attendee.refunded))
+      .length > 0;
+  return {
+    reason: null,
+    render: (data, session, returnUrl, error) =>
+      adminResendNotificationPage(
+        { ...data, hasWebhook },
+        session,
+        returnUrl,
+        error,
+      ),
+  };
+});
 
-/** One scope of the attendee's booking lines, rebuilt as notification
- * entries. Each entry comes from its own row and listing. A confirmation
- * never treats one member row as the whole purchase. One member row alone
- * reads wrong in three ways. It collapses a hidden package to one row's
- * quantity and price. It heads a visible one with a lone member. It hides
- * the plan line that bought a site. Refunded rows stay in. The email
- * filters them out below. The assignment's served check needs them to see
- * a claim recorded before the refund. */
-const scopeEntries = async (
-  attendeeId: number,
-  scope: BookingScope,
-): Promise<EmailEntry[]> => {
+/** Every booking line the attendee holds, rebuilt as notification entries.
+ * Each entry comes from its own row and listing. A confirmation never treats
+ * one member row as the whole purchase. One member row alone reads wrong in
+ * three ways. It collapses a hidden package to one row's quantity and price.
+ * It heads a visible one with a lone member. It hides the plan line that
+ * bought a site. Refunded rows stay in. The email filters them out below.
+ * The assignment's served check needs them to see a claim recorded before
+ * the refund. */
+const bookingEntries = async (attendeeId: number): Promise<EmailEntry[]> => {
   const pk = await requireRequestPrivateKey();
-  const rows = await getAttendeeBookingRowsRaw(attendeeId, scope);
+  const rows = await getAttendeeBookingRowsRaw(attendeeId);
   // The route already verified this attendee's active line, so its booking
   // rows exist, decrypt with the same key, and each names a live listing.
   return attendeeListingEntries(rows, pk);
 };
 
-/** The purchase the SELECTED booking belongs to. A package line covers its
- * own package alone, never another package the attendee holds. A standalone
- * line covers every standalone line the attendee booked. */
-const purchaseScope = (data: AttendeeWithBooking): BookingScope =>
-  data.selectedPackageGroupId > 0
-    ? { kind: "package", packageGroupId: data.selectedPackageGroupId }
-    : { kind: "standalone" };
+/** The sides a press's form chose. The page defaults to the email, so a
+ * form without the field chose the email. A value the form does not offer
+ * is a forged or stale form, and refuses the press. */
+const resendSides = (form: FormParams): ChosenSides | null => {
+  const value = form.get("resend_sides") ?? "email";
+  switch (value) {
+    case "email":
+      return { email: true, webhooks: false };
+    case "webhooks":
+      return { email: false, webhooks: true };
+    case "both":
+      return { email: true, webhooks: true };
+    default:
+      return null;
+  }
+};
 
-/** Re-send an attendee's booking notification (its whole package, if any),
- * refusing on a no-quantity ghost row. The verified-action wrapper below runs
- * this after confirming the typed attendee name. */
+/** Re-send the attendee's notification for EVERY booking they hold: every
+ * package and every standalone line, one send carrying all of them. A
+ * partial resend beside another purchase never delivers that purchase's
+ * tickets and never clears its flags. Refuses on a no-quantity ghost row.
+ * The verified-action wrapper below runs this after confirming the typed
+ * attendee name. */
 const resendNotification = async (
   data: AttendeeWithBooking,
   form: FormParams,
 ): Promise<Response> => {
   const attendeeId = data.attendee.id;
   const actionsTab = `/admin/attendees/${attendeeId}/actions`;
+  // The send choice decides what this press sends. The flags decide what
+  // is owed. A press whose choice is not owed sends anyway: the
+  // customer-service resend for a buyer whose email never arrived.
+  const sides = resendSides(form);
+  if (sides === null) {
+    return redirect(actionsTab, t("attendees.resend_sides_invalid"), false, {
+      form,
+    });
+  }
   // Refuse on a no-quantity ghost row: the customer email/webhook is built
   // from the home listing, so it must not fire for a non-booking.
   const noLineRedirect = await redirectIfNoActiveBookingLine(
@@ -267,6 +305,12 @@ const resendNotification = async (
     { form },
   );
   if (noLineRedirect) return noLineRedirect;
+
+  // Every line the attendee holds, refunded ones included: the site
+  // assignment reads them all, because one site serves the whole buyer. A
+  // claim recorded on another purchase's plan keeps the buyer served. So
+  // does a claim on a line refunded later.
+  const entries = await bookingEntries(attendeeId);
 
   // The webhook reports how the booking was made. It reads the stored
   // booking, not who pressed the button. A booking with no contact history
@@ -281,12 +325,22 @@ const resendNotification = async (
 
   // A refunded line bought nothing now, so the resend must not notify it
   // again.
-  const entries = await scopeEntries(attendeeId, purchaseScope(data));
   const notify = entries.filter((entry) => !entry.attendee.refunded);
   if (notify.length === 0) {
     return redirect(actionsTab, t("attendees.resend_refused_refunded"), false, {
       form,
     });
+  }
+
+  // The page offers the webhook choice only when a webhook exists, so a
+  // webhook choice without one is a forged or stale form.
+  if (sides.webhooks && registrationWebhookUrls(notify).length === 0) {
+    return redirect(
+      actionsTab,
+      t("attendees.resend_refused_no_webhook"),
+      false,
+      { form },
+    );
   }
 
   // An admin session can spend the owner key. The resend is therefore the
@@ -299,22 +353,59 @@ const resendNotification = async (
     )
   ).get(attendeeId);
 
-  await Promise.all([
-    logAndNotifyRegistration(notify, {
-      freeTexts,
-      // One site serves the whole buyer, so the assignment reads every line
-      // they hold, refunded ones too. A claim recorded on another purchase's
-      // plan keeps the buyer served. So does a claim on a line refunded
-      // later.
-      siteAssignmentEntries: await scopeEntries(attendeeId, { kind: "whole" }),
-      source,
-    }),
-    logActivity(
+  // The flags are the record of what never went out, so the claim captures
+  // the outstanding sides in one transaction. The press's choice decides
+  // what it sends. The claim decides what the press settles. A claimed
+  // side the press does not select keeps its flag. Its lease is released
+  // here, before the send queues, so the badge keeps saying what is owed.
+  const claimed = await claimOutstandingNotificationFlags(attendeeId);
+  const recover = claimed.filter(({ side }) => sides[side]);
+  const withheld = claimed.filter(({ side }) => !sides[side]);
+  if (withheld.length > 0) {
+    await restoreClaimedNotificationFlags(attendeeId, withheld);
+  }
+
+  try {
+    // The activity line lands before the delivery queues. A failed activity
+    // write then aborts the press before any send queues, and the claim's
+    // release below never races a settle.
+    await logActivity(
       `Notification re-sent for attendee '${data.attendee.name}'`,
       data.listing.id,
       attendeeId,
-    ),
-  ]);
+    );
+    await logAndNotifyRegistration(notify, {
+      // This resend carries every live booking line the attendee holds, so
+      // its sends own the attendee's pending-notification flags. The email
+      // send clears email_pending when its far side accepts. The webhook
+      // send clears webhooks_pending the same way, but only for the
+      // claimed sides this press selected. A refused send leaves its flag
+      // up, so the badge keeps saying what never went out.
+      clearPendingFlagsFor: [attendeeId],
+      freeTexts,
+      recoverSides: recover,
+      sides,
+      // One site serves the whole buyer, so the assignment reads every
+      // line they hold, refunded ones too. A claim recorded on another
+      // purchase's plan keeps the buyer served. So does a claim on a line
+      // refunded later.
+      siteAssignmentEntries: entries,
+      source,
+    });
+  } catch (error) {
+    // The claim is a lease for the selected sends that never ran. Release
+    // it, so the flags keep saying what is still owed and the recovery
+    // stays retryable. The withheld sides went back above. A failed
+    // restore leaves the lease held and is logged, but it must not replace
+    // the original failure.
+    await bestEffort(
+      "Restoring a recovery's claimed flags failed",
+      async () => {
+        await restoreClaimedNotificationFlags(attendeeId, recover);
+      },
+    );
+    throw error;
+  }
   return redirect(actionsTab, t("success.notification_resent"), true, {
     form,
   });

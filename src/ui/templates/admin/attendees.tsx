@@ -22,6 +22,7 @@ import {
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import { questionControl } from "#templates/components/question-controls.tsx";
+import { RadioOption } from "#templates/components/radio-option.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import type { AdminSession, Attendee, ListingWithCount } from "#types";
 
@@ -208,10 +209,36 @@ export const adminPaymentReviewPage =
     }),
   );
 
+/** The send choice the re-send page carries. The webhook option exists only
+ * when a live line's listing has a webhook address, so the page hides a
+ * choice that can never send. */
+type ResendPageData = { attendee: Attendee; hasWebhook: boolean };
+
+/** One send choice the page's webhook branch offers: unchecked, so the
+ * checked default stays the email radio above. */
+const resendSideOption = (value: string, key: string): JSX.Element => (
+  <RadioOption checked={false} name="resend_sides" value={value}>
+    {t(key)}
+  </RadioOption>
+);
+
+const resendSidesChoice = (): JSX.Element => (
+  <>
+    <p>
+      <strong>{t("admin.attendees.resend_sides_title")}</strong>
+    </p>
+    <RadioOption checked name="resend_sides" value="email">
+      {t("admin.attendees.resend_sides_email")}
+    </RadioOption>
+    {resendSideOption("webhooks", "admin.attendees.resend_sides_webhook")}
+    {resendSideOption("both", "admin.attendees.resend_sides_both")}
+  </>
+);
+
 /**
  * Admin re-send notification confirmation page
  */
-export const adminResendNotificationPage = attendeeRouteConfirm(
+export const adminResendNotificationPage = attendeeRouteConfirm<ResendPageData>(
   "resend-notification",
   {
     buttonText: t("admin.attendees.resend_submit"),
@@ -223,6 +250,10 @@ export const adminResendNotificationPage = attendeeRouteConfirm(
     warningText:
       "This will re-send the registration notification for this attendee.",
   },
+  ({ hasWebhook }) =>
+    hasWebhook
+      ? { body: resendSidesChoice() }
+      : { hiddenFields: { resend_sides: "email" } },
 );
 
 /**

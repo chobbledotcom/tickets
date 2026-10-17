@@ -325,6 +325,25 @@ export const createTestAttendeeWithToken = async (
   return { attendee, listing, token };
 };
 
+/** Store one attendee's pending-notification flags: 1 says a send is owed,
+ * 0 says it went out or nothing was owed. The flag lifecycle tests read
+ * storage, so they write it through this one statement. */
+export const setPendingNotificationFlags = async (
+  attendeeId: number,
+  email: number,
+  webhooks: number,
+): Promise<void> => {
+  await execute(
+    "UPDATE attendees SET email_pending = ?, webhooks_pending = ? WHERE id = ?",
+    [email, webhooks, attendeeId],
+  );
+};
+
+/** Raise both pending-notification flags on one attendee, the way sends that
+ * never got accepted leave them, so an admin re-send has sends to recover. */
+export const markNotificationSendsOwed = (attendeeId: number): Promise<void> =>
+  setPendingNotificationFlags(attendeeId, 1, 1);
+
 /** Book one attendee with its pending-notification flags forced to the given
  * values, the way a create batch whose sends never got accepted would leave
  * them — for tests of the badges and counts those flags render. */
@@ -339,10 +358,7 @@ export const bookTestAttendeeWithFlags = async (
     name,
     `${name.toLowerCase().replace(/\s+/g, "-")}@example.com`,
   );
-  await execute(
-    "UPDATE attendees SET email_pending = ?, webhooks_pending = ? WHERE id = ?",
-    [email, webhooks, attendee.id],
-  );
+  await setPendingNotificationFlags(attendee.id, email, webhooks);
   return { attendee, listing };
 };
 
