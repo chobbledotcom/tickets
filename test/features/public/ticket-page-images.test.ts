@@ -17,10 +17,11 @@ describeWithEnv("the ticket page's image-url lookup", { db: true }, () => {
     expect(urls.get(flyer.id)).toBe(`/image/${flyer.filename}`);
   });
 
-  test("reads the other texts when the page names no packages", async () => {
+  test("reads the other texts when the page sells no packages", async () => {
     const poster = await makeImage("Poster");
     const urls = await ticketPageImageUrls({
       listings: [{ listing: { description: `![Poster](img#${poster.id})` } }],
+      packages: [],
       terms: null,
     });
     expect(urls.get(poster.id)).toBe(`/image/${poster.filename}`);
