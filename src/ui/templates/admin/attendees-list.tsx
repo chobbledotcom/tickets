@@ -37,6 +37,8 @@ export type AttendeesListPageProps = {
   phonePrefix: string;
   /** Decrypted notes for the listed attendees (empty when none). */
   systemNotes: SystemNote[];
+  /** The id→uid-URL table for the system notes' img#N references. */
+  imageUrls?: ReadonlyMap<number, string>;
   /** Attendee id → display name, for labelling notes in the summary. */
   names: Map<number, string>;
 };
@@ -49,6 +51,7 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
       <>
         <PageBlock>
           <AttendeeNotesSummary
+            imageUrls={props.imageUrls}
             isOwner={isOwnerRole(props.session.adminLevel)}
             names={props.names}
             notes={props.systemNotes}

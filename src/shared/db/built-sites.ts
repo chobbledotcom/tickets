@@ -16,6 +16,7 @@ import {
   type TableSchema,
 } from "#db/table.ts";
 import type { RowFilter, RowOptions, TableReader } from "#db/table-reader.ts";
+import { compareByName } from "#shared/name-order.ts";
 import {
   blobToSiteFields,
   buildSiteDataBlobFromInput,
@@ -112,7 +113,7 @@ const queryAndDecrypt = async (sql: string): Promise<BuiltSite[]> => {
     rows.map((row) => rawBuiltSitesTable.fromDb(row)),
   );
   const sites = decrypted.map(rowToBuiltSite);
-  sites.sort((a, b) => a.name.localeCompare(b.name));
+  sites.sort(compareByName);
   return sites;
 };
 

@@ -75,6 +75,7 @@ export const formData = (
   formError: null,
   hasDailyListings: false,
   hasMixedTimings: false,
+  imageUrls: new Map(),
   lineWarnings: new Map(),
   mode: "create",
   packageNamesById: new Map([[10, "Weekend pass"]]),

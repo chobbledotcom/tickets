@@ -24,6 +24,7 @@ import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
 import { getPairBookings } from "#db/attendees/ticket-lines.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { groups } from "#db/groups.ts";
+import { imageUrlsForNotes } from "#db/images.ts";
 import { getListingOverviewStats } from "#db/listing-overview-stats.ts";
 import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
 import {
@@ -213,6 +214,7 @@ export const loadListingOverviewPanel = async (
     aggregateRecalculation: recalc,
     allowedDomain: getEffectiveDomain(),
     groupContext,
+    imageUrls: await imageUrlsForNotes(systemNotes),
     publicPage,
     ...(canViewLedger ? { ledgerHref: listingLedgerHref(listing.id) } : {}),
     isOwner: canViewLedger,
@@ -273,6 +275,7 @@ export const loadListingRosterPanel = async (
       (child) => child.name,
     ),
     groupContext,
+    imageUrls: await imageUrlsForNotes(systemNotes),
     isOwner: isOwnerRole(ctx.session.adminLevel),
     list: { setup, state },
     listing,
