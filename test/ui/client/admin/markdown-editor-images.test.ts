@@ -58,6 +58,38 @@ const openDropdown = async (
   return { handle, panel, window };
 };
 
+/** Runs a few microtask hops so a stubbed fetch promise settles. */
+const flush = async (): Promise<void> => {
+  for (let i = 0; i < 20; i += 1) {
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+  }
+};
+
+/** Opens the dropdown and closes it before the stubbed fetch settles, so
+ * the stale-open guards run against a panel the user already shut. */
+const openAndCloseEarly = (respond: Response | Error): HTMLElement => {
+  fetchStubHolder.stub = stubFetch(respond);
+  const { window } = enhanced("hello");
+  toolbarImageButton(window).click();
+  const panel = dropdownPanel(window);
+  toolbarImageButton(window).click();
+  return panel;
+};
+
+/** Asserts the panel is shut by whatever path closed it: hidden again, the
+ * button reading closed, and the handle released. */
+const expectClosed = (
+  window: Window,
+  handle: Awaited<ReturnType<typeof enhanced>>["handle"],
+  panel: HTMLElement,
+): void => {
+  expect(panel.hidden).toBe(true);
+  expect(toolbarImageButton(window).getAttribute("aria-expanded")).toBe(
+    "false",
+  );
+  handle.view.destroy();
+};
+
 describe("the image dropdown toolbar control", () => {
   test("renders the image button in the toolbar", () => {
     const { window, handle } = enhanced("hello");
@@ -135,11 +167,7 @@ describe("the image dropdown toolbar control", () => {
     );
 
     window.document.body.click();
-    expect(panel.hidden).toBe(true);
-    expect(toolbarImageButton(window).getAttribute("aria-expanded")).toBe(
-      "false",
-    );
-    handle.view.destroy();
+    expectClosed(window, handle, panel);
   });
 
   test("closes on Escape and returns focus to the button", async () => {
@@ -150,9 +178,46 @@ describe("the image dropdown toolbar control", () => {
     window.document.dispatchEvent(
       new window.KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
     );
-    expect(panel.hidden).toBe(true);
     expect(window.document.activeElement).toBe(toolbarImageButton(window));
+    expectClosed(window, handle, panel);
+  });
+
+  test("closes again when the button is clicked while open", async () => {
+    const { window, handle, panel } = await openDropdown(
+      json({ images: [{ id: 2, name: "Alpha" }] }),
+    );
+
+    expect(panel.hidden).toBe(false);
+    toolbarImageButton(window).click();
+    expectClosed(window, handle, panel);
+  });
+
+  test("shows the unavailable state when the endpoint answers a failure", async () => {
+    const { handle, panel } = await openDropdown(
+      new Response("server down", { status: 500 }),
+    );
+
+    expect(panel.dataset.state).toBe("error");
+    expect(panel.textContent).toContain("Images are unavailable right now.");
     handle.view.destroy();
+  });
+
+  test("stays closed when the library arrives after the user closed it", async () => {
+    const panel = openAndCloseEarly(
+      json({ images: [{ id: 2, name: "Alpha" }] }),
+    );
+    await flush();
+
+    expect(panel.hidden).toBe(true);
+    expect(panel.dataset.state).toBe("loading");
+  });
+
+  test("stays closed when the library fails after the user closed it", async () => {
+    const panel = openAndCloseEarly(new Error("storage down"));
+    await flush();
+
+    expect(panel.hidden).toBe(true);
+    expect(panel.dataset.state).toBe("loading");
   });
 
   test("refuses an options body without an images array", async () => {
