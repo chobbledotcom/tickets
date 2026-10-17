@@ -1,5 +1,6 @@
 /** The TAP diagnostic block one failing test emits: pretty JSON or YAML,
  *  parsed into the message and location the compact summary shows. */
+import { NO_TAP_DIAGNOSTIC } from "./tap-summary.ts";
 
 export type TapDiagnostic = {
   message?: string;
@@ -126,7 +127,7 @@ export const parseTapDiagnosticBlock = (lines: string[]): TapDiagnostic => {
   const text = stripCommonIndent(lines).trimEnd();
   const trimmed = text.trim();
   if (!trimmed) {
-    return { message: "No TAP diagnostic was emitted for this failure." };
+    return { message: NO_TAP_DIAGNOSTIC };
   }
 
   try {

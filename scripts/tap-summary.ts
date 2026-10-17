@@ -17,6 +17,12 @@ export type CompactFailure = {
   location?: Location | undefined;
 };
 
+/** The message the summary reports when a failed TAP result carried no
+ * diagnostic block: the marker that says deno gave no cause for the
+ * failure, which is what the JUnit cancellation attribution requires. */
+export const NO_TAP_DIAGNOSTIC =
+  "No TAP diagnostic was emitted for this failure.";
+
 export type CompactTapSummary = {
   passed: number;
   failed: number;
@@ -211,17 +217,29 @@ const printNoFailedTestFacts = ({
   console.error(`The last result shown was: ${last}`);
 };
 
-/** The JUnit record for one failure: only a diagnostic-less failure whose
- * name identifies exactly one errored record is attributed. A TAP
- * diagnostic already pins the failure down, and a repeated name cannot
- * say which record is the right one. */
+/** Deno's TAP output escapes backslashes and hashes in test names; the
+ * JUnit record stores the raw name. The comparison accepts both forms. */
+const unescapeTapName = (name: string): string =>
+  name.replace(/\\([\\#])/g, "$1");
+
+/** The JUnit record for one failure, if it is the attribution the summary
+ * may print: the failure must carry no TAP diagnostic (a diagnostic that
+ * only lacks a location already says what happened), its name must
+ * identify exactly one errored record, and that record must name a file. */
 const junitAttribution = (
   failure: CompactFailure,
   errored: JunitErroredTest[],
 ): JunitErroredTest | undefined => {
-  if (failure.location !== undefined) return;
-  const matches = errored.filter((test) => test.name === failure.name);
-  return matches.length === 1 ? matches[0] : undefined;
+  if (failure.location !== undefined || failure.message !== NO_TAP_DIAGNOSTIC) {
+    return;
+  }
+  const matches = errored.filter(
+    (test) =>
+      test.name === failure.name || test.name === unescapeTapName(failure.name),
+  );
+  const [match] = matches;
+  if (match === undefined || match.file === "") return;
+  return match;
 };
 
 const printFailures = (

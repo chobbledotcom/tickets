@@ -15,6 +15,7 @@ import {
   junitErroredTests,
   junitErrorFiles,
   type Location,
+  NO_TAP_DIAGNOSTIC,
   printCompactSummary,
 } from "./tap-summary.ts";
 
@@ -221,7 +222,7 @@ export class CompactTapReporter {
 
     this.#pendingFailure = undefined;
     this.#recordFailure(pending.name, {
-      message: "No TAP diagnostic was emitted for this failure.",
+      message: NO_TAP_DIAGNOSTIC,
     });
   }
 
