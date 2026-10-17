@@ -62,12 +62,15 @@ jobs:
           auth_token: ${{ secrets.SENTRY_AUTH_TOKEN }}
           release: chobble-tickets@${{ github.sha }}
 
-      # Resolve the production site's own public origin for the selected
-      # script. This runs on every deploy, with or without the backup: the
-      # update-mode wait must poll the deployed site, never the main instance
-      # that serves the fleet's credentials.
+      # The update-mode wait must poll the deployed site, never the main
+      # instance that serves the fleet's credentials. The default site's URL
+      # is the MAIN_SITE_URL secret, the same way its script id is
+      # BUNNY_SCRIPT_ID: a main instance that runs a build older than #2572
+      # returns no siteUrl, so the lookup cannot find it. An overridden
+      # script id is looked up on the main instance.
       - name: Resolve the production site's URL
         id: resolve-site
+        if: ${{ inputs.script_id != '' }}
         uses: ./.github/actions/resolve-site-credentials
         with:
           main_instance: ${{ secrets.MAIN_INSTANCE }}
@@ -79,7 +82,7 @@ jobs:
         with:
           script_id: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
           api_key: ${{ secrets.BUNNY_ACCESS_KEY }}
-          site_url: ${{ steps.resolve-site.outputs.site_url }}
+          site_url: ${{ inputs.script_id == '' && secrets.MAIN_SITE_URL || steps.resolve-site.outputs.site_url }}
           build_tag: ${{ steps.build.outputs.build_tag }}
 
       # Upload source maps for this release after deploy (no-op without secrets).
