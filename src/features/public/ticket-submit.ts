@@ -10,7 +10,7 @@ import {
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
-import { getImagesForItem } from "#db/images.ts";
+import { getImagesForItem, ticketPageImageUrls } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import {
@@ -28,13 +28,11 @@ import { isPaymentsEnabled } from "#shared/config.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { parseIsoDateParam } from "#shared/dates.ts";
-/* jscpd:ignore-start */
 import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
-/* jscpd:ignore-end */
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import { getIframeMode } from "#shared/request-context.ts";
@@ -53,7 +51,6 @@ import { childCapacityInfo } from "./discovery/combined-capacity.ts";
 import { applyBookingPageParentSoldOut } from "./discovery.ts";
 import { dropChildListings, withActiveListings } from "./page-listings.ts";
 import { bookingNavKey, publicNavProps } from "./site-nav.ts";
-/* jscpd:ignore-start */
 import {
   extractContact,
   ticketFormErrorResponse,
@@ -62,7 +59,6 @@ import {
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import { ticketPageUrl } from "./ticket-page-url.ts";
 import { checkAvailability, getTicketContext } from "./ticket-payment.ts";
-/* jscpd:ignore-end */
 import { validateTicketFields } from "./ticket-submit/parse.ts";
 import {
   handleFreePath,
@@ -397,6 +393,7 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
     galleryImages,
     attributesByListing,
     nav,
+    imageUrls,
   ] = await Promise.all([
     getSharedGroupCapacities(children),
     getGroupRemainingByListingId(children),
@@ -421,6 +418,7 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
     getIframeMode() || !settings.features.site
       ? Promise.resolve(undefined)
       : publicNavProps(bookingNavKey(ctx.galleryTarget)),
+    ticketPageImageUrls(ctx),
   ]);
   const caps = childCapacityInfo(childCaps, childOwnRemaining, membership);
   return {
@@ -434,6 +432,7 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
     // keep it unset.
     groupIdsByListingId: membership,
     groupRemainingByGroupId: childCaps.remaining,
+    imageUrls,
     listings: applyBookingPageParentSoldOut(
       ctx.listings,
       ctx.childrenByParentId,
