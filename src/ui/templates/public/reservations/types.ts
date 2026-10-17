@@ -126,4 +126,7 @@ export type TicketPageOptions = GroupAvailability & {
   /** The public site menu, shown above the form on a normal page and dropped
    * in iframe mode. Set only on the render path; absent ⇒ no menu. */
   nav?: PublicNavProps;
+  /** The id→uid-URL table the page's markdown render resolves the editor's
+   * `img#N` references against. Set only on the render path (renderCtx). */
+  imageUrls?: ReadonlyMap<number, string>;
 };

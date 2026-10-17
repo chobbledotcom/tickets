@@ -173,6 +173,7 @@ export const ticketPage = ({
   packageGroupRemainingByGroupId = new Map(),
   packageMemberGroupIds = new Map(),
   attributesByListing = new Map(),
+  imageUrls = new Map(),
   nav,
 }: TicketPageOptions): string => {
   // The canonical booking tree drives node identity + the stable form field
@@ -256,6 +257,7 @@ export const ticketPage = ({
     attributesByListing,
     childCtx,
     hideQuantity,
+    imageUrls,
     isSingleListing,
     listings,
     nodeByListingId,
@@ -301,6 +303,7 @@ export const ticketPage = ({
           headerDescription={headerDescription}
           headerImage={headerImage}
           headerName={headerName}
+          imageUrls={imageUrls}
           listingAttributes={listingAttributes}
           pastDays={pastDays}
           singleListing={singleListing}
@@ -333,6 +336,7 @@ export const ticketPage = ({
           hasCustomisable={hasCustomisable}
           hasDaily={hasDaily}
           hideQuantity={hideQuantity}
+          imageUrls={imageUrls}
           isPackage={singlePackagePage}
           isSingleListing={isSingleListing}
           listingRows={listingRows}
