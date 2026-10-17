@@ -57,6 +57,17 @@ const expectOneFailureActivity = async (): Promise<void> => {
   ).toHaveLength(1);
 };
 
+/** Run one request body, flush the queued work, and return every error log
+ * line the run emitted. */
+const requestErrorLogs = async (body: () => Promise<void>): Promise<string> => {
+  const logs = await withErrorSpy(async (errorSpy) => {
+    await withRequestContext(body);
+    await flushPendingWork();
+    return errorSpy.calls.map(({ args }) => String(args[0]));
+  });
+  return logs.join("\n");
+};
+
 describeWithEnv("registration delivery errors", { db: true }, () => {
   const fetchSpy = stubWebhookFetch();
 
@@ -152,12 +163,9 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       [],
     );
     try {
-      const logs = await withErrorSpy(async (errorSpy) => {
-        await withRequestContext(() => reportRegistrationDeliveryError(true));
-        await flushPendingWork();
-        return errorSpy.calls.map(({ args }) => String(args[0]));
-      });
-      const report = logs.join("\n");
+      const report = await requestErrorLogs(() =>
+        reportRegistrationDeliveryError(true),
+      );
       expect(report).toContain("E_REGISTRATION_DELIVERY");
       expect(report).toContain("E_DB_QUERY");
       expect(report).toContain("Registration delivery failure activity write");
@@ -190,29 +198,24 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     );
     await settings.update.email.provider("unknown-provider");
     try {
-      const logs = await withErrorSpy(async (errorSpy) => {
-        await withRequestContext(async () => {
-          await logAndNotifyRegistration(
-            [
-              makeEntry(
-                { webhook_url: "https://hook.example.com/registration" },
-                { email: attendee.email, id: attendee.id },
-              ),
+      const report = await requestErrorLogs(async () => {
+        await logAndNotifyRegistration(
+          [
+            makeEntry(
+              { webhook_url: "https://hook.example.com/registration" },
+              { email: attendee.email, id: attendee.id },
+            ),
+          ],
+          {
+            clearPendingFlagsFor: [attendee.id],
+            recoverSides: [
+              { previous: 2, side: "email" },
+              { previous: 1, side: "webhooks" },
             ],
-            {
-              clearPendingFlagsFor: [attendee.id],
-              recoverSides: [
-                { previous: 2, side: "email" },
-                { previous: 1, side: "webhooks" },
-              ],
-              source: "public",
-            },
-          );
-          await flushPendingWork();
-        });
-        return errorSpy.calls.map(({ args }) => String(args[0]));
+            source: "public",
+          },
+        );
       });
-      const report = logs.join("\n");
       // The delivery refusal is still reported, and the release failure is
       // reported with its name beside it.
       expect(report).toContain("E_REGISTRATION_DELIVERY");
