@@ -225,6 +225,23 @@ const attemptedSides = async (
   }
 };
 
+/** Report beside the settled claimed flags: the error report when the
+ * channels raised errors, and the failure activity when no flag
+ * represents a refusal. */
+const reportBesideClaimedFlags = async (
+  hasErrors: boolean,
+  ownerFailureUnrepresented: boolean,
+  forcedRefusalUnrepresented: boolean,
+): Promise<void> => {
+  if (hasErrors || ownerFailureUnrepresented) {
+    await reportRegistrationDeliveryError(
+      ownerFailureUnrepresented || forcedRefusalUnrepresented,
+    );
+  } else if (forcedRefusalUnrepresented) {
+    await recordRegistrationDeliveryFailure();
+  }
+};
+
 const sendRegistrationNotifications = async (
   send: RegistrationSend,
 ): Promise<void> => {
@@ -292,11 +309,11 @@ const sendRegistrationNotifications = async (
       emailResult,
       send.recoverSides,
     );
-    if (errors.length > 0 || ownerFailureUnrepresented) {
-      await reportRegistrationDeliveryError(ownerFailureUnrepresented);
-    } else if (forcedRefusalUnrepresented) {
-      await recordRegistrationDeliveryFailure();
-    }
+    await reportBesideClaimedFlags(
+      errors.length > 0,
+      ownerFailureUnrepresented,
+      forcedRefusalUnrepresented,
+    );
   } else if (errors.length > 0) {
     await reportRegistrationDeliveryError(true);
   } else if (deliveries.some(({ failed }) => failed)) {

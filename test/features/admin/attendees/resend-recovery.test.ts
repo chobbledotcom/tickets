@@ -15,6 +15,11 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+import {
+  expectOneError,
+  setBrokenConfirmationTemplate,
+  withErrorSpy,
+} from "#test/shared/webhook/helpers.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -202,22 +207,42 @@ describeWithEnv("re-sending only what a recovery owes", { db: true }, () => {
     });
   });
 
-  test("a refused forced webhook beside a claimed cleared email records the failure", async () => {
-    // The email side is owed and claimed: its acceptance clears its flag.
-    // The webhook side is not owed, so the press forces it, and its
-    // refusal has no claimed flag to represent it.
+  /** A claimed owed email beside an unclaimed listing webhook: the webhook
+   * refuses and the email channel answers. */
+  const bookRefusingWebhookBuyer = async (name: string) => {
     await configureTestEmail();
-    const { attendee, listing } = await bookTestAttendeeWithFlags(
-      "Mixed Race Refusal",
-      1,
-      0,
-    );
+    const { attendee, listing } = await bookTestAttendeeWithFlags(name, 1, 0);
     await addWebhook(listing.id);
     fetch.reply(async (_url, init) =>
       !init || !isEmailRequest(init)
         ? new Response("no", { status: 500 })
         : new Response("{}"),
     );
+    return attendee;
+  };
+
+  /** The refused forced webhook's outcome: success flash, one failure
+   * activity, and both flags cleared. */
+  const expectForcedRefusalOutcome = async (
+    attendee: { id: number },
+    response: Response,
+  ): Promise<void> => {
+    expectRedirectWithFlash(
+      `/admin/attendees/${attendee.id}/actions`,
+      t("success.notification_resent"),
+    )(response);
+    expect(await deliveryFailures()).toHaveLength(1);
+    expect(await readPendingNotificationFlags(attendee.id)).toEqual({
+      email: 0,
+      webhooks: 0,
+    });
+  };
+
+  test("a refused forced webhook beside a claimed cleared email records the failure", async () => {
+    // The email side is owed and claimed: its acceptance clears its flag.
+    // The webhook side is not owed, so the press forces it, and its
+    // refusal has no claimed flag to represent it.
+    const attendee = await bookRefusingWebhookBuyer("Mixed Race Refusal");
 
     const { response } = await resend(
       attendee.id,
@@ -225,17 +250,34 @@ describeWithEnv("re-sending only what a recovery owes", { db: true }, () => {
       "both",
     );
 
-    expectRedirectWithFlash(
-      `/admin/attendees/${attendee.id}/actions`,
-      t("success.notification_resent"),
-    )(response);
-    const failures = await deliveryFailures();
-    expect(failures).toHaveLength(1);
     // The claimed email side still settled.
-    expect(await readPendingNotificationFlags(attendee.id)).toEqual({
-      email: 0,
-      webhooks: 0,
+    await expectForcedRefusalOutcome(attendee, response);
+  });
+
+  test("a refused forced webhook beside a template-errored claimed email records the failure", async () => {
+    // The claimed email side accepts the buyer email through the broken
+    // template's fallback, but the render error still reaches the report.
+    // The forced webhook's refusal must keep its activity: the template
+    // error may not select the report branch that skips it.
+    const attendee = await bookRefusingWebhookBuyer("Template Race Refusal");
+    await setBrokenConfirmationTemplate();
+
+    const { response, logs } = await withErrorSpy(async (errorSpy) => {
+      const result = await resend(attendee.id, "Template Race Refusal", "both");
+      return {
+        logs: errorSpy.calls.map(({ args }) => String(args[0])),
+        response: result.response,
+      };
     });
+    // The template incident remains reported beside the activity.
+    expectOneError(logs, "E_REGISTRATION_DELIVERY");
+
+    // The forced webhook was attempted and refused.
+    const webhookAttempts = fetch.calls.filter(({ args }) =>
+      String(args[0]).startsWith("https://hook.example.com"),
+    );
+    expect(webhookAttempts).toHaveLength(1);
+    await expectForcedRefusalOutcome(attendee, response);
   });
 
   test("a refused send keeps an admin-added badge's value", async () => {

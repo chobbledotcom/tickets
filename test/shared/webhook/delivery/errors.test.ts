@@ -23,6 +23,7 @@ import { reportRegistrationDeliveryError } from "#shared/webhook/report.ts";
 import {
   expectOneError,
   flushAsync,
+  setBrokenConfirmationTemplate,
   stubWebhookFetch,
   withErrorSpy,
 } from "#test/shared/webhook/helpers.ts";
@@ -115,18 +116,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
   test("reports template fallbacks as one registration incident", async () => {
     await configureTestEmail();
-    await settings.update.email.template(
-      "confirmation",
-      "subject",
-      "{{ subject | missing_subject_filter }}",
-    );
-    await settings.update.email.template(
-      "confirmation",
-      "html",
-      "{{ html | missing_html_filter }}",
-    );
-    settings.invalidateCache();
-    await settings.loadKeys(ALL_SETTINGS_KEYS);
+    await setBrokenConfirmationTemplate();
     fetchSpy.reply(() => new Response("{}"));
 
     const logs = await registrationLogs([makeEntry()]);
