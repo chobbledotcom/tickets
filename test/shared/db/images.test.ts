@@ -11,9 +11,12 @@ import {
   getImagesForItem,
   getImageUsesForImage,
   imagesTable,
+  imageUrlsForNotes,
   imageUseTargets,
   setImagesForItem,
   setItemsForImage,
+  type TicketPageTexts,
+  ticketPageImageUrls,
 } from "#db/images.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
@@ -334,6 +337,63 @@ describeWithEnv("db > images", { db: true }, () => {
 
       expect(await linkedImageIds("listing", listing.id)).toEqual([]);
       expect(await linkedImageIds("group", group.id)).toEqual([]);
+    });
+  });
+
+  describe("image url loaders", () => {
+    test("resolves the img#N references found in notes", async () => {
+      const poster = await makeImage("Poster");
+      const spare = await makeImage("Spare");
+
+      const urls = await imageUrlsForNotes([
+        { note: `Attached ![Poster](img#${poster.id}).` },
+        { note: "no reference here" },
+      ]);
+
+      expect(urls.size).toBe(1);
+      expect(urls.get(poster.id)).toBe(`/image/${poster.filename}`);
+      expect(urls.has(spare.id)).toBe(false);
+    });
+
+    test("resolves every img#N reference across a ticket page's texts", async () => {
+      const poster = await makeImage("Poster");
+      const banner = await makeImage("Banner");
+      const group = await makeImage("Group");
+      const terms = await makeImage("Terms");
+      const pack = await makeImage("Pack");
+      const spare = await makeImage("Spare");
+
+      const urls = await ticketPageImageUrls({
+        groupDescription: `![Group](img#${group.id})`,
+        listings: [{ listing: { description: `![Poster](img#${poster.id})` } }],
+        packages: [{ description: `![Pack](img#${pack.id})` }],
+        questions: [{ text: `Please see img#${banner.id} for the layout.` }],
+        terms: `![Terms](img#${terms.id})`,
+      } satisfies TicketPageTexts);
+
+      expect(urls.size).toBe(5);
+      expect(Object.fromEntries(urls)).toEqual({
+        [poster.id]: `/image/${poster.filename}`,
+        [banner.id]: `/image/${banner.filename}`,
+        [group.id]: `/image/${group.filename}`,
+        [terms.id]: `/image/${terms.filename}`,
+        [pack.id]: `/image/${pack.filename}`,
+      });
+      expect(urls.has(spare.id)).toBe(false);
+    });
+
+    test("resolves a page whose optional group description and terms are absent", async () => {
+      const poster = await makeImage("Poster");
+
+      const urls = await ticketPageImageUrls({
+        listings: [{ listing: { description: `![Poster](img#${poster.id})` } }],
+        packages: [],
+        questions: [{ text: "no reference here" }],
+      } satisfies TicketPageTexts);
+
+      expect(Object.fromEntries(urls)).toEqual({
+        [poster.id]: `/image/${poster.filename}`,
+      });
     });
   });
 });

@@ -35,10 +35,26 @@ const hasHref = (token: Token): token is Token & { href: string } =>
   (token.type === "link" || token.type === "image") &&
   typeof (token as { href?: unknown }).href === "string";
 
+/** The per-render token walk. A short-form image reference (`![alt](img#7)`)
+ * written by the editor's image dropdown resolves to the image's canonical
+ * uid URL from the table the call site preloaded. An id the table lacks
+ * renders nothing to load, so the <img> falls back to its alt text. Links
+ * and code spans never carry the rewrite. Unsafe URLs strip to nothing. */
+const walkTokensFor =
+  (imageUrls: ReadonlyMap<number, string>) =>
+  (token: Token): void => {
+    if (token.type === "image" && typeof token.href === "string") {
+      const id = token.href.match(/^img#(\d+)$/)?.[1];
+      if (id) token.href = imageUrls.get(Number(id)) ?? "";
+    }
+    if (hasHref(token) && !isSafeUrl(token.href)) token.href = "";
+  };
+
 /** Built on first render, not at module load — `new Marked(...)` compiles
  * marked's tokenizer regexes, so deferring it keeps that work off the cold boot
  * of requests that never render markdown. `once` returns synchronously, so the
- * synchronous render callers are unaffected. */
+ * synchronous render callers are unaffected. The token walk is per call, so
+ * each render carries its own image-url table. */
 const md = once(
   () =>
     new Marked({
@@ -47,15 +63,18 @@ const md = once(
           return escapeHtml(raw);
         },
       },
-      walkTokens: (token) => {
-        if (hasHref(token) && !isSafeUrl(token.href)) token.href = "";
-      },
     }),
 );
 
-/** Renders block markdown, escaping raw HTML and stripping unsafe URLs. */
-export const renderMarkdown = (text: string): string =>
-  md().parse(text) as string;
+/** Renders block markdown, escaping raw HTML and stripping unsafe URLs. The
+ * call site preloads `imageUrls` for text that can carry the editor's
+ * `img#N` references. See `imageUrlsFor` in `#shared/db/images.ts`. Without
+ * it, such references render no image, and the alt text shows. */
+export const renderMarkdown = (
+  text: string,
+  imageUrls: ReadonlyMap<number, string> = new Map(),
+): string =>
+  md().parse(text, { walkTokens: walkTokensFor(imageUrls) }) as string;
 
 /** Inline token types that don't add any HTML structure beyond plain text
  * inside a `<p>`. If a paragraph contains only these, the rendered markdown is

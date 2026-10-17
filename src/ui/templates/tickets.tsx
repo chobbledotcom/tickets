@@ -176,6 +176,7 @@ const renderTicketCard = (
   card: TicketCard,
   appleWalletEnabled: boolean,
   googleWalletEnabled: boolean,
+  imageUrls: ReadonlyMap<number, string>,
 ): string => {
   const { entry, token, attachmentUrl } = card;
   const { listing, attendee } = entry;
@@ -191,7 +192,8 @@ const renderTicketCard = (
   );
   const descriptionHtml = optionalHtml(
     listing.description,
-    (d) => `<div class="ticket-card-description">${renderMarkdown(d)}</div>`,
+    (d) =>
+      `<div class="ticket-card-description">${renderMarkdown(d, imageUrls)}</div>`,
   );
 
   const bookingDateLabel = computeBookingDateLabel(entry);
@@ -285,6 +287,7 @@ const collectPackageBuckets = (
 const renderCardsHtml = (
   cards: TicketCard[],
   packageDisplays: ReadonlyMap<number, PackageDisplay>,
+  imageUrls: ReadonlyMap<number, string>,
   appleWalletEnabled: boolean,
   googleWalletEnabled: boolean,
 ): string[] => {
@@ -311,6 +314,7 @@ const renderCardsHtml = (
           card,
           appleWalletEnabled && !tokenHasPackage,
           googleWalletEnabled && !tokenHasPackage,
+          imageUrls,
         ),
       );
     }
@@ -323,10 +327,12 @@ export const ticketViewPage = (
   appleWalletEnabled = false,
   googleWalletEnabled = false,
   packageDisplays: ReadonlyMap<number, PackageDisplay> = new Map(),
+  imageUrls: ReadonlyMap<number, string> = new Map(),
 ): string => {
   const htmlParts = renderCardsHtml(
     cards,
     packageDisplays,
+    imageUrls,
     appleWalletEnabled,
     googleWalletEnabled,
   );

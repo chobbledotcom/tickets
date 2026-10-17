@@ -61,7 +61,8 @@ const handleImageRequest = async (filename: string): Promise<Response> => {
   }
 };
 
-/** Route image requests: GET /image/:filename */
+/** Route image requests: GET /image/:filename — the filename is the image's
+ * random uid, so nothing here is enumerable. */
 export const routeImage: RouterFn = async (_, path, method) => {
   if (method !== "GET") return null;
 

@@ -85,6 +85,30 @@ describe("markdown", () => {
       const result = renderMarkdown("[mail](mailto:a@b.com)");
       expect(result).toContain('<a href="mailto:a@b.com">mail</a>');
     });
+
+    test("renders an img#N reference with the mapped URL", () => {
+      const result = renderMarkdown(
+        "![poster](img#7)",
+        new Map([[7, "/img/abc"]]),
+      );
+      expect(result).toContain('<img src="/img/abc"');
+      expect(result).toContain('alt="poster"');
+    });
+
+    test("renders an img#N reference with no table entry as an empty src", () => {
+      const result = renderMarkdown("![poster](img#9)");
+      expect(result).toContain('src=""');
+      expect(result).toContain('alt="poster"');
+    });
+
+    test("strips an img#N reference when the mapped URL is unsafe", () => {
+      const result = renderMarkdown(
+        "![poster](img#7)",
+        new Map([[7, "javascript:alert(1)"]]),
+      );
+      expect(result).not.toContain("javascript:");
+      expect(result).toContain("poster");
+    });
   });
 
   describe("isSafeUrl", () => {
@@ -337,6 +361,50 @@ describe("markdown", () => {
       expect(
         withoutLinksTo("See [Ada](/admin/attendees/5).", isOwnerOnly),
       ).toBe("See [Ada](/admin/attendees/5).");
+    });
+  });
+
+  describe("short-form image references", () => {
+    test("renders an img#id image through the image's uid URL", () => {
+      const result = renderMarkdown(
+        "![Hero](img#7)",
+        new Map([[7, "/image/3f2a9c1e-7b44-4c0d-8e19-a2b3c4d5e6f7.webp"]]),
+      );
+      expect(result).toContain(
+        '<img src="/image/3f2a9c1e-7b44-4c0d-8e19-a2b3c4d5e6f7.webp" alt="Hero">',
+      );
+    });
+
+    test("renders no image source when the table lacks the id", () => {
+      const result = renderMarkdown(
+        "![Hero](img#7)",
+        new Map([[9, "/image/other.webp"]]),
+      );
+      expect(result).toContain('<img src="" alt="Hero">');
+      expect(result).not.toContain("/image/");
+    });
+
+    test("renders no image source without a preloaded table", () => {
+      const result = renderMarkdown("![Hero](img#7)");
+      expect(result).toContain('<img src="" alt="Hero">');
+    });
+
+    test("keeps a img#id link target as the author wrote it", () => {
+      const result = renderMarkdown("[docs](img#7)");
+      expect(result).toContain('href="img#7"');
+      expect(result).not.toContain("/image/");
+    });
+
+    test("leaves img#id references inside code spans alone", () => {
+      const result = renderMarkdown("`![Hero](img#7)`");
+      expect(result).toContain("<code>![Hero](img#7)</code>");
+      expect(result).not.toContain("/image/");
+    });
+
+    test("leaves plain img#text prose alone", () => {
+      const result = renderMarkdown("see img#7 for the poster");
+      expect(result).toContain("<p>see img#7 for the poster</p>");
+      expect(result).not.toContain("/image/");
     });
   });
 });

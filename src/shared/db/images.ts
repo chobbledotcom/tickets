@@ -17,8 +17,9 @@ import {
   type RecordTargets,
 } from "#db/record-target.ts";
 import { type ColumnDef, col } from "#db/table.ts";
-import { equals } from "#db/where-clauses.ts";
-
+import { equals, inList } from "#db/where-clauses.ts";
+import { mapById } from "#fp";
+import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { decryptImageFilename } from "#shared/images/broken.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 import {
@@ -83,12 +84,74 @@ const imageColumns = imagesTable.read.pick([
   "alt_text",
 ]);
 
-const imageFileColumns = imagesTable.read.pick([
+export const imageFileColumns = imagesTable.read.pick([
   "id",
   "filename",
   "filename_thumb",
   "alt_text",
 ]);
+
+const imageUrlColumns = imagesTable.read.pick(["id", "filename"]);
+
+/** The id→uid-URL table the markdown render resolves the editor's `img#N`
+ * references against. Each entry maps one referenced image's id to its
+ * canonical filename URL, so no image is ever addressable by id. */
+export type ImageUrls = ReadonlyMap<number, string>;
+
+/** The markdown texts an image-url lookup scans. */
+type ImageUrlTexts = readonly (string | null | undefined)[];
+
+/** The id→uid-URL table for a set of notes, read from their bodies. */
+export const imageUrlsForNotes = async (
+  notes: readonly { note: string }[],
+): Promise<ImageUrls> => imageUrlsFor(notes.map((note) => note.note));
+
+/** The pieces of a rendered ticket page whose markdown can name an image. */
+export type TicketPageTexts = {
+  listings: readonly { listing: { description: string | null } }[];
+  questions: readonly { text: string }[];
+  groupDescription?: string;
+  terms?: string | null;
+  packages: readonly { description: string }[];
+};
+
+/** The read is bounded by the ids the texts actually reference. It runs only
+ * when they name any. */
+export const imageUrlsFor = async (
+  texts: ImageUrlTexts,
+): Promise<ImageUrls> => {
+  const sources = texts.filter(
+    (text): text is string => typeof text === "string",
+  );
+  const ids = [
+    ...new Set(
+      sources.flatMap((text) =>
+        [...text.matchAll(/img#(\d+)/g)].map((match) => Number(match[1])),
+      ),
+    ),
+  ];
+  return ids.length === 0
+    ? new Map()
+    : mapById((row: { id: number; filename: string }) =>
+        getImageProxyUrl(row.filename),
+      )(await imageUrlColumns.many({}, { where: inList("id", ids) }));
+};
+
+/** The id→uid-URL table for one rendered ticket page's markdown. The texts
+ * are the listing descriptions, the question texts, the group description,
+ * the terms, and the packages' descriptions. A render-path-only read, bounded
+ * by the ids the texts reference. The submit, quote, and API flows never pay
+ * it. */
+export const ticketPageImageUrls = (
+  page: TicketPageTexts,
+): Promise<ReadonlyMap<number, string>> =>
+  imageUrlsFor([
+    ...page.listings.map((entry) => entry.listing.description),
+    ...page.questions.map((question) => question.text),
+    page.groupDescription,
+    page.terms,
+    ...page.packages.map((pkg) => pkg.description),
+  ]);
 
 export const getAllImages = (): Promise<Image[]> =>
   imageColumns.many({}, { order: "id DESC" });
