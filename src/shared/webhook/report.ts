@@ -31,7 +31,14 @@ export const reportRegistrationDeliveryError = async (
 ): Promise<void> => {
   const context = { code: ErrorCode.REGISTRATION_DELIVERY };
   logErrorLocal(context);
-  if (recordFailure) await recordRegistrationDeliveryFailure();
+  if (recordFailure) {
+    try {
+      await recordRegistrationDeliveryFailure();
+    } catch {
+      // The activity helper already logged the database failure. The
+      // caller's own error stays authoritative, so the report goes on.
+    }
+  }
   addPendingWork(sendNtfyError(context.code));
   addPendingWork(captureServerError(context));
 };

@@ -314,7 +314,7 @@
   "note.placeholder_refund_confirmed": "Refund confirmed: the payment provider reported this refund as settled. No manual refund is needed.",
   "attendees.resend_refused_no_line": "Cannot re-send a notification for a no-quantity line",
   "attendees.resend_refused_no_webhook": "This attendee has no webhook to send",
-  "attendees.resend_sides_invalid": "That re-send choice is not one the form offers",
+  "attendees.resend_sides_invalid": "That choice is not valid. Reload the page and try again",
   "attendees.resend_refused_refunded": "Cannot re-send a notification for a refunded purchase",
   "attendees.merge_source_required": "Source token is required",
   "attendees.merge_source_token_not_found": "Ticket token not found",
