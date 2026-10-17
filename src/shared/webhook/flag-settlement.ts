@@ -47,7 +47,10 @@ const acceptedDelivery = (
 
 /** The flag writes one settled send earned. A side whose send cleared writes
  * a clear. A claimed side whose send did not clear writes its captured
- * value back, so the release keeps the badge's own colour. */
+ * value back, so the release keeps the badge's own colour. When a claim
+ * ran, a clear needs the claim. A forced side the claim never held settles
+ * nothing: a refused claim's restore can raise that flag for its own
+ * recovery. */
 const earnedFlagWrites = (
   clearPendingFlagsFor: readonly number[],
   cleared: Record<PendingNotificationSide, boolean>,
@@ -57,7 +60,11 @@ const earnedFlagWrites = (
   const restores: SqlStatement[] = [];
   for (const side of ["email", "webhooks"] as const) {
     if (cleared[side]) {
-      clears.push(clearPendingFlagStatement(side, clearPendingFlagsFor));
+      const claimed =
+        recovered === undefined || recovered.some((one) => one.side === side);
+      if (claimed) {
+        clears.push(clearPendingFlagStatement(side, clearPendingFlagsFor));
+      }
       continue;
     }
     const claimed = recovered?.find((one) => one.side === side);

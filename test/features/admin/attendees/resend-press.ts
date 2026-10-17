@@ -74,13 +74,16 @@ export const expectResendPress = async (
     String(args[0]).startsWith("https://hook.example.com"),
   );
   expect(webhookRequests).toHaveLength(counts.webhooks);
-  // The buyer confirmation's provider request carries a `to` array; the
-  // registration webhook's payload does not.
-  const emailRequests = calls.filter(({ args }) => {
-    const [, options] = args as [string, RequestInit];
-    const body = JSON.parse(options.body as string) as { to?: string[] };
-    return Array.isArray(body.to);
-  });
+  const emailRequests = calls.filter(({ args }) =>
+    isEmailRequest(args[1] as RequestInit),
+  );
   expect(emailRequests).toHaveLength(counts.buyerEmails);
   expect(await readPendingNotificationFlags(attendeeId)).toEqual(flags);
+};
+
+/** Whether this fetch call is the buyer's confirmation email request: its
+ * provider payload carries a `to` array, which the webhook payload lacks. */
+export const isEmailRequest = (init: RequestInit): boolean => {
+  const body = JSON.parse(init.body as string) as { to?: string[] };
+  return Array.isArray(body.to);
 };

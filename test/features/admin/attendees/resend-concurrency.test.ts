@@ -25,6 +25,7 @@ import {
   addWebhook,
   bookWebhookBuyer,
   expectResendPress,
+  isEmailRequest,
   recoverAllSides,
   resend,
 } from "./resend-press.ts";
@@ -84,6 +85,132 @@ describeWithEnv(
         `/admin/attendees/${attendee.id}/actions`,
         t("success.notification_resent"),
       )(response);
+    });
+
+    /** Run the badge race: the owner's chosen send is refused and restores
+     * the badge, then the forced press's chosen send is accepted after
+     * that restore. The owner's lease is held while the second press
+     * claims nothing, so the second settle owns no claim. `onOwnerRestored`
+     * observes the flags between the two settles. */
+    const runBadgeRace = async (
+      attendeeId: number,
+      name: string,
+      presses: { readonly owner: string; readonly forced: string },
+      isRaceSide: (init: RequestInit | undefined) => boolean,
+      onOwnerRestored: (flags: {
+        email: number;
+        webhooks: number;
+      }) => Promise<void>,
+    ): Promise<{ flags: { email: number; webhooks: number } }> => {
+      let releaseOwner!: () => void;
+      let releaseForced!: () => void;
+      let ownerStarted!: () => void;
+      let forcedStarted!: () => void;
+      const wait = {
+        forced: new Promise<void>((resolve) => {
+          releaseForced = resolve;
+        }),
+        owner: new Promise<void>((resolve) => {
+          releaseOwner = resolve;
+        }),
+      };
+      const started = {
+        forced: new Promise<void>((resolve) => {
+          forcedStarted = resolve;
+        }),
+        owner: new Promise<void>((resolve) => {
+          ownerStarted = resolve;
+        }),
+      };
+      let raceSideCalls = 0;
+      fetch.reply(async (_url, init) => {
+        if (!isRaceSide(init)) return new Response("{}");
+        raceSideCalls += 1;
+        const side = raceSideCalls === 1 ? "owner" : "forced";
+        if (side === "owner") ownerStarted();
+        else forcedStarted();
+        await wait[side];
+        return side === "owner"
+          ? new Response("no", { status: 500 })
+          : new Response("{}");
+      });
+
+      const owner = resend(attendeeId, name, presses.owner);
+      // The claim owner's delivery is in flight before the second press
+      // runs, so the second press's claim captures nothing.
+      await started.owner;
+      const forced = resend(attendeeId, name, presses.forced);
+      // The second press's empty claim has landed, and its accepted
+      // delivery is in flight, before the owner's refusal restores the
+      // badge.
+      await started.forced;
+
+      releaseOwner();
+      const { response: ownerResponse } = await owner;
+      await onOwnerRestored(await readPendingNotificationFlags(attendeeId));
+      releaseForced();
+      const { response: forcedResponse } = await forced;
+      // Both presses report success: a refused send's failure rides the
+      // settle, not the press.
+      expectRedirectWithFlash(
+        `/admin/attendees/${attendeeId}/actions`,
+        t("success.notification_resent"),
+      )(ownerResponse);
+      expectRedirectWithFlash(
+        `/admin/attendees/${attendeeId}/actions`,
+        t("success.notification_resent"),
+      )(forcedResponse);
+      expect(raceSideCalls).toBe(2);
+      return { flags: await readPendingNotificationFlags(attendeeId) };
+    };
+
+    test("a forced webhook accepted after a refused claim's restore leaves the badge up", async () => {
+      // Press A claims the owed webhook side and holds its delivery open.
+      // Press B then finds nothing outstanding, so its claim is empty and
+      // its accepted send is a forced one. A's delivery is refused and
+      // restores the badge. B's settlement must not touch that badge: B
+      // never held the claim.
+      await configureTestEmail();
+      const { attendee } = await bookWebhookBuyer("Badge Race Buyer", 0, 1);
+      const { flags } = await runBadgeRace(
+        attendee.id,
+        "Badge Race Buyer",
+        { forced: "webhooks", owner: "webhooks" },
+        () => true,
+        async (restored) => {
+          // The refusal restored the badge.
+          expect(restored).toEqual({ email: 0, webhooks: 1 });
+        },
+      );
+      // The forced send settles nothing: the badge stays as the refusal's
+      // restore left it.
+      expect(flags).toEqual({ email: 0, webhooks: 1 });
+    });
+
+    test("a forced email accepted after a refused claim's restore leaves the badge up", async () => {
+      // The email side of the same race: press A claims both owed sides,
+      // selects both, and holds its email delivery. Press B finds nothing
+      // outstanding and its accepted email is a forced send. A's refused
+      // email restores the badge; B's settlement must leave it alone.
+      await configureTestEmail();
+      const { attendee, listing } = await bookTestAttendeeWithFlags(
+        "Email Badge Race",
+        1,
+        1,
+      );
+      await addWebhook(listing.id);
+      const { flags } = await runBadgeRace(
+        attendee.id,
+        "Email Badge Race",
+        { forced: "email", owner: "both" },
+        (init) => init !== undefined && isEmailRequest(init),
+        async (restored) => {
+          // The webhook side cleared; the refused email's restore raised
+          // the email badge again.
+          expect(restored).toEqual({ email: 1, webhooks: 0 });
+        },
+      );
+      expect(flags).toEqual({ email: 1, webhooks: 0 });
     });
 
     test("a refused recovery keeps its flag up and stays retryable", async () => {
