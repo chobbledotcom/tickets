@@ -9,6 +9,7 @@ import type {
   ListingAttendeeRow,
 } from "#db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
+import { emailOwedSql } from "#db/attendees/notification-flags.ts";
 import { listingAttendeeRowColumnsFrom } from "#db/attendees/queries.ts";
 import {
   pricePaidFromLedger,
@@ -236,8 +237,9 @@ const TOKEN_ATTENDEE_BALANCE = remainingBalanceFromLedger(
 
 /** The attendee columns a scan needs: identity, the token index its ticket
  * resolves by, the PII blob for the name, and the ledger balance. The
- * pending-notification flag columns ride along for the flag-clearing flow. */
-const ATTENDEE_SCAN_COLUMNS = `${ATTENDEE_ALIAS}.id, ${ATTENDEE_ALIAS}.created, ${ATTENDEE_ALIAS}.kind, ${ATTENDEE_ALIAS}.ticket_token_index, ${ATTENDEE_ALIAS}.pii_blob, ${ATTENDEE_ALIAS}.status_id, ${TOKEN_ATTENDEE_BALANCE}, ${ATTENDEE_ALIAS}.webhooks_pending`;
+ * pending-notification flags ride along with the email badge's read-time
+ * rule, so the merge preview's badges resolve like every other read. */
+const ATTENDEE_SCAN_COLUMNS = `${ATTENDEE_ALIAS}.id, ${ATTENDEE_ALIAS}.created, ${ATTENDEE_ALIAS}.kind, ${ATTENDEE_ALIAS}.ticket_token_index, ${ATTENDEE_ALIAS}.pii_blob, ${ATTENDEE_ALIAS}.status_id, ${TOKEN_ATTENDEE_BALANCE}, ${ATTENDEE_ALIAS}.email_pending, ${ATTENDEE_ALIAS}.webhooks_pending, (CASE WHEN ${ATTENDEE_ALIAS}.email_pending > 0 THEN ${emailOwedSql(ATTENDEE_ALIAS)} ELSE 0 END) as email_owed`;
 
 type AttendeeScanRow = {
   id: number;
@@ -247,7 +249,9 @@ type AttendeeScanRow = {
   pii_blob: OwnerKeyEncrypted;
   status_id: number | null;
   remaining_balance: number;
+  email_pending: number;
   webhooks_pending: number;
+  email_owed: number;
 };
 
 /** Assemble one attendee's full booking view from its row and lines. */
@@ -257,6 +261,8 @@ const attendeeWithBookingsBuild = (
 ): AttendeeWithBookings => ({
   bookings,
   created: row.created,
+  email_owed: row.email_owed,
+  email_pending: row.email_pending,
   id: row.id,
   kind: row.kind,
   pii_blob: row.pii_blob,

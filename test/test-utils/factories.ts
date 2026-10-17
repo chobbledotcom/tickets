@@ -113,6 +113,8 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   created: "2024-01-01T12:00:00Z",
   date: null,
   email: "john@example.com",
+  email_owed: 0,
+  email_pending: 0,
   end_date: null,
   id: 1,
   kind: "attendee",

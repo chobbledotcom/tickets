@@ -11,6 +11,7 @@ import {
   configurableTableLayouts,
 } from "#shared/tables/configurable.ts";
 import { attachTableRenderers } from "#shared/tables/definition.ts";
+import { pendingNotificationBadges } from "#templates/admin/attendee-notification-badges.tsx";
 import { noQuantityIndicator } from "#templates/attendee-table/status.tsx";
 import type { AttendeeColumnOpts } from "#templates/attendee-table/types.ts";
 import {
@@ -30,12 +31,22 @@ const attendeeColumnText = tableColumnText("admin.attendee_table.column");
 
 const name: AttendeeRenderer = {
   ...attendeeColumnText("name"),
-  cell: (row, options) =>
-    options.adminLinks ? (
-      <a href={attendeeAdminPath(row.attendee)}>{row.attendee.name}</a>
-    ) : (
-      row.attendee.name
-    ),
+  cell: (row, options) => {
+    // The badges sit beside the name, outside the link. A flag is a label on
+    // the row, not part of where the link goes. Only staff read an owed
+    // send. The link to the admin page enforces the same condition, so a
+    // scanner or agent session reads the plain name alone.
+    return (
+      <span>
+        {options.adminLinks ? (
+          <a href={attendeeAdminPath(row.attendee)}>{row.attendee.name}</a>
+        ) : (
+          row.attendee.name
+        )}
+        {options.adminLinks ? pendingNotificationBadges(row.attendee) : null}
+      </span>
+    );
+  },
 };
 
 const listings: AttendeeRenderer = {

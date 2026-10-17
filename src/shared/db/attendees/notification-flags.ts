@@ -14,10 +14,13 @@
 import {
   executeBatch,
   inPlaceholders,
+  queryOne,
   resultRows,
   type SqlStatement,
   withTransaction,
 } from "#db/client.ts";
+import { requireValue } from "#shared/required-value.ts";
+import type { Attendee } from "#types";
 
 /** The stored value of a pending-notification flag. */
 export type PendingNotificationFlag = 0 | 1 | 2;
@@ -122,3 +125,43 @@ export const restoreClaimedNotificationFlags = (
       restorePendingFlagStatement(side, [attendeeId], previous),
     ),
   );
+
+/** SQL for "a listing this attendee booked currently collects an email".
+ * The attendee row reads and the dashboard count share it, so the badge and
+ * the count cannot disagree. `attendeeRef` names the alias the attendee
+ * columns read through at the call site. Writes store the contact fields as
+ * the parser's own trimmed tokens (`storedListingFields`). The read folds
+ * spaces and non-breaking spaces into commas only at token boundaries. A
+ * padded value an older version wrote then still reads as its tokens. A
+ * token with an inner space never matches.
+ * Ghost lines (quantity 0) are not bookings. */
+export const emailOwedSql = (attendeeRef: string): string => `EXISTS (
+  SELECT 1 FROM listing_attendees AS owed_line
+  JOIN listings AS owed_listing ON owed_listing.id = owed_line.listing_id
+  WHERE owed_line.attendee_id = ${attendeeRef}.id
+    AND owed_line.quantity > 0
+    AND instr(',' || REPLACE(REPLACE(REPLACE(REPLACE(owed_listing.fields,
+        ', ', ','), ' ,', ','), CHAR(160) || ',', ','), ',' || CHAR(160), ',') || ',', ',email,') > 0
+)`;
+
+/** Whether the email badge shows for one attendee row: the stored flag is up
+ * and a booked listing still collects an email. The read that produced the
+ * row resolved that rule into `email_owed`. */
+export const emailBadgeOwed = (
+  attendee: Pick<Attendee, "email_owed" | "email_pending">,
+): boolean => attendee.email_pending > 0 && attendee.email_owed === 1;
+
+/** How many bookings still owe a notification send. The dashboard shows this
+ * count when it is above zero. An email flag counts only while a booked
+ * listing still collects an email, the same rule the badge applies. */
+export const countAttendeesWithPendingFlags = async (): Promise<number> => {
+  const row = await queryOne<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM attendees
+     WHERE (email_pending > 0 AND ${emailOwedSql("attendees")})
+        OR webhooks_pending > 0`,
+  );
+  // A COUNT always yields one row. A missing row means the query broke.
+  return Number(
+    requireValue(row, "The pending-notification count returned no row").n,
+  );
+};

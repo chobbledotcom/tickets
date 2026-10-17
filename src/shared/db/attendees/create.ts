@@ -80,6 +80,8 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   checked_in: 0,
   created: input.created,
   date: input.date,
+  email_owed: 0,
+  email_pending: input.emailPending ?? PENDING_NOTIFICATION.none,
   end_date: input.date
     ? addDays(
         parseDateStringOrThrow(input.date, "a stored booking date"),
@@ -202,6 +204,7 @@ const finishAttendeeWrite = (
         ...(booking.durationDays !== undefined
           ? { durationDays: booking.durationDays }
           : {}),
+        emailPending: input.emailPending,
         kind: input.kind ?? ATTENDEE_KIND,
         packageGroupId: booking.packageGroupId ?? 0,
         paymentId: input.paymentId ?? "",

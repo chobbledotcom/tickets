@@ -353,19 +353,18 @@ export interface Attendee extends ContactInfo {
   checked_in: number;
   created: string;
   date: string | null;
-  /** Exclusive end of the booked range (YYYY-MM-DD, the midnight after the
-   * last booked day), from `listing_attendees.end_at`. Null for date-less
-   * bookings. Renders each booking's true span, not the listing's default. */
+  email_owed: number;
+  email_pending: number;
+  /** Exclusive end of the booked range (YYYY-MM-DD, the midnight after the last booked day). Null for date-less bookings. */
   end_date: string | null;
   id: number;
   kind: string;
-  /** Latitude the operator pinned for the address ("" = not pinned); admin-only. */
+  /** Latitude and longitude the operator pinned for the address
+   * ("" = not pinned); admin-only. */
   lat: string;
   listing_id: number;
-  /** Longitude the operator pinned for the address ("" = not pinned). */
   lng: string;
-  /** The package group this booking row belongs to (0 = not a package);
-   * stamped on every row of a package order so tickets/emails group under it. */
+  /** Package group this booking row belongs to (0 = not a package); stamped on every row of a package order. */
   package_group_id: number;
   payment_id: string;
   /** Owner-key-encrypted PII blob; "" on a just-created in-memory echo. */
@@ -381,7 +380,7 @@ export interface Attendee extends ContactInfo {
   status_id: number | null;
   ticket_token: string;
   ticket_token_index: BlindIndex;
-  /** Registration webhooks still owed. Same values as `email_pending`. */
+  /** Registration webhooks still owed (0 = sent, 1 = owed). */
   webhooks_pending: number;
 }
 
@@ -737,19 +736,17 @@ export interface ListingWithCount extends Listing {
  */
 export type AdminListing = Omit<ListingWithCount, "slug_index">;
 
-/** One listing shown in an attendee row's Listings cell */
+/** One listing shown in an attendee row's Listings cell. */
 export type AttendeeRowListing = {
   id: number;
   name: string;
 };
 
-/**
- * The attendee fields the shared attendee table and its column registry
+/** The attendee fields the shared attendee table and its column registry
  * actually read. A full decrypted {@link Attendee} satisfies it, and so does
  * a field-selected read that skipped the money subqueries — so the browsing
  * tables render rows that never computed the money columns
- * (`src/shared/db/attendees/select.ts`).
- */
+ * (`src/shared/db/attendees/select.ts`). */
 export type DisplayAttendee = Pick<
   Attendee,
   | "address"
@@ -757,6 +754,8 @@ export type DisplayAttendee = Pick<
   | "created"
   | "date"
   | "email"
+  | "email_owed"
+  | "email_pending"
   | "id"
   | "kind"
   | "listing_id"
