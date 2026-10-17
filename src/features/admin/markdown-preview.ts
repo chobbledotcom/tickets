@@ -1,4 +1,5 @@
 import { defineRoutes } from "#routes/router.ts";
+
 /**
  * Markdown preview endpoint.
  *
