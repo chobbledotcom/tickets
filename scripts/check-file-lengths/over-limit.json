@@ -3,7 +3,7 @@
   "src/features/admin/attendee-page-data.ts": 679,
   "src/features/admin/attendees-merge.ts": 502,
   "src/features/auth.ts": 743,
-  "src/features/public/ticket-submit.ts": 575,
+  "src/features/public/ticket-submit.ts": 574,
   "src/fp.ts": 585,
   "src/shared/db/attendees/servicing.ts": 908,
   "src/shared/db/client.ts": 932,

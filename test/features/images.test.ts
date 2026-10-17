@@ -167,21 +167,14 @@ describeWithEnv(
       });
     });
 
-    describe("GET /image/id/:id (short-form image route)", () => {
-      test("redirects to the image's canonical proxy URL", async () => {
-        const image = await makeImage("Hero");
-        const response = await handleRequest(
-          mockRequest(`/image/id/${image.id}`),
-        );
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe("/image/hero.webp");
-        expect(response.headers.get("cache-control")).toBe("no-store");
-      });
-
-      test("404s for an unknown id", async () => {
-        const response = await handleRequest(mockRequest("/image/id/424242"));
-        expect(response.status).toBe(404);
-      });
+    test("never serves an id-addressed image route", async () => {
+      // The image library is not enumerable: an id path is just an unknown
+      // filename, whatever ids exist.
+      const image = await makeImage("Hero");
+      const known = await handleRequest(mockRequest(`/image/id/${image.id}`));
+      expect(known.status).toBe(404);
+      const unknown = await handleRequest(mockRequest("/image/id/424242"));
+      expect(unknown.status).toBe(404);
     });
   },
 );

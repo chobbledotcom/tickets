@@ -133,10 +133,13 @@ export const renderPayMoreInput = (
 
 /** Render terms and conditions block with agreement checkbox. The checkbox stays
  * ticked when a validation error re-renders so agreement isn't lost. */
-export const renderTermsAndCheckbox = (terms: string): string => {
+export const renderTermsAndCheckbox = (
+  terms: string,
+  imageUrls?: ReadonlyMap<number, string>,
+): string => {
   const checked = savedFormValue("agree_terms") === "1" ? " checked" : "";
   return (
-    `<div class="prose">${renderMarkdown(terms)}</div>` +
+    `<div class="prose">${renderMarkdown(terms, imageUrls)}</div>` +
     `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1"${checked} required> ${t(
       "public.ticket.agree_terms",
     )}</label>`

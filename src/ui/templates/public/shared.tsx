@@ -106,15 +106,18 @@ export const LoginFooter = (): JSX.Element => (
 );
 
 /** Operator-authored markdown rendered into the shared `.prose` block —
- * nothing at all when the markdown is empty. */
+ * nothing at all when the markdown is empty. The call site preloads
+ * `imageUrls` when the markdown can carry the editor's `img#N` references. */
 export const MarkdownProse = ({
   markdown,
+  imageUrls,
 }: {
   markdown: string;
+  imageUrls?: ReadonlyMap<number, string>;
 }): JSX.Element | null =>
   markdown ? (
     <div class="prose">
-      <Raw html={renderMarkdown(markdown)} />
+      <Raw html={renderMarkdown(markdown, imageUrls)} />
     </div>
   ) : null;
 

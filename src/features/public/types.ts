@@ -96,6 +96,9 @@ export type TicketCtx = TicketSharedContext &
     /** The public site menu, built on the render path only (not on
      * submit/quote/API) and dropped in iframe mode. */
     nav?: PublicNavProps;
+    /** The id→uid-URL table the page's markdown render resolves the editor's
+     * `img#N` references against. Built on the render path only (renderCtx). */
+    imageUrls?: ReadonlyMap<number, string>;
   };
 
 /** Shared context provider for ticket pages */

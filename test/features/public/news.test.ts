@@ -7,9 +7,9 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
-const makePost = (name: string) =>
+const makePost = (name: string, content?: string) =>
   createNewsPost({
-    content: `The full story of ${name}.`,
+    content: content ?? `The full story of ${name}.`,
     metaDescription: `${name} description`,
     metaTitle: `${name} title`,
     name,
@@ -41,20 +41,25 @@ describeWithEnv("public /news routes", { db: true }, () => {
     expect(unknown.status).toBe(404);
   });
 
-  test("a post's img#id image reference renders the id-addressed proxy URL", async () => {
+  test("a post's img#id image reference renders the image's uid URL", async () => {
     await enablePublicSite();
     const image = await makeImage("Hero");
-    const post = await createNewsPost({
-      content: `![Hero](img#${image.id})`,
-      metaDescription: "Poster description",
-      metaTitle: "Poster title",
-      name: "Poster Drop",
-      snippet: "Poster in one line",
-    });
+    const post = await makePost("Poster Drop", `![Hero](img#${image.id})`);
     const page = await handleRequest(mockRequest(`/news/${post.slug}`));
     expect(page.status).toBe(200);
     const body = await page.text();
-    expect(body).toContain(`src="/image/id/${String(image.id)}"`);
+    expect(body).toContain(`src="/image/${image.filename}"`);
     expect(body).toContain('alt="Hero"');
+    expect(body).not.toContain("/image/id/");
+  });
+
+  test("a post's unknown img#id reference falls back to the alt text", async () => {
+    await enablePublicSite();
+    const post = await makePost("Ghost Drop", "![Ghost](img#424242)");
+    const page = await handleRequest(mockRequest(`/news/${post.slug}`));
+    expect(page.status).toBe(200);
+    const body = await page.text();
+    expect(body).toContain('src="" alt="Ghost"');
+    expect(body).not.toContain("424242");
   });
 });
