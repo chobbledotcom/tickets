@@ -10,7 +10,7 @@ import {
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
-import { getImagesForItem } from "#db/images.ts";
+import { getImagesForItem, ticketPageImageUrls } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import {
@@ -57,7 +57,6 @@ import {
   ticketResponse,
 } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
-import { ticketPageImageUrls } from "./ticket-page-images.ts";
 import { ticketPageUrl } from "./ticket-page-url.ts";
 import { checkAvailability, getTicketContext } from "./ticket-payment.ts";
 import { validateTicketFields } from "./ticket-submit/parse.ts";
@@ -394,6 +393,7 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
     galleryImages,
     attributesByListing,
     nav,
+    imageUrls,
   ] = await Promise.all([
     getSharedGroupCapacities(children),
     getGroupRemainingByListingId(children),
@@ -418,8 +418,8 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
     getIframeMode() || !settings.features.site
       ? Promise.resolve(undefined)
       : publicNavProps(null),
+    ticketPageImageUrls(ctx),
   ]);
-  const imageUrls = await ticketPageImageUrls(ctx);
   const caps = childCapacityInfo(childCaps, childOwnRemaining, membership);
   return {
     ...ctx,
