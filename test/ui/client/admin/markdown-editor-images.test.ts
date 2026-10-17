@@ -41,12 +41,31 @@ const untilReady = async (panel: HTMLElement): Promise<void> => {
   }
 };
 
+/** Mounts the editor against a stubbed options endpoint, opens the
+ * dropdown, and returns its window, panel, and handle once settled. */
+const openDropdown = async (
+  respond: Response | Error,
+): Promise<{
+  window: Window;
+  handle: Awaited<ReturnType<typeof enhanced>>["handle"];
+  panel: HTMLElement;
+}> => {
+  fetchStubHolder.stub = stubFetch(respond);
+  const { window, handle } = enhanced("hello");
+  toolbarImageButton(window).click();
+  const panel = dropdownPanel(window);
+  await untilReady(panel);
+  return { handle, panel, window };
+};
+
 describe("the image dropdown toolbar control", () => {
   test("renders the image button in the toolbar", () => {
     const { window, handle } = enhanced("hello");
     const button = window.document.querySelector(".md-toolbar-image");
     expect(button).toBeTruthy();
     expect(button?.getAttribute("aria-label")).toBe("Insert image");
+    expect(button?.getAttribute("aria-haspopup")).toBe("true");
+    expect(button?.getAttribute("aria-expanded")).toBe("false");
     handle.view.destroy();
   });
 
@@ -96,11 +115,7 @@ describe("the image dropdown toolbar control", () => {
   });
 
   test("shows a plain message when the image list cannot load", async () => {
-    fetchStubHolder.stub = stubFetch(new Error("storage down"));
-    const { window, handle } = enhanced("hello");
-    toolbarImageButton(window).click();
-    const panel = dropdownPanel(window);
-    await untilReady(panel);
+    const { handle, panel } = await openDropdown(new Error("storage down"));
 
     expect(panel.dataset.state).toBe("error");
     expect(panel.textContent).toContain("Images are unavailable right now.");
@@ -108,27 +123,43 @@ describe("the image dropdown toolbar control", () => {
   });
 
   test("shows a plain message when no images exist", async () => {
-    fetchStubHolder.stub = stubFetch(json({ images: [] }));
-    const { window, handle } = enhanced("hello");
-    toolbarImageButton(window).click();
-    const panel = dropdownPanel(window);
-    await untilReady(panel);
+    const { handle, panel } = await openDropdown(json({ images: [] }));
 
     expect(panel.textContent).toContain("No images uploaded yet.");
     handle.view.destroy();
   });
 
   test("closes the dropdown when clicking outside it", async () => {
-    fetchStubHolder.stub = stubFetch(
+    const { window, handle, panel } = await openDropdown(
       json({ images: [{ id: 2, name: "Alpha" }] }),
     );
-    const { window, handle } = enhanced("hello");
-    toolbarImageButton(window).click();
-    const panel = dropdownPanel(window);
-    await untilReady(panel);
 
     window.document.body.click();
     expect(panel.hidden).toBe(true);
+    expect(toolbarImageButton(window).getAttribute("aria-expanded")).toBe(
+      "false",
+    );
+    handle.view.destroy();
+  });
+
+  test("closes on Escape and returns focus to the button", async () => {
+    const { window, handle, panel } = await openDropdown(
+      json({ images: [{ id: 2, name: "Alpha" }] }),
+    );
+
+    window.document.dispatchEvent(
+      new window.KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+    );
+    expect(panel.hidden).toBe(true);
+    expect(window.document.activeElement).toBe(toolbarImageButton(window));
+    handle.view.destroy();
+  });
+
+  test("refuses an options body without an images array", async () => {
+    const { handle, panel } = await openDropdown(json({ ok: true }));
+
+    expect(panel.dataset.state).toBe("error");
+    expect(panel.querySelector("button")).toBeNull();
     handle.view.destroy();
   });
 });
