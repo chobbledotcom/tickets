@@ -19,6 +19,7 @@ import {
   logAndNotifyRegistration,
   sendRegistrationWebhooks,
 } from "#shared/webhook/delivery.ts";
+import { reportRegistrationDeliveryError } from "#shared/webhook/report.ts";
 import {
   expectOneError,
   flushAsync,
@@ -138,6 +139,31 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     expectOneError(logs, "E_REGISTRATION_DELIVERY");
     expect(fetchSpy.calls).toEqual([]);
     await expectOneFailureActivity();
+  });
+
+  test("a failed failure-activity write keeps the report standing", async () => {
+    // The report's own activity write can refuse. The helper logs the
+    // database failure, and the report still goes on to queue the owner's
+    // ntfy and Sentry fan-out: the write failure may not replace the
+    // delivery error the report exists for.
+    await execute(
+      `CREATE TRIGGER reject_activity_log BEFORE INSERT ON activity_log
+       BEGIN SELECT RAISE(ABORT, 'activity log rejected'); END`,
+      [],
+    );
+    try {
+      const logs = await withErrorSpy(async (errorSpy) => {
+        await withRequestContext(() => reportRegistrationDeliveryError(true));
+        await flushPendingWork();
+        return errorSpy.calls.map(({ args }) => String(args[0]));
+      });
+      const report = logs.join("\n");
+      expect(report).toContain("E_REGISTRATION_DELIVERY");
+      expect(report).toContain("E_DB_QUERY");
+      expect(report).toContain("Registration delivery failure activity write");
+    } finally {
+      await execute("DROP TRIGGER IF EXISTS reject_activity_log", []);
+    }
   });
 
   test("a failed release keeps the original refusal and still reports it", async () => {
