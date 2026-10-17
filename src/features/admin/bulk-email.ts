@@ -19,25 +19,23 @@ import {
   recordContacts,
 } from "#db/contact-preferences.ts";
 import {
-  countEmailTemplates,
-  deleteEmailTemplate,
   getAllRawEmailTemplates,
   getRawEmailTemplate,
-  insertEmailTemplate,
-  updateEmailTemplate,
 } from "#db/email-templates.ts";
 /* jscpd:ignore-start */
 import { imageUrlsFor } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 /* jscpd:ignore-end */
-import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
-  formPost,
-  gatedPost,
-  OWNER_FORM,
-  ownerResponsePage,
-} from "#routes/auth.ts";
+  COMPOSE_PATH,
+  validatedEmailPost,
+} from "#routes/admin/bulk-email-form.ts";
+import {
+  handleTemplateSavePost,
+  templateDelete,
+} from "#routes/admin/bulk-email-templates.ts";
+import { gatedPost, OWNER_FORM, ownerResponsePage } from "#routes/auth.ts";
 import { idRouteFor } from "#routes/entity.ts";
 import {
   errorRedirect,
@@ -53,14 +51,12 @@ import {
   resolveRecipientEmails,
   serializeDraft,
   summarizeProviderResponse,
-  validateDraftInput,
 } from "#shared/bulk-email.ts";
 import {
   describeTarget,
   targetAllowsEmpty,
   targetComposeControl,
   targetComposeCopy,
-  targetFromForm,
   targetFromQuery,
   targetIsSingleRecipient,
   targetLogListingId,
@@ -73,20 +69,14 @@ import {
   type EmailConfig,
   getEmailConfig,
 } from "#shared/email.ts";
-import type { FormParams } from "#shared/form-data.ts";
-import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { fail, ok } from "#shared/response.ts";
-import type { RequestRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 import {
   bulkEmailComposePage,
   bulkEmailPreviewPage,
-  bulkEmailTemplateDeletePage,
 } from "#templates/admin/bulk-email.tsx";
-
-const COMPOSE_PATH = "/admin/emails";
 
 /** How many the provider took, named against how many were tried. */
 const recipientLabel = (sent: number, attempted: number): string => {
@@ -264,53 +254,6 @@ const handleComposeGet = ownerResponsePage(async (session, request) => {
   );
 });
 
-type ValidatedEmailForm = {
-  target: BulkEmailTarget;
-  subject: string;
-  body: string;
-  marketing: boolean;
-};
-
-/** Validate the target and message fields from a compose form, returning a
- * redirect Response on failure or the extracted fields on success. */
-const validateFormBody = async (
-  form: FormParams,
-): Promise<Response | ValidatedEmailForm> => {
-  const target = await targetFromForm(form);
-  if (!target) {
-    return errorRedirect(COMPOSE_PATH, t("bulk_email.listing_gone"));
-  }
-  const validation = validateDraftInput({
-    body: form.getString("body"),
-    marketing: form.getFlag("marketing"),
-    subject: form.getString("subject"),
-    target,
-  });
-  if (!validation.valid) {
-    return errorRedirect(
-      `${COMPOSE_PATH}${targetQuery(target)}`,
-      validation.error,
-      "bulk-email",
-    );
-  }
-  return {
-    body: validation.draft.body,
-    marketing: validation.draft.marketing,
-    subject: validation.draft.subject,
-    target,
-  };
-};
-
-/** An owner POST that starts from a validated compose form: bounce back on a
- * validation redirect, else hand the extracted fields (and raw form) on. */
-const validatedEmailPost = (
-  next: (fields: ValidatedEmailForm, form: FormParams) => Promise<Response>,
-): RequestRoute =>
-  formPost(OWNER_FORM)(async (form) => {
-    const result = await validateFormBody(form);
-    return result instanceof Response ? result : next(result, form);
-  });
-
 /** POST /admin/emails/preview — validate, persist the draft, redirect to preview. */
 const handlePreviewPost = validatedEmailPost(async (fields) => {
   await saveDraft({ ...fields });
@@ -408,87 +351,6 @@ const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
     providerSummary,
   );
 });
-
-/** Flash back to the compose page with the saved template selected. */
-const templateSavedResponse = (
-  target: BulkEmailTarget,
-  templateId: number,
-  message: string,
-): Response =>
-  ok(`${COMPOSE_PATH}${targetQuery(target)}&template=${templateId}`, message);
-
-/** POST /admin/emails/templates — save or update a template. */
-const handleTemplateSavePost = validatedEmailPost(
-  async ({ subject, body, target }, form) => {
-    const encSubject = await encryptWithOwnerKey(subject, settings.publicKey);
-    const encBody = await encryptWithOwnerKey(body, settings.publicKey);
-    const updateExisting = form.getFlag("update_existing");
-    const templateIdParam = form.get("template_id");
-    const templateId = templateIdParam
-      ? parsePositiveIntId(templateIdParam)
-      : null;
-
-    if (updateExisting && templateId !== null) {
-      const existing = await getRawEmailTemplate(templateId);
-      if (!existing) {
-        return errorRedirect(
-          `${COMPOSE_PATH}${targetQuery(target)}`,
-          t("bulk_email.template_missing"),
-        );
-      }
-      await updateEmailTemplate(templateId, encSubject, encBody);
-      return templateSavedResponse(
-        target,
-        templateId,
-        t("bulk_email.template_updated_flash"),
-      );
-    }
-
-    const count = await countEmailTemplates();
-    if (count >= MAX_EMAIL_TEMPLATES) {
-      return errorRedirect(
-        `${COMPOSE_PATH}${targetQuery(target)}`,
-        t("bulk_email.template_limit_reached", { max: MAX_EMAIL_TEMPLATES }),
-      );
-    }
-    const newId = await insertEmailTemplate(encSubject, encBody);
-    return templateSavedResponse(
-      target,
-      newId,
-      t("bulk_email.template_saved_flash"),
-    );
-  },
-);
-
-/**
- * Typed-confirmation delete for a template, matching the round-trip flow used
- * for other named resources. The subject is encrypted. The owner's private
- * key decrypts it twice: once to display the confirmation page, once as the
- * identifier the owner must re-type.
- */
-const templateDelete = createConfirmedHandlers<{ id: number; subject: string }>(
-  {
-    auth: "owner",
-    identifier: (template) => template.subject,
-    identifierLabel: t("bulk_email.name_label"),
-    load: async (id) => {
-      const raw = await getRawEmailTemplate(id);
-      if (!raw) return null;
-      const privateKey = await requireRequestPrivateKey();
-      return {
-        id,
-        subject: await decryptWithOwnerKey(raw.subject, privateKey),
-      };
-    },
-    onConfirm: async (_template, id) => {
-      await deleteEmailTemplate(id);
-    },
-    path: "/admin/emails/templates/:id/delete",
-    render: bulkEmailTemplateDeletePage,
-    successMessage: "Template deleted.",
-    successRedirect: `${COMPOSE_PATH}?audience=active`,
-  },
-);
 
 export const adminHandlers = defineRoutes({
   "GET /admin/emails": handleComposeGet,
