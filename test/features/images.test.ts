@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { encryptBytes } from "#crypto/encryption.ts";
 import { handleRequest } from "#routes";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectBrokenImageResponse,
   expectHtmlResponse,
@@ -164,6 +165,16 @@ describeWithEnv(
         );
         expect(response.status).toBe(404);
       });
+    });
+
+    test("never serves an id-addressed image route", async () => {
+      // The image library is not enumerable: an id path is just an unknown
+      // filename, whatever ids exist.
+      const image = await makeImage("Hero");
+      const known = await handleRequest(mockRequest(`/image/id/${image.id}`));
+      expect(known.status).toBe(404);
+      const unknown = await handleRequest(mockRequest("/image/id/424242"));
+      expect(unknown.status).toBe(404);
     });
   },
 );
