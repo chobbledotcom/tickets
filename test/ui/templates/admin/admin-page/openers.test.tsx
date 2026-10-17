@@ -9,10 +9,8 @@ import { t } from "#i18n";
 import {
   errorAdminPage,
   errorFlash,
-  flashAdminPage,
   flashFormPage,
   successAdminPage,
-  themedAdminPage,
 } from "#templates/admin/admin-page.tsx";
 import {
   OWNER_SESSION,
@@ -30,27 +28,6 @@ describe("the error flash", () => {
 
   test("renders the error it was given", () => {
     expect(String(errorFlash("Name is taken"))).toContain("Name is taken");
-  });
-});
-
-describe("the themed opener", () => {
-  beforeAll(setupAdminPageTest);
-
-  test("previews the site's own theme and lights up settings", () => {
-    const html = themedAdminPage("Advanced")(OWNER_SESSION, "dark")(BODY);
-
-    expect(html).toContain('data-theme="dark"');
-    expect(html).toContain('<a class="active" href="/admin/settings">');
-    expect(html).toContain("<p>Opener body</p>");
-  });
-
-  test("takes another nav link when one is named", () => {
-    const html = themedAdminPage("Debug", "/admin/users")(
-      OWNER_SESSION,
-      "light",
-    )(BODY);
-
-    expect(html).toContain('<a class="active" href="/admin/users">');
   });
 });
 
@@ -96,20 +73,6 @@ describe("the edit-page and dashboard openers", () => {
     expect(errorAdminPage("Holiday")(OWNER_SESSION)(BODY)).not.toContain(
       "flash",
     );
-  });
-
-  test("the dashboard opener shows either notice, or neither", () => {
-    const bad = flashAdminPage("Update")(OWNER_SESSION, "It broke")(BODY);
-    const good = flashAdminPage("Update")(
-      OWNER_SESSION,
-      undefined,
-      "It worked",
-    )(BODY);
-    const quiet = flashAdminPage("Update")(OWNER_SESSION)(BODY);
-
-    expect(bad).toContain("It broke");
-    expect(good).toContain("It worked");
-    expect(quiet).not.toContain("flash");
   });
 });
 

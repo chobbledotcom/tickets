@@ -7,12 +7,13 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { Flash } from "#shared/forms/flash.tsx";
 import {
-  AdminPage,
   adminListingLink,
   flashDataPage,
-  staffAdminPage,
 } from "#templates/admin/admin-page.tsx";
-import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
+import {
+  AdminPage,
+  renderAdminPageSpec,
+} from "#templates/admin/admin-page-spec.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
@@ -132,34 +133,6 @@ describe("the page staff and agents share", () => {
       '<header class="agent-header"><h1>Deliveries</h1></header>',
     );
     expect(html).toContain("<p>Run sheet</p>");
-  });
-});
-
-describe("the run-sheet opener staff and agents share", () => {
-  beforeAll(setupAdminPageTest);
-
-  const runSheet = (session: AdminSession): string =>
-    staffAdminPage({
-      active: "/admin/deliveries",
-      children: <p>Run sheet</p>,
-      session,
-      staffHeading: <h1>For staff</h1>,
-      title: "Deliveries",
-    });
-
-  test("shows the staff heading to staff and the agent header to agents", () => {
-    const staff = runSheet(OWNER_SESSION);
-
-    expect(staff).toContain("<h1>For staff</h1>");
-    expect(staff).not.toContain('<header class="agent-header">');
-
-    const agent = runSheet(AGENT_SESSION);
-
-    expect(agent).not.toContain("<h1>For staff</h1>");
-    expect(agent).toContain(
-      '<header class="agent-header"><h1>Deliveries</h1></header>',
-    );
-    expect(agent).toContain("<p>Run sheet</p>");
   });
 });
 

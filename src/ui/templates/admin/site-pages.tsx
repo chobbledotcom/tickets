@@ -13,7 +13,7 @@ import {
 } from "#routes/admin/site-pages-form.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { adminFormPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { prefixedDeletePage } from "#templates/admin/confirm-page.tsx";
 import { rowDeleteLink } from "#templates/admin/delete-link.tsx";
 import {
@@ -168,16 +168,18 @@ const sitePageFormShell = (
   error?: string,
   children?: JSX.Element,
 ): string =>
-  adminFormPage({
-    action,
+  renderAdminPageSpec({
     active: ACTIVE,
-    children: (
-      <>
-        <Raw html={fieldsHtml} />
-        {children}
-      </>
-    ),
-    error,
+    form: {
+      action,
+      fields: (
+        <>
+          <Raw html={fieldsHtml} />
+          {children}
+        </>
+      ),
+      flash: { error },
+    },
     session,
     title,
   });

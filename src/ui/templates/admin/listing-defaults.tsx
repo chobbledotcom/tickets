@@ -18,7 +18,7 @@ import {
   listingDefaultHintKey,
   listingDefaultLabelKey,
 } from "#shared/listing-defaults.ts";
-import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { ListingSectionFieldset } from "#templates/admin/money-summary.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
@@ -204,29 +204,32 @@ export const adminListingDefaultsPage = (
   const fields = LISTING_DEFAULT_FIELDS.filter(
     (field) => field.field !== "uses_logistics" || hasLogistics,
   );
-  return flashAdminPage(t("listing_defaults.title"), "/admin/listing-defaults")(
-    session,
-    error,
-    success,
-  )(
-    <>
-      <SaveForm
-        action="/admin/listing-defaults"
-        id="listing-defaults"
-        submitLabel={t("listing_defaults.save")}
-      >
-        <div class="prose">
-          <h2>{t("listing_defaults.title")}</h2>
-          <p>{t("listing_defaults.intro")}</p>
-        </div>
-        {fields.map((field) => (
-          <DefaultControl defaults={defaults} field={field} />
-        ))}
-      </SaveForm>
-
-      <GuideFooter href="/admin/guide#listings">
-        {t("listing_defaults.guide_link")}
-      </GuideFooter>
-    </>,
+  const renderField = (field: ListingDefaultField) => (
+    <DefaultControl defaults={defaults} field={field} />
   );
+  return renderAdminPageSpec({
+    active: "/admin/listing-defaults",
+    body: (
+      <>
+        <SaveForm
+          action="/admin/listing-defaults"
+          id="listing-defaults"
+          submitLabel={t("listing_defaults.save")}
+        >
+          <div class="prose">
+            <h2>{t("listing_defaults.title")}</h2>
+            <p>{t("listing_defaults.intro")}</p>
+          </div>
+          {fields.map(renderField)}
+        </SaveForm>
+
+        <GuideFooter href="/admin/guide#listings">
+          {t("listing_defaults.guide_link")}
+        </GuideFooter>
+      </>
+    ),
+    flash: { error, success },
+    session,
+    title: t("listing_defaults.title"),
+  });
 };

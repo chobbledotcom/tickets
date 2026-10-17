@@ -49,7 +49,7 @@ import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { DAY_MS, nowMs } from "#shared/now.ts";
 import { selectedIdsFromForm } from "#shared/selected-ids.ts";
-import { flashProps } from "#templates/admin/admin-page.tsx";
+import { flashProps } from "#templates/admin/admin-page-spec.tsx";
 import {
   adminUserDeletePage,
   adminUserNewPage,

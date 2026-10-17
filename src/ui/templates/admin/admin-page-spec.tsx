@@ -1,7 +1,7 @@
 /**
  * The admin page spec and its renderer: the one typed schema every admin page
- * fills in, rendered through the shell (AdminPage) defined in admin-page.tsx.
- * The legacy openers in admin-page.tsx rewire to this module layer by layer.
+ * fills in, rendered through the AdminPage shell defined here. The legacy
+ * openers in admin-page.tsx rewire to this module layer by layer.
  */
 
 /* jscpd:ignore-start */
@@ -14,17 +14,100 @@ import type {
   TableColumn,
 } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import {
-  AdminPage,
-  FormHeader,
-  flashProps,
-} from "#templates/admin/admin-page.tsx";
 import { AgentHeader } from "#templates/admin/agent-header.tsx";
-import { type NavActive, StaffAdminNav } from "#templates/admin/nav.tsx";
+import {
+  AdminNav,
+  type NavActive,
+  StaffAdminNav,
+} from "#templates/admin/nav.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { Layout } from "#templates/layout.tsx";
 import type { AdminSession, Theme } from "#types";
 /* jscpd:ignore-end */
+
+export type AdminPageProps = {
+  title: string;
+  session: AdminSession;
+  active: NavActive;
+  bodyClass?: string;
+  /** Page identity/custom-CSS hook. Defaults to admin-page. */
+  contentClassName?: string;
+  /** Optional page theme forwarded to <Layout> — the settings/debug pages
+   *  preview the site's saved theme (`s.theme`) rather than the viewer's. */
+  theme?: Theme;
+  /** Optional flash notice (or any markup) rendered right after <AdminNav>.
+   *  Pass a `<Flash .../>` element — or use `flashProps(error, success)` to
+   *  build its props. */
+  flash?: Child;
+  /** Optional page action row, rendered as `<p class="actions">…</p>` right
+   *  after the flash (before the body). Pass the action *contents* (for
+   *  example an `<ActionButton>` and a `<GuideLink>`). AdminPage wraps them so
+   *  the action-row scaffold does not drift per page. Omit when a page has no
+   *  actions. */
+  actions?: Child;
+  children: Child;
+};
+
+/** Render an admin page wrapped in <Layout> + <AdminNav>. */
+export const AdminPage = ({
+  title,
+  session,
+  active,
+  bodyClass,
+  contentClassName = "admin-page",
+  theme,
+  flash,
+  actions,
+  children,
+}: AdminPageProps): JSX.Element => (
+  <Layout
+    beforeContent={<AdminNav active={active} session={session} />}
+    {...(bodyClass !== undefined ? { bodyClass } : {})}
+    contentClassName={contentClassName}
+    family="admin"
+    {...(theme !== undefined ? { theme } : {})}
+    title={title}
+  >
+    {flash}
+    {actions !== undefined && <p class="actions">{actions}</p>}
+    {children}
+  </Layout>
+);
+
+/** Build the props for an optional error/success Flash notice. The dashboards
+ *  and landing pages share the
+ *    <Flash {...(error !== undefined ? { error } : {})}
+ *           {...(success !== undefined ? { success } : {})} />
+ *  pattern. This helper centralises it and keeps exactOptionalPropertyTypes
+ *  satisfied at the call sites. */
+export const flashProps = (
+  error?: string,
+  success?: string,
+  info?: string,
+): { error?: string; success?: string; info?: string } => ({
+  ...(error !== undefined ? { error } : {}),
+  ...(success !== undefined ? { success } : {}),
+  ...(info !== undefined ? { info } : {}),
+});
+
+/** The `<h1>` heading plus error/success Flash notice that opens most admin
+ *  forms. Shared so the heading-then-flash pair is authored once. */
+export const FormHeader = ({
+  title,
+  error,
+  info,
+  success,
+}: {
+  title: string;
+  error?: string | undefined;
+  info?: string | undefined;
+  success?: string | undefined;
+}): JSX.Element => (
+  <>
+    <h1>{title}</h1>
+    <Flash error={error} info={info} success={success} />
+  </>
+);
 
 /** The standard list body: intro, then the table or its empty note, then the
  *  guide footer. */
@@ -91,6 +174,15 @@ const listBody = <TItem,>(list: AdminPageListPart<TItem>): JSX.Element => (
     {list.guideFooter}
   </>
 );
+
+/** The render function a flash-carrying admin page exposes: given the viewer's
+ *  session and optional error/success notices, it returns the page HTML. Shared
+ *  by the single-form pages and the resource pages. */
+export type FlashPageRenderer = (
+  session: AdminSession,
+  error?: string,
+  success?: string,
+) => string;
 
 /** Open an admin page from its spec — the one render function every admin
  *  page goes through. */

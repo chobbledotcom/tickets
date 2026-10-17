@@ -13,11 +13,11 @@ import type {
   ReorderColumnOptions,
   TableColumn,
 } from "#shared/tables/column.ts";
-import { defineTable } from "#shared/tables/definition.ts";
+import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import {
   type FlashPageRenderer,
-  flashAdminPage,
-} from "#templates/admin/admin-page.tsx";
+  renderAdminPageSpec,
+} from "#templates/admin/admin-page-spec.tsx";
 import {
   entityDeletePage,
   type TCall,
@@ -25,7 +25,6 @@ import {
 import type { NavActive } from "#templates/admin/nav.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
@@ -116,7 +115,7 @@ export const writableNameColumn = <TEntity,>(
 
 /** The shape every resource list page shares: the rows to show, then the same
  *  session + optional error/success flashes every flash-carrying admin page
- *  takes ({@link FlashPageRenderer}). */
+ *  takes. */
 export type AdminListPage<TEntity> = (
   entities: TEntity[],
   ...args: Parameters<FlashPageRenderer>
@@ -144,26 +143,25 @@ export const defineAdminResourcePages = <TEntity extends { id: number }>(
   ) => {
     // listPage is only called by resources that declare a `list` facet.
     const list = config.list as ResourceList<TEntity>;
-    return flashAdminPage(config.labels.listTitle, config.active)(
+    return renderAdminPageSpec({
+      actions: <WritableOnly>{list.actions}</WritableOnly>,
+      active: config.active,
+      flash: { error, success },
+      list: {
+        columns: list.columns,
+        empty: list.empty,
+        guideFooter: list.guideFooter,
+        intro: list.intro,
+        items: entities,
+        reorder: list.reorder,
+      },
       session,
-      error,
-      success,
-    )(
-      <>
-        {list.intro}
-        {entities.length > 0
-          ? renderTable(defineTable(list.columns), entities, {
-              reorder: list.reorder,
-            })
-          : list.empty}
-        {list.guideFooter}
-      </>,
-      <WritableOnly>{list.actions}</WritableOnly>,
-    );
+      title: config.labels.listTitle,
+    });
   };
 
   const newPage = (session: AdminSession, error?: string): string =>
-    flashAdminPage(config.labels.addTitle, config.active)(session, error)(
+    errorAdminPage(config.labels.addTitle, config.active)(session, error)(
       <SaveForm
         action={config.basePath}
         submitIcon="plus"
@@ -173,7 +171,6 @@ export const defineAdminResourcePages = <TEntity extends { id: number }>(
         {config.renderFields(undefined)}
       </SaveForm>,
     );
-
   const del = config.delete;
   const deletePage = entityDeletePage((entity: TEntity) => {
     const confirm = del.confirm?.(entity);

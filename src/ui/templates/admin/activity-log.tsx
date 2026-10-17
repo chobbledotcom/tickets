@@ -11,7 +11,7 @@ import { formatDatetimeShort } from "#shared/dates.ts";
 import { ErrorCode, errorCodeLabel } from "#shared/logger.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { AdminPage } from "#templates/admin/admin-page-spec.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import type { AdminSession, ListingWithCount } from "#types";
