@@ -14,6 +14,7 @@
 
 import { EditorView } from "prosemirror-view";
 import { forEachMatch } from "#src/ui/client/dom.ts";
+import { createImageToolbarItem } from "./markdown-editor-images.ts";
 import {
   createEditorState,
   roundTripsCleanly,
@@ -79,6 +80,7 @@ export const enhanceMarkdownTextarea = (
 
   const toolbar = createToolbar(view);
   mount.prepend(toolbar.dom);
+  toolbar.dom.append(createImageToolbarItem(view));
   // The toolbar's initial highlight is set by the setMode(mode) call below:
   // its rich branch refreshes the toolbar, and a raw start keeps it hidden.
 

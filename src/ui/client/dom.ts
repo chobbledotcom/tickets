@@ -6,6 +6,16 @@
  * into any client entry point.
  */
 
+/** Create an element of the given tag with the given class, ready to fill in. */
+export const createElementWithClass = (
+  tag: string,
+  className: string,
+): HTMLElement => {
+  const element = document.createElement(tag);
+  element.className = className;
+  return element;
+};
+
 /** Create a `<button type="button">` with the given class, ready to fill in. */
 export const createButton = (className: string): HTMLButtonElement => {
   const button = document.createElement("button");
