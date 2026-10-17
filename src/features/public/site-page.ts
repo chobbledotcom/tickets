@@ -10,9 +10,9 @@
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
-import { getImagesForItem } from "#db/images.ts";
-import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start -- imports */
+import { getImagesForItem, imageUrlsFor } from "#db/images.ts";
+import { settings } from "#db/settings.ts";
 import { getSitePageBySlugIndex } from "#db/site-pages.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
@@ -30,17 +30,20 @@ type ContentPageRender<T> = (
   images: Awaited<ReturnType<typeof getImagesForItem>>,
   nav: Awaited<ReturnType<typeof publicNavProps>>,
   websiteTitle: string,
+  imageUrls: Awaited<ReturnType<typeof imageUrlsFor>>,
 ) => string;
 
 /**
- * 404 when the item was not found; otherwise load its images and the public nav
- * together and render the page with the site title. Shared by the single
- * content page and the single news post, which differ only in the image kind,
- * the nav anchor, and the template. `noindexWhen` marks the rendered response
- * with the shared noindex header, the mechanism hidden listings use. The news
- * post passes none.
+ * 404 when the item was not found. Otherwise load its images, the public nav,
+ * and the image-url table its markdown needs, together, and render the page
+ * with the site title. Shared by the single content page and the single news
+ * post, which differ only in the image kind, the nav anchor, and the template.
+ * `noindexWhen` marks the rendered response with the shared noindex header,
+ * the mechanism hidden listings use. The news post passes none.
  */
-export const renderContentPage = async <T extends { id: number }>(
+export const renderContentPage = async <
+  T extends { id: number; content: string | null },
+>(
   item: T | null,
   imageKind: Parameters<typeof getImagesForItem>[0],
   navTargetFor: (item: T) => Parameters<typeof publicNavProps>[0],
@@ -48,12 +51,13 @@ export const renderContentPage = async <T extends { id: number }>(
   noindexWhen?: (item: T) => boolean,
 ): Promise<Response> => {
   if (!item) return notFoundResponse();
-  const [images, nav] = await Promise.all([
+  const [images, nav, imageUrls] = await Promise.all([
     getImagesForItem(imageKind, item.id),
     publicNavProps(navTargetFor(item)),
+    imageUrlsFor([item.content]),
   ]);
   const response = htmlResponse(
-    render(item, images, nav, settings.websiteTitle),
+    render(item, images, nav, settings.websiteTitle, imageUrls),
   );
   return noindexWhen?.(item) ? applyNoindex(response) : response;
 };
