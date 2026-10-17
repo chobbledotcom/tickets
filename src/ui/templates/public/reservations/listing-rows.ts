@@ -271,12 +271,13 @@ const renderPackageControls = ({
  * page stays usable for the other items, matching the order gallery's
  * sold-out cards. */
 const renderPackageSection = (input: PackageRenderInput): string => {
-  const { bundleMinimum, limit, pkg } = input;
+  const { bundleMinimum, imageUrls, limit, pkg } = input;
   const unavailable = limit < bundleMinimum;
   const heading = `<legend>${escapeHtml(pkg.name)}</legend>`;
   const body = unavailable
     ? soldOutLabel()
-    : renderListingDescription(pkg.description) + renderPackageControls(input);
+    : renderListingDescription(pkg.description, imageUrls) +
+      renderPackageControls(input);
   return `<fieldset class="ticket-package${
     unavailable ? " sold-out" : ""
   }" data-package-section="${pkg.groupId}">${heading}${body}</fieldset>`;
