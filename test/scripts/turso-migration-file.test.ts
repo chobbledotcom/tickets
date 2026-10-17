@@ -64,7 +64,11 @@ const withUploadServer = async (
       const localUrl = new URL(url);
       localUrl.protocol = "http:";
       const controller = new AbortController();
-      options.signal = controller.signal;
+      // The caller's own signal keeps working: a combined signal aborts the
+      // request when either side fires.
+      options.signal = options.signal
+        ? AbortSignal.any([options.signal, controller.signal])
+        : controller.signal;
       controllers.push(controller);
       return httpRequest(localUrl, options, receive);
     },
@@ -353,6 +357,13 @@ describe("Turso migration file", () => {
             ).rejects.toThrow("error writing a body to connection"),
           );
         }
+        // One macrotask turn lets a rejection from the teardown's abort land
+        // while the listener still records it. The polyfill dispatches
+        // rejections on the platform's own schedule, so no deterministic
+        // clock can drive it.
+        const { promise, resolve } = Promise.withResolvers<void>();
+        setTimeout(resolve, 0);
+        await promise;
       } finally {
         globalThis.removeEventListener("unhandledrejection", onRejection);
       }
