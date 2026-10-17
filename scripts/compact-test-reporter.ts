@@ -12,8 +12,10 @@ import {
   type CompactFailure,
   type CompactTapSummary,
   formatLocation,
+  junitErroredTests,
   junitErrorFiles,
   type Location,
+  NO_TAP_DIAGNOSTIC,
   printCompactSummary,
 } from "./tap-summary.ts";
 
@@ -220,7 +222,7 @@ export class CompactTapReporter {
 
     this.#pendingFailure = undefined;
     this.#recordFailure(pending.name, {
-      message: "No TAP diagnostic was emitted for this failure.",
+      message: NO_TAP_DIAGNOSTIC,
     });
   }
 
@@ -348,6 +350,7 @@ export const runCompactDenoTest = async (
       { code: status.code, signal: status.signal },
       stderrText,
       junitErrorFiles(junit),
+      junitErroredTests(junit),
     );
     // A filtered run that executed nothing did not select any test. A failed
     // run has its own cause to report, so only a clean exit names the filter.
