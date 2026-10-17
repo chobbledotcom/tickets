@@ -18,7 +18,7 @@ import { defineTable } from "#shared/tables/definition.ts";
 import {
   errorAdminPage,
   flashFormPage,
-  successAdminPage,
+  successListPage,
 } from "#templates/admin/admin-page.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import {
@@ -173,28 +173,25 @@ const imageUploadForm = (
   </SaveForm>
 );
 
-export const adminImagesPage = (
-  images: Image[],
-  session: AdminSession,
-  successMessage?: string,
-): string => {
-  const storageEnabled = isStorageEnabled();
-  return successAdminPage(t("terms.images"), "/admin/images")(
-    session,
-    successMessage,
-  )(
-    <>
-      {storageEnabled
-        ? imagesOrEmpty(images, () => renderTable(imageTable, images))
-        : storageDisabledNotice()}
-      {/* The images page is editor-reachable, but the guide is staff-only, so
+export const adminImagesPage = successListPage<Image[]>(
+  "terms.images",
+  "/admin/images",
+  (images, session) => {
+    const storageEnabled = isStorageEnabled();
+    return (
+      <>
+        {storageEnabled
+          ? imagesOrEmpty(images, () => renderTable(imageTable, images))
+          : storageDisabledNotice()}
+        {/* The images page is editor-reachable, but the guide is staff-only, so
           gate the link by role — editors would otherwise get a 403. */}
-      <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#images">
-        {t("images.guide_link")}
-      </GuideFooter>
-    </>,
-  );
-};
+        <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#images">
+          {t("images.guide_link")}
+        </GuideFooter>
+      </>
+    );
+  },
+);
 
 export const adminImageNewPage = flashFormPage(
   "images.new.heading",
@@ -255,7 +252,6 @@ export const adminImageEditPage = ({
       )}
     </>,
   );
-
 export const adminImageDeletePage = entityDeletePage((image: Image) => ({
   action: `/admin/images/${image.id}/delete`,
   active: { section: "/admin/images" },

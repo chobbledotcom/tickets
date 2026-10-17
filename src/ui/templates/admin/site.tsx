@@ -37,9 +37,15 @@ const SiteGuideFooter = ({
  * always appended after the body. */
 const siteEditorPage =
   (title: string, active: string) =>
-  (session: AdminSession, error?: string, success?: string) =>
-  (body: Child): string =>
-    flashOptsPage(title, active)(session, { error, success })(
+  (
+    session: AdminSession,
+    error: string | undefined,
+    success: string | undefined,
+    body: Child,
+  ): string =>
+    flashOptsPage(title, active)(
+      session,
+      { error, success },
       <>
         {body}
         <SiteGuideFooter adminLevel={session.adminLevel} />
@@ -59,7 +65,12 @@ const siteDataPage =
     error?: string,
     success?: string,
   ): string =>
-    siteEditorPage(title, active)(session, error, success)(renderBody(a, b));
+    siteEditorPage(title, active)(
+      session,
+      error ?? undefined,
+      success ?? undefined,
+      renderBody(a, b),
+    );
 
 const siteTextForm = renderedFieldsSaveForm(t("common.save"));
 

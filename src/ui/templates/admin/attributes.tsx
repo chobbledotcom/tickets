@@ -132,7 +132,9 @@ export const adminAttributePage = (
   data: AttributePageData,
 ): string =>
   errorAdminPage(
-    t("attributes.detail_title", { name: attributeNameFlat(attribute.name) }),
+    t("attributes.detail_title", {
+      name: attributeNameFlat(attribute.name),
+    }),
     adminPattern("attributes"),
   )(
     session,

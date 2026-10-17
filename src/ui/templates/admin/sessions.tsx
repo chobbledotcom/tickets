@@ -8,7 +8,7 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { successAdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
@@ -46,33 +46,36 @@ export const adminSessionsPage = (
     (s) => s.token !== currentToken,
   ).length;
 
-  return successAdminPage(t("sessions.title"), "/admin/sessions")(
-    adminSession,
-    success,
-  )(
-    <>
-      {renderTable(sessionsTable, sessions, {
-        context: currentToken,
-        empty: <Raw html={t("sessions.no_sessions")} />,
-      })}
+  return renderAdminPageSpec({
+    active: "/admin/sessions",
+    body: (
+      <>
+        {renderTable(sessionsTable, sessions, {
+          context: currentToken,
+          empty: <Raw html={t("sessions.no_sessions")} />,
+        })}
 
-      {otherSessionCount > 0 && (
-        <>
-          <br />
+        {otherSessionCount > 0 && (
+          <>
+            <br />
 
-          <SaveForm
-            action="/admin/sessions"
-            class="one-button"
-            submitClass="danger"
-            submitIcon="log-out"
-            submitLabel={t("sessions.logout_others", {
-              count: otherSessionCount,
-            })}
-          />
-        </>
-      )}
+            <SaveForm
+              action="/admin/sessions"
+              class="one-button"
+              submitClass="danger"
+              submitIcon="log-out"
+              submitLabel={t("sessions.logout_others", {
+                count: otherSessionCount,
+              })}
+            />
+          </>
+        )}
 
-      <GuideFooter href="/admin/guide#login">Sessions guide</GuideFooter>
-    </>,
-  );
+        <GuideFooter href="/admin/guide#login">Sessions guide</GuideFooter>
+      </>
+    ),
+    flash: { success },
+    session: adminSession,
+    title: t("sessions.title"),
+  });
 };

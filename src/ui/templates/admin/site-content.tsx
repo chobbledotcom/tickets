@@ -6,8 +6,7 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
-import { Flash } from "#shared/forms/flash.tsx";
-import { AdminPage } from "#templates/admin/admin-page-spec.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import {
@@ -30,23 +29,20 @@ export const collectionPage =
     successMessage: string | undefined,
     body: Child,
   ): string =>
-    String(
-      <AdminPage
-        actions={
-          <WritableOnly>
-            <ActionButton href={`${base}/new`} icon="plus">
-              {t(`${messages}.add`)}
-            </ActionButton>
-          </WritableOnly>
-        }
-        active={base}
-        flash={<Flash success={successMessage} />}
-        session={session}
-        title={t(`${messages}.title`)}
-      >
-        {body}
-      </AdminPage>,
-    );
+    renderAdminPageSpec({
+      actions: (
+        <WritableOnly>
+          <ActionButton href={`${base}/new`} icon="plus">
+            {t(`${messages}.add`)}
+          </ActionButton>
+        </WritableOnly>
+      ),
+      active: base,
+      body,
+      flash: { success: successMessage },
+      session,
+      title: t(`${messages}.title`),
+    });
 
 /** The Edit-tab panel for a Site content editor (Pages, News): a CsrfForm
  * carrying the pre-filled fields and a save button. It draws no heading of its

@@ -91,30 +91,33 @@ const UpToDate = ({
   </ProseSection>
 );
 
+const renderBody = (state: UpdatePageState): JSX.Element => (
+  <>
+    <h2>{t("update.software_update")}</h2>
+
+    <CurrentVersion state={state} />
+
+    {state.updateAvailable ? (
+      <UpdateAvailable state={state} />
+    ) : state.latestVersion ? (
+      <UpToDate latestVersion={state.latestVersion} />
+    ) : null}
+
+    <CheckForUpdates />
+
+    <p>
+      <a href={GITHUB_RELEASES_URL}>{t("update.release_notes_link")}</a>
+    </p>
+
+    <GuideFooter href="/admin/guide#software-updates">
+      {t("update.guide_link")}
+    </GuideFooter>
+  </>
+);
+
+/** Admin update page. */
 export const adminUpdatePage = flashDataPage<UpdatePageState>(
   "update.page_title",
   "/admin/update",
-  (state) => (
-    <>
-      <h2>{t("update.software_update")}</h2>
-
-      <CurrentVersion state={state} />
-
-      {state.updateAvailable ? (
-        <UpdateAvailable state={state} />
-      ) : state.latestVersion ? (
-        <UpToDate latestVersion={state.latestVersion} />
-      ) : null}
-
-      <CheckForUpdates />
-
-      <p>
-        <a href={GITHUB_RELEASES_URL}>{t("update.release_notes_link")}</a>
-      </p>
-
-      <GuideFooter href="/admin/guide#software-updates">
-        {t("update.guide_link")}
-      </GuideFooter>
-    </>
-  ),
+  renderBody,
 );

@@ -7,13 +7,16 @@ import { adminDestinationAllowed, adminPath } from "#shared/admin-surface.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { editPanel, flashFormPage } from "#templates/admin/admin-page.tsx";
+import {
+  editPanel,
+  flashFormPage,
+  successListPage,
+} from "#templates/admin/admin-page.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import {
   type AccountLedgerData,
   EmbeddedAccountStatementSection,
 } from "#templates/admin/ledger/statement.tsx";
-import { AdminListPage } from "#templates/admin/list-page.tsx";
 import { MoneyAdjustSection } from "#templates/admin/money-adjust-section.tsx";
 import { guideFooterFor } from "#templates/components/actions.tsx";
 import { itemsOrEmptyNote } from "#templates/components/reorder-list.tsx";
@@ -143,25 +146,18 @@ const modifiersTable = defineTable<Modifier, AdminSession>([
   },
 ]);
 
-export const adminModifiersPage = (
-  modifiers: Modifier[],
-  session: AdminSession,
-  successMessage?: string,
-): string =>
-  AdminListPage({
-    active: "/admin/modifiers",
-    children: (
-      <>
-        {itemsOrEmptyNote(modifiers, t("modifiers.no_modifiers"), (rows) =>
-          renderTable(modifiersTable, rows, { context: session }),
-        )}
-        <ModifiersGuideFooter />
-      </>
-    ),
-    session,
-    successMessage,
-    title: t("terms.modifiers"),
-  });
+export const adminModifiersPage = successListPage<Modifier[]>(
+  "terms.modifiers",
+  "/admin/modifiers",
+  (modifiers, session) => (
+    <>
+      {itemsOrEmptyNote(modifiers, t("modifiers.no_modifiers"), (rows) =>
+        renderTable(modifiersTable, rows, { context: session }),
+      )}
+      <ModifiersGuideFooter />
+    </>
+  ),
+);
 
 export const adminModifierNewPage = flashFormPage(
   "modifiers.add.heading",

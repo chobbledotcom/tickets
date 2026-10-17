@@ -8,73 +8,14 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import {
   errorAdminPage,
-  errorFlash,
   flashFormPage,
-  successAdminPage,
+  flashOptsPage,
+  successListPage,
 } from "#templates/admin/admin-page.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
-
-const BODY = <p>Opener body</p>;
-
-describe("the error flash", () => {
-  beforeAll(setupAdminPageTest);
-
-  test("renders nothing when there is no error", () => {
-    expect(errorFlash()).toBe(null);
-  });
-
-  test("renders the error it was given", () => {
-    expect(String(errorFlash("Name is taken"))).toContain("Name is taken");
-  });
-});
-
-describe("the list-page opener", () => {
-  beforeAll(setupAdminPageTest);
-
-  test("shows a success notice only when there is one", () => {
-    const withNotice = successAdminPage("Holidays")(
-      OWNER_SESSION,
-      "Holiday saved",
-    )(BODY);
-    const without = successAdminPage("Holidays")(OWNER_SESSION)(BODY);
-
-    expect(withNotice).toContain("Holiday saved");
-    expect(without).not.toContain("flash");
-  });
-
-  test("renders the action row it is handed", () => {
-    const html = successAdminPage("Holidays")(OWNER_SESSION)(
-      BODY,
-      <a href="/admin/holidays/new">Add</a>,
-    );
-
-    expect(html).toContain(
-      '<p class="actions"><a href="/admin/holidays/new">Add</a></p>',
-    );
-  });
-
-  test("defaults to the settings nav link", () => {
-    expect(successAdminPage("Holidays")(OWNER_SESSION)(BODY)).toContain(
-      '<a class="active" href="/admin/settings">',
-    );
-  });
-});
-
-describe("the edit-page and dashboard openers", () => {
-  beforeAll(setupAdminPageTest);
-
-  test("the edit opener shows the error it was given", () => {
-    expect(
-      errorAdminPage("Holiday")(OWNER_SESSION, "Name is taken")(BODY),
-    ).toContain("Name is taken");
-    expect(errorAdminPage("Holiday")(OWNER_SESSION)(BODY)).not.toContain(
-      "flash",
-    );
-  });
-});
 
 describe("the single-form page", () => {
   beforeAll(setupAdminPageTest);
@@ -95,5 +36,49 @@ describe("the single-form page", () => {
   test("shows the notices its route passes back", () => {
     expect(page(OWNER_SESSION, "It broke")).toContain("It broke");
     expect(page(OWNER_SESSION, undefined, "It worked")).toContain("It worked");
+  });
+});
+
+describe("the other opener families", () => {
+  beforeAll(setupAdminPageTest);
+
+  test("the opts-bag page shows the bag's notices in their channels", () => {
+    const html = flashOptsPage("admin.seeds.title", "/admin/settings")(
+      OWNER_SESSION,
+      { error: "Name is taken", success: "Saved" },
+      <p>Body</p>,
+    );
+
+    expect(html).toContain('<div class="success" role="alert">Saved</div>');
+    expect(html).toContain('class="error"');
+    expect(html).toContain("Name is taken");
+  });
+
+  test("the error page shows its rejection over the body", () => {
+    const html = errorAdminPage("admin.seeds.title", "/admin/settings")(
+      OWNER_SESSION,
+      "Date clashes",
+    )(<p>Body</p>);
+
+    expect(html).toContain('class="error"');
+    expect(html).toContain("Date clashes");
+    expect(html).toContain("<p>Body</p>");
+  });
+
+  test("the list page shows only a write's success notice", () => {
+    const html = successListPage("admin.seeds.title", "/admin/settings", () => (
+      <p>Body</p>
+    ))([], OWNER_SESSION, "Invited");
+
+    expect(html).toContain('<div class="success" role="alert">Invited</div>');
+    expect(html).not.toContain('class="error"');
+  });
+
+  test("a family with no notices renders none", () => {
+    const html = successListPage("admin.seeds.title", "/admin/settings", () => (
+      <p>Body</p>
+    ))([], OWNER_SESSION);
+
+    expect(html).not.toContain('role="alert"');
   });
 });
