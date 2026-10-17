@@ -15,6 +15,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -27,6 +28,7 @@ import {
   addWebhook,
   bookWebhookBuyer,
   expectResendPress,
+  isEmailRequest,
   recoverAllSides,
   resend,
 } from "./resend-press.ts";
@@ -35,6 +37,12 @@ import {
 
 describeWithEnv("re-sending only what a recovery owes", { db: true }, () => {
   const fetch = stubFetchEachTest(() => new Response("{}"));
+
+  /** The delivery-failure activity lines this run recorded. */
+  const deliveryFailures = async (): Promise<string[]> =>
+    (await activityMessages()).filter(
+      (message) => message === t("admin.log.registration_delivery_failed"),
+    );
 
   test("re-sends the webhook side alone and clears only its flag", async () => {
     await configureTestEmail();
@@ -164,6 +172,72 @@ describeWithEnv("re-sending only what a recovery owes", { db: true }, () => {
     });
   });
 
+  test("a refused forced webhook records the delivery failure", async () => {
+    // Nothing is owed, so no flag represents the refusal: the failure
+    // activity is the only signal the forced send's delivery died. The
+    // flags stay at zero, and the press still reports success.
+    await configureTestEmail();
+    const { attendee } = await bookWebhookBuyer("Forced Hook Refused", 0, 0);
+    fetch.reply(() => new Response("no", { status: 500 }));
+
+    const { response } = await resend(
+      attendee.id,
+      "Forced Hook Refused",
+      "webhooks",
+    );
+
+    expectRedirectWithFlash(
+      `/admin/attendees/${attendee.id}/actions`,
+      t("success.notification_resent"),
+    )(response);
+    const failures = await deliveryFailures();
+    expect(failures).toHaveLength(1);
+    const webhookAttempts = fetch.calls.filter(({ args }) =>
+      String(args[0]).startsWith("https://hook.example.com"),
+    );
+    expect(webhookAttempts).toHaveLength(1);
+    expect(await readPendingNotificationFlags(attendee.id)).toEqual({
+      email: 0,
+      webhooks: 0,
+    });
+  });
+
+  test("a refused forced webhook beside a claimed cleared email records the failure", async () => {
+    // The email side is owed and claimed: its acceptance clears its flag.
+    // The webhook side is not owed, so the press forces it, and its
+    // refusal has no claimed flag to represent it.
+    await configureTestEmail();
+    const { attendee, listing } = await bookTestAttendeeWithFlags(
+      "Mixed Race Refusal",
+      1,
+      0,
+    );
+    await addWebhook(listing.id);
+    fetch.reply(async (_url, init) =>
+      !init || !isEmailRequest(init)
+        ? new Response("no", { status: 500 })
+        : new Response("{}"),
+    );
+
+    const { response } = await resend(
+      attendee.id,
+      "Mixed Race Refusal",
+      "both",
+    );
+
+    expectRedirectWithFlash(
+      `/admin/attendees/${attendee.id}/actions`,
+      t("success.notification_resent"),
+    )(response);
+    const failures = await deliveryFailures();
+    expect(failures).toHaveLength(1);
+    // The claimed email side still settled.
+    expect(await readPendingNotificationFlags(attendee.id)).toEqual({
+      email: 0,
+      webhooks: 0,
+    });
+  });
+
   test("a refused send keeps an admin-added badge's value", async () => {
     // An admin-added attendee's owed flag stores 2 (orange badge). The
     // refused webhook's release must put 2 back, not the online value 1.
@@ -185,6 +259,9 @@ describeWithEnv("re-sending only what a recovery owes", { db: true }, () => {
       email: 0,
       webhooks: 2,
     });
+    // The badge carries the failure: a claimed side's refusal records no
+    // separate failure activity.
+    expect(await deliveryFailures()).toHaveLength(0);
   });
 
   test("a failed settle batch still restores the refused side for a later resend", async () => {

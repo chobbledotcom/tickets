@@ -7,7 +7,6 @@ import {
 import type { WebhookBookingSource } from "#db/contact-tokens.ts";
 import { settings } from "#db/settings.ts";
 import { flatMap, mapNotNullish, unique } from "#fp";
-import { t, withMessageGroups } from "#i18n";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import {
   buyerConfirmationAttempted,
@@ -17,13 +16,7 @@ import {
 } from "#shared/email/registration.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { fetchText, ResponseBodyTooLargeError } from "#shared/fetch.ts";
-import {
-  bestEffort,
-  ErrorCode,
-  logError,
-  logErrorLocal,
-} from "#shared/logger.ts";
-import { sendNtfyError } from "#shared/ntfy.ts";
+import { bestEffort, ErrorCode, logError } from "#shared/logger.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import {
   loadRegistrationPackageFacts,
@@ -33,7 +26,6 @@ import {
   type RegistrationPackageFacts,
   waitForRegistrationDeliveries,
 } from "#shared/registration-package-facts.ts";
-import { captureServerError } from "#shared/sentry.ts";
 import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { isSafeServerFetchUrl } from "#shared/url-safety.ts";
 import {
@@ -41,6 +33,10 @@ import {
   selectedSides,
   settleFlagOwningSend,
 } from "#shared/webhook/flag-settlement.ts";
+import {
+  recordRegistrationDeliveryFailure,
+  reportRegistrationDeliveryError,
+} from "#shared/webhook/report.ts";
 import {
   applyRenewalsForEntries,
   buildWebhookPayload,
@@ -140,30 +136,6 @@ const completedRegistrationDelivery = (
   return result.reason instanceof RegistrationDeliveryError
     ? { errors: result.reason.reasons, failed: result.reason.failed }
     : { errors: [result.reason], failed: false };
-};
-
-const recordRegistrationDeliveryFailure = async (): Promise<void> => {
-  try {
-    await withMessageGroups(["activity-log"], () =>
-      logActivities([{ message: t("admin.log.registration_delivery_failed") }]),
-    );
-  } catch (error) {
-    logErrorLocal({
-      code: ErrorCode.DB_QUERY,
-      detail: "Registration delivery failure activity write",
-    });
-    throw error;
-  }
-};
-
-const reportRegistrationDeliveryError = async (
-  recordFailure: boolean,
-): Promise<void> => {
-  const context = { code: ErrorCode.REGISTRATION_DELIVERY };
-  logErrorLocal(context);
-  if (recordFailure) await recordRegistrationDeliveryFailure();
-  addPendingWork(sendNtfyError(context.code));
-  addPendingWork(captureServerError(context));
 };
 
 /** Deliver the manual add's webhooks and report a failed send the same way the
@@ -291,13 +263,27 @@ const sendRegistrationNotifications = async (
         )
       : Promise.resolve(skippedEmailDelivery()),
   ]);
-  const deliveries = [
-    completedRegistrationDelivery(webhookResult),
-    completedRegistrationDelivery(emailResult),
-  ];
+  const webhookDelivery = completedRegistrationDelivery(webhookResult);
+  const emailDelivery = completedRegistrationDelivery(emailResult);
+  const deliveries = [webhookDelivery, emailDelivery];
   const errors = flatMap((delivery: CompletedRegistrationDelivery) => [
     ...delivery.errors,
   ])(deliveries);
+  // A forced side the send's claim never held has no flag to represent its
+  // refusal. A claimed side's refusal raises its badge back. An unclaimed
+  // side's refusal is otherwise silent. The booking paths never choose
+  // sides, so they keep their own reporting.
+  const refusedWithoutClaim = (
+    delivery: CompletedRegistrationDelivery,
+    side: PendingNotificationSide,
+  ): boolean =>
+    delivery.failed &&
+    send.sides !== undefined &&
+    (send.recoverSides === undefined ||
+      !send.recoverSides.some((one) => one.side === side));
+  const forcedRefusalUnrepresented =
+    refusedWithoutClaim(webhookDelivery, "webhooks") ||
+    refusedWithoutClaim(emailDelivery, "email");
   if (send.clearPendingFlagsFor !== undefined) {
     const ownerFailureUnrepresented = await settleFlagOwningSend(
       send.clearPendingFlagsFor,
@@ -308,6 +294,8 @@ const sendRegistrationNotifications = async (
     );
     if (errors.length > 0 || ownerFailureUnrepresented) {
       await reportRegistrationDeliveryError(ownerFailureUnrepresented);
+    } else if (forcedRefusalUnrepresented) {
+      await recordRegistrationDeliveryFailure();
     }
   } else if (errors.length > 0) {
     await reportRegistrationDeliveryError(true);
