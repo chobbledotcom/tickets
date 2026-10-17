@@ -36,9 +36,12 @@ import type { BookingPrefill, ChildRenderCtx, TicketPrefill } from "./types.ts";
 
 /* jscpd:ignore-end */
 /** Description HTML for a listing row. */
-export const renderListingDescription = (description: string): string =>
+export const renderListingDescription = (
+  description: string,
+  imageUrls?: ReadonlyMap<number, string>,
+): string =>
   description
-    ? `<div class="description-compact">${renderMarkdown(description)}</div>`
+    ? `<div class="description-compact">${renderMarkdown(description, imageUrls)}</div>`
     : "";
 
 /** The sold-out / closed badge shown on an unavailable listing row. */
@@ -111,6 +114,7 @@ type RenderListingControls = (
   childCtx?: ChildRenderCtx,
   attributes?: AttributeWithOptions[],
   renewal?: boolean,
+  imageUrls?: ReadonlyMap<number, string>,
 ) => string;
 const renderListingRow: RenderListingControls = (
   info,
@@ -120,6 +124,7 @@ const renderListingRow: RenderListingControls = (
   childCtx,
   attributes,
   renewal,
+  imageUrls,
 ): string => {
   const { listing, isClosed } = info;
   const imageHtml = renderListingImage(listing);
@@ -145,7 +150,7 @@ const renderListingRow: RenderListingControls = (
       <div class="ticket-row sold-out">
         ${imageHtml}
         <label>${escapeHtml(listing.name)}</label>
-        ${renderListingDescription(listing.description)}
+        ${renderListingDescription(listing.description, imageUrls)}
         ${attributesHtml}
         ${soldOutLabel()}
       </div>
@@ -165,7 +170,7 @@ const renderListingRow: RenderListingControls = (
     <div class="ticket-row">
       ${imageHtml}
       <label>${escapeHtml(listing.name)}${quantityHtml}</label>
-      ${renderListingDescription(listing.description)}
+      ${renderListingDescription(listing.description, imageUrls)}
       ${attributesHtml}
       ${priceHtml}
       ${termNote}
@@ -184,13 +189,14 @@ const renderPackageMemberRow = (
   fixedQty: number,
   childCtx: ChildRenderCtx | undefined,
   attributes?: AttributeWithOptions[],
+  imageUrls?: ReadonlyMap<number, string>,
 ): string => `
     <div class="ticket-row package-member">
       ${renderListingImage(info.listing)}
       <label>${escapeHtml(
         info.listing.name,
       )} <span class="package-member-qty">&times;${fixedQty}</span></label>
-      ${renderListingDescription(info.listing.description)}
+      ${renderListingDescription(info.listing.description, imageUrls)}
       ${renderListingAttributes(attributes)}
       ${childCtx ? renderChildBlock(info, childCtx) : ""}
     </div>
@@ -211,12 +217,14 @@ type PackageRenderInput = {
   bundleMinimum: number;
   childCtxFor: (memberListingId: number) => ChildRenderCtx | undefined;
   attributesByListing: ListingAttributesById;
+  imageUrls: ReadonlyMap<number, string> | undefined;
 };
 
 const renderPackageControls = ({
   attributesByListing,
   bundleMinimum,
   childCtxFor,
+  imageUrls,
   limit,
   members,
   pkg,
@@ -250,6 +258,7 @@ const renderPackageControls = ({
           pkg.quantities.get(e.listing.id) ?? 1,
           childCtxFor(e.listing.id),
           attributesByListing.get(e.listing.id),
+          imageUrls,
         ),
       );
   return selector + memberRows;
@@ -310,6 +319,7 @@ const buildListingRows = (
   childCtxFor: (info: TicketListing) => ChildRenderCtx | undefined,
   attributesByListing: ListingAttributesById = new Map(),
   renewal?: boolean,
+  imageUrls?: ReadonlyMap<number, string>,
 ): string =>
   isSingleListing
     ? renderSingleListingControls(
@@ -320,6 +330,7 @@ const buildListingRows = (
         childCtxFor(listings[0]!),
         undefined,
         renewal,
+        imageUrls,
       )
     : joinRenderedRows(listings, (e) =>
         renderListingRow(
@@ -330,6 +341,7 @@ const buildListingRows = (
           childCtxFor(e),
           attributesByListing.get(e.listing.id),
           renewal,
+          imageUrls,
         ),
       );
 
@@ -348,6 +360,7 @@ export const buildPageListingRows = (opts: {
   nodeByListingId: ReadonlyMap<number, BookingNode>;
   isSingleListing: boolean;
   hideQuantity: boolean;
+  imageUrls?: ReadonlyMap<number, string>;
   prefill?: BookingPrefill | undefined;
   childCtx?: ChildRenderCtx | undefined;
   attributesByListing: ListingAttributesById;
@@ -382,6 +395,7 @@ export const buildPageListingRows = (opts: {
         new Map(members.map((e) => [e.listing.id, e.listing.min_quantity])),
       ),
       childCtxFor: claimChildCtx,
+      imageUrls: opts.imageUrls,
       limit: opts.packageLimits.get(pkg.groupId)!,
       members,
       pkg,
@@ -421,6 +435,7 @@ export const buildPageListingRows = (opts: {
         claimedChildParents.has(info.listing.id) ? undefined : opts.childCtx,
       attributesByListing,
       opts.renewal,
+      opts.imageUrls,
     )
   );
 };

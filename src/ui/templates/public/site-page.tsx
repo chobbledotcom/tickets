@@ -13,14 +13,14 @@ import { MarkdownProse, PublicImageGallery } from "./shared.tsx";
 
 export const sitePagePage = seoContentPage<SitePage>(
   {},
-  (page, images, nav) => {
+  (page, images, nav, imageUrls) => {
     // The page's own items, straight off the model (empty when a concurrent
     // delete raced the nav reads and the page is no longer on the tree).
     const items: readonly NavNode[] = nav.pages.currentChildren;
     return (
       <>
         <PublicImageGallery images={images} />
-        <MarkdownProse markdown={page.content} />
+        <MarkdownProse imageUrls={imageUrls} markdown={page.content} />
         {items.length > 0 && <ul class="page-items">{nodeLis(items)}</ul>}
       </>
     );

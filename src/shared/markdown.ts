@@ -11,10 +11,15 @@ import { assert } from "@std/assert";
 import { Lexer, Marked, type Token, type Tokens } from "marked";
 import { once } from "#fp";
 import { escapeHtml } from "#jsx/escape-html.ts";
-import { getImageIdProxyUrl } from "#shared/image-proxy-url.ts";
 
 /** URL schemes permitted in links and images. */
 const SAFE_URL_SCHEMES = ["http:", "https:", "mailto:", "tel:"] as const;
+
+/** The image library lookup for the render in progress. The keys are the ids
+ * the editor writes (`img#N`). The values are the images' canonical uid URLs.
+ * `renderMarkdown` sets it around the synchronous parse and clears it after.
+ * A parse never sees another call's table. */
+let renderImageUrls: ReadonlyMap<number, string> = new Map();
 
 /**
  * True when a link/image URL is safe to render. Relative URLs (no scheme) are
@@ -50,21 +55,34 @@ const md = once(
       },
       walkTokens: (token) => {
         // A short-form image reference (`![alt](img#7)`) written by the
-        // editor's image dropdown resolves to the id-addressed proxy route.
-        // An id no image serves 404s there, so the <img> falls back to its
-        // alt text. Links and code spans never carry the rewrite.
+        // editor's image dropdown resolves to the image's canonical uid URL
+        // from the table the call site preloaded. An id the table lacks
+        // renders nothing to load, so the <img> falls back to its alt text.
+        // Links and code spans never carry the rewrite.
         if (token.type === "image" && typeof token.href === "string") {
           const id = token.href.match(/^img#(\d+)$/)?.[1];
-          if (id) token.href = getImageIdProxyUrl(Number(id));
+          if (id) token.href = renderImageUrls.get(Number(id)) ?? "";
         }
         if (hasHref(token) && !isSafeUrl(token.href)) token.href = "";
       },
     }),
 );
 
-/** Renders block markdown, escaping raw HTML and stripping unsafe URLs. */
-export const renderMarkdown = (text: string): string =>
-  md().parse(text) as string;
+/** Renders block markdown, escaping raw HTML and stripping unsafe URLs. The
+ * call site preloads `imageUrls` for text that can carry the editor's
+ * `img#N` references. See `imageUrlsFor` in `#shared/db/images.ts`. Without
+ * it, such references render no image, and the alt text shows. */
+export const renderMarkdown = (
+  text: string,
+  imageUrls: ReadonlyMap<number, string> = new Map(),
+): string => {
+  renderImageUrls = imageUrls;
+  try {
+    return md().parse(text) as string;
+  } finally {
+    renderImageUrls = new Map();
+  }
+};
 
 /** Inline token types that don't add any HTML structure beyond plain text
  * inside a `<p>`. If a paragraph contains only these, the rendered markdown is
