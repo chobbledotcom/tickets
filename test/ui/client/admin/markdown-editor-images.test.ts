@@ -13,9 +13,11 @@ import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { cleanup, enhanced, select } from "#test-utils/markdown-editor-dom.ts";
 
 afterEach(cleanup);
-afterEach(() => fetchStub?.restore());
+afterEach(() => fetchStubHolder.stub?.restore());
 
-let fetchStub: Stub | undefined;
+/** The stub survives between the test body and the afterEach that restores
+ * it; a const holder keeps the module free of a reassignable `let`. */
+const fetchStubHolder: { stub: Stub | undefined } = { stub: undefined };
 
 const json = (body: unknown): Response =>
   new Response(JSON.stringify(body), {
@@ -49,13 +51,15 @@ describe("the image dropdown toolbar control", () => {
   });
 
   test("lists the existing images by name in name order without thumbnails", async () => {
-    fetchStub = stubFetch(twoImageList());
+    fetchStubHolder.stub = stubFetch(twoImageList());
     const { window, handle } = enhanced("hello");
     toolbarImageButton(window).click();
     const panel = dropdownPanel(window);
     await untilReady(panel);
 
-    expect(fetchStub.calls[0]?.args[0]).toBe("/admin/images/options");
+    expect(fetchStubHolder.stub?.calls[0]?.args[0]).toBe(
+      "/admin/images/options",
+    );
     const names = [...panel.querySelectorAll("button")].map(
       (item) => item.textContent,
     );
@@ -67,7 +71,7 @@ describe("the image dropdown toolbar control", () => {
   test("inserts the short-form image tag at the caret", async () => {
     const time = new FakeTime();
     try {
-      fetchStub = stubFetch(twoImageList());
+      fetchStubHolder.stub = stubFetch(twoImageList());
       const { window, handle, textarea } = enhanced("hello ");
       select(handle.view, 7);
       toolbarImageButton(window).click();
@@ -92,7 +96,7 @@ describe("the image dropdown toolbar control", () => {
   });
 
   test("shows a plain message when the image list cannot load", async () => {
-    fetchStub = stubFetch(new Error("storage down"));
+    fetchStubHolder.stub = stubFetch(new Error("storage down"));
     const { window, handle } = enhanced("hello");
     toolbarImageButton(window).click();
     const panel = dropdownPanel(window);
@@ -104,7 +108,7 @@ describe("the image dropdown toolbar control", () => {
   });
 
   test("shows a plain message when no images exist", async () => {
-    fetchStub = stubFetch(json({ images: [] }));
+    fetchStubHolder.stub = stubFetch(json({ images: [] }));
     const { window, handle } = enhanced("hello");
     toolbarImageButton(window).click();
     const panel = dropdownPanel(window);
@@ -115,7 +119,9 @@ describe("the image dropdown toolbar control", () => {
   });
 
   test("closes the dropdown when clicking outside it", async () => {
-    fetchStub = stubFetch(json({ images: [{ id: 2, name: "Alpha" }] }));
+    fetchStubHolder.stub = stubFetch(
+      json({ images: [{ id: 2, name: "Alpha" }] }),
+    );
     const { window, handle } = enhanced("hello");
     toolbarImageButton(window).click();
     const panel = dropdownPanel(window);
