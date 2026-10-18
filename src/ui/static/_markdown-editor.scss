@@ -6,6 +6,10 @@
 .md-toolbar {
   display: flex;
   flex-wrap: wrap;
+  /* The image dropdown anchors to this box, not to its control: the control
+   * is the last toolbar item and can wrap to a row edge on narrow screens,
+   * where a panel pinned to the control would leave the viewport. */
+  position: relative;
   gap: var(--space-s);
   padding: var(--space-s);
   border-bottom: 1px solid var(--color-bg-secondary);
@@ -45,16 +49,15 @@
   font-style: italic;
 }
 
-.md-image-control {
-  position: relative;
-}
-
 .md-image-dropdown {
   position: absolute;
   top: 100%;
-  left: 0;
+  right: 0;
   z-index: 10;
-  min-width: 12rem;
+  /* The caps keep the panel inside the editor box when a long image name
+   * would widen it. */
+  min-width: min(12rem, 100%);
+  max-width: 100%;
   padding: var(--space-s);
   background: var(--color-bg);
   border: 1px solid var(--color-bg-secondary);
