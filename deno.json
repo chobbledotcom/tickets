@@ -107,6 +107,7 @@
     "@cucumber/messages": "npm:@cucumber/messages@34.0.1",
     "@cucumber/tag-expressions": "npm:@cucumber/tag-expressions@10.0.0",
     "@formatjs/icu-messageformat-parser": "npm:@formatjs/icu-messageformat-parser@^2.11",
+    "fast-check": "npm:fast-check@^3.23.0",
     "@iframe-resizer/child": "npm:@iframe-resizer/child@^5.5.9",
     "@iframe-resizer/core": "npm:@iframe-resizer/core@^5.5.9",
     "@iframe-resizer/parent": "npm:@iframe-resizer/parent@^5.5.9",
