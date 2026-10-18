@@ -23,7 +23,11 @@ import {
   getRawEmailTemplate,
 } from "#db/email-templates.ts";
 /* jscpd:ignore-start */
-import { imageUrlsFor } from "#db/images.ts";
+import {
+  addPageImageUrls,
+  imageUrlsFor,
+  mergePageImageUrls,
+} from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 /* jscpd:ignore-end */
@@ -279,6 +283,8 @@ const handlePreviewGet = ownerResponsePage(async (session) => {
     recipients,
   );
   const counts = await getContactCounts(await hashAll(sendable), privateKey);
+  // The draft body can carry the editor's img#N references.
+  await addPageImageUrls([draft.body]);
   return htmlResponse(
     bulkEmailPreviewPage(session, {
       audienceDescription,
@@ -286,7 +292,6 @@ const handlePreviewGet = ownerResponsePage(async (session) => {
       contactSummary: contactFrequencySummary(counts),
       disabledReason,
       draft,
-      imageUrls: await imageUrlsFor([draft.body]),
       mailtoLink: buildMailtoLink(
         sendable,
         draft.subject,
@@ -322,11 +327,13 @@ const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
   const unsubscribed = draft.marketing
     ? await getUnsubscribedHashSet()
     : new Set<string>();
+  // Email clients cannot read root-relative sources, so the sent render's
+  // table maps the referenced ids to absolute URLs. It merges into the page
+  // slot immediately before the render, and nothing else renders markdown in
+  // this request.
+  mergePageImageUrls(absoluteEmailImageUrls(await imageUrlsFor([draft.body])));
   const payload = await buildBulkPayload({
-    bodyHtml: renderMarkdown(
-      draft.body,
-      absoluteEmailImageUrls(await imageUrlsFor([draft.body])),
-    ),
+    bodyHtml: renderMarkdown(draft.body),
     bodyText: draft.body,
     marketing: draft.marketing,
     recipients,

@@ -333,8 +333,6 @@ export type BulkEmailPreviewState = {
   mailtoLink: string;
   /** One-line contact-frequency insight for the recipients ("" to omit). */
   contactSummary: string;
-  /** The id→uid-URL table for the draft body's img#N references. */
-  imageUrls?: ReadonlyMap<number, string>;
 };
 
 /** Plain-language explanation of marketing vs transactional. */
@@ -393,7 +391,7 @@ export const bulkEmailPreviewPage = (
         <h2>{t("bulk_email.message_preview_heading")}</h2>
       </div>
       <article class="prose email-preview">
-        <Raw html={renderMarkdown(draft.body, state.imageUrls)} />
+        <Raw html={renderMarkdown(draft.body)} />
       </article>
       {draft.marketing && (
         <div class="prose">
