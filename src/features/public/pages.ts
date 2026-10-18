@@ -3,7 +3,7 @@
  */
 
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
-import { imageUrlsFor } from "#db/images.ts";
+import { addPageImageUrls } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 /* jscpd:ignore-start */
@@ -54,14 +54,13 @@ const renderPublicPage: ResponseHandler<
 > = (pageType, getContent) =>
   requirePublicSite(async () => {
     const content = getContent();
-    const imageUrls = await imageUrlsFor([content]);
+    await addPageImageUrls([content]);
     return htmlResponse(
       publicSitePage(
         pageType,
         await publicNavProps(null),
         settings.websiteTitle,
         content,
-        imageUrls,
       ),
     );
   });
@@ -144,7 +143,7 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
     ]);
     const soldOutPackages = soldOutPackageIds(publicGroups, unavailableOnDate);
     const homeListings = applyParentSoldOut(ticketListings, classification);
-    const imageUrls = await imageUrlsFor([
+    await addPageImageUrls([
       ...homeListings.map((entry) => entry.listing.description),
       ...groups.map((group) => group.description),
     ]);
@@ -162,26 +161,24 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
         soldOutPackages,
         requestedDate,
         attributesByListing,
-        imageUrls,
       ),
     );
   });
 
 /** Handle GET /terms - public terms and conditions page (404 when empty) */
 export const handlePublicTerms: ResponseHandler = () =>
-  requirePublicSite(async () =>
-    settings.terms
-      ? htmlResponse(
-          publicSitePage(
-            "terms",
-            await publicNavProps(null),
-            settings.websiteTitle,
-            settings.terms,
-            await imageUrlsFor([settings.terms]),
-          ),
-        )
-      : notFoundResponse(),
-  );
+  requirePublicSite(async () => {
+    if (!settings.terms) return notFoundResponse();
+    await addPageImageUrls([settings.terms]);
+    return htmlResponse(
+      publicSitePage(
+        "terms",
+        await publicNavProps(null),
+        settings.websiteTitle,
+        settings.terms,
+      ),
+    );
+  });
 
 /** Render the contact page (descriptive text and/or the message form).
  * 404 when there is neither contact text nor an active form to show.
