@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -32,8 +33,8 @@ describeWithEnv("AdminNav", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/", session: { adminLevel } }),
       );
-      expect(html, adminLevel).toContain(`href="${href}"`);
-      expect(html, adminLevel).toContain(text);
+      assertStringIncludes(html, `href="${href}"`, adminLevel);
+      assertStringIncludes(html, text, adminLevel);
     }
   };
 
@@ -54,10 +55,11 @@ describeWithEnv("AdminNav", {}, () => {
         session: { adminLevel: "owner", settingsNagItems: [superuserNag] },
       }),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "Choose whether to enable a superuser recovery account.",
     );
-    expect(html).toContain('href="/admin/settings#settings-superuser"');
+    assertStringIncludes(html, 'href="/admin/settings#settings-superuser"');
   });
 
   test("AdminNav links to the attendees browser for owners and managers", () => {
@@ -95,7 +97,7 @@ describeWithEnv("AdminNav", {}, () => {
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
     );
     for (const { addHref } of addLinkSections) {
-      expect(html, addHref).not.toContain(`href="${addHref}"`);
+      assert(!html.includes(`href="${addHref}"`), addHref);
     }
   });
 
@@ -105,8 +107,12 @@ describeWithEnv("AdminNav", {}, () => {
         const html = String(
           AdminNav({ active: sectionActive, session: { adminLevel } }),
         );
-        expect(html, `${addHref} ${adminLevel}`).toContain(`href="${addHref}"`);
-        expect(html, `${addHref} ${adminLevel}`).toContain(addText);
+        assertStringIncludes(
+          html,
+          `href="${addHref}"`,
+          `${addHref} ${adminLevel}`,
+        );
+        assertStringIncludes(html, addText, `${addHref} ${adminLevel}`);
       }
     }
   });
@@ -120,7 +126,7 @@ describeWithEnv("AdminNav", {}, () => {
     for (const { addHref } of addLinkSections.filter(
       (s) => s.addHref !== "/admin/listing/new",
     )) {
-      expect(listingsHtml, addHref).not.toContain(`href="${addHref}"`);
+      assert(!listingsHtml.includes(`href="${addHref}"`), addHref);
     }
   });
 
@@ -133,7 +139,7 @@ describeWithEnv("AdminNav", {}, () => {
       const html = String(
         AdminNav({ active: createActive, session: { adminLevel: topRole } }),
       );
-      expect(html, addHref).toContain(`class="active" href="${addHref}"`);
+      assertStringIncludes(html, `class="active" href="${addHref}"`, addHref);
     }
   });
 
@@ -147,7 +153,7 @@ describeWithEnv("AdminNav", {}, () => {
       const start = html.indexOf('class="admin-subnav"');
       expect(start, sectionActive).toBeGreaterThan(-1);
       const sub = html.slice(start, html.indexOf("</ul>", start));
-      expect(sub, sectionActive).not.toContain(`href="${sectionActive}"`);
+      assert(!sub.includes(`href="${sectionActive}"`), sectionActive);
     }
   });
 
@@ -156,10 +162,10 @@ describeWithEnv("AdminNav", {}, () => {
     const html = String(
       AdminNav({ active: "/admin/listings", session: { adminLevel: "owner" } }),
     );
-    expect(html).toContain('href="/admin/catalog/import"');
+    assertStringIncludes(html, 'href="/admin/catalog/import"');
     const start = html.indexOf('class="admin-subnav"');
     const sub = html.slice(start, html.indexOf("</ul>", start));
-    expect(sub).toContain("Import");
+    assertStringIncludes(sub, "Import");
   });
 
   test("the Listings Import link hides in read-only mode (it leads to a blocked upload flow)", () => {
@@ -172,9 +178,9 @@ describeWithEnv("AdminNav", {}, () => {
         session: { adminLevel: "owner" },
       }),
     );
-    expect(html).not.toContain('href="/admin/catalog/import"');
+    assert(!html.includes('href="/admin/catalog/import"'));
     // The section landing link stays.
-    expect(html).toContain('href="/admin/listings"');
+    assertStringIncludes(html, 'href="/admin/listings"');
   });
 
   test("AdminNav shows the update banner while an update runs, with no renew link", () => {
@@ -188,17 +194,17 @@ describeWithEnv("AdminNav", {}, () => {
         session: { adminLevel: "owner" },
       }),
     );
-    expect(html).toContain("The site is being updated.");
+    assertStringIncludes(html, "The site is being updated.");
     // A renewal is a blocked write during the update window, so the banner
     // carries no dead renew link.
-    expect(html).not.toContain("renew/?t=abc");
+    assert(!html.includes("renew/?t=abc"));
   });
 
   test("Invite User stays owner-only", () => {
     const managerHtml = String(
       AdminNav({ active: "/admin/users", session: { adminLevel: "manager" } }),
     );
-    expect(managerHtml).not.toContain('href="/admin/user/new"');
+    assert(!managerHtml.includes('href="/admin/user/new"'));
   });
 
   test("AdminNav hides every 'Add X' create link in read-only mode, keeping the section links", () => {
@@ -211,8 +217,8 @@ describeWithEnv("AdminNav", {}, () => {
       const html = String(
         AdminNav({ active: sectionActive, session: { adminLevel: "owner" } }),
       );
-      expect(html, addHref).not.toContain(`href="${addHref}"`);
-      expect(html, sectionActive).toContain(`href="${sectionActive}"`);
+      assert(!html.includes(`href="${addHref}"`), addHref);
+      assertStringIncludes(html, `href="${sectionActive}"`, sectionActive);
     }
   });
 
@@ -223,7 +229,7 @@ describeWithEnv("AdminNav", {}, () => {
         session: { adminLevel: "owner" },
       }),
     );
-    expect(html).toContain('class="active" href="/admin/listings"');
+    assertStringIncludes(html, 'class="active" href="/admin/listings"');
   });
 
   // Regression (PR #1600 review): a section's *landing* page renders with the
@@ -242,7 +248,7 @@ describeWithEnv("AdminNav", {}, () => {
       const start = html.indexOf('class="admin-subnav"');
       expect(start, active).toBeGreaterThan(-1);
       const sub = html.slice(start, html.indexOf("</ul>", start));
-      expect(sub, active).not.toContain('class="active"');
+      assert(!sub.includes('class="active"'), active);
     }
   });
 
@@ -266,7 +272,7 @@ describeWithEnv("AdminNav", {}, () => {
       const html = String(
         AdminNav({ active, session: { adminLevel: "owner" } }),
       );
-      expect(html, active).toContain(`class="active" href="${href}"`);
+      assertStringIncludes(html, `class="active" href="${href}"`, active);
     }
   });
 
@@ -277,7 +283,7 @@ describeWithEnv("AdminNav", {}, () => {
         session: { adminLevel: "owner" },
       }),
     );
-    expect(html).toContain('class="active" href="/admin/ledger"');
+    assertStringIncludes(html, 'class="active" href="/admin/ledger"');
   });
 
   test("the desktop sub-nav nests only under the one active section link", () => {
@@ -290,7 +296,8 @@ describeWithEnv("AdminNav", {}, () => {
     // Exactly ONE nested sub-nav, and it sits directly after the active
     // Settings anchor — never under the other top-level items.
     expect((html.match(/admin-subnav/g) ?? []).length).toBe(1);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<a class="active" href="/admin/settings">Settings</a><ul class="admin-subnav">',
     );
   });
@@ -302,7 +309,7 @@ describeWithEnv("AdminNav", {}, () => {
         session: { adminLevel: "owner" },
       }),
     );
-    expect(html).toContain('class="active" href="/admin/attendees"');
+    assertStringIncludes(html, 'class="active" href="/admin/attendees"');
   });
 
   // Regression: an individual attendee page (and every other single-item page)
@@ -323,11 +330,11 @@ describeWithEnv("AdminNav", {}, () => {
         AdminNav({ active: { section }, session: { adminLevel: "owner" } }),
       );
       // The section's top-level link is highlighted…
-      expect(html, section).toContain(`class="active" href="${section}"`);
+      assertStringIncludes(html, `class="active" href="${section}"`, section);
       // …but its sub-nav (the "Add" create link, and the whole desktop
       // sub-nav level) is absent — a detail page is not the landing page.
-      expect(html, section).not.toContain(`href="${addHref}"`);
-      expect(html, section).not.toContain("admin-subnav");
+      assert(!html.includes(`href="${addHref}"`), section);
+      assert(!html.includes("admin-subnav"), section);
     }
   });
 
@@ -338,8 +345,8 @@ describeWithEnv("AdminNav", {}, () => {
       const html = String(
         AdminNav({ active: section, session: { adminLevel: "owner" } }),
       );
-      expect(html, section).toContain(`href="${addHref}"`);
-      expect(html, section).toContain("admin-subnav");
+      assertStringIncludes(html, `href="${addHref}"`, section);
+      assertStringIncludes(html, "admin-subnav", section);
     }
   });
 
@@ -350,7 +357,7 @@ describeWithEnv("AdminNav", {}, () => {
         session: { adminLevel: "owner" },
       }),
     );
-    expect(html).toContain('class="active" href="/admin/servicing"');
+    assertStringIncludes(html, 'class="active" href="/admin/servicing"');
   });
 
   test("AdminNav does NOT render SettingsNagBanner for non-owner sessions", () => {
@@ -360,7 +367,7 @@ describeWithEnv("AdminNav", {}, () => {
         session: { adminLevel: "manager" },
       }),
     );
-    expect(html).not.toContain("Finish setting up your site");
+    assert(!html.includes("Finish setting up your site"));
   });
 
   test("Guide is a top-level link for owners and managers", () => {
@@ -376,6 +383,6 @@ describeWithEnv("AdminNav", {}, () => {
     );
     // SettingsNagBanner receives items=undefined and falls back to base nags.
     // Since base nags may be empty in this env, we just verify it renders.
-    expect(html).toContain("nav");
+    assertStringIncludes(html, "nav");
   });
 });

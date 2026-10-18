@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
@@ -47,16 +48,17 @@ describe("settings payment forms", () => {
   describe("PaymentProviderForm", () => {
     test("posts the provider choice to its own settings route", () => {
       const html = render(PaymentProviderForm);
-      expect(html).toContain('action="/admin/settings/payment-provider"');
-      expect(html).toContain('id="settings-payment-provider"');
-      expect(html).toContain('<div class="prose">');
-      expect(html).toContain('<fieldset class="radios">');
+      assertStringIncludes(html, 'action="/admin/settings/payment-provider"');
+      assertStringIncludes(html, 'id="settings-payment-provider"');
+      assertStringIncludes(html, '<div class="prose">');
+      assertStringIncludes(html, '<fieldset class="radios">');
     });
 
     test("attaches each registry label to its own radio value", () => {
       const html = render(PaymentProviderForm);
       for (const id of PAYMENT_PROVIDER_IDS) {
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `${inputTagWithValue(html, id)}${PAYMENT_PROVIDERS[id].label}`,
         );
       }
@@ -82,17 +84,18 @@ describe("settings payment forms", () => {
     test("offers every provider when the site currency suits them all", () => {
       const html = render(PaymentProviderForm, { currency: "GBP" });
       for (const id of PAYMENT_PROVIDER_IDS) {
-        expect(inputTagWithValue(html, id)).not.toContain("disabled");
+        assert(!inputTagWithValue(html, id).includes("disabled"));
       }
-      expect(html).not.toContain('<small class="notice">');
+      assert(!html.includes('<small class="notice">'));
     });
 
     test("switches off a provider that cannot take the site currency", () => {
       const html = render(PaymentProviderForm, { currency: "JPY" });
-      expect(inputTagWithValue(html, "sumup")).toContain("disabled");
-      expect(inputTagWithValue(html, "stripe")).not.toContain("disabled");
-      expect(inputTagWithValue(html, "square")).not.toContain("disabled");
-      expect(html).toContain(
+      assertStringIncludes(inputTagWithValue(html, "sumup"), "disabled");
+      assert(!inputTagWithValue(html, "stripe").includes("disabled"));
+      assert(!inputTagWithValue(html, "square").includes("disabled"));
+      assertStringIncludes(
+        html,
         '<small class="notice">SumUp cannot take payments in JPY. ' +
           "Choose a different payment provider.</small>",
       );
@@ -109,52 +112,58 @@ describe("settings payment forms", () => {
 
       test(`posts ${label} credentials to that provider's own route`, () => {
         const html = credentials(provider);
-        expect(html).toContain(`action="/admin/settings/${provider}"`);
-        expect(html).toContain(`id="settings-${provider}"`);
-        expect(html).toContain(`name="${secretField}"`);
+        assertStringIncludes(html, `action="/admin/settings/${provider}"`);
+        assertStringIncludes(html, `id="settings-${provider}"`);
+        assertStringIncludes(html, `name="${secretField}"`);
       });
 
       test(`opens ${label} with the not-configured hint and the guide link`, () => {
         const html = credentials(provider);
-        expect(html).toContain('<div class="prose">');
-        expect(html).toContain(`<h2>${label} settings</h2>`);
-        expect(html).toContain(`No ${label} credentials are saved`);
-        expect(html).toContain('href="/admin/guide#payment-setup"');
-        expect(html).toContain("Read the payment setup guide");
+        assertStringIncludes(html, '<div class="prose">');
+        assertStringIncludes(html, `<h2>${label} settings</h2>`);
+        assertStringIncludes(html, `No ${label} credentials are saved`);
+        assertStringIncludes(html, 'href="/admin/guide#payment-setup"');
+        assertStringIncludes(html, "Read the payment setup guide");
       });
 
       test(`swaps in the configured hint and masks the stored ${label} secret`, () => {
         const html = credentials(provider, { configured: true });
-        expect(html).toContain(`Your ${label} credentials are saved`);
+        assertStringIncludes(html, `Your ${label} credentials are saved`);
         const field = html.match(
           new RegExp(`<input[^>]*name="${secretField}"[^>]*>`),
         )?.[0];
-        expect(field).toContain(`value="${MASK_SENTINEL}"`);
+        assertStringIncludes(field ?? "", `value="${MASK_SENTINEL}"`);
       });
 
       test(`leaves the ${label} secret field empty when none is stored`, () => {
-        expect(credentials(provider)).not.toContain(MASK_SENTINEL);
+        assert(!credentials(provider).includes(MASK_SENTINEL));
       });
 
       test(`offers ${label} a connection test only once it is configured`, () => {
         const configured = credentials(provider, { configured: true });
-        expect(configured).toContain(
+        assertStringIncludes(
+          configured,
           `<button class="secondary" data-testing="Testing..." id="${provider}-test-btn"`,
         );
-        expect(configured).toContain("Test connection");
-        expect(configured).toContain(
+        assertStringIncludes(configured, "Test connection");
+        assertStringIncludes(
+          configured,
           `<div class="hidden" data-failed="Connection test failed:" id="${provider}-test-result"`,
         );
 
         const blank = credentials(provider);
-        expect(blank).not.toContain(`id="${provider}-test-btn"`);
-        expect(blank).toContain(
+        assert(!blank.includes(`id="${provider}-test-btn"`));
+        assertStringIncludes(
+          blank,
           `<div class="hidden" data-failed="Connection test failed:" id="${provider}-test-result"`,
         );
       });
 
       test(`names ${label} on its save button`, () => {
-        expect(credentials(provider)).toContain(`Update ${label} credentials`);
+        assertStringIncludes(
+          credentials(provider),
+          `Update ${label} credentials`,
+        );
       });
     }
 
@@ -165,7 +174,7 @@ describe("settings payment forms", () => {
         paymentProvider: null,
         ...showing("stripe"),
       });
-      expect(html).toContain('id="settings-stripe"');
+      assertStringIncludes(html, 'id="settings-stripe"');
     });
 
     for (const [mode, opening, style] of [
@@ -175,35 +184,37 @@ describe("settings payment forms", () => {
     ] as const) {
       test(`warns that stored credentials point at the ${mode} estate`, () => {
         const html = credentials("stripe", { configured: true, mode });
-        expect(html).toContain(`<p ${style}>`);
-        expect(html).toContain(opening);
-        expect(html).toContain("Stripe");
+        assertStringIncludes(html, `<p ${style}>`);
+        assertStringIncludes(html, opening);
+        assertStringIncludes(html, "Stripe");
       });
     }
 
     test("says nothing about the estate when the credentials do not name one", () => {
       const html = credentials("stripe", { configured: true, mode: "unknown" });
-      expect(html).not.toContain("mode:");
+      assert(!html.includes("mode:"));
     });
 
     test("says nothing about the estate until credentials are stored", () => {
       const html = credentials("stripe", { mode: "test" });
-      expect(html).not.toContain("Test mode:");
+      assert(!html.includes("Test mode:"));
     });
 
     test("offers the sandbox switch to Square alone", () => {
       const square = credentials("square");
-      const checkbox = square.match(/<input[^>]*name="square_sandbox"[^>]*>/);
-      expect(checkbox?.[0]).toContain('type="checkbox"');
-      expect(checkbox?.[0]).not.toContain("checked");
-      expect(credentials("stripe")).not.toContain('name="square_sandbox"');
-      expect(credentials("sumup")).not.toContain('name="square_sandbox"');
+      const checkbox =
+        square.match(/<input[^>]*name="square_sandbox"[^>]*>/)?.[0] ?? "";
+      assertStringIncludes(checkbox, 'type="checkbox"');
+      assert(!checkbox.includes("checked"));
+      assert(!credentials("stripe").includes('name="square_sandbox"'));
+      assert(!credentials("sumup").includes('name="square_sandbox"'));
     });
 
     test("checks the sandbox switch when Square points at its test estate", () => {
       const html = credentials("square", { mode: "sandbox" });
-      const checkbox = html.match(/<input[^>]*name="square_sandbox"[^>]*>/);
-      expect(checkbox?.[0]).toContain("checked");
+      const checkbox =
+        html.match(/<input[^>]*name="square_sandbox"[^>]*>/)?.[0] ?? "";
+      assertStringIncludes(checkbox, "checked");
     });
   });
 
@@ -220,7 +231,7 @@ describe("settings payment forms", () => {
         paymentProvider: null,
         ...showing("square", { configured: true }),
       });
-      expect(html).toContain('id="settings-square-webhook"');
+      assertStringIncludes(html, 'id="settings-square-webhook"');
     });
 
     test("posts the signature key to the Square webhook route", () => {
@@ -230,13 +241,13 @@ describe("settings payment forms", () => {
           configured: true,
         }),
       );
-      expect(html).toContain('action="/admin/settings/square-webhook"');
-      expect(html).toContain('id="settings-square-webhook"');
-      expect(html).toContain('<div class="prose">');
-      expect(html).toContain('href="/admin/guide#payment-setup"');
-      expect(html).toContain("No webhook signature key is configured");
-      expect(html).toContain("Follow the steps above to set one up");
-      expect(html).not.toContain(MASK_SENTINEL);
+      assertStringIncludes(html, 'action="/admin/settings/square-webhook"');
+      assertStringIncludes(html, 'id="settings-square-webhook"');
+      assertStringIncludes(html, '<div class="prose">');
+      assertStringIncludes(html, 'href="/admin/guide#payment-setup"');
+      assertStringIncludes(html, "No webhook signature key is configured");
+      assertStringIncludes(html, "Follow the steps above to set one up");
+      assert(!html.includes(MASK_SENTINEL));
     });
 
     test("swaps in the configured hint once a key is stored", () => {
@@ -244,12 +255,15 @@ describe("settings payment forms", () => {
         squareWebhookConfigured: true,
         ...showing("square", { configured: true }),
       });
-      expect(html).toContain("A webhook signature key is currently configured");
-      expect(html).toContain("Enter a new key below to replace it");
+      assertStringIncludes(
+        html,
+        "A webhook signature key is currently configured",
+      );
+      assertStringIncludes(html, "Enter a new key below to replace it");
       const field = html.match(
         /<input[^>]*name="square_webhook_signature_key"[^>]*>/,
       )?.[0];
-      expect(field).toContain(`value="${MASK_SENTINEL}"`);
+      assertStringIncludes(field ?? "", `value="${MASK_SENTINEL}"`);
     });
   });
 });

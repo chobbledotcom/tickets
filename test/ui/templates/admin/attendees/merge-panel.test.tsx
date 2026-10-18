@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeMergeDiff } from "#shared/merge/attendee-merge-types.ts";
 import { AttendeeMergePanel } from "#templates/admin/attendees/merge-panel.tsx";
@@ -31,15 +31,17 @@ describe("AttendeeMergePanel", () => {
   test("renders an empty token search without a merge form", () => {
     const html = String(AttendeeMergePanel(target, null, null));
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<form action="/admin/attendees/42/actions" class="inline-row" method="get">',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input autofocus id="token" name="token" placeholder="Enter ticket token…" required type="text" value="">',
     );
-    expect(html).toContain("<span>Search</span>");
-    expect(html).not.toContain("Merge Preview");
-    expect(html).not.toContain('action="/admin/attendees/42/merge"');
+    assertStringIncludes(html, "<span>Search</span>");
+    assert(!html.includes("Merge Preview"));
+    assert(!html.includes('action="/admin/attendees/42/merge"'));
   });
 
   test("preserves a searched token and renders an escaped error", () => {
@@ -47,10 +49,11 @@ describe("AttendeeMergePanel", () => {
       AttendeeMergePanel(target, null, "bad&token", "No <match> found."),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div autofocus class="error" role="alert" tabindex="-1">No &lt;match&gt; found.</div>',
     );
-    expect(html).toContain('value="bad&amp;token"');
+    assertStringIncludes(html, 'value="bad&amp;token"');
   });
 
   test("waits for a complete diff before showing the preview", () => {
@@ -58,10 +61,10 @@ describe("AttendeeMergePanel", () => {
       AttendeeMergePanel(target, source, "source&token", undefined, undefined),
     );
 
-    expect(html).toContain('id="token" name="token"');
-    expect(html).not.toContain('<input autofocus id="token"');
-    expect(html).not.toContain("Merge Preview");
-    expect(html).not.toContain('action="/admin/attendees/42/merge"');
+    assertStringIncludes(html, 'id="token" name="token"');
+    assert(!html.includes('<input autofocus id="token"'));
+    assert(!html.includes("Merge Preview"));
+    assert(!html.includes('action="/admin/attendees/42/merge"'));
   });
 
   test("renders the complete destructive merge preview", () => {
@@ -69,25 +72,31 @@ describe("AttendeeMergePanel", () => {
       AttendeeMergePanel(target, source, "source&token", undefined, diff),
     );
 
-    expect(html).toContain("<h3>Merge Preview</h3>");
-    expect(html).toContain(
+    assertStringIncludes(html, "<h3>Merge Preview</h3>");
+    assertStringIncludes(
+      html,
       '<form action="/admin/attendees/42/merge" autocomplete="off" method="POST">',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="source_token" type="hidden" value="source&amp;token">',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="merge_version" type="hidden" value="merge-version-9">',
     );
-    expect(html).toContain("Keep current: Target &lt;Person&gt;");
-    expect(html).toContain("Use source: Source &amp; Person");
-    expect(html).toContain(
+    assertStringIncludes(html, "Keep current: Target &lt;Person&gt;");
+    assertStringIncludes(html, "Use source: Source &amp; Person");
+    assertStringIncludes(
+      html,
       "<strong>Warning:</strong> This will permanently delete the source attendee. This cannot be undone.",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<button class="danger" type="submit"><svg aria-hidden="true"',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<span>Merge and delete source attendee</span></button>",
     );
   });

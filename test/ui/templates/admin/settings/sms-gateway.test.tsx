@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
@@ -19,21 +19,24 @@ describe("SmsGatewayForm", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="sms_gateway_username" placeholder="Cloud username from the SMS Gateway app" type="text" value="cloud-admin">`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="sms_gateway_base_url" placeholder="https://api.sms-gate.app" type="url" value="https://api.sms-gate.example">`,
     );
-    expect(html).toContain("Phone app username");
-    expect(html).toContain("Server URL (optional)");
+    assertStringIncludes(html, "Phone app username");
+    assertStringIncludes(html, "Server URL (optional)");
   });
 
   test("requires a long enough passphrase for a new encryption key", () => {
     const html = String(SmsGatewayForm(advancedDefaultState));
 
-    expect(html).toContain("End-to-end key (passphrase)");
-    expect(html).toContain(
+    assertStringIncludes(html, "End-to-end key (passphrase)");
+    assertStringIncludes(
+      html,
       `<input autocomplete="off" minlength="${SMS_PASSPHRASE_MIN_LENGTH}" maxlength="${MAX_INPUT_LENGTH}" name="sms_gateway_passphrase" placeholder="At least 12 characters" type="password">`,
     );
   });
@@ -48,24 +51,28 @@ describe("SmsGatewayForm", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input autocomplete="off" minlength="${SMS_PASSPHRASE_MIN_LENGTH}" maxlength="${MAX_INPUT_LENGTH}" name="sms_gateway_passphrase" placeholder="At least 12 characters" type="password" value="${MASK_SENTINEL}">`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `maxlength="${MAX_INPUT_LENGTH}" name="sms_gateway_password" placeholder="Cloud password from the SMS Gateway app" type="password" value="${MASK_SENTINEL}"`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `maxlength="${MAX_INPUT_LENGTH}" name="sms_gateway_webhook_secret" placeholder="For delivery reports + replies" type="password" value="${MASK_SENTINEL}"`,
     );
-    expect(html).toContain("Phone app password");
-    expect(html).toContain("Webhook signing secret (optional)");
+    assertStringIncludes(html, "Phone app password");
+    assertStringIncludes(html, "Webhook signing secret (optional)");
   });
 
   test("leaves every secret blank when nothing is stored yet", () => {
     const html = String(SmsGatewayForm(advancedDefaultState));
 
-    expect(html).not.toContain(MASK_SENTINEL);
-    expect(html).toContain(
+    assert(!html.includes(MASK_SENTINEL));
+    assertStringIncludes(
+      html,
       `name="sms_gateway_password" placeholder="Cloud password from the SMS Gateway app" type="password">`,
     );
   });
@@ -73,10 +80,10 @@ describe("SmsGatewayForm", () => {
   test("posts to the sms gateway route with its guide link", () => {
     const html = String(SmsGatewayForm(advancedDefaultState));
 
-    expect(html).toContain("<h2>SMS Gateway</h2>");
-    expect(html).toContain('action="/admin/settings/sms-gateway"');
-    expect(html).toContain('id="settings-sms-gateway"');
-    expect(html).toContain("Save SMS Gateway");
-    expect(html).toContain('href="/admin/guide#sms"');
+    assertStringIncludes(html, "<h2>SMS Gateway</h2>");
+    assertStringIncludes(html, 'action="/admin/settings/sms-gateway"');
+    assertStringIncludes(html, 'id="settings-sms-gateway"');
+    assertStringIncludes(html, "Save SMS Gateway");
+    assertStringIncludes(html, 'href="/admin/guide#sms"');
   });
 });

@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   adminModifierRecalculatePage,
@@ -23,14 +23,14 @@ describe("ModifierRunningTotalsSection", () => {
         modifier: testModifier({ id: 1, total_uses: 7, usage_count: 3 }),
       }),
     );
-    expect(html).toContain("Running totals");
-    expect(html).toContain('name="total_uses"');
-    expect(html).toContain('value="7"');
-    expect(html).toContain('name="usage_count"');
-    expect(html).toContain('value="3"');
-    expect(html).toContain("/admin/modifiers/recalculate/1");
+    assertStringIncludes(html, "Running totals");
+    assertStringIncludes(html, 'name="total_uses"');
+    assertStringIncludes(html, 'value="7"');
+    assertStringIncludes(html, 'name="usage_count"');
+    assertStringIncludes(html, 'value="3"');
+    assertStringIncludes(html, "/admin/modifiers/recalculate/1");
     // The money total is projected from the ledger, not a running-totals field.
-    expect(html).not.toContain('name="total_revenue"');
+    assert(!html.includes('name="total_revenue"'));
   });
 });
 
@@ -47,19 +47,19 @@ describe("adminModifierRecalculatePage", () => {
       },
       OWNER_SESSION,
     );
-    expect(html).toContain("Recalculate: Loyalty");
-    expect(html).toContain("Current");
-    expect(html).toContain("From attendee data");
-    expect(html).toContain('name="recalculate_fields"');
-    expect(html).toContain('value="total_uses"');
-    expect(html).toContain(">9<");
-    expect(html).toContain(">4<");
-    expect(html).toContain(">5<");
-    expect(html).toContain(">2<");
+    assertStringIncludes(html, "Recalculate: Loyalty");
+    assertStringIncludes(html, "Current");
+    assertStringIncludes(html, "From attendee data");
+    assertStringIncludes(html, 'name="recalculate_fields"');
+    assertStringIncludes(html, 'value="total_uses"');
+    assertStringIncludes(html, ">9<");
+    assertStringIncludes(html, ">4<");
+    assertStringIncludes(html, ">5<");
+    assertStringIncludes(html, ">2<");
     // The page marks the Modifiers section active in the admin nav.
-    expect(html).toContain('<a class="active" href="/admin/modifiers">');
+    assertStringIncludes(html, '<a class="active" href="/admin/modifiers">');
     // total_revenue projects from the ledger, so it is not recalculable here.
-    expect(html).not.toContain('value="total_revenue"');
+    assert(!html.includes('value="total_revenue"'));
   });
 
   test("passes an error message through to the recalculate page", () => {
@@ -72,6 +72,6 @@ describe("adminModifierRecalculatePage", () => {
       OWNER_SESSION,
       "Something went wrong",
     );
-    expect(html).toContain("Something went wrong");
+    assertStringIncludes(html, "Something went wrong");
   });
 });

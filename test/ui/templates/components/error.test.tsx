@@ -5,6 +5,7 @@
  * announced. `ErrorNote` is a standing note — calm, never a focus target.
  */
 
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ErrorAlert, ErrorNote } from "#templates/components/error.tsx";
@@ -25,8 +26,8 @@ describe("ErrorNote", () => {
     const html = String(ErrorNote({ children: "A standing caution" }));
     expect(html).toBe(`<div class="error">A standing caution</div>`);
     // Never announced assertively, animated, or focused.
-    expect(html).not.toContain("role=");
-    expect(html).not.toContain("autofocus");
-    expect(html).not.toContain("tabindex");
+    assert(!html.includes("role="));
+    assert(!html.includes("autofocus"));
+    assert(!html.includes("tabindex"));
   });
 });

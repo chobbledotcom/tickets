@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
@@ -39,18 +40,18 @@ describe("AttendeeBookingsTable", () => {
       booking({ listingId: 7, listingName: "Kayak", quantity: 2 }),
       booking({ listingId: 8, listingName: "Canoe", quantity: 3 }),
     ]);
-    expect(html).toContain("Bookings");
-    expect(html).toContain('href="/admin/listing/7"');
-    expect(html).toContain("Kayak");
-    expect(html).toContain('href="/admin/listing/8"');
-    expect(html).toContain("Canoe");
+    assertStringIncludes(html, "Bookings");
+    assertStringIncludes(html, 'href="/admin/listing/7"');
+    assertStringIncludes(html, "Kayak");
+    assertStringIncludes(html, 'href="/admin/listing/8"');
+    assertStringIncludes(html, "Canoe");
     // Each listing's row shows its own quantity (Kayak→2, Canoe→3), so a
     // swapped grouping fails here, not just a wrong sum...
     expectListingRowQuantity(html, 7, 2);
     expectListingRowQuantity(html, 8, 3);
     // ...and the footer totals them (2 + 3); only the total cell holds 5.
-    expect(html).toContain('<th colspan="2" scope="row">Total</th>');
-    expect(html).toContain('<td class="col-quantity">5</td>');
+    assertStringIncludes(html, '<th colspan="2" scope="row">Total</th>');
+    assertStringIncludes(html, '<td class="col-quantity">5</td>');
   });
 
   test("formats the date range for a dated (daily) booking", () => {
@@ -60,7 +61,8 @@ describe("AttendeeBookingsTable", () => {
         startAt: "2026-06-01T00:00:00Z",
       }),
     ]);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       formatDateRangeLabel("2026-06-01T00:00:00Z", "2026-06-03T00:00:00Z"),
     );
   });
@@ -69,16 +71,19 @@ describe("AttendeeBookingsTable", () => {
     // A standard (fixed-date) booking carries no start date; the status badge
     // proves the only em dash present is the date fallback.
     const html = renderBookings([booking({ checkedIn: 1, startAt: null })]);
-    expect(html).toContain("Checked in");
-    expect(html).toContain("—");
+    assertStringIncludes(html, "Checked in");
+    assertStringIncludes(html, "—");
   });
 
   test("marks an inactive listing", () => {
-    expect(renderBookings([booking({ listingActive: false })])).toContain(
+    assertStringIncludes(
+      renderBookings([booking({ listingActive: false })]),
       "(Inactive)",
     );
-    expect(renderBookings([booking({ listingActive: true })])).not.toContain(
-      "(Inactive)",
+    assert(
+      !renderBookings([booking({ listingActive: true })]).includes(
+        "(Inactive)",
+      ),
     );
   });
 
@@ -87,19 +92,25 @@ describe("AttendeeBookingsTable", () => {
       assignBuiltSite: true,
       listingName: "One Month Site",
     });
-    expect(renderBookings([planLine], true)).toContain(
+    assertStringIncludes(
+      renderBookings([planLine], true),
       '<div class="muted small">No site assigned yet</div>',
     );
     // The buyer already holds a site, so no plan row shows the cue.
-    expect(renderBookings([planLine])).not.toContain("No site assigned yet");
+    assert(!renderBookings([planLine]).includes("No site assigned yet"));
     // An ordinary listing never reads as owed a site, and a no-quantity
     // plan line bought nothing.
-    expect(
-      renderBookings([booking({ assignBuiltSite: true, quantity: 0 })], true),
-    ).not.toContain("No site assigned yet");
-    expect(
-      renderBookings([booking({ listingName: "Concert" })], true),
-    ).not.toContain("No site assigned yet");
+    assert(
+      !renderBookings(
+        [booking({ assignBuiltSite: true, quantity: 0 })],
+        true,
+      ).includes("No site assigned yet"),
+    );
+    assert(
+      !renderBookings([booking({ listingName: "Concert" })], true).includes(
+        "No site assigned yet",
+      ),
+    );
   });
 
   test("shows no repair cue on a refunded plan booking", () => {
@@ -108,8 +119,8 @@ describe("AttendeeBookingsTable", () => {
       listingName: "Refunded Site",
       refunded: true,
     });
-    expect(renderBookings([refundedPlan], true)).not.toContain(
-      "No site assigned yet",
+    assert(
+      !renderBookings([refundedPlan], true).includes("No site assigned yet"),
     );
   });
 
@@ -125,7 +136,8 @@ describe("AttendeeBookingsTable", () => {
         parentListingId: 1,
       }),
     ]);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div class="muted small">Add-on chosen under Base unit</div>',
     );
   });
@@ -134,8 +146,8 @@ describe("AttendeeBookingsTable", () => {
     const html = renderBookings([
       booking({ listingId: 7, listingName: "Base unit" }),
     ]);
-    expect(html).not.toContain("Add-on chosen under");
-    expect(html).not.toContain("Includes add-on");
+    assert(!html.includes("Add-on chosen under"));
+    assert(!html.includes("Includes add-on"));
   });
 
   test("annotates a parent row with the add-on children folded under it (#5)", () => {
@@ -147,11 +159,13 @@ describe("AttendeeBookingsTable", () => {
       booking({ listingId: 8, listingName: "Paddle", parentListingId: 1 }),
       booking({ listingId: 9, listingName: "Helmet", parentListingId: 1 }),
     ]);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div class="muted small">Includes add-on: Paddle, Helmet</div>',
     );
     // The children still show their own "chosen under" annotation.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div class="muted small">Add-on chosen under Base unit</div>',
     );
   });
@@ -162,7 +176,7 @@ describe("AttendeeBookingsTable", () => {
     const html = renderBookings([
       booking({ listingId: 8, listingName: "Add-on", parentListingId: 7 }),
     ]);
-    expect(html).toContain("Add-on chosen under #7");
+    assertStringIncludes(html, "Add-on chosen under #7");
   });
 
   test("falls back to an em dash when a booking has no status", () => {
@@ -175,10 +189,10 @@ describe("AttendeeBookingsTable", () => {
         startAt: "2026-06-01T00:00:00Z",
       }),
     ]);
-    expect(html).toContain("—");
+    assertStringIncludes(html, "—");
     // With a start date, the date cell renders words, so this one em dash
     // can only be the status column's fallback.
-    expect(html).not.toContain("Checked in");
-    expect(html).not.toContain("Refunded");
+    assert(!html.includes("Checked in"));
+    assert(!html.includes("Refunded"));
   });
 });

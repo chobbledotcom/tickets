@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { KIND } from "#accounting/kinds.ts";
 import { account } from "#shared/ledger/account.ts";
@@ -153,22 +153,24 @@ describe("HumanLedgerTable", () => {
       "Service event cost added for",
       "Service event cost reduced for",
     ]) {
-      expect(html).toContain(phrase);
+      assertStringIncludes(html, phrase);
     }
-    expect(html).toContain("Ada");
-    expect(html).toContain("Concert");
-    expect(html).toContain("Helmet hire");
-    expect(html).toContain(
+    assertStringIncludes(html, "Ada");
+    assertStringIncludes(html, "Concert");
+    assertStringIncludes(html, "Helmet hire");
+    assertStringIncludes(
+      html,
       'Payment received for <a href="/admin/ledger/attendee/1">Ada</a>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'Correction reduced <a href="/admin/ledger?listing=1">Concert</a>',
     );
     const rows = ledgerRows(html);
-    expect(rows[2]).toContain("+£50");
-    expect(rows[4]).toContain("−£50");
-    expect(rows[18]).toContain("−£50");
-    expect(rows[19]).toContain("+£50");
+    assertStringIncludes(rows[2] ?? "", "+£50");
+    assertStringIncludes(rows[4] ?? "", "−£50");
+    assertStringIncludes(rows[18] ?? "", "−£50");
+    assertStringIncludes(rows[19] ?? "", "+£50");
   });
 
   test("uses attendee-balance wording for adjustment legs against writeoff", () => {
@@ -190,14 +192,14 @@ describe("HumanLedgerTable", () => {
       ],
       refs,
     );
-    expect(html).toContain("Extra amount now owed by");
-    expect(html).toContain("Amount no longer owed by");
-    expect(html).toContain("Ada");
-    expect(html).not.toContain("Correction reduced");
-    expect(html).not.toContain("Correction increased");
+    assertStringIncludes(html, "Extra amount now owed by");
+    assertStringIncludes(html, "Amount no longer owed by");
+    assertStringIncludes(html, "Ada");
+    assert(!html.includes("Correction reduced"));
+    assert(!html.includes("Correction increased"));
     const rows = ledgerRows(html);
-    expect(rows[2]).toContain("+£50");
-    expect(rows[3]).toContain("−£50");
+    assertStringIncludes(rows[2] ?? "", "+£50");
+    assertStringIncludes(rows[3] ?? "", "−£50");
   });
 
   test("shows modifier income and refund directions with matching signs", () => {
@@ -232,9 +234,9 @@ describe("HumanLedgerTable", () => {
       names({ modifiers: new Map([[1, "Helmet hire"]]) }),
     );
     const rows = ledgerRows(html);
-    expect(rows[2]).toContain("+£50");
-    expect(rows[3]).toContain("−£50");
-    expect(rows[4]).toContain("−£50");
-    expect(rows[5]).toContain("+£50");
+    assertStringIncludes(rows[2] ?? "", "+£50");
+    assertStringIncludes(rows[3] ?? "", "−£50");
+    assertStringIncludes(rows[4] ?? "", "−£50");
+    assertStringIncludes(rows[5] ?? "", "+£50");
   });
 });

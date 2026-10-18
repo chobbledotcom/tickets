@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { detectIframeMode } from "#shared/request-context.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
@@ -34,9 +34,9 @@ describe("ticketPage (site menu)", () => {
       nav: navProps(),
       slugs: ["listing"],
     });
-    expect(html).toContain('<div class="admin-nav-group">');
-    expect(html).toContain('aria-label="Site menu"');
-    expect(html).toContain('<a href="/listings">');
+    assertStringIncludes(html, '<div class="admin-nav-group">');
+    assertStringIncludes(html, 'aria-label="Site menu"');
+    assertStringIncludes(html, '<a href="/listings">');
   });
 
   test("drops the site menu in iframe mode even when one is supplied", async () => {
@@ -47,9 +47,12 @@ describe("ticketPage (site menu)", () => {
         nav: navProps(),
         slugs: ["listing"],
       });
-      expect(html).toContain('<body class="iframe" data-page-family="public">');
-      expect(html).not.toContain("admin-nav-group");
-      expect(html).not.toContain('aria-label="Site menu"');
+      assertStringIncludes(
+        html,
+        '<body class="iframe" data-page-family="public">',
+      );
+      assert(!html.includes("admin-nav-group"));
+      assert(!html.includes('aria-label="Site menu"'));
     });
   });
 });

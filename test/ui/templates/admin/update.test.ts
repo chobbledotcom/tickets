@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { GITHUB_RELEASES_URL } from "#shared/update.ts";
 import {
@@ -20,13 +20,13 @@ describe("adminUpdatePage", () => {
   test("renders build commit when present", () => {
     const state = { ...baseState(), buildCommit: "abc123def456" };
     const html = adminUpdatePage(OWNER_SESSION, state);
-    expect(html).toContain("abc123def456");
-    expect(html).toContain("<code>");
+    assertStringIncludes(html, "abc123def456");
+    assertStringIncludes(html, "<code>");
   });
 
   test("hides commit section when buildCommit is empty", () => {
     const html = adminUpdatePage(OWNER_SESSION, baseState());
-    expect(html).not.toContain("<code>");
+    assert(!html.includes("<code>"));
   });
 
   test("renders update available with Bunny configured", () => {
@@ -38,8 +38,8 @@ describe("adminUpdatePage", () => {
       updateAvailable: true,
     };
     const html = adminUpdatePage(OWNER_SESSION, state);
-    expect(html).toContain("Update Now");
-    expect(html).not.toContain("Cannot update automatically");
+    assertStringIncludes(html, "Update Now");
+    assert(!html.includes("Cannot update automatically"));
   });
 
   test("renders cannot update when Bunny not configured", () => {
@@ -51,8 +51,8 @@ describe("adminUpdatePage", () => {
       updateAvailable: true,
     };
     const html = adminUpdatePage(OWNER_SESSION, state);
-    expect(html).toContain("Cannot update automatically");
-    expect(html).not.toContain("Update Now");
+    assertStringIncludes(html, "Cannot update automatically");
+    assert(!html.includes("Update Now"));
   });
 
   test("renders up to date with checked version", () => {
@@ -61,19 +61,20 @@ describe("adminUpdatePage", () => {
       latestVersion: "v2026-01-01-000000",
     };
     const html = adminUpdatePage(OWNER_SESSION, state);
-    expect(html).toContain("No Update Available");
-    expect(html).toContain("v2026-01-01-000000");
+    assertStringIncludes(html, "No Update Available");
+    assertStringIncludes(html, "v2026-01-01-000000");
   });
 
   test("does not show update sections when no check performed", () => {
     const html = adminUpdatePage(OWNER_SESSION, baseState());
-    expect(html).not.toContain("No Update Available");
-    expect(html).not.toContain("Update Available");
+    assert(!html.includes("No Update Available"));
+    assert(!html.includes("Update Available"));
   });
 
   test("includes release notes link", () => {
     const html = adminUpdatePage(OWNER_SESSION, baseState());
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<a href="${GITHUB_RELEASES_URL}">Read the release notes</a>`,
     );
   });

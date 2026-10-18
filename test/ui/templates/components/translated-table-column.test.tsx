@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { resetI18nForTest } from "#i18n";
 import { defineTable } from "#shared/tables/definition.ts";
@@ -30,8 +30,9 @@ test("carries the extras a column with more than a heading needs", () => {
       context: 5,
     }),
   );
-  expect(html).toContain('<th class="col-quantity">Name</th>');
-  expect(html).toContain(
+  assertStringIncludes(html, '<th class="col-quantity">Name</th>');
+  assertStringIncludes(
+    html,
     '<td class="col-quantity" data-remaining="2">2/5</td>',
   );
 });
@@ -44,8 +45,8 @@ const headerWith = (replacement: string): string => {
 
 test("resolves translated table headings for each render", () => {
   try {
-    expect(headerWith("first")).toContain("<th>First</th>");
-    expect(headerWith("second")).toContain("<th>Second</th>");
+    assertStringIncludes(headerWith("first"), "<th>First</th>");
+    assertStringIncludes(headerWith("second"), "<th>Second</th>");
   } finally {
     resetI18nForTest();
   }

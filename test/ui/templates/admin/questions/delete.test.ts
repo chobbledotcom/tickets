@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   adminAnswerDeletePage,
@@ -26,16 +26,16 @@ describe("adminQuestionDeletePage", () => {
   afterAll(resetFeaturePageTest);
 
   test("renders confirmation form with question text", () => {
-    expect(html).toContain("Delete question");
-    expect(html).toContain("T-shirt size?");
-    expect(html).toContain('name="confirm_identifier"');
-    expect(html).toContain('action="/admin/questions/1/delete"');
-    expect(html).toContain('class="active" href="/admin/questions"');
+    assertStringIncludes(html, "Delete question");
+    assertStringIncludes(html, "T-shirt size?");
+    assertStringIncludes(html, 'name="confirm_identifier"');
+    assertStringIncludes(html, 'action="/admin/questions/1/delete"');
+    assertStringIncludes(html, 'class="active" href="/admin/questions"');
   });
 
   test("warns about cascading deletes", () => {
-    expect(html).toContain("all its answers");
-    expect(html).toContain("attendee responses");
+    assertStringIncludes(html, "all its answers");
+    assertStringIncludes(html, "attendee responses");
   });
 
   test("renders error message when provided", () => {
@@ -44,7 +44,7 @@ describe("adminQuestionDeletePage", () => {
       OWNER_SESSION,
       "Text does not match",
     );
-    expect(html).toContain("Text does not match");
+    assertStringIncludes(html, "Text does not match");
   });
 });
 
@@ -62,14 +62,14 @@ describe("adminAnswerDeletePage", () => {
   afterAll(resetFeaturePageTest);
 
   test("renders confirmation form with answer text", () => {
-    expect(html).toContain("Delete answer");
-    expect(html).toContain("Small");
-    expect(html).toContain('name="confirm_identifier"');
-    expect(html).toContain('action="/admin/questions/1/answers/10/delete"');
+    assertStringIncludes(html, "Delete answer");
+    assertStringIncludes(html, "Small");
+    assertStringIncludes(html, 'name="confirm_identifier"');
+    assertStringIncludes(html, 'action="/admin/questions/1/answers/10/delete"');
   });
 
   test("shows question context", () => {
-    expect(html).toContain("T-shirt size?");
+    assertStringIncludes(html, "T-shirt size?");
   });
 
   test("renders error message when provided", () => {
@@ -79,6 +79,6 @@ describe("adminAnswerDeletePage", () => {
       OWNER_SESSION,
       "Text does not match",
     );
-    expect(html).toContain("Text does not match");
+    assertStringIncludes(html, "Text does not match");
   });
 });

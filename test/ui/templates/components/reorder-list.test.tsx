@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { TableColumn } from "#shared/tables/column.ts";
@@ -86,63 +87,68 @@ describe("reorder list components", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = countTable(ITEMS);
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<th class="col-reorder">Order</th><th>Thing</th><th class="col-quantity">Uses</th>',
     );
-    expect(html).toContain('<a href="/things/1/edit">First</a>');
-    expect(html).toContain('<td class="col-quantity">3</td>');
-    expect(html).toContain('action="/things/1/move-down"');
-    expect(html).not.toContain('action="/things/1/move-up"');
-    expect(html).toContain('action="/things/2/move-up"');
-    expect(html).not.toContain('action="/things/2/move-down"');
+    assertStringIncludes(html, '<a href="/things/1/edit">First</a>');
+    assertStringIncludes(html, '<td class="col-quantity">3</td>');
+    assertStringIncludes(html, 'action="/things/1/move-down"');
+    assert(!html.includes('action="/things/1/move-up"'));
+    assertStringIncludes(html, 'action="/things/2/move-up"');
+    assert(!html.includes('action="/things/2/move-down"'));
   });
 
   test("keeps count rows but removes links and moves when read-only", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = countTable(ITEMS);
 
-    expect(html).toContain("<td>First</td>");
-    expect(html).toContain('<td class="col-quantity">5</td>');
-    expect(html).not.toContain('href="/things/1/edit"');
-    expect(html).not.toContain('class="col-reorder"');
-    expect(html).not.toContain("/move-");
+    assertStringIncludes(html, "<td>First</td>");
+    assertStringIncludes(html, '<td class="col-quantity">5</td>');
+    assert(!html.includes('href="/things/1/edit"'));
+    assert(!html.includes('class="col-reorder"'));
+    assert(!html.includes("/move-"));
   });
 
   test("renders the writable list page form, empty note, error, and guide", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = listPage([], "Name is required");
 
-    expect(html).toContain("Name is required");
-    expect(html).toContain(
+    assertStringIncludes(html, "Name is required");
+    assertStringIncludes(
+      html,
       '<form action="/things" autocomplete="off" method="POST" id="new-thing">',
     );
-    expect(html).toContain('<label>Name<input name="name"></label>');
-    expect(html).toContain("Add thing");
-    expect(html).toContain("<p><em>Nothing here</em></p>");
-    expect(html).toContain('href="/admin/guide#things"');
-    expect(html).toContain("<span>Things guide</span>");
+    assertStringIncludes(html, '<label>Name<input name="name"></label>');
+    assertStringIncludes(html, "Add thing");
+    assertStringIncludes(html, "<p><em>Nothing here</em></p>");
+    assertStringIncludes(html, 'href="/admin/guide#things"');
+    assertStringIncludes(html, "<span>Things guide</span>");
   });
 
   test("renders populated list rows through the declared columns and routes", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = listPage(ITEMS);
 
-    expect(html).toContain('<th>Name</th><th class="col-quantity">Uses</th>');
-    expect(html).toContain('<td>First</td><td class="col-quantity">3</td>');
-    expect(html).toContain('action="/things/1/move-down"');
-    expect(html).toContain('action="/things/2/move-up"');
-    expect(html).not.toContain("Nothing here");
+    assertStringIncludes(
+      html,
+      '<th>Name</th><th class="col-quantity">Uses</th>',
+    );
+    assertStringIncludes(html, '<td>First</td><td class="col-quantity">3</td>');
+    assertStringIncludes(html, 'action="/things/1/move-down"');
+    assertStringIncludes(html, 'action="/things/2/move-up"');
+    assert(!html.includes("Nothing here"));
   });
 
   test("hides list-page create and reorder forms when read-only", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = listPage([ITEMS[0]!]);
 
-    expect(html).toContain("<td>First</td>");
-    expect(html).toContain("Things guide");
-    expect(html).not.toContain('id="new-thing"');
-    expect(html).not.toContain("Add thing");
-    expect(html).not.toContain('class="col-reorder"');
-    expect(html).not.toContain("/move-");
+    assertStringIncludes(html, "<td>First</td>");
+    assertStringIncludes(html, "Things guide");
+    assert(!html.includes('id="new-thing"'));
+    assert(!html.includes("Add thing"));
+    assert(!html.includes('class="col-reorder"'));
+    assert(!html.includes("/move-"));
   });
 });

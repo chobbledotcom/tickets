@@ -1,6 +1,6 @@
 /** Direct tests for the group Attendees tab panel. */
 
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { GroupAttendeesPanel } from "#templates/admin/groups/attendees.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
@@ -37,10 +37,10 @@ describe("GroupAttendeesPanel", () => {
     );
     // Per-line check-in is the point of this roster: the attendee's two
     // bookings stay two rows, each acting on its own listing.
-    expect(html).toContain("/admin/listing/1/attendee/9/checkin");
-    expect(html).toContain("/admin/listing/2/attendee/9/checkin");
-    expect(html).toContain('title="First Listing"');
-    expect(html).toContain('title="Second Listing"');
+    assertStringIncludes(html, "/admin/listing/1/attendee/9/checkin");
+    assertStringIncludes(html, "/admin/listing/2/attendee/9/checkin");
+    assertStringIncludes(html, 'title="First Listing"');
+    assertStringIncludes(html, 'title="Second Listing"');
   });
 
   test("returns operator actions to the Attendees tab, not the old detail anchor", () => {
@@ -56,8 +56,8 @@ describe("GroupAttendeesPanel", () => {
         pairBookings: shownLineBookings([{ ...guest, listingId: 1 }]),
       }),
     );
-    expect(html).toContain('name="return_url"');
-    expect(html).toContain('value="/admin/groups/5/attendees"');
-    expect(html).toContain('<h2 id="attendees">Attendees</h2>');
+    assertStringIncludes(html, 'name="return_url"');
+    assertStringIncludes(html, 'value="/admin/groups/5/attendees"');
+    assertStringIncludes(html, '<h2 id="attendees">Attendees</h2>');
   });
 });

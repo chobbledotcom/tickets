@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -22,15 +23,15 @@ describe("contentEntityEditPanel", () => {
     );
 
     const html = String(panel({ id: 17, name: "Launch &amp; Learn" }));
-    expect(html).toContain('action="/admin/site/news/17/edit"');
-    expect(html).toContain('value="Launch &amp; Learn"');
-    expect(html).toContain("Save Changes");
+    assertStringIncludes(html, 'action="/admin/site/news/17/edit"');
+    assertStringIncludes(html, 'value="Launch &amp; Learn"');
+    assertStringIncludes(html, "Save Changes");
   });
 
   test("the site content guide footer links staff and hides from editors", () => {
     const owner = String(contentGuideFooter("built-sites", "owner"));
-    expect(owner).toContain('href="/admin/guide#built-sites"');
-    expect(owner).toContain("Guide: pages, news &amp; images");
+    assertStringIncludes(owner, 'href="/admin/guide#built-sites"');
+    assertStringIncludes(owner, "Guide: pages, news &amp; images");
     // Editors cannot open the staff-only guide, so the footer renders nothing
     // rather than a link that 403s.
     expect(String(contentGuideFooter("built-sites", "editor"))).toBe("");

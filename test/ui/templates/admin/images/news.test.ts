@@ -1,3 +1,5 @@
+/* jscpd:ignore-start -- imports */
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -26,6 +28,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+/* jscpd:ignore-end */
 
 describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
   describe("POST /admin/site/news/:id/images", () => {
@@ -117,7 +120,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         }),
       );
       const html = await expectHtmlResponse(pageResponse, 200);
-      expect(html).not.toContain(`value="news:${post.id}"`);
+      assert(!html.includes(`value="news:${post.id}"`));
 
       // A manager's save is blocked outright — its name/alt_text show on the
       // public news card, so metadata and links both stay put.
@@ -215,9 +218,9 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         await adminGet(`/admin/images/${image.id}/edit`),
         200,
       );
-      expect(html).toContain(`value="news:${post.id}"`);
-      expect(html).toContain("Linked news");
-      expect(html).toContain("Linkable post");
+      assertStringIncludes(html, `value="news:${post.id}"`);
+      assertStringIncludes(html, "Linked news");
+      assertStringIncludes(html, "Linkable post");
     });
 
     test("saving the image edit form links it to a news post", async () => {
@@ -239,7 +242,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         ),
       );
 
-      expect([302, 303]).toContain(response.status);
+      assertArrayIncludes([302, 303], [response.status]);
       expect(await getImageUsesForImage(image.id)).toEqual([
         {
           image_id: image.id,

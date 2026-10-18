@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
@@ -60,7 +61,7 @@ attendeeTableSuite(() => {
         showCheckin: false,
       }),
     );
-    expect(html).not.toContain("<th>Email</th>");
+    assert(!html.includes("<th>Email</th>"));
   });
 
   test("reorders columns as specified", () => {
@@ -88,7 +89,7 @@ attendeeTableSuite(() => {
         showCheckin: false,
       }),
     );
-    expect(html).toContain("April 10, 2026");
+    assertStringIncludes(html, "April 10, 2026");
   });
 
   test("renders the complete default Registered format", () => {
@@ -100,8 +101,8 @@ attendeeTableSuite(() => {
         showCheckin: false,
       }),
     );
-    expect(html).toContain("2026-04-10 15:00");
-    expect(html).not.toContain("April 10, 2026");
+    assertStringIncludes(html, "2026-04-10 15:00");
+    assert(!html.includes("April 10, 2026"));
   });
 
   test("keeps the attendee link when a name filter is present", () => {
@@ -114,8 +115,8 @@ attendeeTableSuite(() => {
       }),
     );
 
-    expect(html).toContain('<a href="/admin/attendees/7">Jane</a>');
-    expect(html).not.toContain(">JANE<");
+    assertStringIncludes(html, '<a href="/admin/attendees/7">Jane</a>');
+    assert(!html.includes(">JANE<"));
   });
 
   test("keeps the attendee quantity when a filter is present", () => {
@@ -128,8 +129,8 @@ attendeeTableSuite(() => {
       }),
     );
 
-    expect(html).toContain('<td class="col-quantity">3</td>');
-    expect(html).not.toContain('<td class="col-quantity">5</td>');
+    assertStringIncludes(html, '<td class="col-quantity">3</td>');
+    assert(!html.includes('<td class="col-quantity">5</td>'));
   });
 
   test("returns raw attendee values for Liquid filters", () => {

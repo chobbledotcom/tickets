@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { jsx } from "#jsx/jsx-runtime.ts";
@@ -21,10 +22,10 @@ import type { AdminLevel } from "#types";
 describe("Icon", () => {
   test("renders a sprite reference sized via the icon class", () => {
     const html = String(Icon({ name: "plus" }));
-    expect(html).toContain('class="icon"');
-    expect(html).toContain('aria-hidden="true"');
-    expect(html).toContain('focusable="false"');
-    expect(html).toContain(`href="${ICONS_PATH}#plus"`);
+    assertStringIncludes(html, 'class="icon"');
+    assertStringIncludes(html, 'aria-hidden="true"');
+    assertStringIncludes(html, 'focusable="false"');
+    assertStringIncludes(html, `href="${ICONS_PATH}#plus"`);
   });
 });
 
@@ -37,17 +38,17 @@ describe("ActionButton", () => {
         icon: "plus",
       }),
     );
-    expect(html).toContain('class="btn"');
-    expect(html).toContain('href="/admin/holidays/new"');
-    expect(html).toContain(`href="${ICONS_PATH}#plus"`);
-    expect(html).toContain("<span>Add holiday</span>");
+    assertStringIncludes(html, 'class="btn"');
+    assertStringIncludes(html, 'href="/admin/holidays/new"');
+    assertStringIncludes(html, `href="${ICONS_PATH}#plus"`);
+    assertStringIncludes(html, "<span>Add holiday</span>");
   });
 
   test("omits the icon when none is given", () => {
     const html = String(ActionButton({ children: "Continue", href: "/next" }));
-    expect(html).toContain('class="btn"');
-    expect(html).not.toContain("<svg");
-    expect(html).toContain("<span>Continue</span>");
+    assertStringIncludes(html, 'class="btn"');
+    assert(!html.includes("<svg"));
+    assertStringIncludes(html, "<span>Continue</span>");
   });
 
   test("applies the secondary variant class", () => {
@@ -58,23 +59,23 @@ describe("ActionButton", () => {
         variant: "secondary",
       }),
     );
-    expect(html).toContain('class="btn secondary"');
+    assertStringIncludes(html, 'class="btn secondary"');
   });
 
   test("applies the outline variant class", () => {
     const html = String(
       ActionButton({ children: "Try again", href: "/x", variant: "outline" }),
     );
-    expect(html).toContain('class="btn outline"');
+    assertStringIncludes(html, 'class="btn outline"');
   });
 });
 
 describe("SubmitButton", () => {
   test("renders a submit button with a leading icon and label", () => {
     const html = String(SubmitButton({ children: "Save Theme", icon: "save" }));
-    expect(html).toContain('type="submit"');
-    expect(html).toContain(`href="${ICONS_PATH}#save"`);
-    expect(html).toContain("<span>Save Theme</span>");
+    assertStringIncludes(html, 'type="submit"');
+    assertStringIncludes(html, `href="${ICONS_PATH}#save"`);
+    assertStringIncludes(html, "<span>Save Theme</span>");
   });
 
   test("passes through a class for button modifiers", () => {
@@ -85,8 +86,8 @@ describe("SubmitButton", () => {
         icon: "trash-2",
       }),
     );
-    expect(html).toContain('class="danger"');
-    expect(html).toContain(`href="${ICONS_PATH}#trash-2"`);
+    assertStringIncludes(html, 'class="danger"');
+    assertStringIncludes(html, `href="${ICONS_PATH}#trash-2"`);
   });
 
   test("passes through an id for script-targeted buttons", () => {
@@ -97,30 +98,36 @@ describe("SubmitButton", () => {
         id: "listing-edit-submit",
       }),
     );
-    expect(html).toContain('id="listing-edit-submit"');
+    assertStringIncludes(html, 'id="listing-edit-submit"');
   });
 
   test("renders disabled only when requested", () => {
-    expect(
+    assertStringIncludes(
       String(SubmitButton({ children: "Save", disabled: true, icon: "save" })),
-    ).toContain(" disabled");
-    expect(
-      String(SubmitButton({ children: "Save", icon: "save" })),
-    ).not.toContain(" disabled");
+      " disabled",
+    );
+    assert(
+      !String(SubmitButton({ children: "Save", icon: "save" })).includes(
+        " disabled",
+      ),
+    );
   });
 });
 
 describe("save buttons", () => {
   test("renders the form action wrapper and primary save button", () => {
     const html = String(SaveActions({ children: "Store changes" }));
-    expect(html).toContain('<p class="form-actions">');
-    expect(html).toContain('<button class="primary"');
-    expect(html).toContain("<span>Store changes</span>");
+    assertStringIncludes(html, '<p class="form-actions">');
+    assertStringIncludes(html, '<button class="primary"');
+    assertStringIncludes(html, "<span>Store changes</span>");
   });
 
   test("renders each standard translated label", () => {
-    expect(String(SaveChangesButton())).toContain("<span>Save Changes</span>");
-    expect(String(SaveButton())).toContain("<span>Save</span>");
+    assertStringIncludes(
+      String(SaveChangesButton()),
+      "<span>Save Changes</span>",
+    );
+    assertStringIncludes(String(SaveButton()), "<span>Save</span>");
   });
 });
 
@@ -179,10 +186,10 @@ describe("BackButton", () => {
     const html = String(
       BackButton({ children: "Back to attendee", href: "/admin/attendees/7" }),
     );
-    expect(html).toContain('class="btn small"');
-    expect(html).toContain('href="/admin/attendees/7"');
-    expect(html).toContain(`href="${ICONS_PATH}#arrow-left"`);
-    expect(html).toContain("<span>Back to attendee</span>");
+    assertStringIncludes(html, 'class="btn small"');
+    assertStringIncludes(html, 'href="/admin/attendees/7"');
+    assertStringIncludes(html, `href="${ICONS_PATH}#arrow-left"`);
+    assertStringIncludes(html, "<span>Back to attendee</span>");
   });
 });
 
@@ -191,10 +198,10 @@ describe("GuideLink", () => {
     const html = String(
       GuideLink({ children: "Holidays guide", href: "/admin/guide#holidays" }),
     );
-    expect(html).toContain('class="guide-link"');
-    expect(html).toContain('href="/admin/guide#holidays"');
-    expect(html).toContain(`href="${ICONS_PATH}#book-open"`);
-    expect(html).toContain("<span>Holidays guide</span>");
+    assertStringIncludes(html, 'class="guide-link"');
+    assertStringIncludes(html, 'href="/admin/guide#holidays"');
+    assertStringIncludes(html, `href="${ICONS_PATH}#book-open"`);
+    assertStringIncludes(html, "<span>Holidays guide</span>");
   });
 });
 
@@ -207,15 +214,15 @@ describe("GuideFooter", () => {
 
   test("renders the bottom-of-page guide link when no role is given", () => {
     const html = String(GuideFooter(guideFooterProps()));
-    expect(html).toContain('class="guide-footer"');
-    expect(html).toContain('href="/admin/guide#listings"');
-    expect(html).toContain("<span>Listings guide</span>");
+    assertStringIncludes(html, 'class="guide-footer"');
+    assertStringIncludes(html, 'href="/admin/guide#listings"');
+    assertStringIncludes(html, "<span>Listings guide</span>");
   });
 
   test("renders for staff roles (owner/manager) when a role is given", () => {
     for (const adminLevel of ["owner", "manager"] as const) {
       const html = String(GuideFooter(guideFooterProps(adminLevel)));
-      expect(html).toContain('class="guide-footer"');
+      assertStringIncludes(html, 'class="guide-footer"');
     }
   });
 
@@ -238,8 +245,8 @@ describe("GuideFooter", () => {
     const html = String(
       guideFooterFor("/admin/guide#settings", "settings.guide_link"),
     );
-    expect(html).toContain('href="/admin/guide#settings"');
-    expect(html).toContain('class="guide-footer"');
-    expect(html).toContain("Settings guide");
+    assertStringIncludes(html, 'href="/admin/guide#settings"');
+    assertStringIncludes(html, 'class="guide-footer"');
+    assertStringIncludes(html, "Settings guide");
   });
 });

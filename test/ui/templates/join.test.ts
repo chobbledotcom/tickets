@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { joinCompletePage, joinErrorPage, joinPage } from "#templates/join.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
@@ -16,31 +16,34 @@ describe("join templates", () => {
       "Try again",
     );
 
-    expect(html).toContain("<title>Set your password</title>");
-    expect(html).toContain("Welcome, New &lt;User&gt;");
-    expect(html).toContain('action="/join/invite-code"');
-    expect(html).toContain("Set your password to complete your account setup.");
-    expect(html).toContain("<password-fields/>");
-    expect(html).toContain("Try again");
-    expect(html).toContain(">Set password</button>");
+    assertStringIncludes(html, "<title>Set your password</title>");
+    assertStringIncludes(html, "Welcome, New &lt;User&gt;");
+    assertStringIncludes(html, 'action="/join/invite-code"');
+    assertStringIncludes(
+      html,
+      "Set your password to complete your account setup.",
+    );
+    assertStringIncludes(html, "<password-fields/>");
+    assertStringIncludes(html, "Try again");
+    assertStringIncludes(html, ">Set password</button>");
   });
 
   test("renders every account-created message", () => {
     const html = joinCompletePage();
 
-    expect(html).toContain("<title>Account created</title>");
-    expect(html).toContain("<h1>Password set</h1>");
-    expect(html).toContain("Your password has been set successfully.");
-    expect(html).toContain("Your account is ready");
-    expect(html).toContain('href="/admin/login"');
-    expect(html).toContain("<span>Log in</span>");
+    assertStringIncludes(html, "<title>Account created</title>");
+    assertStringIncludes(html, "<h1>Password set</h1>");
+    assertStringIncludes(html, "Your password has been set successfully.");
+    assertStringIncludes(html, "Your account is ready");
+    assertStringIncludes(html, 'href="/admin/login"');
+    assertStringIncludes(html, "<span>Log in</span>");
   });
 
   test("renders an invalid invite without trusting the message", () => {
     const html = joinErrorPage("Expired <invite>");
 
-    expect(html).toContain("<title>Invalid invite</title>");
-    expect(html).toContain("<h1>Invalid invite</h1>");
-    expect(html).toContain("Expired &lt;invite&gt;");
+    assertStringIncludes(html, "<title>Invalid invite</title>");
+    assertStringIncludes(html, "<h1>Invalid invite</h1>");
+    assertStringIncludes(html, "Expired &lt;invite&gt;");
   });
 });

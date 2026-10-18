@@ -3,6 +3,7 @@
  * list that offers it, and every link is built on the list's own base path.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type {
@@ -45,22 +46,26 @@ describe("the shared attendee-list controls", () => {
 
   test("a roster gets the day dropdown, check-in bar, and sort bar", () => {
     const html = controlsHtml(testRosterListSetup(), state());
-    expect(html).toContain("data-nav-select");
-    expect(html).toContain(
+    assertStringIncludes(html, "data-nav-select");
+    assertStringIncludes(
+      html,
       'value="/admin/listing/5/attendees?date=2026-08-03"',
     );
-    expect(html).toContain('href="/admin/listing/5/attendees?filter=in"');
-    expect(html).toContain('href="/admin/listing/5/attendees?filter=out"');
-    expect(html).toContain("Sort: <strong><u>By date and name</u></strong>");
-    expect(html).toContain('href="/admin/listing/5/attendees?sort=newest"');
+    assertStringIncludes(html, 'href="/admin/listing/5/attendees?filter=in"');
+    assertStringIncludes(html, 'href="/admin/listing/5/attendees?filter=out"');
+    assertStringIncludes(
+      html,
+      "Sort: <strong><u>By date and name</u></strong>",
+    );
+    assertStringIncludes(html, 'href="/admin/listing/5/attendees?sort=newest"');
     // No listing dropdown and no type bar: one listing, one kind.
-    expect(html).not.toContain('name="listing"');
-    expect(html).not.toContain("Showing:");
+    assert(!html.includes('name="listing"'));
+    assert(!html.includes("Showing:"));
   });
 
   test("hides the day dropdown when there are no days to offer", () => {
     const html = controlsHtml(testRosterListSetup({ dates: [] }), state());
-    expect(html).not.toContain("data-nav-select");
+    assert(!html.includes("data-nav-select"));
   });
 
   test("hides the check-in bar for a list without check-in", () => {
@@ -68,7 +73,7 @@ describe("the shared attendee-list controls", () => {
       testRosterListSetup({ withCheckin: false }),
       state(),
     );
-    expect(html).not.toContain("Checked In");
+    assert(!html.includes("Checked In"));
   });
 
   test("the check-in links keep the chosen day and sort", () => {
@@ -76,7 +81,8 @@ describe("the shared attendee-list controls", () => {
       testRosterListSetup(),
       state({ date: testDate("2026-08-03"), sort: "newest" }),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'href="/admin/listing/5/attendees?sort=newest&filter=in&date=2026-08-03"',
     );
   });
@@ -86,10 +92,12 @@ describe("the shared attendee-list controls", () => {
       testRosterListSetup(),
       state({ checkin: "in", date: testDate("2026-08-03") }),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<option value="/admin/listing/5/attendees?filter=in&amp;date=2026-08-03" selected>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<option value="/admin/listing/5/attendees?filter=in">',
     );
   });
@@ -99,7 +107,7 @@ describe("the shared attendee-list controls", () => {
       listings: [testListingWithCount({ id: 1 })],
       withTypes: true,
     });
-    expect(controlsHtml(oneKind, state())).not.toContain("Showing:");
+    assert(!controlsHtml(oneKind, state()).includes("Showing:"));
 
     const twoKinds = testRosterListSetup({
       basePath: "/admin/attendees",
@@ -110,25 +118,25 @@ describe("the shared attendee-list controls", () => {
       withTypes: true,
     });
     const html = controlsHtml(twoKinds, state());
-    expect(html).toContain("Showing:");
-    expect(html).toContain('href="/admin/attendees?type=daily"');
+    assertStringIncludes(html, "Showing:");
+    assertStringIncludes(html, 'href="/admin/attendees?type=daily"');
   });
 
   test("a group dropdown appears when the list offers groups", () => {
     const browser = testBrowserListSetup();
     const html = controlsHtml(browser, state({ groupId: 5, sort: "oldest" }));
-    expect(html).toContain('name="group"');
-    expect(html).toContain("All groups");
-    expect(html).toContain("Term two");
-    expect(html).toContain("Weekend");
-    expect(html).toContain('value="5"');
+    assertStringIncludes(html, 'name="group"');
+    assertStringIncludes(html, "All groups");
+    assertStringIncludes(html, "Term two");
+    assertStringIncludes(html, "Weekend");
+    assertStringIncludes(html, 'value="5"');
     // The other active choices ride along in the form's hidden inputs.
-    expect(html).toContain('name="sort" type="hidden" value="oldest"');
+    assertStringIncludes(html, 'name="sort" type="hidden" value="oldest"');
   });
 
   test("no group dropdown when the list offers no groups", () => {
     const roster = testRosterListSetup();
-    expect(controlsHtml(roster, state())).not.toContain('name="group"');
+    assert(!controlsHtml(roster, state()).includes('name="group"'));
   });
 });
 
@@ -154,10 +162,11 @@ describe("the shared pagination", () => {
         },
       }),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'href="/admin/listing/5/attendees?page=2" rel="next"',
     );
-    expect(html).toContain('href="/admin/listing/5/attendees" rel="prev"');
+    assertStringIncludes(html, 'href="/admin/listing/5/attendees" rel="prev"');
   });
 });
 
@@ -181,8 +190,8 @@ describe("the filtered attendee table", () => {
         },
       }),
     );
-    expect(html).toContain('href="/admin/listing/5/export?filter=out"');
-    expect(html).toContain("Export CSV");
+    assertStringIncludes(html, 'href="/admin/listing/5/export?filter=out"');
+    assertStringIncludes(html, "Export CSV");
   });
 
   test("shows no paging for a list that is not paged", () => {
@@ -192,7 +201,7 @@ describe("the filtered attendee table", () => {
         view: { setup: testRosterListSetup(), state: state() },
       }),
     );
-    expect(html).not.toContain('class="pagination"');
+    assert(!html.includes('class="pagination"'));
   });
 
   test("offers no download for a list without one", () => {
@@ -202,6 +211,6 @@ describe("the filtered attendee table", () => {
         view: { setup: testRosterListSetup({ csvPath: null }), state: state() },
       }),
     );
-    expect(html).not.toContain("Export CSV");
+    assert(!html.includes("Export CSV"));
   });
 });

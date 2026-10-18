@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { initSchemaAtlas } from "#src/ui/client/admin/schema-atlas.ts";
@@ -148,11 +149,12 @@ describe("initSchemaAtlas", () => {
       "choice_not_sent",
     ]);
     // The unknown actor falls back to the system colour, never no colour.
-    expect(
+    assertStringIncludes(
       window.document
         .querySelector('[data-schema-from="choice_not_sent"]')
-        ?.getAttribute("class"),
-    ).toContain("schema-edge-system");
+        ?.getAttribute("class") ?? "",
+      "schema-edge-system",
+    );
   });
 
   test("renders each node completely: label, detail, start badge, arrows", () => {

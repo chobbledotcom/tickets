@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
@@ -26,11 +26,11 @@ describe("ticketPage day-count selector", () => {
       listings: [buildTicketListing(listing, false, undefined)],
       slugs: ["ab12c"],
     });
-    expect(html).toContain('name="day_count"');
-    expect(html).toContain('<option value="1">1 day');
-    expect(html).toContain('<option value="2">2 days');
+    assertStringIncludes(html, 'name="day_count"');
+    assertStringIncludes(html, '<option value="1">1 day');
+    assertStringIncludes(html, '<option value="2">2 days');
     // The single-listing page annotates each option with its price.
-    expect(html).toContain("2 days —");
+    assertStringIncludes(html, "2 days —");
   });
 
   test("shows an unavailable message when grouped listings share no day count", () => {
@@ -55,8 +55,8 @@ describe("ticketPage day-count selector", () => {
       slug: "cd34e",
     });
     const html = ticketPage({ listings: [a, b], slugs: ["ab12c", "cd34e"] });
-    expect(html).toContain("No booking lengths are currently available.");
-    expect(html).not.toContain('<option value="1">1 day');
+    assertStringIncludes(html, "No booking lengths are currently available.");
+    assert(!html.includes('<option value="1">1 day'));
   });
 
   test("renders shared day counts without per-option prices across a group", () => {
@@ -81,9 +81,9 @@ describe("ticketPage day-count selector", () => {
       slug: "cd34e",
     });
     const html = ticketPage({ listings: [a, b], slugs: ["ab12c", "cd34e"] });
-    expect(html).toContain('name="day_count"');
-    expect(html).toContain('<option value="1">1 day</option>');
-    expect(html).toContain('<option value="2">2 days</option>');
+    assertStringIncludes(html, 'name="day_count"');
+    assertStringIncludes(html, '<option value="1">1 day</option>');
+    assertStringIncludes(html, '<option value="2">2 days</option>');
   });
 
   test("omits the day-count selector for non-customisable listings", () => {
@@ -96,6 +96,6 @@ describe("ticketPage day-count selector", () => {
       listings: [buildTicketListing(listing, false, undefined)],
       slugs: ["ab12c"],
     });
-    expect(html).not.toContain('name="day_count"');
+    assert(!html.includes('name="day_count"'));
   });
 });

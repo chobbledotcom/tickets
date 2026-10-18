@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { openSection } from "#templates/components/open-section.tsx";
@@ -10,6 +11,9 @@ describe("openSection", () => {
   });
 
   test("escapes a heading that carries markup characters", () => {
-    expect(openSection("A & B", "")).toContain("<summary>A &amp; B</summary>");
+    assertStringIncludes(
+      openSection("A & B", ""),
+      "<summary>A &amp; B</summary>",
+    );
   });
 });
