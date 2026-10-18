@@ -11,7 +11,7 @@ import { formatDatetimeShort } from "#shared/dates.ts";
 import { ErrorCode, errorCodeLabel } from "#shared/logger.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { AdminPage } from "#templates/admin/admin-page-spec.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import type { AdminSession, ListingWithCount } from "#types";
@@ -26,19 +26,23 @@ const activityLogGuide = (
   </GuideFooter>
 );
 
-/** Curried `String(<AdminPage active="/admin/log" session=session
- *  title={title}>{body}{guide})`. The two activity-log pages (per-listing and
- *  global) share this opener + guide footer. */
+/** The two activity-log pages (per-listing and global) share this shell: the
+ *  spec render at /admin/log with the guide footer after the body. */
 const activityLogPage =
   (title: string) =>
   (session: AdminSession) =>
   (body: Child): string =>
-    String(
-      <AdminPage active="/admin/log" session={session} title={title}>
-        {body}
-        {activityLogGuide}
-      </AdminPage>,
-    );
+    renderAdminPageSpec({
+      active: "/admin/log",
+      body: (
+        <>
+          {body}
+          {activityLogGuide}
+        </>
+      ),
+      session,
+      title,
+    });
 
 /** Label of the Square signature error, used to spot it in log messages */
 const SQUARE_SIGNATURE_LABEL = errorCodeLabel[ErrorCode.SQUARE_SIGNATURE];
