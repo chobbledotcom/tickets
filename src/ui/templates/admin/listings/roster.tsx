@@ -115,7 +115,6 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
         sharedRows: v.sharedRows,
       })}
       <AttendeeNotesSummary
-        imageUrls={opts.imageUrls}
         isOwner={opts.isOwner}
         names={fieldById("name")(attendees)}
         notes={systemNotes}

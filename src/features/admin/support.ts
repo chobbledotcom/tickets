@@ -1,4 +1,4 @@
-import { imageUrlsFor } from "#db/images.ts";
+import { addPageImageUrls } from "#db/images.ts";
 import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin Support page routes — let the site operator message the platform host.
@@ -38,11 +38,11 @@ const SUPPORT_PATH = "/admin/support";
 const handleSupportGet = ownerResponsePage(async (session, _request, flash) => {
   if (!isSupportEnabled()) return notFoundResponse();
   const supportText = getSupportPageText();
+  await addPageImageUrls([supportText]);
   return htmlResponse(
     adminSupportPage({
       error: flash.error,
       formActive: isSupportFormActive(),
-      imageUrls: await imageUrlsFor([supportText]),
       nagLabel: supportNagLabel(),
       session,
       success: flash.success,

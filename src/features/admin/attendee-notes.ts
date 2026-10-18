@@ -8,7 +8,7 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
  */
 
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
-import { imageUrlsForNotes } from "#db/images.ts";
+import { addPageImageUrls } from "#db/images.ts";
 import { createOwnerNote, deleteNotes, getNote } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import type { SystemNote } from "#db/notes/types.ts";
@@ -138,11 +138,11 @@ const handleAddNotePost: TypedRouteHandler<"POST /admin/attendee/:attendeeId/not
 
 /** GET /admin/attendee/:attendeeId/note/:noteId/delete — are-you-sure page. */
 const handleDeleteNoteGet: TypedRouteHandler<"GET /admin/attendee/:attendeeId/note/:noteId/delete"> =
-  noteHandlers.get(async (note, session, request, { attendeeId }) =>
-    htmlResponse(
+  noteHandlers.get(async (note, session, request, { attendeeId }) => {
+    await addPageImageUrls([note.note]);
+    return htmlResponse(
       adminNoteDeletePage({
         error: applyFlash(request).error,
-        imageUrls: await imageUrlsForNotes([note]),
         note,
         returnUrl: returnTarget(
           attendeeId,
@@ -150,8 +150,8 @@ const handleDeleteNoteGet: TypedRouteHandler<"GET /admin/attendee/:attendeeId/no
         ),
         session,
       }),
-    ),
-  );
+    );
+  });
 
 /** POST /admin/attendee/:attendeeId/note/:noteId/delete — delete the note. */
 const handleDeleteNotePost: TypedRouteHandler<"POST /admin/attendee/:attendeeId/note/:noteId/delete"> =
