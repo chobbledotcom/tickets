@@ -41,7 +41,6 @@ describe("sitePagePage (nav-model race)", () => {
         pages: model,
       },
       "",
-      new Map(),
     );
     expect(html).toContain("<h1>Racy Page</h1>");
     expect(html).toContain(
