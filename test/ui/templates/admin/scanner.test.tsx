@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -38,10 +39,10 @@ describe("the admin scanner page template", () => {
       DOOR_CACHE_KEY,
     );
 
-    expect(html).toContain("<title>Scanner: Doors</title>");
-    expect(html).toContain('data-scan-path="/admin/groups/5/scan"');
-    expect(html).toContain('action="/admin/groups/5/scan"');
-    expect(html).not.toContain("Scanning a ticket in this group");
+    assertStringIncludes(html, "<title>Scanner: Doors</title>");
+    assertStringIncludes(html, 'data-scan-path="/admin/groups/5/scan"');
+    assertStringIncludes(html, 'action="/admin/groups/5/scan"');
+    assert(!html.includes("Scanning a ticket in this group"));
   });
 
   test("offers the people still to arrive with their summed places", () => {
@@ -57,11 +58,11 @@ describe("the admin scanner page template", () => {
       DOOR_CACHE_KEY,
     );
 
-    expect(html).toContain("2 tickets available");
-    expect(html).toContain('data-name="Ada"');
-    expect(html).toContain('data-quantity="2"');
-    expect(html).toContain('data-attendee-id="41"');
-    expect(html).toContain('data-name="Sam"');
+    assertStringIncludes(html, "2 tickets available");
+    assertStringIncludes(html, 'data-name="Ada"');
+    assertStringIncludes(html, 'data-quantity="2"');
+    assertStringIncludes(html, 'data-attendee-id="41"');
+    assertStringIncludes(html, 'data-name="Sam"');
   });
 
   test("tells two people with the same name apart by their day and listing", () => {
@@ -90,13 +91,13 @@ describe("the admin scanner page template", () => {
     // Same name and the same number of places: only the day, and on a
     // multi-listing door the listing, tells the two picks apart, so the
     // roster shows it beside the name.
-    expect(html).toContain("Ada (2 tickets) — Camping · 12 Jun");
-    expect(html).toContain("Ada (2 tickets) — Workshop · 14 Jun");
-    expect(html).toContain('data-detail="Camping · 12 Jun"');
+    assertStringIncludes(html, "Ada (2 tickets) — Camping · 12 Jun");
+    assertStringIncludes(html, "Ada (2 tickets) — Workshop · 14 Jun");
+    assertStringIncludes(html, 'data-detail="Camping · 12 Jun"');
     // The pick list searches what it shows; it no longer offers the ticket
     // token, which the roster stopped carrying.
-    expect(html).toContain("Search by name, day, or listing");
-    expect(html).not.toContain("ticket token");
+    assertStringIncludes(html, "Search by name, day, or listing");
+    assert(!html.includes("ticket token"));
   });
 
   test("joins a several-place pick's details into one searchable line", () => {
@@ -116,7 +117,7 @@ describe("the admin scanner page template", () => {
       DOOR_CACHE_KEY,
     );
 
-    expect(html).toContain('data-detail="Camping, 12 Jun"');
+    assertStringIncludes(html, 'data-detail="Camping, 12 Jun"');
   });
 
   test("escapes a pick's name and day once, so the search reads the real words", () => {
@@ -136,12 +137,13 @@ describe("the admin scanner page template", () => {
       DOOR_CACHE_KEY,
     );
 
-    expect(html).toContain('data-name="Ada &amp; Bo"');
-    expect(html).toContain('data-detail="Tom &amp; Jerry &lt;Show&gt;"');
-    expect(html).toContain(
+    assertStringIncludes(html, 'data-name="Ada &amp; Bo"');
+    assertStringIncludes(html, 'data-detail="Tom &amp; Jerry &lt;Show&gt;"');
+    assertStringIncludes(
+      html,
       "Ada &amp; Bo (1 ticket) — Tom &amp; Jerry &lt;Show&gt;",
     );
-    expect(html).not.toContain("&amp;amp;");
+    assert(!html.includes("&amp;amp;"));
   });
 
   test("says when nobody is left to check in", () => {
@@ -154,7 +156,7 @@ describe("the admin scanner page template", () => {
       DOOR_CACHE_KEY,
     );
 
-    expect(html).toContain("No tickets to check in");
+    assertStringIncludes(html, "No tickets to check in");
   });
 
   test("carries the door's cache key for the device, once", () => {
@@ -183,7 +185,7 @@ describe("the admin scanner page template", () => {
       DOOR_CACHE_KEY,
     );
 
-    expect(html).toContain("1 ticket available");
+    assertStringIncludes(html, "1 ticket available");
   });
 
   test("carries the check-every-listing warning as an alert, with no way to change it at the door", () => {
@@ -197,13 +199,14 @@ describe("the admin scanner page template", () => {
       true,
       DOOR_CACHE_KEY,
     );
-    expect(warned).toContain('role="alert"');
-    expect(warned).toContain(
+    assertStringIncludes(warned, 'role="alert"');
+    assertStringIncludes(
+      warned,
       "Scanning a ticket in this group will check in ALL of the attendee's booked listings in that group",
     );
     // The warning states the rule; it must not offer to change it at the door.
-    expect(warned).not.toContain('name="scan_checks_in_all_listings"');
-    expect(warned).not.toContain('action="/admin/groups/5/scanner"');
+    assert(!warned.includes('name="scan_checks_in_all_listings"'));
+    assert(!warned.includes('action="/admin/groups/5/scanner"'));
 
     const quiet = adminScannerPage(
       { name: "Doors" },
@@ -213,7 +216,7 @@ describe("the admin scanner page template", () => {
       false,
       DOOR_CACHE_KEY,
     );
-    expect(quiet).not.toContain("Scanning a ticket in this group");
+    assert(!quiet.includes("Scanning a ticket in this group"));
   });
 
   test("carries every check-in message both checking paths read", () => {
@@ -323,48 +326,50 @@ describe("the admin scanner page template", () => {
     );
     // The two asks the door puts before it admits: a forced or ID-checked
     // check-in, and how many tickets a multi-place booking admits.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'class="scanner-overlay hidden" id="scanner-confirm"',
     );
-    expect(html).toContain('class="scanner-overlay-backdrop"');
-    expect(html).toContain('class="scanner-overlay-box"');
-    expect(html).toContain('id="scanner-confirm-close"');
-    expect(html).toContain('id="scanner-confirm-message"');
+    assertStringIncludes(html, 'class="scanner-overlay-backdrop"');
+    assertStringIncludes(html, 'class="scanner-overlay-box"');
+    assertStringIncludes(html, 'id="scanner-confirm-close"');
+    assertStringIncludes(html, 'id="scanner-confirm-message"');
     expect(times(html, 'class="scanner-confirm-actions"')).toBe(2);
-    expect(html).toContain('id="scanner-confirm-yes"');
-    expect(html).toContain('id="scanner-confirm-no"');
-    expect(html).toContain(
+    assertStringIncludes(html, 'id="scanner-confirm-yes"');
+    assertStringIncludes(html, 'id="scanner-confirm-no"');
+    assertStringIncludes(
+      html,
       'class="scanner-overlay hidden" id="scanner-quantity"',
     );
-    expect(html).toContain('id="scanner-start"');
+    assertStringIncludes(html, 'id="scanner-start"');
     // The camera hole and status line the scanner script starts from, and
     // the quantity ask's controls.
-    expect(html).toContain('id="scanner-container"');
-    expect(html).toContain('id="scanner-video"');
-    expect(html).toContain('id="scanner-status"');
-    expect(html).toContain('id="scanner-quantity-message"');
-    expect(html).toContain('for="scanner-quantity-select"');
-    expect(html).toContain('id="scanner-quantity-select"');
-    expect(html).toContain('id="scanner-quantity-confirm"');
-    expect(html).toContain('id="scanner-quantity-cancel"');
+    assertStringIncludes(html, 'id="scanner-container"');
+    assertStringIncludes(html, 'id="scanner-video"');
+    assertStringIncludes(html, 'id="scanner-status"');
+    assertStringIncludes(html, 'id="scanner-quantity-message"');
+    assertStringIncludes(html, 'for="scanner-quantity-select"');
+    assertStringIncludes(html, 'id="scanner-quantity-select"');
+    assertStringIncludes(html, 'id="scanner-quantity-confirm"');
+    assertStringIncludes(html, 'id="scanner-quantity-cancel"');
     // The /admin/ route is the home section's own landing link, so the nav
     // highlights it.
-    expect(html).toContain('<a class="active" href="/admin/">Home</a>');
+    assertStringIncludes(html, '<a class="active" href="/admin/">Home</a>');
 
     // The manual pick-up form.
-    expect(html).toContain('id="manual-checkin"');
-    expect(html).toContain('method="POST"');
-    expect(html).toContain('name="csrf_token"');
-    expect(html).toContain('for="manual-checkin-input"');
-    expect(html).toContain('class="combobox"');
-    expect(html).toContain('id="manual-checkin-attendee-id"');
-    expect(html).toContain('name="attendee_id"');
-    expect(html).toContain('autocomplete="off"');
-    expect(html).toContain('id="manual-checkin-input"');
-    expect(html).toContain('type="text"');
-    expect(html).toContain('class="combobox-list hidden"');
-    expect(html).toContain('id="ticket-options"');
-    expect(html).toContain('id="manual-checkin-status"');
+    assertStringIncludes(html, 'id="manual-checkin"');
+    assertStringIncludes(html, 'method="POST"');
+    assertStringIncludes(html, 'name="csrf_token"');
+    assertStringIncludes(html, 'for="manual-checkin-input"');
+    assertStringIncludes(html, 'class="combobox"');
+    assertStringIncludes(html, 'id="manual-checkin-attendee-id"');
+    assertStringIncludes(html, 'name="attendee_id"');
+    assertStringIncludes(html, 'autocomplete="off"');
+    assertStringIncludes(html, 'id="manual-checkin-input"');
+    assertStringIncludes(html, 'type="text"');
+    assertStringIncludes(html, 'class="combobox-list hidden"');
+    assertStringIncludes(html, 'id="ticket-options"');
+    assertStringIncludes(html, 'id="manual-checkin-status"');
     // Two hidden fields: the form's own code, and the chosen person's
     // ticket; plus the three plainly hidden boxes the script reveals (the
     // overlays carry their hidden state inside a two-class attribute).
@@ -372,7 +377,7 @@ describe("the admin scanner page template", () => {
     expect(times(html, 'class="hidden"')).toBe(3);
 
     // The way out to the guide.
-    expect(html).toContain('href="/admin/guide#checkin"');
+    assertStringIncludes(html, 'href="/admin/guide#checkin"');
   });
 });
 
@@ -389,12 +394,12 @@ describe("the admin scanner doors page template", () => {
       listingDoors: [{ name: "Ceilidh", path: "/admin/listings/3/scan" }],
     });
 
-    expect(html).toContain("<title>Scanner doors</title>");
-    expect(html).toContain(t("admin.scanner.doors_intro"));
-    expect(html).toContain(t("terms.listings"));
-    expect(html).toContain(t("terms.groups"));
-    expect(html).toContain('href="/admin/listings/3/scan">Ceilidh</a>');
-    expect(html).toContain('href="/admin/groups/7/scan">Winter Social</a>');
+    assertStringIncludes(html, "<title>Scanner doors</title>");
+    assertStringIncludes(html, t("admin.scanner.doors_intro"));
+    assertStringIncludes(html, t("terms.listings"));
+    assertStringIncludes(html, t("terms.groups"));
+    assertStringIncludes(html, 'href="/admin/listings/3/scan">Ceilidh</a>');
+    assertStringIncludes(html, 'href="/admin/groups/7/scan">Winter Social</a>');
     // The listings section is announced before the groups section.
     expect(html.indexOf(t("terms.listings"))).toBeLessThan(
       html.indexOf(t("terms.groups")),
@@ -407,10 +412,10 @@ describe("the admin scanner doors page template", () => {
       listingDoors: [{ name: "Ceilidh", path: "/admin/listings/3/scan" }],
     });
 
-    expect(html).toContain(t("terms.listings"));
-    expect(html).toContain('href="/admin/listings/3/scan">Ceilidh</a>');
+    assertStringIncludes(html, t("terms.listings"));
+    assertStringIncludes(html, 'href="/admin/listings/3/scan">Ceilidh</a>');
     // An empty heading would promise a link that is not there.
-    expect(html).not.toContain(t("terms.groups"));
+    assert(!html.includes(t("terms.groups")));
   });
 
   test("lists the group doors alone when no listing has a door", () => {
@@ -419,9 +424,9 @@ describe("the admin scanner doors page template", () => {
       listingDoors: [],
     });
 
-    expect(html).toContain(t("terms.groups"));
-    expect(html).toContain('href="/admin/groups/7/scan">Winter Social</a>');
-    expect(html).not.toContain(t("terms.listings"));
+    assertStringIncludes(html, t("terms.groups"));
+    assertStringIncludes(html, 'href="/admin/groups/7/scan">Winter Social</a>');
+    assert(!html.includes(t("terms.listings")));
   });
 
   test("says when there are no doors yet", () => {
@@ -430,13 +435,13 @@ describe("the admin scanner doors page template", () => {
       listingDoors: [],
     });
 
-    expect(html).toContain(t("admin.scanner.doors_empty"));
-    expect(html).not.toContain(t("terms.listings"));
-    expect(html).not.toContain(t("terms.groups"));
+    assertStringIncludes(html, t("admin.scanner.doors_empty"));
+    assert(!html.includes(t("terms.listings")));
+    assert(!html.includes(t("terms.groups")));
     // A door's path always ends in "/scan"; the empty doors page links to no
     // door (the nav's own /admin/scanner route is not a door).
-    expect(html).not.toContain('href="/admin/listing/');
-    expect(html).not.toContain('href="/admin/groups/');
+    assert(!html.includes('href="/admin/listing/'));
+    assert(!html.includes('href="/admin/groups/'));
   });
 
   test("the nav links a scanner back to the doors list", () => {
@@ -445,8 +450,8 @@ describe("the admin scanner doors page template", () => {
     const html = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "scanner" } }),
     );
-    expect(html).toContain('href="/admin/scanner"');
-    expect(html).toContain(">Scanner</a>");
+    assertStringIncludes(html, 'href="/admin/scanner"');
+    assertStringIncludes(html, ">Scanner</a>");
   });
 
   test("the nav offers the doors list to a scanner login only", () => {
@@ -456,7 +461,7 @@ describe("the admin scanner doors page template", () => {
       const html = String(
         AdminNav({ active: "/admin/", session: { adminLevel } }),
       );
-      expect(html).not.toContain('href="/admin/scanner"');
+      assert(!html.includes('href="/admin/scanner"'));
     }
   });
 });

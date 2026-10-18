@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BuiltSite } from "#db/built-sites/types.ts";
@@ -50,21 +51,21 @@ const editorContent = (html: string): string => {
 describe("SupportMessagePanel", () => {
   test("shows the Markdown editor holding the current value", () => {
     const html = panelHtml({ ok: true, value: "# Ring us" });
-    expect(html).toContain('class="prose"');
-    expect(html).toContain('action="/admin/built-sites/1/support-message"');
-    expect(html).toContain('name="support_message"');
-    expect(html).toContain("data-markdown-preview");
+    assertStringIncludes(html, 'class="prose"');
+    assertStringIncludes(html, 'action="/admin/built-sites/1/support-message"');
+    assertStringIncludes(html, 'name="support_message"');
+    assertStringIncludes(html, "data-markdown-preview");
     // The stored limit is UTF-8 bytes, which a character maxlength cannot
     // express, so the panel states it instead.
-    expect(html).toContain("at most 2,048 bytes");
-    expect(html).toContain('class="hint"');
+    assertStringIncludes(html, "at most 2,048 bytes");
+    assertStringIncludes(html, 'class="hint"');
     expect(editorContent(html)).toBe("# Ring us");
-    expect(html).toContain("Save support message");
+    assertStringIncludes(html, "Save support message");
   });
 
   test("shows an empty editor when no value is set", () => {
     const html = panelHtml({ ok: true, value: null });
-    expect(html).toContain('name="support_message"');
+    assertStringIncludes(html, 'name="support_message"');
     expect(editorContent(html)).toBe("");
   });
 
@@ -80,8 +81,8 @@ describe("SupportMessagePanel", () => {
       error: "Read support message failed (401): Authentication is required.",
       ok: false,
     });
-    expect(html).toContain("The support message could not be read");
-    expect(html).not.toContain('name="support_message"');
+    assertStringIncludes(html, "The support message could not be read");
+    assert(!html.includes('name="support_message"'));
   });
   test("keeps a refused save's draft beside the read failure", async () => {
     const html = await withRequestContext(() => {
@@ -93,8 +94,8 @@ describe("SupportMessagePanel", () => {
         ok: false,
       });
     });
-    expect(html).toContain("The support message could not be read");
-    expect(html).toContain('name="support_message"');
+    assertStringIncludes(html, "The support message could not be read");
+    assertStringIncludes(html, 'name="support_message"');
     expect(editorContent(html)).toBe("# Draft kept through the outage");
   });
 
@@ -111,7 +112,7 @@ describe("SupportMessagePanel", () => {
   test("renders the message as Markdown with no form while read-only", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = panelHtml({ ok: true, value: "# Quiet hours" });
-    expect(html).toContain("<h1>Quiet hours</h1>");
-    expect(html).not.toContain('name="support_message"');
+    assertStringIncludes(html, "<h1>Quiet hours</h1>");
+    assert(!html.includes('name="support_message"'));
   });
 });

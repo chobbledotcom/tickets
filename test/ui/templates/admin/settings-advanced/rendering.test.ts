@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
@@ -21,13 +21,15 @@ describe("admin advanced settings rendering contracts", () => {
     );
 
   test("marks the advanced settings route as active", () => {
-    expect(render()).toContain(
+    assertStringIncludes(
+      render(),
       '<a class="active" href="/admin/settings-advanced">',
     );
   });
 
   test("renders the scheduled maintenance section with its prose class", () => {
-    expect(render()).toContain(
+    assertStringIncludes(
+      render(),
       '<article class="prose"><h2>Scheduled maintenance</h2>',
     );
   });
@@ -35,22 +37,23 @@ describe("admin advanced settings rendering contracts", () => {
   test("shows the configured scheduled maintenance key as code", () => {
     const html = render({ scheduledTaskKey: "scheduled-secret" });
 
-    expect(html).toContain("<code>scheduled-secret</code>");
-    expect(html).not.toContain(
-      "No scheduled maintenance key is set on this site.",
-    );
+    assertStringIncludes(html, "<code>scheduled-secret</code>");
+    assert(!html.includes("No scheduled maintenance key is set on this site."));
   });
 
   test("shows the unset message when no scheduled maintenance key exists", () => {
     const html = render();
 
-    expect(html).toContain("No scheduled maintenance key is set on this site.");
+    assertStringIncludes(
+      html,
+      "No scheduled maintenance key is set on this site.",
+    );
   });
 
   test("renders the reset form with its exact action and id", () => {
     const html = render();
 
-    expect(html).toContain('action="/admin/settings/reset-database"');
-    expect(html).toContain('id="settings-reset-database"');
+    assertStringIncludes(html, 'action="/admin/settings/reset-database"');
+    assertStringIncludes(html, 'id="settings-reset-database"');
   });
 });

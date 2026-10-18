@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
@@ -87,24 +88,25 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<th>Field</th><th>Keep current: Target Person</th><th>Use source: Source Person</th>",
     );
-    expect(html).toContain('<th scope="row">Name</th>');
-    expect(html).toContain(
+    assertStringIncludes(html, '<th scope="row">Name</th>');
+    assertStringIncludes(
+      html,
       '<input checked name="pii_name" type="radio" value="target"> Target &lt;script&gt;name&lt;/script&gt;',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="pii_name" type="radio" value="source"> Source &lt;strong&gt;name&lt;/strong&gt;',
     );
-    expect(html).not.toContain("<script>name</script>");
-    expect(html).not.toContain("<strong>name</strong>");
-    expect(html).toContain('<th scope="row">Address</th>');
-    expect(html).toContain('<span style="white-space:pre-wrap">—</span>');
-    expect(html).toContain('<span class="muted">(same)</span>');
-    expect(html).not.toContain(
-      'name="pii_address" type="radio" value="source"',
-    );
+    assert(!html.includes("<script>name</script>"));
+    assert(!html.includes("<strong>name</strong>"));
+    assertStringIncludes(html, '<th scope="row">Address</th>');
+    assertStringIncludes(html, '<span style="white-space:pre-wrap">—</span>');
+    assertStringIncludes(html, '<span class="muted">(same)</span>');
+    assert(!html.includes('name="pii_address" type="radio" value="source"'));
   });
 
   test("renders every required choice for a conflicting answer", () => {
@@ -124,17 +126,21 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<fieldset class="listing-section"><legend>Custom Question Answers</legend>',
     );
-    expect(html).toContain('<th scope="row">Favourite colour?</th>');
-    expect(html).toContain(
+    assertStringIncludes(html, '<th scope="row">Favourite colour?</th>');
+    assertStringIncludes(
+      html,
       '<input checked name="answer_10" type="radio" value="target"> Red',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="answer_10" type="radio" value="source"> Blue',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="answer_10" type="radio" value="clear"> None',
     );
   });
@@ -165,20 +171,24 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<span class="muted">Target kept (target, kept automatically)</span>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<span class="muted">Source kept (source, kept automatically)</span>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<thead><tr><th>Question</th><th>Status</th></tr></thead>",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<tr><th scope="row">Source answer?</th><td><span class="muted">Source kept (source, kept automatically)</span></td></tr>',
     );
-    expect(html).not.toContain('name="answer_11"');
-    expect(html).not.toContain('name="answer_12"');
+    assert(!html.includes('name="answer_11"'));
+    assert(!html.includes('name="answer_12"'));
   });
 
   test("renders booking conflicts and paid money controls", () => {
@@ -216,45 +226,55 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<th>Listing</th><th>Date</th><th>Source (qty)</th><th>Status</th><th>Decision</th>",
     );
-    expect(html).toContain("2–3 February 2027");
-    expect(html).toContain(
+    assertStringIncludes(html, "2–3 February 2027");
+    assertStringIncludes(
+      html,
       "<strong>Duplicate</strong> Current quantity: 5. Source quantity: 2.",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input checked name="booking_' +
         paidKey +
         '" type="radio" value="keep_target"> Keep current booking',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="booking_' +
         paidKey +
         '" type="radio" value="take_source"> Use source booking',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="booking_' +
         paidKey +
         '" type="radio" value="skip_source"> Skip source booking',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `Source payment: ${formatCurrency(1234)}. Current payment: ${formatCurrency(567)}.`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input name="money_${paidKey}" type="radio" value="credit"> Keep it as credit for this person`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input name="money_${paidKey}" type="radio" value="writeoff"> Write it off`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<strong>Conflicting metadata</strong> Current quantity: 1. Source quantity: 3.",
     );
-    expect(html).not.toContain('name="money_8:null:0:0"');
-    expect(html).toContain(
+    assert(!html.includes('name="money_8:null:0:0"'));
+    assertStringIncludes(
+      html,
       '<tr><td>Listing #9</td><td>—</td><td>1</td><td><span class="muted">Will be moved</span></td><td></td></tr>',
     );
-    expect(html).not.toContain('name="booking_9:null:0:0"');
+    assert(!html.includes('name="booking_9:null:0:0"'));
   });
 
   test("omits decision columns when every booking can move", () => {
@@ -271,11 +291,11 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    expect(html).toContain("Listing #15");
-    expect(html).toContain('<span class="muted">Will be moved</span>');
-    expect(html).not.toContain("<th>Decision</th>");
-    expect(html).not.toContain('name="booking_15:null:0:0"');
-    expect(html).not.toContain("Custom Question Answers");
+    assertStringIncludes(html, "Listing #15");
+    assertStringIncludes(html, '<span class="muted">Will be moved</span>');
+    assert(!html.includes("<th>Decision</th>"));
+    assert(!html.includes('name="booking_15:null:0:0"'));
+    assert(!html.includes("Custom Question Answers"));
   });
 
   test("fails clearly when a conflict has no target booking", () => {

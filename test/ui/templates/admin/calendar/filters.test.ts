@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { calendarAttendee, calendarDate, calendarHtml } from "./helpers.ts";
@@ -12,16 +12,16 @@ describe("adminCalendarPage filters", () => {
 
   test("links inactive agent options to the attendee list", () => {
     const html = calendarHtml({ agents });
-    expect(html).toContain('href="/admin/calendar?agent=5#attendees"');
-    expect(html).toContain('href="/admin/calendar?agent=none#attendees"');
+    assertStringIncludes(html, 'href="/admin/calendar?agent=5#attendees"');
+    assertStringIncludes(html, 'href="/admin/calendar?agent=none#attendees"');
   });
 
   test("shows the active agent as plain text", () => {
     const html = calendarHtml({ agentFilter: 5, agents });
-    expect(html).toContain("<strong><u>Jamie Doe</u></strong>");
-    expect(html).not.toContain('href="/admin/calendar?agent=5#attendees"');
-    expect(html).toContain('href="/admin/calendar#attendees"');
-    expect(html).toContain('href="/admin/calendar?agent=none#attendees"');
+    assertStringIncludes(html, "<strong><u>Jamie Doe</u></strong>");
+    assert(!html.includes('href="/admin/calendar?agent=5#attendees"'));
+    assertStringIncludes(html, 'href="/admin/calendar#attendees"');
+    assertStringIncludes(html, 'href="/admin/calendar?agent=none#attendees"');
   });
 
   test("keeps the selected date when the agent changes but drops the viewed month", () => {
@@ -31,8 +31,12 @@ describe("adminCalendarPage filters", () => {
       dateFilter: "2026-03-15",
       viewMonth: "2026-08",
     });
-    expect(html).toContain('href="/admin/calendar?date=2026-03-15#attendees"');
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
+      'href="/admin/calendar?date=2026-03-15#attendees"',
+    );
+    assertStringIncludes(
+      html,
       'href="/admin/calendar?date=2026-03-15&agent=none#attendees"',
     );
   });
@@ -46,18 +50,22 @@ describe("adminCalendarPage filters", () => {
       dateFilter: "2026-03-15",
       viewMonth: "2026-08",
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'href="/admin/calendar?date=2026-08-16&amp;agent=5#attendees"',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'href="/admin/calendar?date=2026-03-15&amp;agent=5&amp;cal=2026-07#calendar"',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'href="/admin/calendar/export?date=2026-03-15&amp;agent=5"',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'name="return_url" type="hidden" value="/admin/calendar?date=2026-03-15&amp;agent=5#attendees"',
     );
-    expect(html).toContain('value="/admin/calendar#attendees"');
+    assertStringIncludes(html, 'value="/admin/calendar#attendees"');
   });
 });

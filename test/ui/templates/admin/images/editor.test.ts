@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -23,8 +24,9 @@ describeWithEnv("editor listing images", { db: true, storage: "cdn" }, () => {
     );
     const html = await response.text();
     expect(response.status).toBe(200);
-    expect(html).toContain(`action="/admin/listing/${listing.id}/images"`);
-    expect(html).toContain(
+    assertStringIncludes(html, `action="/admin/listing/${listing.id}/images"`);
+    assertStringIncludes(
+      html,
       `action="/admin/listing/${listing.id}/images/upload"`,
     );
   });

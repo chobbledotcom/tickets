@@ -1,3 +1,5 @@
+/* jscpd:ignore-start -- imports */
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -25,6 +27,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+/* jscpd:ignore-end */
 
 const makePage = (name: string, slug: string) =>
   createTestSitePage(slug, { name });
@@ -118,7 +121,10 @@ describeWithEnv(
           200,
         );
         // The panel's set form posts back to the images route.
-        expect(html).toContain(`action="/admin/site/pages/${page.id}/images"`);
+        assertStringIncludes(
+          html,
+          `action="/admin/site/pages/${page.id}/images"`,
+        );
       });
     });
 
@@ -140,7 +146,7 @@ describeWithEnv(
           ),
           200,
         );
-        expect(html).toContain(`value="page:${page.id}"`);
+        assertStringIncludes(html, `value="page:${page.id}"`);
 
         // Saving with the page target linked persists it.
         const response = await handleRequest(
@@ -183,7 +189,7 @@ describeWithEnv(
           ),
           200,
         );
-        expect(html).not.toContain(`value="page:${page.id}"`);
+        assert(!html.includes(`value="page:${page.id}"`));
 
         const saveResponse = await handleRequest(
           formRequest(

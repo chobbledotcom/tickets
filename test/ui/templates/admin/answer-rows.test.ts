@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type {
@@ -296,13 +297,15 @@ describe("AttendeeAnswersTable", () => {
         }),
       ),
     );
-    expect(html).toContain("Answers");
-    expect(html).toContain("Shirt size?");
-    expect(html).toContain(">Small<br>");
-    expect(html).toContain(
+    assertStringIncludes(html, "Answers");
+    assertStringIncludes(html, "Shirt size?");
+    assertStringIncludes(html, ">Small<br>");
+    assertStringIncludes(
+      html,
       "<small>Changed. At booking: &quot;Large&quot;.</small>",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<small>Warning: This answer changes the price. The price was not updated.</small>",
     );
   });

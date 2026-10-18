@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { ListingDeactivatedBanner } from "#templates/admin/listings/overview.tsx";
 import {
@@ -18,10 +18,10 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("Thank You URL");
-    expect(html).toContain('value="https://example.com/thanks"');
-    expect(html).toContain("readonly");
-    expect(html).toContain("data-select-on-click");
+    assertStringIncludes(html, "Thank You URL");
+    assertStringIncludes(html, 'value="https://example.com/thanks"');
+    assertStringIncludes(html, "readonly");
+    assertStringIncludes(html, "data-select-on-click");
   });
 
   test("shows public URL with allowed domain", () => {
@@ -30,9 +30,9 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("Public URL");
-    expect(html).toContain('href="https://example.com/ticket/ab12c"');
-    expect(html).toContain("example.com/ticket/ab12c");
+    assertStringIncludes(html, "Public URL");
+    assertStringIncludes(html, 'href="https://example.com/ticket/ab12c"');
+    assertStringIncludes(html, "example.com/ticket/ab12c");
   });
 
   test("shows collapsed embed codes with allowed domain and iframe param", () => {
@@ -41,19 +41,20 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<label class="small-action" for="embed-toggle-1">Embed</label>',
     );
-    expect(html).toContain('class="visually-hidden embed-toggle"');
-    expect(html).toContain('class="embed-code-row"');
-    expect(html).toContain("Embed Script");
-    expect(html).toContain("Embed Iframe");
-    expect(html).toContain("embed.js");
-    expect(html).toContain("data-listings=");
-    expect(html).toContain("https://example.com/ticket/ab12c?iframe=true");
-    expect(html).toContain("height: 600px");
-    expect(html).toContain("loading=");
-    expect(html).toContain("readonly");
+    assertStringIncludes(html, 'class="visually-hidden embed-toggle"');
+    assertStringIncludes(html, 'class="embed-code-row"');
+    assertStringIncludes(html, "Embed Script");
+    assertStringIncludes(html, "Embed Iframe");
+    assertStringIncludes(html, "embed.js");
+    assertStringIncludes(html, "data-listings=");
+    assertStringIncludes(html, "https://example.com/ticket/ab12c?iframe=true");
+    assertStringIncludes(html, "height: 600px");
+    assertStringIncludes(html, "loading=");
+    assertStringIncludes(html, "readonly");
   });
 
   test("iframe embed is a plain iframe without resizer scripts", () => {
@@ -62,7 +63,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    expect(html).not.toContain("iframeResize");
+    assert(!html.includes("iframeResize"));
   });
 
   test("renders empty attendees state", () => {
@@ -71,7 +72,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("No attendees yet");
+    assertStringIncludes(html, "No attendees yet");
   });
 
   test("renders attendees table", () => {
@@ -81,8 +82,8 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    expect(html).toContain("John Doe");
-    expect(html).toContain("john@example.com");
+    assertStringIncludes(html, "John Doe");
+    assertStringIncludes(html, "john@example.com");
   });
 
   test("escapes attendee data", () => {
@@ -92,7 +93,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    expect(html).toContain("&lt;script&gt;");
+    assertStringIncludes(html, "&lt;script&gt;");
   });
 
   test("includes back link", () => {
@@ -101,7 +102,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("/admin/");
+    assertStringIncludes(html, "/admin/");
   });
 
   test("shows phone column when attendee has phone", () => {
@@ -111,8 +112,8 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    expect(html).toContain("<th>Phone</th>");
-    expect(html).toContain("+1 555 123 4567");
+    assertStringIncludes(html, "<th>Phone</th>");
+    assertStringIncludes(html, "+1 555 123 4567");
   });
 
   test("hides phone column when no attendees have phone", () => {
@@ -122,7 +123,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    expect(html).not.toContain("<th>Phone</th>");
+    assert(!html.includes("<th>Phone</th>"));
   });
 
   test("hides email column when no attendees have email", () => {
@@ -132,8 +133,8 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    expect(html).toContain("John Doe");
-    expect(html).not.toContain("<th>Email</th>");
+    assertStringIncludes(html, "John Doe");
+    assert(!html.includes("<th>Email</th>"));
   });
 
   test("shows danger-text class when near capacity", () => {
@@ -146,8 +147,8 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing: nearFullListing,
     });
-    expect(html).toContain('class="danger-text"');
-    expect(html).toContain("9 remain");
+    assertStringIncludes(html, 'class="danger-text"');
+    assertStringIncludes(html, "9 remain");
   });
 
   test("does not show danger-text class when not near capacity", () => {
@@ -156,20 +157,21 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    expect(html).not.toContain('class="danger-text"');
+    assert(!html.includes('class="danger-text"'));
   });
 
   test("shows deactivated alert for inactive listings", () => {
     const html = String(ListingDeactivatedBanner({ active: false }));
-    expect(html).toContain('class="error"');
-    expect(html).toContain("This listing is deactivated and cannot be booked");
+    assertStringIncludes(html, 'class="error"');
+    assertStringIncludes(
+      html,
+      "This listing is deactivated and cannot be booked",
+    );
   });
 
   test("does not show deactivated alert for active listings", () => {
     const html = String(ListingDeactivatedBanner({ active: true }));
-    expect(html).not.toContain(
-      "This listing is deactivated and cannot be booked",
-    );
+    assert(!html.includes("This listing is deactivated and cannot be booked"));
   });
 
   test("shows ticket column header", () => {
@@ -178,7 +180,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("<th>Ticket</th>");
+    assertStringIncludes(html, "<th>Ticket</th>");
   });
 
   test("shows ticket token as link to public ticket URL", () => {
@@ -188,8 +190,8 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    expect(html).toContain('href="https://mysite.com/t/abc123"');
-    expect(html).toContain("abc123");
+    assertStringIncludes(html, 'href="https://mysite.com/t/abc123"');
+    assertStringIncludes(html, "abc123");
   });
 
   test("renders empty date cell for attendee without date on daily listing", () => {
@@ -203,7 +205,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing: dailyListing,
     });
-    expect(html).toContain("<th>Date</th>");
+    assertStringIncludes(html, "<th>Date</th>");
   });
 
   test("shows unlimited booking window when maximum_days_after is 0", () => {
@@ -216,7 +218,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing: dailyListing,
     });
-    expect(html).toContain("unlimited");
+    assertStringIncludes(html, "unlimited");
   });
 
   test("shows numeric booking window when maximum_days_after is nonzero", () => {
@@ -229,8 +231,8 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing: dailyListing,
     });
-    expect(html).toContain("to 30 days");
-    expect(html).not.toContain("unlimited");
+    assertStringIncludes(html, "to 30 days");
+    assert(!html.includes("unlimited"));
   });
 
   test("shows danger-text for daily listing at capacity with date filter", () => {
@@ -246,8 +248,8 @@ describe("adminListingPage roster and attendees", () => {
       dateFilter: "2026-03-15",
       listing: dailyListing,
     });
-    expect(html).toContain('class="danger-text"');
-    expect(html).toContain("0 remain");
+    assertStringIncludes(html, 'class="danger-text"');
+    assertStringIncludes(html, "0 remain");
   });
 
   test("shows danger-text on the total count for a near-capacity daily listing without a date filter", () => {
@@ -261,7 +263,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing: dailyListing,
     });
-    expect(html).toContain('class="danger-text">91<');
+    assertStringIncludes(html, 'class="danger-text">91<');
   });
 });
 
@@ -278,7 +280,7 @@ describe("adminListingPage optional fields", () => {
       attendees: [],
       listing,
     });
-    expect(html).not.toContain("Thank You URL");
+    assert(!html.includes("Thank You URL"));
   });
 
   test("shows webhook URL in copyable input when present", () => {
@@ -291,9 +293,9 @@ describe("adminListingPage optional fields", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("Webhook URL");
-    expect(html).toContain('value="https://hooks.example.com/notify"');
-    expect(html).toContain("readonly");
+    assertStringIncludes(html, "Webhook URL");
+    assertStringIncludes(html, 'value="https://hooks.example.com/notify"');
+    assertStringIncludes(html, "readonly");
   });
 
   test("hides embed rows for a child listing", () => {
@@ -304,8 +306,8 @@ describe("adminListingPage optional fields", () => {
       listing,
       publicPage: "child",
     });
-    expect(html).not.toContain(`embed-script-${listing.id}`);
-    expect(html).not.toContain(`embed-iframe-${listing.id}`);
+    assert(!html.includes(`embed-script-${listing.id}`));
+    assert(!html.includes(`embed-iframe-${listing.id}`));
   });
 });
 
@@ -322,8 +324,8 @@ describe("adminListingPage listing date and location", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("Listing Date");
-    expect(html).toContain("Monday 15 June 2026 at 15:00 GMT+1");
+    assertStringIncludes(html, "Listing Date");
+    assertStringIncludes(html, "Monday 15 June 2026 at 15:00 GMT+1");
   });
 
   test("does not show Listing Date row when date is empty", () => {
@@ -333,7 +335,7 @@ describe("adminListingPage listing date and location", () => {
       attendees: [],
       listing,
     });
-    expect(html).not.toContain("Listing Date");
+    assert(!html.includes("Listing Date"));
   });
 
   test("shows Location row when listing has a location", () => {
@@ -346,8 +348,8 @@ describe("adminListingPage listing date and location", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("<th>Location</th>");
-    expect(html).toContain("Village Hall");
+    assertStringIncludes(html, "<th>Location</th>");
+    assertStringIncludes(html, "Village Hall");
   });
 
   test("does not show Location row when location is empty", () => {
@@ -357,7 +359,7 @@ describe("adminListingPage listing date and location", () => {
       attendees: [],
       listing,
     });
-    expect(html).not.toContain("<th>Location</th>");
+    assert(!html.includes("<th>Location</th>"));
   });
 
   test("shows both Listing Date and Location when both are set", () => {
@@ -371,7 +373,7 @@ describe("adminListingPage listing date and location", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("Listing Date");
-    expect(html).toContain("Town Centre");
+    assertStringIncludes(html, "Listing Date");
+    assertStringIncludes(html, "Town Centre");
   });
 });

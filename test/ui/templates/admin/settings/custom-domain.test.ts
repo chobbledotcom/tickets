@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { CustomDomainForm } from "#templates/admin/settings/custom-domain.tsx";
@@ -15,8 +16,11 @@ describe("CustomDomainForm", () => {
         existingPaymentProvider: "stripe",
       }),
     );
-    expect(html).toContain("Changing your domain changes your payment webhook");
-    expect(html).toContain('href="/admin/settings#settings-stripe"');
+    assertStringIncludes(
+      html,
+      "Changing your domain changes your payment webhook",
+    );
+    assertStringIncludes(html, 'href="/admin/settings#settings-stripe"');
   });
 
   test("hides the warning when no provider is configured", () => {
@@ -27,7 +31,7 @@ describe("CustomDomainForm", () => {
         existingPaymentProvider: null,
       }),
     );
-    expect(html).not.toContain("Changing your domain");
+    assert(!html.includes("Changing your domain"));
   });
 
   test("renders all form fields, actions, and hints", () => {
@@ -46,40 +50,48 @@ describe("CustomDomainForm", () => {
     expect(form).not.toBeNull();
     if (form === null) return;
     const formHtml = form[0];
-    expect(formHtml).toContain('id="settings-custom-domain"');
+    assertStringIncludes(formHtml, 'id="settings-custom-domain"');
     // Prose container around the heading
-    expect(html).toContain('class="prose"');
+    assertStringIncludes(html, 'class="prose"');
     // The intro links the guide's buy-a-domain steps
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'The <a href="/admin/guide#custom-domain">setup guide</a> shows you how to point it here',
     );
     const domainInput = formHtml.match(/<input[^>]*name="custom_domain"[^>]*>/);
     expect(domainInput).not.toBeNull();
     if (domainInput === null) return;
-    expect(domainInput[0]).toContain('placeholder="tickets.example.co.uk"');
-    expect(domainInput[0]).toContain('type="text"');
-    expect(domainInput[0]).toContain('value="tickets.example.com"');
+    assertStringIncludes(
+      domainInput[0] ?? "",
+      'placeholder="tickets.example.co.uk"',
+    );
+    assertStringIncludes(domainInput[0] ?? "", 'type="text"');
+    assertStringIncludes(domainInput[0] ?? "", 'value="tickets.example.com"');
     // Guide link
-    expect(html).toContain('href="/admin/guide#custom-domain"');
+    assertStringIncludes(html, 'href="/admin/guide#custom-domain"');
     // Subdomain note (visible when subdomain is set)
-    expect(html).toContain("keeps working at the same time");
+    assertStringIncludes(html, "keeps working at the same time");
     // Validate button (visible when customDomain is set)
-    expect(html).toContain('action="/admin/settings/custom-domain/validate"');
-    expect(html).toContain('id="settings-custom-domain-validate"');
+    assertStringIncludes(
+      html,
+      'action="/admin/settings/custom-domain/validate"',
+    );
+    assertStringIncludes(html, 'id="settings-custom-domain-validate"');
     // Not-yet-validated warning (customDomainLastValidated defaults to "")
-    expect(html).toContain("not yet validated");
+    assertStringIncludes(html, "not yet validated");
     // Numbered CNAME steps with the record values
-    expect(html).toContain("Make one CNAME record like this:");
-    expect(html).toContain("Open the DNS settings for your domain.");
-    expect(html).toContain("Validation can take a few minutes.");
+    assertStringIncludes(html, "Make one CNAME record like this:");
+    assertStringIncludes(html, "Open the DNS settings for your domain.");
+    assertStringIncludes(html, "Validation can take a few minutes.");
     // CNAME record rows: the exact label, value, and one space between them
-    expect(html).toContain("<strong>Type:</strong> CNAME");
-    expect(html).toContain(
+    assertStringIncludes(html, "<strong>Type:</strong> CNAME");
+    assertStringIncludes(
+      html,
       "<strong>Name:</strong> <code>tickets.example.com</code>",
     );
-    expect(html).toContain("<strong>TTL:</strong> 3600");
+    assertStringIncludes(html, "<strong>TTL:</strong> 3600");
     // Last-validated line is hidden when customDomainLastValidated is empty
-    expect(html).not.toContain("Last validated");
+    assert(!html.includes("Last validated"));
   });
 
   test("shows the last validation time beside its label", () => {
@@ -92,10 +104,11 @@ describe("CustomDomainForm", () => {
         customDomainLastValidated: "2026-09-24T17:26:00.000Z",
       }),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<strong>Value:</strong> <code>site.b-cdn.net</code>",
     );
-    expect(html).toContain("Last validated: 2026-09-24T17:26:00.000Z");
+    assertStringIncludes(html, "Last validated: 2026-09-24T17:26:00.000Z");
   });
 
   test("blocks a domain change until provider recovery is complete", () => {
@@ -110,6 +123,6 @@ describe("CustomDomainForm", () => {
     // Both the save and the validate submit buttons are disabled, the same
     // way the host-subdomain register button is.
     expect(html.match(/<button disabled type="submit">/g)?.length).toBe(2);
-    expect(html).toContain("Choose the provider for existing payments");
+    assertStringIncludes(html, "Choose the provider for existing payments");
   });
 });
