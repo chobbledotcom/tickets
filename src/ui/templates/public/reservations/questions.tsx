@@ -2,7 +2,6 @@
  * for each answerable question, with the buyer's submitted value restored on a
  * validation re-render. */
 
-import type { ImageUrls } from "#db/images.ts";
 /* jscpd:ignore-start */
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
@@ -26,21 +25,16 @@ export const renderQuestion = (
   q: QuestionWithAnswers,
   required: boolean,
   listingIds?: string,
-  imageUrls?: ImageUrls,
 ): JSX.Element => {
   const answered = savedFormValue(`question_${q.id}`);
-  return questionControl(
-    q,
-    {
-      isChosen: (answerId) => answered === String(answerId),
-      listingIds,
-      options: q.answers.filter((a) => a.active),
-      placeholder: t("public.ticket.select_answer_placeholder"),
-      required,
-      textValue: answered,
-    },
-    imageUrls,
-  );
+  return questionControl(q, {
+    isChosen: (answerId) => answered === String(answerId),
+    listingIds,
+    options: q.answers.filter((a) => a.active),
+    placeholder: t("public.ticket.select_answer_placeholder"),
+    required,
+    textValue: answered,
+  });
 };
 
 /** A choice question whose answers are all deactivated has nothing selectable, so
@@ -54,18 +48,12 @@ export const answerableQuestion = (q: QuestionWithAnswers): boolean =>
 export const renderQuestions = (
   questions: QuestionWithAnswers[],
   questionListingMap?: QuestionListingMap,
-  imageUrls?: ImageUrls,
 ): JSX.Element => (
   <>
     {questions
       .filter(answerableQuestion)
       .map((q) =>
-        renderQuestion(
-          q,
-          true,
-          questionListingMap?.get(q.id)?.join(" "),
-          imageUrls,
-        ),
+        renderQuestion(q, true, questionListingMap?.get(q.id)?.join(" ")),
       )}
   </>
 );
