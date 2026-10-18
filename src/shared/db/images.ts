@@ -101,20 +101,6 @@ export type ImageUrls = ReadonlyMap<number, string>;
 /** The markdown texts an image-url lookup scans. */
 type ImageUrlTexts = readonly (string | null | undefined)[];
 
-/** The id→uid-URL table for a set of notes, read from their bodies. */
-export const imageUrlsForNotes = async (
-  notes: readonly { note: string }[],
-): Promise<ImageUrls> => imageUrlsFor(notes.map((note) => note.note));
-
-/** The pieces of a rendered ticket page whose markdown can name an image. */
-export type TicketPageTexts = {
-  listings: readonly { listing: { description: string | null } }[];
-  questions: readonly { text: string }[];
-  groupDescription?: string;
-  terms?: string | null;
-  packages: readonly { description: string }[];
-};
-
 /** The read is bounded by the ids the texts actually reference. It runs only
  * when they name any. */
 export const imageUrlsFor = async (
@@ -136,22 +122,6 @@ export const imageUrlsFor = async (
         getImageProxyUrl(row.filename),
       )(await imageUrlColumns.many({}, { where: inList("id", ids) }));
 };
-
-/** The id→uid-URL table for one rendered ticket page's markdown. The texts
- * are the listing descriptions, the question texts, the group description,
- * the terms, and the packages' descriptions. A render-path-only read, bounded
- * by the ids the texts reference. The submit, quote, and API flows never pay
- * it. */
-export const ticketPageImageUrls = (
-  page: TicketPageTexts,
-): Promise<ReadonlyMap<number, string>> =>
-  imageUrlsFor([
-    ...page.listings.map((entry) => entry.listing.description),
-    ...page.questions.map((question) => question.text),
-    page.groupDescription,
-    page.terms,
-    ...page.packages.map((pkg) => pkg.description),
-  ]);
 
 export const getAllImages = (): Promise<Image[]> =>
   imageColumns.many({}, { order: "id DESC" });
