@@ -7,7 +7,6 @@
  * markup lives here once.
  */
 
-import type { ImageUrls } from "#db/images.ts";
 import type {
   Answer,
   QuestionDisplayType,
@@ -71,10 +70,9 @@ const singleControls: Record<
 export const questionControl = (
   q: QuestionWithAnswers,
   view: QuestionControlView,
-  imageUrls?: ImageUrls,
 ): JSX.Element => {
   const name = `question_${q.id}`;
-  const wrapArgs = { imageUrls, listingIds: view.listingIds, q };
+  const wrapArgs = { listingIds: view.listingIds, q };
   const single =
     q.display_type === "radio" ? undefined : singleControls[q.display_type];
   if (single) {

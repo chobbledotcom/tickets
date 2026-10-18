@@ -119,9 +119,6 @@ export const resolvePageDate = (
 export const renderTicketPage = (ctx: TicketCtx, error?: string) =>
   ticketPage({
     ...ctx,
-    // The render-path image-url table. Absent on the submit, quote, and API
-    // flows.
-    ...(ctx.imageUrls !== undefined ? { imageUrls: ctx.imageUrls } : {}),
     // A renewal page prices its tier counts by months per unit, not tickets.
     ...(ctx.siteToken !== undefined ? { renewal: true } : {}),
     ...(error !== undefined ? { error } : {}),

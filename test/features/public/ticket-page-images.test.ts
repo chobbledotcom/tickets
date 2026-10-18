@@ -1,54 +1,70 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ticketPageImageUrls } from "#db/images.ts";
+import { addTicketPageImageUrls } from "#db/images.ts";
+import { renderMarkdown } from "#shared/markdown.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
-describeWithEnv("the ticket page's image-url lookup", { db: true }, () => {
-  test("resolves ids named in the terms and a package description", async () => {
+describeWithEnv("the ticket page's image-url write", { db: true }, () => {
+  test("writes the ids named in the terms and a package description", async () => {
     const poster = await makeImage("Poster");
     const flyer = await makeImage("Flyer");
-    const urls = await ticketPageImageUrls({
-      listings: [],
-      packages: [{ description: `![Flyer](img#${flyer.id})` }],
-      questions: [],
-      terms: `![Poster](img#${poster.id})`,
+    await withRequestContext(async () => {
+      await addTicketPageImageUrls({
+        listings: [],
+        packages: [{ description: `![Flyer](img#${flyer.id})` }],
+        questions: [],
+        terms: `![Poster](img#${poster.id})`,
+      });
+      expect(renderMarkdown(`![Poster](img#${poster.id})`)).toContain(
+        `src="/image/${poster.filename}"`,
+      );
+      expect(renderMarkdown(`![Flyer](img#${flyer.id})`)).toContain(
+        `src="/image/${flyer.filename}"`,
+      );
     });
-    expect(urls.get(poster.id)).toBe(`/image/${poster.filename}`);
-    expect(urls.get(flyer.id)).toBe(`/image/${flyer.filename}`);
   });
 
-  test("reads the other texts when the page sells no packages", async () => {
+  test("writes the other texts when the page sells no packages", async () => {
     const poster = await makeImage("Poster");
-    const urls = await ticketPageImageUrls({
-      listings: [{ listing: { description: `![Poster](img#${poster.id})` } }],
-      packages: [],
-      questions: [],
-      terms: null,
+    await withRequestContext(async () => {
+      await addTicketPageImageUrls({
+        listings: [{ listing: { description: `![Poster](img#${poster.id})` } }],
+        packages: [],
+        questions: [],
+        terms: null,
+      });
+      expect(renderMarkdown(`![Poster](img#${poster.id})`)).toContain(
+        `src="/image/${poster.filename}"`,
+      );
     });
-    expect(urls.get(poster.id)).toBe(`/image/${poster.filename}`);
-    expect(urls.size).toBe(1);
   });
 
-  test("resolves an id named only in a question's text", async () => {
+  test("writes an id named only in a question's text", async () => {
     const poster = await makeImage("Poster");
-    const urls = await ticketPageImageUrls({
-      listings: [],
-      packages: [],
-      questions: [{ text: `![Poster](img#${poster.id})` }],
-      terms: null,
+    await withRequestContext(async () => {
+      await addTicketPageImageUrls({
+        listings: [],
+        packages: [],
+        questions: [{ text: `![Poster](img#${poster.id})` }],
+        terms: null,
+      });
+      expect(renderMarkdown(`![Poster](img#${poster.id})`)).toContain(
+        `src="/image/${poster.filename}"`,
+      );
     });
-    expect(urls.get(poster.id)).toBe(`/image/${poster.filename}`);
-    expect(urls.size).toBe(1);
   });
 
-  test("answers an empty table when no text names an image", async () => {
-    const urls = await ticketPageImageUrls({
-      listings: [{ listing: { description: "plain words" } }],
-      packages: [],
-      questions: [],
-      terms: "also plain",
+  test("writes nothing when no text names an image", async () => {
+    await withRequestContext(async () => {
+      await addTicketPageImageUrls({
+        listings: [{ listing: { description: "plain words" } }],
+        packages: [],
+        questions: [],
+        terms: "also plain",
+      });
+      expect(renderMarkdown("![Poster](img#7)")).toContain('src=""');
     });
-    expect(urls.size).toBe(0);
   });
 });
