@@ -11,17 +11,21 @@ import { defineRoutes } from "#routes/router.ts";
  * the supplied content — no stored data — so widening the role leaks nothing.
  */
 
+import { addPageImageUrls } from "#db/images.ts";
 import { CONTENT_FORM, withAuth } from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 
 const handleMarkdownPreviewPost = (request: Request): Promise<Response> =>
-  withAuth(request, CONTENT_FORM, (_session, form) => {
+  withAuth(request, CONTENT_FORM, async (_session, form) => {
     const content = form.getString("content");
     if (content.length > MAX_TEXTAREA_LENGTH) {
       return htmlResponse("Content too long", 413);
     }
+    // The lookup fills the request's page-image slot first, so an img#N
+    // reference in the buffer renders the image's URL.
+    await addPageImageUrls([content]);
     return htmlResponse(renderMarkdown(content));
   });
 
