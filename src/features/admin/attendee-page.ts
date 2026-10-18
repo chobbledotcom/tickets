@@ -7,7 +7,7 @@
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { hasAssignedBuiltSite } from "#db/built-sites/claims.ts";
-import { imageUrlsForNotes } from "#db/images.ts";
+import { addNoteImageUrls } from "#db/image-urls.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import {
@@ -319,9 +319,9 @@ export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
       attendeeNotes(attendee.id),
       await requireRequestPrivateKey(),
     );
+    await addNoteImageUrls(notes);
     return attendeeBanner({
       attendee,
-      imageUrls: await imageUrlsForNotes(notes),
       isOwner: ctx.session.adminLevel === "owner",
       notes,
       statuses: await attendeeStatuses.getAll(),

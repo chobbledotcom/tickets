@@ -19,7 +19,7 @@ import {
   packageMemberMaps,
   readGroupMembersWith,
 } from "#db/groups.ts";
-import { imageUrlsFor } from "#db/images.ts";
+import { addPageImageUrls } from "#db/image-urls.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import {
   getRefundPaymentReferencesForAttendee,
@@ -409,12 +409,11 @@ interface TemplateDataInput {
   parsed: ParsedAttendeeForm;
 }
 
-/** Assemble the form view model from already-loaded data. The caller builds
- * the question texts' image-url table on top. */
+/** Assemble the form view model from already-loaded data. */
 const assembleTemplateData = (
   input: TemplateDataInput,
   parts: TemplateParts,
-): Omit<AttendeeFormTemplateData, "imageUrls"> => {
+): AttendeeFormTemplateData => {
   const { attendee, mode, opts, parsed } = input;
   const { logistics, orderSummary, pathNames, statuses, warnings } = parts;
   return {
@@ -455,7 +454,9 @@ const assembleTemplateData = (
 
 /** Build the form template data: everything the editable form itself renders
  * (statuses, balance notice, warnings, logistics). It includes nothing the
- * other tabs own (log, ledger, notes, contact history). */
+ * other tabs own (log, ledger, notes, contact history). The question texts
+ * render as markdown, so their img#N references need the id→uid-URL table.
+ * Bounded by the ids the texts reference. */
 export const buildTemplateData = async (
   mode: "create" | "edit",
   parsed: ParsedAttendeeForm,
@@ -466,10 +467,6 @@ export const buildTemplateData = async (
     { attendee, mode, opts, parsed },
     await loadTemplateParts(parsed, attendee),
   );
-  return {
-    ...data,
-    // The question texts render as markdown, so their img#N references need
-    // the id→uid-URL table. Bounded by the ids the texts reference.
-    imageUrls: await imageUrlsFor(data.questions.map((q) => q.text)),
-  };
+  await addPageImageUrls(data.questions.map((q) => q.text));
+  return data;
 };
