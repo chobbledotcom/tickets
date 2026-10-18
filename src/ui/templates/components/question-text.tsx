@@ -4,7 +4,6 @@
  * enough to need a `<div class="prose">` block above the control.
  */
 
-import type { ImageUrls } from "#db/images.ts";
 /* jscpd:ignore-start */
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
@@ -21,9 +20,11 @@ const questionProseId = (q: QuestionWithAnswers): string =>
   `question-${q.id}-prose`;
 
 /** The prose-HTML for a complex question text, wrapped in a styling div that
- * carries the id its control references via `aria-labelledby`. */
-const questionProse = (q: QuestionWithAnswers, imageUrls?: ImageUrls): string =>
-  `<div class="prose" id="${questionProseId(q)}">${renderMarkdown(q.text, imageUrls)}</div>`;
+ * carries the id its control references via `aria-labelledby`. The render
+ * resolves the question text's img#N references through the request's
+ * page-image slot. */
+const questionProse = (q: QuestionWithAnswers): string =>
+  `<div class="prose" id="${questionProseId(q)}">${renderMarkdown(q.text)}</div>`;
 
 /**
  * True when the question text is simple enough to label a control inline
@@ -36,20 +37,11 @@ export const hasSimpleQuestionText = (q: QuestionWithAnswers): boolean =>
  * The question text rendered as JSX-embeddable content: the raw text (auto-
  * escaped by JSX) when simple, or a prose div (Raw HTML) when complex.
  */
-export const questionTextContent = (
-  q: QuestionWithAnswers,
-  imageUrls?: ImageUrls,
-): Child =>
-  hasSimpleQuestionText(q) ? (
-    q.text
-  ) : (
-    <Raw html={questionProse(q, imageUrls)} />
-  );
+export const questionTextContent = (q: QuestionWithAnswers): Child =>
+  hasSimpleQuestionText(q) ? q.text : <Raw html={questionProse(q)} />;
 
-/** What both question wrappers receive: the question, its listing scope, and
- * the image-url table for its markdown text. */
+/** What both question wrappers receive: the question and its listing scope. */
 type QuestionWrapArgs = {
-  imageUrls?: ImageUrls | undefined;
   listingIds?: string | undefined;
   q: QuestionWithAnswers;
 };
@@ -66,7 +58,7 @@ type QuestionWrapArgs = {
  * show/hide them.
  */
 export const questionWrapper = (
-  { imageUrls, listingIds, q }: QuestionWrapArgs,
+  { listingIds, q }: QuestionWrapArgs,
   control: (labelledBy?: string) => JSX.Element,
 ): JSX.Element =>
   hasSimpleQuestionText(q) ? (
@@ -76,7 +68,7 @@ export const questionWrapper = (
     </label>
   ) : (
     <div class="custom-question" data-listing-ids={listingIds}>
-      <Raw html={questionProse(q, imageUrls)} />
+      <Raw html={questionProse(q)} />
       {control(questionProseId(q))}
     </div>
   );
@@ -88,7 +80,7 @@ export const questionWrapper = (
  * radio group stays labelled even without a `<legend>`.
  */
 export const questionFieldset = (
-  { imageUrls, listingIds, q }: QuestionWrapArgs,
+  { listingIds, q }: QuestionWrapArgs,
   controls: JSX.Element[],
 ): JSX.Element =>
   hasSimpleQuestionText(q) ? (
@@ -102,7 +94,7 @@ export const questionFieldset = (
       class="custom-question"
       data-listing-ids={listingIds}
     >
-      {questionTextContent(q, imageUrls)}
+      {questionTextContent(q)}
       {controls}
     </fieldset>
   );

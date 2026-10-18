@@ -147,6 +147,32 @@ export const addPageImageUrls = async (texts: ImageUrlTexts): Promise<void> => {
   mergePageImageUrls(await imageUrlsFor(texts));
 };
 
+/** The pieces of a rendered ticket page whose markdown can name an image. */
+export type TicketPageTexts = {
+  listings: readonly { listing: { description: string | null } }[];
+  questions: readonly { text: string }[];
+  groupDescription?: string;
+  terms?: string | null;
+  packages: readonly { description: string }[];
+};
+
+/** Write one ticket page's img#N table into the request's page-image slot.
+ * The lookup is one bounded batch over the listing descriptions, the question
+ * texts, the group description, the terms, and the packages' descriptions.
+ * The submit, quote, and API flows never call it. */
+export const addTicketPageImageUrls = async (
+  page: TicketPageTexts,
+): Promise<void> =>
+  mergePageImageUrls(
+    await imageUrlsFor([
+      ...page.listings.map((entry) => entry.listing.description),
+      ...page.questions.map((question) => question.text),
+      page.groupDescription,
+      page.terms,
+      ...page.packages.map((pkg) => pkg.description),
+    ]),
+  );
+
 export const getAllImages = (): Promise<Image[]> =>
   imageColumns.many({}, { order: "id DESC" });
 

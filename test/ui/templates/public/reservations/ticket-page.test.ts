@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttributeWithOptions } from "#db/attributes.ts";
+import { mergePageImageUrls } from "#db/images.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
@@ -185,21 +186,23 @@ describe("ticketPage — packages", () => {
     assert(!html.includes('name="quantity_1"'));
   });
 
-  test("resolves a package description's img#id reference to the image's uid URL", () => {
-    const html = ticketPage({
-      imageUrls: new Map([[9, "/image/kit-uid.webp"]]),
-      listings: tentAndChairListings(),
-      packages: [
-        pagePackage(5, [1, 2], {
-          description: "![Kit](img#9)",
-          quantities: new Map([[2, 4]]),
-        }),
-        pagePackage(7, [1], { name: "Tent Bundle" }),
-      ],
-      slugs: [PKG_SLUG],
+  test("resolves a package description's img#id reference to the image's uid URL", async () => {
+    await withRequestContext(() => {
+      mergePageImageUrls(new Map([[9, "/image/kit-uid.webp"]]));
+      const html = ticketPage({
+        listings: tentAndChairListings(),
+        packages: [
+          pagePackage(5, [1, 2], {
+            description: "![Kit](img#9)",
+            quantities: new Map([[2, 4]]),
+          }),
+          pagePackage(7, [1], { name: "Tent Bundle" }),
+        ],
+        slugs: [PKG_SLUG],
+      });
+      expect(html).toContain('<img src="/image/kit-uid.webp" alt="Kit">');
+      expect(html).not.toContain("img#9");
     });
-    expect(html).toContain('<img src="/image/kit-uid.webp" alt="Kit">');
-    expect(html).not.toContain("img#9");
   });
 
   test("limits package day counts to the days its required child supports", () => {
