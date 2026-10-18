@@ -11,7 +11,11 @@
  */
 
 import { lazyRef } from "#fp";
-import { type RequestSlot, requestSlot } from "#shared/request-context.ts";
+import {
+  type RequestSlot,
+  requestSlot,
+  withRequestSlot,
+} from "#shared/request-context.ts";
 
 export type AuditState = {
   /** Config keys read via the snapshot/raw cache this request. */
@@ -42,8 +46,7 @@ const auditState = (): AuditState | undefined =>
 
 /** Run `use` with the active audit state. No state = nothing to record. */
 const withAuditState = (use: (state: AuditState) => void): void => {
-  const state = auditState();
-  if (state) use(state);
+  if (isAuditEnabled()) withRequestSlot(AUDIT_SLOT, use);
 };
 
 /** Record a settings read (no-op outside an audit). */

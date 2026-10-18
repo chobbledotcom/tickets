@@ -7,7 +7,10 @@
  */
 
 import type { AuthSession } from "#routes/auth.ts";
-import { currentRequestStore } from "#shared/request-context.ts";
+import {
+  currentRequestStore,
+  withRequestStore,
+} from "#shared/request-context.ts";
 
 /** Sentinel value distinguishing "resolved to null" from "not yet resolved" */
 export type SessionState = { value: AuthSession | null; resolved: boolean };
@@ -20,8 +23,7 @@ export const getCachedSession = (): AuthSession | null | undefined => {
 };
 
 /** Store the resolved session in the current request's store */
-export const setCachedSession = (session: AuthSession | null): void => {
-  const store = currentRequestStore();
-  if (!store) return;
-  store.session = { resolved: true, value: session };
-};
+export const setCachedSession = (session: AuthSession | null): void =>
+  withRequestStore((store) => {
+    store.session = { resolved: true, value: session };
+  });

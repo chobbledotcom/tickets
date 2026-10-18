@@ -65,6 +65,10 @@ export type RequestStore = {
    * seeding (src/shared/config.ts). Unset until the request seeds it, so
    * reads fall back instead of carrying another request's domain. */
   effectiveDomain?: string;
+  /** The page content's id→image-URL table, merged in by the page's markdown
+   * loaders (src/shared/db/images.ts) and read by renderMarkdown's default.
+   * Unset until one writes it, so reads resolve no img#N reference. */
+  pageImageUrls?: Map<number, string>;
 };
 
 const requestScope = createScope<RequestStore>();
@@ -141,6 +145,13 @@ export const withRequestSlot = <S>(
   if (state !== undefined) use(state);
 };
 
+/** Apply `use` to the current request's store. A no-op outside a request, so
+ * out-of-request work cannot write into any request's store. */
+export const withRequestStore = (use: (store: RequestStore) => void): void => {
+  const store = currentRequestStore();
+  if (store) use(store);
+};
+
 /** The current request's locale, or "en" outside a request. */
 /** Generate a 4-char lowercase hex string */
 const generateRequestId = (): string => {
@@ -181,6 +192,15 @@ export const setRequestEffectiveDomain = (domain: string): void => {
   const store = currentRequestStore();
   if (store) store.effectiveDomain = domain;
 };
+
+/** The shared empty table reads get before a loader writes. */
+const noPageImageUrls: ReadonlyMap<number, string> = new Map();
+
+/** The live request's page-image table, or an empty one before any loader
+ * writes. Outside a request there is nothing to read, so a render resolves
+ * no img#N reference. */
+export const getPageImageUrls = (): ReadonlyMap<number, string> =>
+  currentRequestStore()?.pageImageUrls ?? noPageImageUrls;
 
 /** Detect iframe mode from a request URL and store it for the current request.
  * A no-op outside a request, so a direct render cannot set the ambient mode. */

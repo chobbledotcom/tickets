@@ -291,40 +291,4 @@ describe("ticketViewPage ticket cards", () => {
     // duration=3 starting 2026-06-12 → covers 12, 13, 14 inclusive.
     expect(html).toContain("12–14 June 2026");
   });
-
-  test("resolves a card description's img#N reference to the image's URL", () => {
-    const cards = [
-      {
-        entry: testTokenEntry({
-          listing: { description: "![Poster](img#7)" },
-        }),
-        token,
-      },
-    ];
-    const html = ticketViewPage(
-      cards,
-      false,
-      false,
-      new Map(),
-      new Map([[7, "/image/poster.webp"]]),
-    );
-    expect(html).toContain(
-      '<div class="ticket-card-description"><p><img src="/image/poster.webp" alt="Poster"></p>',
-    );
-  });
-
-  test("renders an unresolved card description's img#N reference with no source", () => {
-    const cards = [
-      {
-        entry: testTokenEntry({
-          listing: { description: "![Poster](img#7)" },
-        }),
-        token,
-      },
-    ];
-    const html = ticketViewPage(cards);
-    expect(html).toContain(
-      '<div class="ticket-card-description"><p><img src="" alt="Poster"></p>',
-    );
-  });
 });

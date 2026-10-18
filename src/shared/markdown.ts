@@ -11,6 +11,7 @@ import { assert } from "@std/assert";
 import { Lexer, Marked, type Token, type Tokens } from "marked";
 import { once } from "#fp";
 import { escapeHtml } from "#jsx/escape-html.ts";
+import { getPageImageUrls } from "#shared/request-context.ts";
 
 /** URL schemes permitted in links and images. */
 const SAFE_URL_SCHEMES = ["http:", "https:", "mailto:", "tel:"] as const;
@@ -36,10 +37,11 @@ const hasHref = (token: Token): token is Token & { href: string } =>
   typeof (token as { href?: unknown }).href === "string";
 
 /** The per-render token walk. A short-form image reference (`![alt](img#7)`)
- * written by the editor's image dropdown resolves to the image's canonical
- * uid URL from the table the call site preloaded. An id the table lacks
- * renders nothing to load, so the <img> falls back to its alt text. Links
- * and code spans never carry the rewrite. Unsafe URLs strip to nothing. */
+ * written by the editor's image dropdown resolves to the image's uid URL in
+ * the render's table. The table is the request's page-image slot, or the
+ * call site's override. An id the table lacks renders nothing to load, so
+ * the <img> falls back to its alt text. Links and code spans never carry
+ * the rewrite. Unsafe URLs strip to nothing. */
 const walkTokensFor =
   (imageUrls: ReadonlyMap<number, string>) =>
   (token: Token): void => {
@@ -66,13 +68,15 @@ const md = once(
     }),
 );
 
-/** Renders block markdown, escaping raw HTML and stripping unsafe URLs. The
- * call site preloads `imageUrls` for text that can carry the editor's
- * `img#N` references. See `imageUrlsFor` in `#shared/db/images.ts`. Without
- * it, such references render no image, and the alt text shows. */
+/** Renders block markdown, escaping raw HTML and stripping unsafe URLs. An
+ * `img#N` reference resolves through `imageUrls`. Without the argument, it
+ * resolves through the request's page-image slot, which the page's loaders
+ * fill with `addPageImageUrls` (see `#shared/db/images.ts`). A missing entry
+ * renders no image, and the alt text shows. The override exists for a render
+ * whose table is not the page's, such as the site footer. */
 export const renderMarkdown = (
   text: string,
-  imageUrls: ReadonlyMap<number, string> = new Map(),
+  imageUrls: ReadonlyMap<number, string> = getPageImageUrls(),
 ): string =>
   md().parse(text, { walkTokens: walkTokensFor(imageUrls) }) as string;
 
