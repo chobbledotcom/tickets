@@ -17,6 +17,18 @@ export interface ImageOption {
   name: string;
 }
 
+/** Keeps a malformed library entry out of the dropdown: the entry needs an
+ * id to reference and a name to show. */
+const isImageOption = (entry: unknown): entry is ImageOption => {
+  if (typeof entry !== "object" || entry === null) return false;
+  return (
+    "id" in entry &&
+    typeof entry.id === "number" &&
+    "name" in entry &&
+    typeof entry.name === "string"
+  );
+};
+
 const EMPTY_MESSAGE = "No images uploaded yet.";
 const UNAVAILABLE_MESSAGE = "Images are unavailable right now.";
 
@@ -77,7 +89,12 @@ export const createImageToolbarItem = (view: EditorView): HTMLElement => {
     if (!Array.isArray(body.images)) {
       throw new Error("image options responded without an images array");
     }
-    return body.images as ImageOption[];
+    return body.images.map((entry) => {
+      if (!isImageOption(entry)) {
+        throw new Error("image options responded with a malformed entry");
+      }
+      return entry;
+    });
   };
   const loadOptions = (): Promise<ImageOption[]> => {
     options ??= fetchOptions();

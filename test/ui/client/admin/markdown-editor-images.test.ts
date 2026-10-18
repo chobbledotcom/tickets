@@ -227,6 +227,30 @@ describe("the image dropdown toolbar control", () => {
     expect(panel.querySelector("button")).toBeNull();
     handle.view.destroy();
   });
+
+  test("refuses a malformed image entry", async () => {
+    // Each reply trips a different half of the entry shape check: not an
+    // object, no numeric id, no name.
+    const replies: [Response, Response, Response] = [
+      json({ images: ["nope"] }),
+      json({ images: [{ id: "2", name: "Alpha" }] }),
+      json({ images: [{ id: 2 }] }),
+    ];
+    fetchStubHolder.stub = stubFetch(...replies);
+    const { window, handle } = enhanced("hello");
+    const panel = dropdownPanel(window);
+
+    // A failed load is never cached, so each re-open refetches.
+    for (const _reply of replies) {
+      toolbarImageButton(window).click();
+      await untilReady(panel);
+      expect(panel.dataset.state).toBe("error");
+      expect(panel.textContent).toContain("Images are unavailable right now.");
+      expect(panel.querySelector("button")).toBeNull();
+      toolbarImageButton(window).click();
+    }
+    handle.view.destroy();
+  });
 });
 
 const toolbarImageButton = (window: Window) =>
