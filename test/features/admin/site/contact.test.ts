@@ -1,4 +1,5 @@
 /* jscpd:ignore-start */
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -39,16 +40,16 @@ describeWithEnv("server (admin site contact)", { db: true }, () => {
     test("shows the contact form toggle even without Botpoison", async () => {
       const response = await adminGet("/admin/site/contact");
       const html = await response.text();
-      expect(html).toContain("contact_form_enabled");
-      expect(html).toContain("Enable contact form");
-      expect(html).toContain("No spam-protection provider is configured");
+      assertStringIncludes(html, "contact_form_enabled");
+      assertStringIncludes(html, "Enable contact form");
+      assertStringIncludes(html, "No spam-protection provider is configured");
     });
 
     test("displays existing contact text", async () => {
       await settings.update.contactPageText("Call us!");
       const response = await adminGet("/admin/site/contact");
       const html = await response.text();
-      expect(html).toContain("Call us!");
+      assertStringIncludes(html, "Call us!");
     });
 
     test("displays success message from flash cookie", async () => {
@@ -60,7 +61,7 @@ describeWithEnv("server (admin site contact)", { db: true }, () => {
         },
       );
       const html = await response.text();
-      expect(html).toContain("Contact page updated");
+      assertStringIncludes(html, "Contact page updated");
     });
 
     test("displays error message from flash cookie", async () => {
@@ -75,7 +76,7 @@ describeWithEnv("server (admin site contact)", { db: true }, () => {
         },
       );
       const html = await response.text();
-      expect(html).toContain("Something went wrong");
+      assertStringIncludes(html, "Something went wrong");
     });
   });
 
@@ -161,7 +162,7 @@ describeWithEnv(
       test("notes that Botpoison spam protection is active", async () => {
         const response = await adminGet("/admin/site/contact");
         const html = await response.text();
-        expect(html).toContain("Botpoison is active");
+        assertStringIncludes(html, "Botpoison is active");
       });
 
       // The full note, not just "Set a business email": the settings nag says
@@ -172,14 +173,14 @@ describeWithEnv(
       test("warns when no business email is set", async () => {
         const response = await adminGet("/admin/site/contact");
         const html = await response.text();
-        expect(html).toContain(businessEmailNote);
+        assertStringIncludes(html, businessEmailNote);
       });
 
       test("hides the business-email warning once one is set", async () => {
         await settings.update.businessEmail("owner@example.com");
         const response = await adminGet("/admin/site/contact");
         const html = await response.text();
-        expect(html).not.toContain(businessEmailNote);
+        assert(!html.includes(businessEmailNote));
       });
 
       test("reflects the enabled state in the checkbox", async () => {

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
@@ -120,7 +121,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // login page with HTTP 200 instead of redirecting.
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Login");
+      assertStringIncludes(html, "Login");
     });
   });
 

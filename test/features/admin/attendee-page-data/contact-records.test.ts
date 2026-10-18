@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -76,7 +77,8 @@ describeWithEnv("attendee contact records", { db: true }, () => {
       );
 
       expect(records.email?.record.visits).toBe(7);
-      expect(errorSpy.calls[0]?.args[0]).toContain(
+      assertStringIncludes(
+        errorSpy.calls[0]?.args[0],
         `detail="contact history ${base64ToBase64Url(hash)}:`,
       );
     } finally {

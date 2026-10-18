@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -114,7 +115,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
         cookie,
       });
       const html = await settingsResponse.text();
-      expect(html).toContain("example.com, *.mysite.org");
+      assertStringIncludes(html, "example.com, *.mysite.org");
     });
 
     test("clears embed hosts when empty", async () => {
@@ -196,12 +197,15 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
   describe("CSP frame-ancestors with embed hosts", () => {
     test("ticket page has no frame-ancestors when no embed hosts configured", async () => {
       const csp = await getTicketCsp();
-      expect(csp).not.toContain("frame-ancestors");
+      assert(!csp.includes("frame-ancestors"));
     });
 
     test("ticket page has frame-ancestors when embed hosts configured", async () => {
       const csp = await getTicketCsp("example.com, *.mysite.org");
-      expect(csp).toContain("frame-ancestors 'self' example.com *.mysite.org");
+      assertStringIncludes(
+        csp,
+        "frame-ancestors 'self' example.com *.mysite.org",
+      );
     });
 
     test("non-embeddable pages still have frame-ancestors none regardless of embed hosts", async () => {
@@ -209,8 +213,8 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
 
       const response = await handleRequest(mockRequest("/"));
       const csp = getHeader(response, "content-security-policy");
-      expect(csp).toContain("frame-ancestors 'none'");
-      expect(csp).not.toContain("example.com");
+      assertStringIncludes(csp, "frame-ancestors 'none'");
+      assert(!csp.includes("example.com"));
     });
 
     test("ticket page has no X-Frame-Options when embed hosts configured", async () => {

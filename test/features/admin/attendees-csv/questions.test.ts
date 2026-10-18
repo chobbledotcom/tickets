@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
@@ -122,7 +123,7 @@ describe("CSV with custom questions", () => {
       [commaQuestion],
       new Map([[1, [30]]]),
     );
-    expect(header).toContain('"Name, as printed on ticket"');
+    assertStringIncludes(header ?? "", '"Name, as printed on ticket"');
   });
 
   test("escapes commas in answer text", () => {
@@ -135,7 +136,7 @@ describe("CSV with custom questions", () => {
       [q],
       new Map([[1, [40]]]),
     );
-    expect(row).toContain('"Nuts, dairy"');
+    assertStringIncludes(row ?? "", '"Nuts, dairy"');
   });
 
   test("escapes quotes in answer text per RFC 4180", () => {
@@ -145,7 +146,7 @@ describe("CSV with custom questions", () => {
       [q],
       new Map([[1, [50]]]),
     );
-    expect(row).toContain('"She said ""hi"""');
+    assertStringIncludes(row ?? "", '"She said ""hi"""');
   });
 
   test("ignores answer IDs that do not belong to any of the provided questions", () => {
@@ -156,7 +157,7 @@ describe("CSV with custom questions", () => {
     );
     // The unknown answer must not leak into the column or appear as "undefined"
     expect(row!.endsWith(",Small")).toBe(true);
-    expect(row).not.toContain("undefined");
+    assert(!(row ?? "").includes("undefined"));
   });
 
   test("leaves a free-text cell empty when the attendee wrote nothing", () => {

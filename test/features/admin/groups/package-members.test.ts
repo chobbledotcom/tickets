@@ -1,5 +1,6 @@
 /** The per-listing package prices and quantities the group edit form writes. */
 
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices } from "#db/groups.ts";
@@ -271,7 +272,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
       [`package_price_${member.id}`]: "12abc",
     });
 
-    expect([200, 302]).toContain(response.status);
+    assertArrayIncludes([200, 302], [response.status]);
     const rows = await getGroupPackagePrices(group.id);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.package_price).toBeNull();

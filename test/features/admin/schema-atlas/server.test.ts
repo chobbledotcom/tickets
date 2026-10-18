@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
@@ -29,7 +30,10 @@ describeWithEnv("server (admin schema map)", { db: true }, () => {
     test("answers the map question in the static list", async () => {
       const html = await page("Your decision needed: some money is back");
       // The one-exit owner decision shows exactly its own way forward.
-      expect(html).toContain("You confirm the money came back → Money back");
+      assertStringIncludes(
+        html,
+        "You confirm the money came back → Money back",
+      );
       // The page names no real payment anywhere.
       expect(html).not.toMatch(/\/admin\/privacy\/refunds\/\d+/);
     });

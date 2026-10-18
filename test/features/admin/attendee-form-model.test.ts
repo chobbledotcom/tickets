@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
@@ -464,7 +465,8 @@ describe("validateParsedForm", () => {
       }),
     );
     expect(result.valid).toBe(false);
-    if (!result.valid) expect(result.lineErrors.get(0)).toContain("at most 5");
+    if (!result.valid)
+      assertStringIncludes(result.lineErrors.get(0) ?? "", "at most 5");
   });
 
   test("treats a 0-quantity line as not booked, not an error", () => {
@@ -504,7 +506,8 @@ describe("validateParsedForm", () => {
       }),
     );
     expect(result.valid).toBe(false);
-    if (!result.valid) expect(result.dateError).toContain("start date");
+    assert(!result.valid);
+    assertStringIncludes(result.dateError ?? "", "start date");
   });
 
   test("passes a booked daily listing with a valid start date", () => {

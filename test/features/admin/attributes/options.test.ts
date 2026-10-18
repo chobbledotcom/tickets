@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttributeWithOptions } from "#db/attributes.ts";
@@ -58,9 +59,9 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
         200,
         "Easy",
       );
-      expect(await activityMessages()).toContain(
+      assertArrayIncludes(await activityMessages(), [
         "Attribute option 'Easy' added to Difficulty",
-      );
+      ]);
     });
 
     test("a failed order write leaves no half-made option behind", async () => {
@@ -110,9 +111,9 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
         `/admin/attributes/${id}`,
         "Option updated",
       )(edited.response);
-      expect(await activityMessages()).toContain(
+      assertArrayIncludes(await activityMessages(), [
         "Attribute option 'In-person' updated in Format",
-      );
+      ]);
       const moved = await adminFormPost(
         `/admin/attributes/${id}/options/${second.id}/move-up`,
       );
@@ -197,9 +198,9 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
         true,
       )(response);
       expect(await attributeOptions(attributeId)).toEqual([]);
-      expect(await activityMessages()).toContain(
+      assertArrayIncludes(await activityMessages(), [
         "Attribute option 'Easy' deleted from Difficulty",
-      );
+      ]);
     });
 
     test("shows the confirmation page before deleting", async () => {

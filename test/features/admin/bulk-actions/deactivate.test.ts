@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -33,8 +34,8 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
 
       const html = await getDeactivateForm(group.id);
 
-      expect(html).toContain("deactivate 1 active listing");
-      expect(html).not.toContain("deactivate 1 active listings");
+      assertStringIncludes(html, "deactivate 1 active listing");
+      assert(!html.includes("deactivate 1 active listings"));
     });
 
     test("renders the confirmation form with plural listing count", async () => {
@@ -44,7 +45,7 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
 
       const html = await getDeactivateForm(group.id);
 
-      expect(html).toContain("deactivate 2 active listings");
+      assertStringIncludes(html, "deactivate 2 active listings");
     });
   });
 
@@ -63,15 +64,16 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
         `/admin/groups/${group.id}`,
       );
       // The success flash and the activity row both name the action and the
       // member count.
       expectFlash(response, "Group deactivated (x2 listings)");
-      expect(await activityMessages()).toContain(
+      assertArrayIncludes(await activityMessages(), [
         "Group 'Shutdown' deactivated (x2 listings)",
-      );
+      ]);
       expect((await getListingWithCount(a.id))?.active).toBe(false);
       expect((await getListingWithCount(b.id))?.active).toBe(false);
     });
@@ -103,7 +105,8 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
         `/admin/groups/${group.id}/bulk-actions/deactivate`,
       );
       // No listing was deactivated — the batch was blocked entirely.

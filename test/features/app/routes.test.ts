@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
@@ -63,7 +64,7 @@ describeWithEnv("main app router", { db: true }, () => {
     const response = await route("/listings");
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("No listings listed.");
+    assertStringIncludes(await response.text(), "No listings listed.");
   });
 
   test("does not serve a public page below its exact path", async () => {

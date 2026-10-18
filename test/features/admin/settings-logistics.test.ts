@@ -3,6 +3,7 @@
  *  tests in test/integration/server/logistics.test.ts exercise the same routes
  *  through the server; these are the mirror for mutation testing. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { logisticsAgents } from "#db/logistics-agents.ts";
@@ -24,7 +25,7 @@ describeWithEnv("settings-logistics", { db: true }, () => {
       "Logistics agent created",
     )(response);
     const html = await (await adminGet("/admin/logistics")).text();
-    expect(html).toContain("Mirror Van");
+    assertStringIncludes(html, "Mirror Van");
   });
 
   test("edits an agent and renames it", async () => {
@@ -100,7 +101,7 @@ describeWithEnv("settings-logistics", { db: true }, () => {
     const html = await (
       await adminGet(`/admin/logistics/${id}/actions`)
     ).text();
-    expect(html).toContain(`/admin/logistics/${id}/delete`);
+    assertStringIncludes(html, `/admin/logistics/${id}/delete`);
 
     const { response } = await adminFormPost(`/admin/logistics/${id}/delete`, {
       confirm_identifier: "Delete Me",

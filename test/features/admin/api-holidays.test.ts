@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
@@ -389,7 +390,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toContain("does not match");
+          assertStringIncludes(body.error, "does not match");
         },
       );
 

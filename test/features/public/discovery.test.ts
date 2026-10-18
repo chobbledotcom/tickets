@@ -7,6 +7,7 @@
  * admin multi-booking link builder, and the per-listing share/QR generators.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -43,11 +44,11 @@ describeWithEnv(
         const { parent, child } = await makeDefaultParentChild();
         const body = await publicBody("/listings");
         // The child's card is still shown, but with no /ticket/<child> CTA.
-        expect(body).toContain("Add-on");
-        expect(body).not.toContain(`href="/ticket/${child.slug}"`);
-        expect(body).toContain("Available as an add-on to another booking");
+        assertStringIncludes(body, "Add-on");
+        assert(!body.includes(`href="/ticket/${child.slug}"`));
+        assertStringIncludes(body, "Available as an add-on to another booking");
         // The parent keeps its normal Book link.
-        expect(body).toContain(`href="/ticket/${parent.slug}"`);
+        assertStringIncludes(body, `href="/ticket/${parent.slug}"`);
       });
 
       test("a child sold alone keeps its Book link and has no add-on note", async () => {
@@ -57,8 +58,8 @@ describeWithEnv(
         });
 
         const body = await publicBody("/listings");
-        expect(body).toContain(`href="/ticket/${child.slug}"`);
-        expect(body).not.toContain("Available as an add-on to another booking");
+        assertStringIncludes(body, `href="/ticket/${child.slug}"`);
+        assert(!body.includes("Available as an add-on to another booking"));
       });
 
       test("a parent whose only child is sold out renders sold out", async () => {
@@ -149,12 +150,10 @@ describeWithEnv(
         test(c.name, async () => {
           const { child } = await c.setup();
           const body = await publicBody("/listings");
-          expect(body).toContain("Add-on");
-          expect(body).not.toContain(
-            "Available as an add-on to another booking",
-          );
-          expect(body).not.toContain(`href="/ticket/${child.slug}"`);
-          expect(body).toContain("Currently Unavailable");
+          assertStringIncludes(body, "Add-on");
+          assert(!body.includes("Available as an add-on to another booking"));
+          assert(!body.includes(`href="/ticket/${child.slug}"`));
+          assertStringIncludes(body, "Currently Unavailable");
         });
       }
 
@@ -192,9 +191,9 @@ describeWithEnv(
         // card does not advertise an add-on the gate would reject.
         await setupSoldOutChild();
         const body = await publicBody("/listings");
-        expect(body).toContain("Add-on");
-        expect(body).toContain("Sold Out");
-        expect(body).not.toContain("Available as an add-on to another booking");
+        assertStringIncludes(body, "Add-on");
+        assertStringIncludes(body, "Sold Out");
+        assert(!body.includes("Available as an add-on to another booking"));
       });
 
       test("a parent + child sharing a capped group with 1 spot is sold out", async () => {
@@ -255,9 +254,9 @@ describeWithEnv(
           parent: { maxQuantity: 3, minQuantity: 3, name: "Base unit" },
         });
         const body = await publicBody("/listings");
-        expect(body).not.toContain("Available as an add-on to another booking");
-        expect(body).toContain(parent.name);
-        expect(body).toContain(child.name);
+        assert(!body.includes("Available as an add-on to another booking"));
+        assertStringIncludes(body, parent.name);
+        assertStringIncludes(body, child.name);
       });
 
       test("a child in a roomy SHARED group is bookable despite a tighter NON-shared group", async () => {
@@ -323,7 +322,7 @@ describeWithEnv(
         });
         await listingChildren.setIds(parent.id, [child.id]);
         const body = await publicBody("/listings");
-        expect(body).toContain(`href="/ticket/${parent.slug}"`);
+        assertStringIncludes(body, `href="/ticket/${parent.slug}"`);
       });
 
       test("a child whose only parent shares a 1-spot capped group is not labeled add-on", async () => {
@@ -335,8 +334,8 @@ describeWithEnv(
         // projection).
         await setupOneSpotPool();
         const body = await publicBody("/listings");
-        expect(body).toContain("Add-on");
-        expect(body).not.toContain("Available as an add-on to another booking");
+        assertStringIncludes(body, "Add-on");
+        assert(!body.includes("Available as an add-on to another booking"));
       });
 
       test("a child whose only parent shares a 2-spot capped group shows the add-on note", async () => {
@@ -392,7 +391,7 @@ describeWithEnv(
         expect(addOnChildIds.has(mondayExtra!.id)).toBe(false);
         expect(addOnChildIds.has(child.id)).toBe(false);
         const body = await publicBody("/listings");
-        expect(body).toContain(`href="/ticket/${parent.slug}"`);
+        assertStringIncludes(body, `href="/ticket/${parent.slug}"`);
       });
     });
   },

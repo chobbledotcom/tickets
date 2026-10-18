@@ -3,6 +3,7 @@
  * kind of listing is offered, and which one a bare URL opens.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
@@ -109,7 +110,8 @@ describeWithEnv("the tabs a listing offers", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/listing/${listing.id}`)).text();
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<a aria-current="page" class="active" href="/admin/listing/${listing.id}">Overview</a>`,
     );
   });
@@ -122,7 +124,8 @@ describeWithEnv("the tabs a listing offers", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/listing/${listing.id}`)).text();
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<a href="/admin/listing/${listing.id}/activity">${t("entity.view_all_activity")}</a>`,
     );
   });

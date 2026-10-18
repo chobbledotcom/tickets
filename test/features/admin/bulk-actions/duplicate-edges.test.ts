@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingAttributeOptions } from "#db/attributes.ts";
@@ -119,10 +120,13 @@ describeWithEnv(
 
       expect(response.status).toBe(302);
       const message = parseFlashCookie(response).error;
-      expect([
-        dropWarning(`${first}; ${second}`),
-        dropWarning(`${second}; ${first}`),
-      ]).toContain(message);
+      assertArrayIncludes(
+        [
+          dropWarning(`${first}; ${second}`),
+          dropWarning(`${second}; ${first}`),
+        ],
+        [message],
+      );
     });
 
     test("copies the source listing's attribute selections onto its clone", async () => {

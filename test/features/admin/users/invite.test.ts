@@ -7,6 +7,7 @@
  * to read that data at all.
  */
 
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
@@ -48,7 +49,7 @@ describeWithEnv("inviting a user", { db: true }, () => {
 
     const location = response.headers.get("location")!;
     expect(location.split("?")[0]).toBe(LIST_PATH);
-    expect(decodeURIComponent(location)).toContain("/join/");
+    assertStringIncludes(decodeURIComponent(location), "/join/");
     expect(parseFlashCookie(response).success).toBe(t("success.user_invited"));
   });
 
@@ -56,9 +57,9 @@ describeWithEnv("inviting a user", { db: true }, () => {
     const { response } = await invite("loggedinvite", "manager");
 
     expect(response.status).toBe(302);
-    expect(await activityMessages()).toContain(
+    assertArrayIncludes(await activityMessages(), [
       "User 'loggedinvite' invited as manager",
-    );
+    ]);
   });
 
   test("shows the link on the page the owner lands on", async () => {
@@ -67,7 +68,7 @@ describeWithEnv("inviting a user", { db: true }, () => {
 
     const html = await (await adminGet(location)).text();
 
-    expect(html).toContain("/join/");
+    assertStringIncludes(html, "/join/");
   });
 
   test("shows no link when the owner opens the list on its own", async () => {
@@ -75,7 +76,7 @@ describeWithEnv("inviting a user", { db: true }, () => {
 
     const html = await (await adminGet(LIST_PATH)).text();
 
-    expect(html).not.toContain("/join/");
+    assert(!html.includes("/join/"));
   });
 });
 
@@ -110,7 +111,7 @@ describeWithEnv("an invite that cannot be made", { db: true }, () => {
     const { response } = await invite("", "manager");
 
     expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toContain(NEW_PATH);
+    assertStringIncludes(response.headers.get("location") ?? "", NEW_PATH);
   });
 });
 
@@ -124,8 +125,8 @@ describeWithEnv("removing a user", { db: true }, () => {
 
     const html = await (await adminGet(`${LIST_PATH}/${id}/delete`)).text();
 
-    expect(html).toContain("Username");
-    expect(html).toContain("typeme");
+    assertStringIncludes(html, "Username");
+    assertStringIncludes(html, "typeme");
   });
 
   test("removes one whose username was typed exactly", async () => {
@@ -165,7 +166,7 @@ describeWithEnv("removing a user", { db: true }, () => {
     );
 
     expect(response.status).toBe(400);
-    expect(await response.text()).toContain(t("error.cannot_delete_self"));
+    assertStringIncludes(await response.text(), t("error.cannot_delete_self"));
   });
 
   test("answers 404 for a user that is not there", async () => {
@@ -174,7 +175,7 @@ describeWithEnv("removing a user", { db: true }, () => {
     });
 
     expect(response.status).toBe(404);
-    expect(await response.text()).toContain(t("error.user_not_found"));
+    assertStringIncludes(await response.text(), t("error.user_not_found"));
   });
 });
 
@@ -221,15 +222,15 @@ describeWithEnv(
 
       const html = await (await adminGet(LIST_PATH)).text();
 
-      expect(html).toContain(t("users.status.invited"));
-      expect(html).not.toContain(t("users.status.expired"));
+      assertStringIncludes(html, t("users.status.invited"));
+      assert(!html.includes(t("users.status.expired")));
     });
 
     test("marks the owner, who has joined, as active", async () => {
       const html = await (await adminGet(LIST_PATH)).text();
 
-      expect(html).toContain(t("users.status.active"));
-      expect(html).not.toContain(t("users.status.expired"));
+      assertStringIncludes(html, t("users.status.active"));
+      assert(!html.includes(t("users.status.expired")));
     });
 
     test("marks an invite whose week ran out as expired", async () => {
@@ -247,7 +248,7 @@ describeWithEnv(
 
       const html = await (await adminGet(LIST_PATH)).text();
 
-      expect(html).toContain(t("users.status.expired"));
+      assertStringIncludes(html, t("users.status.expired"));
     });
   },
 );
@@ -270,7 +271,7 @@ describeWithEnv("choosing which vans an agent drives", { db: true }, () => {
 
     const html = await (await adminGet(`${LIST_PATH}/${userId}/agents`)).text();
 
-    expect(html).toContain(`action="${LIST_PATH}/${userId}/agents"`);
+    assertStringIncludes(html, `action="${LIST_PATH}/${userId}/agents"`);
   });
 
   test("says the choice was saved and writes it to the log", async () => {
@@ -281,9 +282,9 @@ describeWithEnv("choosing which vans an agent drives", { db: true }, () => {
     });
 
     await expectFlashRedirect(LIST_PATH, t("success.agents_updated"))(response);
-    expect(await activityMessages()).toContain(
+    assertArrayIncludes(await activityMessages(), [
       "Agents updated for user 'loggeddriver'",
-    );
+    ]);
   });
 });
 
@@ -300,9 +301,9 @@ describeWithEnv("a users page shown with an error", { db: true }, () => {
 
     expect(response.status).toBe(400);
     const html = await response.text();
-    expect(html).toContain(t("error.not_agent_user"));
-    expect(html).not.toContain("/join/");
-    expect(html).not.toContain("<code>");
+    assertStringIncludes(html, t("error.not_agent_user"));
+    assert(!html.includes("/join/"));
+    assert(!html.includes("<code>"));
   });
 });
 
@@ -311,6 +312,6 @@ describeWithEnv("the page for inviting somebody", { db: true }, () => {
     const response = await adminGet(NEW_PATH);
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain('name="username"');
+    assertStringIncludes(await response.text(), 'name="username"');
   });
 });

@@ -9,6 +9,7 @@
  * change nothing. The answer tests stay on the page the callback renders,
  * because a blank reference needs no money work. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -62,8 +63,8 @@ describeWithEnv("the rejected-checkout answer", { db: true }, () => {
 
     expect(response.status).toBe(400);
     const page = await response.text();
-    expect(page).toContain("We could not find this payment session.");
-    expect(page).not.toContain("Staff diagnostics");
+    assertStringIncludes(page, "We could not find this payment session.");
+    assert(!page.includes("Staff diagnostics"));
   });
 
   it("hands an owner the diagnostics beside the refusal", async () => {
@@ -76,8 +77,8 @@ describeWithEnv("the rejected-checkout answer", { db: true }, () => {
     );
 
     const page = await response.text();
-    expect(page).toContain("Staff diagnostics");
-    expect(page).toContain("cs_blank");
+    assertStringIncludes(page, "Staff diagnostics");
+    assertStringIncludes(page, "cs_blank");
   });
 
   it("tells the buyer the money went back when the refund succeeded", async () => {
@@ -87,8 +88,8 @@ describeWithEnv("the rejected-checkout answer", { db: true }, () => {
 
     expect(response.status).toBe(400);
     const page = await response.text();
-    expect(page).toContain("We have sent your money back");
-    expect(page).not.toContain("Staff diagnostics");
+    assertStringIncludes(page, "We have sent your money back");
+    assert(!page.includes("Staff diagnostics"));
   });
 
   it("asks the caller to come back while the refund is still out there", async () => {
@@ -107,7 +108,7 @@ describeWithEnv("the rejected-checkout answer", { db: true }, () => {
 
     expect(response.status).toBe(503);
     const page = await response.text();
-    expect(page).toContain("We could not find this payment session.");
+    assertStringIncludes(page, "We could not find this payment session.");
   });
 });
 

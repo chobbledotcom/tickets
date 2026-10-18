@@ -1,4 +1,5 @@
 /* jscpd:ignore-start -- imports */
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { reserveSession } from "#db/processed-payments.ts";
@@ -80,7 +81,11 @@ describeWithEnv("settlePaymentCallback", { db: true }, () => {
     );
 
     expect(outcome.kind).toBe("unpaid");
-    expect("detail" in outcome && outcome.detail).toContain("status=unpaid");
+    // A non-string detail (boolean false) fails the assertion, as the
+    // override did.
+    const unpaidDetail = "detail" in outcome && outcome.detail;
+    assert(typeof unpaidDetail === "string");
+    assertStringIncludes(unpaidDetail, "status=unpaid");
   });
 
   test("names the caller in what it records, so an operator can tell them apart", async () => {
@@ -91,7 +96,9 @@ describeWithEnv("settlePaymentCallback", { db: true }, () => {
       "Recovery check",
     );
 
-    expect("detail" in outcome && outcome.detail).toContain("Recovery check");
+    const recoveryDetail = "detail" in outcome && outcome.detail;
+    assert(typeof recoveryDetail === "string");
+    assertStringIncludes(recoveryDetail, "Recovery check");
   });
 
   test("will not touch money for a paid session nothing proves is ours", async () => {
@@ -114,9 +121,9 @@ describeWithEnv("settlePaymentCallback", { db: true }, () => {
     const outcome = await settleStaged("co_held", reference);
 
     expect(outcome.kind).toBe("held");
-    expect("detail" in outcome && outcome.detail).toContain(
-      "Payment is being processed",
-    );
+    const heldDetail = "detail" in outcome && outcome.detail;
+    assert(typeof heldDetail === "string");
+    assertStringIncludes(heldDetail, "Payment is being processed");
   });
 
   test("blames the booking's first listing when it cannot be read", async () => {

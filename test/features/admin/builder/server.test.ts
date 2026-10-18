@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -181,7 +182,7 @@ describeWithEnv(
     test("GET /admin/builder shows empty sites message", async () => {
       const response = await adminGet("/admin/builder");
       const html = await response.text();
-      expect(html).toContain("No sites have been built yet");
+      assertStringIncludes(html, "No sites have been built yet");
     });
 
     test("GET /admin/builder displays success flash", async () => {
@@ -193,7 +194,7 @@ describeWithEnv(
         },
       );
       const html = await response.text();
-      expect(html).toContain("Site created");
+      assertStringIncludes(html, "Site created");
     });
 
     test("GET /admin/builder displays error flash", async () => {
@@ -205,7 +206,7 @@ describeWithEnv(
         },
       );
       const html = await response.text();
-      expect(html).toContain("Build failed");
+      assertStringIncludes(html, "Build failed");
     });
 
     test("POST /admin/builder returns error when site name is empty", async () => {
@@ -520,8 +521,8 @@ describeWithEnv(
 
       const response = await adminGet("/admin/builder");
       const html = await response.text();
-      expect(html).toContain("Table Test Site");
-      expect(html).toContain("test-42.b-cdn.net");
+      assertStringIncludes(html, "Table Test Site");
+      assertStringIncludes(html, "test-42.b-cdn.net");
     });
 
     test("POST /admin/builder passes deno hosting_provider to buildSite", async () => {

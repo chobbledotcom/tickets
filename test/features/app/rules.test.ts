@@ -1,4 +1,5 @@
 // test-groups: run-alone - this suite verifies isolate-lived wake throttling.
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -154,7 +155,10 @@ describe("request rules", () => {
         headers: { "content-type": "text/html" },
       }),
     );
-    expect(response.headers.get("content-type")).toContain("text/css");
+    assertStringIncludes(
+      response.headers.get("content-type") ?? "",
+      "text/css",
+    );
     expect(await response.text()).toBe("");
   });
 

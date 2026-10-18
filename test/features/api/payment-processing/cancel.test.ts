@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -59,7 +60,7 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
     );
 
     expect(status).toBe(200);
-    expect(html).toContain(`/ticket/${listing.slug}`);
+    assertStringIncludes(html, `/ticket/${listing.slug}`);
   });
 
   test("offers the first listing's page when the order had several lines", async () => {
@@ -79,8 +80,8 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
       ]),
     );
 
-    expect(html).toContain(`/ticket/${first.slug}`);
-    expect(html).not.toContain(`/ticket/${second.slug}`);
+    assertStringIncludes(html, `/ticket/${first.slug}`);
+    assert(!html.includes(`/ticket/${second.slug}`));
   });
 
   test("offers the bundle's page when the order bought a package", async () => {
@@ -99,8 +100,8 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
 
     const { html } = await renderCancelPage(packageLine(member.id, group.id));
 
-    expect(html).toContain(`/ticket/${group.slug}`);
-    expect(html).not.toContain(`/ticket/${member.slug}`);
+    assertStringIncludes(html, `/ticket/${group.slug}`);
+    assert(!html.includes(`/ticket/${member.slug}`));
   });
 
   /** A package with its second member deactivated, so the bundle's page is
@@ -139,8 +140,8 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
 
     const { html } = await renderCancelPage(packageLine(member.id, group.id));
 
-    expect(html).toContain(`/ticket/${member.slug}`);
-    expect(html).not.toContain(`/ticket/${group.slug}`);
+    assertStringIncludes(html, `/ticket/${member.slug}`);
+    assert(!html.includes(`/ticket/${group.slug}`));
   });
 
   test("keeps a concealed member private when the bundle can no longer be bought", async () => {
@@ -152,8 +153,8 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
 
     const { html } = await renderCancelPage(packageLine(member.id, group.id));
 
-    expect(html).toContain("Payment Cancelled");
-    expect(html).not.toContain(`/ticket/${member.slug}`);
+    assertStringIncludes(html, "Payment Cancelled");
+    assert(!html.includes(`/ticket/${member.slug}`));
   });
 
   test("keeps a member private when the package no longer resolves", async () => {
@@ -164,7 +165,7 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
     });
     const { html } = await renderCancelPage(packageLine(member.id, 99999));
 
-    expect(html).not.toContain(`/ticket/${member.slug}`);
+    assert(!html.includes(`/ticket/${member.slug}`));
   });
 
   test("offers no retry when the package became a regular group", async () => {
@@ -185,9 +186,9 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
 
     const { html } = await renderCancelPage(packageLine(member.id, group.id));
 
-    expect(html).toContain("Payment Cancelled");
-    expect(html).not.toContain(`/ticket/${group.slug}`);
-    expect(html).not.toContain(`/ticket/${member.slug}`);
+    assertStringIncludes(html, "Payment Cancelled");
+    assert(!html.includes(`/ticket/${group.slug}`));
+    assert(!html.includes(`/ticket/${member.slug}`));
   });
 
   test("offers no retry link for a cancelled balance checkout", async () => {
@@ -211,8 +212,8 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
     );
 
     const html = await response.text();
-    expect(html).toContain("Payment Cancelled");
-    expect(html).not.toContain(`/ticket/${listing.slug}`);
+    assertStringIncludes(html, "Payment Cancelled");
+    assert(!html.includes(`/ticket/${listing.slug}`));
   });
 
   test("offers nothing to try again when the listing lost its own page", async () => {
@@ -227,7 +228,7 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
     );
 
     expect(status).toBe(200);
-    expect(html).not.toContain(`/ticket/${child.slug}`);
+    assert(!html.includes(`/ticket/${child.slug}`));
   });
 
   // Without a listing there is no page to show and nothing to try again, so
@@ -243,7 +244,10 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
       const { html, logged, status } = await renderCancelPage(items);
 
       expect(status).toBe(404);
-      expect(html).toContain("We could not find the tickets you were booking.");
+      assertStringIncludes(
+        html,
+        "We could not find the tickets you were booking.",
+      );
       expect(logged).toEqual([
         `Listing not found (session=cs_cancelled, listingId=${listingId})`,
       ]);

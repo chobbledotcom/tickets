@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
@@ -85,7 +86,7 @@ describeWithEnv(
         "Private Kit",
         "Separate Unit",
       );
-      expect(html).toContain(`href="/ticket/${listing.slug}"`);
+      assertStringIncludes(html, `href="/ticket/${listing.slug}"`);
       expect(
         (await robotsTagFor(`/ticket/${listing.slug}`)).get("x-robots-tag"),
       ).toBe("index, follow");

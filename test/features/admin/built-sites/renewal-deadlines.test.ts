@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BuiltSite } from "#db/built-sites/types.ts";
@@ -37,11 +38,12 @@ describeWithEnv(
           true,
         );
 
-        expect(secretNames).toContain("READ_ONLY_FROM");
-        expect(secretNames).toContain("RENEWAL_URL");
-        expect(
-          (await getAllActivityLog()).map(({ message }) => message),
-        ).toContain("Admin re-synced deadline for 'Resync Site'");
+        assertArrayIncludes(secretNames, ["READ_ONLY_FROM"]);
+        assertArrayIncludes(secretNames, ["RENEWAL_URL"]);
+        assertArrayIncludes(
+          (await getAllActivityLog()).map((entry) => entry.message),
+          ["Admin re-synced deadline for 'Resync Site'"],
+        );
       });
 
       test("re-pushes deadline without RENEWAL_URL when unprovisioned", async () => {
@@ -53,8 +55,8 @@ describeWithEnv(
           false,
         );
 
-        expect(secretNames).toContain("READ_ONLY_FROM");
-        expect(secretNames).not.toContain("RENEWAL_URL");
+        assertArrayIncludes(secretNames, ["READ_ONLY_FROM"]);
+        assert(!secretNames.includes("RENEWAL_URL"));
       });
 
       test("redirects when deadline is empty", async () => {
@@ -108,9 +110,10 @@ describeWithEnv(
           mockRequest(`/renew/?t=${encodeURIComponent(updated.renewalToken!)}`),
         );
         expect(renewResponse.status).toBe(200);
-        expect(
+        assertArrayIncludes(
           (await getAllActivityLog()).map(({ message }) => message),
-        ).toContain("Admin provisioned renewals for 'Provision Site' (3mo)");
+          ["Admin provisioned renewals for 'Provision Site' (3mo)"],
+        );
       });
 
       test("rejects when no qualifying tier listing exists", async () => {

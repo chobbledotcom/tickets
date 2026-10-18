@@ -1,5 +1,6 @@
 /** Removing listings from a group through the typed-name confirmation. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -57,11 +58,12 @@ describeWithEnv("admin group listing removal", { db: true }, () => {
       )
     ).text();
 
-    expect(html).toContain("Saturday Gig");
-    expect(html).toContain(
+    assertStringIncludes(html, "Saturday Gig");
+    assertStringIncludes(
+      html,
       "Warning: Each listing keeps its bookings and its money.",
     );
-    expect(html).toContain(`value="${listing.id}"`);
+    assertStringIncludes(html, `value="${listing.id}"`);
   });
 
   test("nothing selected sends the operator back to the group", async () => {
@@ -84,7 +86,8 @@ describeWithEnv("admin group listing removal", { db: true }, () => {
       listing.id,
     ]);
 
-    expect(response.headers.get("location")).toContain(
+    assertStringIncludes(
+      response.headers.get("location") ?? "",
       `/admin/groups/${group.id}`,
     );
     expectFlash(
@@ -160,7 +163,7 @@ describeWithEnv("admin group listing removal", { db: true }, () => {
     await confirmRemoval(group.id, group.name, [listing.id]);
     const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
 
-    expect(html).toContain("Saturday Gig");
-    expect(html).toContain(t("groups.detail.no_listings"));
+    assertStringIncludes(html, "Saturday Gig");
+    assertStringIncludes(html, t("groups.detail.no_listings"));
   });
 });

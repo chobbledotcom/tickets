@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getSession } from "#db/sessions.ts";
@@ -46,7 +47,7 @@ describeWithEnv("server (admin logout)", { db: true }, () => {
       const sessionCookie = response.headers
         .getSetCookie()
         .find((c) => c.startsWith(`${getSessionCookieName()}=`));
-      expect(sessionCookie).toContain("Max-Age=0");
+      assertStringIncludes(sessionCookie ?? "", "Max-Age=0");
     });
   });
 

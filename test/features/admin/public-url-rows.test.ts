@@ -5,6 +5,7 @@
  * never sees one of the section's controls.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -55,13 +56,14 @@ describeWithEnv("the Public URL rows", { db: true }, () => {
         const response = await get(path, session);
         expect(response.status).toBe(200);
         const html = await response.text();
-        expect(html).toContain("data-share-url");
+        assertStringIncludes(html, "data-share-url");
         // Embed opens the page's own embed code rows, so it is a label for
         // the hidden toggle, not a link into the guide.
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           '<label class="small-action" for="embed-toggle-',
         );
-        expect(html).not.toContain('href="/admin/guide#embed_booking_form"');
+        assert(!html.includes('href="/admin/guide#embed_booking_form"'));
       }
     });
   }
@@ -81,8 +83,8 @@ describeWithEnv("the Public URL rows", { db: true }, () => {
       const response = await get(path, editor);
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).not.toContain("data-share-url");
-      expect(html).not.toContain("embed-toggle-");
+      assert(!html.includes("data-share-url"));
+      assert(!html.includes("embed-toggle-"));
     }
   });
 });

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -41,11 +42,12 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "Actions",
         "/admin/guide#modifiers",
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `aria-current="page" class="active" href="/admin/modifiers/${id}/edit"`,
       );
-      expect(html).toContain('<a class="active" href="/admin/modifiers">');
-      expect(html).toContain(`href="/admin/modifiers/${id}/actions"`);
+      assertStringIncludes(html, '<a class="active" href="/admin/modifiers">');
+      assertStringIncludes(html, `href="/admin/modifiers/${id}/actions"`);
     });
 
     test("returns 404 for an unknown tab", async () => {
@@ -90,10 +92,10 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
-      expect(html).toContain("Adjust revenue");
-      expect(html).toContain(`action="/admin/modifiers/${id}/revenue"`);
-      expect(html).toContain('name="total_revenue"');
-      expect(html).toContain("This adds a correction to Money.");
+      assertStringIncludes(html, "Adjust revenue");
+      assertStringIncludes(html, `action="/admin/modifiers/${id}/revenue"`);
+      assertStringIncludes(html, 'name="total_revenue"');
+      assertStringIncludes(html, "This adds a correction to Money.");
     });
 
     test("shows the owner-only modifier ledger section", async () => {
@@ -104,10 +106,11 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
-      expect(html).toContain("Money");
-      expect(html).not.toContain("Money history");
-      expect(html).toContain("Add money change");
-      expect(html).toContain(
+      assertStringIncludes(html, "Money");
+      assert(!html.includes("Money history"));
+      assertStringIncludes(html, "Add money change");
+      assertStringIncludes(
+        html,
         `/admin/ledger/modifier/${id}/add?return_url=%2Fadmin%2Fmodifiers%2F${id}%2Fedit`,
       );
     });
@@ -123,9 +126,9 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       });
       const html = await response.text();
       expect(response.status).toBe(200);
-      expect(html).toContain("Manager visible");
-      expect(html).not.toContain("<h2>Money</h2>");
-      expect(html).not.toContain(`/admin/ledger/modifier/${id}/add`);
+      assertStringIncludes(html, "Manager visible");
+      assert(!html.includes("<h2>Money</h2>"));
+      assert(!html.includes(`/admin/ledger/modifier/${id}/add`));
     });
 
     test("shows delete only on the Actions tab", async () => {
@@ -135,7 +138,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         await adminGet(`/admin/modifiers/${id}/edit`)
       ).text();
       const actions = await adminGet(`/admin/modifiers/${id}/actions`);
-      expect(editHtml).not.toContain(`/admin/modifiers/${id}/delete`);
+      assert(!editHtml.includes(`/admin/modifiers/${id}/delete`));
       await expectHtmlResponse(
         actions,
         200,

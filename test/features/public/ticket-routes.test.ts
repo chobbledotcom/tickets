@@ -1,4 +1,5 @@
 /* jscpd:ignore-start -- imports */
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
@@ -33,7 +34,7 @@ const reservedOrder = async (slug: string): Promise<string> => {
     name: "Jane Doe",
   });
   const location = response.headers.get("location") ?? "";
-  expect(location).toContain("/ticket/reserved?tokens=");
+  assertStringIncludes(location, "/ticket/reserved?tokens=");
   return location;
 };
 
@@ -50,7 +51,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/svg+xml");
-    expect(await response.text()).toContain("svg");
+    assertStringIncludes(await response.text(), "svg");
   });
 
   test("an unknown slug has no QR", async () => {
@@ -84,7 +85,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     await createTestListing({ groupId: group.id, name: "Stargazing Slot" });
     const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("Stargazing");
+    assertStringIncludes(await response.text(), "Stargazing");
   });
 
   /** An opted-out group with two public tiers and one hidden tier — the group
@@ -133,9 +134,9 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Surf Society Lesson 0");
-    expect(html).toContain("Surf Society Lesson 1");
-    expect(html).not.toContain("Surf Society Secret Tier");
+    assertStringIncludes(html, "Surf Society Lesson 0");
+    assertStringIncludes(html, "Surf Society Lesson 1");
+    assert(!html.includes("Surf Society Secret Tier"));
 
     // A crafted quantity field cannot book the hidden tier either: the
     // submission prices the page's own listing set, which no longer has it.
@@ -146,7 +147,10 @@ describeWithEnv("public ticket routes", { db: true }, () => {
       [`quantity_${hiddenTier.id}`]: "3",
     });
     expect(booking.status).toBe(302);
-    expect(booking.headers.get("location")).toContain("/ticket/reserved");
+    assertStringIncludes(
+      booking.headers.get("location") ?? "",
+      "/ticket/reserved",
+    );
     const [publicRows, hiddenRows] = await Promise.all([
       getAttendeesByListingIds([publicTier.id], true),
       getAttendeesByListingIds([hiddenTier.id], true),
@@ -179,7 +183,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     expect(response.status).toBe(404);
     const listings = await handleRequest(mockRequest("/listings"));
-    expect(await listings.text()).not.toContain("Fan Club");
+    assert(!(await listings.text()).includes("Fan Club"));
   });
 
   test("a group that unticks the box stops showing its hidden tier", async () => {
@@ -202,14 +206,14 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     });
 
     const shown = await handleRequest(mockRequest(`/ticket/${group.slug}`));
-    expect(await shown.text()).toContain("Board Game Club Secret Tier");
+    assertStringIncludes(await shown.text(), "Board Game Club Secret Tier");
 
     await updateTestGroup(group.id, { showHiddenListings: false });
     const cleared = await handleRequest(
       mockRequest(`/ticket/${group.slug}?q_${publicTier.id}=1`),
     );
     expect(cleared.status).toBe(200);
-    expect(await cleared.text()).not.toContain("Board Game Club Secret Tier");
+    assert(!(await cleared.text()).includes("Board Game Club Secret Tier"));
   });
 
   /** Book one purchase-only listing and read its reserved page. */
@@ -228,23 +232,23 @@ describeWithEnv("public ticket routes", { db: true }, () => {
 
   test("the reserved page links a one-listing order's ticket, and hides the from-address while email is off", async () => {
     const html = await reservedPageHtml("Quiet Order");
-    expect(html).toContain("Thank you for your order");
+    assertStringIncludes(html, "Thank you for your order");
     expect(html).toMatch(/\/t\/[A-Za-z0-9+-]+/);
-    expect(html).not.toContain("will be sent from");
+    assert(!html.includes("will be sent from"));
 
     // With no tokens at all the page still renders, and still names no sender.
     const bare = await (
       await handleRequest(mockRequest("/ticket/reserved"))
     ).text();
-    expect(bare).toContain("Thank you for your order");
-    expect(bare).not.toContain("will be sent from");
+    assertStringIncludes(bare, "Thank you for your order");
+    assert(!bare.includes("will be sent from"));
   });
 
   test("the reserved page names the sending address once email is configured", async () => {
     await connectResendProvider();
     await settings.update.businessEmail("owner@example.com");
     const html = await reservedPageHtml("Chatty Order");
-    expect(html).toContain("sent from owner@example.com");
+    assertStringIncludes(html, "sent from owner@example.com");
   });
 
   test("a two-order reserved page joins its tokens, and a space still resolves them", async () => {
@@ -271,7 +275,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     const html = await (
       await handleRequest(mockRequest(`/ticket/reserved?tokens=${tokens}`))
     ).text();
-    expect(html).toContain(`/t/${tokens}`);
+    assertStringIncludes(html, `/t/${tokens}`);
 
     // A space where the URL shows "+" resolves to the same order.
     const spaced = await (
@@ -279,7 +283,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
         mockRequest(`/ticket/reserved?tokens=${tokens.replaceAll("+", " ")}`),
       )
     ).text();
-    expect(spaced).toContain(`/t/${tokens}`);
+    assertStringIncludes(spaced, `/t/${tokens}`);
   });
 
   test("a single package slug renders the package form, not the cart", async () => {
@@ -293,10 +297,13 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain(`name="package_quantity_${group.id}"`);
+    assertStringIncludes(html, `name="package_quantity_${group.id}"`);
     // Only the group fallback renders the description; the lone-package cart
     // path would drop it.
-    expect(html).toContain("The package page names what the group page says.");
+    assertStringIncludes(
+      html,
+      "The package page names what the group page says.",
+    );
   });
 
   test("a package booked beside a listing renders the cart's package section", async () => {
@@ -315,9 +322,9 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain(`name="package_quantity_${group.id}"`);
-    expect(html).toContain("Combo Pkg Stall");
-    expect(html).toContain("Combo Addon");
+    assertStringIncludes(html, `name="package_quantity_${group.id}"`);
+    assertStringIncludes(html, "Combo Pkg Stall");
+    assertStringIncludes(html, "Combo Addon");
   });
 
   test("a multi-slug page renders the cart, and a mixed unknown cart stays 404", async () => {
@@ -329,8 +336,8 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     );
     expect(cart.status).toBe(200);
     const html = await cart.text();
-    expect(html).toContain("Cart Kayak");
-    expect(html).toContain("Cart Sauna");
+    assertStringIncludes(html, "Cart Kayak");
+    assertStringIncludes(html, "Cart Sauna");
 
     const group = await createTestGroup({ name: "Cart Decoy Group" });
     await createTestListing({ groupId: group.id, name: "Cart Decoy Stall" });

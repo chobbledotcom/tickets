@@ -6,7 +6,7 @@
  * renders is always one the viewer can carry out.
  */
 
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -48,9 +48,9 @@ describeWithEnv("the actions on a paid listing", { db: true }, () => {
 
     const { danger, plain } = await actionsOf(listing.id);
 
-    expect(danger).toContain(hrefFor(listing.id, "refund-all"));
-    expect(danger).toContain("Refund All");
-    expect(plain).not.toContain(hrefFor(listing.id, "refund-all"));
+    assertStringIncludes(danger, hrefFor(listing.id, "refund-all"));
+    assertStringIncludes(danger, "Refund All");
+    assert(!plain.includes(hrefFor(listing.id, "refund-all")));
   });
 
   test("keeps refund-all from a manager, who may not move money", async () => {
@@ -59,7 +59,7 @@ describeWithEnv("the actions on a paid listing", { db: true }, () => {
 
     const { danger, plain } = await actionsOf(listing.id, cookie);
 
-    expect(danger + plain).not.toContain(hrefFor(listing.id, "refund-all"));
+    assert(!(danger + plain).includes(hrefFor(listing.id, "refund-all")));
   });
 
   test("keeps refund-all off a listing that takes no money", async () => {
@@ -70,7 +70,7 @@ describeWithEnv("the actions on a paid listing", { db: true }, () => {
 
     const { danger, plain } = await actionsOf(listing.id);
 
-    expect(danger + plain).not.toContain(hrefFor(listing.id, "refund-all"));
+    assert(!(danger + plain).includes(hrefFor(listing.id, "refund-all")));
   });
 });
 
@@ -94,8 +94,8 @@ describeWithEnv("the email action", { db: true }, () => {
 
     const { plain } = await actionsOf(listing.id);
 
-    expect(plain).toContain(`href="/admin/emails?`);
-    expect(plain).toContain("Email");
+    assertStringIncludes(plain, `href="/admin/emails?`);
+    assertStringIncludes(plain, "Email");
   });
 
   test("is not offered when the listing has nobody on it", async () => {
@@ -106,7 +106,7 @@ describeWithEnv("the email action", { db: true }, () => {
 
     const { danger, plain } = await actionsOf(listing.id);
 
-    expect(danger + plain).not.toContain(`href="/admin/emails?`);
+    assert(!(danger + plain).includes(`href="/admin/emails?`));
   });
 
   test("is not offered to a manager, even with someone to email", async () => {
@@ -115,7 +115,7 @@ describeWithEnv("the email action", { db: true }, () => {
 
     const { danger, plain } = await actionsOf(listing.id, cookie);
 
-    expect(danger + plain).not.toContain(`href="/admin/emails?`);
+    assert(!(danger + plain).includes(`href="/admin/emails?`));
   });
 });
 
@@ -128,10 +128,10 @@ describeWithEnv("the actions that end a listing", { db: true }, () => {
 
     const { danger, plain } = await actionsOf(listing.id);
 
-    expect(danger).toContain(hrefFor(listing.id, "deactivate"));
-    expect(danger).toContain(hrefFor(listing.id, "delete"));
-    expect(plain).not.toContain(hrefFor(listing.id, "deactivate"));
-    expect(plain).not.toContain(hrefFor(listing.id, "delete"));
+    assertStringIncludes(danger, hrefFor(listing.id, "deactivate"));
+    assertStringIncludes(danger, hrefFor(listing.id, "delete"));
+    assert(!plain.includes(hrefFor(listing.id, "deactivate")));
+    assert(!plain.includes(hrefFor(listing.id, "delete")));
   });
 
   test("leaves reactivate out of it, because bringing one back is safe", async () => {
@@ -145,7 +145,7 @@ describeWithEnv("the actions that end a listing", { db: true }, () => {
 
     const { danger, plain } = await actionsOf(listing.id);
 
-    expect(plain).toContain(hrefFor(listing.id, "reactivate"));
-    expect(danger).not.toContain(hrefFor(listing.id, "reactivate"));
+    assertStringIncludes(plain, hrefFor(listing.id, "reactivate"));
+    assert(!danger.includes(hrefFor(listing.id, "reactivate")));
   });
 });
