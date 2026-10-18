@@ -25,7 +25,6 @@ export const publicSitePage = (
   nav: PublicNavProps,
   websiteTitle: string,
   content?: string | null,
-  imageUrls?: ReadonlyMap<number, string>,
 ): string => {
   const titles: Record<PublicPageType, string> = {
     contact: t("public.contact"),
@@ -47,7 +46,7 @@ export const publicSitePage = (
   )(
     <div class="prose">
       {content ? (
-        <Raw html={renderMarkdown(content, imageUrls)} />
+        <Raw html={renderMarkdown(content)} />
       ) : (
         <p>
           <em>{t("public.no_content")}</em>
