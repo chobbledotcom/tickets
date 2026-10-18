@@ -56,6 +56,7 @@ import { reportMaintenanceFailure } from "#shared/maintenance/report.ts";
 import {
   currentRequestStore,
   detectIframeMode,
+  getIframeMode,
 } from "#shared/request-context.ts";
 import { SessionKeyError } from "#shared/session-private-key.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
@@ -285,12 +286,14 @@ const processRequest = async (request: Request): Promise<Response> => {
     // The Layout's footer renders synchronously. Its image-url table is
     // resolved here, after the database and this path's settings exist. Only
     // requests that can render the site footer pay the read. The admin area
-    // carries the admin footer, and the API renders none. A failed lookup
-    // renders the footer without its images instead of failing the request.
+    // carries the admin footer, the API renders none, and an iframe embed
+    // hides the footer. A failed lookup renders the footer without its images
+    // instead of failing the request.
     if (
       path !== "/admin" &&
       !path.startsWith("/admin/") &&
-      !path.startsWith("/api/")
+      !path.startsWith("/api/") &&
+      !getIframeMode()
     ) {
       const store = currentRequestStore();
       if (store) {

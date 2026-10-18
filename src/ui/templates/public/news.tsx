@@ -67,14 +67,14 @@ export const newsListPage = (
  * it inside the prose. */
 export const newsPostPage = seoContentPage<NewsPost>(
   { showHeading: false },
-  (post, images, _nav, imageUrls) => (
+  (post, images) => (
     <div class="prose">
       <h1>{post.name}</h1>
       <p class="news-post-date">
         <em>{formatDateLongLabel(post.created)}</em>
       </p>
       <PublicImageGallery images={images} />
-      {post.content && <Raw html={renderMarkdown(post.content, imageUrls)} />}
+      {post.content && <Raw html={renderMarkdown(post.content)} />}
     </div>
   ),
 );

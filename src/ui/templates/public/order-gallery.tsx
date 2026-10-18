@@ -2,7 +2,6 @@
 
 import type { TicketListing } from "#booking/model.ts";
 import type { ListingAttributesById } from "#db/attributes.ts";
-import type { ImageUrls } from "#db/images.ts";
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
@@ -201,7 +200,6 @@ export const orderGalleryPage = (
   websiteTitle: string,
   introText?: string | null,
   attributesByListing: ListingAttributesById = new Map(),
-  imageUrls?: ImageUrls,
 ): string => {
   const title = titleWithSiteName(t("nav.public.order"), websiteTitle);
   const cards = pipe(
@@ -218,7 +216,7 @@ export const orderGalleryPage = (
     nav,
   )(
     <>
-      <MarkdownProse imageUrls={imageUrls} markdown={introText ?? ""} />
+      <MarkdownProse markdown={introText ?? ""} />
       {listings.length === 0 && packages.length === 0 ? (
         <p>
           <em>{t("public.order.empty")}</em>
