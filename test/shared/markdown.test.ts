@@ -1,11 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { mergePageImageUrls } from "#db/images.ts";
 import {
   isSafeUrl,
   isSimpleMarkdown,
   renderMarkdown,
   withoutLinksTo,
 } from "#shared/markdown.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("markdown", () => {
   describe("renderMarkdown", () => {
@@ -384,9 +386,41 @@ describe("markdown", () => {
       expect(result).not.toContain("/image/");
     });
 
-    test("renders no image source without a preloaded table", () => {
-      const result = renderMarkdown("![Hero](img#7)");
-      expect(result).toContain('<img src="" alt="Hero">');
+    test("resolves an img#id reference from the request's page-image table", async () => {
+      await withRequestContext(() => {
+        mergePageImageUrls(new Map([[7, "/image/hero.webp"]]));
+        expect(renderMarkdown("![Hero](img#7)")).toContain(
+          '<img src="/image/hero.webp" alt="Hero">',
+        );
+      });
+    });
+
+    test("merges each page-image write into one table for the request", async () => {
+      await withRequestContext(() => {
+        mergePageImageUrls(new Map([[7, "/image/hero.webp"]]));
+        mergePageImageUrls(new Map([[9, "/image/map.webp"]]));
+        expect(renderMarkdown("![Hero](img#7)")).toContain(
+          '<img src="/image/hero.webp" alt="Hero">',
+        );
+        expect(renderMarkdown("![Map](img#9)")).toContain(
+          '<img src="/image/map.webp" alt="Map">',
+        );
+      });
+    });
+
+    test("renders no image source before any page-image write", async () => {
+      await withRequestContext(() => {
+        expect(renderMarkdown("![Hero](img#7)")).toContain(
+          '<img src="" alt="Hero">',
+        );
+      });
+    });
+
+    test("keeps a page-image write outside a request a no-op", () => {
+      mergePageImageUrls(new Map([[7, "/image/hero.webp"]]));
+      expect(renderMarkdown("![Hero](img#7)")).toContain(
+        '<img src="" alt="Hero">',
+      );
     });
 
     test("keeps a img#id link target as the author wrote it", () => {

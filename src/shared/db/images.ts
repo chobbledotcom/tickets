@@ -21,6 +21,10 @@ import { equals, inList } from "#db/where-clauses.ts";
 import { mapById } from "#fp";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { decryptImageFilename } from "#shared/images/broken.ts";
+import {
+  currentRequestStore,
+  withRequestStore,
+} from "#shared/request-context.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 import {
   type Image,
@@ -121,6 +125,23 @@ export const imageUrlsFor = async (
     : mapById((row: { id: number; filename: string }) =>
         getImageProxyUrl(row.filename),
       )(await imageUrlColumns.many({}, { where: inList("id", ids) }));
+};
+
+/** Merge one id→URL table into the request's page-image slot, which
+ * renderMarkdown's default reads. No-op outside a request, so out-of-request
+ * work cannot seed a table into any later one. */
+export const mergePageImageUrls = (table: ImageUrls): void =>
+  withRequestStore((store) => {
+    if (!store.pageImageUrls) store.pageImageUrls = new Map();
+    for (const [id, url] of table) store.pageImageUrls.set(id, url);
+  });
+
+/** Run the bounded lookup for the texts' img#N references and merge the
+ * result into the request's page-image slot. No request context → no-op.
+ * Texts that name no image query nothing and merge nothing. */
+export const addPageImageUrls = async (texts: ImageUrlTexts): Promise<void> => {
+  if (!currentRequestStore()) return;
+  mergePageImageUrls(await imageUrlsFor(texts));
 };
 
 export const getAllImages = (): Promise<Image[]> =>
