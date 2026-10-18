@@ -177,6 +177,9 @@ export const throughWay =
   (way: string): PathChange =>
   (path) => [...path, { way }];
 
+/** One step through a member with no name of its own. */
+export const way = (through: string): Step => ({ way: through });
+
 export const stepText = (step: Step): string =>
   "name" in step ? step.name : step.way;
 

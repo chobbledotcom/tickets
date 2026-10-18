@@ -1,7 +1,10 @@
 import {
   type FindingIdentity,
   identitiesAt,
+  ownerAt,
 } from "#scripts/unread-fields/identity.ts";
+
+const inAdminApi = ownerAt("src/shared/admin-api-resources.ts");
 
 /** Owners with the same unread fields share one declaration. */
 export const SHARED_FIELD_BASELINE: readonly FindingIdentity[] = [
@@ -133,4 +136,56 @@ export const SHARED_FIELD_BASELINE: readonly FindingIdentity[] = [
   ...identitiesAt([["src/shared/jsx/jsx-runtime.ts", [{ name: "SafeHtml" }]]])([
     "toString",
   ]),
+  ...identitiesAt([
+    ["src/shared/listing-defaults.ts", [{ name: "ListingDefaults" }]],
+  ])([
+    "bookableDays",
+    "maximumDaysAfter",
+    "minimumDaysBefore",
+    "thankYouUrl",
+    "webhookUrl",
+  ]),
+  ...identitiesAt([
+    ["src/shared/booking-intent.ts", [{ name: "TextAnswerRef" }]],
+  ])(["s"]),
+  ...identitiesAt([
+    [
+      "src/shared/booking-intent.ts",
+      [
+        { name: "BookingIntent" },
+        { name: "allocations" },
+        { way: "[]" as const },
+      ],
+    ],
+  ])(["qty"]),
+  ...identitiesAt([
+    [
+      "src/shared/square/client.ts",
+      [
+        { name: "SquareClient" },
+        { name: "checkout" },
+        { name: "paymentLinks" },
+        { name: "create" },
+        { way: "()" as const },
+        { way: "result" as const },
+      ],
+    ],
+  ])(["createdAt", "linkId", "orderId", "url"]),
+  ...identitiesAt([
+    inAdminApi("AdminApiCreateHolidayBody"),
+    inAdminApi("AdminApiUpdateHolidayBody"),
+  ])(["end_date", "name", "start_date"]),
+  ...identitiesAt([inAdminApi("AdminApiHoliday")])([
+    "end_date",
+    "id",
+    "name",
+    "start_date",
+  ]),
+  ...identitiesAt([
+    inAdminApi("AdminApiCreateAttributeBody"),
+    inAdminApi("AdminApiUpdateAttributeBody"),
+  ])(["name"]),
+  ...identitiesAt([inAdminApi("AdminApiAttributeOptionBody")])(["text"]),
+  ...identitiesAt([inAdminApi("AdminApiDeleteBody")])(["confirm_identifier"]),
+  ...identitiesAt([inAdminApi("AdminApiDeleteAnswer")])(["status"]),
 ];

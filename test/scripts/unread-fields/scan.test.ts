@@ -368,3 +368,58 @@ describe("the reads the scan counts", () => {
     expect(verdictOf("typeof Registry", "namesAKeyThatRuns")).toBe("read");
   });
 });
+
+describe("the shapes a bare specifier holds", () => {
+  test("reports the fields of a valibot shape", async () => {
+    // Issue #2214: a bare import such as valibot resolved to `any`, so a
+    // shape written with `InferOutput` reported zero fields. The mapping from
+    // `deno info` gives the compiler the package's real types.
+    //
+    // The child `deno info` resolves the same specifier the repository maps,
+    // out of the cache the suite has already filled. The suite keeps valibot
+    // out of module load and imports it on first use, so this warmer cannot
+    // be a static import: it runs only when this test does, and its whole job
+    // is to have the package cached before the child resolves it.
+    await import("valibot");
+    const repoRoot = new URL("../../../", import.meta.url).pathname.replace(
+      /\/$/,
+      "",
+    );
+    const repoConfig = JSON.parse(
+      await Deno.readTextFile(`${repoRoot}/deno.json`),
+    );
+    const specifier = repoConfig.imports?.valibot;
+    if (typeof specifier !== "string") {
+      throw new Error("deno.json maps no valibot import");
+    }
+    const root = await Deno.makeTempDir({ prefix: "unread-fields-valibot-" });
+    try {
+      await Deno.mkdir(`${root}/src`);
+      await Deno.writeTextFile(
+        `${root}/deno.json`,
+        JSON.stringify({
+          exports: "./src/index.ts",
+          imports: { valibot: specifier },
+        }),
+      );
+      await Deno.writeTextFile(
+        `${root}/src/index.ts`,
+        [
+          `import { type InferOutput, number, object, string } from "valibot";`,
+          "",
+          "const IntentSchema = object({ name: string(), count: number() });",
+          "",
+          "export type Intent = InferOutput<typeof IntentSchema>;",
+          "",
+        ].join("\n"),
+      );
+      const found = await scanUnreadFields(root);
+      expect(found.map((f) => `${f.owner}.${f.field}`).sort()).toEqual([
+        "Intent.count",
+        "Intent.name",
+      ]);
+    } finally {
+      await Deno.remove(root, { recursive: true });
+    }
+  });
+});

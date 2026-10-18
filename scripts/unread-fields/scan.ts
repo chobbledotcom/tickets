@@ -10,6 +10,7 @@
 import ts from "typescript";
 import { collectSourceFiles } from "#scripts/walk-files.ts";
 import { aliasPaths } from "./aliases.ts";
+import { barePaths } from "./bare-paths.ts";
 import { fieldNameText } from "./fields/names.ts";
 import { exportedFields } from "./fields.ts";
 import { type Finding, verdictFor } from "./findings.ts";
@@ -27,6 +28,13 @@ const REPORTED = "src";
 const ALSO_READ = ["test", "scripts", "cli", "e2e-payments/src"];
 
 const isDirectory = pathIs("isDirectory");
+
+/** The module whose graph says where the bare packages sit: the repository's
+ * own `exports` when it declares one, the usual entry otherwise. */
+const entryOf = (config: { exports?: unknown }): string =>
+  typeof config.exports === "string" && config.exports.length > 0
+    ? config.exports
+    : "./src/index.ts";
 
 const sourceFilesIn = async (root: string): Promise<string[]> => {
   if (!isDirectory(`${root}/${REPORTED}`)) {
@@ -48,9 +56,10 @@ const sourceFilesIn = async (root: string): Promise<string[]> => {
 export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
   const config = JSON.parse(await Deno.readTextFile(`${root}/deno.json`));
   const files = await sourceFilesIn(root);
+  const bare = await barePaths(root, entryOf(config));
   const options = compilerOptions(
     root,
-    aliasPaths(config.imports),
+    { ...aliasPaths(config.imports), ...bare },
     config.compilerOptions,
   );
   const service = ts.createLanguageService(
