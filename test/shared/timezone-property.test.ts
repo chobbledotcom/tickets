@@ -8,12 +8,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as fc from "fast-check";
+import { addDays } from "#shared/dates.ts";
 import {
   dayStartEpochMs,
   epochMsToTzDate,
   formatDatetimeShortInTz,
   utcToLocalInput,
 } from "#shared/timezone.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 
 const seedArgs = { numRuns: 100, seed: 20261018 } as const;
 
@@ -30,21 +32,37 @@ const ZONES = [
   "America/St_Johns",
 ] as const;
 
+/** The 2026 DST transition days of those zones: a generated day set alone
+ * can land on none of them. */
+const TRANSITION_DAYS = [
+  "2026-03-08",
+  "2026-03-29",
+  "2026-04-05",
+  "2026-09-27",
+  "2026-10-04",
+  "2026-10-25",
+  "2026-11-01",
+] as const;
+
 const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const LOCAL_DATETIME = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
 
 /** A generator of real calendar YYYY-MM-DD days between 2025 and 2027, with
- * the day capped at 28 so every generated triple is a valid date. */
-const calendarDay = fc
-  .tuple(
-    fc.integer({ max: 2027, min: 2025 }),
-    fc.integer({ max: 12, min: 1 }),
-    fc.integer({ max: 28, min: 1 }),
-  )
-  .map(
-    ([year, month, day]) =>
-      `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
-  );
+ * the day capped at 28 so every generated triple is a valid date, plus the
+ * zones' explicit DST transition days. */
+const anyDay = fc.oneof(
+  fc
+    .tuple(
+      fc.integer({ max: 2027, min: 2025 }),
+      fc.integer({ max: 12, min: 1 }),
+      fc.integer({ max: 28, min: 1 }),
+    )
+    .map(
+      ([year, month, day]) =>
+        `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+    ),
+  fc.constantFrom(...TRANSITION_DAYS),
+);
 
 /** A generator of epoch milliseconds in a fixed window (2025-2027), so the
  * instants are deterministic and carry DST transitions. */
@@ -56,8 +74,14 @@ const epochMs = fc.integer({
 describe("timezone conversion properties", () => {
   test("a day start in any supported zone labels back as that day", () => {
     fc.assert(
-      fc.property(calendarDay, fc.constantFrom(...ZONES), (day, tz) => {
-        expect(epochMsToTzDate(dayStartEpochMs(day, tz), tz)).toBe(day);
+      fc.property(anyDay, fc.constantFrom(...ZONES), (day, tz) => {
+        const localDay = parseDateStringOrThrow(day, "a generated local day");
+        const start = dayStartEpochMs(localDay, tz);
+        expect(epochMsToTzDate(start, tz)).toBe(localDay);
+        // The boundary check: one millisecond before the day start must
+        // already read as the previous day, so the start really is the day's
+        // first instant, not noon or any later moment of it.
+        expect(epochMsToTzDate(start - 1, tz)).toBe(addDays(localDay, -1));
       }),
       seedArgs,
     );

@@ -68,7 +68,9 @@ const readUnquoted = (text: string, state: ParserState): void => {
 };
 
 /** A reference RFC 4180 parser: quoted fields may hold commas, doubled
- * quotes, and newlines; every other character is cell data. */
+ * quotes, and newlines; every other character is cell data. Malformed text —
+ * a quote that never closes — throws, so a generator bug cannot hide behind
+ * a lenient read. */
 const parseCsv = (text: string): string[][] => {
   const state: ParserState = {
     cell: "",
@@ -83,6 +85,9 @@ const parseCsv = (text: string): string[][] => {
     } else {
       readUnquoted(text, state);
     }
+  }
+  if (state.inQuotes) {
+    throw new Error(`Unterminated quoted field in: ${text}`);
   }
   state.row.push(state.cell);
   state.rows.push(state.row);

@@ -60,9 +60,6 @@ const isoInstant = ymdParts().chain(([year, month, day]) =>
 const daysInMonth = (year: number, month: number): number =>
   new Date(Date.UTC(year, month, 0)).getUTCDate();
 
-/** The clock time (hours, minutes, seconds, ms) an ISO instant carries. */
-const timeOfDay = (iso: string): string => iso.slice(10);
-
 describe("addDays properties", () => {
   test("is invertible: adding then subtracting the same days returns the date", () => {
     fc.assert(
@@ -120,21 +117,63 @@ describe("dateRange properties", () => {
 });
 
 describe("addMonthsIso properties", () => {
-  test("keeps the clock time and lands on a real day of the target month", () => {
+  test("lands on the expected clamped day, with the clock time kept", () => {
     fc.assert(
       fc.property(
         isoInstant,
         fc.integer({ max: 24, min: -24 }),
         (iso, months) => {
           if (months === 0) return;
-          const shifted = addMonthsIso(iso, months);
-          expect(timeOfDay(shifted)).toBe(timeOfDay(iso));
-          const result = new Date(shifted);
-          const monthLength = daysInMonth(
-            result.getUTCFullYear(),
-            result.getUTCMonth() + 1,
+          const source = new Date(iso);
+          // The target month arithmetic runs through month index 0..11 with
+          // the year carrying the overflow, so January plus one month is
+          // February of the same year and December plus one is the next
+          // January.
+          const targetMonthIndex = source.getUTCMonth() + months;
+          const targetYear =
+            source.getUTCFullYear() + Math.floor(targetMonthIndex / 12);
+          const targetMonth = ((targetMonthIndex % 12) + 12) % 12;
+          const expectedDay = Math.min(
+            source.getUTCDate(),
+            daysInMonth(targetYear, targetMonth + 1),
           );
-          expect(result.getUTCDate()).toBeLessThanOrEqual(monthLength);
+          const expected = new Date(
+            Date.UTC(
+              targetYear,
+              targetMonth,
+              expectedDay,
+              source.getUTCHours(),
+              source.getUTCMinutes(),
+              source.getUTCSeconds(),
+              source.getUTCMilliseconds(),
+            ),
+          ).toISOString();
+          expect(addMonthsIso(iso, months)).toBe(expected);
+        },
+      ),
+      seedArgs,
+    );
+  });
+
+  test("clamps a month-end day onto the target month's last day", () => {
+    // A source day the target month cannot hold (31 into a 30- or 28-day
+    // month) must land on that month's last day, not spill into it.
+    fc.assert(
+      fc.property(
+        fc.integer({ max: 2100, min: 2001 }),
+        fc.integer({ max: 11, min: 0 }),
+        fc.integer({ max: 24, min: 1 }),
+        (year, monthIndex, months) => {
+          const sourceDay = 31;
+          if (daysInMonth(year, monthIndex + 1) < 31) return;
+          const source = new Date(Date.UTC(year, monthIndex, sourceDay));
+          const shifted = addMonthsIso(source.toISOString(), months);
+          const targetMonthIndex = monthIndex + months;
+          const targetYear = year + Math.floor(targetMonthIndex / 12);
+          const targetMonth = ((targetMonthIndex % 12) + 12) % 12;
+          expect(new Date(shifted).getUTCDate()).toBe(
+            Math.min(31, daysInMonth(targetYear, targetMonth + 1)),
+          );
         },
       ),
       seedArgs,
@@ -155,6 +194,25 @@ describe("parseIsoDateParam properties", () => {
         const result = parseIsoDateParam(value);
         expect(result).toBe(realDay ? value : null);
       }),
+      seedArgs,
+    );
+  });
+
+  test("returns real calendar dates and rejects same-shape fakes", () => {
+    fc.assert(
+      fc.property(
+        calendarDate,
+        fc.integer({ max: 12, min: 1 }),
+        (date, fakeDay) => {
+          expect(parseIsoDateParam(date)).toBe(date);
+          // The same shape with an impossible day: always rejected, even
+          // though the string reads like a date.
+          const fake = `${date.slice(0, 8)}${String(29 + (fakeDay % 3)).padStart(2, "0")}`;
+          const parsed = new Date(`${fake}T00:00:00Z`);
+          const fakeIsReal = parsed.getUTCDate() === Number(fake.slice(8, 10));
+          expect(parseIsoDateParam(fake)).toBe(fakeIsReal ? fake : null);
+        },
+      ),
       seedArgs,
     );
   });

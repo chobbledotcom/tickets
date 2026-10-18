@@ -6,6 +6,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import * as fc from "fast-check";
+import { base64ToBase64Url, fromBase64Url, toBase64 } from "#crypto/utils.ts";
 import {
   buildQrBookPayload,
   signQrBookToken,
@@ -34,7 +35,7 @@ describe("qr token properties", () => {
   });
 
   test("verifies what it signed, for any payload and slug", async () => {
-    fc.assert(
+    await fc.assert(
       fc.asyncProperty(
         arbitrarySlug,
         arbitraryPayload,
@@ -49,7 +50,7 @@ describe("qr token properties", () => {
   });
 
   test("verify is total on arbitrary token strings", async () => {
-    fc.assert(
+    await fc.assert(
       fc.asyncProperty(
         arbitrarySlug,
         fc.string({ maxLength: 200 }),
@@ -63,7 +64,7 @@ describe("qr token properties", () => {
   });
 
   test("a token signed for one slug never verifies against another", async () => {
-    fc.assert(
+    await fc.assert(
       fc.asyncProperty(
         arbitrarySlug,
         arbitraryPayload,
@@ -78,8 +79,8 @@ describe("qr token properties", () => {
     );
   });
 
-  test("a flipped character anywhere in the signature rejects the token", async () => {
-    fc.assert(
+  test("a flipped character anywhere in the token rejects it", async () => {
+    await fc.assert(
       fc.asyncProperty(
         arbitrarySlug,
         arbitraryPayload,
@@ -92,6 +93,34 @@ describe("qr token properties", () => {
           const flipped = original === "A" ? "B" : "A";
           const tampered =
             token.slice(0, position) + flipped + token.slice(position + 1);
+          expect(await verifyQrBookToken(slug, tampered)).toBeNull();
+        },
+      ),
+      seedArgs,
+    );
+  });
+
+  test("a tampered payload field without a re-sign rejects the token", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        arbitrarySlug,
+        arbitraryPayload,
+        async (slug, payload) => {
+          const token = await signQrBookToken(slug, payload);
+          // The payload rides as base64url between the prefix and the HMAC:
+          // swap a field without re-signing, so the signature no longer binds.
+          const [, encodedPayload, signature] = token.split(".");
+          const decoded = JSON.parse(
+            new TextDecoder().decode(fromBase64Url(encodedPayload!)),
+          );
+          const tamperedPayload = base64ToBase64Url(
+            toBase64(
+              new TextEncoder().encode(
+                JSON.stringify({ ...decoded, quantity: decoded.quantity + 1 }),
+              ),
+            ),
+          );
+          const tampered = `qr1.${tamperedPayload}.${signature}`;
           expect(await verifyQrBookToken(slug, tampered)).toBeNull();
         },
       ),
