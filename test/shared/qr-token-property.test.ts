@@ -9,6 +9,7 @@ import * as fc from "fast-check";
 import { base64ToBase64Url, fromBase64Url, toBase64 } from "#crypto/utils.ts";
 import {
   buildQrBookPayload,
+  type QrBookPayload,
   signQrBookToken,
   verifyQrBookToken,
 } from "#shared/qr-token.ts";
@@ -16,16 +17,17 @@ import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const seedArgs = { numRuns: 100, seed: 20261018 } as const;
 
-const arbitraryPayload = fc
-  .record({
-    d: fc
-      .date({ max: new Date(2100, 0, 1), min: new Date(2020, 0, 1) })
-      .map((date) => date.toISOString().slice(0, 10)),
-    name: fc.string({ maxLength: 60 }),
-    quantity: fc.integer({ max: 100, min: 1 }),
-    value: fc.integer({ max: 1_000_000, min: -1 }),
-  })
-  .map((input) => buildQrBookPayload(input));
+const arbitraryPayload = (): fc.Arbitrary<QrBookPayload> =>
+  fc
+    .record({
+      d: fc
+        .date({ max: new Date(2100, 0, 1), min: new Date(2020, 0, 1) })
+        .map((date) => date.toISOString().slice(0, 10)),
+      name: fc.string({ maxLength: 60 }),
+      quantity: fc.integer({ max: 100, min: 1 }),
+      value: fc.integer({ max: 1_000_000, min: -1 }),
+    })
+    .map((input) => buildQrBookPayload(input));
 
 const arbitrarySlug = fc.string({ maxLength: 40 });
 
@@ -38,7 +40,7 @@ describe("qr token properties", () => {
     await fc.assert(
       fc.asyncProperty(
         arbitrarySlug,
-        arbitraryPayload,
+        arbitraryPayload(),
         async (slug, payload) => {
           const token = await signQrBookToken(slug, payload);
           const verified = await verifyQrBookToken(slug, token);
@@ -67,7 +69,7 @@ describe("qr token properties", () => {
     await fc.assert(
       fc.asyncProperty(
         arbitrarySlug,
-        arbitraryPayload,
+        arbitraryPayload(),
         fc.string({ maxLength: 40 }),
         async (slug, payload, other) => {
           const token = await signQrBookToken(slug, payload);
@@ -83,7 +85,7 @@ describe("qr token properties", () => {
     await fc.assert(
       fc.asyncProperty(
         arbitrarySlug,
-        arbitraryPayload,
+        arbitraryPayload(),
         fc.nat({ max: 40 }),
         async (slug, payload, offset) => {
           const token = await signQrBookToken(slug, payload);
@@ -104,19 +106,20 @@ describe("qr token properties", () => {
     await fc.assert(
       fc.asyncProperty(
         arbitrarySlug,
-        arbitraryPayload,
+        arbitraryPayload(),
         async (slug, payload) => {
           const token = await signQrBookToken(slug, payload);
           // The payload rides as base64url between the prefix and the HMAC:
-          // swap a field without re-signing, so the signature no longer binds.
+          // swap the signed quantity field without re-signing, so the
+          // signature no longer binds it.
           const [, encodedPayload, signature] = token.split(".");
           const decoded = JSON.parse(
             new TextDecoder().decode(fromBase64Url(encodedPayload!)),
-          );
+          ) as QrBookPayload;
           const tamperedPayload = base64ToBase64Url(
             toBase64(
               new TextEncoder().encode(
-                JSON.stringify({ ...decoded, quantity: decoded.quantity + 1 }),
+                JSON.stringify({ ...decoded, q: decoded.q + 1 }),
               ),
             ),
           );

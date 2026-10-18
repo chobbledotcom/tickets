@@ -157,13 +157,15 @@ describe("addMonthsIso properties", () => {
 
   test("clamps a month-end day onto the target month's last day", () => {
     // A source day the target month cannot hold (31 into a 30- or 28-day
-    // month) must land on that month's last day, not spill into it.
+    // month) must land on that month's last day, not spill into it, in both
+    // shift directions.
     fc.assert(
       fc.property(
         fc.integer({ max: 2100, min: 2001 }),
         fc.integer({ max: 11, min: 0 }),
-        fc.integer({ max: 24, min: 1 }),
+        fc.integer({ max: 24, min: -24 }),
         (year, monthIndex, months) => {
+          if (months === 0) return;
           const sourceDay = 31;
           if (daysInMonth(year, monthIndex + 1) < 31) return;
           const source = new Date(Date.UTC(year, monthIndex, sourceDay));

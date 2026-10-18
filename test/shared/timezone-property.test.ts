@@ -71,20 +71,46 @@ const epochMs = fc.integer({
   min: Date.UTC(2025, 0, 1),
 });
 
+/** Assert both day boundaries for one zone/day pair: the day start labels
+ * back as the day, and the millisecond before it reads as the previous day,
+ * so the start really is the day's first instant, not noon or any later
+ * moment of it. */
+const expectDayBoundaries = (tz: string, day: string): void => {
+  const localDay = parseDateStringOrThrow(day, "a local day");
+  const start = dayStartEpochMs(localDay, tz);
+  expect(epochMsToTzDate(start, tz)).toBe(localDay);
+  expect(epochMsToTzDate(start - 1, tz)).toBe(addDays(localDay, -1));
+};
+
 describe("timezone conversion properties", () => {
   test("a day start in any supported zone labels back as that day", () => {
     fc.assert(
       fc.property(anyDay, fc.constantFrom(...ZONES), (day, tz) => {
-        const localDay = parseDateStringOrThrow(day, "a generated local day");
-        const start = dayStartEpochMs(localDay, tz);
-        expect(epochMsToTzDate(start, tz)).toBe(localDay);
-        // The boundary check: one millisecond before the day start must
-        // already read as the previous day, so the start really is the day's
-        // first instant, not noon or any later moment of it.
-        expect(epochMsToTzDate(start - 1, tz)).toBe(addDays(localDay, -1));
+        expectDayBoundaries(tz, day);
       }),
       seedArgs,
     );
+  });
+
+  test("each zone's own DST transition days hold both day boundaries", () => {
+    // Sampled day/zone pairs can miss the date a zone actually transitions
+    // on, so every zone's 2026 spring-forward and fall-back days are named
+    // here with their own zone.
+    const transitions: [string, string][] = [
+      ["Europe/London", "2026-03-29"],
+      ["Europe/London", "2026-10-25"],
+      ["America/New_York", "2026-03-08"],
+      ["America/New_York", "2026-11-01"],
+      ["Australia/Lord_Howe", "2026-04-05"],
+      ["Australia/Lord_Howe", "2026-10-04"],
+      ["Pacific/Chatham", "2026-04-05"],
+      ["Pacific/Chatham", "2026-09-27"],
+      ["America/St_Johns", "2026-03-08"],
+      ["America/St_Johns", "2026-11-01"],
+    ];
+    for (const [tz, day] of transitions) {
+      expectDayBoundaries(tz, day);
+    }
   });
 
   test("the two local renderers agree on every instant and zone", () => {
