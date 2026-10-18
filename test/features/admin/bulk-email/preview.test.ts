@@ -174,7 +174,8 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       });
       // The mailto draft reaches the owner's email app as text, so it names
       // the picture at its address on the site instead of its reference.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         encodeURIComponent(
           `![Poster \\[blue\\]](https://${getEffectiveDomain()}/image/${image.filename})`,
         ),
@@ -192,10 +193,12 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       });
       // The code span is text the owner wrote as code, so the draft keeps it
       // written. The real reference still names the picture's address.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         encodeURIComponent(`Write \`![Poster](img#${image.id})\` by hand:`),
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         encodeURIComponent(
           `![Poster](https://${getEffectiveDomain()}/image/${image.filename})`,
         ),

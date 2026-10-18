@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -18,7 +19,7 @@ describe("attendee form model > boundaries", () => {
   test("the form id is the one the stylesheet styles", async () => {
     const stylesheet = await Deno.readTextFile("src/ui/static/style.scss");
     expect(ATTENDEE_FORM_ID).toBe("attendee-form");
-    expect(stylesheet).toContain(`#${ATTENDEE_FORM_ID} `);
+    assertStringIncludes(stylesheet, `#${ATTENDEE_FORM_ID} `);
   });
 
   test("one penny paid locks a line", () => {
