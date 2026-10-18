@@ -2,8 +2,6 @@
  * Admin attendee page templates
  */
 
-/* jscpd:ignore-start */
-import type { ImageUrls } from "#db/images.ts";
 import type {
   QuestionWithAnswers,
   SelectedQuestionAnswers,
@@ -401,13 +399,10 @@ const editableAnswers = (q: QuestionWithAnswers, selectedAnswerIds: number[]) =>
 
 export const EditQuestions = ({
   atBooking,
-  imageUrls,
   questions,
   selectedAnswerIds,
   selectedTextAnswers,
-}: SelectedQuestionAnswers & {
-  imageUrls?: ImageUrls;
-}): JSX.Element => {
+}: SelectedQuestionAnswers): JSX.Element => {
   const hints = atBookingHints(atBooking);
   return (
     <>
@@ -416,17 +411,13 @@ export const EditQuestions = ({
         const hint = hints.get(q.id);
         return (
           <>
-            {questionControl(
-              q,
-              {
-                isChosen: (answerId) => selectedAnswerIds.includes(answerId),
-                options: editableAnswers(q, selectedAnswerIds),
-                placeholder: t("attendee_form.no_answer"),
-                // A saved free-text answer may legitimately not exist yet.
-                textValue: selectedTextAnswers.get(q.id) ?? "",
-              },
-              imageUrls,
-            )}
+            {questionControl(q, {
+              isChosen: (answerId) => selectedAnswerIds.includes(answerId),
+              options: editableAnswers(q, selectedAnswerIds),
+              placeholder: t("attendee_form.no_answer"),
+              // A saved free-text answer may legitimately not exist yet.
+              textValue: selectedTextAnswers.get(q.id) ?? "",
+            })}
             {hint !== undefined && <small>{hint}</small>}
           </>
         );

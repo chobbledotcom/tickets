@@ -4,7 +4,6 @@
  */
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
-import type { ImageUrls } from "#db/images.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -21,12 +20,9 @@ import { textareaBody } from "#templates/components/textarea.tsx";
 export const SupportMessagePanel = ({
   site,
   state,
-  imageUrls,
 }: {
   site: BuiltSite;
   state: SupportMessageResult;
-  /** The id→uid-URL table for the stored message's img#N references. */
-  imageUrls?: ImageUrls;
 }): JSX.Element => {
   // A refused save's draft survives here even when the follow-up read also
   // fails: the read error shows above the editor instead of in its place,
@@ -66,7 +62,7 @@ export const SupportMessagePanel = ({
         </SiteActionForm>
       </WritableOnly>
       {isReadOnly() && editorText !== null ? (
-        <Raw html={renderMarkdown(editorText, imageUrls)} />
+        <Raw html={renderMarkdown(editorText)} />
       ) : null}
     </div>
   );

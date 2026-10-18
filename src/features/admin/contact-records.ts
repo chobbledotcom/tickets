@@ -9,6 +9,7 @@ import {
   hashEmail,
   hashPhone,
 } from "#db/contact-preferences.ts";
+import { addPageImageUrls } from "#db/images.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type {
   ContactChannelData,
@@ -37,9 +38,11 @@ const loadChannelRecord = async (
 ): Promise<ContactChannelData | null> => {
   if (!value.trim()) return null;
   const hash = await hashOf(value);
+  const record = await loadChannelRecordOrRepair(hash, privateKey);
+  await addPageImageUrls([record.adminNotes]);
   return {
     hashParam: base64ToBase64Url(hash),
-    record: await loadChannelRecordOrRepair(hash, privateKey),
+    record,
   };
 };
 

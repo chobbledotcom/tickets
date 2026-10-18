@@ -79,7 +79,6 @@ export const ListingOverviewPanel = (
     aggregateRecalculation,
     questionData,
     groupContext,
-    imageUrls,
     moneyTotals,
     ledgerHref,
     publicPage,
@@ -121,7 +120,6 @@ export const ListingOverviewPanel = (
         />
       )}
       <AttendeeNotesSummary
-        imageUrls={imageUrls}
         isOwner={isOwner}
         names={noteNames}
         notes={systemNotes}
