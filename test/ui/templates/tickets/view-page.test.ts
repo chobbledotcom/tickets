@@ -1,10 +1,12 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { mergePageImageUrls } from "#db/images.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testTokenEntry } from "#test-utils/factories.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("ticketViewPage ticket cards", () => {
   beforeAll(setupAdminPageTest);
@@ -296,5 +298,42 @@ describe("ticketViewPage ticket cards", () => {
     const html = ticketViewPage(cards);
     // duration=3 starting 2026-06-12 → covers 12, 13, 14 inclusive.
     assertStringIncludes(html, "12–14 June 2026");
+  });
+
+  test("resolves a card description's img#N reference to the image's URL", async () => {
+    await withRequestContext(() => {
+      mergePageImageUrls(new Map([[7, "/image/poster.webp"]]));
+      const cards = [
+        {
+          entry: testTokenEntry({
+            listing: { description: "![Poster](img#7)" },
+          }),
+          token,
+        },
+      ];
+      const html = ticketViewPage(cards);
+      assertStringIncludes(
+        html,
+        '<div class="ticket-card-description"><p><img src="/image/poster.webp" alt="Poster"></p>',
+      );
+    });
+  });
+
+  test("renders an unresolved card description's img#N reference with no source", async () => {
+    await withRequestContext(() => {
+      const cards = [
+        {
+          entry: testTokenEntry({
+            listing: { description: "![Poster](img#7)" },
+          }),
+          token,
+        },
+      ];
+      const html = ticketViewPage(cards);
+      assertStringIncludes(
+        html,
+        '<div class="ticket-card-description"><p><img src="" alt="Poster"></p>',
+      );
+    });
   });
 });
