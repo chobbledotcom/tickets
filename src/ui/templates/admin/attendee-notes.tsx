@@ -51,11 +51,8 @@ const deleteNoteUrl = (note: SystemNote, returnUrl: string): string =>
   withReturnUrl(noteDeleteAction(note), returnUrl);
 
 /** One note plus whether the viewer is an owner. Only an owner can open the
- * ledger pages a note may link to. Includes the image-url table for the
- * note's rendered markdown. */
+ * ledger pages a note may link to. */
 type NoteViewProps = {
-  /** The id→uid-URL table for the note's img#N references. */
-  imageUrls?: ReadonlyMap<number, string> | undefined;
   isOwner: boolean;
   note: SystemNote;
 };
@@ -66,9 +63,6 @@ type NoteViewProps = {
 export type NotesViewProps = {
   notes: SystemNote[];
   isOwner: boolean;
-  /** The id→uid-URL table for the notes' img#N references, built from the
-   * notes this view renders. */
-  imageUrls?: ReadonlyMap<number, string> | undefined;
 };
 
 /** True when a link target is an owner-only page — the standalone ledger routes
@@ -82,12 +76,12 @@ const isOwnerOnlyLink = (href: string): boolean =>
 /** Render a note's body as (safe) markdown — links and emphasis, HTML escaped.
  * The ledger pages are owner-only, so for any other admin a stored ledger link
  * (the refund notes carry one) is demoted to its plain text — a rendered link
- * is a promise that it works. */
-const NoteBody = ({ imageUrls, isOwner, note }: NoteViewProps): JSX.Element => (
+ * is a promise that it works. The render resolves the note's img#N references
+ * through the request's page-image slot. */
+const NoteBody = ({ isOwner, note }: NoteViewProps): JSX.Element => (
   <Raw
     html={renderMarkdown(
       isOwner ? note.note : withoutLinksTo(note.note, isOwnerOnlyLink),
-      imageUrls,
     )}
   />
 );
@@ -117,7 +111,7 @@ const NoteActions = ({
  * booking can't be missed), a neutral box for an `owner` note. The "×" opens the
  * delete confirmation, returning to the attendee page.
  */
-const NoteBox = ({ imageUrls, isOwner, note }: NoteViewProps): JSX.Element => {
+const NoteBox = ({ isOwner, note }: NoteViewProps): JSX.Element => {
   const isSystem = note.type === "system";
   return (
     <div
@@ -137,7 +131,7 @@ const NoteBox = ({ imageUrls, isOwner, note }: NoteViewProps): JSX.Element => {
       {isSystem && (
         <span class="system-note-tag">{t("notes.system_label")}</span>
       )}
-      <NoteBody imageUrls={imageUrls} isOwner={isOwner} note={note} />
+      <NoteBody isOwner={isOwner} note={note} />
       <p class="muted small">{formatDatetimeShort(note.created)}</p>
     </div>
   );
@@ -150,14 +144,13 @@ const NoteBox = ({ imageUrls, isOwner, note }: NoteViewProps): JSX.Element => {
  * heading (see {@link AddNoteLink}), not here.
  */
 export const AttendeeNotesSection = ({
-  imageUrls,
   notes,
   isOwner,
 }: NotesViewProps): JSX.Element | null =>
   notes.length === 0 ? null : (
     <section class="attendee-notes">
       {notes.map((note) => (
-        <NoteBox imageUrls={imageUrls} isOwner={isOwner} note={note} />
+        <NoteBox isOwner={isOwner} note={note} />
       ))}
     </section>
   );
@@ -189,7 +182,6 @@ export const AddNoteLink = ({
  * a note happens from its attendee page. Renders nothing when there are none.
  */
 export const AttendeeNotesSummary = ({
-  imageUrls,
   notes,
   names,
   isOwner,
@@ -208,7 +200,7 @@ export const AttendeeNotesSummary = ({
           </strong>
           {attendeeNotes.map((note) => (
             <div class="system-note">
-              <NoteBody imageUrls={imageUrls} isOwner={isOwner} note={note} />
+              <NoteBody isOwner={isOwner} note={note} />
             </div>
           ))}
         </div>
@@ -266,13 +258,11 @@ export const adminNoteNewPage = ({
  * entityDeletePage builds.
  */
 export const adminNoteDeletePage = ({
-  imageUrls,
   note,
   session,
   returnUrl,
   error,
 }: {
-  imageUrls?: ReadonlyMap<number, string>;
   note: SystemNote;
 } & NotePageProps): string =>
   ConfirmPage({
@@ -298,11 +288,7 @@ export const adminNoteDeletePage = ({
             : "system-note"
         }
       >
-        <NoteBody
-          imageUrls={imageUrls}
-          isOwner={isOwnerRole(session.adminLevel)}
-          note={note}
-        />
+        <NoteBody isOwner={isOwnerRole(session.adminLevel)} note={note} />
       </div>
     ),
     returnUrl,

@@ -12,7 +12,7 @@ import { defineRoutes } from "#routes/router.ts";
  * the supplied content — no stored data — so widening the role leaks nothing.
  */
 
-import { imageUrlsFor } from "#db/images.ts";
+import { addPageImageUrls } from "#db/images.ts";
 import { CONTENT_FORM, withAuth } from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -24,7 +24,8 @@ const handleMarkdownPreviewPost = (request: Request): Promise<Response> =>
     if (content.length > MAX_TEXTAREA_LENGTH) {
       return htmlResponse("Content too long", 413);
     }
-    return htmlResponse(renderMarkdown(content, await imageUrlsFor([content])));
+    await addPageImageUrls([content]);
+    return htmlResponse(renderMarkdown(content));
   });
 
 export const adminHandlers = defineRoutes({

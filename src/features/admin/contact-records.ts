@@ -9,7 +9,7 @@ import {
   hashEmail,
   hashPhone,
 } from "#db/contact-preferences.ts";
-import { imageUrlsFor } from "#db/images.ts";
+import { addPageImageUrls } from "#db/images.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type {
   ContactChannelData,
@@ -39,9 +39,9 @@ const loadChannelRecord = async (
   if (!value.trim()) return null;
   const hash = await hashOf(value);
   const record = await loadChannelRecordOrRepair(hash, privateKey);
+  await addPageImageUrls([record.adminNotes]);
   return {
     hashParam: base64ToBase64Url(hash),
-    imageUrls: await imageUrlsFor([record.adminNotes]),
     record,
   };
 };

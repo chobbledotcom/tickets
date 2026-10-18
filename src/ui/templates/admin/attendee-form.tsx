@@ -242,7 +242,6 @@ const editFormSections = (data: AttendeeFormTemplateData): FormSection[] =>
           children: (
             <EditQuestions
               atBooking={data.atBooking}
-              imageUrls={data.imageUrls}
               questions={data.questions}
               selectedAnswerIds={data.selectedAnswerIds}
               selectedTextAnswers={data.selectedTextAnswers}

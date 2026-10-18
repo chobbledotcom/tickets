@@ -1,4 +1,4 @@
-import { imageUrlsFor } from "#db/images.ts";
+import { addPageImageUrls } from "#db/images.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 
 /**
@@ -65,12 +65,12 @@ export const handleContactHistoryGet: TypedRouteHandler<
       await requireRequestPrivateKey(),
     );
     const flash = applyFlash(request);
+    await addPageImageUrls([record.adminNotes]);
     return htmlResponse(
       contactHistoryPage({
         flashError: flash.error,
         flashSuccess: flash.success,
         hmac,
-        imageUrls: await imageUrlsFor([record.adminNotes]),
         record,
         session,
       }),
@@ -87,13 +87,13 @@ export const handleContactHistoryPost: TypedRouteHandler<
     const current = await loadForRepair(hash, pk);
     const updated = recordFromForm(form, current);
     if (updated.adminNotes.length > MAX_TEXTAREA_LENGTH) {
+      await addPageImageUrls([updated.adminNotes]);
       return htmlResponse(
         contactHistoryPage({
           formError: t("contact_history.note_too_long", {
             max: MAX_TEXTAREA_LENGTH,
           }),
           hmac,
-          imageUrls: await imageUrlsFor([updated.adminNotes]),
           record: updated,
           session,
         }),

@@ -144,6 +144,13 @@ export const addPageImageUrls = async (texts: ImageUrlTexts): Promise<void> => {
   mergePageImageUrls(await imageUrlsFor(texts));
 };
 
+/** Write the notes' img#N table into the request's page-image slot. The
+ * attendees list, the listing panels, and the attendee banner all render
+ * system notes. */
+export const addNoteImageUrls = async (
+  notes: readonly { note: string }[],
+): Promise<void> => addPageImageUrls(notes.map((note) => note.note));
+
 /** The pieces of a rendered ticket page whose markdown can name an image. */
 export type TicketPageTexts = {
   listings: readonly { listing: { description: string | null } }[];

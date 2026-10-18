@@ -23,8 +23,6 @@ type ListingPanelSharedOptions = {
   moneyTotals?: ListingMoneyTotals | undefined;
   ledgerHref?: string | undefined;
   systemNotes?: SystemNote[] | undefined;
-  /** The id→uid-URL table for the system notes' img#N references. */
-  imageUrls?: ReadonlyMap<number, string> | undefined;
   /** Only owners may open the ledger pages, so a note's ledger link renders
    * as plain text for everyone else. */
   isOwner: boolean;

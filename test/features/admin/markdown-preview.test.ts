@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { imageUrlsFor } from "#db/images.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
@@ -27,11 +26,6 @@ describeWithEnv("the admin markdown preview", { db: true }, () => {
     expect(body).toContain(`src="/image/${image.filename}"`);
     expect(body).toContain('alt="Hero"');
     expect(body).not.toContain("/image/id/");
-    // The loader bounds its read by the referenced ids and answers the same
-    // table the handler preloaded.
-    const urls = await imageUrlsFor([`![Hero](img#${image.id})`]);
-    expect(urls.get(image.id)).toBe(`/image/${image.filename}`);
-    expect(await imageUrlsFor(["no references here"])).toEqual(new Map());
   });
 
   test("leaves an unknown img#id reference to its alt text", async () => {
