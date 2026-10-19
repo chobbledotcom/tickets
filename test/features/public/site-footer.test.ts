@@ -165,8 +165,9 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     await settings.update.siteFooter(`Note.![FooterQuiet](img#${image.id})`);
     const listing = await createTestListing({ name: "Quiet Item" });
     const sqls = await withRecordedSql(async () => {
-      // A stylesheet, a JSON evaluation, and the gallery's redirect all skip
-      // the footer render, so none of them may pay the footer's read.
+      // A stylesheet, a JSON evaluation, the gallery's redirect, and an
+      // embedded page all skip the footer render, so none of them may pay
+      // the footer's read.
       expectStatus(200)(await handleRequest(mockRequest("/custom.css")));
       expectStatus(200)(
         await handleRequest(
@@ -177,6 +178,8 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
         await handleRequest(mockRequest(`/order?select_${listing.id}=1`)),
         /^\/ticket\//,
       );
+      const embedded = await assertPublicHtml("/listings?iframe=true");
+      expect(embedded).not.toContain(footerTag);
     });
     // The requests ran real reads, so an empty recording would prove nothing.
     expect(sqls.length).toBeGreaterThan(0);
