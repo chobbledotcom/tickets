@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -51,11 +52,11 @@ describeWithEnv(
     test("adds the updates column, defaulting existing rows to release", async () => {
       await createPreUpdatesTable();
       await insertSite();
-      expect(await columnNames()).not.toContain("updates");
+      assert(!(await columnNames()).includes("updates"));
 
       await runMigration();
 
-      expect(await columnNames()).toContain("updates");
+      assertArrayIncludes(await columnNames(), ["updates"]);
       const { rows } = await getDb().execute("SELECT updates FROM built_sites");
       // A site that predates the channel feature lands on the safe default.
       expect(rows[0]?.updates).toBe("release");

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
@@ -89,7 +90,7 @@ describe("attendee dependent data", () => {
       expect(statements[index]!.args).toEqual(
         rule.kind === "notes" ? ["attendee", ...attendeeIds.args] : [12, 13],
       );
-      expect(statements[index]!.sql).toContain(rule.table);
+      assertStringIncludes(statements[index]!.sql, rule.table);
     }
   });
 });

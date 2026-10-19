@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
@@ -61,9 +62,12 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   test("names each projected image when its stored filename is broken", async () => {
     const stored = await encrypt("");
     await rawListingsTable.readColumn("image_thumb_url", stored, 8);
-    expect(errors.lastMessage()).toContain("listing 8 thumbnail image");
+    assertStringIncludes(
+      errors.lastMessage() ?? "",
+      "listing 8 thumbnail image",
+    );
     await rawListingsTable.readColumn("image_url", stored, 9);
-    expect(errors.lastMessage()).toContain("listing 9 image");
+    assertStringIncludes(errors.lastMessage() ?? "", "listing 9 image");
   });
 
   describe("listing date read transform", () => {

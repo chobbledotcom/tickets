@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, queryOne } from "#db/client.ts";
@@ -157,14 +158,15 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
     const queueQuery = queries.find((query) =>
       query.includes("FROM payment_charges AS charge"),
     );
-    expect(queueQuery).toContain("LIMIT ?");
-    expect(queueQuery).not.toContain("provider_reference");
-    expect(queueQuery).not.toContain("refund_state,");
+    assertStringIncludes(queueQuery ?? "", "LIMIT ?");
+    assert(!(queueQuery ?? "").includes("provider_reference"));
+    assert(!(queueQuery ?? "").includes("refund_state,"));
     const plan = await getDb().execute({
       args: [21],
       sql: `EXPLAIN QUERY PLAN ${queueQuery}`,
     });
-    expect(plan.rows.map((row) => String(row.detail)).join(" ")).toContain(
+    assertStringIncludes(
+      plan.rows.map((row) => String(row.detail)).join(" "),
       "idx_payment_charges_refund_state",
     );
 
@@ -205,8 +207,8 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
     const detailQuery = queries.find((query) =>
       query.includes("FROM payment_charges AS charge"),
     );
-    expect(detailQuery).toContain("WHERE charge.id = ?");
-    expect(detailQuery).toContain("LIMIT 1");
+    assertStringIncludes(detailQuery ?? "", "WHERE charge.id = ?");
+    assertStringIncludes(detailQuery ?? "", "LIMIT 1");
   });
 
   test("does not expose returned money whose local recording is finished", async () => {

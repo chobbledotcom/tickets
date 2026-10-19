@@ -4,6 +4,7 @@
  * suites share.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
@@ -61,5 +62,5 @@ export const expectErrorResult = (
   contains: string,
 ): void => {
   expect(result.ok).toBe(false);
-  if (!result.ok) expect(result.error).toContain(contains);
+  if (!result.ok) assertStringIncludes(result.error, contains);
 };

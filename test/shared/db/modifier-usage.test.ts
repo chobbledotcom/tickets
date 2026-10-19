@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -66,8 +67,8 @@ describe("allModifiersInStockCondition", () => {
     expect(statement.args).toEqual([7, 2, 11, 3]);
     expect(statement.sql.match(/\?1/gu)).toHaveLength(3);
     expect(statement.sql.match(/\?3/gu)).toHaveLength(3);
-    expect(statement.sql).toContain(">= ?2");
-    expect(statement.sql).toContain(">= ?4");
-    expect(statement.sql).toContain(") AND (");
+    assertStringIncludes(statement.sql, ">= ?2");
+    assertStringIncludes(statement.sql, ">= ?4");
+    assertStringIncludes(statement.sql, ") AND (");
   });
 });

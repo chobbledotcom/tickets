@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -154,7 +155,7 @@ describe("writeoffAdjustmentInserts (folded into a wider batch)", () => {
     );
     expect(inserts.length).toBe(2);
     for (const stmt of inserts) {
-      expect(stmt.sql).toContain("INSERT OR IGNORE");
+      assertStringIncludes(stmt.sql, "INSERT OR IGNORE");
     }
   });
 

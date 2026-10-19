@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -26,7 +27,7 @@ describe("db > accounting > conflicts", () => {
       );
       expect(error).toBeInstanceOf(LedgerConflictError);
       expect(error.name).toBe("LedgerConflictError");
-      expect(error.message).toContain("amount");
+      assertStringIncludes(error.message, "amount");
       expect((await allTransfers()).length).toBe(1);
     });
 
@@ -145,10 +146,11 @@ describe("db > accounting > conflicts", () => {
     });
 
     test("rejects a reverses_id that refers to no transfer", async () => {
-      expect(
+      assertStringIncludes(
         (await rejection(postTransfers([voidLeg({ reversesId: 9999 })])))
           .message,
-      ).toContain("refers to no transfer");
+        "refers to no transfer",
+      );
     });
 
     test("rejects a reversal whose amount differs from the original", async () => {
@@ -158,7 +160,7 @@ describe("db > accounting > conflicts", () => {
           voidLeg({ amount: 4000, reversesId: await storedSaleId() }),
         ]),
       );
-      expect(error.message).toContain("not the exact inverse");
+      assertStringIncludes(error.message, "not the exact inverse");
     });
 
     test("rejects a reversal that does not swap the accounts", async () => {
@@ -172,7 +174,7 @@ describe("db > accounting > conflicts", () => {
           }),
         ]),
       );
-      expect(error.message).toContain("not the exact inverse");
+      assertStringIncludes(error.message, "not the exact inverse");
     });
   });
 });

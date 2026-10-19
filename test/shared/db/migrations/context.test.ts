@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -57,13 +58,17 @@ describeWithEnv(
         expect(tables.has("listing_attendees")).toBe(true);
         expect(tables.has("listing_questions")).toBe(true);
 
-        expect(await columnNames("listings")).toContain("listing_type");
-        expect(await columnNames("listing_attendees")).toContain("listing_id");
-        expect(await columnNames("listing_questions")).toContain("listing_id");
-        expect(await columnNames("activity_log")).toContain("listing_id");
-        expect(await columnNames("built_sites")).toContain(
+        assertArrayIncludes(await columnNames("listings"), ["listing_type"]);
+        assertArrayIncludes(await columnNames("listing_attendees"), [
+          "listing_id",
+        ]);
+        assertArrayIncludes(await columnNames("listing_questions"), [
+          "listing_id",
+        ]);
+        assertArrayIncludes(await columnNames("activity_log"), ["listing_id"]);
+        assertArrayIncludes(await columnNames("built_sites"), [
           "assigned_listing_id",
-        );
+        ]);
 
         const listings = await getAllListings();
         expect(listings.length).toBe(1);
@@ -77,9 +82,9 @@ describeWithEnv(
 
         const tables = await tableNames();
         expect(tables.has("listings")).toBe(true);
-        expect(await columnNames("built_sites")).toContain(
+        assertArrayIncludes(await columnNames("built_sites"), [
           "assigned_listing_id",
-        );
+        ]);
       });
 
       test("is a no-op when listing tables already exist", async () => {
@@ -101,7 +106,7 @@ describeWithEnv(
 
       await renameEventsToListings();
 
-      expect(await columnNames("listings")).toContain("thank_you_url");
+      assertArrayIncludes(await columnNames("listings"), ["thank_you_url"]);
     });
 
     test("the rename puts back an index the current schema declares", async () => {

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { squareApi } from "#shared/square/api.ts";
@@ -38,7 +39,7 @@ describeSquare(() => {
       when(want.ok, (ok) => expect(result.ok).toBe(ok));
       when(want.tokenValid, (v) => expect(result.accessToken.valid).toBe(v));
       when(want.tokenError, (e) =>
-        expect(result.accessToken.error).toContain(e),
+        assertStringIncludes(result.accessToken.error ?? "", e),
       );
       when(want.mode, (mode) => expect(result.accessToken.mode).toBe(mode));
       when(want.locationConfigured, (c) =>
@@ -50,7 +51,9 @@ describeSquare(() => {
       when(want.webhookConfigured, (c) =>
         expect(result.webhook.configured).toBe(c),
       );
-      when(want.webhookError, (e) => expect(result.webhook.error).toContain(e));
+      when(want.webhookError, (e) =>
+        assertStringIncludes(result.webhook.error ?? "", e),
+      );
     };
 
     /** Store settings, stub locations.list, run the checks, assert the result. */

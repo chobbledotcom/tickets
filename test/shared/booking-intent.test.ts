@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
@@ -55,9 +56,9 @@ describe("booking line validation", () => {
       oneLineBooking({ ...validItem, k: "p" }),
     );
     expect(result.success).toBe(false);
-    expect(result.issues?.map((issue) => issue.message)).toContain(
+    assertArrayIncludes(result.issues?.map((issue) => issue.message) ?? [], [
       "edge tag k and r must both be present or both absent",
-    );
+    ]);
   });
 
   test("the listing id (e) must be a positive integer", () => {

@@ -5,6 +5,7 @@
  * admin guide and README).
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -144,6 +145,6 @@ describe("webhook example", () => {
   test("README.md contains the example JSON", async () => {
     const readme = await Deno.readTextFile("README.md");
 
-    expect(readme).toContain(WEBHOOK_EXAMPLE_JSON);
+    assertStringIncludes(readme, WEBHOOK_EXAMPLE_JSON);
   });
 });

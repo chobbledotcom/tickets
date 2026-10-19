@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
@@ -112,7 +113,7 @@ describeWithEnv(
           ]),
         });
         const html = await expectHtmlResponse(response, 200);
-        expect(html).toContain("Solo is overbooked");
+        assertStringIncludes(html, "Solo is overbooked");
       });
 
       test("does not warn when an at-capacity booking is edited unchanged", async () => {
@@ -130,7 +131,7 @@ describeWithEnv(
         // self-excluding check means no overbooking warning.
         const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
         const html = await expectHtmlResponse(response, 200);
-        expect(html).not.toContain("is overbooked");
+        assert(!html.includes("is overbooked"));
       });
     });
 

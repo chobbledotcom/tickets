@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, spy } from "@std/testing/mock";
@@ -69,8 +70,8 @@ describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
 
       expect(failedFetch.calls.length).toBe(1);
       expect(errorSpy.calls.length).toBe(1);
-      expect(errorSpy.calls[0]!.args[0]).toContain("[Error] E_CDN_REQUEST");
-      expect(errorSpy.calls[0]!.args[0]).toContain("ntfy send failed");
+      assertStringIncludes(errorSpy.calls[0]!.args[0], "[Error] E_CDN_REQUEST");
+      assertStringIncludes(errorSpy.calls[0]!.args[0], "ntfy send failed");
       errorSpy.restore();
     });
   });

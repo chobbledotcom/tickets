@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
@@ -135,7 +136,7 @@ describeWithEnv("accounting > reverses-group backfill", { db: true }, () => {
       await backfillReversesGroup();
       const ran = getQueryLog().map((entry) => entry.sql);
       expect(ran.length).toBe(1);
-      expect(ran[0]).toContain("FROM settings WHERE key = ?");
+      assertStringIncludes(ran[0] ?? "", "FROM settings WHERE key = ?");
     });
     await expectStampedToBooking(bookingGroup);
   });

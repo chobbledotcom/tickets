@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -64,8 +65,10 @@ describeWithEnv("db > attendees > getAttendeesPage", { db: true }, () => {
     expect(page.hasNext).toBe(true);
     expect(distinctIds(page.rows)).toHaveLength(ATTENDEES_PAGE_SIZE);
     // The extra attendee's lines are dropped whole, not just one of them.
-    expect(page.rows.map((row) => row.id)).not.toContain(
-      distinctIds(page.rows)[0]! - ATTENDEES_PAGE_SIZE,
+    assert(
+      !page.rows
+        .map((row) => row.id)
+        .includes(distinctIds(page.rows)[0]! - ATTENDEES_PAGE_SIZE),
     );
   });
 
@@ -146,8 +149,8 @@ describeWithEnv("db > attendees > getAttendeesPage", { db: true }, () => {
 
     expect(ids[0]).toBe(newest);
     // The page size caps the page, so the two oldest ids fall off the end.
-    expect(ids).not.toContain(newest - ATTENDEES_PAGE_SIZE);
-    expect(ids).not.toContain(newest - ATTENDEES_PAGE_SIZE - 1);
+    assert(!ids.includes(newest - ATTENDEES_PAGE_SIZE));
+    assert(!ids.includes(newest - ATTENDEES_PAGE_SIZE - 1));
   });
 
   test("newest sorts attendee ids falling; oldest rising", async () => {

@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -109,8 +110,9 @@ describeWithEnv(
       await runMigration();
 
       const columns = await getDb().execute("PRAGMA table_info(built_sites)");
-      expect(columns.rows.map((row) => String(row.name))).toContain(
-        "site_data_revision",
+      assertArrayIncludes(
+        columns.rows.map((row) => String(row.name)),
+        ["site_data_revision"],
       );
     });
 

@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -67,7 +68,7 @@ describe("dates", () => {
     });
 
     test("includes the centre month itself", () => {
-      expect(monthsAround("2026-03", 5)).toContain("2026-03");
+      assertArrayIncludes(monthsAround("2026-03", 5), ["2026-03"]);
     });
   });
 
@@ -100,12 +101,12 @@ describe("dates", () => {
 
     test("includes every day of the target month", () => {
       const grid = calendarGridDates("2026-07");
-      expect(grid).toContain("2026-07-01");
-      expect(grid).toContain("2026-07-31");
+      assertArrayIncludes(grid, ["2026-07-01"]);
+      assertArrayIncludes(grid, ["2026-07-31"]);
     });
 
     test("includes the leap day in a leap February", () => {
-      expect(calendarGridDates("2024-02")).toContain("2024-02-29");
+      assertArrayIncludes(calendarGridDates("2024-02"), ["2024-02-29"]);
     });
   });
 

@@ -6,6 +6,7 @@
  * broader behaviour tests in dates.test.ts did not distinguish.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -62,7 +63,7 @@ describe("dates — pinned values", () => {
     ];
     for (const [index, month] of monthNames.entries()) {
       const iso = `2026-${String(index + 1).padStart(2, "0")}-15`;
-      expect(formatDateLabel(iso)).toContain(` 15 ${month} 2026`);
+      assertStringIncludes(formatDateLabel(iso), ` 15 ${month} 2026`);
     }
   });
 

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -57,7 +58,7 @@ describeWithEnv("renewal token reservation", { db: true }, () => {
     expect(stored.readOnlyFrom).not.toBe("");
     expect(recorder.pushedUrls.length).toBeGreaterThanOrEqual(1);
     for (const pushed of recorder.pushedUrls) {
-      expect(pushed).toContain(stored.renewalToken!);
+      assertStringIncludes(pushed, stored.renewalToken!);
     }
   });
 
@@ -115,7 +116,7 @@ describeWithEnv("renewal token reservation", { db: true }, () => {
       .map((c) => String(c.args[2]));
     expect(renewalUrls.length).toBeGreaterThanOrEqual(2);
     for (const url of renewalUrls.slice(1)) {
-      expect(url).toContain(stored.renewalToken!);
+      assertStringIncludes(url, stored.renewalToken!);
     }
   });
 

@@ -4,6 +4,7 @@ import {
   type Transaction,
   type TransactionMode,
 } from "@libsql/client";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -42,7 +43,7 @@ describeWithEnv("backup snapshot", { db: true }, () => {
     test("exports INSERT statements for table with data", async () => {
       await createTestListing({ name: "Test Listing" });
       const { sql, rowCount } = await exportFromSnapshot("listings");
-      expect(sql).toContain('INSERT INTO "listings"');
+      assertStringIncludes(sql, 'INSERT INTO "listings"');
       expect(rowCount).toBe(1);
     });
 
@@ -59,13 +60,13 @@ describeWithEnv("backup snapshot", { db: true }, () => {
       expect(rowCount).toBe(2);
       // One statement (one trailing semicolon), two value tuples.
       expect(sql.match(/;/g)).toHaveLength(1);
-      expect(sql).toContain("), (");
+      assertStringIncludes(sql, "), (");
     });
 
     test("handles NULL values", async () => {
       await createTestListing({ name: "Null Test" });
       const { sql } = await exportFromSnapshot("listings");
-      expect(sql).toContain("NULL");
+      assertStringIncludes(sql, "NULL");
     });
 
     test("escapes single quotes by doubling them", async () => {
@@ -76,7 +77,7 @@ describeWithEnv("backup snapshot", { db: true }, () => {
         sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
       });
       const { sql } = await exportFromSnapshot("settings");
-      expect(sql).toContain("'O''Brien''s Gala'");
+      assertStringIncludes(sql, "'O''Brien''s Gala'");
     });
 
     test("keyset-paginates across multiple pages without losing rows", async () => {
@@ -92,12 +93,12 @@ describeWithEnv("backup snapshot", { db: true }, () => {
       // One INSERT statement per page, and the cursor alias never leaks into the
       // dumped column list.
       expect(sql.match(/INSERT INTO "listings"/g)).toHaveLength(2);
-      expect(sql).not.toContain("__backup_rowid__");
+      assert(!sql.includes("__backup_rowid__"));
       expect(sql.match(new RegExp(`\\(${pageOne.id},`, "g"))).toHaveLength(1);
       expect(sql.match(new RegExp(`\\(${pageTwo.id},`, "g"))).toHaveLength(1);
       expect(sql.match(new RegExp(`\\(${pageThree.id},`, "g"))).toHaveLength(1);
       // Statements are newline-separated so a dump stays readable.
-      expect(sql).toContain(';\nINSERT INTO "listings"');
+      assertStringIncludes(sql, ';\nINSERT INTO "listings"');
     });
 
     test("the keyset cursor tracks the last row id, not a running sum", async () => {
@@ -109,7 +110,7 @@ describeWithEnv("backup snapshot", { db: true }, () => {
       }
       const { sql, rowCount } = await exportFromSnapshot("listings", 2);
       expect(rowCount).toBe(5);
-      expect(sql).toContain(`(${ids[4]},`);
+      assertStringIncludes(sql, `(${ids[4]},`);
     });
   });
 
@@ -158,12 +159,12 @@ describeWithEnv("backup snapshot", { db: true }, () => {
 
         const listings = backups.find((b) => b.table === "listings");
         expect(listings?.rowCount).toBe(1);
-        expect(listings?.sql).toContain(`(${before.id},`);
+        assertStringIncludes(listings?.sql ?? "", `(${before.id},`);
         expect(snapshotBatches).toBeGreaterThan(0);
         // The intruder's row carries the next rowid; it is in no table's dump:
         // every page read the same pre-write state.
         for (const backup of backups) {
-          expect(backup.sql).not.toContain(`(${before.id + 1},`);
+          assert(!backup.sql.includes(`(${before.id + 1},`));
         }
       } finally {
         setDb(null);
@@ -229,7 +230,7 @@ describeWithEnv("backup snapshot", { db: true }, () => {
       const backups = await createBackup();
       const listings = backups.find((backup) => backup.table === "listings");
       expect(listings?.rowCount).toBe(1);
-      expect(listings?.sql).toContain(`(${listing.id},`);
+      assertStringIncludes(listings?.sql ?? "", `(${listing.id},`);
     });
 
     test("skips tables that do not exist", async () => {
@@ -237,7 +238,7 @@ describeWithEnv("backup snapshot", { db: true }, () => {
       try {
         const backups = await createBackup();
         const names = backups.map((b) => b.table);
-        expect(names).not.toContain("holidays");
+        assert(!names.includes("holidays"));
         expect(names.length).toBe(SCHEMA_TABLE_NAMES.length - 1);
       } finally {
         await initDb();

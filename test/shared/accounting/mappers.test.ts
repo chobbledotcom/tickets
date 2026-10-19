@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -102,69 +103,78 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
   });
 
   test("rejects a negative line gross", async () => {
-    expect(
+    assertStringIncludes(
       await rejectionMessage(
         mapBooking(facts({ lines: [{ gross: -100, listingId: 1 }] })),
       ),
-    ).toContain("negative listing 1 gross");
+      "negative listing 1 gross",
+    );
   });
 
   test("rejects a negative booking fee", async () => {
-    expect(
+    assertStringIncludes(
       await rejectionMessage(mapBooking(facts({ bookingFee: -10 }))),
-    ).toContain("negative bookingFee");
+      "negative bookingFee",
+    );
   });
 
   test("rejects a negative amount paid", async () => {
-    expect(
+    assertStringIncludes(
       await rejectionMessage(mapBooking(facts({ amountPaid: -50 }))),
-    ).toContain("negative amountPaid");
+      "negative amountPaid",
+    );
   });
 
   test("rejects a non-finite (NaN) gross", async () => {
-    expect(
+    assertStringIncludes(
       await rejectionMessage(
         mapBooking(facts({ lines: [{ gross: Number.NaN, listingId: 1 }] })),
       ),
-    ).toContain("non-finite listing 1 gross");
+      "non-finite listing 1 gross",
+    );
   });
 
   test("rejects a fractional line gross (minor units must be integers)", async () => {
-    expect(
+    assertStringIncludes(
       await rejectionMessage(
         mapBooking(facts({ lines: [{ gross: 10.5, listingId: 1 }] })),
       ),
-    ).toContain("non-integer listing 1 gross");
+      "non-integer listing 1 gross",
+    );
   });
 
   test("rejects a fractional modifier delta", async () => {
-    expect(
+    assertStringIncludes(
       await rejectionMessage(
         mapBooking(facts({ modifiers: [{ delta: -2.5, modifierId: 7 }] })),
       ),
-    ).toContain("non-integer modifier 7 delta");
+      "non-integer modifier 7 delta",
+    );
   });
 
   test("rejects a non-finite modifier delta", async () => {
-    expect(
+    assertStringIncludes(
       await rejectionMessage(
         mapBooking(
           facts({ modifiers: [{ delta: Number.NaN, modifierId: 7 }] }),
         ),
       ),
-    ).toContain("non-finite modifier 7 delta");
+      "non-finite modifier 7 delta",
+    );
   });
 
   test("rejects an empty event id", async () => {
-    expect(
+    assertStringIncludes(
       await rejectionMessage(mapBooking(facts({ eventId: "" }))),
-    ).toContain("empty eventId");
+      "empty eventId",
+    );
   });
 
   test("rejects a whitespace-only event id", async () => {
-    expect(
+    assertStringIncludes(
       await rejectionMessage(mapBooking(facts({ eventId: "   " }))),
-    ).toContain("empty eventId");
+      "empty eventId",
+    );
   });
 
   test("drops zero-amount legs (a free booking posts nothing)", async () => {
