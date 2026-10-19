@@ -37,6 +37,12 @@ const TYPE_WORDS = new Set([
   "void",
 ]);
 
+/** One local array literal's span in the blanked text. */
+type LocalArray = { open: number; close: number };
+
+/** The lookup one spread name resolves: the local arrays it names. */
+type LocalArrays = (name: string) => LocalArray[] | undefined;
+
 /** The one-based line an index sits on. */
 const lineAt = (content: string, index: number): number => {
   let line = 1;
@@ -119,7 +125,7 @@ const spreadElements = (
   content: string,
   blanked: string,
   value: string,
-  expand: (name: string) => Array<{ open: number; close: number }> | undefined,
+  expand: LocalArrays,
 ): string[] | null => {
   const elements: string[] = [];
   for (const { open, close } of expand(value) ?? []) {
@@ -140,7 +146,7 @@ const repeatedElementsOf = (
   open: number,
   close: number,
   line: number,
-  expand?: (name: string) => Array<{ open: number; close: number }> | undefined,
+  expand?: LocalArrays,
 ): string[] => {
   const counts = new Map<string, number>();
   const countValue = (value: string): void => {
@@ -152,12 +158,16 @@ const repeatedElementsOf = (
     if (!PURE_BIND_ELEMENT.test(text)) return;
     const value = text.replace(/^\.\.\.\s*/, "").trim();
     if (text.startsWith("...") && depth === 0 && expand) {
-      countSpread(value, depth);
+      countSpread(expand, value, depth);
     } else {
       countValue(value);
     }
   };
-  const countSpread = (value: string, depth: number): void => {
+  const countSpread = (
+    expand: LocalArrays,
+    value: string,
+    depth: number,
+  ): void => {
     const inner = spreadElements(content, blanked, value, expand);
     if (inner === null) {
       countValue(value);
@@ -193,10 +203,8 @@ const declarationSpan = (blanked: string, name: string): [number, number] => {
 
 /** The local array literals of one file, by name: the values a statement can
  * receive through one of the argument uses below. */
-const localArrayLiterals = (
-  blanked: string,
-): Map<string, Array<{ open: number; close: number }>> => {
-  const literals = new Map<string, Array<{ open: number; close: number }>>();
+const localArrayLiterals = (blanked: string): Map<string, LocalArray[]> => {
+  const literals = new Map<string, LocalArray[]>();
   for (const match of [
     ...blanked.matchAll(/\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*\[/g),
   ]) {
@@ -234,16 +242,14 @@ const secondCallArgument = (blanked: string, open: number): string | null => {
 /** The positions where a bare name reaches a statement as its bind list: an
  * `args: name` property, the `args` shorthand in an object literal, and the
  * second argument of an `execute` call. */
-const argumentUses = (blanked: string): Array<{ name: string; at: number }> => {
-  const uses: Array<{ name: string; at: number }> = [];
+const argumentUses = (blanked: string): { name: string; at: number }[] => {
+  const uses: { name: string; at: number }[] = [];
   for (const match of [
     ...blanked.matchAll(/\bargs\s*:\s*([A-Za-z_$][\w$]*)\s*(?=[,}])/g),
   ]) {
     uses.push({ at: match.index, name: match[1] as string });
   }
-  for (const match of [
-    ...blanked.matchAll(/\{[^{}]*\bargs\s*(?=[,}])/g),
-  ]) {
+  for (const match of [...blanked.matchAll(/\{[^{}]*\bargs\s*(?=[,}])/g)]) {
     uses.push({ at: match.index, name: "args" });
   }
   for (const match of [...blanked.matchAll(/\bexecute\s*\(/g)]) {
