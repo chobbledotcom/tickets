@@ -7,7 +7,7 @@
 import { hmacHash } from "#crypto/hashing.ts";
 /* jscpd:ignore-start -- imports */
 import { packageDisplaysForRows } from "#db/groups.ts";
-import { addPageImageUrls } from "#db/images.ts";
+import { addFooterImageUrls, addPageImageUrls } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import {
@@ -80,11 +80,13 @@ const handleTicketView = withResolvedEntries(async (entries, tokens) => {
   // QRs — separate while still collapsing each package. Disabling collapsing for
   // multi-token pages would render a hidden package's member rows as normal cards
   // and leak the concealed names, so it is always enabled.
-  // The cards' listing descriptions can carry the editor's img#N references.
-  // The lookup does not feed the package reads, so both run in parallel.
+  // The cards' listing descriptions and the site footer can carry the editor's
+  // img#N references. The lookups do not feed the package reads, so they run
+  // beside them in parallel.
   const [packageDisplays] = await Promise.all([
     packageDisplaysForRows(entries),
     addPageImageUrls(entries.map((entry) => entry.listing.description)),
+    addFooterImageUrls(),
   ]);
   return htmlResponse(
     ticketViewPage(

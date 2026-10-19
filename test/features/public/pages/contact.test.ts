@@ -4,6 +4,7 @@ import { handlePublicContactSubmit } from "#routes/public/pages.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectRedirectWithFlash,
   FLASH_TEST_ID,
@@ -185,6 +186,23 @@ describeWithEnv(
       expect(response.status).toBe(200);
       expect(html).toContain("Write to the team.");
       expect(html).not.toContain('action="/contact"');
+    });
+
+    test("renders the contact text's img#N reference as the image's uid URL", async () => {
+      const { settings } = await import("#db/settings.ts");
+      await enablePublicSite();
+      const image = await makeImage("ContactPoster");
+      await settings.update.contactPageText(
+        `Reach us.![ContactPoster](img#${image.id})`,
+      );
+      const response = await awaitTestRequest("/contact");
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain(
+        `<img src="/image/${image.filename}" alt="ContactPoster">`,
+      );
+      expect(html).not.toContain("img#");
     });
 
     test("shows the active form without contact text", async () => {
