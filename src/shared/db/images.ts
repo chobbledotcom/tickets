@@ -24,6 +24,7 @@ import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { decryptImageFilename } from "#shared/images/broken.ts";
 import {
   currentRequestStore,
+  getIframeMode,
   withRequestStore,
 } from "#shared/request-context.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
@@ -151,9 +152,10 @@ export const addPageImageUrls = async (texts: ImageUrlTexts): Promise<void> => {
  * the Layout footer's synchronous render reads. The page render paths that
  * show the footer call it before rendering, so requests that render no footer
  * run no lookup. A failed lookup renders the footer without its images
- * instead of failing the page. No request context → no-op. */
+ * instead of failing the page. No request context → no-op. An iframe embed
+ * renders no footer, so it runs no lookup either. */
 export const addFooterImageUrls = async (): Promise<void> => {
-  if (!currentRequestStore()) return;
+  if (!currentRequestStore() || getIframeMode()) return;
   const table = await imageUrlsFor([settings.siteFooter]).catch(
     () => new Map<number, string>(),
   );
