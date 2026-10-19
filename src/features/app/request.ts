@@ -1,7 +1,6 @@
 /* jscpd:ignore-start -- imports */
 
 import { DatabaseBusyError } from "#db/client.ts";
-import { imageUrlsFor } from "#db/images.ts";
 import {
   MigrationInProgressError,
   MissingSettingsTableError,
@@ -53,11 +52,7 @@ import {
   logRequest,
 } from "#shared/logger.ts";
 import { reportMaintenanceFailure } from "#shared/maintenance/report.ts";
-import {
-  currentRequestStore,
-  detectIframeMode,
-  getIframeMode,
-} from "#shared/request-context.ts";
+import { detectIframeMode } from "#shared/request-context.ts";
 import { SessionKeyError } from "#shared/session-private-key.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
 import { defineAppRoute, routeMainApp, servesBodyRequests } from "./routes.ts";
@@ -281,26 +276,6 @@ const processRequest = async (request: Request): Promise<Response> => {
 
     if (!isValidContentType(bufferedRequest, path)) {
       return finish(contentTypeRejectionResponse());
-    }
-
-    // The Layout's footer renders synchronously. Its image-url table is
-    // resolved here, after the database and this path's settings exist. Only
-    // requests that can render the site footer pay the read. The admin area
-    // carries the admin footer, the API renders none, and an iframe embed
-    // hides the footer. A failed lookup renders the footer without its images
-    // instead of failing the request.
-    if (
-      path !== "/admin" &&
-      !path.startsWith("/admin/") &&
-      !path.startsWith("/api/") &&
-      !getIframeMode()
-    ) {
-      const store = currentRequestStore();
-      if (store) {
-        store.footerImageUrls = await imageUrlsFor([settings.siteFooter]).catch(
-          () => new Map<number, string>(),
-        );
-      }
     }
 
     response = finish(

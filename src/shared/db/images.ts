@@ -16,6 +16,7 @@ import {
   type RecordTarget,
   type RecordTargets,
 } from "#db/record-target.ts";
+import { settings } from "#db/settings.ts";
 import { type ColumnDef, col } from "#db/table.ts";
 import { equals, inList } from "#db/where-clauses.ts";
 import { mapById } from "#fp";
@@ -144,6 +145,21 @@ export const mergePageImageUrls = (table: ImageUrls): void =>
 export const addPageImageUrls = async (texts: ImageUrlTexts): Promise<void> => {
   if (!currentRequestStore()) return;
   mergePageImageUrls(await imageUrlsFor(texts));
+};
+
+/** Write the site footer's img#N table into the request's footer slot, which
+ * the Layout footer's synchronous render reads. The page render paths that
+ * show the footer call it before rendering, so requests that render no footer
+ * run no lookup. A failed lookup renders the footer without its images
+ * instead of failing the page. No request context → no-op. */
+export const addFooterImageUrls = async (): Promise<void> => {
+  if (!currentRequestStore()) return;
+  const table = await imageUrlsFor([settings.siteFooter]).catch(
+    () => new Map<number, string>(),
+  );
+  withRequestStore((store) => {
+    store.footerImageUrls = table;
+  });
 };
 
 /** The pieces of a rendered ticket page whose markdown can name an image. */

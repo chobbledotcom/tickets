@@ -69,10 +69,10 @@ export type RequestStore = {
    * loaders (src/shared/db/images.ts) and read by renderMarkdown's default.
    * Unset until one writes it, so reads resolve no img#N reference. */
   pageImageUrls?: Map<number, string>;
-  /** The site footer's id→uid-URL table, resolved once per page request
-   * after initialization (src/features/app/request.ts) for the Layout's
-   * synchronous footer render. Unset until then, so reads render no image
-   * source. */
+  /** The site footer's id→uid-URL table, resolved by the page render paths
+   * that show the footer (src/shared/db/images.ts) for the Layout's
+   * synchronous footer render. Unset until one writes it, so reads render no
+   * image source. */
   footerImageUrls?: ReadonlyMap<number, string>;
 };
 

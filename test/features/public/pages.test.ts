@@ -5,6 +5,7 @@ import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -66,6 +67,45 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
       await enablePublicSite();
       const response = await handleRequest(mockRequest("/terms"));
       expect(response.status).toBe(404);
+    });
+  });
+
+  describe("the page texts' image references", () => {
+    test("the homepage text's img#N reference renders the image's uid URL", async () => {
+      await enablePublicSite();
+      const image = await makeImage("Welcome");
+      await settings.update.homepageText(`Hello.![Welcome](img#${image.id})`);
+      const html = await assertPublicHtml(
+        "/",
+        `<img src="/image/${image.filename}" alt="Welcome">`,
+      );
+      expect(html).not.toContain("img#");
+    });
+
+    test("a group description's img#N reference renders the image's uid URL", async () => {
+      await enablePublicSite();
+      const image = await makeImage("Festival");
+      const group = await createTestGroup({
+        description: `A wonderful summer celebration.![Festival](img#${image.id})`,
+        name: "Summer Festival",
+      });
+      await createTestListing({ groupId: group.id, name: "Festival Entry" });
+      const html = await assertPublicHtml(
+        "/listings",
+        `<img src="/image/${image.filename}" alt="Festival">`,
+      );
+      expect(html).not.toContain("img#");
+    });
+
+    test("the terms' img#N reference renders the image's uid URL", async () => {
+      await enablePublicSite();
+      const image = await makeImage("TermsSeal");
+      await settings.update.terms(`Signed.![TermsSeal](img#${image.id})`);
+      const html = await assertPublicHtml(
+        "/terms",
+        `<img src="/image/${image.filename}" alt="TermsSeal">`,
+      );
+      expect(html).not.toContain("img#");
     });
   });
 
