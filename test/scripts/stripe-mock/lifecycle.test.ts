@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -206,8 +207,8 @@ describe("starting stripe-mock", () => {
         startAttempts: 2,
       });
 
-      expect(message).toContain(STRIPE_MOCK_FAILED_TO_START);
-      expect(message).toContain("Failed to spawn");
+      assertStringIncludes(message, STRIPE_MOCK_FAILED_TO_START);
+      assertStringIncludes(message, "Failed to spawn");
     });
   });
 
@@ -322,7 +323,7 @@ describe("starting stripe-mock", () => {
         });
 
         // Without the fetch it would fail later, on a binary that is not there.
-        expect(message).toContain("no network");
+        assertStringIncludes(message, "no network");
       });
     });
   });

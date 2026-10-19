@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -136,8 +137,8 @@ describe("ratchetExit", () => {
 
   test("exits 1 and names each added entry", async () => {
     expect(await exitFor(["src/a.ts", "src/new.ts"], ["src/a.ts"])).toBe(1);
-    expect(lines.join("\n")).toContain("src/new.ts");
-    expect(lines.join("\n")).toContain(RATCHET_GUIDE);
+    assertStringIncludes(lines.join("\n"), "src/new.ts");
+    assertStringIncludes(lines.join("\n"), RATCHET_GUIDE);
   });
 
   test("fails loudly when an entry hides from the parser", async () => {

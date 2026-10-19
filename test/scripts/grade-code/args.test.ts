@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { resolve } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
@@ -110,13 +111,16 @@ describe("resolveTargets", () => {
   });
 
   test("refuses paths outside src and paths that do not read", async () => {
-    expect((await resolveTargets(["scripts/x.ts"], deps)).error).toContain(
+    assertStringIncludes(
+      (await resolveTargets(["scripts/x.ts"], deps)).error ?? "",
       "not under src/",
     );
-    expect((await resolveTargets(["src/../scripts"], deps)).error).toContain(
+    assertStringIncludes(
+      (await resolveTargets(["src/../scripts"], deps)).error ?? "",
       "not under src/",
     );
-    expect((await resolveTargets(["src/nope.ts"], deps)).error).toContain(
+    assertStringIncludes(
+      (await resolveTargets(["src/nope.ts"], deps)).error ?? "",
       "cannot read",
     );
     const empty = await resolveTargets(

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { codeKind, extractCode } from "#scripts/grade-code/extract.ts";
@@ -172,8 +173,8 @@ describe("extractCode", () => {
       ].join("\n"),
     );
     expect(facts.sql).toHaveLength(2);
-    expect(facts.sql[0]).toContain("SELECT id FROM listings");
-    expect(facts.sql[1]).toContain("WITH selected(id) AS");
+    assertStringIncludes(facts.sql[0] ?? "", "SELECT id FROM listings");
+    assertStringIncludes(facts.sql[1] ?? "", "WITH selected(id) AS");
   });
 
   test("collects href literals and expressions, nested braces included", () => {

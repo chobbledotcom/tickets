@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { type Stub, stub } from "@std/testing/mock";
 import { builderApi } from "#shared/builder.ts";
@@ -221,7 +222,7 @@ export const expectBuildError = (
   substring: string,
 ): void => {
   expect(result.ok).toBe(false);
-  if (!result.ok) expect(result.error).toContain(substring);
+  if (!result.ok) assertStringIncludes(result.error, substring);
 };
 
 interface DenoBuilderMockOptions {
@@ -274,6 +275,6 @@ export const testCreateDatabaseReturnsErrorOn403 = async (api: {
   const result = await api.createDatabase("Bad");
   expect(result.ok).toBe(false);
   if (!result.ok) {
-    expect(result.error).toContain("Create database failed (403)");
+    assertStringIncludes(result.error ?? "", "Create database failed (403)");
   }
 };

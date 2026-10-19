@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -291,7 +292,10 @@ describe("publishStaticCdnAssets", () => {
       [STYLE_ASSET],
       fetcher,
     );
-    expect(published.urls[STYLE_ASSET.filename]).toContain("/style.css");
+    assertStringIncludes(
+      published.urls[STYLE_ASSET.filename] ?? "",
+      "/style.css",
+    );
   });
 
   for (const { method: stalledMethod, stage } of STALLED_REQUESTS) {

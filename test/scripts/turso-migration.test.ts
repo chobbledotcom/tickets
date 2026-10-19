@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -50,12 +51,14 @@ describe("Turso migration CLI", () => {
       "/tmp/turso-migration-test/database.sqlite",
     ]);
     expect(state.removed).toEqual(["/tmp/turso-migration-test"]);
-    expect(state.stdout).toContain(`DB_URL=${TEST_TURSO_CREDENTIALS.dbUrl}`);
-    expect(state.stdout).toContain(
+    assertArrayIncludes(state.stdout, [
+      `DB_URL=${TEST_TURSO_CREDENTIALS.dbUrl}`,
+    ]);
+    assertArrayIncludes(state.stdout, [
       `DB_TOKEN=${TEST_TURSO_CREDENTIALS.dbToken}`,
-    );
-    expect(state.stdout.join("\n")).not.toContain("source-token");
-    expect(state.stdout.join("\n")).not.toContain("platform-token");
+    ]);
+    assert(!state.stdout.join("\n").includes("source-token"));
+    assert(!state.stdout.join("\n").includes("platform-token"));
   });
 
   test("asks for the API key and infers one organization and group", async () => {
@@ -121,12 +124,12 @@ describe("Turso migration CLI", () => {
     });
 
     expect(await runMigrateTursoCli(state.deps)).toBe(0);
-    expect(state.stdout).toContain(
+    assertArrayIncludes(state.stdout, [
       "Turso database already exists: personal/destination-database",
-    );
-    expect(state.promptMessages).toContain(
+    ]);
+    assertArrayIncludes(state.promptMessages, [
       "Choose another Turso database name:",
-    );
+    ]);
     expect(state.createRequests).toEqual([
       {
         group: "default",
@@ -198,7 +201,8 @@ describe("Turso migration CLI", () => {
       env: { TURSO_ORGANIZATION: "missing" },
     });
     expect(await runMigrateTursoCli(organization.deps)).toBe(1);
-    expect(organization.stderr[0]).toContain(
+    assertStringIncludes(
+      organization.stderr[0] ?? "",
       "TURSO_ORGANIZATION is not available: missing",
     );
 
@@ -206,7 +210,10 @@ describe("Turso migration CLI", () => {
       env: { TURSO_GROUP: "missing" },
     });
     expect(await runMigrateTursoCli(group.deps)).toBe(1);
-    expect(group.stderr[0]).toContain("TURSO_GROUP is not available: missing");
+    assertStringIncludes(
+      group.stderr[0] ?? "",
+      "TURSO_GROUP is not available: missing",
+    );
   });
 
   test("rejects missing and invalid Turso choices", async () => {
@@ -215,7 +222,8 @@ describe("Turso migration CLI", () => {
       env: { TURSO_ORGANIZATION: "" },
     });
     expect(await runMigrateTursoCli(noOrganizations.deps)).toBe(1);
-    expect(noOrganizations.stderr[0]).toContain(
+    assertStringIncludes(
+      noOrganizations.stderr[0] ?? "",
       "No Turso organizations are available.",
     );
 
@@ -227,7 +235,8 @@ describe("Turso migration CLI", () => {
       promptAnswers: ["libsql://source.example.com", "destination", "three"],
     });
     expect(await runMigrateTursoCli(invalidOrganization.deps)).toBe(1);
-    expect(invalidOrganization.stderr[0]).toContain(
+    assertStringIncludes(
+      invalidOrganization.stderr[0] ?? "",
       "Turso organization must be one of: one, two.",
     );
 
@@ -236,7 +245,10 @@ describe("Turso migration CLI", () => {
       env: { TURSO_GROUP: "" },
     });
     expect(await runMigrateTursoCli(noGroups.deps)).toBe(1);
-    expect(noGroups.stderr[0]).toContain("No Turso groups are available.");
+    assertStringIncludes(
+      noGroups.stderr[0] ?? "",
+      "No Turso groups are available.",
+    );
   });
 
   test("removes temporary files when file verification fails", async () => {
@@ -297,10 +309,12 @@ describe("Turso migration CLI", () => {
     });
 
     expect(await runMigrateTursoCli(state.deps)).toBe(1);
-    expect(state.stdout).toContain(`DB_URL=${TEST_TURSO_CREDENTIALS.dbUrl}`);
-    expect(state.stdout).toContain(
+    assertArrayIncludes(state.stdout, [
+      `DB_URL=${TEST_TURSO_CREDENTIALS.dbUrl}`,
+    ]);
+    assertArrayIncludes(state.stdout, [
       `DB_TOKEN=${TEST_TURSO_CREDENTIALS.dbToken}`,
-    );
+    ]);
     expect(state.stderr).toEqual([
       "The database was migrated, but temporary files could not be removed: permission denied",
       "Remove this directory: /tmp/turso-migration-test",
@@ -340,9 +354,9 @@ describe("Turso migration CLI", () => {
     });
 
     expect(await runMigrateTursoCli(state.deps)).toBe(130);
-    expect(state.stderr[0]).toContain("interrupted");
-    expect(state.stderr[0]).toContain("permission denied");
-    expect(state.stderr[0]).toContain("/tmp/turso-migration-test");
+    assertStringIncludes(state.stderr[0] ?? "", "interrupted");
+    assertStringIncludes(state.stderr[0] ?? "", "permission denied");
+    assertStringIncludes(state.stderr[0] ?? "", "/tmp/turso-migration-test");
   });
 
   test("reports the original failure and temp directory when cleanup fails", async () => {
@@ -354,8 +368,8 @@ describe("Turso migration CLI", () => {
     });
 
     expect(await runMigrateTursoCli(state.deps)).toBe(1);
-    expect(state.stderr[0]).toContain("bad sqlite");
-    expect(state.stderr[0]).toContain("permission denied");
-    expect(state.stderr[0]).toContain("/tmp/turso-migration-test");
+    assertStringIncludes(state.stderr[0] ?? "", "bad sqlite");
+    assertStringIncludes(state.stderr[0] ?? "", "permission denied");
+    assertStringIncludes(state.stderr[0] ?? "", "/tmp/turso-migration-test");
   });
 });

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { installLockPath } from "#scripts/stripe-mock/install.ts";
@@ -86,7 +87,7 @@ describe("cleaning up after an install", () => {
         },
       );
 
-      expect(await Deno.readTextFile(lockPath)).toContain(replacementOwner);
+      assertStringIncludes(await Deno.readTextFile(lockPath), replacementOwner);
     });
   });
 

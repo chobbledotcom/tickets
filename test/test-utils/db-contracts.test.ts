@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -177,7 +178,7 @@ describe("test-utils — db-backed & settings contracts", () => {
         "mgr-mixed",
         "MixedCaseManager",
       );
-      expect(managerCookie).toContain("mgr-mixed");
+      assertStringIncludes(managerCookie, "mgr-mixed");
 
       const agent = await createTestAgentSession({
         token: "agent-mixed",

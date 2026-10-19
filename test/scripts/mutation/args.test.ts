@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { DEFAULT_DEADLINE, parseArgs } from "#scripts/mutation/args.ts";
@@ -237,7 +238,10 @@ describe("parseArgs", () => {
       /^Unexpected positional argument\(s\) alongside --source\/--test: x\.ts, y\.ts\./,
     );
     // The advisory middle clause is part of the message, not dropped.
-    expect(parsed.error).toContain("A glob likely expanded to multiple files");
+    assertStringIncludes(
+      parsed.error ?? "",
+      "A glob likely expanded to multiple files",
+    );
   });
 
   test("rejects positionals mixed with --test flag form", () => {
@@ -247,12 +251,18 @@ describe("parseArgs", () => {
 
   test("keeps the first error when a later --deadline is also invalid", () => {
     const parsed = parseArgs(["a.ts", "b.ts", "c.ts", "--deadline", "-5"]);
-    expect(parsed.error).toContain("Too many positional arguments (3)");
+    assertStringIncludes(
+      parsed.error ?? "",
+      "Too many positional arguments (3)",
+    );
   });
 
   test("keeps the first error when a later --jobs is also invalid", () => {
     const parsed = parseArgs(["a.ts", "b.ts", "c.ts", "--jobs", "0"]);
-    expect(parsed.error).toContain("Too many positional arguments (3)");
+    assertStringIncludes(
+      parsed.error ?? "",
+      "Too many positional arguments (3)",
+    );
   });
 
   // A missing value spotted mid-parse must survive the positional pass — the

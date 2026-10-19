@@ -1,4 +1,5 @@
 import type { InValue, ResultSet } from "@libsql/client";
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, getDb, queryBatch } from "#db/client.ts";
@@ -459,9 +460,9 @@ export const runAggregateColumnDropTests = (
 ): void => {
   test(`drops the ${spec.dropColumn} column from ${spec.targetTable}`, async () => {
     await seedLegacyAggregateColumnDropSchema(spec);
-    expect(await columnNames(spec.targetTable)).toContain(spec.dropColumn);
+    assertArrayIncludes(await columnNames(spec.targetTable), [spec.dropColumn]);
     await spec.runMigration();
-    expect(await columnNames(spec.targetTable)).not.toContain(spec.dropColumn);
+    assert(!(await columnNames(spec.targetTable)).includes(spec.dropColumn));
   });
 
   test("keeps the three aggregate triggers in place", async () => {

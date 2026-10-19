@@ -15,6 +15,7 @@
  *   });
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { queryAll } from "#db/client.ts";
@@ -284,13 +285,13 @@ export const runOrderJourney = async (spec: {
     expect(browser.containsText(name)).toBe(true);
   }
   await browser.visit(selectionUrl(catalog, spec.select));
-  expect(browser.currentUrl).toContain("/ticket/");
+  assertStringIncludes(browser.currentUrl, "/ticket/");
 
   // Every control the journey means to fill must actually render — a path
   // whose input silently vanished would otherwise just book less.
   const filled = spec.form(catalog);
   for (const field of Object.keys(filled)) {
-    expect(browser.currentHtml).toContain(`name="${field}"`);
+    assertStringIncludes(browser.currentHtml, `name="${field}"`);
   }
   const fields = {
     email: "journey@example.com",

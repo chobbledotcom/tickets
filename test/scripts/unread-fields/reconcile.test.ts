@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Finding } from "#scripts/unread-fields/findings.ts";
@@ -115,7 +116,8 @@ describe("unread-field reconciliation", () => {
   test("keeps the exemption reason in a stale diagnostic", () => {
     const [problem] = reconcileUnreadFields([], [exemption()])([]);
 
-    expect(formatUnreadFieldProblem(problem!)).toContain(
+    assertStringIncludes(
+      formatUnreadFieldProblem(problem!),
       "external-output: sendSum serialises the complete value",
     );
   });

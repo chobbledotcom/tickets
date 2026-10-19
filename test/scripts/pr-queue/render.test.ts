@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { renderReport } from "#scripts/pr-queue/render.ts";
@@ -20,8 +21,8 @@ const summary = (over: Partial<PrSummary> & { bucket: Bucket }): PrSummary => ({
 describe("renderReport", () => {
   test("an empty queue announces no open pull requests", () => {
     const out = renderReport("o/n", [], clock);
-    expect(out).toContain("PR queue — o/n — 0 open");
-    expect(out).toContain("No open pull requests.");
+    assertStringIncludes(out, "PR queue — o/n — 0 open");
+    assertStringIncludes(out, "No open pull requests.");
   });
 
   test("the header names every bucket count in order, comma-separated", () => {
@@ -35,7 +36,8 @@ describe("renderReport", () => {
     );
     // Full header pins the count for each bucket (0 for the empty ones), the
     // ", " separators, and the lower-cased bucket labels all at once.
-    expect(out).toContain(
+    assertStringIncludes(
+      out,
       "PR queue — o/n — 2 open (1 needs attention, 0 in merge queue, 0 waiting, 0 draft, 1 ready to merge)",
     );
   });
@@ -72,11 +74,11 @@ describe("renderReport", () => {
     );
     // The branch tag is wrapped in ANSI colour codes, so the "branch … (PR n)"
     // label and the fact sentence are matched separately rather than as one run.
-    expect(out).toContain("branch fix-foo (PR 7)");
-    expect(out).toContain("is behind main and needs main merged in.");
+    assertStringIncludes(out, "branch fix-foo (PR 7)");
+    assertStringIncludes(out, "is behind main and needs main merged in.");
     // The header line names the PR, author, and a "1h ago" age (12:00 vs the
     // 13:00 clock), with the age immediately followed by the closing paren.
-    expect(out).toContain("(by stefan-burke, 1h ago)");
+    assertStringIncludes(out, "(by stefan-burke, 1h ago)");
   });
 
   test("multiple facts for one PR are joined with '; ' and end in a full stop", () => {
@@ -90,7 +92,7 @@ describe("renderReport", () => {
       ],
       clock,
     );
-    expect(out).toContain("is still a draft; has failing checks (test).");
+    assertStringIncludes(out, "is still a draft; has failing checks (test).");
   });
 
   test("a merge-queued PR renders under the IN MERGE QUEUE group", () => {
@@ -99,7 +101,7 @@ describe("renderReport", () => {
       [summary({ bucket: "QUEUED", facts: ["is in GitHub's merge queue"] })],
       clock,
     );
-    expect(out).toContain("IN MERGE QUEUE (1)");
+    assertStringIncludes(out, "IN MERGE QUEUE (1)");
   });
 
   test("the report is a header followed by a blank line before the first group", () => {
@@ -121,7 +123,7 @@ describe("renderReport", () => {
       clock,
     );
     // 2026-06-01 → 2026-07-10T13:00 is 39 days, past the one-week stale line.
-    expect(out).toContain("39d ago, stale");
+    assertStringIncludes(out, "39d ago, stale");
   });
 
   test("a PR updated seconds ago still reads at least '1m ago'", () => {
@@ -131,8 +133,8 @@ describe("renderReport", () => {
       [summary({ bucket: "READY", updatedAt: "2026-07-10T12:59:30Z" })],
       clock,
     );
-    expect(out).toContain("1m ago");
-    expect(out).not.toContain("0m ago");
+    assertStringIncludes(out, "1m ago");
+    assert(!out.includes("0m ago"));
   });
 
   test("a PR updated today is not flagged stale", () => {
@@ -153,9 +155,9 @@ describe("renderReport", () => {
       [summary({ bucket: "READY", updatedAt: "2026-07-10T12:55:00Z" })],
       clock,
     );
-    expect(out).toContain("5m ago");
-    expect(out).not.toContain("h ago");
-    expect(out).not.toContain("d ago");
+    assertStringIncludes(out, "5m ago");
+    assert(!out.includes("h ago"));
+    assert(!out.includes("d ago"));
   });
 
   test("within one bucket, the most recently updated PR is listed first", () => {

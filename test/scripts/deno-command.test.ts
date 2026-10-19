@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -49,8 +50,8 @@ describe("commandDetail", () => {
       args: ["eval", "console.log('out line'); console.error('err line');"],
     });
     expect(detail.code).toBe(0);
-    expect(detail.output).toContain("out line");
-    expect(detail.output).toContain("err line");
+    assertStringIncludes(detail.output, "out line");
+    assertStringIncludes(detail.output, "err line");
   });
 
   test("carries a failed child's exit code with its output", async () => {
@@ -58,6 +59,6 @@ describe("commandDetail", () => {
       args: ["eval", "console.error('it broke'); Deno.exit(2);"],
     });
     expect(detail.code).toBe(2);
-    expect(detail.output).toContain("it broke");
+    assertStringIncludes(detail.output, "it broke");
   });
 });

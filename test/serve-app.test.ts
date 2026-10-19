@@ -9,6 +9,7 @@
  * boot — a thrown boot check is not memoized, which is exactly what the first
  * test proves — and every later test reuses the one successful boot.
  */
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -225,8 +226,8 @@ describeWithEnv("serve-app", { db: true }, () => {
         const other = await serveFrom(await wrongLogin(), "192.0.2.2");
         const locked = await serveFrom(await wrongLogin(), "192.0.2.1");
 
-        expect(flashOf(other)).toContain("Username or password was wrong");
-        expect(flashOf(locked)).toContain("Too many login attempts");
+        assertStringIncludes(flashOf(other), "Username or password was wrong");
+        assertStringIncludes(flashOf(locked), "Too many login attempts");
         const rows = await queryAll<{ attempts: number; ip: string }>(
           "SELECT ip, attempts FROM login_attempts ORDER BY attempts",
         );

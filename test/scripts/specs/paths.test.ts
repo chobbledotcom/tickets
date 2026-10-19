@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { relativeToProject } from "#scripts/path.ts";
@@ -55,7 +56,7 @@ describe("where a spec run reads and writes", () => {
   test("loads the world before the steps that lean on it", () => {
     const [world, steps] = SPEC_SUPPORT_GLOBS;
 
-    expect(world).toContain("support");
-    expect(steps).toContain("steps");
+    assertStringIncludes(world ?? "", "support");
+    assertStringIncludes(steps ?? "", "steps");
   });
 });

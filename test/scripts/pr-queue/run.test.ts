@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { PR_QUEUE_USAGE } from "#scripts/pr-queue/args.ts";
@@ -40,7 +41,7 @@ describe("running the PR queue report", () => {
 
     expect(code).toBe(2);
     expect(logs).toEqual([]);
-    expect(errors.join("")).toContain("Unknown argument: --nope");
+    assertStringIncludes(errors.join(""), "Unknown argument: --nope");
   });
 
   test("reports the repo it was told to look at", async () => {
@@ -50,8 +51,8 @@ describe("running the PR queue report", () => {
     );
 
     expect(code).toBe(0);
-    expect(logs.join("\n")).toContain("owner/repo");
-    expect(logs.join("\n")).toContain("Some PR");
+    assertStringIncludes(logs.join("\n"), "owner/repo");
+    assertStringIncludes(logs.join("\n"), "Some PR");
   });
 
   test("prints JSON when asked, with the count and the repo", async () => {
@@ -66,7 +67,7 @@ describe("running the PR queue report", () => {
       repo: "owner/repo",
     });
     // Indented, so a person reading it in the terminal can follow it.
-    expect(logs.join("")).toContain('\n  "open": 1');
+    assertStringIncludes(logs.join(""), '\n  "open": 1');
   });
 
   test("warns when GitHub had more pull requests than it fetched", async () => {
@@ -75,7 +76,10 @@ describe("running the PR queue report", () => {
       ghSaying({ stdout: queueReply([openPr()], true) }).run,
     );
 
-    expect(errors.join("\n")).toContain("only the 60 most recently updated");
+    assertStringIncludes(
+      errors.join("\n"),
+      "only the 60 most recently updated",
+    );
   });
 
   test("passes a gh failure's message and exit code out", async () => {
@@ -86,7 +90,7 @@ describe("running the PR queue report", () => {
 
     expect(code).toBe(4);
     expect(logs).toEqual([]);
-    expect(errors.join("\n")).toContain("not logged in");
+    assertStringIncludes(errors.join("\n"), "not logged in");
   });
 
   test("lets an unexpected error through rather than hiding it", async () => {

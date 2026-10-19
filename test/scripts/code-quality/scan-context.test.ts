@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { detectThenUsage } from "#test/scripts/code-quality/detectors.ts";
@@ -45,8 +46,9 @@ describe("code-quality scan context", () => {
       detectRelativeImport,
     );
     expect(violations).toHaveLength(1);
-    expect(violations[0]).toContain("src/scan-context-fixture.ts:1");
-    expect(violations[0]).toContain(
+    assertStringIncludes(violations[0] ?? "", "src/scan-context-fixture.ts:1");
+    assertStringIncludes(
+      violations[0] ?? "",
       "(use a # alias instead of a ../ relative import)",
     );
   });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { blankSpans } from "#scripts/typescript-lex.ts";
@@ -243,7 +244,8 @@ describe("findDuplicateTypeShapes", () => {
       def("a.ts", "A", ["x: number", "y: number"], "interface"),
       def("b.ts", "B", ["x: number", "y: number"]),
     ];
-    expect(findDuplicateTypeShapes(defs, [])[0]).toContain(
+    assertStringIncludes(
+      findDuplicateTypeShapes(defs, [])[0] ?? "",
       "interface A (a.ts)",
     );
   });

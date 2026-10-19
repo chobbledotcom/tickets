@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { fieldsOf, pathsOf } from "./fields-of-source.ts";
@@ -60,7 +61,9 @@ export type UsesTheDefault = WithDefault;
       ),
     );
 
-    expect(paths).toContain("UsesTheDefault.value.reachedThroughTheDefault");
+    assertArrayIncludes(paths, [
+      "UsesTheDefault.value.reachedThroughTheDefault",
+    ]);
   });
 
   test("skips the argument when neither supply nor default exists", async () => {
@@ -81,9 +84,9 @@ export type UsesSomething = WithoutDefault<ReachedWhenSupplied>;
       ),
     );
 
-    expect(paths).toContain("UsesSomething.value.onlySeenWhenGiven");
-    expect(paths).toContain("UsesNothing.value");
-    expect(paths).not.toContain("UsesNothing.value.onlySeenWhenGiven");
+    assertArrayIncludes(paths, ["UsesSomething.value.onlySeenWhenGiven"]);
+    assertArrayIncludes(paths, ["UsesNothing.value"]);
+    assert(!paths.includes("UsesNothing.value.onlySeenWhenGiven"));
   });
 
   test("keeps standing when an inheritance clause names nothing", async () => {
@@ -101,7 +104,7 @@ export type UsesGhostAndReal = GhostBase | ReachedThroughAGhost;
       ),
     );
 
-    expect(paths).toContain("UsesGhostAndReal.theOnlyField");
+    assertArrayIncludes(paths, ["UsesGhostAndReal.theOnlyField"]);
   });
 
   test("counts no export from a file that is not a module", async () => {

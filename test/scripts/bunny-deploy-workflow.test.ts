@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { map } from "#fp";
@@ -18,12 +19,13 @@ describe("Bunny deploy workflow", () => {
   test("deploys built bundles through first-party code", async () => {
     const action = await readText(DEPLOY_ACTION_PATH);
 
-    expect(action).toContain("scripts/deploy-built-edge.ts");
-    expect(action).toContain("--allow-net=api.bunny.net");
-    expect(action).toContain(
+    assertStringIncludes(action, "scripts/deploy-built-edge.ts");
+    assertStringIncludes(action, "--allow-net=api.bunny.net");
+    assertStringIncludes(
+      action,
       `BUNNY_ACCESS_KEY: ${githubValue("inputs.api_key")}`,
     );
-    expect(action).not.toContain("BunnyWay/actions/deploy-script@main");
+    assert(!action.includes("BunnyWay/actions/deploy-script@main"));
     expect(action).not.toMatch(/uses:\s+BunnyWay\/actions\/deploy-script@/);
   });
 
@@ -77,6 +79,6 @@ describe("Bunny deploy workflow", () => {
     expect(workflow).toMatch(
       new RegExp(`uses: BunnyWay/actions/deploy-script@${SHA}`),
     );
-    expect(workflow).not.toContain("BunnyWay/actions/deploy-script@main");
+    assert(!workflow.includes("BunnyWay/actions/deploy-script@main"));
   });
 });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -45,7 +46,7 @@ describe("Bash post-edit checks", () => {
         "bash",
       ],
     ]);
-    expect(result).toContain("jscpd: duplicated code found");
-    expect(result).toContain("duplicate shell commands");
+    assertStringIncludes(result, "jscpd: duplicated code found");
+    assertStringIncludes(result, "duplicate shell commands");
   });
 });

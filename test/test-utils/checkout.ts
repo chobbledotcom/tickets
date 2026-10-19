@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import type { CheckoutIntent } from "#shared/payments.ts";
@@ -53,7 +54,7 @@ export const captureCheckoutIntent = async (
       name: "Buyer",
       ...fields,
     });
-    expect([302, 303]).toContain(response.status);
+    assertArrayIncludes([302, 303], [response.status]);
     return getCaptured();
   } finally {
     checkout.restore();
