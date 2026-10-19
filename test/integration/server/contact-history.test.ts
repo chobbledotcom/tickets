@@ -61,6 +61,27 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       expect(html).toMatch(/name="visits"[^>]*value="9"/);
     });
 
+    test("resolves the saved note's img#N reference in the preview", async () => {
+      const image = await makeImage("EditPoster");
+      const hash = await hashEmail("editposter@example.com");
+      await saveContactRecord(
+        hash,
+        seededRecord({
+          adminNotes: `Hello. ![EditPoster](img#${image.id})`,
+        }),
+      );
+
+      // The textarea legitimately shows the note's raw img#N source. The
+      // preview beneath it renders the image.
+      await expectHtml(
+        await adminGet(`/admin/history/${base64ToBase64Url(hash)}`),
+        {
+          contains: [`<img src="/image/${image.filename}" alt="EditPoster">`],
+          status: 200,
+        },
+      );
+    });
+
     test("renders the private note in the shared markdown editor box, label without '(markdown)'", async () => {
       const param = base64ToBase64Url(await hashEmail("mdbox@example.com"));
       const html = await expectHtml(await adminGet(`/admin/history/${param}`), {
