@@ -225,6 +225,27 @@ describe("the image dropdown toolbar control", () => {
     }
   });
 
+  test("keeps the image control inert after the editor is destroyed", async () => {
+    fetchStubHolder.stub = stubFetch(
+      json({ images: [{ id: 2, name: "Alpha" }] }),
+    );
+    const { window, handle } = enhanced("hello");
+    const addListener = spy(window.document, "addEventListener");
+    handle.view.destroy();
+
+    toolbarImageButton(window).click();
+    const panel = dropdownPanel(window);
+
+    // The destroyed editor's control does not reopen: the panel stays shut,
+    // nothing registers on document, and the option list is never fetched.
+    expect(panel.hidden).toBe(true);
+    expect(toolbarImageButton(window).getAttribute("aria-expanded")).toBe(
+      "false",
+    );
+    expect(addListener.calls).toEqual([]);
+    expect(fetchStubHolder.stub?.calls).toEqual([]);
+  });
+
   test("wraps a long unbroken image name inside its option", async () => {
     // The longest name the form accepts, with no break opportunity: the
     // panel caps its width, so the option must wrap its text.
