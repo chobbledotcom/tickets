@@ -16,12 +16,12 @@ import {
   getImagesForItem,
 } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
+import { allChildListings } from "#routes/public/child-listings.ts";
+import { childCapacityInfo } from "#routes/public/discovery/combined-capacity.ts";
+import { applyBookingPageParentSoldOut } from "#routes/public/discovery.ts";
+import { publicNavProps } from "#routes/public/site-nav.ts";
+import type { TicketCtx } from "#routes/public/types.ts";
 import { getIframeMode } from "#shared/request-context.ts";
-import { allChildListings } from "../child-listings.ts";
-import { childCapacityInfo } from "../discovery/combined-capacity.ts";
-import { applyBookingPageParentSoldOut } from "../discovery.ts";
-import { publicNavProps } from "../site-nav.ts";
-import type { TicketCtx } from "../types.ts";
 
 /** The render-only view of the context. It projects a parent whose children
  * are all unavailable to sold-out, so the GET page shows it sold out (no Book
