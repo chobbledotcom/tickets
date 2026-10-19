@@ -203,6 +203,19 @@ describeWithEnv(
       expect(urls.size).toBe(0);
     });
 
+    test("drops an img#N reference whose id is not a safe positive integer", async () => {
+      const hero = await makeImage("Hero");
+
+      const urls = await imageUrlsFor([
+        `![Huge](img#${"9".repeat(400)})`,
+        "![Past the safe range](img#99999999999999999999)",
+        `![Hero](img#${hero.id})`,
+      ]);
+
+      expect(urls.size).toBe(1);
+      expect(urls.get(hero.id)).toBe(`/image/${hero.filename}`);
+    });
+
     test("writes the referenced ids' URLs into the request's page table", async () => {
       const hero = await makeImage("Hero");
       await withRequestContext(async () => {

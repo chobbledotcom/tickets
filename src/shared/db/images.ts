@@ -116,7 +116,9 @@ export const imageUrlsFor = async (
   const ids = [
     ...new Set(
       sources.flatMap((text) =>
-        [...text.matchAll(/img#(\d+)/g)].map((match) => Number(match[1])),
+        [...text.matchAll(/img#(\d+)/g)]
+          .map((match) => Number(match[1]))
+          .filter((id) => Number.isSafeInteger(id) && id > 0),
       ),
     ),
   ];
