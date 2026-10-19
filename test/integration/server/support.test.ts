@@ -17,6 +17,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -73,6 +74,19 @@ describeWithEnv(
         const html = await response.text();
         expect(html).toContain("<h1>Help Center</h1>");
         expect(html).toContain("<p>Reach out anytime</p>");
+      });
+
+      test("resolves the page text's img#N reference", async () => {
+        const image = await makeImage("HelpPoster");
+        using _env = withEnv({
+          SUPPORT_PAGE_TEXT: `Read the guide. ![HelpPoster](img#${image.id})`,
+        });
+        const response = await adminGet("/admin/support");
+        const html = await response.text();
+        expect(html).toContain(
+          `<img src="/image/${image.filename}" alt="HelpPoster">`,
+        );
+        expect(html).not.toContain("img#");
       });
     });
 
