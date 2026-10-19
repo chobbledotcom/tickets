@@ -109,6 +109,44 @@ const scannerMessages = (): ScannerMessages => ({
   }),
 });
 
+/** The offline-mode words the camera client composes into statuses, the
+ * banner, and the queue panel, as `data-message-*` attributes. The camera
+ * page is the only surface the offline scanner serves. */
+const offlineMessageAttrs = (): Record<string, string> => ({
+  "data-message-offline-banner-auto": t("admin.scanner.offline_banner_auto"),
+  "data-message-offline-banner-manual": t(
+    "admin.scanner.offline_banner_manual",
+  ),
+  "data-message-offline-cache-expired": t(
+    "admin.scanner.offline_cache_expired",
+  ),
+  "data-message-offline-cache-missing": t(
+    "admin.scanner.offline_cache_missing",
+  ),
+  "data-message-offline-invalid": t("admin.scanner.offline_invalid"),
+  "data-message-offline-queued": t("admin.scanner.offline_queued"),
+  "data-message-queue-count-one": t("admin.scanner.queue_count_one", {
+    count: "{count}",
+  }),
+  "data-message-queue-count-other": t("admin.scanner.queue_count_other", {
+    count: "{count}",
+  }),
+  "data-message-queue-item-already": t("admin.scanner.queue_item_already"),
+  "data-message-queue-item-checked-in": t(
+    "admin.scanner.queue_item_checked_in",
+  ),
+  "data-message-queue-item-not-checked-in": t(
+    "admin.scanner.queue_item_not_checked_in",
+  ),
+  "data-message-queue-item-queued": t("admin.scanner.queue_item_queued"),
+  "data-message-queue-item-refunded": t("admin.scanner.queue_item_refunded"),
+  "data-message-queue-item-still-queued": t(
+    "admin.scanner.queue_item_still_queued",
+  ),
+  "data-message-sync-done": t("admin.scanner.sync_done"),
+  "data-message-sync-running": t("admin.scanner.sync_running"),
+});
+
 /** One centered overlay above the camera: backdrop, box, and the page's own
  * body. The confirm and the quantity asks share it, so both overlays keep the
  * same skeleton the client script centers. */
@@ -190,8 +228,12 @@ export const adminScannerPage = (
           data-message-wrong-listing-confirm={
             messageTemplates.wrongListingConfirm
           }
+          {...offlineMessageAttrs()}
           id="scanner-container"
         >
+          <aside class="hidden" id="scanner-offline-banner" role="status">
+            <p id="scanner-offline-banner-text"></p>
+          </aside>
           <video
             class="hidden"
             data-scan-path={scanPath}
@@ -200,6 +242,10 @@ export const adminScannerPage = (
             playsinline
           ></video>
           <div class="hidden" id="scanner-status"></div>
+          <div class="hidden" id="scanner-queue">
+            <p id="scanner-queue-summary"></p>
+            <ul id="scanner-queue-items"></ul>
+          </div>
           {ScannerOverlay({
             children: (
               <>
@@ -247,6 +293,14 @@ export const adminScannerPage = (
 
         <button id="scanner-start" type="button">
           {t("admin.scanner.start_camera")}
+        </button>
+        <button
+          aria-pressed="false"
+          class="link-button muted"
+          id="scanner-offline-toggle"
+          type="button"
+        >
+          {t("admin.scanner.offline_mode")}
         </button>
       </article>
 

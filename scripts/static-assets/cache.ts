@@ -28,10 +28,10 @@
 import { join } from "node:path";
 import * as v from "valibot";
 import { notCoveredBy, sameOrder, unique } from "#fp";
-import { sha256Hex } from "#scripts/checksum.ts";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { readJsonOrNull } from "#scripts/read-json.ts";
+import { sha256Hex } from "#shared/sha256.ts";
 import { staticAssetOutputFiles } from "./outfiles.ts";
 
 /** How a file looked when the assets were last built: a hash of its contents,

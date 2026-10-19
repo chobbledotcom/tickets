@@ -17,6 +17,9 @@ export const ASSET_DEFS: AssetDef[] = [
   ["logistics-map.js", "handleLogisticsMapJs", JS, "", true],
   ["logistics-map.css", "handleLogisticsMapCss", CSS, "", true],
   ["scanner.js", "handleScannerJs", JS, "SCANNER_JS_PATH", true],
+  // The scanner page registers this worker same-origin, so it never ships to
+  // the CDN origin: a service worker cannot register across origins.
+  ["scanner-sw.js", "handleScannerSwJs", JS, "", false, true],
   [
     "iframe-resizer-parent.js",
     "handleIframeResizerParentJs",

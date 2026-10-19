@@ -1,11 +1,22 @@
 // Browser-only code - bundled with jsQR by scripts/build-edge.ts
 import jsQR from "jsqr";
+import {
+  initOfflineScanner,
+  isSyncing,
+  offlineModeActive,
+  offlineScan,
+} from "./scanner-offline-ui.js";
+import {
+  formatTicketCount,
+  getMessage,
+  interpolate,
+  showStatus,
+} from "./scanner-messages.js";
 import { showQuantitySelect } from "./quantity-select.ts";
 import { showConfirm } from "./confirm-dialog.ts";
 
 const COOLDOWN_MS = 2000;
 const SCAN_INTERVAL_MS = 150;
-const FADE_DELAY_MS = 5000;
 
 /** Extract ticket token from a checkin URL or raw token string */
 const extractToken = (data) => {
@@ -37,41 +48,6 @@ const postScan = async (scanPath, token, csrfToken, { force, idVerified, quantit
   });
 
   return res.json();
-};
-
-const interpolate = (template, values) =>
-  template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ""));
-
-const getMessage = (messages, key, fallback) => messages[key] ?? fallback;
-
-const formatTicketCount = (messages, count) => {
-  const safeCount = Number.isFinite(count) ? count : 1;
-  const key = safeCount === 1 ? "messageTicketCountOne" : "messageTicketCountOther";
-  return interpolate(getMessage(messages, key, "{count} ticket"), {
-    count: safeCount,
-  });
-};
-
-let fadeTimer = 0;
-
-/** Show a status message with color via CSS classes */
-const showStatus = (el, message, type) => {
-  clearTimeout(fadeTimer);
-  el.textContent = message;
-  el.classList.remove(
-    "hidden",
-    "scanner-status-success",
-    "scanner-status-warning",
-    "scanner-status-error",
-    "scanner-status-fade-out",
-  );
-  el.classList.add("scanner-status", `scanner-status-${type}`);
-
-  if (type === "success" || type === "warning") {
-    fadeTimer = setTimeout(() => {
-      el.classList.add("scanner-status-fade-out");
-    }, FADE_DELAY_MS);
-  }
 };
 
 /** Build a "{name} … ({tickets})" status message for a check-in result. */
@@ -124,7 +100,7 @@ const handleResult = (el, result, messages) => {
     case "refunded":
       showStatus(el, interpolate(getMessage(messages, "messageRefunded", "{name} has been refunded"), { name: result.name }), "error");
       break;
-    // Only the forced rescan lands here: the first wrong_listing answer asks
+    // Only the forced rescan lands here. The first wrong_listing answer asks
     // before it re-posts, and a ticket whose only rows are "No check-in"
     // answers wrong_listing again.
     case "wrong_listing":
@@ -139,36 +115,46 @@ const handleResult = (el, result, messages) => {
   }
 };
 
+/** Ask the door one yes-or-no question in the page's own words. */
+const askConfirm = (messages, key, fallback, values) =>
+  showConfirm(interpolate(getMessage(messages, key, fallback), values));
+
+/** Send the person away, and answer with the ask they declined. */
+const declineAsk = (statusEl, messages, name, answer) => {
+  skipPerson(statusEl, messages, name);
+  return answer;
+};
+
 /** Scan one token and settle it with the door: each ask is one
  * confirmation, then one re-POST. A wrong listing widens the door, an ID
  * check confirms the person, and a quantity ask picks how many tickets this
  * scan admits. Every later POST carries every answer the door already gave,
- * so nothing re-asks and nothing is lost. */
+ * so nothing re-asks and nothing is lost. Returns the answer the scan
+ * settled on — the door's final word, or the ask the door staff declined —
+ * so the offline queue's sync can report each replayed check-in. */
 const admitScan = async (scanPath, token, csrfToken, statusEl, messages) => {
   let answer = await postScan(scanPath, token, csrfToken);
   const given = {};
   while (true) {
     if (answer.status === "wrong_listing" && !given.force) {
-      const ok = await showConfirm(
-        interpolate(
-          getMessage(
-            messages,
-            "messageWrongListingConfirm",
-            '{name} is registered for "{listingName}", not this listing. Check in anyway?',
-          ),
-          { listingName: answer.listingName, name: answer.name },
-        ),
+      const ok = await askConfirm(
+        messages,
+        "messageWrongListingConfirm",
+        '{name} is registered for "{listingName}", not this listing. Check in anyway?',
+        { listingName: answer.listingName, name: answer.name },
       );
-      if (!ok) {
-        skipPerson(statusEl, messages, answer.name);
-        return;
-      }
+      if (!ok) return declineAsk(statusEl, messages, answer.name, answer);
       given.force = true;
     } else if (answer.status === "verify_id" && !given.idVerified) {
-      const ok = await showConfirm(interpolate(getMessage(messages, "messageVerifyIdConfirm", 'Does their ID match "{name}"?'), { name: answer.name }));
+      const ok = await askConfirm(
+        messages,
+        "messageVerifyIdConfirm",
+        'Does their ID match "{name}"?',
+        { name: answer.name },
+      );
       if (!ok) {
         showStatus(statusEl, interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: answer.name }), "error");
-        return;
+        return answer;
       }
       given.idVerified = true;
     } else if (answer.status === "select_quantity") {
@@ -180,21 +166,18 @@ const admitScan = async (scanPath, token, csrfToken, statusEl, messages) => {
         ),
         (count) => formatTicketCount(messages, count),
       );
-      if (!count) {
-        skipPerson(statusEl, messages, answer.name);
-        return;
-      }
+      if (!count) return declineAsk(statusEl, messages, answer.name, answer);
       given.quantity = count;
     } else {
       handleResult(statusEl, answer, messages);
-      return;
+      return answer;
     }
     answer = await postScan(scanPath, token, csrfToken, given);
   }
 };
 
 /** Main scanner loop */
-const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) => {
+const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages, panel) => {
   const ctx = canvas.getContext("2d");
   let lastScanTime = 0;
   let processing = false;
@@ -245,7 +228,14 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
       lastToken = null;
     }, FADE_DELAY_MS);
 
-    admitScan(scanPath, token, csrfToken, statusEl, messages)
+    // A running sync holds the scans, so one overlay asks one question at a
+    // time. The door rescans when the queue is done.
+    const settle = isSyncing()
+      ? Promise.resolve()
+      : offlineModeActive()
+      ? offlineScan(scanPath, token, statusEl, messages, panel)
+      : admitScan(scanPath, token, csrfToken, statusEl, messages);
+    settle
       .catch(() => {
         showStatus(statusEl, getMessage(messages, "messageNetworkError", "Network error"), "error");
       })
@@ -274,6 +264,16 @@ const init = () => {
   const csrfMeta = document.querySelector('meta[name="csrf-token"]');
   const csrfToken = csrfMeta ? csrfMeta.content : "";
 
+  // The offline side owns its own elements: the banner, the queue panel, and
+  // the door switch. It throws naming any one the page fails to render.
+  const panel = initOfflineScanner({
+    csrfToken,
+    messages,
+    scanPath,
+    settleScan: admitScan,
+    statusEl,
+  });
+
   /** Stop all camera tracks to release the hardware */
   const stopCamera = () => {
     const stream = video.srcObject;
@@ -297,7 +297,7 @@ const init = () => {
       startBtn.classList.add("hidden");
       video.classList.remove("hidden");
       showStatus(statusEl, getMessage(messages, "messageScanning", "Scanning..."), "success");
-      startScanner(video, canvas, statusEl, scanPath, csrfToken, messages);
+      startScanner(video, canvas, statusEl, scanPath, csrfToken, messages, panel);
     } catch {
       showStatus(statusEl, getMessage(messages, "messageCameraDenied", "Camera access denied"), "error");
     }
