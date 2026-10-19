@@ -69,6 +69,19 @@ describeWithEnv("public /news routes", { db: true }, () => {
     );
   });
 
+  test("the list page renders the footer's img#id reference", async () => {
+    await enablePublicSite();
+    const image = await makeImage("FooterIndex");
+    await adminFormPost("/admin/settings/site-footer", {
+      site_footer: `Thanks for coming.![FooterIndex](img#${image.id})`,
+    });
+    await makePost("Index Drop");
+    const body = await (await handleRequest(mockRequest("/news"))).text();
+    expect(body).toContain(
+      `<img src="/image/${image.filename}" alt="FooterIndex">`,
+    );
+  });
+
   test("a post's unknown img#id reference falls back to the alt text", async () => {
     await enablePublicSite();
     const post = await makePost("Ghost Drop", "![Ghost](img#424242)");
