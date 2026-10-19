@@ -109,57 +109,176 @@ const topLevelElements = (
   return elements;
 };
 
+/** The one message a value bound twice reports. */
+const repeatedBindMessage = (line: number, value: string): string =>
+  `${line}: binds ${value} more than once; numberedStatement binds it once and reuses the token`;
+
 /** The repeated elements of one `args` array, as one violation per value that
- * appears more than once. */
+ * appears more than once. A spread of a local array carries that array's
+ * values into the statement, so its elements count in the spread's place, one
+ * level deep. */
 const repeatedElementsOf = (
   content: string,
   blanked: string,
   open: number,
   close: number,
   line: number,
+  expand?: (name: string) => Array<{ open: number; close: number }>,
 ): string[] => {
   const counts = new Map<string, number>();
-  for (const element of topLevelElements(content, blanked, open + 1, close)) {
+  const countElement = (element: string, depth: number): void => {
     const text = element.trim();
-    if (!PURE_BIND_ELEMENT.test(text)) continue;
+    if (!PURE_BIND_ELEMENT.test(text)) return;
     const value = text.replace(/^\.\.\.\s*/, "").trim();
-    if (TYPE_WORDS.has(value)) continue;
+    if (TYPE_WORDS.has(value)) return;
+    if (text.startsWith("...") && depth === 0) {
+      const literals = expand?.(value) ?? [];
+      if (literals.length > 0) {
+        for (const { open, close } of literals) {
+          for (const inner of topLevelElements(content, blanked, open + 1, close)) {
+            countElement(inner, depth + 1);
+          }
+        }
+        return;
+      }
+    }
     counts.set(value, (counts.get(value) ?? 0) + 1);
+  };
+  for (const element of topLevelElements(content, blanked, open + 1, close)) {
+    countElement(element, 0);
   }
   const violations: string[] = [];
   for (const [value, count] of counts) {
-    if (count > 1) {
-      violations.push(
-        `${line}: binds ${value} more than once; numberedStatement binds it once and reuses the token`,
-      );
-    }
+    if (count > 1) violations.push(repeatedBindMessage(line, value));
   }
   return violations;
+};
+
+/** The text span of one top-level declaration: from its keyword to the close
+ * of its first brace group, or to the end of the text when the declaration
+ * carries no braces. `[-1, -1]` when the file declares no such name. */
+const declarationSpan = (blanked: string, name: string): [number, number] => {
+  const declared = blanked.match(
+    new RegExp(`\\b(?:const|let|var|function)\\s+${name}\\b`),
+  );
+  if (declared?.index === undefined) return [-1, -1];
+  const open = blanked.indexOf("{", declared.index);
+  if (open < 0) return [declared.index, blanked.length];
+  const close = matchingBracket(blanked, open);
+  return close < 0
+    ? [declared.index, blanked.length]
+    : [declared.index, close + 1];
+};
+
+/** The local array literals of one file, by name: the values a statement can
+ * receive through one of the argument uses below. */
+const localArrayLiterals = (
+  blanked: string,
+): Map<string, Array<{ open: number; close: number }>> => {
+  const literals = new Map<string, Array<{ open: number; close: number }>>();
+  for (const match of blanked.matchAll(
+    /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*\[/g,
+  )) {
+    const open = (match.index ?? 0) + match[0].length - 1;
+    const close = matchingBracket(blanked, open);
+    if (close < 0) continue;
+    const name = match[1] as string;
+    const spans = literals.get(name) ?? [];
+    spans.push({ open, close });
+    literals.set(name, spans);
+  }
+  return literals;
+};
+
+/** The bare name of a call's second argument, or null when the call passes
+ * nothing comparable there: one argument only, or a member chain, or a
+ * literal. */
+const secondCallArgument = (blanked: string, open: number): string | null => {
+  let depth = 0;
+  let at = open + 1;
+  for (; at < blanked.length; at++) {
+    const character = blanked[at] as string;
+    if ("([{".includes(character)) depth += 1;
+    if (")]}".includes(character)) {
+      if (depth === 0) return null;
+      depth -= 1;
+    }
+    if (character === "," && depth === 0) break;
+  }
+  if (at >= blanked.length) return null;
+  const named = blanked.slice(at + 1).match(/^\s*([A-Za-z_$][\w$]*)\s*[,)\]]/);
+  return named ? (named[1] as string) : null;
+};
+
+/** The positions where a bare name reaches a statement as its bind list: an
+ * `args: name` property, the `args` shorthand in an object literal, and the
+ * second argument of an `execute` call. */
+const argumentUses = (blanked: string): Array<{ name: string; at: number }> => {
+  const uses: Array<{ name: string; at: number }> = [];
+  for (const match of blanked.matchAll(
+    /\bargs\s*:\s*([A-Za-z_$][\w$]*)\s*(?=[,}])/g,
+  )) {
+    uses.push({ name: match[1] as string, at: match.index ?? 0 });
+  }
+  for (const match of blanked.matchAll(/\{[^{}]*\bargs\s*(?=[,}])/g)) {
+    uses.push({ name: "args", at: match.index ?? 0 });
+  }
+  for (const match of blanked.matchAll(/\bexecute\s*\(/g)) {
+    const name = secondCallArgument(
+      blanked,
+      (match.index ?? 0) + match[0].length - 1,
+    );
+    if (name !== null) uses.push({ name, at: match.index ?? 0 });
+  }
+  return uses;
 };
 
 /** The repeated-bind violations of one source file. Within one `{ sql, args }`
  * statement, one comparable argument appearing twice means the statement
  * binds one value more than once; the numbered binder binds it once and
- * reuses the token. Allowed prefixes name the statements a wider assembly
- * carries — a clause built for the reader pipeline cannot convert alone. */
+ * reuses the token. An allowed entry names a whole file, or `file:declaration`
+ * for one top-level declaration — the clause assemblies whose parts cannot
+ * convert alone. */
 export const findRepeatedBinds = (
   relativePath: string,
   content: string,
   allowed: readonly string[],
 ): string[] => {
-  if (allowed.some((prefix) => relativePath.startsWith(prefix))) return [];
   const blanked = blankSpans(content, true);
+  const exempt = (at: number): boolean =>
+    allowed.some((entry) => {
+      const separator = entry.lastIndexOf(":");
+      if (separator < 0) return relativePath.startsWith(entry);
+      if (!relativePath.startsWith(entry.slice(0, separator))) return false;
+      const [start, end] = declarationSpan(blanked, entry.slice(separator + 1));
+      return start >= 0 && at >= start && at < end;
+    });
+  const locals = localArrayLiterals(blanked);
+  const expand = (name: string) => locals.get(name);
   const violations: string[] = [];
+  const report = (
+    open: number,
+    close: number,
+    line: number,
+    at: number,
+  ): void => {
+    if (exempt(at)) return;
+    violations.push(
+      ...repeatedElementsOf(content, blanked, open, close, line, expand).map(
+        (violation) => `${relativePath}:${violation}`,
+      ),
+    );
+  };
   for (const match of blanked.matchAll(/\bargs\s*:\s*\[/g)) {
     const open = (match.index ?? 0) + match[0].length - 1;
     const close = matchingBracket(blanked, open);
     if (close < 0) continue;
-    const line = lineAt(content, match.index ?? 0);
-    violations.push(
-      ...repeatedElementsOf(content, blanked, open, close, line).map(
-        (violation) => `${relativePath}:${violation}`,
-      ),
-    );
+    report(open, close, lineAt(content, match.index ?? 0), match.index ?? 0);
+  }
+  for (const use of argumentUses(blanked)) {
+    for (const { open, close } of locals.get(use.name) ?? []) {
+      report(open, close, lineAt(content, open), use.at);
+    }
   }
   return violations;
 };

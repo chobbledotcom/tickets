@@ -77,6 +77,139 @@ const typed = { args: [first.name, second.name], sql: namesSql };`,
       ),
     ).toEqual([]);
   });
+
+  test("stays quiet on a repeat inside the allowed declaration", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/accounting/queries.ts",
+        `const accountsScope = (accounts: AccountRef[]): WhereClause => {
+  const part = { args: [type, ...ids, type, ...ids], clause };
+  return { args: part.args, clause };
+};`,
+        ["shared/accounting/queries.ts:accountsScope"],
+      ),
+    ).toEqual([]);
+  });
+
+  test("fires on a repeat outside the allowed declaration", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/accounting/queries.ts",
+        `const accountsScope = (accounts: AccountRef[]): WhereClause => {
+  const part = { args: [type, ...ids, type, ...ids], clause };
+};
+const transfersFor = { args: [id, id], sql: transferSql };`,
+        ["shared/accounting/queries.ts:accountsScope"],
+      ),
+    ).toEqual([
+      "shared/accounting/queries.ts:4: binds id more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
+
+  test("stays quiet on an allowed declaration without a brace group", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "const scope = assemble;\nconst statement = { args: [id, id], sql };",
+        ["shared/db/synthetic.ts:scope"],
+      ),
+    ).toEqual([]);
+  });
+
+  test("fires when the allowed declaration is absent", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "const statement = { args: [id, id], sql };",
+        ["shared/db/synthetic.ts:missing"],
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: binds id more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
+
+  test("skips an args array that never closes", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "const partial = { args: [listingId, listingId,",
+        [],
+      ),
+    ).toEqual([]);
+  });
+
+  test("fires on a local array an execute call carries into a statement", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "let args = [listingId, listingId];\nawait execute(writeSql, args);",
+        [],
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: binds listingId more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
+
+  test("stays quiet on a local array whose values are all distinct", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "const args = [listingId, priceType];\nawait execute(writeSql, args);",
+        [],
+      ),
+    ).toEqual([]);
+  });
+
+  test("fires on a local array an object shorthand carries into a statement", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        `const args = [sessionId, sessionId];
+const statement = { args, sql };
+await tx.execute({ args, sql });`,
+        [],
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: binds sessionId more than once; numberedStatement binds it once and reuses the token",
+      "shared/db/synthetic.ts:1: binds sessionId more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
+
+  test("fires on a local array an args property names", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "const ids = [batchId, batchId];\nconst statement = { args: ids, sql };",
+        [],
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: binds batchId more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
+
+  test("expands a spread of a local array", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "const extra = [ownerId, ownerId];\nconst statement = { args: [...extra], sql };",
+        [],
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:2: binds ownerId more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
+
+  test("stays quiet when the referenced array is not a local literal", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        `const statement = { args: row.values, sql: row.sql };
+await execute(row.sql, row.values);
+await execute(row.sql);`,
+        [],
+      ),
+    ).toEqual([]);
+  });
 });
 
 describe("hand-numbered tokens", () => {
@@ -96,6 +229,17 @@ describe("hand-numbered tokens", () => {
       findHandNumberedSql(
         "shared/db/synthetic.ts",
         'const sql = `SELECT ?1 FROM t WHERE x = ${cond ?1 ? "a" : "b"}`;',
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
+  test("walks a nested brace inside an interpolation", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        'const sql = `SELECT ?1 FROM t WHERE x = ${ { ok: true }.ok ? "a" : "b" }`;',
       ),
     ).toEqual([
       "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",

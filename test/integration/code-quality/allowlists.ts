@@ -88,15 +88,17 @@ export const ALLOWED_DUPLICATE_TYPE_SHAPES: {
 ];
 
 /**
- * Statements the repeated-bind rule may not judge. `accountsScope`'s clause
- * rides the shared WhereClause assembly (`where-clauses.ts`, `read.ts`),
- * which concatenates clause text and args across independently built
- * clauses — a clause there cannot know its offset in the assembled
- * statement, so it cannot carry a numbered namespace that reuses slots.
- * Converting it belongs to the reader-pipeline rework (issue #2198).
+ * Statements the repeated-bind rule may not judge. Format: "file" exempts a
+ * whole file; "file:declaration" exempts one top-level declaration.
+ * `accountsScope`'s clause rides the shared WhereClause assembly
+ * (`where-clauses.ts`, `read.ts`), which concatenates clause text and args
+ * across independently built clauses — a clause there cannot know its offset
+ * in the assembled statement, so it cannot carry a numbered namespace that
+ * reuses slots. Converting it belongs to the reader-pipeline rework
+ * (issue #2198).
  */
 export const ALLOWED_REPEATED_BINDS: string[] = [
-  "shared/accounting/queries.ts",
+  "shared/accounting/queries.ts:accountsScope",
 ];
 
 /**
