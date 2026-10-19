@@ -6,13 +6,15 @@ import {
   type SupportMessageResult,
   supportMessageApi,
 } from "#shared/site-support-message.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectFlashRedirect,
   followRedirectWithFlash,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
-import { adminFormPost, testCookie } from "#test-utils/session.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv(
   "POST /admin/built-sites/:id/support-message",
@@ -67,6 +69,29 @@ describeWithEnv(
           },
         ]);
       });
+    });
+
+    test("GET resolves the stored message's img#N reference for a read-only viewer", async () => {
+      const site = await createTestBuiltSite({
+        hostingId: "8200",
+        name: "Reader Site",
+      });
+      const image = await makeImage("SitePoster");
+      using _read = stub(supportMessageApi, "readSupportMessage", () =>
+        Promise.resolve({
+          ok: true as const,
+          value: `Questions? ![SitePoster](img#${image.id})`,
+        }),
+      );
+      // A writable viewer edits the message in a textarea; only a read-only
+      // viewer sees it rendered as markdown.
+      using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+
+      const html = await (await adminGet(tabPath(site.id))).text();
+      expect(html).toContain(
+        `<img src="/image/${image.filename}" alt="SitePoster">`,
+      );
+      expect(html).not.toContain("img#");
     });
 
     test("saves markdown indentation without trimming", async () => {

@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 // jscpd:ignore-end
 import {
@@ -36,6 +37,23 @@ describeWithEnv(
           "Small",
           "Large",
         );
+      });
+
+      test("resolves a question text's img#N reference on the edit page", async () => {
+        const image = await makeImage("SizePoster");
+        const { attendee } = await setupListingWithQuestion(
+          `Choose a size. ![SizePoster](img#${image.id})`,
+          "Small",
+          "Large",
+        );
+
+        const html = await (
+          await adminGet(`/admin/attendees/${attendee.id}/edit`)
+        ).text();
+        expect(html).toContain(
+          `<img src="/image/${image.filename}" alt="SizePoster">`,
+        );
+        expect(html).not.toContain("img#");
       });
 
       test("pre-selects existing answer on edit page", async () => {

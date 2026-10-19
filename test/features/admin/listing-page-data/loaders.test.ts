@@ -5,6 +5,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { createSystemNote } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import {
   listingHasEmailableAttendees,
@@ -15,6 +17,7 @@ import {
   loadListingRosterPanel,
 } from "#routes/admin/listing-page-data.ts";
 import type { AuthSession } from "#routes/auth.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -133,6 +136,33 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
 
     test("ignores a chosen day on a listing not booked by the day", async () => {
       expect(await rosterFor("date=2026-08-03")).toContain("Ada Lovelace");
+    });
+
+    test("resolves a summary note's img#N reference", async () => {
+      const listing = await createTestListing({});
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Roster Person",
+        "roster@example.com",
+      );
+      const image = await makeImage("RosterPoster");
+      await withTestSession(() =>
+        createSystemNote(
+          attendeeNotes(attendee.id),
+          `Welcomed. ![RosterPoster](img#${image.id})`,
+        ),
+      );
+
+      const html = await withTestSession(async () =>
+        String(
+          await loadListingRosterPanel(await loaded(listing.id), ctxWith()),
+        ),
+      );
+      expect(html).toContain(
+        `<img src="/image/${image.filename}" alt="RosterPoster">`,
+      );
+      expect(html).not.toContain("img#");
     });
   });
 
@@ -268,8 +298,6 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
         "Noted Person",
         "noted@example.com",
       );
-      const { createSystemNote } = await import("#db/notes/queries.ts");
-      const { attendeeNotes } = await import("#db/notes/target.ts");
       await withTestSession(() =>
         createSystemNote(attendeeNotes(attendee.id), "Called about parking"),
       );
@@ -277,6 +305,29 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       const html = await overviewHtml(listing.id);
       expect(html).toContain("Called about parking");
       expect(html).toContain("Noted Person");
+    });
+
+    test("resolve a note's img#N reference on the overview", async () => {
+      const listing = await createTestListing({});
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Noted Person",
+        "noted-poster@example.com",
+      );
+      const image = await makeImage("OverviewPoster");
+      await withTestSession(() =>
+        createSystemNote(
+          attendeeNotes(attendee.id),
+          `Called about parking. ![OverviewPoster](img#${image.id})`,
+        ),
+      );
+
+      const html = await overviewHtml(listing.id);
+      expect(html).toContain(
+        `<img src="/image/${image.filename}" alt="OverviewPoster">`,
+      );
+      expect(html).not.toContain("img#");
     });
   });
 
