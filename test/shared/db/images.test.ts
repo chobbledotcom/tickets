@@ -1,7 +1,10 @@
+import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { executeBatch, queryAll } from "#db/client.ts";
+import { stub } from "@std/testing/mock";
+import { executeBatch, getDb, queryAll } from "#db/client.ts";
 import {
+  addFooterImageUrls,
   appendImageToItem,
   clearImageUsesForItemStatement,
   deleteImageRecord,
@@ -17,6 +20,7 @@ import {
 } from "#db/images.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
+import { settings } from "#db/settings.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
@@ -334,6 +338,27 @@ describeWithEnv("db > images", { db: true }, () => {
 
       expect(await linkedImageIds("listing", listing.id)).toEqual([]);
       expect(await linkedImageIds("group", group.id)).toEqual([]);
+    });
+  });
+
+  describe("the footer's image table", () => {
+    test("does nothing outside a request", async () => {
+      // The footer names an image, so a missing request guard would run the
+      // lookup; the recording must stay empty.
+      await settings.update.siteFooter("![Outside](img#1)");
+      const db = getDb();
+      const realExecute = db.execute.bind(db);
+      const ran: string[] = [];
+      const executeStub = stub(db, "execute", (stmt: InStatement) => {
+        ran.push(typeof stmt === "string" ? stmt : stmt.sql);
+        return realExecute(stmt);
+      });
+      try {
+        await addFooterImageUrls();
+      } finally {
+        executeStub.restore();
+      }
+      expect(ran).toEqual([]);
     });
   });
 });

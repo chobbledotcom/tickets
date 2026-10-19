@@ -11,7 +11,11 @@
 
 import { hmacHash } from "#crypto/hashing.ts";
 /* jscpd:ignore-start -- imports */
-import { addPageImageUrls, getImagesForItem } from "#db/images.ts";
+import {
+  addFooterImageUrls,
+  addPageImageUrls,
+  getImagesForItem,
+} from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { getSitePageBySlugIndex } from "#db/site-pages.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
@@ -51,6 +55,7 @@ export const renderContentPage = async <
     getImagesForItem(imageKind, item.id),
     publicNavProps(navTargetFor(item)),
     addPageImageUrls([item.content]),
+    addFooterImageUrls(),
   ]);
   return htmlResponse(render(item, images, nav, settings.websiteTitle));
 };

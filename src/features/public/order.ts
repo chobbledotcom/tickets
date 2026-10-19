@@ -19,7 +19,7 @@ import {
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
-import { addPageImageUrls } from "#db/images.ts";
+import { addFooterImageUrls, addPageImageUrls } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { compact, uniqueBy } from "#fp";
 import { t } from "#i18n";
@@ -245,8 +245,13 @@ const handleOrder = withEvaluatedOrder(async (catalog, evaluation) => {
   const attributesByListing = await getSelectedAttributesForListings(
     catalog.ticketListings.map((info) => info.listing.id),
   );
-  // The gallery's intro text can carry the editor's img#N references.
-  await addPageImageUrls([settings.orderIntroText]);
+  // The gallery's intro text and the site footer can carry the editor's
+  // img#N references. Both load after the redirect decision above, so a
+  // redirected request runs no lookup.
+  await Promise.all([
+    addPageImageUrls([settings.orderIntroText]),
+    addFooterImageUrls(),
+  ]);
   return htmlResponse(
     orderGalleryPage(
       catalog.ticketListings,

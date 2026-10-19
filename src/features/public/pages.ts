@@ -3,7 +3,7 @@
  */
 
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
-import { addPageImageUrls } from "#db/images.ts";
+import { addFooterImageUrls, addPageImageUrls } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 /* jscpd:ignore-start */
@@ -55,6 +55,7 @@ const renderPublicPage: ResponseHandler<
   requirePublicSite(async () => {
     const content = getContent();
     await addPageImageUrls([content]);
+    await addFooterImageUrls();
     return htmlResponse(
       publicSitePage(
         pageType,
@@ -147,6 +148,7 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
       ...homeListings.map((entry) => entry.listing.description),
       ...groups.map((group) => group.description),
     ]);
+    await addFooterImageUrls();
     return htmlResponse(
       homepagePage(
         homeListings,
@@ -170,6 +172,7 @@ export const handlePublicTerms: ResponseHandler = () =>
   requirePublicSite(async () => {
     if (!settings.terms) return notFoundResponse();
     await addPageImageUrls([settings.terms]);
+    await addFooterImageUrls();
     return htmlResponse(
       publicSitePage(
         "terms",
@@ -187,6 +190,8 @@ const renderContactPage = async (): Promise<Response> => {
   const formActive = isContactFormActive();
   if (!settings.contactPageText && !formActive) return notFoundResponse();
   if (formActive) await signCsrfToken();
+  await addPageImageUrls([settings.contactPageText]);
+  await addFooterImageUrls();
   return htmlResponse(
     contactPage({
       botpoisonPublicKey: getBotpoisonPublicKey(),
