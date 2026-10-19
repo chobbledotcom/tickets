@@ -26,8 +26,15 @@ runs:
         SITE_URL: ${{ inputs.site_url }}
       run: |
         # The update-mode waits fetch the site's read-only page, so Deno needs
-        # the site host granted next to the Bunny API host.
+        # the site host granted next to the Bunny API host. The wait maps a
+        # .bunny.run host to its .b-cdn.net stable twin before it fetches, so
+        # that twin needs granting too; a port rides on either name.
         site_host="$(sed -E 's#^[a-z]+://([^/]+).*#\1#' <<<"$SITE_URL")"
+        host_name="${site_host%%:*}"
+        case $host_name in
+          *.bunny.run)
+            site_host="$site_host,${host_name%.bunny.run}.b-cdn.net${site_host#"$host_name"}" ;;
+        esac
         echo "SITE_HOST=$site_host" >> "$GITHUB_ENV"
 
     - name: Put the site into update mode
