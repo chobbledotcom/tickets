@@ -260,10 +260,10 @@
     "banned-modal": 2
   },
   "src/features/public/ticket-submit.ts": {
-    "contraction": 5,
-    "long-sentence": 17,
-    "semicolon": 5,
-    "banned-modal": 8,
+    "contraction": 3,
+    "long-sentence": 14,
+    "semicolon": 4,
+    "banned-modal": 6,
     "present-perfect": 2,
     "wordy": 2
   },
@@ -2851,8 +2851,8 @@
   },
   "src/ui/templates/components/question-controls.tsx": {
     "long-sentence": 1,
-    "semicolon": 1,
-    "banned-modal": 1
+    "banned-modal": 1,
+    "semicolon": 1
   },
   "src/ui/templates/components/question-text.tsx": {
     "long-sentence": 3,
