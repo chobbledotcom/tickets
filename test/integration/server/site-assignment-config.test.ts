@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -65,8 +66,8 @@ describeWithEnv(
         );
 
         const keys = secretStub.calls.map((c) => c.args[1]);
-        expect(keys).toContain("RENEWAL_URL");
-        expect(keys).toContain("READ_ONLY_FROM");
+        assertArrayIncludes(keys, ["RENEWAL_URL"]);
+        assertArrayIncludes(keys, ["READ_ONLY_FROM"]);
       });
 
       test("pushes only READ_ONLY_FROM when no renewalUrl is given", async () => {
@@ -85,8 +86,8 @@ describeWithEnv(
         await syncReadOnlyFrom(site, addMonthsIso(nowIso(), 3));
 
         const keys = secretStub.calls.map((c) => c.args[1]);
-        expect(keys).not.toContain("RENEWAL_URL");
-        expect(keys).toContain("READ_ONLY_FROM");
+        assert(!keys.includes("RENEWAL_URL"));
+        assertArrayIncludes(keys, ["READ_ONLY_FROM"]);
       });
     });
 

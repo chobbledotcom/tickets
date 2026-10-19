@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -82,16 +83,16 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         expect(response.status).toBe(200);
 
         // Should have ticket link with verified token
-        expect(html).toContain("View your ticket");
-        expect(html).toContain('target="_blank"');
-        expect(html).toContain("/t/");
+        assertStringIncludes(html, "View your ticket");
+        assertStringIncludes(html, 'target="_blank"');
+        assertStringIncludes(html, "/t/");
 
         // Should have thank_you_url for single-listing purchase
-        expect(html).toContain("https://example.com/verified-thanks");
+        assertStringIncludes(html, "https://example.com/verified-thanks");
 
         // Token in the link should match the one in the redirect URL
         const tokenFromUrl = decodeURIComponent(location.split("tokens=")[1]!);
-        expect(html).toContain(`/t/${tokenFromUrl}`);
+        assertStringIncludes(html, `/t/${tokenFromUrl}`);
       } finally {
         mockRetrieve.restore();
       }
@@ -126,7 +127,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         ),
       );
       const html = await expectHtmlResponse(response, 200, "Junk/Spam");
-      expect(html).toContain("noreply@tickets.com");
+      assertStringIncludes(html, "noreply@tickets.com");
     });
   });
 });

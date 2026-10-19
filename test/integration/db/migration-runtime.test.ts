@@ -1,4 +1,5 @@
 import type { InStatement, TransactionMode } from "@libsql/client";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -356,13 +357,13 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
         "SELECT name FROM sqlite_master WHERE type='table'",
       );
       const tableNames = tablesResult.rows.map((r) => r.name);
-      expect(tableNames).not.toContain("listings");
-      expect(tableNames).not.toContain("attendees");
-      expect(tableNames).not.toContain("sessions");
-      expect(tableNames).not.toContain("settings");
-      expect(tableNames).not.toContain("login_attempts");
-      expect(tableNames).not.toContain("processed_payments");
-      expect(tableNames).not.toContain("activity_log");
+      assert(!tableNames.includes("listings"));
+      assert(!tableNames.includes("attendees"));
+      assert(!tableNames.includes("sessions"));
+      assert(!tableNames.includes("settings"));
+      assert(!tableNames.includes("login_attempts"));
+      assert(!tableNames.includes("processed_payments"));
+      assert(!tableNames.includes("activity_log"));
     });
 
     test("can reinitialize database after reset", async () => {
@@ -431,7 +432,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
         ),
       ).toBe(true);
       for (const sql of statements) {
-        expect(sql).toContain("IF NOT EXISTS");
+        assertStringIncludes(sql, "IF NOT EXISTS");
       }
     });
   });

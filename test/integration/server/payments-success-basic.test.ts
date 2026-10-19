@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -381,9 +382,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           }),
         );
         const page = await response.text();
-        expect(page).toContain("Staff diagnostics");
-        expect(page).toContain("cs_staff_unpaid");
-        expect(page).toContain("unpaid");
+        assertStringIncludes(page, "Staff diagnostics");
+        assertStringIncludes(page, "cs_staff_unpaid");
+        assertStringIncludes(page, "unpaid");
       } finally {
         mockRetrieve.restore();
       }

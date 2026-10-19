@@ -12,6 +12,7 @@
  *     duplicate-slot guard) plus the shared name-required check.
  */
 // jscpd:ignore-start
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -78,7 +79,8 @@ describeWithEnv(
         // Deliberately omitting start_date.
       });
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
         "/admin/servicing/new",
       );
       response.body?.cancel();

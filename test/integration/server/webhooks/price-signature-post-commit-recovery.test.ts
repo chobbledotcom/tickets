@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { bookingEventGroup } from "#accounting/mappers.ts";
@@ -287,13 +288,13 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           ).toBe(1);
           // Both bodies carry the buyer's typed answer from the staged row.
           const buyerBody = emailBodies.find((body) => body.to[0] === email)!;
-          expect(buyerBody.html).toContain("Anything else?");
-          expect(buyerBody.html).toContain("Vegetarian, please");
+          assertStringIncludes(buyerBody.html, "Anything else?");
+          assertStringIncludes(buyerBody.html, "Vegetarian, please");
           const ownerBody = emailBodies.find(
             (body) => body.to[0] === "owner@example.com",
           )!;
-          expect(ownerBody.html).toContain("Anything else?");
-          expect(ownerBody.html).toContain("Vegetarian, please");
+          assertStringIncludes(ownerBody.html, "Anything else?");
+          assertStringIncludes(ownerBody.html, "Vegetarian, please");
           // The committed batch took the staged copy back with the booking.
           expect((await readCheckoutAnswers(sessionId)).size).toBe(0);
           // The recovered sends extended the renewal site's deadline once.
@@ -313,7 +314,8 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
               mockRequest(`/payment/success?session_id=${sessionId}`),
             );
             expect(redirect.status).toBe(302);
-            expect(redirect.headers.get("location")).toContain(
+            assertStringIncludes(
+              redirect.headers.get("location") ?? "",
               encodeURIComponent(ticketToken),
             );
             expect(await getAttendeesRaw(listing.id)).toHaveLength(1);

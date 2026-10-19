@@ -1,3 +1,4 @@
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
@@ -105,7 +106,7 @@ describe("CLI describe", () => {
 
   test("answers the resources of the table it is handed", () => {
     const doc = describeEntries(Object.entries(testTable));
-    expect(Object.keys(doc.resources)).toContain("gadgets");
+    assertArrayIncludes(Object.keys(doc.resources), ["gadgets"]);
     expect(doc.resources.gadgets!.children.parts).toBeDefined();
     expect(doc.resources.gadgets!.customRoutes.recalibrate).toEqual({
       method: "POST",
@@ -228,20 +229,20 @@ describe("CLI parser", () => {
   test("answers exit 2 with the valid choices for an unknown command", () => {
     const answer = parseOrUsage(["publish", "gadgets"]);
     expect(answer.code).toBe(2);
-    expect(answer.message).toContain("Unknown command 'publish'");
+    assertStringIncludes(answer.message, "Unknown command 'publish'");
   });
 
   test("answers exit 2 with the valid resources for an unknown resource", () => {
     const answer = parseOrUsage(["list", "orders"]);
     expect(answer.code).toBe(2);
-    expect(answer.message).toContain("The valid resources are:");
-    expect(answer.message).toContain("gadgets");
+    assertStringIncludes(answer.message, "The valid resources are:");
+    assertStringIncludes(answer.message, "gadgets");
   });
 
   test("answers exit 2 with the valid children for an unknown child", () => {
     const answer = parseOrUsage(["update", "gadgets", "3/widgets/9", "{}"]);
     expect(answer.code).toBe(2);
-    expect(answer.message).toContain("has no child 'widgets'");
+    assertStringIncludes(answer.message, "has no child 'widgets'");
   });
 
   test("answers exit 2 for a non-whole-number id", () => {
@@ -264,7 +265,7 @@ describe("CLI parser", () => {
   test("answers exit 2 for an id argument that fits no address shape", () => {
     const trailing = parseOrUsage(["update", "gadgets", "3/parts/9/12", "{}"]);
     expect(trailing.code).toBe(2);
-    expect(trailing.message).toContain("does not fit");
+    assertStringIncludes(trailing.message, "does not fit");
 
     const emptyChild = parseOrUsage(["update", "gadgets", "3/", "{}"]);
     expect(emptyChild.code).toBe(2);
@@ -279,7 +280,7 @@ describe("CLI parser", () => {
   test("answers exit 2 for an unknown resource on a custom route", () => {
     const answer = parseOrUsage(["recalibrate", "orders", "5"]);
     expect(answer.code).toBe(2);
-    expect(answer.message).toContain("The valid resources are:");
+    assertStringIncludes(answer.message, "The valid resources are:");
   });
 
   test("answers exit 2 when the resource is missing entirely", () => {
@@ -338,7 +339,7 @@ describe("CLI parser", () => {
   test("answers exit 2 when a custom route misses the resource or the id", () => {
     const bare = parseOrUsage(["deactivate"]);
     expect(bare.code).toBe(2);
-    expect(bare.message).toContain("needs the resource and the id");
+    assertStringIncludes(bare.message, "needs the resource and the id");
 
     const noId = parseOrUsage(["deactivate", "listings"]);
     expect(noId.code).toBe(2);
@@ -364,7 +365,7 @@ describe("CLI parser", () => {
   test("refuses a child id on a create", () => {
     const answer = parseOrUsage(["create", "gadgets", "3/parts/9", "{}"]);
     expect(answer.code).toBe(2);
-    expect(answer.message).toContain("does not fit");
+    assertStringIncludes(answer.message, "does not fit");
   });
 });
 

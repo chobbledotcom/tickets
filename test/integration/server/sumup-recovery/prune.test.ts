@@ -1,4 +1,4 @@
-// jscpd:ignore-start
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryAll } from "#db/client.ts";
@@ -61,7 +61,7 @@ describeWithEnv("server > SumUp recovery pruning", { db: true }, () => {
 
     const survivors = await survivingStates();
     for (const node of RECOVERY_NODES.filter((one) => one.prunable)) {
-      expect(survivors, `${node.id} should have gone`).not.toContain(node.id);
+      assert(!survivors.includes(node.id), `${node.id} should have gone`);
     }
   });
 
@@ -74,6 +74,6 @@ describeWithEnv("server > SumUp recovery pruning", { db: true }, () => {
     await runDatabasePruning(null);
     await runDatabasePruning(null);
 
-    expect(await survivingStates()).toContain("owed");
+    assertArrayIncludes(await survivingStates(), ["owed"]);
   });
 });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -162,7 +163,7 @@ describeWithEnv(
         });
         expectStatus(200)(response);
         const html = await response.text();
-        expect(html).toContain("/admin/groups");
+        assertStringIncludes(html, "/admin/groups");
       });
     });
   },

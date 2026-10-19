@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { insert, setDb } from "#db/client.ts";
@@ -123,9 +124,9 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
 
     const cols = await client.execute("PRAGMA table_info(attendees)");
     const colNames = cols.rows.map((r) => r.name);
-    expect(colNames).toContain("id");
-    expect(colNames).toContain("pii_blob");
-    expect(colNames).toContain("created");
+    assertArrayIncludes(colNames, ["id"]);
+    assertArrayIncludes(colNames, ["pii_blob"]);
+    assertArrayIncludes(colNames, ["created"]);
 
     const rows = await client.execute("SELECT * FROM attendees WHERE id = 1");
     expect(rows.rows.length).toBe(1);

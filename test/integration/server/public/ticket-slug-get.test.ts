@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setImagesForItem } from "#db/images.ts";
@@ -123,13 +124,13 @@ describeWithEnv(
 
       test("does not show date or location when they are empty", async () => {
         const html = await plainTicketHtml();
-        expect(html).not.toContain("<strong>Date:</strong>");
-        expect(html).not.toContain("<strong>Location:</strong>");
+        assert(!html.includes("<strong>Date:</strong>"));
+        assert(!html.includes("<strong>Location:</strong>"));
       });
 
       test("does not show description div when description is empty", async () => {
         const html = await plainTicketHtml();
-        expect(html).not.toContain("font-size: 0.9em");
+        assert(!html.includes("font-size: 0.9em"));
       });
 
       test("returns 404 for inactive listing", async () => {
@@ -156,10 +157,10 @@ describeWithEnv(
           'class="iframe"',
           "Continue",
         );
-        expect(html).not.toContain("<h1>");
-        expect(html).not.toContain("A <b>great</b> listing");
+        assert(!html.includes("<h1>"));
+        assert(!html.includes("A <b>great</b> listing"));
         // The site menu is dropped inside an embedded iframe.
-        expect(html).not.toContain("admin-nav-group");
+        assert(!html.includes("admin-nav-group"));
       });
 
       test("hides the configured header image in iframe mode", async () => {
@@ -167,8 +168,8 @@ describeWithEnv(
         const html = await withSetting({ header_image_url: "header.jpg" }, () =>
           assertPublicHtml(`/ticket/${listing.slug}?iframe=true`),
         );
-        expect(html).not.toContain("header-image");
-        expect(html).not.toContain("/image/header.jpg");
+        assert(!html.includes("header-image"));
+        assert(!html.includes("/image/header.jpg"));
       });
 
       test("shows the configured header image without iframe param", async () => {
@@ -176,8 +177,8 @@ describeWithEnv(
         const html = await withSetting({ header_image_url: "header.jpg" }, () =>
           assertPublicHtml(`/ticket/${listing.slug}`),
         );
-        expect(html).toContain('class="header-image"');
-        expect(html).toContain("/image/header.jpg");
+        assertStringIncludes(html, 'class="header-image"');
+        assertStringIncludes(html, "/image/header.jpg");
       });
 
       test("shows header and description without iframe param", async () => {
@@ -191,18 +192,18 @@ describeWithEnv(
           "<h1>",
           "A &lt;b&gt;great&lt;/b&gt; listing",
         );
-        expect(html).not.toContain('class="iframe"');
+        assert(!html.includes('class="iframe"'));
         // With the public site off (the default), the menu's Home/Listings
         // links would only bounce a visitor to the admin login, so no menu.
-        expect(html).not.toContain("admin-nav-group");
+        assert(!html.includes("admin-nav-group"));
       });
 
       test("shows the site menu on a normal page when the public site is on", async () => {
         await enablePublicSite();
         const listing = await createTestListing({ maxAttendees: 50 });
         const html = await assertPublicHtml(`/ticket/${listing.slug}`, "<h1>");
-        expect(html).toContain('<div class="admin-nav-group">');
-        expect(html).toContain('aria-label="Site menu"');
+        assertStringIncludes(html, '<div class="admin-nav-group">');
+        assertStringIncludes(html, 'aria-label="Site menu"');
       });
 
       test("still drops the menu in iframe mode when the public site is on", async () => {
@@ -212,7 +213,7 @@ describeWithEnv(
           `/ticket/${listing.slug}?iframe=true`,
           'class="iframe"',
         );
-        expect(html).not.toContain("admin-nav-group");
+        assert(!html.includes("admin-nav-group"));
       });
 
       test("does not set CSRF cookies (uses signed tokens instead)", async () => {
@@ -221,7 +222,7 @@ describeWithEnv(
           mockRequest(`/ticket/${listing.slug}`),
         );
         const cookie = response.headers.get("set-cookie") || "";
-        expect(cookie).not.toContain("csrf_token=");
+        assert(!cookie.includes("csrf_token="));
       });
 
       /** GETs a listing's ticket page with `?iframe=true` and returns the
@@ -239,7 +240,10 @@ describeWithEnv(
       test("form action includes ?iframe=true in iframe mode", async () => {
         const listing = await createTestListing({ maxAttendees: 50 });
         const html = await iframeTicketHtml(listing);
-        expect(html).toContain(`action="/ticket/${listing.slug}?iframe=true"`);
+        assertStringIncludes(
+          html,
+          `action="/ticket/${listing.slug}?iframe=true"`,
+        );
       });
 
       test("form action does not include ?iframe=true without iframe param", async () => {
@@ -248,8 +252,8 @@ describeWithEnv(
           mockRequest(`/ticket/${listing.slug}`),
         );
         const html = await response.text();
-        expect(html).toContain(`action="/ticket/${listing.slug}"`);
-        expect(html).not.toContain("?iframe=true");
+        assertStringIncludes(html, `action="/ticket/${listing.slug}"`);
+        assert(!html.includes("?iframe=true"));
       });
 
       test("POST with iframe=true succeeds with valid signed CSRF token", async () => {
@@ -288,7 +292,7 @@ describeWithEnv(
           false,
         );
         const cookies = response.headers.getSetCookie().join("; ");
-        expect(cookies).not.toContain("csrf_token=");
+        assert(!cookies.includes("csrf_token="));
       });
 
       test("GET returns signed CSRF token in form", async () => {

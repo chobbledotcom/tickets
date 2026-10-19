@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -142,8 +143,8 @@ describeWithEnv(
           }),
         )
       ).text();
-      expect(quoteHtml).toContain("Summer25");
-      expect(quoteHtml).toContain(formatCurrency(900));
+      assertStringIncludes(quoteHtml, "Summer25");
+      assertStringIncludes(quoteHtml, formatCurrency(900));
 
       // And a paid submit carries the matched promo into the checkout intent.
       const { checkout, getCaptured } = stubCheckout("cs_promo_prefill");

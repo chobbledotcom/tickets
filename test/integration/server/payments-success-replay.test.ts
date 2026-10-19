@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -117,8 +118,8 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         expect(response.status).toBe(200);
         // The ticket link still shows, but the concealed member's thank-you URL
         // (which would meta-refresh to the listing the package hid) must not leak.
-        expect(html).toContain("View your ticket");
-        expect(html).not.toContain("https://example.com/concealed-thanks");
+        assertStringIncludes(html, "View your ticket");
+        assert(!html.includes("https://example.com/concealed-thanks"));
       } finally {
         mockRetrieve.restore();
       }
@@ -182,8 +183,8 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         expect(response2.status).toBe(200);
         const html = await response2.text();
-        expect(html).toContain("Thank you for your order");
-        expect(html).not.toContain("https://example.com/concealed-replay");
+        assertStringIncludes(html, "Thank you for your order");
+        assert(!html.includes("https://example.com/concealed-replay"));
       } finally {
         mockRetrieve.restore();
       }
@@ -234,7 +235,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         expect(response2.status).toBe(200);
         const html = await response2.text();
-        expect(html).toContain("Thank you for your order");
+        assertStringIncludes(html, "Thank you for your order");
 
         // Should still only have one attendee
         const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
@@ -288,7 +289,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const tokenResponse = await followRedirect(response1, handleRequest);
         const tokenHtml = await tokenResponse.text();
         // Single-listing cart: token path resolves one unique listing → shows thank_you_url
-        expect(tokenHtml).toContain("redirected");
+        assertStringIncludes(tokenHtml, "redirected");
 
         // Replay (no tokens stored): renders directly via items.length === 1 branch
         const response2 = await handleRequest(
@@ -296,9 +297,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         expect(response2.status).toBe(200);
         const html = await response2.text();
-        expect(html).toContain("Thank you for your order");
+        assertStringIncludes(html, "Thank you for your order");
         // Single-item cart replay also shows thank_you_url
-        expect(html).toContain("redirected");
+        assertStringIncludes(html, "redirected");
       } finally {
         mockRetrieve.restore();
       }
@@ -357,7 +358,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         expect(response2.status).toBe(200);
         const html = await response2.text();
-        expect(html).toContain("Thank you for your order");
+        assertStringIncludes(html, "Thank you for your order");
       } finally {
         mockRetrieve.restore();
       }

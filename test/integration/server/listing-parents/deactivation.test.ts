@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -45,7 +46,7 @@ const expectApiAddOnError = async (
   request: Promise<Response>,
 ): Promise<void> => {
   await assertJson<{ error: string }>(request, 400, (json) => {
-    expect(json.error).toContain(ADDON_ERROR);
+    assertStringIncludes(json.error, ADDON_ERROR);
   });
 };
 
@@ -174,7 +175,7 @@ describeWithEnv(
       // Renders the confirmation page (200), not a 302 back to itself.
       expect(response.status).toBe(200);
       expect(response.headers.get("location")).toBe(null);
-      expect(body).toContain(await childOnlyAddOnFlash());
+      assertStringIncludes(body, await childOnlyAddOnFlash());
       // The listing is untouched by the GET.
       expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
     });
@@ -293,7 +294,9 @@ describeWithEnv(
 
       // B's guard must re-read committed state inside its own transaction and
       // refuse, leaving rescuer two — the add-on's last live page — active.
-      expect("error" in resultB && resultB.error).toContain(ADDON_ERROR);
+      const resultBError = "error" in resultB && resultB.error;
+      assert(typeof resultBError === "string");
+      assertStringIncludes(resultBError, ADDON_ERROR);
       await expectStaysActive(pageTwo.id);
     });
 

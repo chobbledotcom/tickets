@@ -12,6 +12,7 @@
  * hands over in the address it sends the organiser to.
  */
 // jscpd:ignore-start
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -48,8 +49,8 @@ describeWithEnv("servicing — the service event form", { db: true }, () => {
     expect(body).toMatch(
       new RegExp(`name="quantity_${listing.id}"[^>]*value="1"`),
     );
-    expect(body).toContain('name="start_date"');
-    expect(body).toContain('value="2099-07-01"');
+    assertStringIncludes(body, 'name="start_date"');
+    assertStringIncludes(body, 'value="2099-07-01"');
   });
 
   test("the edit page renders saved booking quantities", async () => {
@@ -58,6 +59,6 @@ describeWithEnv("servicing — the service event form", { db: true }, () => {
     expect(body).toMatch(
       new RegExp(`name="quantity_${listing.id}"[^>]*value="2"`),
     );
-    expect(body).toContain('value="2099-07-01"');
+    assertStringIncludes(body, 'value="2099-07-01"');
   });
 });

@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
@@ -88,7 +89,7 @@ describeWithEnv(
           `/admin/attendees/${id}`,
           form,
         );
-        expect([302, 303]).toContain(response.status);
+        assertArrayIncludes([302, 303], [response.status]);
 
         const state = await getAttendeeBalanceState(id);
         expect(state?.statusId).toBe(reservation.id);
@@ -120,7 +121,7 @@ describeWithEnv(
         const paid = await requirePaidDefaultStatus();
         const id = await seedAttendee(paid!.id, 1500);
         const html = await getEdit(id);
-        expect(html).toContain("paid status but still owes");
+        assertStringIncludes(html, "paid status but still owes");
       });
 
       test("edit page warns when a reservation has lost its balance", async () => {
@@ -135,15 +136,15 @@ describeWithEnv(
 
         const html = await getEdit(id);
 
-        expect(html).toContain("still unpaid");
+        assertStringIncludes(html, "still unpaid");
       });
 
       test("edit page nudges to move a fully-paid reservation on", async () => {
         const reservation = await newReservation();
         const id = await seedAttendee(reservation.id, 0, 1000); // paid in full
         const html = await getEdit(id);
-        expect(html).toContain("consider moving it to a paid status");
-        expect(html).toContain('class="info"');
+        assertStringIncludes(html, "consider moving it to a paid status");
+        assertStringIncludes(html, 'class="info"');
       });
 
       test("edit page treats a fully-paid discounted reservation as paid", async () => {
@@ -153,8 +154,8 @@ describeWithEnv(
 
         const html = await getEdit(id);
 
-        expect(html).toContain("consider moving it to a paid status");
-        expect(html).not.toContain("still unpaid");
+        assertStringIncludes(html, "consider moving it to a paid status");
+        assert(!html.includes("still unpaid"));
       });
 
       test("edit page stays quiet for a reservation that still owes a balance", async () => {
@@ -163,39 +164,39 @@ describeWithEnv(
         const html = await getEdit(id);
         // No notice — this is the normal mid-reservation state (balance owed, not
         // yet paid). The balance itself is not shown as an editable field.
-        expect(html).not.toContain("still unpaid");
-        expect(html).not.toContain("consider moving");
+        assert(!html.includes("still unpaid"));
+        assert(!html.includes("consider moving"));
       });
 
       test("edit page stays quiet when nothing is owed", async () => {
         const id = await seedAttendee(null, 0);
         const html = await getEdit(id);
-        expect(html).not.toContain("still unpaid");
-        expect(html).not.toContain("paid status but still owes");
+        assert(!html.includes("still unpaid"));
+        assert(!html.includes("paid status but still owes"));
       });
 
       test("edit page shows the attendee's status as a heading when multiple statuses exist", async () => {
         const reservation = await newReservation();
         const id = await seedAttendee(reservation.id, 900);
         const html = await getEdit(id);
-        expect(html).toContain("<h2>Status: Reserved</h2>");
+        assertStringIncludes(html, "<h2>Status: Reserved</h2>");
         // The heading is wrapped in the .attendee-status pin so it holds still
         // across the view transition between an attendee's tabs.
-        expect(html).toContain('<div class="prose attendee-status">');
+        assertStringIncludes(html, '<div class="prose attendee-status">');
       });
 
       test("edit page status heading reads None when the attendee has no status", async () => {
         await newReservation(); // a second status, so the heading is shown
         const id = await seedAttendee(null, 0);
         const html = await getEdit(id);
-        expect(html).toContain("<h2>Status: None</h2>");
+        assertStringIncludes(html, "<h2>Status: None</h2>");
       });
 
       test("edit page omits the status heading when only one status exists", async () => {
         // Fresh installs seed a single status, which carries no information.
         const id = await seedAttendee(null, 0);
         const html = await getEdit(id);
-        expect(html).not.toContain("<h2>Status:");
+        assert(!html.includes("<h2>Status:"));
       });
 
       test("edit page status select offers no 'no status' option", async () => {
@@ -203,10 +204,12 @@ describeWithEnv(
         const id = await seedAttendee(reservation.id, 0);
         const html = await getEdit(id);
         // The empty placeholder choice is gone entirely.
-        expect(html).not.toContain("No status");
+        assert(!html.includes("No status"));
         // The status select itself has no empty-value option any more.
-        expect(html).not.toContain(
-          '<select id="status_id" name="status_id"><option selected value="">',
+        assert(
+          !html.includes(
+            '<select id="status_id" name="status_id"><option selected value="">',
+          ),
         );
       });
 
@@ -223,10 +226,11 @@ describeWithEnv(
         const id = await seedAttendee(only!.id, 0);
         const html = await getEdit(id);
         // No status dropdown is rendered for a single-status site...
-        expect(html).not.toContain('<select id="status_id"');
-        expect(html).not.toContain("No status");
+        assert(!html.includes('<select id="status_id"'));
+        assert(!html.includes("No status"));
         // ...but the status is still submitted so a save can't clear it.
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `<input name="status_id" type="hidden" value="${only!.id}">`,
         );
       });
@@ -356,7 +360,8 @@ describeWithEnv(
         // The page renders AND keeps the /admin/history repair link for the bad
         // row — dropping the channel would hide the only way to fix it.
         expect(response.status).toBe(200);
-        expect(await response.text()).toContain(
+        assertStringIncludes(
+          await response.text(),
           `/admin/history/${base64ToBase64Url(hash)}`,
         );
       });
@@ -402,9 +407,10 @@ describeWithEnv(
         const html = await (
           await adminGet(`/admin/attendees/${attendee.id}/activity`)
         ).text();
-        expect(html).toContain("Allergic to peanuts");
+        assertStringIncludes(html, "Allergic to peanuts");
         // The strip marks the active tab for the viewer.
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `aria-current="page" class="active" href="/admin/attendees/${attendee.id}/activity"`,
         );
       });

@@ -8,6 +8,7 @@
  * own the branch cover, and the invariants that have no journey behind them.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -135,7 +136,8 @@ describeWithEnv(
         }),
         400,
         (body) => {
-          expect(String(body.error)).toContain(
+          assertStringIncludes(
+            String(body.error),
             "sold tickets that hide listing names",
           );
         },

@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -21,7 +21,8 @@ describeWithEnv("admin action success cookie", { db: true }, () => {
       mockFormRequest("/admin/test-cookie", { csrf_token: csrfToken }, cookie),
     );
 
-    expect(response.headers.get("set-cookie")).toContain(
+    assertStringIncludes(
+      response.headers.get("set-cookie") ?? "",
       "restore_session=; Max-Age=0; Path=/",
     );
   });

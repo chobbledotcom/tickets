@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { bookingError } from "#booking/form.ts";
@@ -22,11 +23,11 @@ describeWithEnv("package child availability", { db: true }, () => {
     const body = await (
       await handleRequest(mockRequest(`/ticket/${group.slug}`))
     ).text();
-    expect(body).toContain(`name="child_qty_${parent.id}_${child.id}"`);
-    expect(body).toContain(`name="child_qty_${parent.id}_${childB.id}"`);
-    expect(body).toContain("Kit Addon");
-    expect(body).toContain(`name="package_quantity_${group.id}"`);
-    expect(body).toContain(`data-parent-id="${parent.id}"`);
+    assertStringIncludes(body, `name="child_qty_${parent.id}_${child.id}"`);
+    assertStringIncludes(body, `name="child_qty_${parent.id}_${childB.id}"`);
+    assertStringIncludes(body, "Kit Addon");
+    assertStringIncludes(body, `name="package_quantity_${group.id}"`);
+    assertStringIncludes(body, `data-parent-id="${parent.id}"`);
     expect(body).toMatch(
       new RegExp(`data-package-members="[^"]*${parent.id}:1`),
     );
@@ -42,8 +43,8 @@ describeWithEnv("package child availability", { db: true }, () => {
     const body = await (
       await handleRequest(mockRequest(`/ticket/${group.slug}`))
     ).text();
-    expect(body).toContain('<option value="3">3</option>');
-    expect(body).not.toContain('<option value="4">4</option>');
+    assertStringIncludes(body, '<option value="3">3</option>');
+    assert(!body.includes('<option value="4">4</option>'));
   });
 
   test("a crafted POST above the bundle ceiling refuses and books nothing", async () => {
@@ -114,6 +115,6 @@ describeWithEnv("package child availability", { db: true }, () => {
       [`child_qty_${parent.id}_${childB.id}`]: "1",
       [`package_quantity_${group.id}`]: "2",
     });
-    expect(fragment).toContain("£37");
+    assertStringIncludes(fragment, "£37");
   });
 });

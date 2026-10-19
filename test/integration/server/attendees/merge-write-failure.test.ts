@@ -1,4 +1,4 @@
-// jscpd:ignore-start
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 // jscpd:ignore-end
@@ -165,7 +165,10 @@ describeWithEnv(
 
       // The answers are recoverable only from the source, so the source must
       // have survived the failed merge with its rows intact.
-      expect(after.attendees.map((row) => row.id)).toContain(source.id);
+      assertArrayIncludes(
+        after.attendees.map((row) => row.id),
+        [source.id],
+      );
       expect(after).toEqual(before);
     });
 
@@ -175,7 +178,10 @@ describeWithEnv(
         withPiiWriteFault,
       );
 
-      expect(after.attendees.map((row) => row.id)).toContain(source.id);
+      assertArrayIncludes(
+        after.attendees.map((row) => row.id),
+        [source.id],
+      );
       expect(after).toEqual(before);
     });
   },

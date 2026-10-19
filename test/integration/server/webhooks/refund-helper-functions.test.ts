@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -124,9 +125,9 @@ describeWithEnv(
         const html = await response.text();
         // The error is plain: it says the payment is being processed, and
         // nothing about a refund.
-        expect(html).toContain("Payment is being processed");
-        expect(html).not.toContain("refunded");
-        expect(html).not.toContain("contact support for a refund");
+        assertStringIncludes(html, "Payment is being processed");
+        assert(!html.includes("refunded"));
+        assert(!html.includes("contact support for a refund"));
       } finally {
         mockRetrieve.restore();
       }

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ActionHandlerConfig } from "#routes/admin/actions.ts";
@@ -104,7 +105,10 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("/admin/test-owner");
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
+        "/admin/test-owner",
+      );
     });
 
     test("createActionHandler with multipart body and any auth redirects on success", async () => {
@@ -129,7 +133,8 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
         "/admin/test-multipart",
       );
     });
@@ -156,7 +161,8 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
         "/admin/test-owner-multipart",
       );
     });
@@ -291,7 +297,8 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expect(response.headers.get("content-type")).toBe(
         "text/csv; charset=utf-8",
       );
-      expect(response.headers.get("content-disposition")).toContain(
+      assertStringIncludes(
+        response.headers.get("content-disposition") ?? "",
         'filename="test.csv"',
       );
       const body = await response.text();
