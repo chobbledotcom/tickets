@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -106,7 +107,10 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         }),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("/admin/listings");
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
+        "/admin/listings",
+      );
       const { getAllListings } = await import("#db/listings/records.ts");
       expect(
         (await getAllListings()).some((l) => l.name === "Editor Import"),
@@ -132,7 +136,10 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         slug: "by-editor",
       });
       expect(created.status).toBe(302);
-      expect(created.headers.get("location")).toContain("/admin/site/pages/");
+      assertStringIncludes(
+        created.headers.get("location") ?? "",
+        "/admin/site/pages/",
+      );
       // …while a manager — content is not their remit (role downgrade removes
       // access) — is 403 on every screen and on the write.
       const managerCookie = await createTestManagerSession();
@@ -181,7 +188,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       // says who can open it, instead of the bare word "Forbidden".
       const usersResponse = await getAs("/admin/users", cookie);
       const usersBody = await usersResponse.text();
-      expect(usersBody).toContain(t("auth.forbidden_owner_only"));
+      assertStringIncludes(usersBody, t("auth.forbidden_owner_only"));
 
       // On the tabbed listing page the staff-only tabs (roster, activity) are
       // hidden — visibility IS authorization, so naming one 404s rather than
@@ -204,7 +211,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const base = await getAs(`/admin/listing/${listing.id}`, cookie);
       const baseHtml = await base.text();
       expect(base.status).toBe(200);
-      expect(baseHtml).toContain("listing-edit-form");
+      assertStringIncludes(baseHtml, "listing-edit-form");
 
       // The listing Actions tab IS open to an editor, but only Duplicate and
       // Export — every staff-only action (email/refund/deactivate/delete) is
@@ -215,19 +222,21 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       );
       expect(listingActions.status).toBe(200);
       const listingActionsHtml = await listingActions.text();
-      expect(listingActionsHtml).toContain(
+      assertStringIncludes(
+        listingActionsHtml,
         `/admin/listing/${listing.id}/duplicate`,
       );
-      expect(listingActionsHtml).toContain(
+      assertStringIncludes(
+        listingActionsHtml,
         `/admin/listing/${listing.id}/export.json`,
       );
-      expect(listingActionsHtml).not.toContain(
-        `/admin/listing/${listing.id}/deactivate`,
+      assert(
+        !listingActionsHtml.includes(`/admin/listing/${listing.id}/deactivate`),
       );
-      expect(listingActionsHtml).not.toContain(
-        `/admin/listing/${listing.id}/delete`,
+      assert(
+        !listingActionsHtml.includes(`/admin/listing/${listing.id}/delete`),
       );
-      expect(listingActionsHtml).not.toContain("/admin/emails");
+      assert(!listingActionsHtml.includes("/admin/emails"));
 
       // Groups are the same tabbed shape: the staff-only tabs (Overview,
       // Attendees) 404 for an editor, and the base URL resolves to the
@@ -238,7 +247,8 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       }
       const groupBase = await getAs(`/admin/groups/${group.id}`, cookie);
       expect(groupBase.status).toBe(200);
-      expect(await groupBase.text()).toContain(
+      assertStringIncludes(
+        await groupBase.text(),
         `action="/admin/groups/${group.id}/edit"`,
       );
 
@@ -250,15 +260,14 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       );
       expect(groupActions.status).toBe(200);
       const groupActionsHtml = await groupActions.text();
-      expect(groupActionsHtml).toContain(
+      assertStringIncludes(
+        groupActionsHtml,
         `/admin/groups/${group.id}/export.json`,
       );
-      expect(groupActionsHtml).not.toContain(
-        `/admin/groups/${group.id}/bulk-actions`,
+      assert(
+        !groupActionsHtml.includes(`/admin/groups/${group.id}/bulk-actions`),
       );
-      expect(groupActionsHtml).not.toContain(
-        `/admin/groups/${group.id}/delete`,
-      );
+      assert(!groupActionsHtml.includes(`/admin/groups/${group.id}/delete`));
     });
 
     test("editor POSTs to forbidden actions are rejected", async () => {
@@ -328,7 +337,8 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         },
       );
       expect(editResp.status).toBe(302);
-      expect(editResp.headers.get("location")).toContain(
+      assertStringIncludes(
+        editResp.headers.get("location") ?? "",
         `/admin/groups/${group.id}`,
       );
     });
@@ -398,9 +408,9 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const listing = await createTestListing();
       const html = await (await getAs("/admin/listings", cookie)).text();
 
-      expect(html).toContain(`href="/admin/listing/${listing.id}/edit"`);
-      expect(html).not.toContain(`href="/admin/listing/${listing.id}"`);
-      expect(html).not.toContain("/admin/listings/csv");
+      assertStringIncludes(html, `href="/admin/listing/${listing.id}/edit"`);
+      assert(!html.includes(`href="/admin/listing/${listing.id}"`));
+      assert(!html.includes("/admin/listings/csv"));
     });
 
     test("listing edit page hides the income/ledger sections", async () => {
@@ -411,8 +421,8 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       ).text();
 
       // The income-adjust form and the running-totals aggregate inputs are gone.
-      expect(html).not.toContain(`/admin/listing/${listing.id}/income`);
-      expect(html).not.toContain('name="booked_quantity"');
+      assert(!html.includes(`/admin/listing/${listing.id}/income`));
+      assert(!html.includes('name="booked_quantity"'));
     });
 
     test("groups list links editors to the group's own page", async () => {
@@ -420,7 +430,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const { cookie } = await createTestEditorSession();
       const group = await createTestGroup();
       const html = await (await getAs("/admin/groups", cookie)).text();
-      expect(html).toContain(`href="/admin/groups/${group.id}"`);
+      assertStringIncludes(html, `href="/admin/groups/${group.id}"`);
     });
 
     test("nav shows only the editor's reachable sections", async () => {
@@ -428,9 +438,9 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const { cookie } = await createTestEditorSession();
       const html = await (await getAs("/admin/listings", cookie)).text();
 
-      expect(html).toContain('href="/admin/listings"');
-      expect(html).toContain('href="/admin/groups"');
-      expect(html).toContain('href="/admin/site"');
+      assertStringIncludes(html, 'href="/admin/listings"');
+      assertStringIncludes(html, 'href="/admin/groups"');
+      assertStringIncludes(html, 'href="/admin/site"');
       for (const forbidden of [
         '"/admin/users"',
         '"/admin/ledger"',
@@ -440,7 +450,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         '"/admin/modifiers"',
         '"/admin/deliveries"',
       ]) {
-        expect(html, `nav must not link ${forbidden}`).not.toContain(forbidden);
+        assert(!html.includes(forbidden), `nav must not link ${forbidden}`);
       }
     });
 
@@ -452,13 +462,13 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const listingsHtml = await (
         await getAs("/admin/listings", cookie)
       ).text();
-      expect(listingsHtml).toContain('href="/admin/listing/new"');
-      expect(listingsHtml).not.toContain('href="/admin/groups/new"');
+      assertStringIncludes(listingsHtml, 'href="/admin/listing/new"');
+      assert(!listingsHtml.includes('href="/admin/groups/new"'));
 
       // ...and the reverse on the Groups section.
       const groupsHtml = await (await getAs("/admin/groups", cookie)).text();
-      expect(groupsHtml).toContain('href="/admin/groups/new"');
-      expect(groupsHtml).not.toContain('href="/admin/listing/new"');
+      assertStringIncludes(groupsHtml, 'href="/admin/groups/new"');
+      assert(!groupsHtml.includes('href="/admin/listing/new"'));
     });
   });
 
@@ -470,7 +480,10 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         website_title: "Editor Site",
       });
       expect(editorSave.status).toBe(302);
-      expect(editorSave.headers.get("location")).toContain("/admin/site");
+      assertStringIncludes(
+        editorSave.headers.get("location") ?? "",
+        "/admin/site",
+      );
 
       const managerCookie = await createTestManagerSession(
         "site-mgr-session",
@@ -579,7 +592,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         content: "# Hello",
       });
       expect(response.status).toBe(200);
-      expect(await response.text()).toContain("<h1>Hello</h1>");
+      assertStringIncludes(await response.text(), "<h1>Hello</h1>");
     });
 
     test("the admin guide stays staff-only (its body links to staff pages)", async () => {
@@ -594,7 +607,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       expect(response.status).toBe(200);
       // The editor-safe formatting section, not the full staff guide.
       const html = await response.text();
-      expect(html).toContain("Markdown");
+      assertStringIncludes(html, "Markdown");
       // The markdown field hint on the editor's listing edit form points here,
       // so "Formatting help" never dead-ends on the staff-only guide.
       const editHtml = await (
@@ -603,16 +616,16 @@ describeWithEnv("server (editor role)", { db: true }, () => {
           cookie,
         )
       ).text();
-      expect(editHtml).toContain('href="/admin/formatting"');
-      expect(editHtml).not.toContain('href="/admin/guide#text-formatting"');
+      assertStringIncludes(editHtml, 'href="/admin/formatting"');
+      assert(!editHtml.includes('href="/admin/guide#text-formatting"'));
     });
 
     test("editor footer shows only logout (no staff-only log or guide links)", async () => {
       const { cookie } = await createTestEditorSession();
       const html = await (await getAs("/admin/listings", cookie)).text();
-      expect(html).toContain('href="/admin/logout"');
-      expect(html).not.toContain('href="/admin/log"');
-      expect(html).not.toContain('href="/admin/guide"');
+      assertStringIncludes(html, 'href="/admin/logout"');
+      assert(!html.includes('href="/admin/log"'));
+      assert(!html.includes('href="/admin/guide"'));
     });
 
     test("editors do not get the staff SQL/cache debug footer", async () => {
@@ -623,12 +636,12 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const ownerHtml = await (
         await getAs("/admin/listings", ownerCookie)
       ).text();
-      expect(ownerHtml).toContain("debug-menu");
+      assertStringIncludes(ownerHtml, "debug-menu");
       // …but the editor's identical page must not (the unlock is staff-only).
       const editorHtml = await (
         await getAs("/admin/listings", editorCookie)
       ).text();
-      expect(editorHtml).not.toContain("debug-menu");
+      assert(!editorHtml.includes("debug-menu"));
     });
   });
 
@@ -650,8 +663,12 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         }),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("/admin/listings");
-      expect(response.headers.get("set-cookie")).toContain(
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
+        "/admin/listings",
+      );
+      assertStringIncludes(
+        response.headers.get("set-cookie") ?? "",
         getSessionCookieName(),
       );
     });
@@ -687,7 +704,10 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         }),
       );
       expect(joinPost.status).toBe(302);
-      expect(joinPost.headers.get("location")).toContain("/join/complete");
+      assertStringIncludes(
+        joinPost.headers.get("location") ?? "",
+        "/join/complete",
+      );
 
       invalidateUsersCache();
       const user = await getUserByUsername("joinEditor");
@@ -699,8 +719,8 @@ describeWithEnv("server (editor role)", { db: true }, () => {
 
       // The owner's users page shows the activated editor as Active.
       const usersHtml = await (await adminUsersHtml()).text();
-      expect(usersHtml).toContain("joineditor");
-      expect(usersHtml).toContain("Active");
+      assertStringIncludes(usersHtml, "joineditor");
+      assertStringIncludes(usersHtml, "Active");
     });
   });
 });

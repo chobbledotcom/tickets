@@ -8,6 +8,7 @@
  * own the branch cover, and the invariants that have no journey behind them.
  */
 
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";
@@ -112,7 +113,7 @@ describeWithEnv(
         }),
         400,
         (body) => {
-          expect(body.error).toContain("Packages cannot contain");
+          assertStringIncludes(body.error, "Packages cannot contain");
         },
       );
     });
@@ -153,7 +154,7 @@ describeWithEnv(
         }),
         400,
         (body) => {
-          expect(body.error).toContain("Packages cannot contain");
+          assertStringIncludes(body.error, "Packages cannot contain");
         },
       );
     });
@@ -349,7 +350,10 @@ describeWithEnv(
       );
       expect(response.status).toBe(302);
       const prices = await getGroupPackagePrices(group.id);
-      expect(prices.map((r) => r.listing_id)).toContain(flexible.id);
+      assertArrayIncludes(
+        prices.map((r) => r.listing_id),
+        [flexible.id],
+      );
     });
 
     test("add-listings accepts a fixed-price listing into a package group", async () => {

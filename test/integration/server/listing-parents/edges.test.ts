@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
@@ -234,7 +235,8 @@ describeWithEnv("server > listing parents > edges", { db: true }, () => {
     const parent = await createTestListing({ name: "Parent" });
     await postChildren(grandparent.id, [parent.id]); // parent becomes a child
     const res = await postChildren(parent.id, []); // empty no-op save
-    expect(res.headers.get("set-cookie")).toContain(
+    assertStringIncludes(
+      res.headers.get("set-cookie") ?? "",
       "Required%20children%20updated",
     );
     expect(await listingChildren.getIds(parent.id)).toEqual([]);

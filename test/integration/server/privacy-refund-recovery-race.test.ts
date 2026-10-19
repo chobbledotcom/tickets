@@ -1,5 +1,6 @@
 /** The rendered owner decision stays fenced through the provider engine. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -44,7 +45,8 @@ describeWithEnv("owner refund HTTP revision fence", { db: true }, () => {
       readyRefundTestState(identity),
     );
     const rendered = await adminGet(refundCasePath(id));
-    expect(await rendered.text()).toContain(
+    assertStringIncludes(
+      await rendered.text(),
       'name="revision" type="hidden" value="1"',
     );
 

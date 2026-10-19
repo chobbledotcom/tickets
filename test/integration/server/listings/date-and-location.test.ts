@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -64,8 +65,8 @@ describeWithEnv("server listings > date and location", { db: true }, () => {
     test("admin detail page hides Listing Date and Location when empty", async () => {
       const { listing } = await setupListingAndLogin();
       const html = await assertAdminHtml(`/admin/listing/${listing.id}`);
-      expect(html).not.toContain("Listing Date");
-      expect(html).not.toContain("<th>Location</th>");
+      assert(!html.includes("Listing Date"));
+      assert(!html.includes("<th>Location</th>"));
     });
 
     test("admin edit page pre-fills date as split inputs", async () => {
@@ -112,8 +113,8 @@ describeWithEnv("server listings > date and location", { db: true }, () => {
       const { listing, cookie } = await setupListingAndLogin();
       await createTestAttendee(listing.id, listing.slug, "Bob", "bob@test.com");
       const csv = await fetchListingExportCsv(listing.id, cookie);
-      expect(csv).not.toContain("Listing Date");
-      expect(csv).not.toContain("Listing Location");
+      assert(!csv.includes("Listing Date"));
+      assert(!csv.includes("Listing Location"));
     });
 
     test("rejects invalid listing date on edit", async () => {

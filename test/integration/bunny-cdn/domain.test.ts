@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -328,7 +329,8 @@ describeWithEnv(
       const result = await bunnyCdnApi.deleteDnsRecord("42", 999);
       expect(result).toEqual({ ok: true });
       expect(fetchStub.calls).toHaveLength(1);
-      expect(String(fetchStub.calls[0]!.args[0])).toContain(
+      assertStringIncludes(
+        String(fetchStub.calls[0]!.args[0]),
         "/dnszone/42/records/999",
       );
       expect((fetchStub.calls[0]!.args[1] as RequestInit).method).toBe(
@@ -422,7 +424,8 @@ describeWithEnv(
             ok: true,
           });
           expect(fetchStub.calls).toHaveLength(1);
-          expect(String(fetchStub.calls[0]!.args[0])).toContain(
+          assertStringIncludes(
+            String(fetchStub.calls[0]!.args[0]),
             "/dnszone/42/records",
           );
           expect(
