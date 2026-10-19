@@ -52,11 +52,16 @@ describeWithEnv("the ticket page's image references", { db: true }, () => {
     expectResolved(await ticketPageHtml(group.slug), poster, "Poster");
   });
 
-  test("resolves a package description's image reference on the package page", async () => {
+  test("resolves a package description's image reference on a cart page", async () => {
     const kit = await makeImage("Kit");
     const { group } = await createFreePackage("Camp Kit", "Tent");
     await updateTestGroup(group.id, { description: `![Kit](img#${kit.id})` });
-    expectResolved(await ticketPageHtml(group.slug), kit, "Kit");
+    const extra = await createTestListing({ name: "Binoculars" });
+    expectResolved(
+      await ticketPageHtml(`${group.slug}+${extra.slug}`),
+      kit,
+      "Kit",
+    );
   });
 
   test("resolves a question text's image reference", async () => {
