@@ -6,7 +6,7 @@
 
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import type { Stub } from "@std/testing/mock";
+import { type Stub, spy } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import type { Window } from "happy-dom";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -137,6 +137,7 @@ describe("the image dropdown toolbar control", () => {
       // The CommonMark schema holds images as block nodes: the insert lands
       // on its own line after the caret's paragraph.
       expect(textarea.value).toBe("hello\n\n![Alpha](img#2)");
+      expect(panel.hidden).toBe(true);
       handle.view.destroy();
       // Prosemirror's focus handler schedules a 20 ms selection flush; run
       // it out on the virtual clock so the file ends with no pending timer.
@@ -180,6 +181,46 @@ describe("the image dropdown toolbar control", () => {
     );
     expect(window.document.activeElement).toBe(toolbarImageButton(window));
     expectClosed(window, handle, panel);
+  });
+
+  test("closes the dropdown and removes its document listeners when the editor is destroyed", async () => {
+    fetchStubHolder.stub = stubFetch(
+      json({ images: [{ id: 2, name: "Alpha" }] }),
+    );
+    const { window, handle } = enhanced("hello");
+    const addListener = spy(window.document, "addEventListener");
+    toolbarImageButton(window).click();
+    const panel = dropdownPanel(window);
+    await untilReady(panel);
+
+    // Opening the dropdown registers exactly the outside-click and Escape
+    // handlers on document; nothing else registers while it is open.
+    const registered = addListener.calls.map((call) => call.args);
+    expect(registered).toEqual([
+      ["click", expect.any(Function)],
+      ["keydown", expect.any(Function)],
+    ]);
+    addListener.restore();
+
+    const removeListener = spy(window.document, "removeEventListener");
+    try {
+      handle.view.destroy();
+
+      // The panel shuts with the editor, and the exact handlers that open
+      // put on document come off with it — not left registered forever.
+      expect(panel.hidden).toBe(true);
+      expect(toolbarImageButton(window).getAttribute("aria-expanded")).toBe(
+        "false",
+      );
+      const removed = removeListener.calls
+        .filter(
+          (call) => call.args[0] === "click" || call.args[0] === "keydown",
+        )
+        .map((call) => call.args);
+      expect(removed).toEqual(registered);
+    } finally {
+      removeListener.restore();
+    }
   });
 
   test("closes again when the button is clicked while open", async () => {

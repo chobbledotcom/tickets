@@ -7,6 +7,7 @@
  */
 
 import { schema } from "prosemirror-markdown";
+import { Plugin } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import { createToolbarButton } from "#src/ui/client/admin/markdown-editor-toolbar.ts";
 import { createButton, createElementWithClass } from "#src/ui/client/dom.ts";
@@ -54,8 +55,15 @@ const mutedLine = (text: string): HTMLElement => {
   return line;
 };
 
+/** The image control: the element for the toolbar row and the view plugin
+ * that tears the dropdown down with the editor. */
+export interface ImageToolbarItem {
+  element: HTMLElement;
+  plugin: Plugin;
+}
+
 /** Build the toolbar's image control: the button and its dropdown panel. */
-export const createImageToolbarItem = (view: EditorView): HTMLElement => {
+export const createImageToolbarItem = (): ImageToolbarItem => {
   const control = document.createElement("span");
   control.className = "md-image-control";
 
@@ -76,6 +84,11 @@ export const createImageToolbarItem = (view: EditorView): HTMLElement => {
   });
 
   control.append(button, panel);
+
+  // The option buttons dispatch through the editor view. The plugin's view
+  // callback sets this during the EditorView constructor, before any click
+  // can reach the panel.
+  let view: EditorView;
 
   // One fetch per mount, cached. A failed load is never cached, so the next
   // open retries.
@@ -135,7 +148,7 @@ export const createImageToolbarItem = (view: EditorView): HTMLElement => {
 
   // A click anywhere outside the control closes the panel. Escape closes it
   // and returns focus to the button. Both listeners live only while the
-  // panel is open, so a destroyed editor leaves nothing behind.
+  // panel is open.
   const onDocumentClick = (event: Event): void => {
     if (!control.contains(event.target as Node)) close();
   };
@@ -163,5 +176,15 @@ export const createImageToolbarItem = (view: EditorView): HTMLElement => {
     document.removeEventListener("keydown", onDocumentKeydown);
   };
 
-  return control;
+  // EditorView.destroy() destroys plugin views, so this destroy runs when
+  // the editor is destroyed and closes the panel even if it is still open.
+  // A destroyed editor leaves no document listeners behind.
+  const plugin = new Plugin({
+    view: (editorView) => {
+      view = editorView;
+      return { destroy: close };
+    },
+  });
+
+  return { element: control, plugin };
 };
