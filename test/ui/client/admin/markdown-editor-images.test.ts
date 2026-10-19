@@ -9,6 +9,8 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, spy } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import type { Window } from "happy-dom";
+import { STATIC_ASSET_OUTFILES } from "#scripts/static-assets/outfiles.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { cleanup, enhanced, select } from "#test-utils/markdown-editor-dom.ts";
 
@@ -221,6 +223,34 @@ describe("the image dropdown toolbar control", () => {
     } finally {
       removeListener.restore();
     }
+  });
+
+  test("wraps a long unbroken image name inside its option", async () => {
+    // The longest name the form accepts, with no break opportunity: the
+    // panel caps its width, so the option must wrap its text.
+    const unbrokenName = "a".repeat(MAX_INPUT_LENGTH);
+    const stylesheet = await Deno.readTextFile(STATIC_ASSET_OUTFILES.css);
+    fetchStubHolder.stub = stubFetch(
+      json({ images: [{ id: 2, name: unbrokenName }] }),
+    );
+    const { window } = enhanced("hello", { stylesheet });
+    toolbarImageButton(window).click();
+    const panel = dropdownPanel(window);
+    await untilReady(panel);
+
+    const option = panel.querySelector(
+      ".md-image-option",
+    ) as unknown as HTMLElement;
+    expect(option.textContent).toBe(unbrokenName);
+    // The compiled stylesheet is what the browser downloads. Its wrap rule
+    // must reach the option through the real cascade, not just exist in the
+    // source.
+    // happy-dom's Window type loses to the DOM lib here; the computed style
+    // map is the read.
+    const happyWindow = window as unknown as {
+      getComputedStyle: (element: unknown) => CSSStyleDeclaration;
+    };
+    expect(happyWindow.getComputedStyle(option).overflowWrap).toBe("anywhere");
   });
 
   test("closes again when the button is clicked while open", async () => {

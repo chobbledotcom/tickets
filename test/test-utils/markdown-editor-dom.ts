@@ -27,17 +27,20 @@ const FOOTER =
   '<div class="md-editor-footer"><button type="button">Preview</button></div>';
 
 /** Install a lone markdown textarea (optionally followed by a footer strip,
- * as the preview module lays out) and enhance it. */
+ * as the preview module lays out, or a stylesheet the editor's styles are
+ * asserted against) and enhance it. */
 export const enhanced = (
   value: string,
-  options: { footer?: boolean } = {},
+  options: { footer?: boolean; stylesheet?: string } = {},
 ): {
   handle: MarkdownEditorHandle;
   textarea: HTMLTextAreaElement;
   window: Window;
 } => {
   const window = installDom(
-    TEXTAREA.replace("%s", value) + (options.footer ? FOOTER : ""),
+    (options.stylesheet ? `<style>${options.stylesheet}</style>` : "") +
+      TEXTAREA.replace("%s", value) +
+      (options.footer ? FOOTER : ""),
   );
   const textarea = window.document.querySelector(
     "textarea",

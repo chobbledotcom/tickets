@@ -77,6 +77,9 @@
   font: inherit;
   font-size: 0.85rem;
   text-align: left;
+  /* A name can be 250 characters with no spaces. The panel caps its width,
+   * so without wrapping here the name overflows the viewport. */
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 
