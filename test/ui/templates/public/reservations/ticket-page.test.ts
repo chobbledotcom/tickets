@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttributeWithOptions } from "#db/attributes.ts";
-import { mergePageImageUrls } from "#db/images.ts";
+import { addTicketPageImageUrls } from "#db/images.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
@@ -15,8 +15,10 @@ import {
   registerPublicTemplateHooks,
   ticketListing,
 } from "#test/ui/templates/helpers.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 const attributeWithOptions = (
@@ -180,24 +182,39 @@ describe("ticketPage — packages", () => {
     expect(html).not.toContain('name="quantity_1"');
   });
 
-  test("resolves a package description's img#id reference to the image's uid URL", async () => {
-    await withRequestContext(() => {
-      mergePageImageUrls(new Map([[9, "/image/kit-uid.webp"]]));
-      const html = ticketPage({
-        listings: tentAndChairListings(),
-        packages: [
+  describeWithEnv(
+    "ticketPage — a package description's image reference",
+    { db: true },
+    () => {
+      test("resolves a package description's img#id reference to the image's uid URL", async () => {
+        const kit = await makeImage("Kit");
+        const kits = (description: string) => [
           pagePackage(5, [1, 2], {
-            description: "![Kit](img#9)",
+            description,
             quantities: new Map([[2, 4]]),
           }),
           pagePackage(7, [1], { name: "Tent Bundle" }),
-        ],
-        slugs: [PKG_SLUG],
+        ];
+        await withRequestContext(async () => {
+          await addTicketPageImageUrls({
+            listings: [],
+            packages: kits(`![Kit](img#${kit.id})`),
+            questions: [],
+            terms: null,
+          });
+          const html = ticketPage({
+            listings: tentAndChairListings(),
+            packages: kits(`![Kit](img#${kit.id})`),
+            slugs: [PKG_SLUG],
+          });
+          expect(html).toContain(
+            `<img src="/image/${kit.filename}" alt="Kit">`,
+          );
+          expect(html).not.toContain(`img#${kit.id}`);
+        });
       });
-      expect(html).toContain('<img src="/image/kit-uid.webp" alt="Kit">');
-      expect(html).not.toContain("img#9");
-    });
-  });
+    },
+  );
 
   test("limits package day counts to the days its required child supports", () => {
     const parentA = ticketListing({
