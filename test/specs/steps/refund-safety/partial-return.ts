@@ -1,5 +1,7 @@
 // jscpd:ignore-start
+
 import { Given, Then } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { refundProviderFor } from "#test/specs/steps/refund-safety/common.ts";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
@@ -50,7 +52,7 @@ Then(
   "the partial return asks for the owner's decision and never a resend",
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
-    expect(browser.pageText).toContain("Owner decision needed");
+    assertStringIncludes(browser.pageText, "Owner decision needed");
     // The one radio is the returned-only decision; "not sent" would re-arm
     // a send that pays the returned part twice, and "check again" cannot
     // change final evidence.
@@ -60,10 +62,10 @@ Then(
         tag: '<input name="choice" required type="radio" value="provider_confirmed_returned">',
       },
     ]);
-    expect(browser.currentHtml).not.toContain(
-      'value="provider_confirmed_not_sent"',
+    assert(
+      !browser.currentHtml.includes('value="provider_confirmed_not_sent"'),
     );
-    expect(browser.currentHtml).not.toContain('value="check_again"');
+    assert(!browser.currentHtml.includes('value="check_again"'));
   },
 );
 

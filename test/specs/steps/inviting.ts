@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { ORGANISER } from "#test/specs/support/browser.ts";
@@ -61,7 +62,8 @@ Then(
 Then(
   "the owner is told how long that link lasts",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       t("users.invite_expires"),
     );
   },
@@ -71,8 +73,8 @@ Then(
   "the list says {word} is a/an {word} who has not joined yet",
   function (this: TicketsWorld, who: string, role: string): void {
     const { row } = rowForPersonOnList(this, who);
-    expect(row).toContain(roleNamed(role));
-    expect(row).toContain(t("users.status.invited"));
+    assertStringIncludes(row, roleNamed(role));
+    assertStringIncludes(row, t("users.status.invited"));
   },
 );
 
@@ -80,14 +82,15 @@ Then("the list holds the owner as well", function (this: TicketsWorld): void {
   // The owner is on the same list as everybody else, and has joined — they
   // set their password when the site was set up.
   const { row } = rowForPersonOnList(this, TEST_ADMIN_USERNAME);
-  expect(row).toContain("owner");
-  expect(row).toContain(t("users.status.active"));
+  assertStringIncludes(row, "owner");
+  assertStringIncludes(row, t("users.status.active"));
 });
 
 Then(
   "the owner is told that username is taken",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       t("error.username_taken"),
     );
   },

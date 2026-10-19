@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import {
@@ -98,12 +99,12 @@ Then(
 Then(
   "the owner is warned the sender may be pretending",
   function (this: TicketsWorld): void {
-    expect(messageSent(this).html).toContain(SPOOF_WARNING);
+    assertStringIncludes(messageSent(this).html ?? "", SPOOF_WARNING);
   },
 );
 
 Then("the visitor is told it was sent", function (this: TicketsWorld): void {
-  expect(whatVisitorWasTold(this)).toContain(SENT);
+  assertStringIncludes(whatVisitorWasTold(this), SENT);
 });
 
 /** Being turned away, whichever way the site words it. Both wordings are read
@@ -111,8 +112,8 @@ Then("the visitor is told it was sent", function (this: TicketsWorld): void {
  * told "sent" alongside an apology would still leave the visitor waiting. */
 const expectTurnedAway = function (this: TicketsWorld, wording: string): void {
   const told = whatVisitorWasTold(this);
-  expect(told).toContain(wording);
-  expect(told).not.toContain(SENT);
+  assertStringIncludes(told, wording);
+  assert(!told.includes(SENT));
 };
 
 Then("the visitor is told it could not be sent", function (this: TicketsWorld) {

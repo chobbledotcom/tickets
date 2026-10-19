@@ -5,7 +5,7 @@
  */
 
 // jscpd:ignore-start
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import {
   newcomerReading,
   openAdminPage,
@@ -54,9 +54,9 @@ export const ownerTurnsOrderPageOn: ActOnOneThing = async (world, intro) => {
   // value the route reads — not a value the story made up.
   requireCheckboxOffered(browser.currentHtml, "order_enabled", "true");
   await fillInAndSend(browser, { order_enabled: "true" }, "Save");
-  expect(browser.pageText).toContain("Order page enabled");
+  assertStringIncludes(browser.pageText, "Order page enabled");
   await fillInAndSend(browser, { order_intro_text: intro }, "Save");
-  expect(browser.pageText).toContain("Order page updated");
+  assertStringIncludes(browser.pageText, "Order page updated");
 };
 
 /** What a visitor on one of the front pages is shown — nothing more. The

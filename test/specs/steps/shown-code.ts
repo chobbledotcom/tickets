@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
 import { listingNamed } from "#test/specs/support/listings.ts";
@@ -129,7 +130,8 @@ Then(
   function (this: TicketsWorld): void {
     // Taken from the site's own setting, so shortening the life of a code
     // without telling the organiser fails the story.
-    expect(onScreen(this).page).toContain(
+    assertStringIncludes(
+      onScreen(this).page,
       `${Math.round(QR_TOKEN_MAX_AGE_S / 60)} minutes`,
     );
   },
@@ -184,7 +186,7 @@ Then(
   function (this: TicketsWorld): void {
     const led = whereItLed(this);
     expect(led.paying).toBeNull();
-    expect(led.page).toContain("expired or invalid");
+    assertStringIncludes(led.page, "expired or invalid");
     // Anything reading the site rather than the page — a cache, a monitor —
     // goes by the answer's own code, so a refusal has to say it is one.
     expect(led.status).toBe(400);

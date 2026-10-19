@@ -6,6 +6,7 @@
  */
 
 // jscpd:ignore-start
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import type { CheckoutIntent } from "#shared/payments.ts";
@@ -221,7 +222,7 @@ export const customerPaysMore = (
 ): Promise<WhatIsBeingCharged> =>
   withPayingStubbed(async ({ timesReached, whatWasCharged }) => {
     const browser = await openAsNewcomer(link);
-    expect(browser.currentHtml).toContain('name="qr_token"');
+    assertStringIncludes(browser.currentHtml, 'name="qr_token"');
     await browser.submitForm(
       {
         [priceBoxOn(browser.currentHtml)]: price.toFixed(2),

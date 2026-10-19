@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import { formatDateRangeLabel } from "#shared/date-labels.ts";
@@ -237,14 +238,14 @@ const pageLookedAt = (world: TicketsWorld): string =>
 Then(
   "they are told each booking reserves {int} days",
   function (this: TicketsWorld, days: number): void {
-    expect(pageLookedAt(this)).toContain(reservesHint(days));
+    assertStringIncludes(pageLookedAt(this), reservesHint(days));
   },
 );
 
 Then(
   "nothing tells them a booking reserves more than one day",
   function (this: TicketsWorld): void {
-    expect(pageLookedAt(this)).not.toContain(reservesHintStart());
+    assert(!pageLookedAt(this).includes(reservesHintStart()));
   },
 );
 
@@ -265,7 +266,8 @@ export const expectStayRunsFor = async (
   expect(stored.date).toBe(first);
   // The site stores the day after the last day held.
   expect(stored.end_date).toBe(dayAfterTheLast);
-  expect(browser.pageText).toContain(
+  assertStringIncludes(
+    browser.pageText,
     formatDateRangeLabel(`${first}T00:00:00Z`, `${dayAfterTheLast}T00:00:00Z`),
   );
 };
@@ -355,19 +357,19 @@ Then(
 );
 
 Then("the closed day is not offered", function (this: TicketsWorld): void {
-  expect(offeredDays(this)).not.toContain(closedDay(this));
+  assert(!offeredDays(this).includes(closedDay(this)));
 });
 
 Then(
   "the day {int} days from now is not offered either",
   function (this: TicketsWorld, day: number): void {
-    expect(offeredDays(this)).not.toContain(dayFromToday(this, day));
+    assert(!offeredDays(this).includes(dayFromToday(this, day)));
   },
 );
 
 Then(
   "the day {int} days from now is still offered",
   function (this: TicketsWorld, day: number): void {
-    expect(offeredDays(this)).toContain(dayFromToday(this, day));
+    assertArrayIncludes(offeredDays(this), [dayFromToday(this, day)]);
   },
 );

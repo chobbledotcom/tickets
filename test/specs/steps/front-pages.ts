@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
 import {
@@ -24,7 +25,7 @@ When(
 Then(
   "the owner is told the homepage saved",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("Homepage updated");
+    assertStringIncludes(ownerLastTold(this), "Homepage updated");
   },
 );
 
@@ -38,7 +39,7 @@ When(
 Then(
   "the owner is told the contact page saved",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("Contact page updated");
+    assertStringIncludes(ownerLastTold(this), "Contact page updated");
   },
 );
 
@@ -65,7 +66,7 @@ Then(
   async function (this: TicketsWorld, words: string): Promise<void> {
     const read = await visitorOnFrontPage("/");
     expect(read.answered).toBe(200);
-    expect(read.said).toContain(words);
+    assertStringIncludes(read.said, words);
   },
 );
 
@@ -74,7 +75,7 @@ Then(
   async function (this: TicketsWorld, words: string): Promise<void> {
     const read = await visitorOnFrontPage("/contact");
     expect(read.answered).toBe(200);
-    expect(read.said).toContain(words);
+    assertStringIncludes(read.said, words);
   },
 );
 
@@ -83,6 +84,6 @@ Then(
   async function (this: TicketsWorld, words: string): Promise<void> {
     const read = await visitorOnFrontPage("/order");
     expect(read.answered).toBe(200);
-    expect(read.said).toContain(words);
+    assertStringIncludes(read.said, words);
   },
 );

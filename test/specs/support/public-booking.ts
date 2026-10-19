@@ -11,6 +11,7 @@
  * a single listing is a list of one.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { bookingError } from "#booking/form.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -120,7 +121,7 @@ export const visitorFillsInOrder: FillsInOrder<FilledOrder> = async (
 ) => {
   const browser = await openAsNewcomer(path);
   for (const { listing } of lines) {
-    expect(browser.pageText).toContain(listing.name);
+    assertStringIncludes(browser.pageText, listing.name);
   }
   const quantities = Object.fromEntries(
     lines.map(({ listing, places }) => [
@@ -235,7 +236,8 @@ export const expectRefusedForWantOfRoom = (
   attempt: BookingAttempt,
   listingName: string,
 ): void => {
-  expect(expectNotBooked(attempt).pageText).toContain(
+  assertStringIncludes(
+    expectNotBooked(attempt).pageText,
     bookingError.withName(listingName),
   );
 };

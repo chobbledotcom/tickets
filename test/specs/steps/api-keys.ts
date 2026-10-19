@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
@@ -48,17 +49,17 @@ Then(
       this.apiKeyShownOnce,
       "what the owner was shown",
     );
-    expect(shown).toContain(t("api_keys.copy_notice"));
+    assertStringIncludes(shown, t("api_keys.copy_notice"));
     // The words alone are not the key. The page has to carry the real one, or
     // the owner has nothing to hand on.
-    expect(shown).toContain(keyNamed(this, "Shopfront"));
+    assertStringIncludes(shown, keyNamed(this, "Shopfront"));
   },
 );
 
 Then(
   "the list of keys names {word}",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    expect(await keysPageText(this)).toContain(name);
+    assertStringIncludes(await keysPageText(this), name);
   },
 );
 
@@ -67,8 +68,8 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     // The whole response, not only its visible words: a key in a link or a
     // hidden box is one anybody reading the page can still use.
-    expect(await keysPageResponse(this)).not.toContain(
-      keyNamed(this, "Shopfront"),
+    assert(
+      !(await keysPageResponse(this)).includes(keyNamed(this, "Shopfront")),
     );
   },
 );
@@ -78,7 +79,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     // The site's own words for an empty list, not merely one name missing —
     // which any other key still there would satisfy.
-    expect(await keysPageText(this)).toContain(t("api_keys.no_keys"));
+    assertStringIncludes(await keysPageText(this), t("api_keys.no_keys"));
   },
 );
 
@@ -243,8 +244,9 @@ When(
 Then(
   "the owner is told the name does not match",
   function (this: TicketsWorld): void {
-    expect(
+    assertStringIncludes(
       requiredWorldValue(this.apiKeyTakeBack, "what the owner was told"),
-    ).toContain("does not match");
+      "does not match",
+    );
   },
 );

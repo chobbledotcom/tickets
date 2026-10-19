@@ -3,6 +3,7 @@
  * afterwards, and which surfaces still offer the listing afterwards. */
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { t } from "#i18n";
@@ -153,7 +154,8 @@ When(
 Then(
   "the organiser is told the listings were removed from the group",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       t("success.listings_removed_from_group"),
     );
   },
@@ -162,14 +164,15 @@ Then(
 Then(
   "the removal page names {string}",
   function (this: TicketsWorld, listingName: string): void {
-    expect(browserSeenBy(this, ORGANISER).pageText).toContain(listingName);
+    assertStringIncludes(browserSeenBy(this, ORGANISER).pageText, listingName);
   },
 );
 
 Then(
   "the removal page says each listing keeps its bookings and its money",
   function (this: TicketsWorld): void {
-    expect(browserSeenBy(this, ORGANISER).pageText).toContain(
+    assertStringIncludes(
+      browserSeenBy(this, ORGANISER).pageText,
       "Each listing keeps its bookings and its money.",
     );
   },

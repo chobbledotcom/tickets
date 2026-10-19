@@ -1,5 +1,7 @@
 // jscpd:ignore-start
+
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
@@ -51,7 +53,7 @@ const expectBrowserSays = (
   which: "first" | "second",
   words: string,
 ): void => {
-  expect(windowsFor(world)[which].pageText).toContain(words);
+  assertStringIncludes(windowsFor(world)[which].pageText, words);
 };
 
 Given(

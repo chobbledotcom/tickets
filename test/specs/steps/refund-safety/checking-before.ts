@@ -1,5 +1,7 @@
 // jscpd:ignore-start
+
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
 import { forgetStoredPaymentProvider } from "#test/specs/support/refund-safety/history.ts";
@@ -34,7 +36,7 @@ When(
     const browser = await openActionsAsOwner(this, who);
     await browser.clickLink("Edit");
     await browser.submitForm({}, "Save Attendee");
-    expect(browser.pageText).toContain(`Updated ${who}`);
+    assertStringIncludes(browser.pageText, `Updated ${who}`);
   },
 );
 
