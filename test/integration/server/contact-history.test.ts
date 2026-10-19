@@ -151,7 +151,11 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       // The note preview renders the saved-but-rejected note, and its image
       // reference resolves through the image-url table like the GET path's.
       expect(html).toContain('class="contact-notes"');
-      expect(html).toMatch(/<img src="\/image\//);
+      // renderMarkdown percent-encodes the image URL, so the filename's space
+      // renders as %20.
+      expect(html).toContain(
+        `<img src="/image/${encodeURI(image.filename)}" alt="Note Poster">`,
+      );
     });
 
     test("coerces blank/negative counters to zero", async () => {
