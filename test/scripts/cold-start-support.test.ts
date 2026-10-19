@@ -5,8 +5,8 @@ import {
   balancedCycles,
   balancedRotation,
   benchmarkCatalogueMarkers,
-  requireBenchmarkCatalogue,
   requiredEnv,
+  requireMarkers,
   samplesFor,
 } from "#scripts/bench/cold-start/support.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -42,29 +42,35 @@ describe("cold-start benchmark support", () => {
     ]);
   });
 
-  test("requireBenchmarkCatalogue accepts the complete seeded page", () => {
+  test("requireMarkers accepts the complete seeded page", () => {
     expect(() =>
-      requireBenchmarkCatalogue(
+      requireMarkers(
         { body: completeCatalogueBody(), status: 200 },
         "request",
+        benchmarkCatalogueMarkers(),
       ),
     ).not.toThrow();
   });
 
-  test("requireBenchmarkCatalogue rejects an error response", () => {
+  test("requireMarkers rejects an error response", () => {
     expect(() =>
-      requireBenchmarkCatalogue({ body: "", status: 500 }, "request"),
+      requireMarkers(
+        { body: "", status: 500 },
+        "request",
+        benchmarkCatalogueMarkers(),
+      ),
     ).toThrow("request failed with status 500");
   });
 
-  test("requireBenchmarkCatalogue rejects a partial catalogue", () => {
+  test("requireMarkers rejects a partial catalogue", () => {
     expect(() =>
-      requireBenchmarkCatalogue(
+      requireMarkers(
         {
           body: completeCatalogueBody().replace("Benchmark listing 14", ""),
           status: 200,
         },
         "request",
+        benchmarkCatalogueMarkers(),
       ),
     ).toThrow("request did not render Benchmark listing 14");
   });

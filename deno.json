@@ -12,6 +12,7 @@
     "build:static": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-static-assets.ts",
     "build:edge": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-edge.ts",
     "bundle:report": "deno task build:edge && deno run -A scripts/bench/bundle-composition/report.ts",
+    "bench:cold-start": "deno run -A scripts/bench/cold-start/first-request.ts",
     "build:deploy": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-deploy.ts",
     "deploy:edge": "deno run --env-file --allow-env --allow-read --allow-write --allow-run --allow-net scripts/deploy-edge.ts",
     "test": "deno run --v8-flags=--expose-gc -A scripts/run-tests.ts",

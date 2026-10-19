@@ -1,8 +1,9 @@
 /**
  * Child for the first-request benchmark: one freshly booted isolate against
  * the parent's prepared database, every statement paying a fake network
- * delay. Serves `GET /listings` twice (cold, warm) and prints timings + a
- * per-query timeline as one JSON line. Usage: first-request-child.ts <latencyMs>
+ * delay. Serves the parent's scenario path twice (cold, warm) and prints
+ * timings + a per-query timeline as one JSON line.
+ * Usage: first-request-child.ts <latencyMs> [path]
  */
 
 import {
@@ -25,7 +26,12 @@ import {
 } from "#shared/update.ts";
 import { bunnyServeHandler } from "#src/serve-app.ts";
 import { serveAndDrain } from "./serve-request.ts";
-import { requireBenchmarkCatalogue, requiredEnv } from "./support.ts";
+import {
+  benchmarkBookingMarkers,
+  benchmarkCatalogueMarkers,
+  requiredEnv,
+  requireMarkers,
+} from "./support.ts";
 
 // Keep stdout clean for the JSON result line the parent parses.
 setSuppressDebugLogs(true);
@@ -44,6 +50,7 @@ type QueryEvent = {
 };
 
 const latencyMs = Number(Deno.args[0] ?? 0);
+const path = Deno.args[1] ?? "/listings";
 const timeline: QueryEvent[] = [];
 // Query offsets are measured from the start of the request being timed.
 let requestStart = 0;
@@ -102,9 +109,14 @@ setDb(wrapClient(createClient({ url: requiredEnv("DB_URL") })));
 
 const timedRequest = async (): Promise<{ ms: number; status: number }> => {
   requestStart = performance.now();
-  const response = await serveAndDrain(bunnyServeHandler, "/listings");
+  const response = await serveAndDrain(bunnyServeHandler, path);
   const ms = performance.now() - requestStart;
-  requireBenchmarkCatalogue(response, "GET /listings");
+  // A booking page carries the nav for its own target instead of the whole
+  // catalogue, so its completeness markers differ from the listings page's.
+  const markers = path.startsWith("/ticket/")
+    ? benchmarkBookingMarkers()
+    : benchmarkCatalogueMarkers();
+  requireMarkers(response, `GET ${path}`, markers);
   return { ms, status: response.status };
 };
 

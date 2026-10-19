@@ -52,7 +52,7 @@ import { allChildListings } from "./child-listings.ts";
 import { childCapacityInfo } from "./discovery/combined-capacity.ts";
 import { applyBookingPageParentSoldOut } from "./discovery.ts";
 import { dropChildListings, withActiveListings } from "./page-listings.ts";
-import { publicNavProps } from "./site-nav.ts";
+import { bookingNavKey, publicNavProps } from "./site-nav.ts";
 /* jscpd:ignore-start */
 import {
   extractContact,
@@ -415,12 +415,12 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
       ...children.map((child) => child.id),
     ]),
     // The site menu shows above a normal booking page so a visitor can reach
-    // the rest of the site. It is dropped in an embedded iframe, and skipped
-    // when the public site is off (its Home/Listings links would only bounce a
-    // visitor to the admin login), so neither case builds a menu it won't show.
+    // the rest of the site. It is dropped in an embedded iframe and skipped
+    // when the public site is off, so neither case builds a menu it won't
+    // show. The header entity's chain highlights. A combo highlights nothing.
     getIframeMode() || !settings.features.site
       ? Promise.resolve(undefined)
-      : publicNavProps(null),
+      : publicNavProps(bookingNavKey(ctx.galleryTarget)),
   ]);
   const caps = childCapacityInfo(childCaps, childOwnRemaining, membership);
   return {

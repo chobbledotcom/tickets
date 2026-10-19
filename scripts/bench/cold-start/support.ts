@@ -1,5 +1,7 @@
 /** Shared state helpers for fresh-process cold-start benchmarks. */
 
+import type { SitePage } from "#types";
+
 export const BENCHMARK_REGULAR_GROUPS = 12;
 export const BENCHMARK_PACKAGE_GROUPS = 2;
 export const BENCHMARK_ROBOTS_BODY =
@@ -30,18 +32,28 @@ export const benchmarkCatalogueMarkers = (): string[] => [
   ),
 ];
 
-/** Require every seeded group and listing, so a faster partial page cannot
- * count as a valid benchmark sample. */
-export const requireBenchmarkCatalogue = (
+/** The booking page the booking-nav scenario serves: the first benchmark
+ * listing's own page. */
+export const BENCHMARK_BOOKING_SLUG = "benchmark-listing-1";
+
+/** The booking page's completeness markers: its own form for the seeded
+ * listing. */
+export const benchmarkBookingMarkers = (): string[] => [
+  benchmarkListingName(1),
+  `action="/ticket/${BENCHMARK_BOOKING_SLUG}"`,
+];
+
+/** Require the response rendered every marker, so a faster partial page
+ * cannot count as a valid benchmark sample. */
+export const requireMarkers = (
   response: { body: string; status: number },
   what: string,
+  markers: readonly string[],
 ): void => {
   if (response.status !== 200) {
     throw new Error(`${what} failed with status ${response.status}`);
   }
-  const missing = benchmarkCatalogueMarkers().filter(
-    (marker) => !response.body.includes(marker),
-  );
+  const missing = markers.filter((marker) => !response.body.includes(marker));
   if (missing.length > 0) {
     throw new Error(`${what} did not render ${missing.join(", ")}`);
   }
@@ -87,4 +99,94 @@ export const samplesFor = <Key, Sample>(
   const found = samples.get(key);
   if (!found) throw new Error(`Samples missing for ${String(key)}`);
   return found;
+};
+
+/** The ids the catalogue seeding created, by their benchmark number. */
+export type BenchmarkCatalogueIds = {
+  groupIds: ReadonlyMap<number, number>;
+  listingIds: ReadonlyMap<number, number>;
+};
+
+/** Add the public catalogue whose group count makes query scaling visible.
+ * Dynamic imports: nothing may read the environment before main sets it. */
+export const seedBenchmarkCatalogue =
+  async (): Promise<BenchmarkCatalogueIds> => {
+    const { groups, setListingGroups } = await import("#db/groups.ts");
+    const { listingsTable } = await import("#db/listings/records.ts");
+    const { hmacHash } = await import("#crypto/hashing.ts");
+
+    const groupIds = new Map<number, number>();
+    const listingIds = new Map<number, number>();
+    const addGroupWithListing = async (
+      number: number,
+      isPackage: boolean,
+    ): Promise<void> => {
+      const kind = isPackage ? "package" : "group";
+      const slug = `benchmark-${kind}-${number}`;
+      const group = await groups.table.insert({
+        isPackage,
+        name: benchmarkGroupName(number, isPackage),
+        slug,
+        slugIndex: await hmacHash(slug),
+      });
+      const listingSlug = `benchmark-listing-${number}`;
+      const listing = await listingsTable.insert({
+        maxAttendees: 100,
+        maxPrice: 0,
+        name: benchmarkListingName(number),
+        slug: listingSlug,
+        slugIndex: await hmacHash(listingSlug),
+      });
+      await setListingGroups(listing.id, [group.id]);
+      groupIds.set(number, group.id);
+      listingIds.set(number, listing.id);
+    };
+
+    for (let number = 1; number <= BENCHMARK_REGULAR_GROUPS; number++) {
+      await addGroupWithListing(number, false);
+    }
+    for (let number = 1; number <= BENCHMARK_PACKAGE_GROUPS; number++) {
+      await addGroupWithListing(BENCHMARK_REGULAR_GROUPS + number, true);
+    }
+    return { groupIds, listingIds };
+  };
+
+/** Seed the site-page tree the booking-nav scenario reads: a root page
+ * carrying two benchmark listings, and a page nested under it carrying one
+ * group. The group sits off the active chain a listing's booking page
+ * highlights, so the nav's unscoped leaf resolution pays for a page the
+ * model never shows. Dynamic imports: nothing may read the environment
+ * before main sets it. */
+export const seedBenchmarkNavTree = async (
+  ids: BenchmarkCatalogueIds,
+): Promise<void> => {
+  const { createSitePage, sitePages } = await import("#db/site-pages.ts");
+  const { addPageItem, invalidatePageItemsCache } = await import(
+    "#db/site-page-items.ts"
+  );
+
+  const addPage = async (name: string, slug: string): Promise<SitePage> => {
+    const result = await createSitePage({
+      content: "",
+      hidden: false,
+      metaDescription: "",
+      metaTitle: "",
+      name,
+      slug,
+    });
+    if (!result.ok) throw new Error(`site page slug is already used: ${slug}`);
+    return result.value;
+  };
+
+  // createSitePage orders root pages by creation, so Visit roots first.
+  const visit = await addPage("Visit", "benchmark-nav-visit");
+  const extras = await addPage("Extras", "benchmark-nav-extras");
+  await addPageItem(visit.id, "page", extras.id);
+  await addPageItem(visit.id, "listing", ids.listingIds.get(1)!);
+  await addPageItem(visit.id, "listing", ids.listingIds.get(2)!);
+  await addPageItem(extras.id, "group", ids.groupIds.get(1)!);
+  // The page tree's reads cache per process; drop the warmed entries so a
+  // later request in this same prep process reads the seeded edges.
+  sitePages.invalidate();
+  invalidatePageItemsCache();
 };

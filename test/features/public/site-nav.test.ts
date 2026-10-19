@@ -89,10 +89,12 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
     );
 
     const calls = await withRequestContext(() =>
-      countDatabaseCalls(3, () => publicNavModel(current)),
+      // The forest's two reads answer everything: with no leaf on the page,
+      // the resolution reads no listings and no groups.
+      countDatabaseCalls(2, () => publicNavModel(current)),
     );
 
-    expect(calls).toBe(3);
+    expect(calls).toBe(2);
   });
 
   test("resolves a page's listing item to a live link", async () => {
