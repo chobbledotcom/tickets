@@ -17,6 +17,14 @@ export const ASSET_DEFS: AssetDef[] = [
   ["logistics-map.js", "handleLogisticsMapJs", JS, "", true],
   ["logistics-map.css", "handleLogisticsMapCss", CSS, "", true],
   ["scanner.js", "handleScannerJs", JS, "SCANNER_JS_PATH", true],
+  // Same-origin only: a service worker registered across the CDN origin
+  // cannot install, so this def never publishes to the CDN.
+  [
+    "scanner-service-worker.js",
+    "handleScannerServiceWorkerJs",
+    JS,
+    "SCANNER_SERVICE_WORKER_PATH",
+  ],
   [
     "iframe-resizer-parent.js",
     "handleIframeResizerParentJs",

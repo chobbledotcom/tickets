@@ -84,6 +84,16 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
     STATIC_ASSET_OUTFILES.scanner,
     { format: "esm" },
   ),
+  // ESM (not IIFE): the worker registers with type "module", and the source
+  // keeps real exports the direct test imports. The bundle is served
+  // same-origin and never published to the CDN — a service worker must come
+  // from the site's own origin.
+  browserBundle(
+    "Scanner service worker",
+    "./src/ui/client/scanner-service-worker.ts",
+    STATIC_ASSET_OUTFILES.scannerServiceWorker,
+    { format: "esm" },
+  ),
   browserBundle(
     "Admin",
     "./src/ui/client/admin.ts",

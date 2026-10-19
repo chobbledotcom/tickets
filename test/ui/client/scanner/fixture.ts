@@ -25,6 +25,7 @@ import { expect } from "@std/expect";
 import { afterEach } from "@std/testing/bdd";
 import type { Stub } from "@std/testing/mock";
 import { Window } from "happy-dom";
+import type { OfflineScanner } from "#src/ui/client/scanner-offline.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { createGlobalStash } from "#test-utils/happy-dom.ts";
 import { rebrandedPage } from "#test-utils/rebrand-page.ts";
@@ -39,12 +40,21 @@ export interface ScannerModule {
     statusEl: HTMLElement,
     messages: Record<string, string>,
   ) => Promise<void>;
+  dispatchScan: (
+    offline: OfflineScanner,
+    scanPath: string,
+    token: string,
+    csrfToken: string,
+    statusEl: HTMLElement,
+    messages: Record<string, string>,
+  ) => Promise<void>;
   extractToken: (data: string) => string | null;
   handleResult: (
     el: HTMLElement,
     result: Record<string, unknown>,
     messages: Record<string, string>,
   ) => void;
+  offline: OfflineScanner | null;
   postScan: (
     scanPath: string,
     token: string,
@@ -65,6 +75,11 @@ export interface ScannerHarness {
   document: Window["document"];
   messages: Record<string, string>;
   module: ScannerModule;
+  offline: {
+    banner: HTMLElement;
+    queueLine: HTMLElement;
+    toggle: HTMLButtonElement;
+  };
   restore: () => void;
   statusEl: HTMLElement;
   video: HTMLVideoElement;
@@ -109,6 +124,13 @@ const SCANNER_PAGE = `
     data-message-network-error="Network error"
     data-message-no-door="This ticket has no door to check in at."
     data-message-not-found="Ticket not found"
+    data-message-offline-queue-one="1 check-in waiting to send."
+    data-message-offline-queue-other="{count} check-ins waiting to send."
+    data-message-offline-scan-saved="Saved ticket. The check-in will send when the connection is back."
+    data-message-offline-scan-unknown="This ticket is not in the saved list. Go online to check it."
+    data-message-offline-send-failed="Some check-ins did not send. They stay saved on this device."
+    data-message-offline-toggle-off="Offline mode: off"
+    data-message-offline-toggle-on="Offline mode: on"
     data-message-refunded="{name} has been refunded"
     data-message-scanning="Scanning..."
     data-message-select-quantity="How many tickets for {name}?"
@@ -117,8 +139,11 @@ const SCANNER_PAGE = `
     data-message-ticket-count-other="{count} tickets"
     data-message-verify-id-confirm="Does their ID match &quot;{name}&quot;?"
     data-message-wrong-listing-confirm="{name} is registered for &quot;{listingName}&quot;, not this listing. Check in anyway?"
+    data-tokens-path="/admin/groups/5/scan-tokens"
     id="scanner-container"
   >
+    <aside class="hidden" id="scanner-offline-banner" role="alert"><p>Offline mode is on. Scans are checked against the saved ticket list on this device. Check-ins wait here and send when the connection is back.</p></aside>
+    <p class="hidden" id="scanner-offline-queue" role="status"></p>
     <video class="hidden" data-scan-path="/admin/groups/5/scan" id="scanner-video" muted playsinline></video>
     <div class="hidden" id="scanner-status"></div>
     <div class="hidden" id="scanner-quantity">
@@ -135,6 +160,7 @@ const SCANNER_PAGE = `
     </div>
   </div>
   <button id="scanner-start" type="button">Start Camera</button>
+  <button aria-pressed="false" class="muted" id="scanner-offline-toggle" type="button">Offline mode: off</button>
 `;
 
 /** The camera page as the operator's ticket-to-booking rebrand renders it:
@@ -180,6 +206,9 @@ export const useScanner = (page: string = SCANNER_PAGE): ScannerHarness => {
   document.body.innerHTML = page;
   const stash = createGlobalStash();
   stash.set("document", document);
+  // The offline shell listens for the online event on the page's window;
+  // stashing it keeps that listener on this window and off the test global.
+  stash.set("window", window);
 
   runBundleOnce();
 
@@ -203,6 +232,14 @@ export const useScanner = (page: string = SCANNER_PAGE): ScannerHarness => {
     document,
     messages,
     module,
+    offline: {
+      banner: el(document, "scanner-offline-banner"),
+      queueLine: el(document, "scanner-offline-queue"),
+      toggle: el(
+        document,
+        "scanner-offline-toggle",
+      ) as unknown as HTMLButtonElement,
+    },
     restore: (): void => {
       stash.restore();
       delete (globalThis as Record<string, unknown>)[MODULE_MARKER];

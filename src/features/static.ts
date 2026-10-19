@@ -15,6 +15,7 @@ import {
   handleLogisticsMapJs,
   handleMarkdownEditorJs,
   handleScannerJs,
+  handleScannerServiceWorkerJs,
   handleStyleCss,
 } from "#routes/assets.ts";
 import { handleRobotsTxt } from "#routes/robots-txt.ts";
@@ -35,6 +36,7 @@ const staticRoutes = defineRoutes({
   "GET /logistics-map.js": () => handleLogisticsMapJs(),
   "GET /markdown-editor.js": () => handleMarkdownEditorJs(),
   "GET /robots.txt": (request) => handleRobotsTxt(request),
+  "GET /scanner-service-worker.js": () => handleScannerServiceWorkerJs(),
   "GET /scanner.js": () => handleScannerJs(),
   "GET /sitemap.xml": (request) => handleSitemapXml(request),
   "GET /style.css": () => handleStyleCss(),

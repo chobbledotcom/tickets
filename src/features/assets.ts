@@ -19,11 +19,12 @@ const CACHE_HEADERS = {
 const staticHandler = (
   filename: string,
   contentType: string,
+  headers: Record<string, string> = CACHE_HEADERS,
 ): (() => Response) => {
   const content = encodeBody(Deno.readTextFileSync(join(staticDir, filename)));
   return () =>
     new Response(content, {
-      headers: { "content-type": contentType, ...CACHE_HEADERS },
+      headers: { "content-type": contentType, ...headers },
     });
 };
 
@@ -35,6 +36,13 @@ export const handleLogisticsMapCss = staticHandler("logistics-map.css", CSS);
 export const handleLogisticsMapJs = staticHandler("logistics-map.js", JS);
 export const handleMarkdownEditorJs = staticHandler("markdown-editor.js", JS);
 export const handleScannerJs = staticHandler("scanner.js", JS);
+export const handleScannerServiceWorkerJs = staticHandler(
+  "scanner-service-worker.js",
+  JS,
+  // The browser re-checks a registered worker script against this header,
+  // so a new build's shell is picked up instead of serving for a year.
+  { "cache-control": "no-cache" },
+);
 export const handleEmbedJs = staticHandler("embed.js", JS);
 export const handleContactJs = staticHandler("contact.js", JS);
 export const handleIframeResizerParentJs = staticHandler(

@@ -45,6 +45,25 @@ export const listingScope = (listingId: number): ScanScope => ({
   listingIds: new Set([listingId]),
 });
 
+/** The request's decryption key, or the 500 answer the door reads when it
+ * is missing. Every scanner read path answers the same way. */
+export const scannerPrivateKey = async (): Promise<CryptoKey | Response> => {
+  const privateKey = await getRequestPrivateKey();
+  if (!privateKey) {
+    logError({
+      code: ErrorCode.KEY_DERIVATION,
+      detail: "Scanner: private key unavailable",
+    });
+    return apiErrorResponse("Decryption unavailable", 500);
+  }
+  return privateKey;
+};
+
+/** The scan API's not-found answer: the same JSON shape whether the scan
+ * missed a person or the door itself is gone. */
+export const scanNotFoundResponse = (): Response =>
+  jsonResponse({ status: "not_found" }, 404);
+
 /** Load the scope one group's door admits: every member listing, minus the
  * members marked "No check-in" — they sell something that has no door.
  * Hidden and inactive members stay: hidden is a buyer-visibility fact, and a
@@ -279,14 +298,8 @@ export const processScan = async (
   if (body.quantity !== undefined && !isAdmitCount(body.quantity)) {
     return apiErrorResponse("Invalid quantity");
   }
-  const privateKey = await getRequestPrivateKey();
-  if (!privateKey) {
-    logError({
-      code: ErrorCode.KEY_DERIVATION,
-      detail: "Scanner: private key unavailable",
-    });
-    return apiErrorResponse("Decryption unavailable", 500);
-  }
+  const privateKey = await scannerPrivateKey();
+  if (privateKey instanceof Response) return privateKey;
   // A camera read carries the ticket token it decoded. A manual pick
   // carries the attendee id its roster option holds.
   const cameraRead = typeof body.token === "string";

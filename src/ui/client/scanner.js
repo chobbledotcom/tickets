@@ -1,5 +1,11 @@
 // Browser-only code - bundled with jsQR by scripts/build-edge.ts
 import jsQR from "jsqr";
+import { SCANNER_SERVICE_WORKER_PATH } from "#shared/asset-paths.ts";
+import {
+  interpolate,
+  setupOfflineScanner,
+  strictScannerPost,
+} from "./scanner-offline.ts";
 import { showQuantitySelect } from "./quantity-select.ts";
 import { showConfirm } from "./confirm-dialog.ts";
 
@@ -39,8 +45,9 @@ const postScan = async (scanPath, token, csrfToken, { force, idVerified, quantit
   return res.json();
 };
 
-const interpolate = (template, values) =>
-  template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ""));
+/** The scan POST a replay trusts: only real scan answers pass, so a login
+ * page or a bare error can never settle a queued check-in. */
+const offlinePost = strictScannerPost(postScan);
 
 const getMessage = (messages, key, fallback) => messages[key] ?? fallback;
 
@@ -124,8 +131,8 @@ const handleResult = (el, result, messages) => {
     case "refunded":
       showStatus(el, interpolate(getMessage(messages, "messageRefunded", "{name} has been refunded"), { name: result.name }), "error");
       break;
-    // Only the forced rescan lands here: the first wrong_listing answer asks
-    // before it re-posts, and a ticket whose only rows are "No check-in"
+    // Only the forced rescan lands here. The first wrong_listing answer
+    // asks before it re-posts. A ticket whose only rows are "No check-in"
     // answers wrong_listing again.
     case "wrong_listing":
       showStatus(el, getMessage(messages, "messageNoDoor", "This ticket has no door to check in at"), "error");
@@ -144,8 +151,8 @@ const handleResult = (el, result, messages) => {
  * check confirms the person, and a quantity ask picks how many tickets this
  * scan admits. Every later POST carries every answer the door already gave,
  * so nothing re-asks and nothing is lost. */
-const admitScan = async (scanPath, token, csrfToken, statusEl, messages) => {
-  let answer = await postScan(scanPath, token, csrfToken);
+const admitScan = async (scanPath, token, csrfToken, statusEl, messages, post = postScan) => {
+  let answer = await post(scanPath, token, csrfToken);
   const given = {};
   while (true) {
     if (answer.status === "wrong_listing" && !given.force) {
@@ -189,12 +196,25 @@ const admitScan = async (scanPath, token, csrfToken, statusEl, messages) => {
       handleResult(statusEl, answer, messages);
       return;
     }
-    answer = await postScan(scanPath, token, csrfToken, given);
+    answer = await post(scanPath, token, csrfToken, given);
   }
 };
 
+/** One scan, wherever the door is working. Offline, the scan reads the
+ * saved list and queues. Online, the scan settles with the server, and a
+ * send that cannot land falls back to the saved list. */
+const dispatchScan = (offline, scanPath, token, csrfToken, statusEl, messages) => {
+  if (offline.routeScan() === "offline") {
+    offline.scan(token);
+    return Promise.resolve();
+  }
+  return admitScan(scanPath, token, csrfToken, statusEl, messages, offlinePost)
+    .then(() => offline.noteScanSent(token))
+    .catch(() => offline.scanAfterFailedSend(token));
+};
+
 /** Main scanner loop */
-const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) => {
+const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages, offline) => {
   const ctx = canvas.getContext("2d");
   let lastScanTime = 0;
   let processing = false;
@@ -211,7 +231,7 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0);
 
-    if (processing || Date.now() - lastScanTime < COOLDOWN_MS) {
+    if (processing || offline.replaying() || Date.now() - lastScanTime < COOLDOWN_MS) {
       setTimeout(scan, SCAN_INTERVAL_MS);
       return;
     }
@@ -245,10 +265,7 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
       lastToken = null;
     }, FADE_DELAY_MS);
 
-    admitScan(scanPath, token, csrfToken, statusEl, messages)
-      .catch(() => {
-        showStatus(statusEl, getMessage(messages, "messageNetworkError", "Network error"), "error");
-      })
+    dispatchScan(offline, scanPath, token, csrfToken, statusEl, messages)
       .finally(() => {
         processing = false;
         setTimeout(scan, SCAN_INTERVAL_MS);
@@ -257,6 +274,9 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
 
   scan();
 };
+
+/** The page's live offline mode, wired by init. Null on a broken page. */
+let scannerOffline = null;
 
 /** Initialize scanner when DOM is ready */
 const init = () => {
@@ -287,6 +307,17 @@ const init = () => {
   // Release camera when navigating away (including bfcache)
   document.addEventListener("pagehide", stopCamera);
 
+  scannerOffline = setupOfflineScanner({
+    admitOne: (token) =>
+      admitScan(scanPath, token, csrfToken, statusEl, messages, offlinePost),
+    container: scannerContainer,
+    post: postScan,
+    serviceWorkerPath: SCANNER_SERVICE_WORKER_PATH,
+    showStatus,
+    statusEl,
+    tokensPath: scannerContainer.dataset.tokensPath ?? "",
+  });
+
   startBtn.addEventListener("click", async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -297,7 +328,7 @@ const init = () => {
       startBtn.classList.add("hidden");
       video.classList.remove("hidden");
       showStatus(statusEl, getMessage(messages, "messageScanning", "Scanning..."), "success");
-      startScanner(video, canvas, statusEl, scanPath, csrfToken, messages);
+      startScanner(video, canvas, statusEl, scanPath, csrfToken, messages, scannerOffline);
     } catch {
       showStatus(statusEl, getMessage(messages, "messageCameraDenied", "Camera access denied"), "error");
     }
@@ -311,4 +342,12 @@ init();
 // The tail that makes this a module bundle (like the order widget's): the
 // served script tag is type="module", and these exports are the pieces the
 // direct test drives through the built bundle.
-export { admitScan, extractToken, handleResult, postScan, showConfirm };
+export {
+  admitScan,
+  dispatchScan,
+  extractToken,
+  handleResult,
+  postScan,
+  scannerOffline as offline,
+  showConfirm,
+};

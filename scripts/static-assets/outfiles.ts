@@ -25,6 +25,7 @@ export const STATIC_ASSET_OUTFILES = {
   markdownEditor: `${STATIC_DIR}/markdown-editor.js`,
   order: `${STATIC_DIR}/order.js`,
   scanner: `${STATIC_DIR}/scanner.js`,
+  scannerServiceWorker: `${STATIC_DIR}/scanner-service-worker.js`,
 } as const;
 
 /** Source SCSS stylesheet compiled to {@link STATIC_ASSET_OUTFILES.css}. */
