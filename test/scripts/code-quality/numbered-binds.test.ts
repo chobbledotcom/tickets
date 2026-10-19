@@ -106,11 +106,21 @@ const transfersFor = { args: [id, id], sql: transferSql };`,
     ]);
   });
 
-  test("stays quiet on an allowed declaration without a brace group", () => {
+  test("stays quiet when the allowed declaration has no brace group", () => {
     expect(
       findRepeatedBinds(
         "shared/db/synthetic.ts",
-        "const scope = assemble;\nconst statement = { args: [id, id], sql };",
+        "const scope = assemble;\nlet ids = [batchId, batchId];\nawait execute(writeSql, ids);",
+        ["shared/db/synthetic.ts:scope"],
+      ),
+    ).toEqual([]);
+  });
+
+  test("stays quiet when the allowed declaration never closes", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "const scope = () => {\nconst statement = { args: [id, id], sql };",
         ["shared/db/synthetic.ts:scope"],
       ),
     ).toEqual([]);
@@ -144,6 +154,28 @@ const transfersFor = { args: [id, id], sql: transferSql };`,
         "shared/db/synthetic.ts",
         "let args = [listingId, listingId];\nawait execute(writeSql, args);",
         [],
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: binds listingId more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
+
+  test("skips a local array that never closes", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "let broken = [listingId, listingId;\nawait execute(writeSql, broken);",
+        [],
+      ),
+    ).toEqual([]);
+  });
+
+  test("judges a file an allowed declaration does not name", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "let args = [listingId, listingId];\nawait execute(writeSql, args);",
+        ["shared/accounting/queries.ts:accountsScope"],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:1: binds listingId more than once; numberedStatement binds it once and reuses the token",
@@ -206,6 +238,16 @@ await tx.execute({ args, sql });`,
         `const statement = { args: row.values, sql: row.sql };
 await execute(row.sql, row.values);
 await execute(row.sql);`,
+        [],
+      ),
+    ).toEqual([]);
+  });
+
+  test("stays quiet on an execute call that never closes", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "let args = [listingId, listingId];\nawait execute(writeSql",
         [],
       ),
     ).toEqual([]);

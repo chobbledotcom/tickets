@@ -113,6 +113,23 @@ const topLevelElements = (
 const repeatedBindMessage = (line: number, value: string): string =>
   `${line}: binds ${value} more than once; numberedStatement binds it once and reuses the token`;
 
+/** The elements one spread of a local array contributes: the array's own
+ * elements, one level deep, or null when no local array answers. */
+const spreadElements = (
+  content: string,
+  blanked: string,
+  value: string,
+  expand: (name: string) => Array<{ open: number; close: number }> | undefined,
+): string[] | null => {
+  const elements: string[] = [];
+  for (const { open, close } of expand(value) ?? []) {
+    for (const inner of topLevelElements(content, blanked, open + 1, close)) {
+      elements.push(inner);
+    }
+  }
+  return elements.length > 0 ? elements : null;
+};
+
 /** The repeated elements of one `args` array, as one violation per value that
  * appears more than once. A spread of a local array carries that array's
  * values into the statement, so its elements count in the spread's place, one
@@ -123,26 +140,30 @@ const repeatedElementsOf = (
   open: number,
   close: number,
   line: number,
-  expand?: (name: string) => Array<{ open: number; close: number }>,
+  expand?: (name: string) => Array<{ open: number; close: number }> | undefined,
 ): string[] => {
   const counts = new Map<string, number>();
+  const countValue = (value: string): void => {
+    if (TYPE_WORDS.has(value)) return;
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  };
   const countElement = (element: string, depth: number): void => {
     const text = element.trim();
     if (!PURE_BIND_ELEMENT.test(text)) return;
     const value = text.replace(/^\.\.\.\s*/, "").trim();
-    if (TYPE_WORDS.has(value)) return;
-    if (text.startsWith("...") && depth === 0) {
-      const literals = expand?.(value) ?? [];
-      if (literals.length > 0) {
-        for (const { open, close } of literals) {
-          for (const inner of topLevelElements(content, blanked, open + 1, close)) {
-            countElement(inner, depth + 1);
-          }
-        }
-        return;
-      }
+    if (text.startsWith("...") && depth === 0 && expand) {
+      countSpread(value, depth);
+    } else {
+      countValue(value);
     }
-    counts.set(value, (counts.get(value) ?? 0) + 1);
+  };
+  const countSpread = (value: string, depth: number): void => {
+    const inner = spreadElements(content, blanked, value, expand);
+    if (inner === null) {
+      countValue(value);
+      return;
+    }
+    for (const element of inner) countElement(element, depth + 1);
   };
   for (const element of topLevelElements(content, blanked, open + 1, close)) {
     countElement(element, 0);
@@ -176,15 +197,15 @@ const localArrayLiterals = (
   blanked: string,
 ): Map<string, Array<{ open: number; close: number }>> => {
   const literals = new Map<string, Array<{ open: number; close: number }>>();
-  for (const match of blanked.matchAll(
-    /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*\[/g,
-  )) {
-    const open = (match.index ?? 0) + match[0].length - 1;
+  for (const match of [
+    ...blanked.matchAll(/\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*\[/g),
+  ]) {
+    const open = match.index + match[0].length - 1;
     const close = matchingBracket(blanked, open);
     if (close < 0) continue;
     const name = match[1] as string;
     const spans = literals.get(name) ?? [];
-    spans.push({ open, close });
+    spans.push({ close, open });
     literals.set(name, spans);
   }
   return literals;
@@ -215,23 +236,27 @@ const secondCallArgument = (blanked: string, open: number): string | null => {
  * second argument of an `execute` call. */
 const argumentUses = (blanked: string): Array<{ name: string; at: number }> => {
   const uses: Array<{ name: string; at: number }> = [];
-  for (const match of blanked.matchAll(
-    /\bargs\s*:\s*([A-Za-z_$][\w$]*)\s*(?=[,}])/g,
-  )) {
-    uses.push({ name: match[1] as string, at: match.index ?? 0 });
+  for (const match of [
+    ...blanked.matchAll(/\bargs\s*:\s*([A-Za-z_$][\w$]*)\s*(?=[,}])/g),
+  ]) {
+    uses.push({ at: match.index, name: match[1] as string });
   }
-  for (const match of blanked.matchAll(/\{[^{}]*\bargs\s*(?=[,}])/g)) {
-    uses.push({ name: "args", at: match.index ?? 0 });
+  for (const match of [
+    ...blanked.matchAll(/\{[^{}]*\bargs\s*(?=[,}])/g),
+  ]) {
+    uses.push({ at: match.index, name: "args" });
   }
-  for (const match of blanked.matchAll(/\bexecute\s*\(/g)) {
-    const name = secondCallArgument(
-      blanked,
-      (match.index ?? 0) + match[0].length - 1,
-    );
-    if (name !== null) uses.push({ name, at: match.index ?? 0 });
+  for (const match of [...blanked.matchAll(/\bexecute\s*\(/g)]) {
+    const open = match.index + match[0].length - 1;
+    const name = secondCallArgument(blanked, open);
+    if (name !== null) uses.push({ at: match.index, name });
   }
   return uses;
 };
+
+/** One args array a statement binds: where the array sits, the line it is
+ * written on, and the position of the use that reached it. */
+type FoundBinds = { at: number; close: number; line: number; open: number };
 
 /** The repeated-bind violations of one source file. Within one `{ sql, args }`
  * statement, one comparable argument appearing twice means the statement
@@ -256,28 +281,33 @@ export const findRepeatedBinds = (
   const locals = localArrayLiterals(blanked);
   const expand = (name: string) => locals.get(name);
   const violations: string[] = [];
-  const report = (
-    open: number,
-    close: number,
-    line: number,
-    at: number,
-  ): void => {
-    if (exempt(at)) return;
+  const report = (found: FoundBinds): void => {
+    if (exempt(found.at)) return;
     violations.push(
-      ...repeatedElementsOf(content, blanked, open, close, line, expand).map(
-        (violation) => `${relativePath}:${violation}`,
-      ),
+      ...repeatedElementsOf(
+        content,
+        blanked,
+        found.open,
+        found.close,
+        found.line,
+        expand,
+      ).map((violation) => `${relativePath}:${violation}`),
     );
   };
-  for (const match of blanked.matchAll(/\bargs\s*:\s*\[/g)) {
-    const open = (match.index ?? 0) + match[0].length - 1;
+  for (const match of [...blanked.matchAll(/\bargs\s*:\s*\[/g)]) {
+    const open = match.index + match[0].length - 1;
     const close = matchingBracket(blanked, open);
     if (close < 0) continue;
-    report(open, close, lineAt(content, match.index ?? 0), match.index ?? 0);
+    report({
+      at: match.index,
+      close,
+      line: lineAt(content, match.index),
+      open,
+    });
   }
   for (const use of argumentUses(blanked)) {
     for (const { open, close } of locals.get(use.name) ?? []) {
-      report(open, close, lineAt(content, open), use.at);
+      report({ at: use.at, close, line: lineAt(content, open), open });
     }
   }
   return violations;
