@@ -12,6 +12,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 const blankForm = () => buildCreateForm([], [], new Map(), "");
 
@@ -73,5 +74,21 @@ describeWithEnv("attendee form template data", { db: true }, () => {
     const data = await buildTemplateData("create", parsed, null);
 
     expect(data.balanceNotice).toBeNull();
+  });
+
+  test("loads a stored parent name for an add-on booking path", async () => {
+    const parent = await createTestListing({ name: "Named parent" });
+    const child = await createTestListing({ name: "Named child" });
+    const parsed = buildCreateForm(
+      [testListingWithCount(child)],
+      [],
+      new Map([[child.id, 1]]),
+      "",
+    );
+    parsed.lines[0]!.parentListingId = parent.id;
+
+    const data = await buildTemplateData("create", parsed, null);
+
+    expect(data.parentNamesById).toEqual(new Map([[parent.id, parent.name]]));
   });
 });
