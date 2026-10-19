@@ -17,9 +17,14 @@ import {
   type RecordTargets,
 } from "#db/record-target.ts";
 import { type ColumnDef, col } from "#db/table.ts";
-import { equals } from "#db/where-clauses.ts";
-
+import { equals, inList } from "#db/where-clauses.ts";
+import { mapById } from "#fp";
+import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { decryptImageFilename } from "#shared/images/broken.ts";
+import {
+  currentRequestStore,
+  withRequestStore,
+} from "#shared/request-context.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 import {
   type Image,
@@ -83,12 +88,63 @@ const imageColumns = imagesTable.read.pick([
   "alt_text",
 ]);
 
-const imageFileColumns = imagesTable.read.pick([
+export const imageFileColumns = imagesTable.read.pick([
   "id",
   "filename",
   "filename_thumb",
   "alt_text",
 ]);
+
+const imageUrlColumns = imagesTable.read.pick(["id", "filename"]);
+
+/** The id→uid-URL table the markdown render resolves the editor's `img#N`
+ * references against. Each entry maps one referenced image's id to its
+ * canonical filename URL, so no image is ever addressable by id. */
+export type ImageUrls = ReadonlyMap<number, string>;
+
+/** The markdown texts an image-url lookup scans. */
+type ImageUrlTexts = readonly (string | null | undefined)[];
+
+/** The read is bounded by the ids the texts actually reference. It runs only
+ * when they name any. */
+export const imageUrlsFor = async (
+  texts: ImageUrlTexts,
+): Promise<ImageUrls> => {
+  const sources = texts.filter(
+    (text): text is string => typeof text === "string",
+  );
+  const ids = [
+    ...new Set(
+      sources.flatMap((text) =>
+        [...text.matchAll(/img#(\d+)/g)]
+          .map((match) => Number(match[1]))
+          .filter((id) => Number.isSafeInteger(id) && id > 0),
+      ),
+    ),
+  ];
+  return ids.length === 0
+    ? new Map()
+    : mapById((row: { id: number; filename: string }) =>
+        getImageProxyUrl(row.filename),
+      )(await imageUrlColumns.many({}, { where: inList("id", ids) }));
+};
+
+/** Merge one id→URL table into the request's page-image slot, which
+ * renderMarkdown's default reads. No-op outside a request, so out-of-request
+ * work cannot seed a table into any later one. */
+export const mergePageImageUrls = (table: ImageUrls): void =>
+  withRequestStore((store) => {
+    if (!store.pageImageUrls) store.pageImageUrls = new Map();
+    for (const [id, url] of table) store.pageImageUrls.set(id, url);
+  });
+
+/** Run the bounded lookup for the texts' img#N references and merge the
+ * result into the request's page-image slot. No request context → no-op.
+ * Texts that name no image query nothing and merge nothing. */
+export const addPageImageUrls = async (texts: ImageUrlTexts): Promise<void> => {
+  if (!currentRequestStore()) return;
+  mergePageImageUrls(await imageUrlsFor(texts));
+};
 
 export const getAllImages = (): Promise<Image[]> =>
   imageColumns.many({}, { order: "id DESC" });

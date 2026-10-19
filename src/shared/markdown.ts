@@ -11,6 +11,7 @@ import { assert } from "@std/assert";
 import { Lexer, Marked, type Token, type Tokens } from "marked";
 import { once } from "#fp";
 import { escapeHtml } from "#jsx/escape-html.ts";
+import { getPageImageUrls } from "#shared/request-context.ts";
 
 /** URL schemes permitted in links and images. */
 const SAFE_URL_SCHEMES = ["http:", "https:", "mailto:", "tel:"] as const;
@@ -35,10 +36,27 @@ const hasHref = (token: Token): token is Token & { href: string } =>
   (token.type === "link" || token.type === "image") &&
   typeof (token as { href?: unknown }).href === "string";
 
+/** The per-render token walk. A short-form image reference (`![alt](img#7)`)
+ * written by the editor's image dropdown resolves to the image's uid URL in
+ * the render's table. The table is the request's page-image slot, or the
+ * call site's override. An id the table lacks renders nothing to load, so
+ * the <img> falls back to its alt text. Links and code spans never carry
+ * the rewrite. Unsafe URLs strip to nothing. */
+const walkTokensFor =
+  (imageUrls: ReadonlyMap<number, string>) =>
+  (token: Token): void => {
+    if (token.type === "image" && typeof token.href === "string") {
+      const id = token.href.match(/^img#(\d+)$/)?.[1];
+      if (id) token.href = imageUrls.get(Number(id)) ?? "";
+    }
+    if (hasHref(token) && !isSafeUrl(token.href)) token.href = "";
+  };
+
 /** Built on first render, not at module load — `new Marked(...)` compiles
  * marked's tokenizer regexes, so deferring it keeps that work off the cold boot
  * of requests that never render markdown. `once` returns synchronously, so the
- * synchronous render callers are unaffected. */
+ * synchronous render callers are unaffected. The token walk is per call, so
+ * each render carries its own image-url table. */
 const md = once(
   () =>
     new Marked({
@@ -47,15 +65,20 @@ const md = once(
           return escapeHtml(raw);
         },
       },
-      walkTokens: (token) => {
-        if (hasHref(token) && !isSafeUrl(token.href)) token.href = "";
-      },
     }),
 );
 
-/** Renders block markdown, escaping raw HTML and stripping unsafe URLs. */
-export const renderMarkdown = (text: string): string =>
-  md().parse(text) as string;
+/** Renders block markdown, escaping raw HTML and stripping unsafe URLs. An
+ * `img#N` reference resolves through `imageUrls`. Without the argument, it
+ * resolves through the request's page-image slot, which the page's loaders
+ * fill with `addPageImageUrls` (see `#shared/db/images.ts`). A missing entry
+ * renders no image, and the alt text shows. The override exists for a render
+ * whose table is not the page's, such as the site footer. */
+export const renderMarkdown = (
+  text: string,
+  imageUrls: ReadonlyMap<number, string> = getPageImageUrls(),
+): string =>
+  md().parse(text, { walkTokens: walkTokensFor(imageUrls) }) as string;
 
 /** Inline token types that don't add any HTML structure beyond plain text
  * inside a `<p>`. If a paragraph contains only these, the rendered markdown is
