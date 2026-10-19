@@ -162,7 +162,7 @@ export const createImageToolbarItem = (): ImageToolbarItem => {
   const open = (): void => {
     // A destroyed editor's view cannot dispatch, and the teardown leaves
     // the button mounted: the control stays inert.
-    if (view.destroyed) return;
+    if (view.isDestroyed) return;
     panel.hidden = false;
     button.setAttribute("aria-expanded", "true");
     document.addEventListener("click", onDocumentClick);

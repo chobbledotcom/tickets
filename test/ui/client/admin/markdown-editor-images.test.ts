@@ -185,12 +185,23 @@ describe("the image dropdown toolbar control", () => {
     expectClosed(window, handle, panel);
   });
 
-  test("closes the dropdown and removes its document listeners when the editor is destroyed", async () => {
+  /** Mounts the editor on a one-image stub and spies the document's
+   * listener registrations. The spy reads only inside the test that owns
+   * it; afterEach cleanup still runs on the restored document. */
+  const mountSpied = () => {
     fetchStubHolder.stub = stubFetch(
       json({ images: [{ id: 2, name: "Alpha" }] }),
     );
     const { window, handle } = enhanced("hello");
-    const addListener = spy(window.document, "addEventListener");
+    return {
+      addListener: spy(window.document, "addEventListener"),
+      handle,
+      window,
+    };
+  };
+
+  test("closes the dropdown and removes its document listeners when the editor is destroyed", async () => {
+    const { window, handle, addListener } = mountSpied();
     toolbarImageButton(window).click();
     const panel = dropdownPanel(window);
     await untilReady(panel);
@@ -226,11 +237,7 @@ describe("the image dropdown toolbar control", () => {
   });
 
   test("keeps the image control inert after the editor is destroyed", async () => {
-    fetchStubHolder.stub = stubFetch(
-      json({ images: [{ id: 2, name: "Alpha" }] }),
-    );
-    const { window, handle } = enhanced("hello");
-    const addListener = spy(window.document, "addEventListener");
+    const { window, handle, addListener } = mountSpied();
     handle.view.destroy();
 
     toolbarImageButton(window).click();
