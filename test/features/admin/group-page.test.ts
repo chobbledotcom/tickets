@@ -4,6 +4,7 @@
  * route enforces, so a role never meets a link it cannot follow.
  */
 
+/* jscpd:ignore-start -- imports */
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -12,6 +13,8 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, withStorageEnabled } from "#test-utils/mocks.ts";
 import { adminGet, createTestEditorSession } from "#test-utils/session.ts";
+
+/* jscpd:ignore-end */
 
 /** One editor session, reused across the requests of a single test. */
 const editorCookie = async (): Promise<string> =>

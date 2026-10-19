@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -16,6 +17,8 @@ import { hasCheckedInput } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
+
+/* jscpd:ignore-end */
 
 describeWithEnv("server (admin site order)", { db: true }, () => {
   describe("GET /admin/site/order", () => {
