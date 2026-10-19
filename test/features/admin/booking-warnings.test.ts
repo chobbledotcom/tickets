@@ -54,6 +54,20 @@ const warningsForBooking = async (
   return computeWarnings(parsed, undefined);
 };
 
+/** Book places on one listing through the same atomic create the ticket page
+ * uses, so the capacity checks in the warnings read real stored rows. */
+const bookPlaces = async (
+  listingId: number,
+  bookings: readonly { date: string; quantity: number }[],
+): Promise<void> => {
+  const result = await attendeesApi.createAttendeeAtomic({
+    bookings: bookings.map((booking) => ({ ...booking, listingId })),
+    email: "seeded-bookings@example.com",
+    name: "Seeded booking",
+  });
+  expect(result.success).toBe(true);
+};
+
 describeWithEnv("booking warnings", { db: true }, () => {
   test("names every required child when a parent is booked alone", async () => {
     const parent = await createTestListing({ name: "Main pass" });
