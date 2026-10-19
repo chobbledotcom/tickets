@@ -10,6 +10,7 @@
 
 /* jscpd:ignore-start -- imports */
 import { hmacHash } from "#crypto/hashing.ts";
+import { addFooterImageUrls } from "#db/images.ts";
 import { getNewsPostBySlugIndex, getNewsPostCards } from "#db/news-posts.ts";
 import { settings } from "#db/settings.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
@@ -26,6 +27,7 @@ const handleNewsList = async (): Promise<Response> => {
     publicNavProps(null),
   ]);
   if (posts.length === 0) return notFoundResponse();
+  await addFooterImageUrls();
   return htmlResponse(newsListPage(posts, nav, settings.websiteTitle));
 };
 
