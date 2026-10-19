@@ -82,6 +82,17 @@ describeWithEnv("the ticket page's image references", { db: true }, () => {
     expectResolved(await ticketPageHtml(listing.slug), poster, "Poster");
   });
 
+  test("resolves the site footer's image reference on the ticket page", async () => {
+    const poster = await makeImage("FooterPoster");
+    await settings.update.siteFooter(
+      `Thanks for coming.![FooterPoster](img#${poster.id})`,
+    );
+    const listing = await createTestListing({ name: "Kayak Tour" });
+    const html = await ticketPageHtml(listing.slug);
+    expectResolved(html, poster, "FooterPoster");
+    expect(html).not.toContain("img#");
+  });
+
   test("renders an image reference no image answers with an empty source", async () => {
     const listing = await createTestListing({
       description: "![Poster](img#999999)",
