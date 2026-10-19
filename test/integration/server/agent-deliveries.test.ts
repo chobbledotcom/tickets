@@ -60,10 +60,7 @@ const makeBookingOn = async (
   durationDays = 1,
   name = "Bouncy Castle",
 ): Promise<{ attendeeId: number; listingId: number; listingName: string }> => {
-  const listing = await createTestListing({
-    maxAttendees: 100,
-    name,
-  });
+  const listing = await createTestListing({ maxAttendees: 100, name });
   const attendee = await createTestAttendee(
     listing.id,
     listing.slug,
