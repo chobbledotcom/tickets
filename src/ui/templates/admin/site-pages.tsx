@@ -6,10 +6,10 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
-import { contentFieldValues } from "#routes/admin/content-form-fields.ts";
 import {
   sitePageEditForm,
   sitePageForm,
+  sitePageToValues,
 } from "#routes/admin/site-pages-form.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
@@ -231,11 +231,11 @@ const ItemPicker = ({
   );
 
 /** The Edit tab's panel: the page-fields form (name, editable slug + public
- * link, SEO meta, markdown body) posting to the update route. */
+ * link, SEO meta, the Hidden box, markdown body) posting to the update route. */
 export const sitePageEditPanel = contentEntityEditPanel(
   LIST,
   sitePageEditForm,
-  (page: SitePage) => contentFieldValues(page),
+  sitePageToValues,
 );
 
 /** The Items tab's panel: the page's current contents (reorderable, each

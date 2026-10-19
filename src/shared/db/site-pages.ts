@@ -2,9 +2,9 @@
  * `site_pages` table operations — user-created content pages.
  *
  * Cold-start efficiency is deliberate here: the public nav only needs a **narrow
- * columns** (id, slug, name, sort_order) and must not decrypt the large
+ * columns** (id, slug, name, sort_order, hidden) and must not decrypt the large
  * `content` / `meta_*` blobs on every request. So the cached read
- * ({@link sitePages}.getAll) selects and decrypts only those four columns; the
+ * ({@link sitePages}.getAll) selects and decrypts only those five columns; the
  * full row (with content/meta) is loaded one at a time, only for a single
  * `/page/:slug` (or admin edit) view.
  */
@@ -32,8 +32,10 @@ import type { SitePage, SitePageNavRow } from "#types";
 
 /** Create/update input (camelCase keys → snake_case columns). `sortOrder` is
  * optional only for the update path, which never writes it — create always
- * supplies it. */
+ * supplies it. `hidden` is optional on the raw insert path, where the column
+ * default (visible) applies. The admin write always names it. */
 export type SitePageInput = SluggedContentInput & {
+  hidden?: boolean;
   sortOrder?: number;
 };
 
@@ -41,13 +43,15 @@ export type SitePageInput = SluggedContentInput & {
 const rawSitePagesTable = defineIdTable<SitePage, SitePageInput>("site_pages", {
   ...encryptedNameAndSeoSchema(encrypt, decrypt),
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
+  hidden: col.boolean(false),
   sort_order: col.simple<number>(),
 });
 
 const sitePageNavColumns = rawSitePagesTable.read.pick([
+  "hidden",
   "id",
-  "slug",
   "name",
+  "slug",
   "sort_order",
 ]);
 

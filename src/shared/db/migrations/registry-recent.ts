@@ -86,5 +86,11 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-10-12_listing_fields_trim",
     () => import("./2026-10-12_listing_fields_trim.ts"),
   ),
+  // The page editor's Hidden flag: one stored page drops out of the public
+  // menus and the sitemap and answers with a noindex robots tag.
+  entry(
+    "2026-10-19_site_page_hidden",
+    () => import("./2026-10-19_site_page_hidden.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

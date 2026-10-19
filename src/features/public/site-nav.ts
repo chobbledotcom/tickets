@@ -17,7 +17,7 @@ import { allPageItemsRead } from "#db/site-page-items.ts";
 import { sitePagesNavRead } from "#db/site-pages.ts";
 import { compact, filter, map, pipe, unique } from "#fp";
 import { isQualifyingTierListing } from "#shared/renewal-tier.ts";
-import { buildNavModel } from "#shared/site-pages/core.ts";
+import { buildForest, buildNavModel } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import type {
@@ -112,9 +112,14 @@ const resolveTargets = async (
 export const publicNavModel = async (
   current: TargetKey | null,
 ): Promise<NavModel> => {
-  const { forest, items } = await loadPageForest();
+  const { items, navRows } = await loadPageForest();
+  // Hidden pages leave the menus. The forest ignores a parent edge whose
+  // row is gone. A visible child of a hidden page therefore sits at the top
+  // level instead of stranding under an invisible parent. The pageNode
+  // builder renders nothing for a hidden child row.
+  const visibleRows = navRows.filter((row) => !row.hidden);
   const targets = current === null ? new Map() : await resolveTargets(items);
-  return buildNavModel(forest, targets, current);
+  return buildNavModel(buildForest(visibleRows, items), targets, current);
 };
 
 /** The three small reads behind every public page's nav: is there any news, the

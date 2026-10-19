@@ -11,7 +11,10 @@ import { publicNavModel, publicNavProps } from "#routes/public/site-nav.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
+import {
+  createTestNewsPost,
+  createTestSitePage,
+} from "#test-utils/db-helpers/misc.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
@@ -123,5 +126,47 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
       "Required child",
     ]);
     expect(model.currentChildren[0]?.live).toBe(false);
+  });
+
+  test("leaves a hidden page out of the menus", async () => {
+    await createTestSitePage("public-page", { name: "Public Page" });
+    const hidden = await createTestSitePage("secret-page", {
+      hidden: true,
+      name: "Secret Page",
+    });
+
+    const model = await publicNavModel(null);
+
+    expect(model.rootPageNodes.map((node) => node.label)).toEqual([
+      "Public Page",
+    ]);
+    // Reading the nav as the hidden page itself highlights nothing: it is
+    // not a menu entry anywhere.
+    const secret = sitePageItemTargets.key(
+      sitePageItemTargets.of("page")(hidden.id),
+    );
+    expect((await publicNavModel(secret)).activeRootId).toBeNull();
+  });
+
+  test("promotes a visible child of a hidden page to the top level", async () => {
+    const parent = await createTestSitePage("hidden-parent", {
+      hidden: true,
+      name: "Hidden Parent",
+    });
+    const child = await createTestSitePage("child-page", {
+      name: "Child Page",
+    });
+    await addPageItem(parent.id, "page", child.id);
+
+    const model = await publicNavModel(null);
+
+    expect(model.rootPageNodes.map((node) => node.label)).toEqual([
+      "Child Page",
+    ]);
+    // The child's own page still anchors its nav, now as a top-level root.
+    const current = sitePageItemTargets.key(
+      sitePageItemTargets.of("page")(child.id),
+    );
+    expect((await publicNavModel(current)).activeRootId).toBe(child.id);
   });
 });

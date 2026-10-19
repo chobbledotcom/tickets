@@ -75,6 +75,7 @@ export const createTestSitePage = async (
   const { createSitePage } = await import("#db/site-pages.ts");
   const result = await createSitePage({
     content: extra.content ?? "",
+    hidden: extra.hidden ?? false,
     metaDescription: extra.metaDescription ?? "",
     metaTitle: extra.metaTitle ?? "",
     name: extra.name ?? `Page ${slug}`,

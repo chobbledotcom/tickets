@@ -17,6 +17,7 @@ import type { SitePage, SitePageNavRow } from "#types";
 
 const PAGE: SitePage = {
   content: "Welcome **inside**.",
+  hidden: false,
   id: 7,
   meta_description: "A useful page",
   meta_title: "Inside title",
@@ -31,7 +32,7 @@ const navPage = (
   name: string,
   slug: string,
   sortOrder: number,
-): SitePageNavRow => ({ id, name, slug, sort_order: sortOrder });
+): SitePageNavRow => ({ hidden: false, id, name, slug, sort_order: sortOrder });
 
 describe("site page templates", () => {
   beforeAll(setupAdminPageTest);

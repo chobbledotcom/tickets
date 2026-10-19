@@ -96,6 +96,26 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
     }
   });
 
+  test("lists a content page only while it is not hidden", async () => {
+    await enablePublicSite();
+    try {
+      const visible = await createTestSitePage("season-guide");
+      const hidden = await createTestSitePage("staff-notes", { hidden: true });
+
+      const xml = await (
+        await handleRequest(mockRequest("/sitemap.xml"))
+      ).text();
+      // A hidden page keeps its direct link, but it is not a public URL the
+      // site advertises, so the document names only the visible page.
+      expect(xml).toContain(
+        `<loc>https://localhost/page/${visible.slug}</loc>`,
+      );
+      expect(xml).not.toContain(hidden.slug);
+    } finally {
+      await disablePublicSite();
+    }
+  });
+
   test("lists a fixed page only when its handler serves it", async () => {
     await enablePublicSite();
     try {

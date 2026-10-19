@@ -9,6 +9,7 @@ import { enablePublicSite } from "#test-utils/settings.ts";
 const makePage = (slug: string, name: string) =>
   createSitePage({
     content: `Everything about ${name}.`,
+    hidden: false,
     metaDescription: `${name} description`,
     metaTitle: `${name} title`,
     name,

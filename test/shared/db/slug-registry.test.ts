@@ -9,6 +9,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const pageInput = (name: string, slug: string) => ({
   content: `The ${name} body.`,
+  hidden: false,
   metaDescription: `${name} description`,
   metaTitle: `${name} title`,
   name,

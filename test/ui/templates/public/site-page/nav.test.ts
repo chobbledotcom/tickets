@@ -15,6 +15,7 @@ describe("sitePagePage (nav-model race)", () => {
     // model with no chain for the page: the body renders with no item list.
     const gone: SitePage = {
       content: "Still **here**",
+      hidden: false,
       id: 99,
       meta_description: "",
       meta_title: "",
