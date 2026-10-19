@@ -52,8 +52,7 @@ describeWithEnv(
             const response = await proxyRequest();
             expect(response.status).toBe(200);
             expect(response.headers.get("content-type")).toBe("image/jpeg");
-            const cacheControl =
-              response.headers.get("cache-control") ?? "";
+            const cacheControl = response.headers.get("cache-control") ?? "";
             assertStringIncludes(cacheControl, "immutable");
             const body = new Uint8Array(await response.arrayBuffer());
             expect(body).toEqual(imageData);
