@@ -194,11 +194,10 @@ const declarationSpan = (blanked: string, name: string): [number, number] => {
   );
   if (declared?.index === undefined) return [-1, -1];
   const open = blanked.indexOf("{", declared.index);
-  if (open < 0) return [declared.index, blanked.length];
+  const end = blanked.indexOf(";", declared.index);
+  if (open < 0 || (end >= 0 && end < open)) return [-1, -1];
   const close = matchingBracket(blanked, open);
-  return close < 0
-    ? [declared.index, blanked.length]
-    : [declared.index, close + 1];
+  return close < 0 ? [-1, -1] : [declared.index, close + 1];
 };
 
 /** The local array literals of one file, by name: the values a statement can

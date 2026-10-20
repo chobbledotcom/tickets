@@ -106,24 +106,28 @@ const transfersFor = { args: [id, id], sql: transferSql };`,
     ]);
   });
 
-  test("stays quiet when the allowed declaration has no brace group", () => {
+  test("fires when the allowed declaration has no brace group", () => {
     expect(
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "const scope = assemble;\nlet ids = [batchId, batchId];\nawait execute(writeSql, ids);",
         ["shared/db/synthetic.ts:scope"],
       ),
-    ).toEqual([]);
+    ).toEqual([
+      "shared/db/synthetic.ts:2: binds batchId more than once; numberedStatement binds it once and reuses the token",
+    ]);
   });
 
-  test("stays quiet when the allowed declaration never closes", () => {
+  test("fires when the allowed declaration never closes", () => {
     expect(
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "const scope = () => {\nconst statement = { args: [id, id], sql };",
         ["shared/db/synthetic.ts:scope"],
       ),
-    ).toEqual([]);
+    ).toEqual([
+      "shared/db/synthetic.ts:2: binds id more than once; numberedStatement binds it once and reuses the token",
+    ]);
   });
 
   test("fires when the allowed declaration is absent", () => {
