@@ -107,3 +107,14 @@ Feature: An owner writes the pages people read
       Given the owner has no images in the library
       When the owner starts writing a page
       Then the library offers no images
+  @rule:pages.a-page-s-pictures-show-at-its-address
+  Rule: A page's pictures show at its address
+    A page can carry a picture the owner uploaded. A visitor reading the page
+    sees the picture itself, and never sees the reference that names it.
+
+    @case:site-pages.page-picture
+    Scenario: The owner writes a page with a picture in it
+      Given the owner has uploaded a picture called "TrailMap"
+      When the owner writes a page called Directions at "how-to-find-us" with the picture in it
+      Then the owner is told it saved
+      And a visitor reading "how-to-find-us" sees the picture

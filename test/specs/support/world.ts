@@ -188,6 +188,9 @@ export interface TicketsWorld extends World, EvidencePages {
   sharedDayLimit?: number;
   sharedDayOver?: string;
   shownCode?: CodeOnScreen;
+  /** The picture a story put in the site's own words, with the name the
+   * owner's text gives it and the address its picture shows at. */
+  siteImage?: { alt: string; filename: string; id: number };
   stayStartsOn?: string;
   things: RemembersThings;
   ticketToken?: string;

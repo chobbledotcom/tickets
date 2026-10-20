@@ -41,22 +41,23 @@ export const ownerTakesDownNews: TakesOneThingDown = takesDownFromList(
 export const visitorOnNewsPage = (): Promise<PageRead> =>
   newcomerReading("/news");
 
-/** Follow the post's own link off the news page, so a post the page stopped
- * linking cannot be read this way. */
-export const visitorFollowsNewsLink = async (
-  name: string,
-): Promise<PageRead> => {
+/** The address of the post's own link on the news page. Found by the post's
+ * name, never by its place in the list, so a post the page stopped linking
+ * cannot be read this way. */
+export const newsLinkTo = async (name: string): Promise<string> => {
   const browser = await openAsNewcomer("/news");
   const cards = browser.currentHtml.matchAll(
     /<a[^>]*href="(\/news\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g,
   );
-  // The link is found by the post's name, never by its place in the list.
-  const target = requiredWorldValue(
+  return requiredWorldValue(
     [...cards].find((card) => card[2]!.includes(name))?.[1],
     `the news page's link to "${name}"`,
   );
-  return newcomerReading(target);
 };
+
+/** Follow the post's own link off the news page. */
+export const visitorFollowsNewsLink = async (name: string): Promise<PageRead> =>
+  newcomerReading(await newsLinkTo(name));
 
 /** Whether a public page offers the News link in its navigation. */
 export const newsLinkOfferedOnFrontPage = async (): Promise<boolean> => {

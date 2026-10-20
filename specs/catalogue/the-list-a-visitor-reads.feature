@@ -56,6 +56,20 @@ Feature: The list a visitor reads
       And the list does not offer the Secret
       But a customer given the Secret link can still open it
 
+  @rule:catalogue.pictures-in-the-list-s-words-show-on-the-list
+  Rule: Pictures in the list's words show on the list
+    Something on sale can carry a picture the owner uploaded in its
+    description. A visitor looking at everything on sale sees the picture
+    itself, and never sees the reference that names it.
+
+    @case:visitor-list.description-picture
+    Scenario: A description on the list carries a picture
+      Given the public site is on
+      And the owner has uploaded a picture called "Festival"
+      And the site sells a FestivalEntry with the picture in its description
+      When a customer looks at everything on sale
+      Then the list shows the picture
+
   @rule:catalogue.a-group-is-offered-by-its-own-name
   Rule: A group is offered by its own name
     A group holding something bookable is offered under its own name, with
