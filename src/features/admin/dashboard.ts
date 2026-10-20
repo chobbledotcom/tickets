@@ -10,6 +10,7 @@ import {
   getAllActivityLog,
   logActivity,
 } from "#db/activity-log.ts";
+import { countAttendeesWithPendingFlags } from "#db/attendees/notification-flags.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getNewestAttendeesRaw } from "#db/attendees/queries.ts";
 import { getUpcomingServicingEvents } from "#db/attendees/servicing.ts";
@@ -131,10 +132,12 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       const activeListings = filter(
         (listing: ListingWithCount) => listing.active,
       )(sortedListings);
-      const [upcomingServicingEvents, attributeContext] = await Promise.all([
-        getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
-        loadListingAttributeFilterContext(request, activeListings),
-      ]);
+      const [upcomingServicingEvents, attributeContext, pendingNotifications] =
+        await Promise.all([
+          getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
+          loadListingAttributeFilterContext(request, activeListings),
+          countAttendeesWithPendingFlags(),
+        ]);
       return htmlResponse(
         adminDashboardPage(
           sortedListings,
@@ -151,6 +154,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           // The welcome steps are the owner's alone. Managers share the page
           // without them.
           session.adminLevel === "owner" && settings.welcomeEnabled,
+          pendingNotifications,
         ),
       );
     },

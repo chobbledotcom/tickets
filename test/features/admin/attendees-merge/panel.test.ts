@@ -18,6 +18,7 @@ import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
   bookTestAttendee,
   createTestAttendeeDirect,
+  setPendingNotificationFlags,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
@@ -103,6 +104,18 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         "Use source: John Smith",
         '<th scope="row">Name</th>',
       );
+    });
+
+    test("shows the source's owed sends beside the merge preview", async () => {
+      // The merge deletes the source attendee, so its pending badges show in
+      // the preview the same way the target's do.
+      const { target, source, sourceToken } = await mergePair();
+      await setPendingNotificationFlags(source.id, 1, 0);
+
+      const response = await mergeActionsPage(target.id, sourceToken);
+      const html = await response.text();
+      expect(html).toContain("Merge Preview");
+      expect(html).toContain("Email not sent");
     });
 
     test("the token search box focuses when idle and echoes the searched token", async () => {

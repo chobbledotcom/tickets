@@ -13,11 +13,14 @@ describe("AttendeeMergePanel", () => {
     address: "1 Source Street",
     bookings: [],
     email: "source@example.com",
+    email_owed: 0,
+    email_pending: 0,
     id: 77,
     name: "Source & Person",
     phone: "0123456789",
     special_instructions: "Source notes",
     ticket_token: "source&token",
+    webhooks_pending: 0,
   };
   const diff: AttendeeMergeDiff = {
     answerItems: [],

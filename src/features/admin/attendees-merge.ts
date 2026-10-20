@@ -54,26 +54,24 @@ const loadMergeTarget = async (
   return decryptAttendeeOrNull(raw, pk);
 };
 
+type MergeSourceLookup = ContactInfo &
+  Pick<Attendee, "email_owed" | "email_pending" | "webhooks_pending"> & {
+    id: number;
+    lat: string;
+    lng: string;
+    payment_id: string;
+    ticket_token: string;
+    bookings: ListingAttendeeRow[];
+  };
+
 /** Look up and decrypt a source attendee by ticket token */
 const loadMergeSource = async (
   token: string,
-): Promise<
-  | (ContactInfo & {
-      id: number;
-      lat: string;
-      lng: string;
-      payment_id: string;
-      ticket_token: string;
-      bookings: ListingAttendeeRow[];
-    })
-  | null
-> => {
+): Promise<MergeSourceLookup | null> => {
   const pk = await requireRequestPrivateKey();
   const results = await getAttendeesByTokens([token]);
   const raw = results[0];
   if (!raw) return null;
-  // Cast to Attendee for decryption — only pii_blob is used by decryptAttendees
-  // decryptAttendees always returns the same-length array — safe to index directly
   const decrypted = (
     await decryptAttendees([raw as unknown as Attendee], pk)
   )[0]!;
@@ -81,6 +79,8 @@ const loadMergeSource = async (
     address: decrypted.address,
     bookings: raw.bookings,
     email: decrypted.email,
+    email_owed: raw.email_owed,
+    email_pending: raw.email_pending,
     id: raw.id,
     lat: decrypted.lat,
     lng: decrypted.lng,
@@ -89,6 +89,7 @@ const loadMergeSource = async (
     phone: decrypted.phone,
     special_instructions: decrypted.special_instructions,
     ticket_token: decrypted.ticket_token,
+    webhooks_pending: raw.webhooks_pending,
   };
 };
 
@@ -109,7 +110,6 @@ const collectListingIds = (
 ): number[] =>
   unique([...targetBookings, ...sourceBookings].map((b) => b.listing_id));
 
-type MergeSource = NonNullable<Awaited<ReturnType<typeof loadMergeSource>>>;
 type MergeSummary = Awaited<ReturnType<typeof applyAttendeeMerge>>["summary"];
 
 /** The five values a merge compares, whichever attendee they are read off. */
@@ -129,7 +129,7 @@ const extractPii = (person: MergePii): MergePii => pick(person, PII_FIELDS);
 /** Build merge diff from source + target */
 const buildMergeDiffFor = async (
   target: Attendee,
-  source: MergeSource,
+  source: MergeSourceLookup,
   attendeeId: number,
 ): Promise<AttendeeMergeDiff> => {
   const targetBookings = await loadAttendeeBookings(attendeeId);
@@ -153,13 +153,13 @@ const buildMergeDiffFor = async (
 const updateTargetPiiFromDecision = async (
   attendeeId: number,
   decision: AttendeeMergeDecisionInput,
-  source: MergeSource,
+  source: MergeSourceLookup,
   target: Attendee,
   transaction: TxScope,
 ): Promise<void> => {
   // The (possibly-source) value of one PII field, read off the side the
   // operator's decision names.
-  const chosen = (field: keyof MergeSource & string): string => {
+  const chosen = (field: keyof MergeSourceLookup & string): string => {
     const decisionChoice = decision.pii[field];
     const sourceVal = source[field] as unknown as string;
     const targetVal = target[field as keyof Attendee] as unknown as string;
@@ -266,7 +266,7 @@ const validateMergePostInput = async (
   attendeeId: number,
   form: FormParams,
 ): Promise<
-  | { ok: true; source: MergeSource; sourceToken: string }
+  | { ok: true; source: MergeSourceLookup; sourceToken: string }
   | { ok: false; response: Response }
 > => {
   const actionsTab = `/admin/attendees/${attendeeId}/actions`;
@@ -303,7 +303,7 @@ const validateMergePostInput = async (
 const applyMergeDecisions = async (
   attendeeId: number,
   target: Attendee,
-  source: MergeSource,
+  source: MergeSourceLookup,
   diff: AttendeeMergeDiff,
   decision: AttendeeMergeDecisionInput,
 ): Promise<Response> => {

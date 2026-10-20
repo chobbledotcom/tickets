@@ -316,6 +316,8 @@
   "attendees.resend_refused_no_webhook": "This attendee has no webhook to send",
   "attendees.resend_sides_invalid": "That choice is not valid. Reload the page and try again",
   "attendees.resend_refused_refunded": "Cannot re-send a notification for a refunded purchase",
+  "attendees.badge.email_not_sent": "Email not sent",
+  "attendees.badge.webhooks_not_sent": "Webhooks not sent",
   "attendees.merge_source_required": "Source token is required",
   "attendees.merge_source_token_not_found": "Ticket token not found",
   "attendees.merge_self_refusal": "Cannot merge an attendee with themselves",

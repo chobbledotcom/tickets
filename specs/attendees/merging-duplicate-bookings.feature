@@ -87,3 +87,23 @@ Feature: An organiser merges two bookings for the same person
       Given the same person booked a free Reunion place twice, each booking holding a place inside a bundle and one on its own, the incoming booking holding 2 places and the opened one 1
       When the organiser merges them keeping the incoming bundle part
       Then the bundle part is the incoming one and the on-its-own booking is the one they opened
+  @rule:attendees.owed-sends-show-on-the-merge-screen
+  @surface:admin
+  Rule: The merge screen shows each booking's owed sends before the merge
+    Merging deletes the duplicate, so a send it still owes has to be seen
+    first. Each booking's notices sit beside its own section, and bookings
+    whose sends went out show none.
+
+    @case:merge.owed-sends-show-before-the-merge
+    Scenario: The organiser sees each booking's owed sends on the merge screen
+      Given the same person booked a free Gala place twice
+      And the booking they keep owes an email, and the duplicate owes a webhook
+      When the organiser looks at merging them
+      Then the kept booking's section says its email never went out
+      And the duplicate's section says its webhooks never went out
+
+    @case:merge.a-settled-pair-shows-no-unsent-notices
+    Scenario: A pair whose sends went out shows no unsent notices
+      Given the same person booked a free Reunion place twice
+      When the organiser looks at merging them
+      Then neither booking's section says a send never went out

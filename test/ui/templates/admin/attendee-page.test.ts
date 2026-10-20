@@ -1,14 +1,17 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
+import { PENDING_NOTIFICATION } from "#db/attendees/notification-flags.ts";
 import type { SystemNote } from "#db/notes/types.ts";
 import {
   attendeeBanner,
+  attendeeSummaryRows,
   ContactHistory,
 } from "#templates/admin/attendee-page.tsx";
 import { PaymentDetails } from "#templates/admin/attendees.tsx";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import type { Attendee } from "#types";
 
 const attendeeStatus = (
   overrides: Partial<AttendeeStatus> = {},
@@ -182,5 +185,72 @@ describe("attendee page blocks", () => {
     expect(html).toContain("Payment Details");
     expect(html).toContain(message);
     expect(html).not.toContain("/refresh-payment");
+  });
+});
+
+describe("attendee summary badges", () => {
+  /** The name row's rendered value: the pills sit beside the name. */
+  const nameRowHtml = (
+    flags: Partial<
+      Pick<Attendee, "email_owed" | "email_pending" | "webhooks_pending">
+    >,
+  ): string => {
+    const [nameRow] = attendeeSummaryRows({
+      allowedDomain: "tickets.example",
+      attendee: testAttendee(flags),
+      hasRealLine: true,
+      phonePrefix: "+44",
+    });
+    return String(nameRow?.value);
+  };
+
+  test("shows the email pill in red when the send never went out", () => {
+    const html = nameRowHtml({
+      email_owed: 1,
+      email_pending: PENDING_NOTIFICATION.online,
+      webhooks_pending: PENDING_NOTIFICATION.none,
+    });
+    expect(html).toContain("Email not sent");
+    expect(html).toContain("badge danger");
+    expect(html).not.toContain("Webhooks not sent");
+  });
+
+  test("shows the email pill in orange for a hand-added attendee", () => {
+    const html = nameRowHtml({
+      email_owed: 1,
+      email_pending: PENDING_NOTIFICATION.admin,
+      webhooks_pending: PENDING_NOTIFICATION.none,
+    });
+    expect(html).toContain("Email not sent");
+    expect(html).toContain("badge-warning");
+  });
+
+  test("shows the webhooks pill when the webhooks never went out", () => {
+    const html = nameRowHtml({
+      email_owed: 0,
+      email_pending: PENDING_NOTIFICATION.none,
+      webhooks_pending: PENDING_NOTIFICATION.online,
+    });
+    expect(html).toContain("Webhooks not sent");
+    expect(html).not.toContain("Email not sent");
+  });
+
+  test("drops the email pill when no booked listing collects email", () => {
+    const html = nameRowHtml({
+      email_owed: 0,
+      email_pending: PENDING_NOTIFICATION.online,
+      webhooks_pending: PENDING_NOTIFICATION.none,
+    });
+    expect(html).not.toContain("Email not sent");
+  });
+
+  test("carries no pill once every send got accepted", () => {
+    const html = nameRowHtml({
+      email_owed: 0,
+      email_pending: PENDING_NOTIFICATION.none,
+      webhooks_pending: PENDING_NOTIFICATION.none,
+    });
+    expect(html).not.toContain("Email not sent");
+    expect(html).not.toContain("Webhooks not sent");
   });
 });

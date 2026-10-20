@@ -12,6 +12,7 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { queryAll } from "#db/client.ts";
 import { setListingGroups } from "#db/groups.ts";
 import { handleRequest } from "#routes";
+import { attribute } from "#test/specs/support/form-controls/reading.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -27,6 +28,7 @@ import {
 import { postListingSale } from "#test-utils/ledger.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 
 // jscpd:ignore-end
 
@@ -40,20 +42,38 @@ interface MergePreview {
   version: string;
 }
 
-/** GET the merge preview for `targetId` loaded with `sourceToken`, returning the
- *  `merge_version` the apply POST must echo back AND the name of the conflicting
- *  booking's decision field (`booking_<listingId>:<startAt>`) scraped from the
- *  rendered form, so the test answers the exact conflict the operator is shown
- *  rather than guessing the key. Uses the stable owner cookie — the preview
- *  decrypts the source's PII, needing the session's private key. */
+/** GET the merge preview for `targetId` loaded with `sourceToken`. The
+ *  duplicate is chosen through the search form the Actions page really
+ *  renders: the form is read whole, its action and `token` control are what
+ *  a browser would use. The preview returns the `merge_version` the apply
+ *  POST must echo back AND the name of the conflicting booking's decision
+ *  field (`booking_<listingId>:<startAt>`) scraped from the rendered form, so
+ *  the test answers the exact conflict the operator is shown rather than
+ *  guessing the key. Uses the stable owner cookie — the preview decrypts the
+ *  source's PII, needing the session's private key. */
 const mergePreview = async (
   targetId: number,
   sourceToken: string,
 ): Promise<MergePreview> => {
+  const screen = await adminGet(`/admin/attendees/${targetId}/actions`);
+  expect(screen.status).toBe(200);
+  const searchHtml = await screen.text();
+  const search = [
+    ...searchHtml.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form>/g),
+  ].find(
+    ({ 1: attributes, 2: body }) =>
+      attributes!.includes('method="get"') &&
+      extractFormEntries(body!).some(([name]) => name === "token"),
+  );
+  if (!search) {
+    throw new Error("The merge screen offers no duplicate search form");
+  }
+  const action = attribute(search[1]!, "action");
+  if (!action) {
+    throw new Error("The duplicate search form goes nowhere");
+  }
   const page = await adminGet(
-    `/admin/attendees/${targetId}/actions?token=${encodeURIComponent(
-      sourceToken,
-    )}`,
+    `${action}?token=${encodeURIComponent(sourceToken)}`,
   );
   expect(page.status).toBe(200);
   const html = await page.text();
