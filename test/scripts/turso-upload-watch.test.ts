@@ -10,6 +10,7 @@ import {
   throwFrom,
   uploadCredentials,
   uploadThroughScript,
+  withinDeadline,
   withUploadServer,
 } from "./turso-upload-harness.ts";
 
@@ -18,28 +19,17 @@ describe("Turso upload watch", () => {
    * signal it plants, so the break surfaces as the request's own "error"
    * event. A teardown that breaks the socket instead leaves the runtime's
    * write task rejecting with a bare "resource closed" string — an uncaught
-   * error at an unknown location that failed hosted runs. The listener here
-   * only records: it never prevents the default, so a real escape still
-   * fails this file. */
+   * error at an unknown location that failed hosted runs. The recorder here
+   * prevents a rejection the watch missed and fails the test with its value,
+   * so the next escape names itself instead of cancelling the suite. */
   test("the teardown aborts an in-flight upload with no stray rejections", () =>
     withTempDir(async (dir) => {
       const path = `${dir}/database.sqlite`;
       await Deno.writeFile(path, new Uint8Array(32_000_000));
 
-      const stray: string[] = [];
-      const onRejection = (event: PromiseRejectionEvent) => {
-        // The watch's listener sits ahead of this one, so a rejection it
-        // eats arrives here already prevented. Anything still unprevented
-        // is a stray the watch missed, and a real escape still fails this
-        // file: this listener never prevents the default.
-        if (event.defaultPrevented) return;
-        const reason = event.reason;
-        stray.push(reason instanceof Error ? reason.message : String(reason));
-      };
-      globalThis.addEventListener("unhandledrejection", onRejection);
-      try {
-        for (let round = 0; round < 5; round += 1) {
-          await withUploadServer(earlyAnswerHandler, (dbUrl, transport) =>
+      const uploadRound = () =>
+        withUploadServer(earlyAnswerHandler, (dbUrl, transport) =>
+          withinDeadline(
             expect(
               uploadTursoDatabaseFile(
                 path,
@@ -48,7 +38,42 @@ describe("Turso upload watch", () => {
                 transport,
               ),
             ).rejects.toThrow("error writing a body to connection"),
-          );
+            "the upload",
+          ),
+        );
+
+      // The watch registers on the first upload, and its listener must sit
+      // ahead of the recorder: a rejection it eats then arrives already
+      // prevented. One round installs it before recording starts.
+      await uploadRound();
+
+      const stray: string[] = [];
+      const record = (reason: unknown): void => {
+        stray.push(
+          reason instanceof Error
+            ? `${reason.name}: ${reason.message}\n${reason.stack ?? "(no stack)"}`
+            : `${typeof reason}: ${String(reason)}`,
+        );
+      };
+      const onRejection = (event: PromiseRejectionEvent) => {
+        // Skip what the watch already ate; record what it missed, then let
+        // the assertion below fail with the value.
+        if (event.defaultPrevented) return;
+        event.preventDefault();
+        record(event.reason);
+      };
+      // The hosted runs report an "uncaught error" with no TAP diagnostic,
+      // so a missed rejection and a thrown task look the same there. Record
+      // both channels; a real failure still fails the test below.
+      const onError = (event: ErrorEvent) => {
+        event.preventDefault();
+        record(event.error ?? event.message);
+      };
+      globalThis.addEventListener("unhandledrejection", onRejection);
+      globalThis.addEventListener("error", onError);
+      try {
+        for (let round = 0; round < 5; round += 1) {
+          await uploadRound();
         }
         // One macrotask turn lets a rejection from the teardown's abort land
         // while the listener still records it. The runtime dispatches
@@ -59,6 +84,7 @@ describe("Turso upload watch", () => {
         await promise;
       } finally {
         globalThis.removeEventListener("unhandledrejection", onRejection);
+        globalThis.removeEventListener("error", onError);
       }
       expect(stray).toEqual([]);
     }));

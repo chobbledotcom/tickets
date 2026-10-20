@@ -27,6 +27,36 @@ export const uploadCredentials = (dbUrl: string) => ({
   dbUrl,
 });
 
+/** How long a wedged upload or a stuck server shutdown may hold a suite
+ * open. A genuine 32 MB loopback upload settles in well under a second. */
+export const UPLOAD_DEADLINE_MS = 30_000;
+
+/** Reject with a named failure when `work` has not settled in time. The
+ * upload can wedge: the request never emits "error" or "close", so the
+ * promise never settles and the server's shutdown then waits on the open
+ * connection forever (issue #2556). Without this bound the whole hosted
+ * job hangs until the runner's timeout, and nothing names the cause. A real
+ * timer: the wedge is the platform's own scheduling of the socket close and
+ * the polyfill's write task. */
+export const withinDeadline = <T>(
+  work: Promise<T>,
+  label: string,
+): Promise<T> => {
+  const deadline = Promise.withResolvers<T>();
+  const timer = setTimeout(
+    () =>
+      deadline.reject(
+        new Error(
+          `${label} did not settle within ${UPLOAD_DEADLINE_MS}ms; the upload wedged (issue #2556).`,
+        ),
+      ),
+    UPLOAD_DEADLINE_MS,
+  );
+  return Promise.race([work, deadline.promise]).finally(() =>
+    clearTimeout(timer),
+  );
+};
+
 /** Run the upload against a local server, then abort every request it left
  * streaming and shut the server down. A server that answers before reading
  * the body leaves the client still streaming after the upload has settled.
@@ -34,7 +64,9 @@ export const uploadCredentials = (dbUrl: string) => ({
  * "error" event, which the upload's handler consumes. A socket-level destroy
  * instead races the polyfill's write task, which rejects with a bare
  * "resource closed" string no watch may eat — the uncaught error that failed
- * hosted runs at an unknown location. */
+ * hosted runs at an unknown location. The shutdown is bounded: a wedged
+ * request leaves the connection open, and a graceful shutdown would wait on
+ * it forever, so the wedge fails the test instead of hanging the job. */
 export const withUploadServer = async (
   handler: (request: Request) => Response | Promise<Response>,
   run: (dbUrl: string, transport: DatabaseUploadTransport) => Promise<void>,
@@ -65,8 +97,7 @@ export const withUploadServer = async (
     await run(`https://127.0.0.1:${address.port}`, transport);
   } finally {
     for (const controller of controllers) controller.abort();
-    await server.shutdown();
-    await server.finished;
+    await withinDeadline(server.shutdown(), "the upload server shutdown");
   }
 };
 
@@ -101,14 +132,17 @@ export const expectUploadRejection = (
   match: string | RegExp,
 ): Promise<void> =>
   withUploadServer(handler, (dbUrl, transport) =>
-    expect(
-      uploadTursoDatabaseFile(
-        path,
-        uploadCredentials(dbUrl),
-        undefined,
-        transport,
-      ),
-    ).rejects.toThrow(match),
+    withinDeadline(
+      expect(
+        uploadTursoDatabaseFile(
+          path,
+          uploadCredentials(dbUrl),
+          undefined,
+          transport,
+        ),
+      ).rejects.toThrow(match),
+      "the upload",
+    ),
   );
 
 /** A request stub that swallows the piped file bytes. */
