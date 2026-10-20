@@ -408,6 +408,13 @@ describe("Turso migration file", () => {
       // the one this watch exists for.
       expect(prevented(defect())).toBe(true);
       expect(prevented(new TypeError("some other failure"))).toBe(false);
+      // The same polyfill write task rejects with a bare "resource closed"
+      // string when the connection is torn down mid-write instead of
+      // answering. It is not an Error instance, and three hosted runs died
+      // on it; the watch eats it and nothing else new.
+      expect(prevented("resource closed")).toBe(true);
+      expect(prevented(new TypeError("some other failure"))).toBe(false);
+      expect(prevented("upload database failed")).toBe(false);
     }));
 
   test("rejects an interrupted upload before opening the snapshot", () =>

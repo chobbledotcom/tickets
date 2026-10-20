@@ -117,19 +117,27 @@ const readResponse = (
 const POLYFILL_BODY_STREAM_ERROR =
   "Failed to fetch: request body stream errored";
 
+/** The bare string the same polyfill write task rejects with when the
+ * connection is torn down mid-write instead of answering — an abort or a
+ * socket close leaves this exact value, never an Error instance. It escaped
+ * as an uncaught rejection and cancelled three hosted runs. */
+const POLYFILL_RESOURCE_CLOSED = "resource closed";
+
 /**
- * Ignore node:http's duplicate rejection, from the first upload onwards.
+ * Ignore node:http's duplicate rejections, from the first upload onwards.
  *
  * Nothing says when the internal task that broke the write will surface its
  * rejection, so the watch cannot be narrow about *when*. It is narrow about
- * *what* instead: this exact message is built by the polyfill's own internals
- * and no code of ours can produce it, so a real failure never reaches here.
+ * *what* instead: both values are built by the polyfill's own internals and
+ * no code of ours can produce them, so a real failure never reaches here.
  */
 const watchPolyfillBodyStreamDefect = once(() => {
   globalThis.addEventListener("unhandledrejection", (event) => {
+    const reason = event.reason;
     if (
-      event.reason instanceof TypeError &&
-      event.reason.message === POLYFILL_BODY_STREAM_ERROR
+      (reason instanceof TypeError &&
+        reason.message === POLYFILL_BODY_STREAM_ERROR) ||
+      reason === POLYFILL_RESOURCE_CLOSED
     ) {
       event.preventDefault();
     }
