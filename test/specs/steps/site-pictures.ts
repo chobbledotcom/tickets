@@ -18,6 +18,10 @@ import {
   listingNamed,
   putsPlainThingOnSale,
 } from "#test/specs/support/listings.ts";
+import {
+  imageNamed,
+  ownerHasImageInLibrary,
+} from "#test/specs/support/images.ts";
 import { newsLinkTo, ownerPostsNews } from "#test/specs/support/news.ts";
 import { openBookingPage } from "#test/specs/support/public-booking.ts";
 import {
@@ -28,7 +32,6 @@ import {
   footerHtml,
   sitePictureTag,
   textWithSitePicture,
-  uploadsSitePicture,
 } from "#test/specs/support/site-pictures.ts";
 import { openTicket } from "#test/specs/support/tickets.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
@@ -65,7 +68,9 @@ const footerShowsPicture = async (
 Given(
   "the owner has uploaded a picture called {string}",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    await uploadsSitePicture(this, name);
+    await ownerHasImageInLibrary(this, name);
+    const image = await imageNamed(name);
+    this.siteImage = { alt: name, filename: image.filename, id: image.id };
   },
 );
 
