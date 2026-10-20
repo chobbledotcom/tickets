@@ -376,10 +376,10 @@ describe("Turso migration file", () => {
       expect(stray).toEqual([]);
     }));
 
-  // The rejection surfaces whenever the polyfill's own internal task ends, so
+  // The rejection surfaces whenever the runtime's own internal task ends, so
   // the watch cannot be timed to the upload — it stays up once an upload has
-  // run, and earns that by only ever ignoring this one message.
-  test("ignores the duplicate body-stream rejection and nothing else", () =>
+  // run, and earns that by only ever ignoring runtime-internal values.
+  test("ignores runtime-internal rejections and nothing else", () =>
     withTempDir(async (dir) => {
       const prevented = (reason: unknown): boolean => {
         const event = new PromiseRejectionEvent("unhandledrejection", {
@@ -424,8 +424,8 @@ describe("Turso migration file", () => {
       // The polyfill's own catch crashes when an op rejects with a value
       // that carries no message, and the secondary error it throws from
       // inside its internals escapes with a foreign message. Its first
-      // stack frame names node:http; an error our code builds names one of
-      // our own files first, and the watch leaves that alone.
+      // stack frame names the runtime internals; an error our code builds
+      // names one of our own files first, and the watch leaves that alone.
       expect(
         prevented(
           throwFrom(
@@ -434,7 +434,27 @@ describe("Turso migration file", () => {
           ),
         ),
       ).toBe(true);
-      // An application frame first with a polyfill frame after it: the
+      // The upload runs under a Deno.serve server, whose own HTTP task can
+      // reject the same way when the teardown closes the connection. Its
+      // frames sit in ext:deno_http, not the node polyfill's modules, so
+      // every runtime-internal origin must count as the same defect.
+      expect(
+        prevented(
+          throwFrom(
+            "connection closed before message completed",
+            "at ext:deno_http/01_http.js:482:11",
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        prevented(
+          throwFrom(
+            "Cannot read properties of undefined (reading 'includes')",
+            "at async ext:core/01_core.js:334:12",
+          ),
+        ),
+      ).toBe(true);
+      // An application frame first with an internal frame after it: the
       // origin sits at the first frame, so the watch leaves it alone.
       expect(
         prevented(
@@ -442,6 +462,15 @@ describe("Turso migration file", () => {
             "Upload database failed (400): invalid",
             "at file:///scripts/turso-migration-file.ts:208:5",
             "at node:http:571:12",
+          ),
+        ),
+      ).toBe(false);
+      expect(
+        prevented(
+          throwFrom(
+            "Upload database failed (400): invalid",
+            "at file:///scripts/turso-migration-file.ts:208:5",
+            "at ext:deno_http/01_http.js:482:11",
           ),
         ),
       ).toBe(false);

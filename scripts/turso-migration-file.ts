@@ -123,28 +123,33 @@ const POLYFILL_BODY_STREAM_ERROR =
  * as an uncaught rejection and cancelled three hosted runs. */
 const POLYFILL_RESOURCE_CLOSED = "resource closed";
 
-/** The first stack frame of an error the polyfill's own async task throws
- * from inside its internals. Our code never throws from there: a rejection
- * our code creates names one of our own files first, and a polyfill frame
- * deeper in a stack cannot move the origin. */
-const POLYFILL_INTERNAL_FRAME = /^at (?:async )?(?:node:|ext:deno_node)/;
+/** The first stack frame of an error the runtime itself throws from inside
+ * its internals. The upload breaks connections under a running Deno.serve
+ * server, so both sides can reject an internal task nobody awaits: the
+ * node:http client polyfill (`node:`, `ext:deno_node`) and the server's own
+ * HTTP and ops internals (`ext:deno_http`, `ext:core`, and the rest of
+ * `ext:`). Our code never throws from any of those: a rejection our code
+ * creates names one of our own files first, and an internal frame deeper in
+ * a stack cannot move the origin. */
+const RUNTIME_INTERNAL_FRAME = /^at (?:async )?(?:node:|deno:|ext:)/;
 
-const firstStackFrameIsPolyfillInternal = (stack: string): boolean => {
+const firstStackFrameIsRuntimeInternal = (stack: string): boolean => {
   const frame = stack
     .split("\n")
     .find((line) => line.trimStart().startsWith("at "));
-  return frame !== undefined && POLYFILL_INTERNAL_FRAME.test(frame.trimStart());
+  return frame !== undefined && RUNTIME_INTERNAL_FRAME.test(frame.trimStart());
 };
 
-/** Whether an unhandled rejection is one of the polyfill's own defect
- * values. Two carry fixed shapes: the wrapped body-stream TypeError and the
- * bare "resource closed" string. The polyfill's catch can also crash on an
- * op rejection that carries no message — it reads `.message.includes` off a
- * value that has none — and the secondary error it throws then escapes with
- * a foreign message, so the origin on the stack is the only honest test
- * left. A real failure our code rejects never reaches here: our promises
- * are awaited, and an error we build names our own files first. */
-const isPolyfillBodyStreamDefect = (reason: unknown): boolean => {
+/** Whether an unhandled rejection is one of the runtime's own defect values
+ * from an unawaited internal task. Two carry fixed shapes: the wrapped
+ * body-stream TypeError and the bare "resource closed" string. The
+ * polyfill's catch can also crash on an op rejection that carries no
+ * message — it reads `.message.includes` off a value that has none — and
+ * the secondary error it throws then escapes with a foreign message, so the
+ * origin on the stack is the only honest test left. A real failure our code
+ * rejects never reaches here: our promises are awaited, and an error we
+ * build names our own files first. */
+const isRuntimeInternalRejection = (reason: unknown): boolean => {
   if (reason === POLYFILL_RESOURCE_CLOSED) return true;
   if (!(reason instanceof Error)) return false;
   if (
@@ -153,21 +158,21 @@ const isPolyfillBodyStreamDefect = (reason: unknown): boolean => {
   ) {
     return true;
   }
-  return firstStackFrameIsPolyfillInternal(reason.stack ?? "");
+  return firstStackFrameIsRuntimeInternal(reason.stack ?? "");
 };
 
 /**
- * Ignore node:http's duplicate rejections, from the first upload onwards.
+ * Ignore the runtime's duplicate rejections, from the first upload onwards.
  *
- * Nothing says when the internal task that broke the write will surface its
- * rejection, so the watch cannot be narrow about *when*. It is narrow about
- * *what* instead: every value it eats is built by the polyfill's own
- * internals and no code of ours can produce one, so a real failure never
- * reaches here.
+ * Nothing says when the internal task that broke the write or the connection
+ * will surface its rejection, so the watch cannot be narrow about *when*. It
+ * is narrow about *what* instead: every value it eats is built by the
+ * runtime's own internals and no code of ours can produce one, so a real
+ * failure never reaches here.
  */
-const watchPolyfillBodyStreamDefect = once(() => {
+const watchRuntimeInternalRejections = once(() => {
   globalThis.addEventListener("unhandledrejection", (event) => {
-    if (isPolyfillBodyStreamDefect(event.reason)) {
+    if (isRuntimeInternalRejection(event.reason)) {
       event.preventDefault();
     }
   });
@@ -181,7 +186,7 @@ const sendDatabaseFile = async (
   signal?: AbortSignal,
   transport: DatabaseUploadTransport = secureUploadTransport,
 ): Promise<UploadResponse> => {
-  watchPolyfillBodyStreamDefect();
+  watchRuntimeInternalRejections();
   const response = Promise.withResolvers<UploadResponse>();
   const options: RequestOptions = {
     headers: {
