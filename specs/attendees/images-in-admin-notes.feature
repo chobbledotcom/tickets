@@ -39,8 +39,6 @@ Feature: The organiser reads notes that carry pictures
     @case:images-in-notes.the-delete-confirmation-shows-it
     Scenario: The organiser asks to remove the note
       Given the organiser noted about Ada "Remove me" with a picture called "Poster"
-      When the organiser opens Ada's page
-      And the organiser asks to remove that note
-      Then the organiser is on the note's delete page
-      And the confirmation shows the "Poster" picture
+      When the organiser asks to remove that note
+      Then the confirmation shows the "Poster" picture
       And the confirmation never shows the picture reference

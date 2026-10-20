@@ -8,16 +8,21 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
+import { hashEmail, saveContactRecord } from "#db/contact-preferences.ts";
 import { getNoteRows } from "#db/notes/queries.ts";
-import {
-  type NoteImage,
-  requiredWorldValue,
-  type TicketsWorld,
+import { t } from "#i18n";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { openRecord, recordFor } from "#test/specs/support/contact-records.ts";
+import type {
+  NoteAPictureAboutOnePerson,
+  NoteImage,
+  TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -31,8 +36,10 @@ export const NOTE_LISTING = "Fayre";
 /** The picture a story named, or a loud failure when none was seeded. */
 const noteImage = (
   world: TicketsWorld,
-): { alt: string; filename: string; id: number; noteText: string } =>
-  requiredWorldValue(world.noteImage, "the picture a story named");
+): { alt: string; filename: string; id: number; noteText: string } => {
+  expect(world.noteImage).toBeDefined();
+  return world.noteImage!;
+};
 
 /** The picture, exactly as the site writes it: its own address in place of
  * the reference. */
@@ -65,6 +72,16 @@ const regionFrom = (html: string, openMarker: string, tag: string): string => {
   return "";
 };
 
+/** Hold one rendered region to the picture: its tag shows, and no img#
+ * reference stays. The tag comes from the caller, so the note-picture checks
+ * and the page-wide check share one assertion. */
+const showsPicture =
+  (tag: (world: TicketsWorld) => string) =>
+  (region: string, world: TicketsWorld): void => {
+    expect(region).toContain(tag(world));
+    expect(region).not.toContain("img#");
+  };
+
 /** Hold one page region to its own copy of the picture. A match anywhere else
  * on the page never satisfies this. */
 export const regionShowsPicture = (
@@ -75,14 +92,17 @@ export const regionShowsPicture = (
 ): void => {
   const region = regionFrom(html, openMarker, tag);
   expect(region).not.toBe("");
-  expect(region).toContain(pictureTag(world));
-  expect(region).not.toContain("img#");
+  showsPicture(pictureTag)(region, world);
 };
 
+/** Hold the page as a whole to the picture: it shows at its own address, and
+ * no reference stays anywhere on the page. */
+export const pageShowsPicture = showsPicture(pictureTag);
+
 /** The picture the story named, uploaded now. The world keeps it as the
- * picture the story's reference points at. The caller writes the words that
+ * picture the story's reference points at; the caller writes the words that
  * name it. */
-const uploadsAPicture = async (
+export const uploadsAPicture = async (
   world: TicketsWorld,
   name: string,
 ): Promise<NoteImage> => {
@@ -99,7 +119,7 @@ const uploadsAPicture = async (
 
 /** Someone booked onto the note listing under their own email, with a
  * picture uploaded and the note typed around the picture's reference. The
- * world remembers the person and the picture. The caller writes the note
+ * world remembers the person and the picture; the caller writes the note
  * where their story does. */
 const typedNoteWithPicture = async (
   world: TicketsWorld,
@@ -123,7 +143,7 @@ const typedNoteWithPicture = async (
 
 /** The organiser booked someone onto the note listing and wrote a note that
  * names the picture. The note goes in through the real note form, so the row
- * the site keeps is the row a browser makes. */
+ * the site keeps is the one a browser would have made. */
 export const notedAboutWithPicture = async (
   world: TicketsWorld,
   who: string,
@@ -140,6 +160,63 @@ export const notedAboutWithPicture = async (
   const [row] = await getNoteRows("attendee", [attendeeId]);
   world.noteImage = { ...picture, noteId: row!.id, noteText: typed };
 };
+
+/** The site keeps a private note about someone, with a picture named in it,
+ * and that someone is booked with the email the record is filed under. */
+export const recordNoteWithPicture: NoteAPictureAboutOnePerson = async (
+  world,
+  who,
+  name,
+) => {
+  const { picture, typed } = await typedNoteWithPicture(
+    world,
+    who,
+    name,
+    "Called first.",
+  );
+  await saveContactRecord(await hashEmail(emailFor(who)), {
+    adminBookingCount: 0,
+    adminNotes: typed,
+    contactCount: 0,
+    lastContact: "",
+    lastSubject: "",
+    publicBookingCount: 0,
+    visits: 0,
+  });
+  world.noteImage = { ...picture, noteText: typed };
+};
+
+/** Someone's record, opened through the same one-way code the record page
+ * files them under. */
+export const openRecordFor = (
+  world: TicketsWorld,
+  who: string,
+): Promise<TestBrowser> => openRecord(world, emailFor(who));
+
+/** The organiser saves someone's record with a note past the length limit,
+ * with the picture named in it. The site re-renders the editor in place, so
+ * the page they are left reading carries the refusal and the note they sent. */
+export const saveRecordWithOverLongNote = async (
+  world: TicketsWorld,
+  who: string,
+): Promise<TestBrowser> => {
+  const image = noteImage(world);
+  const overLong = `Still here. ![${image.alt}](img#${image.id}) ${"x".repeat(MAX_TEXTAREA_LENGTH)}`;
+  const browser = await openRecordFor(world, who);
+  await browser.submitForm(
+    { admin_notes: overLong, public_booking_count: "0" },
+    "Save record",
+  );
+  return browser;
+};
+
+/** The words the site shows when a note arrives past the length limit. */
+export const noteTooLongMessage = (): string =>
+  t("contact_history.note_too_long", { max: MAX_TEXTAREA_LENGTH });
+
+/** The note the site kept about them, read back for the unchanged check. */
+export const noteKeptAbout = async (who: string): Promise<string> =>
+  (await recordFor(emailFor(who))).adminNotes;
 
 /** The note page's own address for the note a story wrote. */
 export const noteDeletePath = (world: TicketsWorld): string => {

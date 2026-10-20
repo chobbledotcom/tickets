@@ -84,3 +84,28 @@ Feature: An owner decides what buyers are asked
       When the owner takes the question away, typing "Collection day?"
       Then the owner is told the question is deleted
       And a visitor booking the Pottery is not asked "Collection day?"
+
+  @rule:catalogue.a-picture-in-a-question-shows-where-it-is-answered
+  @surface:admin
+  Rule: A picture in a question shows wherever the organiser answers it
+    The booking's own form shows the question with its picture beside the
+    answer box, and the picture stays when the site refuses the save.
+
+    @case:buyer-questions.the-edit-form-shows-the-picture
+    Scenario: The organiser edits a booking for a listing that asks with a picture
+      Given the site sells a Pottery
+      And the owner asks Pottery buyers a question with a picture called "SizePoster" in it
+      And the organiser booked Bo onto the Pottery
+      When the organiser opens the edit page for Bo's booking
+      Then the question shows the "SizePoster" picture
+      And the answer control can still be used
+
+    @case:buyer-questions.a-refused-edit-still-shows-the-picture
+    Scenario: The organiser sends the form without a name
+      Given a Cabin that is booked 1 day at a time, with room for 1 place a day
+      And the owner asks Cabin buyers a question with a picture called "SizePoster" in it
+      And the organiser booked Bo onto the Cabin starting today
+      When the organiser opens the edit page for Bo's booking
+      And the organiser sends the form without a name
+      Then the organiser is told to enter a name
+      And the question still shows the "SizePoster" picture
