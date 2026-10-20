@@ -16,6 +16,7 @@ import {
   earlyAnswerHandler,
   expectUploadRejection,
   fakeRequest,
+  scriptedTransport,
   uploadCredentials,
   uploadThroughScript,
   withUploadServer,
@@ -186,9 +187,12 @@ describe("Turso migration file", () => {
    * unhandled one. One read keeps the socket alive until the answer is on the
    * wire, and the padded body gives the client more to read while the write
    * breaks. That order makes the internal task fail on every run: with the
-   * watch removed, this case ends the run the way issue #2314 reports. The
-   * answer never finishes before the connection is gone, so the upload
-   * reports the broken write. */
+   * watch removed, this case ends the run the way issue #2314 reports.
+   *
+   * The write break is not reported on every run; the polyfill sometimes
+   * swallows it, so the upload settles through its deadline instead (issue
+   * #2556). Both endings are normal rejections, which is what this test
+   * pins. */
   test("survives a server that answers before the body is sent", () =>
     withTempDir(async (dir) => {
       const path = join(dir, "database.sqlite");
@@ -198,8 +202,47 @@ describe("Turso migration file", () => {
       await expectUploadRejection(
         path,
         earlyAnswerHandler,
-        "error writing a body to connection",
+        /error writing a body to connection|Upload aborted/,
       );
+    }));
+
+  /** The polyfill can leave the upload pending with no event at all (issue
+   * #2556). The caller's signal is the way out: the upload settles with the
+   * reason it carried, so an operator sees what stopped it. */
+  test("settles as aborted when the caller interrupts a stalled upload", () =>
+    withTempDir(async (dir) => {
+      const path = join(dir, "database.sqlite");
+      await Deno.writeTextFile(path, "sqlite bytes");
+      const controller = new AbortController();
+      const started = Promise.withResolvers<void>();
+      const upload = uploadTursoDatabaseFile(
+        path,
+        TEST_TURSO_CREDENTIALS,
+        controller.signal,
+        scriptedTransport(fakeRequest(), () => started.resolve()),
+      );
+      await started.promise;
+      controller.abort(new Error("stop now"));
+
+      await expect(upload).rejects.toThrow("Upload aborted: stop now");
+    }));
+
+  test("names a non-Error abort reason in the interruption error", () =>
+    withTempDir(async (dir) => {
+      const path = join(dir, "database.sqlite");
+      await Deno.writeTextFile(path, "sqlite bytes");
+      const controller = new AbortController();
+      const started = Promise.withResolvers<void>();
+      const upload = uploadTursoDatabaseFile(
+        path,
+        TEST_TURSO_CREDENTIALS,
+        controller.signal,
+        scriptedTransport(fakeRequest(), () => started.resolve()),
+      );
+      await started.promise;
+      controller.abort("stop now");
+
+      await expect(upload).rejects.toThrow("Upload aborted: stop now");
     }));
 
   test("rejects an interrupted upload before opening the snapshot", () =>

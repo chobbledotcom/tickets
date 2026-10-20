@@ -7,6 +7,7 @@ import { withTempDir } from "#test-utils/files.ts";
 import {
   earlyAnswerHandler,
   fakeRequest,
+  TEST_UPLOAD_SIGNAL_MS,
   throwFrom,
   uploadCredentials,
   uploadThroughScript,
@@ -34,10 +35,12 @@ describe("Turso upload watch", () => {
               uploadTursoDatabaseFile(
                 path,
                 uploadCredentials(dbUrl),
-                undefined,
+                AbortSignal.timeout(TEST_UPLOAD_SIGNAL_MS),
                 transport,
               ),
-            ).rejects.toThrow("error writing a body to connection"),
+            ).rejects.toThrow(
+              /error writing a body to connection|Upload aborted/,
+            ),
             "the upload",
           ),
         );

@@ -178,52 +178,77 @@ const watchRuntimeInternalRejections = once(() => {
   });
 });
 
+/** The node:http client can swallow the break of an upload's write: the
+ * request then never emits "error" or "close", and the server's answer never
+ * ends, so the upload waits forever (issue #2556). This deadline makes it
+ * settle with an error instead. Ten minutes covers a large snapshot over a
+ * slow link. */
+const UPLOAD_DEADLINE_MS = 10 * 60_000;
+
+/** The error an interrupted or overdue upload rejects with. */
+const abortReason = (signal: AbortSignal): Error => {
+  const reason = signal.reason;
+  return new Error(
+    `Upload aborted: ${reason instanceof Error ? reason.message : String(reason)}`,
+  );
+};
+
 const sendDatabaseFile = async (
   url: URL,
   path: string,
   token: string,
   size: number,
-  signal?: AbortSignal,
+  signal: AbortSignal,
   transport: DatabaseUploadTransport = secureUploadTransport,
 ): Promise<UploadResponse> => {
   watchRuntimeInternalRejections();
   const response = Promise.withResolvers<UploadResponse>();
-  const options: RequestOptions = {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Connection: "close",
-      "Content-Length": String(size),
-    },
-    method: "POST",
-  };
-  if (signal !== undefined) options.signal = signal;
-  let responded = false;
-  const request = transport.request(url, options, (incoming) => {
-    responded = true;
-    readResponse(incoming, response.resolve, response.reject);
-  });
+  // A write the polyfill swallowed leaves this promise pending forever, so
+  // the caller's signal and the deadline are the only ways it can settle.
+  const abort = () => response.reject(abortReason(signal));
+  signal.addEventListener("abort", abort, { once: true });
   const file = createReadStream(path);
   const fileClosed = Promise.withResolvers<void>();
   file.once("close", fileClosed.resolve);
-  // A request can raise "error" more than once — the write breaking, and then
-  // the file stopping because of it, which destroys the request with an error
-  // of its own. node throws an "error" nothing is listening for, from a place
-  // no caller can catch, so this listener stays on for the request's whole life.
-  request.on("error", (error) => {
-    // Stop the file quietly: destroying it *with* the error would re-raise it
-    // as a file error and hide the server's answer below.
-    file.destroy();
-    // The server can answer (e.g. reject the upload) before the whole body is
-    // sent; the write then fails, but the server's answer is the real outcome,
-    // so only a write error with no response in flight rejects here.
-    if (!responded) response.reject(error);
-  });
-  file.once("error", request.destroy.bind(request));
-  file.once("error", response.reject);
-  file.pipe(request);
   try {
+    // A signal can abort between the caller's own check and the listener
+    // above, and an already-aborted signal never fires it.
+    if (signal.aborted) throw abortReason(signal);
+    const options: RequestOptions = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Connection: "close",
+        "Content-Length": String(size),
+      },
+      method: "POST",
+      signal,
+    };
+    let responded = false;
+    const request = transport.request(url, options, (incoming) => {
+      responded = true;
+      readResponse(incoming, response.resolve, response.reject);
+    });
+    // A request can raise "error" more than once — the write breaking, and
+    // then the file stopping because of it, which destroys the request with an
+    // error of its own. node throws an "error" nothing is listening for, from
+    // a place no caller can catch, so this listener stays on for the request's
+    // whole life.
+    request.on("error", (error) => {
+      // Stop the file quietly: destroying it *with* the error would re-raise
+      // it as a file error and hide the server's answer below.
+      file.destroy();
+      // The server can answer (e.g. reject the upload) before the whole body
+      // is sent; the write then fails, but the server's answer is the real
+      // outcome, so only a write error with no response in flight rejects
+      // here.
+      if (!responded) response.reject(error);
+    });
+    file.once("error", request.destroy.bind(request));
+    file.once("error", response.reject);
+    file.pipe(request);
     return await response.promise;
   } finally {
+    signal.removeEventListener("abort", abort);
     file.destroy();
     await fileClosed.promise;
   }
@@ -238,13 +263,13 @@ export const uploadTursoDatabaseFile = async (
 ): Promise<void> => {
   const info = await Deno.stat(path);
   if (!info.isFile) throw new Error(`Database snapshot is not a file: ${path}`);
-  signal?.throwIfAborted();
+  const deadline = AbortSignal.timeout(UPLOAD_DEADLINE_MS);
   const response = await sendDatabaseFile(
     databaseUploadUrl(credentials.dbUrl),
     path,
     credentials.dbToken,
     info.size,
-    signal,
+    signal === undefined ? deadline : AbortSignal.any([signal, deadline]),
     transport,
   );
   if (!response.ok) {

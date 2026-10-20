@@ -31,6 +31,11 @@ export const uploadCredentials = (dbUrl: string) => ({
  * open. A genuine 32 MB loopback upload settles in well under a second. */
 export const UPLOAD_DEADLINE_MS = 30_000;
 
+/** The caller's own deadline for one upload round. Shorter than
+ * {@link UPLOAD_DEADLINE_MS} so a wedged upload settles through the
+ * product's abort path, and the failure names that outcome. */
+export const TEST_UPLOAD_SIGNAL_MS = 10_000;
+
 /** Reject with a named failure when `work` has not settled in time. The
  * upload can wedge: the request never emits "error" or "close", so the
  * promise never settles and the server's shutdown then waits on the open
@@ -137,7 +142,7 @@ export const expectUploadRejection = (
         uploadTursoDatabaseFile(
           path,
           uploadCredentials(dbUrl),
-          undefined,
+          AbortSignal.timeout(TEST_UPLOAD_SIGNAL_MS),
           transport,
         ),
       ).rejects.toThrow(match),
