@@ -136,6 +136,35 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     }
   });
 
+  test("the footer's img#N reference resolves on the not-found pages too", async () => {
+    await enablePublicSite();
+    const image = await makeImage("FooterNotFound");
+    await settings.update.siteFooter(
+      `See you there.![FooterNotFound](img#${image.id})`,
+    );
+    // Every 404 renders the site footer, so each not-found surface resolves
+    // the footer's images exactly like the rendered pages do: a missing
+    // ticket, a missing site page, an empty news list, empty terms, and the
+    // contact page with neither text nor a form.
+    await settings.update.terms("");
+    await settings.update.contactPageText("");
+    await settings.update.contactFormEnabled(false);
+    for (const path of [
+      "/t/not-a-real-token",
+      "/page/no-such-page",
+      "/news",
+      "/terms",
+      "/contact",
+    ]) {
+      const html = await expectHtmlResponse(
+        await handleRequest(mockRequest(path)),
+        404,
+        `<img src="/image/${image.filename}" alt="FooterNotFound">`,
+      );
+      expect(html).not.toContain("img#");
+    }
+  });
+
   test("a page render runs the footer's images lookup through the recorder", async () => {
     await enablePublicSite();
     const image = await makeImage("FooterQuery");
@@ -156,6 +185,13 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     );
     using _failedImages = failImageReads();
     await assertPublicHtml("/", "Thanks.", '<img src="" alt="FooterFallback">');
+    // The not-found page runs the same guarded lookup, so a failed read
+    // leaves its footer intact too.
+    await expectHtmlResponse(
+      await handleRequest(mockRequest("/page/no-such-page")),
+      404,
+      '<img src="" alt="FooterFallback">',
+    );
   });
 
   test("requests that never render the footer run no images lookup", async () => {
