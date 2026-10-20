@@ -15,6 +15,7 @@ import {
 } from "#test/specs/support/world.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { TEST_STORAGE_ZONE } from "#test-utils/internal.ts";
+import type { Image } from "#types";
 
 /** The route the editor's image dropdown loads the owner's choices from. */
 export const IMAGE_OPTIONS = "/admin/images/options";
@@ -52,11 +53,15 @@ export const ownerHasNoImagesInLibrary = async (
 /** The image the library filed under one name, or a loud failure when it
  * holds no such image — a story that carried on would reference the wrong
  * image, or none. */
-export const imageIdNamed = async (name: string): Promise<number> => {
+export const imageNamed = async (name: string): Promise<Image> => {
   const images = await getAllImages();
   const found = images.find((image) => image.name === name);
-  return requiredWorldValue(found?.id, `the image called "${name}"`);
+  return requiredWorldValue(found, `the image called "${name}"`);
 };
+
+/** The id of the image the library filed under one name. */
+export const imageIdNamed = async (name: string): Promise<number> =>
+  (await imageNamed(name)).id;
 
 /** The image names the library offers, in the order the site serves them.
  * Read through the owner's session, so a story cannot see choices a different
