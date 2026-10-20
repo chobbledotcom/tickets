@@ -1,5 +1,7 @@
 // jscpd:ignore-start
+
 import { Then, When } from "@cucumber/cucumber";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
 import { transfersByAccount } from "#accounting/queries.ts";
@@ -126,7 +128,7 @@ export const expectNoRefundAction = async (
   who: string,
 ): Promise<string[]> => {
   const actions = await ownerActionNames(world, who);
-  expect(actions).not.toContain("Refund");
+  assert(!actions.includes("Refund"));
   return actions;
 };
 
@@ -168,7 +170,7 @@ export const expectOwnerWasTold = (
   ...words: string[]
 ): void => {
   for (const word of words) {
-    expect(scenarioBrowser(world).pageText).toContain(word);
+    assertStringIncludes(scenarioBrowser(world).pageText, word);
   }
 };
 
@@ -226,7 +228,7 @@ Then(
 Then(
   "{word}'s Actions page does not offer Delete while payment work remains",
   async function (this: TicketsWorld, who: string): Promise<void> {
-    expect(await ownerActionNames(this, who)).not.toContain("Delete attendee");
+    assert(!(await ownerActionNames(this, who)).includes("Delete attendee"));
   },
 );
 
@@ -234,7 +236,7 @@ Then(
   "{word}'s Actions page does not offer another Refund and does offer recovery",
   async function (this: TicketsWorld, who: string): Promise<void> {
     const actions = await expectNoRefundAction(this, who);
-    expect(actions).toContain("Open Refund recovery");
+    assertArrayIncludes(actions, ["Open Refund recovery"]);
   },
 );
 
@@ -265,7 +267,7 @@ Then(
   "the owner can delete {word} now that the payment work is finished",
   async function (this: TicketsWorld, who: string): Promise<void> {
     const browser = await ownerDeletesAttendee(this, who);
-    expect(browser.pageText).toContain("Attendee deleted");
+    assertStringIncludes(browser.pageText, "Attendee deleted");
   },
 );
 

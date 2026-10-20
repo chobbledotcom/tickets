@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withMessageGroups } from "#i18n";
@@ -63,7 +64,7 @@ describeWithEnv(
           }
         },
       );
-      expect(savedNames).not.toContain("SUPPORT_PAGE_TEXT");
+      assert(!savedNames.includes("SUPPORT_PAGE_TEXT"));
     });
 
     test("does not seed when the host has no support text", async () => {
@@ -135,7 +136,7 @@ describeWithEnv(
           const result = await buildSite();
           expect(result.ok).toBe(false);
           if (!result.ok) {
-            expect(result.error).toContain("Set support message");
+            assertStringIncludes(result.error, "Set support message");
           }
         },
       );

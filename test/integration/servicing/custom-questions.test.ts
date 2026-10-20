@@ -1,18 +1,4 @@
-/**
- * Servicing §11 — custom questions.
- *
- * A servicing event can be asked the same custom questions a customer is —
- * e.g. "which boiler model?". The create-mode loader (keyed by listing ids,
- * no attendee id) returns the listings' questions, answers entered at creation
- * are saved against the new servicing id, and editing loads + saves them.
- *
- * Implementation contract (test-first):
- *   - The servicing create/edit routes reuse `getQuestionsWithListingIds` for
- *     create-mode and `loadAttendeeQuestionData` for edit-mode (same loaders as
- *     the attendee form), and the shared answer-save step runs inside the
- *     servicing create/edit core.
- */
-// jscpd:ignore-start
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -75,7 +61,10 @@ describeWithEnv("servicing §11 — custom questions", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 10, name: "L" });
     const { questionId } = await attachQuestion(listing.id);
     const { questions } = await getQuestionsWithListingIds([listing.id]);
-    expect(questions.map((q) => q.id)).toContain(questionId);
+    assertArrayIncludes(
+      questions.map((q) => q.id),
+      [questionId],
+    );
   });
 
   test("answers entered at creation are saved against the new servicing id", async () => {

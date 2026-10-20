@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { resolve } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
@@ -334,8 +335,8 @@ describe("asking again about pull requests GitHub has not settled", () => {
     expect(prs[0]?.mergeStateStatus).toBe("CLEAN");
     // Only the unknown one is asked about, and only once.
     expect(calls.length).toBe(2);
-    expect(calls[1]?.[3]).toContain("pr7: pullRequest(number: 7)");
-    expect(calls[1]?.[3]).not.toContain("pr8");
+    assertStringIncludes(calls[1]?.[3] ?? "", "pr7: pullRequest(number: 7)");
+    assert(!(calls[1]?.[3] ?? "").includes("pr8"));
   });
 
   test("asks about every unsettled pull request in one query", async () => {
@@ -345,7 +346,8 @@ describe("asking again about pull requests GitHub has not settled", () => {
     );
     await queued;
 
-    expect(calls[1]?.[3]).toContain(
+    assertStringIncludes(
+      calls[1]?.[3] ?? "",
       "pr3: pullRequest(number: 3) { mergeable mergeStateStatus }\n" +
         "pr4: pullRequest(number: 4) { mergeable mergeStateStatus }",
     );

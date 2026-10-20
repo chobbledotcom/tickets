@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -73,7 +74,7 @@ describe("groupDayPriceStatements", () => {
       { listingId: 6 },
     ]);
     expect(stmts.length).toBe(2);
-    expect(stmts[0]!.sql).toContain("price_id LIKE ?");
+    assertStringIncludes(stmts[0]!.sql, "price_id LIKE ?");
     expect(stmts[0]!.args).toEqual(["group_day", "12/%"]);
     // A single multi-row insert (bounded round-trips), one row per member day.
     expect(stmts[1]!.args).toEqual([
@@ -165,14 +166,17 @@ describe("removeGroupPricesStatement", () => {
     // Flat rows matched by exact group id; per-day rows by the "<id>/%" glob (the
     // trailing "/" keeps group 1's glob from matching group 12's price_ids).
     expect(stmt.args).toEqual([5, "1", "12", "1/%", "12/%"]);
-    expect(stmt.sql).toContain("price_type = 'group' AND price_id IN (?, ?)");
-    expect(stmt.sql).toContain("price_id LIKE ? OR price_id LIKE ?");
+    assertStringIncludes(
+      stmt.sql,
+      "price_type = 'group' AND price_id IN (?, ?)",
+    );
+    assertStringIncludes(stmt.sql, "price_id LIKE ? OR price_id LIKE ?");
   });
 
   test("drops several listings' rows for one left group in one statement", () => {
     const stmt = removeGroupPricesStatement([5, 6, 7], [1])!;
     expect(stmt.args).toEqual([5, 6, 7, "1", "1/%"]);
-    expect(stmt.sql).toContain("listing_id IN (?, ?, ?)");
+    assertStringIncludes(stmt.sql, "listing_id IN (?, ?, ?)");
   });
 });
 

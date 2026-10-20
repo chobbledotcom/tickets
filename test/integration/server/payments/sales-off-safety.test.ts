@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -175,8 +176,8 @@ describeWithEnv(
               "no longer accepting registrations",
               "refunded",
             );
-            expect(html).not.toContain("being processed");
-            expect(html).not.toContain("not configured");
+            assert(!html.includes("being processed"));
+            assert(!html.includes("not configured"));
             expect(mockRefund.calls.length).toBe(1);
           },
         );

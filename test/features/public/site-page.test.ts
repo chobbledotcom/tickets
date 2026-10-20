@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createSitePage } from "#db/site-pages.ts";
@@ -22,8 +23,8 @@ describeWithEnv("public /page/:slug route", { db: true }, () => {
     const response = await handleRequest(mockRequest("/page/about-us"));
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain("About Us");
-    expect(body).toContain("Everything about About Us.");
+    assertStringIncludes(body, "About Us");
+    assertStringIncludes(body, "Everything about About Us.");
   });
 
   test("an unknown slug 404s", async () => {

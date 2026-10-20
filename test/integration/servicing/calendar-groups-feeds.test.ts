@@ -16,6 +16,7 @@
  *     `kind='servicing'`.
  */
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeeKindsByIds } from "#db/attendees/queries.ts";
@@ -60,7 +61,7 @@ describeWithEnv("servicing §8 — calendar, groups & feeds", { db: true }, () =
   test("servicing events appear on the admin calendar for their date", async () => {
     await createCalendarHold();
     const body = await renderAdminPage(`/admin/calendar?date=${CALENDAR_DATE}`);
-    expect(body).toContain("Boiler Service");
+    assertStringIncludes(body, "Boiler Service");
   });
 
   test("calendar links a servicing event to /admin/servicing/:id, not /admin/attendees/:id", async () => {
@@ -142,9 +143,9 @@ describeWithEnv("servicing §8 — calendar, groups & feeds", { db: true }, () =
       const body = await (
         await awaitTestRequest("/caldav/events.ics", { cookie })
       ).text();
-      expect(body).toContain("BEGIN:VCALENDAR");
-      expect(body).not.toContain("Boiler Service");
-      expect(body).not.toContain("SUMMARY:Boiler Service");
+      assertStringIncludes(body, "BEGIN:VCALENDAR");
+      assert(!body.includes("Boiler Service"));
+      assert(!body.includes("SUMMARY:Boiler Service"));
     } finally {
       settings.clearTestOverride("calendar_feeds_enabled");
     }

@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -49,7 +50,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       const result = await getProcessedPayment("cs_processed_123");
       expect(result?.payment_session_id).toBe("cs_processed_123");
       expect(result?.attendee_id).toBe(ctx.attendeeId);
-      expect(result?.payment_reference).not.toContain("pi_cs_processed_123");
+      assert(!result?.payment_reference.includes("pi_cs_processed_123"));
       expect(result?.processed_at).toBeDefined();
     });
 

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -125,12 +126,13 @@ describe("CLI curl", () => {
   });
 
   test("builds JSON body args for mutating requests", () => {
-    expect(
+    assertArrayIncludes(
       buildCurlArgs(
         { apiHostname: "http://localhost:3000", apiKey: "secret" },
         { body: { name: "Demo" }, method: "POST", path: "/api/admin/listings" },
       ),
-    ).toContain(JSON.stringify({ name: "Demo" }));
+      [JSON.stringify({ name: "Demo" })],
+    );
   });
 
   test("throws the curl failure output", async () => {
@@ -200,7 +202,7 @@ describe("CLI curl", () => {
     try {
       const failure = await curlJsonFailure(port);
       expect(failure).toBeInstanceOf(CliError);
-      expect((failure as CliError).message).toContain("not JSON");
+      assertStringIncludes((failure as CliError).message, "not JSON");
       expect((failure as CliError).status).toBe(200);
     } finally {
       await server.shutdown();
@@ -247,7 +249,7 @@ describe("CLI curl", () => {
     );
     expect(error.kind).toBe("server");
     expect(error.status).toBe(502);
-    expect(error.message).toContain("admin api request failed");
+    assertStringIncludes(error.message, "admin api request failed");
   });
 
   test("maps an HTML 401 reply to the not-allowed kind", async () => {
@@ -391,7 +393,7 @@ describe("CLI io", () => {
       }).catch((error: unknown) => error);
       expect(failure).toBeInstanceOf(CliError);
       expect((failure as CliError).kind).toBe("usage");
-      expect((failure as Error).message).toContain("stdin is a terminal");
+      assertStringIncludes((failure as Error).message, "stdin is a terminal");
     });
   });
 });

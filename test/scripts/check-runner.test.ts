@@ -1,3 +1,4 @@
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { runAliasExportCheck } from "#scripts/check-alias-exports/run.ts";
@@ -113,7 +114,7 @@ describe("the per-file check runners", () => {
       );
       expect(code).toBe(0);
       expect(errors).toEqual([]);
-      expect(out).toContain("Every exported name says what it names.");
+      assertArrayIncludes(out, ["Every exported name says what it names."]);
     });
   });
 
@@ -125,8 +126,11 @@ describe("the per-file check runners", () => {
         "try {\n  save();\n} catch (e) {}\n",
       );
       expect(code).toBe(1);
-      expect(errors[0]).toContain(`${dir.path}/src/empty.ts:3 [empty-catch]`);
-      expect(errors[0]).toContain("no statement and no comment");
+      assertStringIncludes(
+        errors[0] ?? "",
+        `${dir.path}/src/empty.ts:3 [empty-catch]`,
+      );
+      assertStringIncludes(errors[0] ?? "", "no statement and no comment");
     });
 
     test("passes a tree whose catches explain themselves", async () => {
@@ -136,9 +140,9 @@ describe("the per-file check runners", () => {
         "try {\n  save();\n} catch (e) {\n  recover(e);\n}\n",
       );
       expect(code).toBe(0);
-      expect(out).toContain(
+      assertArrayIncludes(out, [
         "Every catch block says what it does with the error.",
-      );
+      ]);
     });
   });
 
@@ -150,7 +154,7 @@ describe("the per-file check runners", () => {
         "\n".repeat(501),
       );
       expect(code).toBe(1);
-      expect(errors[0]).toContain("[over-limit]: holds 501 lines");
+      assertStringIncludes(errors[0] ?? "", "[over-limit]: holds 501 lines");
     });
 
     test("passes a file between the 400-line aim and the limit", async () => {
@@ -161,9 +165,9 @@ describe("the per-file check runners", () => {
       );
       expect(code).toBe(0);
       expect(errors).toEqual([]);
-      expect(out).toContain(
+      assertArrayIncludes(out, [
         "Every source file sits at or under the limit its list holds it to.",
-      );
+      ]);
     });
 
     test("passes a file over the limit at its recorded count", async () => {
@@ -216,9 +220,12 @@ describe("the per-file check runners", () => {
         },
       );
       expect(code).toBe(1);
-      expect(errors[0]).toContain(`${dir.path}/src/gone.ts [stale-entry]`);
-      expect(errors[0]).toContain("delete the entry");
-      expect(errors[1]).toContain("1 file-length issue(s) found");
+      assertStringIncludes(
+        errors[0] ?? "",
+        `${dir.path}/src/gone.ts [stale-entry]`,
+      );
+      assertStringIncludes(errors[0] ?? "", "delete the entry");
+      assertStringIncludes(errors[1] ?? "", "1 file-length issue(s) found");
     });
   });
 });

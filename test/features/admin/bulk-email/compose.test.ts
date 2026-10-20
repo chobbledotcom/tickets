@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -33,15 +34,15 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
 
     test("shows the disabled notice when no own provider is configured", async () => {
       const html = await (await adminGet("/admin/emails")).text();
-      expect(html).toContain("Heads up");
+      assertStringIncludes(html, "Heads up");
       // The notice must say why, not just that something is wrong.
-      expect(html).toContain("configured your own email provider");
+      assertStringIncludes(html, "configured your own email provider");
     });
 
     test("hides the disabled notice when a bulk provider is configured", async () => {
       useResend();
       const html = await (await adminGet("/admin/emails")).text();
-      expect(html).not.toContain("Heads up");
+      assert(!html.includes("Heads up"));
     });
 
     test("targets a single listing via ?listing", async () => {
@@ -49,7 +50,7 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/emails?listing=${listing.id}`)
       ).text();
-      expect(html).toContain("Recipients:</strong> Attendees of Gig");
+      assertStringIncludes(html, "Recipients:</strong> Attendees of Gig");
     });
 
     test("404s for a non-existent listing", async () => {
@@ -74,7 +75,7 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
       const html = await (
         await adminGet("/admin/emails?audience=upcoming")
       ).text();
-      expect(html).toContain('<option selected value="upcoming">');
+      assertStringIncludes(html, '<option selected value="upcoming">');
     });
 
     test("prefills a saved draft and counts a single recipient", async () => {
@@ -88,10 +89,10 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/emails?listing=${listing.id}`)
       ).text();
-      expect(html).toContain('value="Saved subject"');
-      expect(html).toContain("checked");
-      expect(html).toContain("recipient. That's everyone");
-      expect(html).not.toContain("recipients");
+      assertStringIncludes(html, 'value="Saved subject"');
+      assertStringIncludes(html, "checked");
+      assertStringIncludes(html, "recipient. That's everyone");
+      assert(!html.includes("recipients"));
     });
 
     test("targets one day of a listing via ?listing&day", async () => {
@@ -99,7 +100,8 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/emails?listing=${listing.id}&day=2026-03-02`)
       ).text();
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         "Recipients:</strong> Attendees of Term on Monday 2 March 2026",
       );
     });

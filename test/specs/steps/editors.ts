@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
@@ -123,7 +124,8 @@ Then(
     // the site has somewhere to say it worked. The page opens on the first tab
     // its reader can see, which for an editor is the edit form.
     expect(editorBrowser(this).currentUrl).toBe(`/admin/listing/${made.id}`);
-    expect(editorBrowser(this).pageText).toContain(
+    assertStringIncludes(
+      editorBrowser(this).pageText,
       t("success.listing_created"),
     );
   },
@@ -180,8 +182,8 @@ Then(
     const offered = (await pagesOfferedTo(editorBrowser(this))).map(
       ({ href }) => href,
     );
-    expect(offered).toContain("/admin/listings");
-    expect(offered).toContain("/admin/groups");
+    assertArrayIncludes(offered, ["/admin/listings"]);
+    assertArrayIncludes(offered, ["/admin/groups"]);
   },
 );
 
@@ -209,14 +211,14 @@ Then(
     // The owner's own copy of this page carries the figure, so the editor's
     // copy not carrying it means something. Without this, the check would pass
     // just as happily against a sale that never happened.
-    expect(await ownersListingsPage(this)).toContain(takings);
+    assertStringIncludes(await ownersListingsPage(this), takings);
 
     const shown = editorBrowser(this).pageText;
-    expect(shown).toContain(name);
+    assertStringIncludes(shown, name);
     // Not the column headings, and not the figure itself — a takings column
     // renamed or left unlabelled would still be money on their screen.
     for (const money of ["Revenue", "Profit", takings]) {
-      expect(shown).not.toContain(money);
+      assert(!shown.includes(money));
     }
   },
 );
@@ -238,8 +240,8 @@ Then(
     // No box for it, and no sight of it either — showing the address as plain
     // text would tell them just as much as a box would.
     const served = editorBrowser(this).currentHtml;
-    expect(served).not.toContain('name="webhook_url"');
-    expect(served).not.toContain(OWNERS_ADDRESS);
+    assert(!served.includes('name="webhook_url"'));
+    assert(!served.includes(OWNERS_ADDRESS));
   },
 );
 

@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -58,7 +59,7 @@ describeWithEnv("server (payment success details)", { db: true }, () => {
       await handleRequest(successRequest("session_id=cs_direct_tokens"))
     ).text();
 
-    expect(html).toContain("/t/first-token+second-token");
+    assertStringIncludes(html, "/t/first-token+second-token");
   });
 
   test("redirect encodes separators between every stored token", async () => {
@@ -130,8 +131,8 @@ describeWithEnv("server (payment success details)", { db: true }, () => {
       await handleRequest(successRequest("session_id=cs_explicit_replay"))
     ).text();
 
-    expect(html).toContain("https://explicit.example.com/thanks");
-    expect(html).not.toContain("https://listing.example.com/thanks");
+    assertStringIncludes(html, "https://explicit.example.com/thanks");
+    assert(!html.includes("https://listing.example.com/thanks"));
   });
 
   test("a deleted listing adds no made-up thank-you URL on a replay", async () => {
@@ -168,8 +169,8 @@ describeWithEnv("server (payment success details)", { db: true }, () => {
       await handleRequest(successRequest("session_id=cs_deleted_replay"))
     ).text();
 
-    expect(html).toContain('data-payment-result="success"');
-    expect(html).not.toContain("mutated");
+    assertStringIncludes(html, 'data-payment-result="success"');
+    assert(!html.includes("mutated"));
   });
 
   test("tokens keep the thank-you URL for a visible listing", async () => {
@@ -187,7 +188,7 @@ describeWithEnv("server (payment success details)", { db: true }, () => {
       await handleRequest(successRequest(`tokens=${encodeURIComponent(token)}`))
     ).text();
 
-    expect(html).toContain("https://visible.example.com/thanks");
+    assertStringIncludes(html, "https://visible.example.com/thanks");
   });
 
   test("tokens hide the thank-you URL for a concealing package path", async () => {
@@ -211,8 +212,8 @@ describeWithEnv("server (payment success details)", { db: true }, () => {
       await handleRequest(successRequest(`tokens=${encodeURIComponent(token)}`))
     ).text();
 
-    expect(html).not.toContain("https://hidden.example.com/thanks");
-    expect(html).not.toContain("mutated");
+    assert(!html.includes("https://hidden.example.com/thanks"));
+    assert(!html.includes("mutated"));
   });
 
   test("tokens keep separators and omit a multi-listing thank-you URL", async () => {
@@ -236,7 +237,7 @@ describeWithEnv("server (payment success details)", { db: true }, () => {
       )
     ).text();
 
-    expect(html).toContain(`/t/${tokens}`);
-    expect(html).not.toContain("mutated");
+    assertStringIncludes(html, `/t/${tokens}`);
+    assert(!html.includes("mutated"));
   });
 });

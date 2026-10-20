@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, getDb, inPlaceholders } from "#db/client.ts";
@@ -135,8 +136,9 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
     const oldListingColumns = await getDb().execute(
       "SELECT name FROM pragma_table_info('listings')",
     );
-    expect(oldListingColumns.rows.map((row) => String(row.name))).toContain(
-      "image_url",
+    assertArrayIncludes(
+      oldListingColumns.rows.map((row) => String(row.name)),
+      ["image_url"],
     );
     const oldImagesTable = await getDb().execute(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'images'",

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { KIND } from "#accounting/kinds.ts";
@@ -22,11 +23,11 @@ describeWithEnv(
       const { attendeeId } = await seededSale("Gala", 2500);
       const html = await ledgerPageHtml(`/admin/ledger/attendee/${attendeeId}`);
       // The attendee's own label heads the page; a fully-paid sale nets to zero.
-      expect(html).toContain("Ada Lovelace");
-      expect(html).toContain("Amount still owed:");
-      expect(html).toContain('<th class="col-amount">Running total</th>');
+      assertStringIncludes(html, "Ada Lovelace");
+      assertStringIncludes(html, "Amount still owed:");
+      assertStringIncludes(html, '<th class="col-amount">Running total</th>');
       // The sale's counterparty is the listing revenue account, linked by name.
-      expect(html).toContain("Gala");
+      assertStringIncludes(html, "Gala");
     });
 
     test("renders a revenue listing's statement", async () => {
@@ -34,9 +35,9 @@ describeWithEnv(
       const response = await adminGet(`/admin/ledger/revenue/${listingId}`);
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Workshop");
+      assertStringIncludes(html, "Workshop");
       // The counterparty of the sale leg is the paying attendee.
-      expect(html).toContain("Ada Lovelace");
+      assertStringIncludes(html, "Ada Lovelace");
     });
 
     test("renders a listing's servicing-cost statement", async () => {
@@ -55,14 +56,14 @@ describeWithEnv(
       const response = await adminGet(`/admin/ledger/cost/${listingId}`);
       expect(response.status).toBe(200);
       // The cost account labels itself with the listing's name.
-      expect(await response.text()).toContain("Workshop");
+      assertStringIncludes(await response.text(), "Workshop");
     });
 
     test("falls back to 'Modifier #<id>' when no modifier row exists", async () => {
       await postModifierLeg({ delta: 500, modifierId: 1 });
       const html = await ledgerPageHtml("/admin/ledger/modifier/1");
       // No modifier row exists, so the account falls back to "Modifier #1".
-      expect(html).toContain("Modifier #1");
+      assertStringIncludes(html, "Modifier #1");
     });
 
     test("renders the singleton card/bank statement", async () => {
@@ -70,7 +71,7 @@ describeWithEnv(
       const response = await adminGet("/admin/ledger/external/world");
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Card / bank");
+      assertStringIncludes(html, "Card / bank");
     });
 
     test("renders the booking-fee income statement", async () => {
@@ -79,7 +80,7 @@ describeWithEnv(
       const response = await adminGet("/admin/ledger/fee_income/booking");
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Booking fees");
+      assertStringIncludes(html, "Booking fees");
     });
 
     test("renders the writeoff contra-revenue statement", async () => {
@@ -93,9 +94,9 @@ describeWithEnv(
       await adjustListingIncome(listing.id, 1500);
       const html = await ledgerPageHtml("/admin/ledger/writeoff/default");
       // The writeoff singleton renders its label, not a raw "writeoff:default".
-      expect(html).toContain("Corrections");
+      assertStringIncludes(html, "Corrections");
       // The correction's counterparty is the listing's revenue account.
-      expect(html).toContain("Adjusted");
+      assertStringIncludes(html, "Adjusted");
     });
 
     test("includes a refunded attendee's reversal legs in their statement", async () => {
@@ -116,9 +117,9 @@ describeWithEnv(
       });
       const response = await adminGet(`/admin/ledger/attendee/${attendee.id}`);
       const html = await response.text();
-      expect(html).toContain("Grace Hopper");
+      assertStringIncludes(html, "Grace Hopper");
       // A full refund nets to zero, so the final running balance is zero.
-      expect(html).toContain("Amount still owed:");
+      assertStringIncludes(html, "Amount still owed:");
     });
 
     test("404s on an unknown account type", async () => {

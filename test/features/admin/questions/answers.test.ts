@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
@@ -210,9 +211,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       const question = await getQuestionWithAnswers(qId);
       expect(question!.answers.find((a) => a.id === aId)).toBeUndefined();
-      expect(await activityMessages()).toContain(
+      assertArrayIncludes(await activityMessages(), [
         `Answer 'Goodbye Answer' deleted from question ${qId}`,
-      );
+      ]);
     });
 
     test("rejects deletion with wrong text", async () => {

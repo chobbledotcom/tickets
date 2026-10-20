@@ -7,6 +7,7 @@
  * whole bundle.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
@@ -338,9 +339,12 @@ describeWithEnv("the re-send page's send choice", { db: true }, () => {
 
     // The email is the only thing to send, so the form carries the choice
     // hidden, and no radio offers a webhook that does not exist.
-    expect(html).toContain('name="resend_sides" type="hidden" value="email"');
-    expect(html).not.toContain('type="radio" value="webhooks"');
-    expect(html).not.toContain('type="radio" value="both"');
+    assertStringIncludes(
+      html,
+      'name="resend_sides" type="hidden" value="email"',
+    );
+    assert(!html.includes('type="radio" value="webhooks"'));
+    assert(!html.includes('type="radio" value="both"'));
   });
 
   test("offers the email, webhook, and both choices when a webhook exists", async () => {
@@ -351,13 +355,17 @@ describeWithEnv("the re-send page's send choice", { db: true }, () => {
 
     const html = await pageHtml(attendee.id);
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'checked name="resend_sides" type="radio" value="email"',
     );
-    expect(html).toContain('name="resend_sides" type="radio" value="webhooks"');
-    expect(html).toContain('name="resend_sides" type="radio" value="both"');
+    assertStringIncludes(
+      html,
+      'name="resend_sides" type="radio" value="webhooks"',
+    );
+    assertStringIncludes(html, 'name="resend_sides" type="radio" value="both"');
     // The choice is a visible form field, not a hidden default.
-    expect(html).not.toContain('name="resend_sides" type="hidden"');
+    assert(!html.includes('name="resend_sides" type="hidden"'));
   });
 });
 
@@ -459,8 +467,8 @@ describeWithEnv(
         t("success.notification_resent"),
       )(response);
       const resent = buyerEmailTexts("wording@example.com").at(-1);
-      expect(resent).toContain("Anything else?: Coming by train");
-      expect(resent).not.toContain("Coming by bus");
+      assertStringIncludes(resent ?? "", "Anything else?: Coming by train");
+      assert(!(resent ?? "").includes("Coming by bus"));
     });
   },
 );

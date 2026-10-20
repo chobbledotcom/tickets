@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { generateMutants } from "#scripts/mutation/generate.ts";
@@ -249,7 +250,7 @@ describe("keeping an anchor still while code around it moves", () => {
     const kept = nullishMutants(after).map((m) => m.anchor);
 
     for (const anchor of nullishMutants(before).map((m) => m.anchor)) {
-      expect(kept).toContain(anchor);
+      assertArrayIncludes(kept, [anchor]);
     }
   });
 
@@ -269,7 +270,7 @@ describe("keeping an anchor still while code around it moves", () => {
     const before = "const f = () => {\n  foo(1);\n  bar();\n};\n";
     const after = "const f = () => {\n  foo(1);\n  bar();\n  baz();\n};\n";
 
-    expect(removalAnchors(after)).toContain(removalAnchors(before)[0]!);
+    assertArrayIncludes(removalAnchors(after), [removalAnchors(before)[0]!]);
   });
 
   test("moves when the function it sits in is renamed", () => {
@@ -438,7 +439,7 @@ describe("telling apart mutants that share a name", () => {
   });
 
   test("leaves a lone mutant unnumbered", () => {
-    expect(nullishAnchor("const read = (x) => x ?? 0;\n")).not.toContain("@");
+    assert(!nullishAnchor("const read = (x) => x ?? 0;\n").includes("@"));
   });
 
   /**

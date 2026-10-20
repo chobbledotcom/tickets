@@ -3,6 +3,7 @@
  * provider-less owed booking, the no-provider quote messages, the quote's
  * CSRF rejection, the site-menu gate, and the one-listing group page. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
@@ -208,8 +209,8 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
         (await getAttendeeBalanceState(attendee!.id))?.remainingBalance,
       ).toBe(1000);
       const svg = expectSingleTicketSvg(fetch.getFetchJsonBody());
-      expect(svg).not.toContain("Price:");
-      expect(svg).toContain("Qty: 1");
+      assert(!svg.includes("Price:"));
+      assertStringIncludes(svg, "Qty: 1");
     });
   });
 
@@ -234,8 +235,8 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
 
       expect(response.status).toBe(302);
       const body = fetch.getFetchJsonBody();
-      expect(body.text).toContain("Choose one: Chosen");
-      expect(body.text).toContain("Anything else?: Arriving late");
+      assertStringIncludes(body.text, "Choose one: Chosen");
+      assertStringIncludes(body.text, "Anything else?: Arriving late");
     });
   });
 
@@ -271,12 +272,13 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
         [`quantity_${listing.id}`]: "1",
       });
 
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `No online payment is needed now — you'll owe ${formatCurrency(
           1000,
         )} for this booking.`,
       );
-      expect(html).not.toContain("No payment required");
+      assert(!html.includes("No payment required"));
     });
 
     test("tells the buyer a free order needs no payment", async () => {
@@ -286,8 +288,8 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
         [`quantity_${listing.id}`]: "1",
       });
 
-      expect(html).toContain("No payment required for this booking.");
-      expect(html).not.toContain("you'll owe");
+      assertStringIncludes(html, "No payment required for this booking.");
+      assert(!html.includes("you'll owe"));
     });
 
     test("tells the buyer they owe a one-penny order", async () => {
@@ -300,7 +302,8 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
         [`quantity_${listing.id}`]: "1",
       });
 
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `you'll owe ${formatCurrency(1)} for this booking.`,
       );
     });
@@ -329,8 +332,8 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
         [`quantity_${listing.id}`]: "1",
       });
 
-      expect(html).toContain("No payment required for this booking.");
-      expect(html).not.toContain("no longer available");
+      assertStringIncludes(html, "No payment required for this booking.");
+      assert(!html.includes("no longer available"));
     });
   });
 
@@ -349,7 +352,7 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       const listing = await createTestListing({ maxAttendees: 50 });
 
       const html = await assertPublicHtml(`/ticket/${listing.slug}`);
-      expect(html).not.toContain('aria-label="Site menu"');
+      assert(!html.includes('aria-label="Site menu"'));
     });
   });
 

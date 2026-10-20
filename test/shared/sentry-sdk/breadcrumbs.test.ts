@@ -1,7 +1,7 @@
 // test-groups: run-alone — the SDK instruments the global fetch once per
 // process, on the first client it sets up. Sharing an isolate would let
 // another suite decide that before this file installs its fetch stub.
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { ErrorCode, logDebug } from "#shared/logger.ts";
 import { captureServerError, initSentry } from "#shared/sentry.ts";
@@ -37,9 +37,9 @@ describe("report breadcrumbs", () => {
       String(call.args[0]).includes("bugs.example.test"),
     );
     const body = String((sentryCall!.args[1] as RequestInit).body);
-    expect(body).toContain("a line worth keeping");
-    expect(body).not.toContain("cs_live_secret");
-    expect(body).not.toContain('"category":"fetch"');
+    assertStringIncludes(body, "a line worth keeping");
+    assert(!body.includes("cs_live_secret"));
+    assert(!body.includes('"category":"fetch"'));
   });
 
   test("does not record its own reports as breadcrumbs", async () => {
@@ -51,7 +51,7 @@ describe("report breadcrumbs", () => {
     await captureServerError({ code: ErrorCode.DB_QUERY });
 
     const body = String((fetchStub.calls[1]!.args[1] as RequestInit).body);
-    expect(body).not.toContain('"category":"sentry"');
+    assert(!body.includes('"category":"sentry"'));
   });
 
   // The SDK collects console lines onto one shared scope and ships no
@@ -71,7 +71,7 @@ describe("report breadcrumbs", () => {
     });
 
     const body = String((fetchStub.calls.at(-1)!.args[1] as RequestInit).body);
-    expect(body).toContain("the reporting request");
-    expect(body).not.toContain("the neighbouring request");
+    assertStringIncludes(body, "the reporting request");
+    assert(!body.includes("the neighbouring request"));
   });
 });

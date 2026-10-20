@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -274,8 +275,8 @@ describe("listing form contact fields setting", () => {
     const fieldsField = getListingForm().fields.find(
       (f) => f.name === "fields",
     )!;
-    expect(fieldsField.hintHtml).toContain("<strong>");
-    expect(fieldsField.hintHtml).toContain("emailed their ticket");
+    assertStringIncludes(fieldsField.hintHtml, "<strong>");
+    assertStringIncludes(fieldsField.hintHtml, "emailed their ticket");
   });
 });
 
@@ -375,9 +376,10 @@ describe("group create form", () => {
     const termsField = getGroupCreateForm().fields.find(
       (f) => f.name === "terms_and_conditions",
     )!;
-    expect(
-      termsField.validate?.("x".repeat(MAX_TEXTAREA_LENGTH + 1)),
-    ).toContain(`${MAX_TEXTAREA_LENGTH} characters or fewer`);
+    assertStringIncludes(
+      termsField.validate?.("x".repeat(MAX_TEXTAREA_LENGTH + 1)) ?? "",
+      `${MAX_TEXTAREA_LENGTH} characters or fewer`,
+    );
   });
 
   test("accepts terms_and_conditions within MAX_TEXTAREA_LENGTH", () => {
@@ -462,7 +464,8 @@ describe("validateBookableDays", () => {
   });
 
   test("rejects invalid day name", () => {
-    expect(validateBookableDays("Monday,Funday")).toContain(
+    assertStringIncludes(
+      validateBookableDays("Monday,Funday") ?? "",
       "Invalid day: Funday",
     );
   });

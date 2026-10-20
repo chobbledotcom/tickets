@@ -9,6 +9,7 @@
  * write, so these tests pin that claim.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decryptWithKey } from "#crypto/encryption.ts";
@@ -153,7 +154,7 @@ describeWithEnv("db > settings > setup ceremony", { db: true }, () => {
       expect(user).not.toBeNull();
       const hash = await verifyUserPassword(user!, "mypassword");
       expect(hash).toBeTruthy();
-      expect(hash).toContain("pbkdf2:");
+      assertStringIncludes(hash ?? "", "pbkdf2:");
       expect(settings.currency).toBe("USD");
 
       expect(settings.publicKey).toBeTruthy();

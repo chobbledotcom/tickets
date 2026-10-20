@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -101,7 +102,8 @@ describeWithEnv(
 
       expect(fetchStub.calls).toHaveLength(1);
       const body = JSON.parse(fetchStub.calls[0]!.args[1].body);
-      expect(body.text).toContain(
+      assertStringIncludes(
+        body.text,
         "Bronze plan + Gold plan: https://j.test/setup/",
       );
     });

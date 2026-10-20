@@ -3,6 +3,7 @@
  * settings, exactly like /robots.txt. */
 
 /* jscpd:ignore-start -- imports */
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -72,25 +73,31 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe("application/xml");
       const xml = await response.text();
-      expect(xml).toContain(
+      assertStringIncludes(
+        xml,
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
       );
-      expect(xml).toContain("<loc>https://localhost/</loc>");
-      expect(xml).toContain("<loc>https://localhost/listings</loc>");
-      expect(xml).toContain("<loc>https://localhost/news</loc>");
-      expect(xml).toContain("<loc>https://localhost/page/plans</loc>");
-      expect(xml).toContain(`<loc>https://localhost/news/${post.slug}</loc>`);
-      expect(xml).toContain(
+      assertStringIncludes(xml, "<loc>https://localhost/</loc>");
+      assertStringIncludes(xml, "<loc>https://localhost/listings</loc>");
+      assertStringIncludes(xml, "<loc>https://localhost/news</loc>");
+      assertStringIncludes(xml, "<loc>https://localhost/page/plans</loc>");
+      assertStringIncludes(
+        xml,
+        `<loc>https://localhost/news/${post.slug}</loc>`,
+      );
+      assertStringIncludes(
+        xml,
         `<loc>https://localhost/ticket/${listing.slug}</loc>`,
       );
-      expect(xml).toContain(
+      assertStringIncludes(
+        xml,
         `<loc>https://localhost/ticket/${group.slug}</loc>`,
       );
       // A hidden listing or group is not on the public site, so the sitemap
       // does not name it. No admin path belongs in a public document either.
-      expect(xml).not.toContain("hidden-concert");
-      expect(xml).not.toContain("secret-bundle");
-      expect(xml).not.toContain("/admin");
+      assert(!xml.includes("hidden-concert"));
+      assert(!xml.includes("secret-bundle"));
+      assert(!xml.includes("/admin"));
     } finally {
       await disablePublicSite();
     }
@@ -105,12 +112,12 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const empty = await (
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();
-      expect(empty).toContain("<loc>https://localhost/</loc>");
-      expect(empty).toContain("<loc>https://localhost/listings</loc>");
-      expect(empty).not.toContain("<loc>https://localhost/terms</loc>");
-      expect(empty).not.toContain("<loc>https://localhost/contact</loc>");
-      expect(empty).not.toContain("<loc>https://localhost/order</loc>");
-      expect(empty).not.toContain("<loc>https://localhost/news</loc>");
+      assertStringIncludes(empty, "<loc>https://localhost/</loc>");
+      assertStringIncludes(empty, "<loc>https://localhost/listings</loc>");
+      assert(!empty.includes("<loc>https://localhost/terms</loc>"));
+      assert(!empty.includes("<loc>https://localhost/contact</loc>"));
+      assert(!empty.includes("<loc>https://localhost/order</loc>"));
+      assert(!empty.includes("<loc>https://localhost/news</loc>"));
 
       // Give every page what its handler requires, and the document lists it.
       await settings.update.orderEnabled(true);
@@ -120,10 +127,10 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const served = await (
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();
-      expect(served).toContain("<loc>https://localhost/terms</loc>");
-      expect(served).toContain("<loc>https://localhost/contact</loc>");
-      expect(served).toContain("<loc>https://localhost/order</loc>");
-      expect(served).toContain("<loc>https://localhost/news</loc>");
+      assertStringIncludes(served, "<loc>https://localhost/terms</loc>");
+      assertStringIncludes(served, "<loc>https://localhost/contact</loc>");
+      assertStringIncludes(served, "<loc>https://localhost/order</loc>");
+      assertStringIncludes(served, "<loc>https://localhost/news</loc>");
     } finally {
       await settings.update.orderEnabled(false);
       await settings.update.terms("");
@@ -145,9 +152,10 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       ).text();
       // A child that sells only through its parent has no /ticket page of
       // its own, and a paused listing answers 404. The parent stays in.
-      expect(xml).not.toContain(child.slug);
-      expect(xml).not.toContain("paused-concert");
-      expect(xml).toContain(
+      assert(!xml.includes(child.slug));
+      assert(!xml.includes("paused-concert"));
+      assertStringIncludes(
+        xml,
         `<loc>https://localhost/ticket/${parent.slug}</loc>`,
       );
     } finally {
@@ -164,7 +172,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const xml = await (
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();
-      expect(xml).not.toContain("members-only-club");
+      assert(!xml.includes("members-only-club"));
     } finally {
       await disablePublicSite();
     }
@@ -182,7 +190,8 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const xml = await (
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();
-      expect(xml).toContain(
+      assertStringIncludes(
+        xml,
         `<loc>https://localhost/ticket/${group.slug}</loc>`,
       );
     } finally {
@@ -220,16 +229,18 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       ).text();
       // The route's slug pattern rejects the ampersand, so those /ticket
       // pages answer 404 and stay out. A normal slug stays in.
-      expect(xml).not.toContain(
-        "<loc>https://localhost/ticket/plans&pricing</loc>",
+      assert(
+        !xml.includes("<loc>https://localhost/ticket/plans&pricing</loc>"),
       );
-      expect(xml).not.toContain(
-        "<loc>https://localhost/ticket/plans&amp;pricing</loc>",
+      assert(
+        !xml.includes("<loc>https://localhost/ticket/plans&amp;pricing</loc>"),
       );
-      expect(xml).toContain(
+      assertStringIncludes(
+        xml,
         `<loc>https://localhost/ticket/${plain.slug}</loc>`,
       );
-      expect(xml).toContain(
+      assertStringIncludes(
+        xml,
         `<loc>https://localhost/ticket/${plainGroup.slug}</loc>`,
       );
     } finally {
@@ -253,7 +264,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const xml = await (
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();
-      expect(xml).not.toContain(listing.slug);
+      assert(!xml.includes(listing.slug));
     } finally {
       await settings.update.listingDefaults({});
       await disablePublicSite();
@@ -266,7 +277,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       await createTestListing({ name: "Dated Listing" });
       const response = await handleRequest(mockRequest("/sitemap.xml"));
       expect(response.status).toBe(200);
-      expect(await response.text()).not.toContain("<lastmod>");
+      assert(!(await response.text()).includes("<lastmod>"));
     } finally {
       await disablePublicSite();
     }
@@ -280,8 +291,8 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const xml = await response.text();
       // The public route's slug pattern rejects the ampersand, so the page
       // answers 404 and the document names no URL for it.
-      expect(xml).not.toContain("plans&amp;pricing");
-      expect(xml).not.toContain("plans&pricing");
+      assert(!xml.includes("plans&amp;pricing"));
+      assert(!xml.includes("plans&pricing"));
     } finally {
       await disablePublicSite();
     }
@@ -295,7 +306,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const xml = await response.text();
       // URL parsing drops the trailing newline, so the served page and its
       // stored slug no longer match: the document names no URL for it.
-      expect(xml).not.toContain("page/latest");
+      assert(!xml.includes("page/latest"));
     } finally {
       await disablePublicSite();
     }
@@ -307,7 +318,8 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       await settings.update.customDomain("custom.example");
       await settings.update.customDomainLastValidated();
       const response = await handleRequest(mockRequest("/sitemap.xml"));
-      expect(await response.text()).toContain(
+      assertStringIncludes(
+        await response.text(),
         "<loc>https://custom.example/</loc>",
       );
     } finally {

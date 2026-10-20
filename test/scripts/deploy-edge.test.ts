@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -332,8 +333,11 @@ describe("runDeployEdge", () => {
 
     await expect(runDeployEdge(deps)).resolves.toBe(1);
 
-    expect(stderr[0]).toContain("Failed to read /repo/bunny-script.ts");
-    expect(stderr[0]).toContain("Error: missing");
+    assertStringIncludes(
+      stderr[0] ?? "",
+      "Failed to read /repo/bunny-script.ts",
+    );
+    assertStringIncludes(stderr[0] ?? "", "Error: missing");
     expect(fetchCalled).toBe(false);
   });
 

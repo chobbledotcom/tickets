@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -130,7 +131,8 @@ describe("bringing files back out of a snapshot", () => {
       );
 
       expect(run.result).toBe(1);
-      expect(run.errors.join("\n")).toContain(
+      assertStringIncludes(
+        run.errors.join("\n"),
         `${KEPT} changed while the isolated run was going`,
       );
       expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe(
@@ -148,7 +150,8 @@ describe("bringing files back out of a snapshot", () => {
       );
 
       expect(run.result).toBe(1);
-      expect(run.errors.join("\n")).toContain(
+      assertStringIncludes(
+        run.errors.join("\n"),
         `${SECOND} changed while the isolated run was going`,
       );
       expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe(
@@ -174,7 +177,8 @@ describe("bringing files back out of a snapshot", () => {
       );
 
       expect(run.result).toBe(1);
-      expect(run.errors.join("\n")).toContain(
+      assertStringIncludes(
+        run.errors.join("\n"),
         `${SECOND} changed while the isolated run was going`,
       );
       expect(await readTextFile(join(roots.root, KEPT))).toBe("one\ntwo\n");
@@ -234,7 +238,8 @@ describe("bringing files back out of a snapshot", () => {
       });
 
       expect(run.logs).toEqual([`Put back ${KEPT}`]);
-      expect(run.errors.join("\n")).toContain(
+      assertStringIncludes(
+        run.errors.join("\n"),
         "Could not put back every file:\nmissing.txt:",
       );
       expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe(
@@ -254,8 +259,8 @@ describe("bringing files back out of a snapshot", () => {
       });
 
       expect(run.errors).toHaveLength(1);
-      expect(run.errors[0]).toContain("missing-a.txt:");
-      expect(run.errors[0]).toContain("\nmissing-b.txt:");
+      assertStringIncludes(run.errors[0] ?? "", "missing-a.txt:");
+      assertStringIncludes(run.errors[0] ?? "", "\nmissing-b.txt:");
     });
   });
 

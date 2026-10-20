@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -196,7 +197,8 @@ describeWithEnv(
           mockRequest("/payment/success?session_id=cs_foreign_site_token"),
         );
         expect(response.status).toBe(400);
-        expect(await response.text()).toContain(
+        assertStringIncludes(
+          await response.text(),
           "We could not confirm that this payment belongs to this site.",
         );
       } finally {

@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { adminQuestionsPage } from "#templates/admin/questions.tsx";
 import { resetFeaturePageTest } from "#test/ui/templates/admin/feature-page-test.ts";
@@ -22,19 +22,19 @@ describe("adminQuestionsPage", () => {
 
   test("renders empty state when no questions", () => {
     const html = adminQuestionsPage([], OWNER_SESSION);
-    expect(html).toContain("<p><em>No custom questions yet.</em></p>");
+    assertStringIncludes(html, "<p><em>No custom questions yet.</em></p>");
   });
 
   test("removes the Custom questions heading", () => {
-    expect(adminQuestionsPage([], OWNER_SESSION)).not.toContain("<h1");
+    assert(!adminQuestionsPage([], OWNER_SESSION).includes("<h1"));
   });
 
   test("renders questions in a table with the answer count", () => {
     const html = adminQuestionsPage([colourQuestion], OWNER_SESSION);
-    expect(html).toContain("<table");
-    expect(html).toContain("Favourite colour?");
+    assertStringIncludes(html, "<table");
+    assertStringIncludes(html, "Favourite colour?");
     // Answer-count cell shows the raw number.
-    expect(html).toContain('<td class="col-quantity">2</td>');
+    assertStringIncludes(html, '<td class="col-quantity">2</td>');
   });
 
   test("shows a Listings count with the listing names as the cell title", () => {
@@ -45,7 +45,8 @@ describe("adminQuestionsPage", () => {
       new Map([[1, ["Spring Gig", "Summer Gig"]]]),
       5,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<td class="col-quantity" title="Spring Gig, Summer Gig">2</td>',
     );
   });
@@ -58,7 +59,7 @@ describe("adminQuestionsPage", () => {
       new Map(),
       5,
     );
-    expect(html).toContain('<td class="col-quantity" title="All">5</td>');
+    assertStringIncludes(html, '<td class="col-quantity" title="All">5</td>');
   });
 
   test("defaults the assign-all count to zero when no total is passed", () => {
@@ -69,31 +70,33 @@ describe("adminQuestionsPage", () => {
       [{ ...colourQuestion, assign_all: true }],
       OWNER_SESSION,
     );
-    expect(html).toContain('<td class="col-quantity" title="All">0</td>');
+    assertStringIncludes(html, '<td class="col-quantity" title="All">0</td>');
   });
 
   test("marks the questions nav entry active", () => {
     const html = adminQuestionsPage([colourQuestion], OWNER_SESSION);
-    expect(html).toContain('class="active" href="/admin/questions"');
+    assertStringIncludes(html, 'class="active" href="/admin/questions"');
   });
 
   test("renders the add-question form", () => {
     const html = adminQuestionsPage([colourQuestion], OWNER_SESSION);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<form action="/admin/questions" autocomplete="off" method="POST" id="new-question">',
     );
   });
 
   test("links to the questions guide", () => {
     const html = adminQuestionsPage([colourQuestion], OWNER_SESSION);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<a class="guide-link" href="/admin/guide#questions">',
     );
     // The guide link carries its "Questions guide" label, not just the href —
     // a blanked label would still leave the anchor above. The label renders in
     // its own <span> (after the icon), so assert it there rather than as loose
     // page text that unrelated copy could satisfy.
-    expect(html).toContain("<span>Questions guide</span>");
+    assertStringIncludes(html, "<span>Questions guide</span>");
   });
 
   test("renders reorder controls: down on the first, up on the last", () => {
@@ -113,24 +116,24 @@ describe("adminQuestionsPage", () => {
       OWNER_SESSION,
     );
     // First question: down button, but no up button.
-    expect(html).toContain("/admin/questions/1/move-down");
-    expect(html).not.toContain("/admin/questions/1/move-up");
+    assertStringIncludes(html, "/admin/questions/1/move-down");
+    assert(!html.includes("/admin/questions/1/move-up"));
     // Last question: up button, but no down button.
-    expect(html).toContain("/admin/questions/2/move-up");
-    expect(html).not.toContain("/admin/questions/2/move-down");
+    assertStringIncludes(html, "/admin/questions/2/move-up");
+    assert(!html.includes("/admin/questions/2/move-down"));
   });
 
   test("renders error message when provided", () => {
     const html = adminQuestionsPage([], OWNER_SESSION, "Something went wrong");
-    expect(html).toContain("Something went wrong");
+    assertStringIncludes(html, "Something went wrong");
   });
 
   test("keeps the list readable without write controls in read-only mode", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = adminQuestionsPage([colourQuestion], OWNER_SESSION);
-    expect(html).toContain("Favourite colour?");
-    expect(html).toContain('href="/admin/questions/1"');
-    expect(html).not.toContain('id="new-question"');
-    expect(html).not.toContain("/admin/questions/1/move-");
+    assertStringIncludes(html, "Favourite colour?");
+    assertStringIncludes(html, 'href="/admin/questions/1"');
+    assert(!html.includes('id="new-question"'));
+    assert(!html.includes("/admin/questions/1/move-"));
   });
 });

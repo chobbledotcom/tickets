@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -75,14 +76,15 @@ describe("runImportCheck", () => {
       "",
     ].join("\n");
     expect(await checkOnly(twice)).toBe(1);
-    expect(run.errors[0]).toContain(`${run.path}/src/a.ts:2`);
-    expect(run.errors[0]).toContain('imports "#types" again');
+    assertStringIncludes(run.errors[0] ?? "", `${run.path}/src/a.ts:2`);
+    assertStringIncludes(run.errors[0] ?? "", 'imports "#types" again');
   });
 
   test("names the count and the rule it enforced", async () => {
     expect(await checkOnly(LONG_SPELLING)).toBe(1);
-    expect(run.errors.at(-1)).toContain("1 import issue(s) found");
-    expect(run.errors.at(-1)).toContain(
+    assertStringIncludes(run.errors.at(-1) ?? "", "1 import issue(s) found");
+    assertStringIncludes(
+      run.errors.at(-1) ?? "",
       '"Imports name a module one way" in AGENTS.md',
     );
   });
@@ -102,7 +104,7 @@ describe("runImportCheck", () => {
     await run.write("src/a.ts", 'import { a } from "#db/client.ts";\n');
     await run.write("test/b.ts", 'import { b } from "#shared/types.ts";\n');
     expect(await check(`${run.path}/src`, `${run.path}/test`)).toBe(1);
-    expect(run.errors[0]).toContain(`${run.path}/test/b.ts:1`);
+    assertStringIncludes(run.errors[0] ?? "", `${run.path}/test/b.ts:1`);
   });
 
   test("skips a file that is not TypeScript", async () => {

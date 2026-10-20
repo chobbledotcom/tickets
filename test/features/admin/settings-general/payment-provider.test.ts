@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { getCurrentSettingsVersion, settings } from "#db/settings.ts";
@@ -184,7 +185,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("/admin/settings");
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
+        "/admin/settings",
+      );
       expectFlash(response, "Existing payment provider set to Stripe.");
       expect(settings.paymentProviderSetting).toBe("none");
       expect(settings.paymentProvider).toBeNull();

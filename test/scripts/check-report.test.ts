@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { byLine, reportCheck } from "#scripts/check-report.ts";
@@ -39,7 +40,7 @@ describe("reportCheck", () => {
 
   test("counts one finding as one", () => {
     reportCheck({ ...base, found: ["only"] });
-    expect(errors.at(-1)).toContain("1 comment issue(s) found");
+    assertStringIncludes(errors.at(-1) ?? "", "1 comment issue(s) found");
   });
 
   test("uses the caller's noun and guide", () => {

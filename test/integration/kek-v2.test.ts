@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
@@ -135,7 +136,10 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("/admin/user/new");
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
+        "/admin/user/new",
+      );
       expect(await getUserByUsername("guarded")).toBeNull();
     });
   });

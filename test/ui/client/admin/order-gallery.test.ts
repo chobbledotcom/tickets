@@ -6,6 +6,7 @@
  * `initOrderGallery()`, and drives real `change` events through the form.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -198,10 +199,13 @@ describe("initOrderGallery", () => {
     expect(page.requests).toHaveLength(1);
     // The single settled request carries the full selection, the (blank)
     // date, and the order things were added in.
-    expect(page.requests[0]).toContain("/order/availability?");
-    expect(page.requests[0]).toContain("select_package_7=1");
-    expect(page.requests[0]).toContain("select_5=1");
-    expect(page.requests[0]).toContain("order=package%3A7%2Clisting%3A5");
+    assertStringIncludes(page.requests[0] ?? "", "/order/availability?");
+    assertStringIncludes(page.requests[0] ?? "", "select_package_7=1");
+    assertStringIncludes(page.requests[0] ?? "", "select_5=1");
+    assertStringIncludes(
+      page.requests[0] ?? "",
+      "order=package%3A7%2Clisting%3A5",
+    );
   });
 
   test("omits file entries from the availability query", async () => {

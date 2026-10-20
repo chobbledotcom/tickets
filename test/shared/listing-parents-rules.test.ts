@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -30,9 +31,9 @@ const cabin = (over: Partial<EdgeListing> = {}): EdgeListing =>
 describe("childAddOnError", () => {
   test("resolves to real copy naming the add-on and the child, not a raw key", () => {
     const message = childAddOnError("Face Paint", "Bouncy Castle");
-    expect(message).toContain("Face Paint");
-    expect(message).toContain("Bouncy Castle");
-    expect(message).not.toContain("children_err");
+    assertStringIncludes(message, "Face Paint");
+    assertStringIncludes(message, "Bouncy Castle");
+    assert(!message.includes("children_err"));
   });
 });
 
@@ -253,8 +254,8 @@ describe("edgeFieldError", () => {
   for (const [rule, parent, child, blamed] of blamedNameCases) {
     test(`the ${rule} error resolves to real copy naming '${blamed}', not a raw i18n key`, () => {
       const message = edgeFieldError(parent, child);
-      expect(message).toContain(`'${blamed}'`);
-      expect(message).not.toContain("children_err");
+      assertStringIncludes(message ?? "", `'${blamed}'`);
+      assert(!(message ?? "").includes("children_err"));
     });
   }
 

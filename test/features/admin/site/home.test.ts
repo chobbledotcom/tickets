@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -23,25 +24,32 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
     test("serves the home form boxes with their labels and hints", async () => {
       const { siteHomeForm } = await import("#templates/fields/site.ts");
       const html = siteHomeForm.render();
-      expect(html).toContain("Website title");
-      expect(html).toContain(
+      assertStringIncludes(html, "Website title");
+      assertStringIncludes(
+        html,
         `Displayed as the main heading on all public pages (max ${MAX_INPUT_LENGTH} characters).`,
       );
-      expect(inputNamed(html, "website_title")).toContain('autocomplete="off"');
+      assertStringIncludes(
+        inputNamed(html, "website_title"),
+        'autocomplete="off"',
+      );
       // The id ties the label to the field; an emptied id breaks that link.
-      expect(inputNamed(html, "website_title")).toContain('id="website_title"');
-      expect(html).toContain("Homepage text");
+      assertStringIncludes(
+        inputNamed(html, "website_title"),
+        'id="website_title"',
+      );
+      assertStringIncludes(html, "Homepage text");
       const homepage = inputNamed(html, "homepage_text");
-      expect(homepage).toContain('placeholder="Welcome to our site..."');
+      assertStringIncludes(homepage, 'placeholder="Welcome to our site..."');
       // markdown: true wires the preview affordance to the textarea.
-      expect(homepage).toContain("data-markdown-preview");
+      assertStringIncludes(homepage, "data-markdown-preview");
     });
 
     test("serves the contact form box with its label", async () => {
       const { siteContactForm } = await import("#templates/fields/site.ts");
       const html = siteContactForm.render();
       inputNamed(html, "contact_page_text");
-      expect(html).toContain("Contact page text");
+      assertStringIncludes(html, "Contact page text");
     });
   });
 
@@ -65,8 +73,8 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
       await settings.update.homepageText("Welcome!");
       const response = await adminGet("/admin/site");
       const html = await response.text();
-      expect(html).toContain("My Listings");
-      expect(html).toContain("Welcome!");
+      assertStringIncludes(html, "My Listings");
+      assertStringIncludes(html, "Welcome!");
     });
 
     test("displays success message from flash cookie", async () => {
@@ -78,7 +86,7 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
         },
       );
       const html = await response.text();
-      expect(html).toContain("Homepage updated");
+      assertStringIncludes(html, "Homepage updated");
     });
 
     test("displays error message from flash cookie", async () => {
@@ -90,7 +98,7 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
         },
       );
       const html = await response.text();
-      expect(html).toContain("Title is required");
+      assertStringIncludes(html, "Title is required");
     });
   });
 

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { type Stub, stub } from "@std/testing/mock";
 import { requirePaidDefaultStatus } from "#db/attendee-statuses.ts";
@@ -76,9 +77,9 @@ export const createNonReservation = async (
 
 /** Assert the pay page rendered the recap: title, listing name and amount due. */
 export const expectRecap = (html: string): void => {
-  expect(html).toContain("Pay your balance");
-  expect(html).toContain("Workshop Ticket");
-  expect(html).toContain("Balance due");
+  assertStringIncludes(html, "Pay your balance");
+  assertStringIncludes(html, "Workshop Ticket");
+  assertStringIncludes(html, "Balance due");
 };
 
 /** GET /pay for an attendee's signed token; assert 200 and return the html. */

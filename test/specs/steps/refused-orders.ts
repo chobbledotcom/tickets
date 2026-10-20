@@ -5,8 +5,9 @@
  * the customer typed still filled in.
  */
 
-// jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
+// jscpd:ignore-start
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { customPriceFieldName, quantityFieldName } from "#booking/tree.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -333,7 +334,7 @@ Then(
   function (this: TicketsWorld): void {
     const attempt = sentOrder(this);
     expect(attempt.wasBooked).toBe(false);
-    expect(attempt.browser.pageText).toContain(TICKETS_UNAVAILABLE_MESSAGE);
+    assertStringIncludes(attempt.browser.pageText, TICKETS_UNAVAILABLE_MESSAGE);
   },
 );
 
@@ -410,7 +411,8 @@ Then(
     const attempt = sentOrder(this);
     expect(attempt.wasBooked).toBe(false);
     // The site's exact words, from src/features/public/ticket-submit/prepare.ts.
-    expect(attempt.browser.pageText).toContain(
+    assertStringIncludes(
+      attempt.browser.pageText,
       "Please select at least one ticket",
     );
   },
@@ -433,7 +435,10 @@ Then(
   "the customer is told no days are available",
   function (this: TicketsWorld): void {
     const browser = browserSeenBy(this, CUSTOMERS_BROWSER);
-    expect(browser.pageText).toContain(t("public.ticket.no_dates_available"));
+    assertStringIncludes(
+      browser.pageText,
+      t("public.ticket.no_dates_available"),
+    );
   },
 );
 

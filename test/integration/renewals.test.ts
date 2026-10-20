@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -273,7 +274,7 @@ describeWithEnv("renewals", { db: true }, () => {
       const logs = await getAllActivityLog();
       const renewalLog = logs.find((l) => l.message.includes("Renewal of"));
       expect(renewalLog).toBeDefined();
-      expect(renewalLog!.message).toContain("2 month(s)");
+      assertStringIncludes(renewalLog!.message, "2 month(s)");
     }),
   );
 });

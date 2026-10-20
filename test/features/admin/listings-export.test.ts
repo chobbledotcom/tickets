@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
 import { moveTickets } from "#db/attendees/update.ts";
@@ -39,8 +39,8 @@ describeWithEnv("the listing CSV export", { db: true }, () => {
       `/admin/listing/${listing.id}/export?filter=in`,
     );
     const csv = await response.text();
-    expect(csv).toContain("AliceIn");
-    expect(csv).not.toContain("BobOut");
+    assertStringIncludes(csv, "AliceIn");
+    assert(!csv.includes("BobOut"));
   });
 
   test("?filter=out exports only checked-out attendees", async () => {
@@ -49,24 +49,25 @@ describeWithEnv("the listing CSV export", { db: true }, () => {
       `/admin/listing/${listing.id}/export?filter=out`,
     );
     const csv = await response.text();
-    expect(csv).toContain("BobOut");
-    expect(csv).not.toContain("AliceIn");
+    assertStringIncludes(csv, "BobOut");
+    assert(!csv.includes("AliceIn"));
   });
 
   test("no check-in filter exports everyone", async () => {
     const listing = await setup();
     const response = await adminGet(`/admin/listing/${listing.id}/export`);
     const csv = await response.text();
-    expect(csv).toContain("AliceIn");
-    expect(csv).toContain("BobOut");
+    assertStringIncludes(csv, "AliceIn");
+    assertStringIncludes(csv, "BobOut");
   });
 
   test("notes the export in the record of what was done", async () => {
     const listing = await setup();
     await adminGet(`/admin/listing/${listing.id}/export`);
     const entries = await withTestSession(() => getAllActivityLog(20));
-    expect(entries.map((entry) => entry.message)).toContain(
-      "CSV exported for 'Gala'",
+    assertArrayIncludes(
+      entries.map((entry) => entry.message),
+      ["CSV exported for 'Gala'"],
     );
   });
 
@@ -79,8 +80,9 @@ describeWithEnv("the listing CSV export", { db: true }, () => {
     );
     await adminGet(`/admin/listing/${listing.id}/export?date=2026-08-01`);
     const entries = await withTestSession(() => getAllActivityLog(20));
-    expect(entries.map((entry) => entry.message)).toContain(
-      "CSV exported for 'Day Export' (date: 2026-08-01)",
+    assertArrayIncludes(
+      entries.map((entry) => entry.message),
+      ["CSV exported for 'Day Export' (date: 2026-08-01)"],
     );
   });
 
@@ -139,14 +141,14 @@ describeWithEnv("the listing CSV export", { db: true }, () => {
     const listing = await setupFreeText();
     const response = await adminGet(`/admin/listing/${listing.id}/export`);
     const csv = await response.text();
-    expect(csv).toContain("Dietary needs?");
-    expect(csv).toContain("Coeliac");
+    assertStringIncludes(csv, "Dietary needs?");
+    assertStringIncludes(csv, "Coeliac");
   });
 
   test("shows the decrypted free-text answer on the roster tab", async () => {
     const listing = await setupFreeText();
     const response = await adminGet(`/admin/listing/${listing.id}/attendees`);
     const html = await response.text();
-    expect(html).toContain("Coeliac");
+    assertStringIncludes(html, "Coeliac");
   });
 });

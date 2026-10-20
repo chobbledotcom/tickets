@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { type Stub, stub } from "@std/testing/mock";
 import type { SessionMetadata } from "#shared/payments.ts";
@@ -134,7 +135,8 @@ export const expectWebhookKeptAndRefunded = async (
       for (const substring of Array.isArray(errorContains)
         ? errorContains
         : [errorContains]) {
-        expect(json.error).toContain(substring);
+        assert(typeof json.error === "string");
+        assertStringIncludes(json.error, substring);
       }
     },
     signature ?? "sig_valid",

@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { settings } from "#db/settings.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
@@ -50,11 +51,11 @@ Then(
       hasCheckedInput(browser.currentHtml, "payment_provider", "square"),
     ).toBe(false);
     for (const provider of ["Square", "Stripe", "SumUp"]) {
-      expect(browser.pageText).toContain(provider);
+      assertStringIncludes(browser.pageText, provider);
     }
-    expect(browser.pageText).toContain("Your Stripe credentials are saved");
-    expect(browser.pageText).toContain("Test mode:");
-    expect(browser.pageText).toContain("No real charges will be made");
+    assertStringIncludes(browser.pageText, "Your Stripe credentials are saved");
+    assertStringIncludes(browser.pageText, "Test mode:");
+    assertStringIncludes(browser.pageText, "No real charges will be made");
   },
 );
 
@@ -185,9 +186,10 @@ Then(
   "the organiser must choose the provider for existing payments",
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
-    expect(browser.pageText).toContain("Provider for existing payments");
-    expect(browser.pageText).toContain("New sales will stay off.");
-    expect(browser.currentHtml).toContain(
+    assertStringIncludes(browser.pageText, "Provider for existing payments");
+    assertStringIncludes(browser.pageText, "New sales will stay off.");
+    assertStringIncludes(
+      browser.currentHtml,
       'id="settings-payment-provider-recovery"',
     );
     for (const provider of ["stripe", "square"]) {
@@ -196,9 +198,9 @@ Then(
         provider,
         "existing_payment_provider",
       );
-      expect(input).toContain('name="existing_payment_provider"');
-      expect(input).toContain("required");
-      expect(input).toContain(`value="${provider}"`);
+      assertStringIncludes(input, 'name="existing_payment_provider"');
+      assertStringIncludes(input, "required");
+      assertStringIncludes(input, `value="${provider}"`);
     }
   },
 );
@@ -210,10 +212,10 @@ Then(
     expect(
       hasCheckedInput(browser.currentHtml, "payment_provider", "none"),
     ).toBe(true);
-    expect(browser.currentHtml).not.toContain(
-      'id="settings-payment-provider-recovery"',
+    assert(
+      !browser.currentHtml.includes('id="settings-payment-provider-recovery"'),
     );
-    expect(browser.currentHtml).toContain('id="settings-stripe"');
+    assertStringIncludes(browser.currentHtml, 'id="settings-stripe"');
   },
 );
 
@@ -222,7 +224,8 @@ Then(
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
     expectButtonDisabled(browser.currentHtml, "Save custom domain", true);
-    expect(browser.pageText).toContain(
+    assertStringIncludes(
+      browser.pageText,
       "Choose the provider for existing payments before changing your domain.",
     );
   },
@@ -233,8 +236,10 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openAdminPage(this, "/admin/settings-advanced");
     expectButtonDisabled(browser.currentHtml, "Save custom domain", false);
-    expect(browser.pageText).not.toContain(
-      "Choose the provider for existing payments before changing your domain.",
+    assert(
+      !browser.pageText.includes(
+        "Choose the provider for existing payments before changing your domain.",
+      ),
     );
   },
 );
@@ -244,7 +249,8 @@ Then(
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
     expectButtonDisabled(browser.currentHtml, "Register subdomain", true);
-    expect(browser.pageText).toContain(
+    assertStringIncludes(
+      browser.pageText,
       "Choose the provider for existing payments before changing your domain.",
     );
   },
@@ -255,8 +261,10 @@ Then(
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
     expectButtonDisabled(browser.currentHtml, "Register subdomain", false);
-    expect(browser.pageText).not.toContain(
-      "Choose the provider for existing payments before changing your domain.",
+    assert(
+      !browser.pageText.includes(
+        "Choose the provider for existing payments before changing your domain.",
+      ),
     );
   },
 );

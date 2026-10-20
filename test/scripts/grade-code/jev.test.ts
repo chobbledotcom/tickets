@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -76,7 +77,8 @@ describe("buildJevState", () => {
     expect(state.lines).toBe(2);
     expect(state.content).toBe("// Note.\nconst a = 1;\n");
     expect(Array.isArray(state.comments)).toBe(true);
-    expect(state.standards).toContain("AGENTS.md");
+    assert(typeof state.standards === "string");
+    assertStringIncludes(state.standards, "AGENTS.md");
   });
 
   test("sends the whole source of a long file", () => {
@@ -168,7 +170,8 @@ describe("callJev", () => {
       () => Promise.resolve(),
     );
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain("the answer is not JSON");
+    if (!result.ok)
+      assertStringIncludes(result.error, "the answer is not JSON");
   });
 
   test("retries a malformed 200 body until a healthy one arrives", async () => {
@@ -207,7 +210,7 @@ describe("callJev", () => {
     }
     const result = await resultPromise;
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain("AbortError");
+    if (!result.ok) assertStringIncludes(result.error, "AbortError");
   });
 
   test("refuses a reply that leaves a question unanswered", async () => {
@@ -310,7 +313,7 @@ describe("gradeJevAnswers", () => {
     expect(results.sureFail).toMatchObject({ goodness: 0, status: "FAIL" });
     expect(results.unsurePass).toMatchObject({ goodness: 0.5, status: "WARN" });
     expect(results.unsureFail).toMatchObject({ goodness: 0.5, status: "WARN" });
-    expect(results.unsurePass?.note).toContain("conf 0.20");
+    assertStringIncludes(results.unsurePass?.note ?? "", "conf 0.20");
   });
 
   test("throws when a question it was given has no answer", () => {

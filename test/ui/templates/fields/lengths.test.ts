@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
@@ -49,7 +50,7 @@ describe("form length boundaries", () => {
           : "1".repeat(length);
 
       test(`${label} ${field.name} renders its length limit`, () => {
-        expect(renderField(field, "")).toContain(`maxlength="${max}"`);
+        assertStringIncludes(renderField(field, ""), `maxlength="${max}"`);
       });
       test(`${label} ${field.name} accepts its exact limit`, () => {
         expectAccepts(field, valueAt(max));
@@ -107,7 +108,7 @@ describe("form length boundaries", () => {
         valid: true,
         values: { body: value },
       });
-      expect(renderField(field, "")).toContain(`maxlength="${maximum}"`);
+      assertStringIncludes(renderField(field, ""), `maxlength="${maximum}"`);
     });
     test(`textarea rejects one character beyond ${maximum}`, () => {
       expect(
@@ -130,7 +131,8 @@ describe("form length boundaries", () => {
   ] as const) {
     const token = byName(form.fields, "db_token");
     test(`${label} db_token renders the machine-credential cap`, () => {
-      expect(renderField(token, "")).toContain(
+      assertStringIncludes(
+        renderField(token, ""),
         `maxlength="${MAX_TEXTAREA_LENGTH}"`,
       );
     });

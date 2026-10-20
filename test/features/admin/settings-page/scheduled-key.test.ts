@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -18,7 +19,7 @@ describeWithEnv(
 
       expect(response.status).toBe(200);
       expect(response.headers.get("cache-control")).toBe("private, no-store");
-      expect(await response.text()).toContain(TEST_SCHEDULED_KEY);
+      assertStringIncludes(await response.text(), TEST_SCHEDULED_KEY);
     });
 
     test("does not show the local key to a manager", async () => {
@@ -30,7 +31,7 @@ describeWithEnv(
       );
 
       expect(response.status).toBe(403);
-      expect(await response.text()).not.toContain(TEST_SCHEDULED_KEY);
+      assert(!(await response.text()).includes(TEST_SCHEDULED_KEY));
     });
   },
 );

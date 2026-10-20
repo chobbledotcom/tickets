@@ -3,6 +3,7 @@
  * by the completion when a payment lands. */
 
 /* jscpd:ignore-start -- imports */
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { decrypt } from "#crypto/encryption.ts";
@@ -39,7 +40,7 @@ describeWithEnv("square link ends", { db: true }, () => {
       "link_sq_stage",
     );
     // The session id itself never rests in the row, only its one-way hash.
-    expect(row?.sealed_handle).not.toContain("sq_stage");
+    assert(!row?.sealed_handle.includes("sq_stage"));
   });
 
   test("claims one due row at a time and holds it inside a lease", async () => {

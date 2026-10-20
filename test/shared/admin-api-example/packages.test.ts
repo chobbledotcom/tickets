@@ -3,6 +3,7 @@
  * These check the pair describes one package a caller could really buy.
  */
 
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
@@ -159,14 +160,15 @@ describe("documented package endpoints", () => {
     expect("date" in booking).toBe("availableDates" in pkg);
     expect("dayCount" in booking).toBe("dayCounts" in pkg);
     if (pkg.availableDates) {
-      expect(pkg.availableDates).toContain(booking.date);
+      assertArrayIncludes(pkg.availableDates, [booking.date]);
     }
     if (pkg.dayCounts) {
       // A length may be spelled as digits, so read it the way the endpoint
       // does before looking for it among the lengths on offer.
-      expect(
+      assertArrayIncludes(
         (pkg.dayCounts as { days: number }[]).map(({ days }) => days),
-      ).toContain(v.parse(ApiQuantitySchema, booking.dayCount));
+        [v.parse(ApiQuantitySchema, booking.dayCount)],
+      );
     }
   });
 

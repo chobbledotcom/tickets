@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -36,47 +37,47 @@ describe("embed-hosts", () => {
 
     test("rejects bare wildcard", () => {
       const result = validateHostPattern("*");
-      expect(result).toContain("Bare wildcard");
+      assertStringIncludes(result ?? "", "Bare wildcard");
     });
 
     test("rejects hostname with port", () => {
       const result = validateHostPattern("example.com:8080");
-      expect(result).toContain("Invalid host pattern");
+      assertStringIncludes(result ?? "", "Invalid host pattern");
     });
 
     test("rejects hostname with protocol", () => {
       const result = validateHostPattern("https://example.com");
-      expect(result).toContain("Invalid host pattern");
+      assertStringIncludes(result ?? "", "Invalid host pattern");
     });
 
     test("rejects hostname with path", () => {
       const result = validateHostPattern("example.com/path");
-      expect(result).toContain("Invalid host pattern");
+      assertStringIncludes(result ?? "", "Invalid host pattern");
     });
 
     test("rejects hostname with spaces", () => {
       const result = validateHostPattern("example .com");
-      expect(result).toContain("Invalid host pattern");
+      assertStringIncludes(result ?? "", "Invalid host pattern");
     });
 
     test("rejects single label hostname", () => {
       const result = validateHostPattern("localhost");
-      expect(result).toContain("Invalid host pattern");
+      assertStringIncludes(result ?? "", "Invalid host pattern");
     });
 
     test("rejects double wildcard", () => {
       const result = validateHostPattern("**.example.com");
-      expect(result).toContain("Invalid host pattern");
+      assertStringIncludes(result ?? "", "Invalid host pattern");
     });
 
     test("rejects wildcard without dot prefix", () => {
       const result = validateHostPattern("*example.com");
-      expect(result).toContain("Invalid host pattern");
+      assertStringIncludes(result ?? "", "Invalid host pattern");
     });
 
     test("rejects uppercase characters", () => {
       const result = validateHostPattern("Example.com");
-      expect(result).toContain("Invalid host pattern");
+      assertStringIncludes(result ?? "", "Invalid host pattern");
     });
   });
 
@@ -162,12 +163,12 @@ describe("embed-hosts", () => {
 
     test("returns error for invalid host in list", () => {
       const result = validateEmbedHosts("example.com, *");
-      expect(result).toContain("Bare wildcard");
+      assertStringIncludes(result ?? "", "Bare wildcard");
     });
 
     test("returns error for host with port", () => {
       const result = validateEmbedHosts("example.com:443");
-      expect(result).toContain("Invalid host pattern");
+      assertStringIncludes(result ?? "", "Invalid host pattern");
     });
 
     test("returns null for empty input (no hosts)", () => {

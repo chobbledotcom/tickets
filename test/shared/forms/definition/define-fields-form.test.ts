@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { resetI18nForTest, t } from "#i18n";
@@ -17,11 +18,11 @@ describe("defineFieldsForm", () => {
       return getLabelForm().render();
     };
     try {
-      expect(labelWith("Nickname")).toContain("Nickname");
+      assertStringIncludes(labelWith("Nickname"), "Nickname");
     } finally {
       resetI18nForTest();
     }
-    expect(getLabelForm().render()).toContain("Name");
+    assertStringIncludes(getLabelForm().render(), "Name");
   });
 
   test("passes the caller's arguments through to the fields builder", () => {
@@ -31,7 +32,7 @@ describe("defineFieldsForm", () => {
           { label: `Visitors ${count}`, name: "count", type: "number" },
         ] as const,
     );
-    expect(getViewForm(3).render()).toContain("Visitors 3");
+    assertStringIncludes(getViewForm(3).render(), "Visitors 3");
   });
 
   test("keeps the field types the FormValues type reads", () => {

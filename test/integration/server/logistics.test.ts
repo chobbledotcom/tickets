@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -58,10 +59,13 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
 
     test("nav hides Logistics until the feature is enabled", async () => {
       const body = await (await adminGet("/admin/logistics")).text();
-      expect(body).not.toContain('class="active" href="/admin/logistics"');
+      assert(!body.includes('class="active" href="/admin/logistics"'));
       await enableFeature("logistics");
       const enabledBody = await (await adminGet("/admin/logistics")).text();
-      expect(enabledBody).toContain('class="active" href="/admin/logistics"');
+      assertStringIncludes(
+        enabledBody,
+        'class="active" href="/admin/logistics"',
+      );
     });
 
     test("highlights the Logistics sub-nav link on the logistics page", async () => {
@@ -70,7 +74,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       // never lit up on the page users actually land on.
       await enableFeature("logistics");
       const body = await (await adminGet("/admin/logistics")).text();
-      expect(body).toContain('class="active" href="/admin/logistics"');
+      assertStringIncludes(body, 'class="active" href="/admin/logistics"');
     });
   });
 
@@ -124,15 +128,15 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const editForm = await adminGet(`/admin/logistics/${id}`);
       const editHtml = await editForm.text();
       // The form must post to the real edit route (no stray /agents/ segment).
-      expect(editHtml).toContain(`action="/admin/logistics/${id}/edit"`);
-      expect(editHtml).toContain(`href="/admin/logistics/${id}"`);
-      expect(editHtml).toContain(`href="/admin/logistics/${id}/actions"`);
-      expect(editHtml).toContain("Van A");
-      expect(editHtml).not.toContain(`/admin/logistics/${id}/delete`);
+      assertStringIncludes(editHtml, `action="/admin/logistics/${id}/edit"`);
+      assertStringIncludes(editHtml, `href="/admin/logistics/${id}"`);
+      assertStringIncludes(editHtml, `href="/admin/logistics/${id}/actions"`);
+      assertStringIncludes(editHtml, "Van A");
+      assert(!editHtml.includes(`/admin/logistics/${id}/delete`));
       const actionsHtml = await (
         await adminGet(`/admin/logistics/${id}/actions`)
       ).text();
-      expect(actionsHtml).toContain(`/admin/logistics/${id}/delete`);
+      assertStringIncludes(actionsHtml, `/admin/logistics/${id}/delete`);
       const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "Van B",
       });
@@ -210,8 +214,8 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
 
       // The edit form offers the agent user but never the editor.
       const editHtml = await (await adminGet(`/admin/logistics/${id}`)).text();
-      expect(editHtml).toContain(`value="${agentUserId}"`);
-      expect(editHtml).not.toContain(`value="${editorUserId}"`);
+      assertStringIncludes(editHtml, `value="${agentUserId}"`);
+      assert(!editHtml.includes(`value="${editorUserId}"`));
 
       // A crafted submission with the editor's id is dropped server-side.
       await adminFormPost(`/admin/logistics/${id}/edit`, {
@@ -225,9 +229,12 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const id = await createLogisticsAgent("Doomed Van");
       const confirm = await adminGet(`/admin/logistics/${id}/delete`);
       const confirmHtml = await confirm.text();
-      expect(confirmHtml).toContain(`action="/admin/logistics/${id}/delete"`);
-      expect(confirmHtml).toContain("Delete logistics agent");
-      expect(confirmHtml).toContain("Doomed Van");
+      assertStringIncludes(
+        confirmHtml,
+        `action="/admin/logistics/${id}/delete"`,
+      );
+      assertStringIncludes(confirmHtml, "Delete logistics agent");
+      assertStringIncludes(confirmHtml, "Doomed Van");
       const { response } = await adminFormPost(
         `/admin/logistics/${id}/delete`,
         {
@@ -279,7 +286,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       });
       const body = await response.text();
       expect(response.status).toBe(400);
-      expect(body).toContain("Agent name is required");
+      assertStringIncludes(body, "Agent name is required");
       expect(body).toMatch(
         new RegExp(
           `checked[^>]*value="${userId}"|value="${userId}"[^>]*checked`,

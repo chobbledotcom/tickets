@@ -3,6 +3,7 @@
  * database, cold isolate — every statement of the first request is recorded
  * and the complete set asserted, so a new boot query fails loudly.
  */
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { invalidateInitDbCache } from "#db/migrations.ts";
@@ -63,7 +64,7 @@ describeWithEnv("cold-boot query chain", { db: true }, () => {
       // migration history complete?" — the CREATE TABLE + SELECT id pair that
       // used to run on every boot must not come back.
       expect(boot.schemaProbe.length).toBe(1);
-      expect(boot.schemaProbe[0]).toContain("applied_migrations");
+      assertStringIncludes(boot.schemaProbe[0] ?? "", "applied_migrations");
       expect(seen.filter((sql) => sql.includes("CREATE TABLE")).length).toBe(0);
       expect(
         seen.filter((sql) => sql.includes("SELECT id FROM schema_migrations"))

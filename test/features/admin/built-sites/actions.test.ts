@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -121,10 +122,10 @@ describeWithEnv(
         )(response);
 
         const setNames = secrets.setCalls.map((c) => c.name);
-        expect(setNames).toContain("NTFY_URL");
-        expect(setNames).toContain("DB_URL");
+        assertArrayIncludes(setNames, ["NTFY_URL"]);
+        assertArrayIncludes(setNames, ["DB_URL"]);
         // The unreproducible encryption key is never set.
-        expect(setNames).not.toContain("DB_ENCRYPTION_KEY");
+        assert(!setNames.includes("DB_ENCRYPTION_KEY"));
 
         const logs = await getAllActivityLog();
         expect(logs.some((l) => l.message.includes("missing secret"))).toBe(

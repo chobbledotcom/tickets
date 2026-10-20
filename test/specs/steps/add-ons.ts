@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   bookingLinkFor,
@@ -86,9 +87,10 @@ Then(
   "the {word} is offered with a link to its own page",
   function (this: TicketsWorld, name: string): void {
     const page = forSalePage(this);
-    expect(page.pageText).toContain(name);
-    expect(page.links.map(({ href }) => href)).toContain(
-      bookingLinkFor(this, name),
+    assertStringIncludes(page.pageText, name);
+    assertArrayIncludes(
+      page.links.map(({ href }) => href),
+      [bookingLinkFor(this, name)],
     );
   },
 );
@@ -98,7 +100,7 @@ Then(
   function (this: TicketsWorld, name: string): void {
     // The note belongs to things that are only ever sold alongside something
     // else, so it must not follow this one onto the page.
-    expect(forSalePage(this).pageText).toContain(name);
+    assertStringIncludes(forSalePage(this).pageText, name);
     expect(
       forSalePage(this).containsText("as an add-on to another booking"),
     ).toBe(false);
@@ -115,15 +117,16 @@ Then(
     // Selling it on its own must not take it off the page of the thing it goes
     // with — that is where most people will meet it.
     const page = await bookingPageFor(this, mainThing);
-    expect(page.pageText).toContain(addOn);
+    assertStringIncludes(page.pageText, addOn);
   },
 );
 
 Then(
   "the {word} is still offered too",
   function (this: TicketsWorld, name: string): void {
-    expect(forSalePage(this).links.map(({ href }) => href)).toContain(
-      bookingLinkFor(this, name),
+    assertArrayIncludes(
+      forSalePage(this).links.map(({ href }) => href),
+      [bookingLinkFor(this, name)],
     );
   },
 );

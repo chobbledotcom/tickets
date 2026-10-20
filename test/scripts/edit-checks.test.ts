@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -74,7 +75,7 @@ describe("edit-checks pipeline", () => {
       ".jscpd.helpers.json",
     ]);
     for (const pending of calls.slice(1)) {
-      expect(pending.args).toContain("--format");
+      assertArrayIncludes(pending.args, ["--format"]);
       expect(pending.args[pending.args.indexOf("--format") + 1]).toBe(
         "typescript",
       );
@@ -129,7 +130,7 @@ describe("edit-checks pipeline", () => {
     await flush();
 
     expect(calls.length).toBe(1);
-    expect(call(calls, 0).args[0]).toContain("biome.ts");
+    assertStringIncludes(call(calls, 0).args[0] ?? "", "biome.ts");
 
     await drain();
     const firstText = await first;
@@ -145,10 +146,10 @@ describe("edit-checks pipeline", () => {
       "scripts/cpd.ts",
       "scripts/cpd.ts",
     ]);
-    expect(firstText).toContain("src/a.ts");
-    expect(firstText).not.toContain("src/b.ts");
-    expect(secondText).toContain("src/b.ts");
-    expect(secondText).not.toContain("src/a.ts");
+    assertStringIncludes(firstText, "src/a.ts");
+    assert(!firstText.includes("src/b.ts"));
+    assertStringIncludes(secondText, "src/b.ts");
+    assert(!secondText.includes("src/a.ts"));
   });
 
   test("keeps checking later edits after a failed run", async () => {
@@ -162,7 +163,7 @@ describe("edit-checks pipeline", () => {
 
     await expect(pipeline("src/broken.ts")).rejects.toThrow("tool exploded");
     fail = false;
-    expect(await pipeline("src/next.ts")).toContain("biome: ran");
+    assertStringIncludes(await pipeline("src/next.ts"), "biome: ran");
   });
 
   test("runs no checks for a file outside the scanned trees", async () => {
@@ -188,8 +189,8 @@ describe("edit-checks pipeline", () => {
     await drain();
 
     const text = await failed;
-    expect(text).toContain("jscpd: duplicated code found");
-    expect(text).toContain("clone pair");
+    assertStringIncludes(text, "jscpd: duplicated code found");
+    assertStringIncludes(text, "clone pair");
   });
 });
 
@@ -279,10 +280,10 @@ describe("edit-checks formatting", () => {
         "more policy text",
       ].join("\n"),
     });
-    expect(text).toContain("biome: found lint issues");
-    expect(text).toContain("clone pair in src/a.ts");
-    expect(text).not.toContain("config");
-    expect(text).not.toContain("policy");
+    assertStringIncludes(text, "biome: found lint issues");
+    assertStringIncludes(text, "clone pair in src/a.ts");
+    assert(!text.includes("config"));
+    assert(!text.includes("policy"));
   });
 
   test("caps long Biome failure output", () => {
@@ -293,10 +294,10 @@ describe("edit-checks formatting", () => {
         "\n",
       ),
     });
-    expect(text).toContain("biome: found lint issues");
-    expect(text).toContain("line 119");
-    expect(text).not.toContain("line 120");
-    expect(text).toContain("… truncated");
+    assertStringIncludes(text, "biome: found lint issues");
+    assertStringIncludes(text, "line 119");
+    assert(!text.includes("line 120"));
+    assertStringIncludes(text, "… truncated");
   });
 
   test("lists the labels when every scan is clean", () => {
@@ -356,7 +357,7 @@ describe("edit-checks runner", () => {
     await withFixture('console.log("from-check");', async (path) => {
       const result = await check([path]);
       expect(result.ok).toBe(true);
-      expect(result.text).toContain("from-check");
+      assertStringIncludes(result.text, "from-check");
     });
   });
 
@@ -366,7 +367,7 @@ describe("edit-checks runner", () => {
       async (path) => {
         const result = await check([path]);
         expect(result.ok).toBe(false);
-        expect(result.text).toContain("bad-thing");
+        assertStringIncludes(result.text, "bad-thing");
       },
     );
   });
@@ -379,7 +380,7 @@ describe("edit-checks runner", () => {
     const startedAt = Date.now();
     const result = await runTool(["--version"]);
     expect(result.ok).toBe(false);
-    expect(result.text).toContain("could not run");
+    assertStringIncludes(result.text, "could not run");
     expect(Date.now() - startedAt).toBeLessThan(30_000);
   });
 
@@ -391,7 +392,7 @@ describe("edit-checks runner", () => {
         const result = await stalledCheck([path]);
         const elapsed = Date.now() - startedAt;
         expect(result.ok).toBe(false);
-        expect(result.text).toContain("timed out");
+        assertStringIncludes(result.text, "timed out");
         expect(elapsed).toBeLessThan(30_000);
       },
     );

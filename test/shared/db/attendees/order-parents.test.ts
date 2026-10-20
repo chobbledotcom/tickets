@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ChildAllocation, ListingBooking } from "#db/attendee-types.ts";
@@ -133,8 +134,8 @@ describe("db > attendees > expandChildAllocations", () => {
     const childRows = result.filter((r) => r.listingId === 30);
     expect(childRows).toHaveLength(2);
     const parentIds = childRows.map((r) => r.parentListingId);
-    expect(parentIds).toContain(10);
-    expect(parentIds).toContain(20);
+    assertArrayIncludes(parentIds, [10]);
+    assertArrayIncludes(parentIds, [20]);
     // Each child allocation carries qty 1.
     expect(childRows.every((r) => r.quantity === 1)).toBe(true);
     // All rows share one token.

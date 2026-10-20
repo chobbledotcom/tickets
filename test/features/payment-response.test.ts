@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
@@ -13,8 +14,8 @@ describe("paymentErrorResponse", () => {
 
     expect(response.status).toBe(400);
     const page = await response.text();
-    expect(page).toContain("Something went wrong");
-    expect(page).not.toContain("Staff diagnostics");
+    assertStringIncludes(page, "Something went wrong");
+    assert(!page.includes("Staff diagnostics"));
   });
 
   test("honours the given status", () => {
@@ -28,10 +29,10 @@ describe("paymentErrorResponse", () => {
     });
 
     const page = await response.text();
-    expect(page).toContain("Staff diagnostics");
-    expect(page).toContain("Session id");
-    expect(page).toContain("cs_panel");
-    expect(page).toContain("The card step was never finished.");
+    assertStringIncludes(page, "Staff diagnostics");
+    assertStringIncludes(page, "Session id");
+    assertStringIncludes(page, "cs_panel");
+    assertStringIncludes(page, "The card step was never finished.");
   });
 });
 

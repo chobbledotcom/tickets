@@ -1,5 +1,5 @@
 // jscpd:ignore-start
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
@@ -81,10 +81,10 @@ describeWithEnv(
           },
         );
         const html = await response.text();
-        expect(html).toContain("Group Attendees");
-        expect(html).toContain("4 / 20");
-        expect(html).toContain("16 remain");
-        expect(html).toContain(`href="/admin/groups/${group.id}"`);
+        assertStringIncludes(html, "Group Attendees");
+        assertStringIncludes(html, "4 / 20");
+        assertStringIncludes(html, "16 remain");
+        assertStringIncludes(html, `href="/admin/groups/${group.id}"`);
       });
 
       test("shows the tightest capped group when a listing is in several", async () => {
@@ -130,11 +130,11 @@ describeWithEnv(
         const html = await response.text();
         // The tight group (6 cap, 4 booked → 2 remain) is the binding one shown,
         // not the roomier groups it also belongs to.
-        expect(html).toContain("4 / 6");
-        expect(html).toContain("2 remain");
-        expect(html).toContain(`href="/admin/groups/${tight.id}"`);
-        expect(html).not.toContain(`href="/admin/groups/${loose.id}"`);
-        expect(html).not.toContain(`href="/admin/groups/${looser.id}"`);
+        assertStringIncludes(html, "4 / 6");
+        assertStringIncludes(html, "2 remain");
+        assertStringIncludes(html, `href="/admin/groups/${tight.id}"`);
+        assert(!html.includes(`href="/admin/groups/${loose.id}"`));
+        assert(!html.includes(`href="/admin/groups/${looser.id}"`));
       });
 
       test("omits Group Attendees row when group is uncapped", async () => {
@@ -154,7 +154,7 @@ describeWithEnv(
           },
         );
         const html = await response.text();
-        expect(html).not.toContain("Group Attendees");
+        assert(!html.includes("Group Attendees"));
       });
       test("shows attendee answers in the roster when questions assigned", async () => {
         const { listing, cookie } = await setupListingAndLogin({
@@ -172,8 +172,8 @@ describeWithEnv(
           { cookie },
         );
         const html = await response.text();
-        expect(html).toContain("<th>Answers</th>");
-        expect(html).toContain('<span title="Size: Small">Small</span>');
+        assertStringIncludes(html, "<th>Answers</th>");
+        assertStringIncludes(html, '<span title="Size: Small">Small</span>');
       });
 
       test("shows the whole-listing answer aggregate on the Overview tab", async () => {
@@ -192,8 +192,8 @@ describeWithEnv(
           },
         );
         const html = await response.text();
-        expect(html).toContain("Size");
-        expect(html).toContain("Small (1)");
+        assertStringIncludes(html, "Size");
+        assertStringIncludes(html, "Small (1)");
       });
       test("shows the Group Attendees row on the roster's per-date capacity for a daily listing in a capped group", async () => {
         const bookingDate = addDays(testDate(todayInTz("UTC")), 1);
@@ -230,11 +230,11 @@ describeWithEnv(
           `/admin/listing/${listing.id}/attendees?date=${bookingDate}`,
         );
         const html = await response.text();
-        expect(html).toContain("Group Attendees");
-        expect(html).toContain(`href="/admin/groups/${group.id}"`);
+        assertStringIncludes(html, "Group Attendees");
+        assertStringIncludes(html, `href="/admin/groups/${group.id}"`);
         // The selected day keeps its checked-in summary (the combined page's
         // date-filtered shared rows), not just the capacity snippet.
-        expect(html).toContain("Checked In");
+        assertStringIncludes(html, "Checked In");
       });
     });
   },

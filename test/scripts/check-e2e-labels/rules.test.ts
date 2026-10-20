@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -59,7 +60,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    expect(issues[0]?.message).toContain("renders exactly");
+    assertStringIncludes(issues[0]?.message ?? "", "renders exactly");
   });
 
   test("flags a page-text helper whose key names nothing", () => {
@@ -80,7 +81,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    expect(issues[0]?.message).toContain('"admin.attendees.gone"');
+    assertStringIncludes(issues[0]?.message ?? "", '"admin.attendees.gone"');
   });
 
   test("reads key calls written in single quotes", () => {
@@ -206,8 +207,11 @@ describe("e2e label rules", () => {
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
     expect(issues[0]?.line).toBe(1);
-    expect(issues[0]?.message).toContain('"Update Stripe Key"');
-    expect(issues[0]?.message).toContain("no message in src/locales/en");
+    assertStringIncludes(issues[0]?.message ?? "", '"Update Stripe Key"');
+    assertStringIncludes(
+      issues[0]?.message ?? "",
+      "no message in src/locales/en",
+    );
   });
 
   test("flags a page-text marker that no message carries", () => {
@@ -229,7 +233,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    expect(issues[0]?.message).toContain('"Save changes"');
+    assertStringIncludes(issues[0]?.message ?? "", '"Save changes"');
   });
 
   test("leaves the scenario's own data and pattern matches alone", () => {
@@ -391,7 +395,8 @@ describe("e2e label rules", () => {
     const issues = findLabelIssues("await session.clickButton();", catalog([]));
 
     expect(issues.length).toBe(1);
-    expect(issues[0]?.message).toContain(
+    assertStringIncludes(
+      issues[0]?.message ?? "",
       "calls clickButton with no argument 1 to read",
     );
   });

@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -66,10 +67,10 @@ describeWithEnv("server listings > edit form and income", { db: true }, () => {
       const response = await adminGet("/admin/listing/1/edit");
       const html = await response.text();
       // The dedicated money-correction section, separate from the counts override.
-      expect(html).toContain("Adjust income");
-      expect(html).toContain('action="/admin/listing/1/income"');
-      expect(html).toContain('name="income"');
-      expect(html).toContain("This adds a correction to Money.");
+      assertStringIncludes(html, "Adjust income");
+      assertStringIncludes(html, 'action="/admin/listing/1/income"');
+      assertStringIncludes(html, 'name="income"');
+      assertStringIncludes(html, "This adds a correction to Money.");
     });
   });
   describe("POST /admin/listing/:id/income", () => {
@@ -135,7 +136,7 @@ describeWithEnv("server listings > edit form and income", { db: true }, () => {
       const entry = log.find((e) => e.message.includes("income adjusted"));
       expect(entry?.message).toBe("Listing 'Gala' income adjusted");
       // The raw corrected figure is not logged verbatim.
-      expect(entry?.message).not.toContain("12.34");
+      assert(!entry?.message.includes("12.34"));
     });
 
     test("rejects a blank amount with an error flash", async () => {

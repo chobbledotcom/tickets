@@ -1,18 +1,4 @@
-/**
- * Servicing edge cases — lifecycle interactions & concurrency.
- *
- * The "deletable things getting deleted between operations" theme, plus the
- * concurrent-operation guards the atomic create/edit core is the only defence
- * for. Every test here exercises a window where the world changed under a
- * servicing event between two steps that a serial test assumes are adjacent.
- *
- * Implementation contract (implemented — this describes the shipped behavior):
- *   - The servicing create/edit/delete paths reuse the atomic attendee core,
- *     which holds a write lock for the duration of each transaction.
- *   - `deleteServicingEvent` is the same row-vanishes check the attendee edit
- *     core runs; a concurrent delete must not re-insert a phantom row.
- */
-// jscpd:ignore-start
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -135,7 +121,7 @@ describeWithEnv(
       expect(rows.length).toBe(1);
       // One of the two quantities won (last writer). Both are valid; assert
       // it's one of {2, 3}, never a sum like 5.
-      expect([2, 3]).toContain(rows[0]!.quantity);
+      assertArrayIncludes([2, 3], [rows[0]!.quantity]);
     });
 
     test("a real attendee booked on a listing alongside a servicing hold is unaffected by the hold's edit", async () => {

@@ -4,6 +4,7 @@
  * mirror the mutation gate runs against holidays.ts.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
@@ -23,7 +24,8 @@ describeWithEnv("holidays", { db: true }, () => {
     });
 
     await expectFlashRedirect("/admin/holidays/1", "Holiday created")(response);
-    expect(await (await adminGet("/admin/holidays")).text()).toContain(
+    assertStringIncludes(
+      await (await adminGet("/admin/holidays")).text(),
       "New Year",
     );
   });
@@ -54,7 +56,7 @@ describeWithEnv("holidays", { db: true }, () => {
     );
 
     expect(response.status).toBe(400);
-    expect(await response.text()).toContain("2026-06-01");
+    assertStringIncludes(await response.text(), "2026-06-01");
   });
 
   test("deletes a holiday and drops it from the list", async () => {

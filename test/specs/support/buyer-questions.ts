@@ -5,8 +5,8 @@
  */
 
 // jscpd:ignore-start
+import { assertStringIncludes } from "@std/assert";
 import { parse } from "@std/csv/parse";
-import { expect } from "@std/expect";
 import {
   adminBrowser,
   ORGANISER,
@@ -86,7 +86,7 @@ export const ownerAsksChoiceQuestion = async (
     await fillInAndSend(browser, { text: answer }, "Add answer");
   }
   for (const answer of answers) {
-    expect(browser.pageText).toContain(answer);
+    assertStringIncludes(browser.pageText, answer);
   }
   await ownerAssignsQuestionTo(world, listingName);
 };
@@ -116,7 +116,7 @@ export const questionFieldOn = (
   browser: TestBrowser,
 ): string => {
   const name = `question_${askedQuestion(world).id}`;
-  expect(browser.currentHtml).toContain(`name="${name}"`);
+  assertStringIncludes(browser.currentHtml, `name="${name}"`);
   return name;
 };
 
@@ -138,7 +138,7 @@ export const visitorBooksAnswering = async (
     },
     "Continue",
   );
-  expect(browser.pageText).toContain("Thank you for your order");
+  assertStringIncludes(browser.pageText, "Thank you for your order");
 };
 
 /** What the owner's list download says this booking answered. The download is

@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
@@ -18,11 +18,11 @@ describe("adminAdvancedSettingsPage", () => {
       smsGatewayBaseUrl: "https://sms.example.com",
       smsGatewayUsername: "myuser",
     });
-    expect(html).toContain("SMS Gateway");
-    expect(html).toContain('name="sms_gateway_username"');
-    expect(html).toContain("myuser");
-    expect(html).toContain("https://sms.example.com");
-    expect(html).toContain(`minlength="${SMS_PASSPHRASE_MIN_LENGTH}"`);
+    assertStringIncludes(html, "SMS Gateway");
+    assertStringIncludes(html, 'name="sms_gateway_username"');
+    assertStringIncludes(html, "myuser");
+    assertStringIncludes(html, "https://sms.example.com");
+    assertStringIncludes(html, `minlength="${SMS_PASSPHRASE_MIN_LENGTH}"`);
   });
 
   test("masks the SMS gateway secrets when configured", () => {
@@ -32,10 +32,10 @@ describe("adminAdvancedSettingsPage", () => {
       smsGatewayPasswordConfigured: true,
       smsGatewayWebhookConfigured: true,
     });
-    expect(html).toContain('name="sms_gateway_password"');
-    expect(html).toContain('name="sms_gateway_passphrase"');
-    expect(html).toContain('name="sms_gateway_webhook_secret"');
-    expect(html).toContain(MASK_SENTINEL);
+    assertStringIncludes(html, 'name="sms_gateway_password"');
+    assertStringIncludes(html, 'name="sms_gateway_passphrase"');
+    assertStringIncludes(html, 'name="sms_gateway_webhook_secret"');
+    assertStringIncludes(html, MASK_SENTINEL);
   });
 
   test("shows email provider selection when configured", () => {
@@ -44,14 +44,14 @@ describe("adminAdvancedSettingsPage", () => {
       emailFromAddress: "from@test.com",
       emailProvider: "resend",
     });
-    expect(html).toContain('value="resend"');
-    expect(html).toContain("Send Test Email");
-    expect(html).toContain('value="from@test.com"');
+    assertStringIncludes(html, 'value="resend"');
+    assertStringIncludes(html, "Send Test Email");
+    assertStringIncludes(html, 'value="from@test.com"');
   });
 
   test("hides test button when no email provider configured", () => {
     const html = adminAdvancedSettingsPage(OWNER_SESSION, advancedDefaultState);
-    expect(html).not.toContain("Send Test Email");
+    assert(!html.includes("Send Test Email"));
   });
 
   test("uses business email as from address placeholder", () => {
@@ -59,12 +59,12 @@ describe("adminAdvancedSettingsPage", () => {
       ...advancedDefaultState,
       businessEmail: "biz@example.com",
     });
-    expect(html).toContain('placeholder="biz@example.com"');
+    assertStringIncludes(html, 'placeholder="biz@example.com"');
   });
 
   test("uses default placeholder when no business email", () => {
     const html = adminAdvancedSettingsPage(OWNER_SESSION, advancedDefaultState);
-    expect(html).toContain('placeholder="tickets@yourdomain.com"');
+    assertStringIncludes(html, 'placeholder="tickets@yourdomain.com"');
   });
 
   test("shows host email label when hostEmailLabel is set", () => {
@@ -72,22 +72,22 @@ describe("adminAdvancedSettingsPage", () => {
       ...advancedDefaultState,
       hostEmailLabel: "Host Resend (noreply@example.com)",
     });
-    expect(html).toContain("Host Resend (noreply@example.com)");
+    assertStringIncludes(html, "Host Resend (noreply@example.com)");
   });
 
   test("shows None disabled when no hostEmailLabel set", () => {
     const html = adminAdvancedSettingsPage(OWNER_SESSION, advancedDefaultState);
-    expect(html).toContain("None (disabled)");
+    assertStringIncludes(html, "None (disabled)");
   });
 
   test("shows warning about careful changes", () => {
     const html = adminAdvancedSettingsPage(OWNER_SESSION, advancedDefaultState);
-    expect(html).toContain("Be careful changing settings on this page");
+    assertStringIncludes(html, "Be careful changing settings on this page");
   });
 
   test("shows breadcrumb back to settings", () => {
     const html = adminAdvancedSettingsPage(OWNER_SESSION, advancedDefaultState);
-    expect(html).toContain('href="/admin/settings"');
+    assertStringIncludes(html, 'href="/admin/settings"');
   });
 
   test("shows subdomain preview confirmation when subdomainPreview is set", () => {
@@ -98,11 +98,11 @@ describe("adminAdvancedSettingsPage", () => {
       subdomainPreview: "mylisting",
       subdomainPreviewFullDomain: "mylisting.tickets.example.com",
     });
-    expect(html).toContain("mylisting.tickets.example.com");
-    expect(html).toContain("is free.");
-    expect(html).toContain('name="save"');
-    expect(html).toContain("Register this subdomain");
-    expect(html).toContain('value="mylisting"');
+    assertStringIncludes(html, "mylisting.tickets.example.com");
+    assertStringIncludes(html, "is free.");
+    assertStringIncludes(html, 'name="save"');
+    assertStringIncludes(html, "Register this subdomain");
+    assertStringIncludes(html, 'value="mylisting"');
   });
 
   test("custom domain form warns Square users about the webhook URL", () => {
@@ -111,8 +111,14 @@ describe("adminAdvancedSettingsPage", () => {
       bunnyCdnEnabled: true,
       existingPaymentProvider: "square",
     });
-    expect(html).toContain("Changing your domain changes your payment webhook");
-    expect(html).toContain('href="/admin/settings#settings-square-webhook"');
+    assertStringIncludes(
+      html,
+      "Changing your domain changes your payment webhook",
+    );
+    assertStringIncludes(
+      html,
+      'href="/admin/settings#settings-square-webhook"',
+    );
   });
 
   test("subdomain form warns Stripe users about the webhook URL", () => {
@@ -121,8 +127,11 @@ describe("adminAdvancedSettingsPage", () => {
       bunnyDnsEnabled: true,
       existingPaymentProvider: "stripe",
     });
-    expect(html).toContain("Changing your domain changes your payment webhook");
-    expect(html).toContain('href="/admin/settings#settings-stripe"');
+    assertStringIncludes(
+      html,
+      "Changing your domain changes your payment webhook",
+    );
+    assertStringIncludes(html, 'href="/admin/settings#settings-stripe"');
   });
 
   test("does not warn about webhooks for providers without webhooks", () => {
@@ -132,8 +141,6 @@ describe("adminAdvancedSettingsPage", () => {
       bunnyDnsEnabled: true,
       existingPaymentProvider: "sumup",
     });
-    expect(html).not.toContain(
-      "Changing your domain changes your payment webhook",
-    );
+    assert(!html.includes("Changing your domain changes your payment webhook"));
   });
 });

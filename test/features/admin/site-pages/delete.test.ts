@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getSitePageById, sitePages } from "#db/site-pages.ts";
@@ -20,7 +21,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}/delete`),
         200,
       );
-      expect(getHtml).toContain("Delete Page");
+      assertStringIncludes(getHtml, "Delete Page");
 
       const wrong = await adminFormPost(`${BASE}/${page.id}/delete`, {
         confirm_identifier: "nope",

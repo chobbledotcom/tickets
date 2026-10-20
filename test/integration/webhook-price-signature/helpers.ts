@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -216,7 +217,7 @@ export const expectStoredRefundRecord = async (
 export const expectStoredRefund = async (listingId: number): Promise<void> => {
   await assertJson(webhookRequest(), 200, (json) => {
     expect(json.processed).toBe(false);
-    expect(json.error).toContain("saved your details");
+    assertStringIncludes(json.error, "saved your details");
   });
   await expectStoredRefundRecord(listingId);
 };

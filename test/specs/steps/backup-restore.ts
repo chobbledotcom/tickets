@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { restoreFromZip } from "#db/backup.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
@@ -113,14 +114,14 @@ When(
 Then(
   "the dashboard does not show Summer Concert",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await dashboard(this)).not.toContain(LISTING);
+    assert(!(await dashboard(this)).includes(LISTING));
   },
 );
 
 Then(
   "the dashboard shows Summer Concert",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await dashboard(this)).toContain(LISTING);
+    assertStringIncludes(await dashboard(this), LISTING);
   },
 );
 

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { countRows, execute } from "#db/client.ts";
@@ -55,8 +56,8 @@ describeWithEnv(
       if (result.ok) throw new Error("unreachable");
       // The edge editor's own child-add-on message (its {addon}/{name}
       // placeholders are quote-escaped in the locale, so assert its stable prose).
-      expect(result.error).toContain("opt-in add-on");
-      expect(result.error).toContain("offering it as a child");
+      assertStringIncludes(result.error, "opt-in add-on");
+      assertStringIncludes(result.error, "offering it as a child");
     });
 
     test("accepts a bookable-alone child even when only it reaches the add-on", async () => {
@@ -133,7 +134,7 @@ describeWithEnv(
 
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("The import should be rejected");
-      expect(result.error).toContain("Imported race extra");
+      assertStringIncludes(result.error, "Imported race extra");
       expect(await countRows("listings")).toBe(before);
       expect(await modifierListings.getIds(modifier.id)).toEqual([]);
       expect(

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -131,7 +132,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         },
       );
 
-      expect(await bookingPageHtml(parentSlug)).toContain("First child");
+      assertStringIncludes(await bookingPageHtml(parentSlug), "First child");
     });
   });
 });

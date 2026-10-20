@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -185,7 +186,7 @@ describeWithEnv("auth authorization matrix", { db: true }, () => {
       { body: "form", roles: ["owner"] },
     );
     expect(response.status).toBe(403);
-    expect(await response.text()).toContain(t("auth.forbidden_owner_only"));
+    assertStringIncludes(await response.text(), t("auth.forbidden_owner_only"));
   });
 
   test("an owner-only session gate gives a non-owner the owner-account body", async () => {
@@ -196,7 +197,7 @@ describeWithEnv("auth authorization matrix", { db: true }, () => {
       (session) => new Response(session.adminLevel),
     );
     expect(response.status).toBe(403);
-    expect(await response.text()).toContain(t("auth.forbidden_owner_only"));
+    assertStringIncludes(await response.text(), t("auth.forbidden_owner_only"));
   });
 
   test("a multi-role form gate gives a non-owner the generic role body", async () => {

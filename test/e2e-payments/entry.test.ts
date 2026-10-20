@@ -1,5 +1,6 @@
 /** Direct tests for the shared harness failure boundary. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -28,7 +29,8 @@ describe("failRun", () => {
       failRun("FAIL — resend: the provider said no"),
     );
     expect(code).toBe(1);
-    expect(loggedErrors(errors)).toContain(
+    assertStringIncludes(
+      loggedErrors(errors),
       "FAIL — resend: the provider said no",
     );
   });
@@ -66,8 +68,8 @@ describe("runHarness", () => {
     expect(code).toBe(1);
     expect(crashes).toHaveLength(1);
     expect(crashes[0]).toBe(crash);
-    expect(loggedErrors(errors)).toContain("the tunnel never came up");
-    expect(loggedErrors(errors)).toContain("entry.test.ts");
+    assertStringIncludes(loggedErrors(errors), "the tunnel never came up");
+    assertStringIncludes(loggedErrors(errors), "entry.test.ts");
   });
 
   test("still fails the run when the crash report itself rejects", async () => {
@@ -92,8 +94,8 @@ describe("runHarness", () => {
       ),
     );
     expect(code).toBe(1);
-    expect(loggedErrors(errors)).toContain("bare message");
-    expect(loggedErrors(errors)).not.toContain("entry.test.ts");
+    assertStringIncludes(loggedErrors(errors), "bare message");
+    assert(!loggedErrors(errors).includes("entry.test.ts"));
   });
 
   test("stringifies a crash that is not an Error", async () => {
@@ -105,6 +107,6 @@ describe("runHarness", () => {
       ),
     );
     expect(code).toBe(1);
-    expect(loggedErrors(errors)).toContain("a plain string failure");
+    assertStringIncludes(loggedErrors(errors), "a plain string failure");
   });
 });

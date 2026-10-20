@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { ORGANISER } from "#test/specs/support/browser.ts";
@@ -63,7 +64,8 @@ When(
 Then(
   "the site says {int} record is left behind",
   async function (this: TicketsWorld, count: number): Promise<void> {
-    expect(await whatThePrivacyPageSays(this)).toContain(
+    assertStringIncludes(
+      await whatThePrivacyPageSays(this),
       t("privacy.orphans.purgeable_count", { count }),
     );
   },
@@ -72,7 +74,8 @@ Then(
 Then(
   "the site says no records are left behind",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await whatThePrivacyPageSays(this)).toContain(
+    assertStringIncludes(
+      await whatThePrivacyPageSays(this),
       t("privacy.orphans.purgeable_count", { count: 0 }),
     );
   },
@@ -81,7 +84,8 @@ Then(
 Then(
   "the organiser is told {int} record was deleted",
   function (this: TicketsWorld, count: number): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       t("privacy.orphans.flash_purged", { count }),
     );
   },
@@ -125,7 +129,8 @@ When(
 Then(
   "the organiser is told the record was deleted",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       t("privacy.erase.flash_done"),
     );
   },
@@ -155,7 +160,8 @@ Then(
 Then(
   "the organiser is told there was nothing to delete",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       t("privacy.erase.flash_none"),
     );
   },
@@ -164,7 +170,8 @@ Then(
 Then(
   "the organiser is told to enter an email or phone number",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       t("privacy.erase.error_identifier"),
     );
   },

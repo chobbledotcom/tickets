@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import {
@@ -79,7 +80,7 @@ describe("encoding helpers", () => {
     const bytes = new Uint8Array([251, 255, 0, 16]);
     const encoded = toBase64Url(bytes);
     expect(encoded).toBe("-_8AEA");
-    expect(encoded).not.toContain("=");
+    assert(!encoded.includes("="));
     expect(fromBase64Url(encoded)).toEqual(bytes);
   });
 });
@@ -123,8 +124,8 @@ describe("generateTicketToken", () => {
 
   it("contains no dashes or underscores", () => {
     const token = generateTicketToken();
-    expect(token).not.toContain("-");
-    expect(token).not.toContain("_");
+    assert(!token.includes("-"));
+    assert(!token.includes("_"));
   });
 
   it("generates unique tokens", () => {

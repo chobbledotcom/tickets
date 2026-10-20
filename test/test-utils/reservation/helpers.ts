@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import {
@@ -231,7 +232,7 @@ export const expectRefundedPlaceholder = async (
   paymentIntentId: string,
   responseText: string,
 ): Promise<Array<{ id: number }>> => {
-  expect(responseText).toContain("saved your details");
+  assertStringIncludes(responseText, "saved your details");
   const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listing.id);
   expect(attendees.length).toBe(1);

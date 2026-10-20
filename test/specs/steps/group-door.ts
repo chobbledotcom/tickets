@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { ticketOf } from "#test/specs/support/door.ts";
@@ -123,10 +124,11 @@ Then(
   "the {word} group's scanner warns that one scan checks in every listing",
   async function (this: TicketsWorld, groupName: string): Promise<void> {
     const page = await groupDoorPageHtml(this, groupName);
-    expect(page).toContain(
+    assertStringIncludes(
+      page,
       t("admin.scanner.scan_checks_in_all_listings_warning"),
     );
-    expect(page).toContain('role="alert"');
+    assertStringIncludes(page, 'role="alert"');
   },
 );
 
@@ -150,8 +152,10 @@ Then(
     groupName: string,
     who: string,
   ): Promise<void> {
-    expect(
-      (await peopleOfferedAtGroupDoor(this, groupName)).map(({ name }) => name),
-    ).not.toContain(who);
+    assert(
+      !(await peopleOfferedAtGroupDoor(this, groupName))
+        .map(({ name }) => name)
+        .includes(who),
+    );
   },
 );

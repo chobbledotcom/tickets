@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -38,7 +39,7 @@ describeWithEnv(
       ): Promise<void> => {
         expect(response.status).toBe(302);
         const location = response.headers.get("location") || "";
-        expect(location).not.toContain("checkout");
+        assert(!location.includes("checkout"));
         const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
         const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
@@ -49,9 +50,9 @@ describeWithEnv(
         const html = await getTicketHtml(listing);
         expect(html).toMatch(/name="custom_price(_\d+)?"/);
 
-        expect(html).toContain("Price per ticket (£10 minimum)");
-        expect(html).toContain('value="10.00"');
-        expect(html).toContain("required");
+        assertStringIncludes(html, "Price per ticket (£10 minimum)");
+        assertStringIncludes(html, 'value="10.00"');
+        assertStringIncludes(html, "required");
       });
 
       test("GET does not show price input when can_pay_more is disabled", async () => {
@@ -68,8 +69,8 @@ describeWithEnv(
         const html = await getTicketHtml(listing);
         expect(html).toMatch(/name="custom_price(_\d+)?"/);
 
-        expect(html).toContain("Price per ticket (optional, up to £100)");
-        expect(html).toContain('min="0.00"');
+        assertStringIncludes(html, "Price per ticket (optional, up to £100)");
+        assertStringIncludes(html, 'min="0.00"');
       });
 
       test("GET shows optional price input for free can_pay_more listings", async () => {
@@ -77,8 +78,8 @@ describeWithEnv(
         const html = await getTicketHtml(listing);
         expect(html).toMatch(/name="custom_price(_\d+)?"/);
 
-        expect(html).toContain("Price per ticket (optional, up to £100)");
-        expect(html).toContain('value="0.00" min="0.00" max="100.00"');
+        assertStringIncludes(html, "Price per ticket (optional, up to £100)");
+        assertStringIncludes(html, 'value="0.00" min="0.00" max="100.00"');
       });
 
       test("POST free can_pay_more with custom price redirects to checkout", async () => {
@@ -190,13 +191,13 @@ describeWithEnv(
       test("GET shows min price in label", async () => {
         const listing = await payMoreListing();
         const html = await getTicketHtml(listing);
-        expect(html).toContain("£10 minimum");
+        assertStringIncludes(html, "£10 minimum");
       });
 
       test("GET shows max price for free can_pay_more listing", async () => {
         const listing = await payMoreListing({ unitPrice: 0 });
         const html = await getTicketHtml(listing);
-        expect(html).toContain("up to £100");
+        assertStringIncludes(html, "up to £100");
       });
 
       test("POST rejects empty custom_price for paid can_pay_more listing", async () => {
@@ -259,7 +260,7 @@ describeWithEnv(
           },
         );
         const html = await response.text();
-        expect(html).toContain('name="can_pay_more"');
+        assertStringIncludes(html, 'name="can_pay_more"');
         expect(hasCheckedInput(html, "can_pay_more", "1")).toBe(false);
       });
 

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -57,7 +58,7 @@ describeWithEnv("Bunny storage", STORAGE_TEST_ENV, () => {
         expect(await uploadRaw(raw, "raw-upload.bin")).toBe("raw-upload.bin");
         expect(requests).toHaveLength(1);
         expect(requests[0]?.method).toBe("PUT");
-        expect(requests[0]?.url).toContain("/raw-upload.bin");
+        assertStringIncludes(requests[0]?.url ?? "", "/raw-upload.bin");
         expect(requests[0]?.headers.get("content-type")).toBe(
           "application/octet-stream",
         );
@@ -124,7 +125,7 @@ describeWithEnv("Bunny storage", STORAGE_TEST_ENV, () => {
       },
       async () => {
         expect(await listFiles("acme/")).toEqual(["acme/backup-2024.zip"]);
-        expect(listed.url).toContain("/testzone/acme/");
+        assertStringIncludes(listed.url, "/testzone/acme/");
       },
     );
   });

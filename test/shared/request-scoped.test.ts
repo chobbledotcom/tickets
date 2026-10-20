@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -33,8 +34,8 @@ describe("shared > request scoped > createBooleanScope", () => {
     });
     reads.push(flag.read());
 
-    expect(reads).toContain(true);
-    expect(reads).toContain(false);
+    assertArrayIncludes(reads, [true]);
+    assertArrayIncludes(reads, [false]);
   });
 
   test("a scoped value answers its own false, not the fallback", () => {

@@ -5,6 +5,7 @@
  */
 
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { rowsOnList } from "#test/specs/support/form-controls/reading.ts";
@@ -44,10 +45,10 @@ describe("reading a list into its rows", () => {
 
   test("hands each row its own markup and nothing of its neighbours'", () => {
     const [confirmed, fish] = rowsOnList(PAGE, INTO_ONE);
-    expect(confirmed!.row).toContain("move-down");
-    expect(confirmed!.row).not.toContain("badge");
-    expect(fish!.row).toContain("badge");
-    expect(fish!.row).not.toContain("move-down");
+    assertStringIncludes(confirmed!.row, "move-down");
+    assert(!confirmed!.row.includes("badge"));
+    assertStringIncludes(fish!.row, "badge");
+    assert(!fish!.row.includes("move-down"));
   });
 
   test("does not read markup after the table as the last row's", () => {
@@ -59,7 +60,7 @@ describe("reading a list into its rows", () => {
       </table>
       <form action="${LIST}/7/move-up"><button>▲</button></form>
     `;
-    expect(rowsOnList(page, INTO_ONE)[0]!.row).not.toContain("move-up");
+    assert(!rowsOnList(page, INTO_ONE)[0]!.row.includes("move-up"));
   });
 
   test("keeps a final row the page never closes, as a browser would", () => {

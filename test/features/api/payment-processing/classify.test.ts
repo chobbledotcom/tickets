@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { SessionRejection } from "#payment/validated-session.ts";
@@ -191,12 +192,15 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
 
     expect(result.ok).toBe(false);
     const page = await refusedPageOf(result);
-    expect(page).toContain("Online payment is not set up on this site yet.");
-    expect(page).toContain("Staff diagnostics");
-    expect(page).toContain("cs_no_provider");
+    assertStringIncludes(
+      page,
+      "Online payment is not set up on this site yet.",
+    );
+    assertStringIncludes(page, "Staff diagnostics");
+    assertStringIncludes(page, "cs_no_provider");
     // LabelledParas renders the label and value as separate nodes, so the
     // label alone states the provider row is absent.
-    expect(page).not.toContain("Provider");
+    assert(!page.includes("Provider"));
     expect(
       await loggedAbout("redirect", "No payment provider configured"),
     ).toBe(true);
@@ -212,7 +216,8 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the check to refuse");
-    expect(await result.response.text()).toContain(
+    assertStringIncludes(
+      await result.response.text(),
       "We could not find this payment session.",
     );
     expect(await loggedAbout("redirect", "Session not found")).toBe(true);
@@ -241,7 +246,8 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the unreadable booking to refuse");
     expect(result.response.status).toBe(503);
-    expect(await result.response.text()).toContain(
+    assertStringIncludes(
+      await result.response.text(),
       "We could not confirm your payment. Please contact support.",
     );
   });
@@ -278,11 +284,11 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     // They really were charged, so "not found" would leave them waiting for a
     // ticket, or paying a second time.
     const page = await refusedPageOf(result);
-    expect(page).toContain("We have sent your money back");
+    assertStringIncludes(page, "We have sent your money back");
     expect(refundStub.calls.map((call) => call.args)).toEqual([
       [stripeRefundRequestShape("pi_refunded", 500)],
     ]);
-    expect(page).not.toContain("We could not find this payment session.");
+    assert(!page.includes("We could not find this payment session."));
     expect(
       await loggedAbout(
         "redirect",
@@ -314,7 +320,8 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the check to refuse");
     // The listing is gone, so the page says so rather than offering a retry.
-    expect(await result.response.text()).toContain(
+    assertStringIncludes(
+      await result.response.text(),
       "We could not find the tickets you were booking.",
     );
   });
@@ -332,7 +339,8 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the check to refuse");
-    expect(await result.response.text()).toContain(
+    assertStringIncludes(
+      await result.response.text(),
       "We could not confirm that this payment belongs to this site.",
     );
     expect(await loggedAbout("redirect", "Unrecognized payment session")).toBe(

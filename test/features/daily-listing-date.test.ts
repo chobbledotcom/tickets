@@ -3,6 +3,7 @@
  * read time. The stored row keeps the date, so switching the type back to
  * standard brings it back on every surface. */
 
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeePiiBlobsForListings } from "#db/attendees/pii.ts";
@@ -150,7 +151,7 @@ describeWithEnv(
         const listing = await dailyListingWithStoredDate();
         const rendered = await surface.rendered(listing.id);
         for (const token of DATE_TOKENS) {
-          expect(rendered, surface.name).not.toContain(token);
+          assert(!rendered.includes(token), surface.name);
         }
       });
     }
@@ -187,7 +188,11 @@ describeWithEnv(
         Date.now(),
       );
       const ownBlobs = await getAttendeePiiBlobsForListings([listing.id]);
-      expect(blobs).toContain(ownBlobs[0]);
+      const [ownBlob] = ownBlobs;
+      // Identity membership: the override answered with .includes, and the
+      // encrypted blobs have no meaningful deep equality.
+      assert(ownBlob !== undefined);
+      assert(blobs.includes(ownBlob));
     });
 
     test("the derived dated fact is false while the listing is daily", async () => {

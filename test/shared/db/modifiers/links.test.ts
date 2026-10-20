@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
@@ -114,7 +115,7 @@ describeWithEnv("db modifier links", { db: true }, () => {
       await setModifierAnswers(1, [a!, c!]);
       expect(await getModifierAnswerIds(1)).toEqual([a, c]);
       // The unselected answer is untouched.
-      expect(await getModifierAnswerIds(2)).not.toContain(b);
+      assert(!(await getModifierAnswerIds(2)).includes(b!));
     });
 
     test("clears answers previously pointing at the modifier", async () => {

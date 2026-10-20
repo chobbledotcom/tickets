@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
@@ -30,10 +31,11 @@ describe("MaskedTextarea", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<label>Service Account Private Key (PEM)<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="google_wallet_service_account_key" placeholder="-----BEGIN PRIVATE KEY-----" rows="4"></textarea></label>`,
     );
-    expect(html).not.toContain(MASK_SENTINEL);
+    assert(!html.includes(MASK_SENTINEL));
   });
 
   test("keeps a declared maxlength over the textarea default", () => {
@@ -47,7 +49,7 @@ describe("MaskedTextarea", () => {
       }),
     );
 
-    expect(html).toContain('maxlength="100"');
-    expect(html).not.toContain(`maxlength="${MAX_TEXTAREA_LENGTH}"`);
+    assertStringIncludes(html, 'maxlength="100"');
+    assert(!html.includes(`maxlength="${MAX_TEXTAREA_LENGTH}"`));
   });
 });

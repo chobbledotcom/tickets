@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { imagesTable, setImagesForItem } from "#db/images.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
@@ -34,5 +35,5 @@ export const expectImageErrorRedirect = (
   const cookiePart = flash!.split(";")[0]!;
   // Cookie is "flash_{id}={value}", extract value after first "="
   const decoded = decodeURIComponent(cookiePart.split("=").slice(1).join("="));
-  expect(decoded).toContain(errorSubstring);
+  assertStringIncludes(decoded, errorSubstring);
 };

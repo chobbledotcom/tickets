@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   attendeeAccount,
@@ -207,7 +208,7 @@ Then(
     const breakdown = incomeLedgerArticle(
       await adminPageHtml(`/admin/listing/${listingIdNamed(this, RECONCILED)}`),
     );
-    expect(breakdown).toContain("Money in and out");
+    assertStringIncludes(breakdown, "Money in and out");
     // Each figure is read from its own row: the 50.00 sale, the 10.00 taken off
     // by the correction, the 40.00 that leaves as earned income, the 50.00
     // handed back, and the 10.00 the listing is down overall.
@@ -230,8 +231,9 @@ Then(
   "the breakdown links to the Reconciled money record",
   async function (this: TicketsWorld): Promise<void> {
     const listingId = listingIdNamed(this, RECONCILED);
-    expect(
+    assertStringIncludes(
       incomeLedgerArticle(await adminPageHtml(`/admin/listing/${listingId}`)),
-    ).toContain(`/admin/ledger?listing=${listingId}`);
+      `/admin/ledger?listing=${listingId}`,
+    );
   },
 );

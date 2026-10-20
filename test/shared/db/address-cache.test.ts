@@ -3,6 +3,7 @@
  * filtering on reads, upsert-on-conflict, and the prune task.
  */
 
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -63,8 +64,8 @@ describeWithEnv("address cache", { db: true }, () => {
 
   test("the search index is an HMAC, not the search text", async () => {
     const index = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
-    expect(index).not.toContain("SW1A");
-    expect(index).not.toContain("easypostcodes");
+    assert(!index.includes("SW1A"));
+    assert(!index.includes("easypostcodes"));
   });
 
   test("the same provider and search always produce the same index", async () => {
@@ -87,7 +88,7 @@ describeWithEnv("address cache", { db: true }, () => {
       [index],
     );
     expect(row!.results.startsWith("enc:1:")).toBe(true);
-    expect(row!.results).not.toContain("Downing");
+    assert(!row!.results.includes("Downing"));
   });
 
   test("a row cached before coordinates existed reads as a miss", async () => {

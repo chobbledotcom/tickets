@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -135,7 +136,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
         cookie,
       ),
     );
-    await expect(response.text()).resolves.toContain("Invalid CSRF token");
+    assertStringIncludes(await response.text(), "Invalid CSRF token");
     expect(response.status).toBe(403);
   });
 
@@ -211,7 +212,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
       withEnableSuperuser(async () => {
         const user = await getUserByUsername("admin");
         expect(user!.password_hash).not.toBe("");
-        expect(user!.password_hash).not.toContain("pass1234");
+        assert(!user!.password_hash.includes("pass1234"));
       }));
 
     test("created user has wrapped_data_key set", () =>

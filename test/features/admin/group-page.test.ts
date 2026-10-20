@@ -4,6 +4,8 @@
  * route enforces, so a role never meets a link it cannot follow.
  */
 
+/* jscpd:ignore-start -- imports */
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -11,6 +13,8 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, withStorageEnabled } from "#test-utils/mocks.ts";
 import { adminGet, createTestEditorSession } from "#test-utils/session.ts";
+
+/* jscpd:ignore-end */
 
 /** One editor session, reused across the requests of a single test. */
 const editorCookie = async (): Promise<string> =>
@@ -24,7 +28,7 @@ describeWithEnv("the group page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain("<h1>Summer Fete</h1>");
+    assertStringIncludes(html, "<h1>Summer Fete</h1>");
   });
 
   test("marks the groups list as the section it belongs to", async () => {
@@ -32,7 +36,7 @@ describeWithEnv("the group page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
 
-    expect(html).toContain(`<a class="active" href="/admin/groups">`);
+    assertStringIncludes(html, `<a class="active" href="/admin/groups">`);
   });
 
   test("offers staff the export, bulk actions, and delete", async () => {
@@ -42,9 +46,9 @@ describeWithEnv("the group page", { db: true }, () => {
       await adminGet(`/admin/groups/${group.id}/actions`)
     ).text();
 
-    expect(html).toContain(`href="/admin/groups/${group.id}/export.json"`);
-    expect(html).toContain(`href="/admin/groups/${group.id}/bulk-actions"`);
-    expect(html).toContain(`href="/admin/groups/${group.id}/delete"`);
+    assertStringIncludes(html, `href="/admin/groups/${group.id}/export.json"`);
+    assertStringIncludes(html, `href="/admin/groups/${group.id}/bulk-actions"`);
+    assertStringIncludes(html, `href="/admin/groups/${group.id}/delete"`);
   });
 
   test("offers an editor the export alone", async () => {
@@ -57,9 +61,9 @@ describeWithEnv("the group page", { db: true }, () => {
       await awaitTestRequest(`/admin/groups/${group.id}/actions`, { cookie })
     ).text();
 
-    expect(html).toContain(`href="/admin/groups/${group.id}/export.json"`);
-    expect(html).not.toContain(`href="/admin/groups/${group.id}/bulk-actions"`);
-    expect(html).not.toContain(`href="/admin/groups/${group.id}/delete"`);
+    assertStringIncludes(html, `href="/admin/groups/${group.id}/export.json"`);
+    assert(!html.includes(`href="/admin/groups/${group.id}/bulk-actions"`));
+    assert(!html.includes(`href="/admin/groups/${group.id}/delete"`));
   });
 
   test("opens an editor on edit and keeps the attendee tabs shut", async () => {
@@ -78,7 +82,8 @@ describeWithEnv("the group page", { db: true }, () => {
     );
 
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain(
+    assertStringIncludes(
+      await page.text(),
       `<a aria-current="page" class="active" href="/admin/groups/${group.id}/edit">Edit</a>`,
     );
     expect(attendees.status).toBe(404);
@@ -89,15 +94,21 @@ describeWithEnv("the group page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
 
-    expect(html).toContain(`href="/admin/groups/${group.id}">Overview</a>`);
-    expect(html).toContain(
+    assertStringIncludes(html, `href="/admin/groups/${group.id}">Overview</a>`);
+    assertStringIncludes(
+      html,
       `href="/admin/groups/${group.id}/attendees">Attendees</a>`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `href="/admin/groups/${group.id}/scanner">Scanner</a>`,
     );
-    expect(html).toContain(`href="/admin/groups/${group.id}/edit">Edit</a>`);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
+      `href="/admin/groups/${group.id}/edit">Edit</a>`,
+    );
+    assertStringIncludes(
+      html,
       `href="/admin/groups/${group.id}/actions">Actions</a>`,
     );
   });
@@ -113,7 +124,7 @@ describeWithEnv("the group page", { db: true }, () => {
       })
     ).text();
 
-    expect(html).not.toContain("/scanner");
+    assert(!html.includes("/scanner"));
   });
 
   test("adds the images tab once a storage zone is configured", async () => {
@@ -128,10 +139,9 @@ describeWithEnv("the group page", { db: true }, () => {
       (await adminGet(`/admin/groups/${group.id}`)).text(),
     );
 
-    expect(withoutStorage).not.toContain(
-      `href="/admin/groups/${group.id}/images"`,
-    );
-    expect(withStorage).toContain(
+    assert(!withoutStorage.includes(`href="/admin/groups/${group.id}/images"`));
+    assertStringIncludes(
+      withStorage,
       `href="/admin/groups/${group.id}/images">Images</a>`,
     );
   });
@@ -144,11 +154,17 @@ describeWithEnv("the group page", { db: true }, () => {
     ).text();
     const [beforeZone, insideZone] = html.split('class="entity-danger-zone"');
 
-    expect(beforeZone).toContain(
+    assertStringIncludes(
+      beforeZone ?? "",
       `href="/admin/groups/${group.id}/export.json"`,
     );
-    expect(beforeZone).not.toContain(`href="/admin/groups/${group.id}/delete"`);
-    expect(insideZone).toContain(`href="/admin/groups/${group.id}/delete"`);
+    assert(
+      !(beforeZone ?? "").includes(`href="/admin/groups/${group.id}/delete"`),
+    );
+    assertStringIncludes(
+      insideZone ?? "",
+      `href="/admin/groups/${group.id}/delete"`,
+    );
   });
 
   test("keeps a hidden member in the roster while its group withholds the public share links", async () => {
@@ -167,9 +183,9 @@ describeWithEnv("the group page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
 
-    expect(html).toContain("Fan Club Tier");
-    expect(html).not.toContain(`href="/ticket/${group.slug}"`);
-    expect(html).toContain("404s");
+    assertStringIncludes(html, "Fan Club Tier");
+    assert(!html.includes(`href="/ticket/${group.slug}"`));
+    assertStringIncludes(html, "404s");
   });
 
   test("answers 404 for a group that is not there", async () => {

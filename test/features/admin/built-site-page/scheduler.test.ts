@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -21,22 +22,28 @@ describeWithEnv(
       const html = await response.text();
 
       expect(response.status).toBe(200);
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<a class="active" href="/admin/built-sites">Builds</a>`,
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `href="/admin/built-sites/${site.id}/renewal">Renewal</a>`,
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `href="/admin/built-sites/${site.id}/maintenance">Scheduled maintenance</a>`,
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `href="/admin/built-sites/${site.id}/secrets">Secrets</a>`,
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `href="/admin/built-sites/${site.id}/support-message">Support message</a>`,
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `href="/admin/built-sites/${site.id}/update">Software update</a>`,
       );
     });
@@ -48,8 +55,8 @@ describeWithEnv(
       const html = await response.text();
 
       expect(response.status).toBe(200);
-      expect(html).toContain(`href="/admin/built-sites/${site.id}/delete"`);
-      expect(html).toContain("Delete this site");
+      assertStringIncludes(html, `href="/admin/built-sites/${site.id}/delete"`);
+      assertStringIncludes(html, "Delete this site");
     });
 
     test("shows the child key without rotation controls", async () => {
@@ -62,9 +69,9 @@ describeWithEnv(
 
       expect(response.status).toBe(200);
       expect(response.headers.get("cache-control")).toBe("private, no-store");
-      expect(html).toContain(TEST_SCHEDULED_KEY);
-      expect(html).not.toContain("stage-scheduler");
-      expect(html).not.toContain("promote-scheduler");
+      assertStringIncludes(html, TEST_SCHEDULED_KEY);
+      assert(!html.includes("stage-scheduler"));
+      assert(!html.includes("promote-scheduler"));
     });
 
     test("offers setup when a child has no retained key", async () => {
@@ -74,7 +81,7 @@ describeWithEnv(
         `/admin/built-sites/${site.id}/maintenance`,
       );
 
-      expect(await response.text()).toContain("provision-scheduler");
+      assertStringIncludes(await response.text(), "provision-scheduler");
     });
 
     test("shows monitor details returned by Uptime Kuma", async () => {
@@ -100,9 +107,9 @@ describeWithEnv(
       const html = await response.text();
 
       expect(response.status).toBe(200);
-      expect(html).toContain("Live child monitor");
-      expect(html).toContain("Every 15 minutes");
-      expect(html).not.toContain("add-uptime-monitor");
+      assertStringIncludes(html, "Live child monitor");
+      assertStringIncludes(html, "Every 15 minutes");
+      assert(!html.includes("add-uptime-monitor"));
     });
   },
 );

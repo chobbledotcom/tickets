@@ -1,3 +1,4 @@
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -112,8 +113,8 @@ describeWithEnv(
         );
         expect(response.status).toBe(200);
         const html = await response.text();
-        expect(html).toContain("Name is required");
-        expect(html).toContain("preserve@example.com");
+        assertStringIncludes(html, "Name is required");
+        assertStringIncludes(html, "preserve@example.com");
         // No attendee was created
         await expectAttendeeLineCount(event.id, 0);
       });
@@ -379,9 +380,9 @@ describeWithEnv(
             .map(({ message }) => message)
             .filter((message) => message.includes("added manually")),
         ).toEqual(["Attendee 'Failing Hook' added manually"]);
-        expect(await activityMessages()).toContain(
+        assertArrayIncludes(await activityMessages(), [
           "Registration notification delivery failed.",
-        );
+        ]);
       });
 
       test("a thrown webhook delivery still saves the attendee", async () => {
@@ -397,9 +398,9 @@ describeWithEnv(
         });
         expectRedirect(response, "/admin/attendees/");
         await expectAttendeeLineCount(listing.id, 1);
-        expect(await activityMessages()).toContain(
+        assertArrayIncludes(await activityMessages(), [
           "Registration notification delivery failed.",
-        );
+        ]);
       });
     });
   },

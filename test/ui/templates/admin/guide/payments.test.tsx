@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -30,33 +31,38 @@ describe("payments guide schema", () => {
 
   test("explains the booking fee with worked example prices", () => {
     const html = String(renderGuideSections([sectionByTitle("payments")]));
-    expect(html).toContain(t("guide.q.what_is_booking_fee"));
+    assertStringIncludes(html, t("guide.q.what_is_booking_fee"));
     // The full phrases, not bare amounts: "£10" alone also matches inside
     // "£10.20", so a mutated example price could hide behind the other one.
-    expect(html).toContain(`on a ${formatCurrency(1000)} ticket`);
-    expect(html).toContain(`pays ${formatCurrency(1020)} in total`);
-    expect(html).toContain(
+    assertStringIncludes(html, `on a ${formatCurrency(1000)} ticket`);
+    assertStringIncludes(html, `pays ${formatCurrency(1020)} in total`);
+    assertStringIncludes(
+      html,
       '<a href="/admin/settings">Settings</a> under <strong>Booking Fee</strong>',
     );
   });
 
   test("states the checkout window the site actually uses", () => {
     const html = String(renderGuideSections([sectionByTitle("payments")]));
-    expect(html).toContain(t("guide.q.checkout_window"));
+    assertStringIncludes(html, t("guide.q.checkout_window"));
     // The default window is 60 minutes, so the copy must read "an hour", not
     // a hardcoded "about one hour" that outlives a site's own setting.
-    expect(html).toContain("for an hour after it starts");
-    expect(html).toContain("A SumUp checkout always closes after 30 minutes.");
+    assertStringIncludes(html, "for an hour after it starts");
+    assertStringIncludes(
+      html,
+      "A SumUp checkout always closes after 30 minutes.",
+    );
   });
 
   test("names the booking duration field the way the listing form does", () => {
     const html = String(
       renderGuideSections([sectionByTitle("daily_listings_and_holidays")]),
     );
-    expect(html).toContain(t("guide.q.booking_duration_field"));
-    expect(html).toContain(
+    assertStringIncludes(html, t("guide.q.booking_duration_field"));
+    assertStringIncludes(
+      html,
       "For daily listings, <strong>Booking duration (days)</strong>",
     );
-    expect(html).toContain(`up to ${MAX_DURATION_DAYS} days`);
+    assertStringIncludes(html, `up to ${MAX_DURATION_DAYS} days`);
   });
 });

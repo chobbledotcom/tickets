@@ -8,7 +8,7 @@
  * showing is one the story cannot find either.
  */
 
-import { expect } from "@std/expect";
+import { assertArrayIncludes } from "@std/assert";
 // jscpd:ignore-start
 import { t } from "#i18n";
 import {
@@ -202,5 +202,5 @@ export const stateIsOfferedAMoveUp: AsksAboutOneThing = (world, name) =>
  * to have worked, or the rule it feeds proves nothing. */
 export const organiserHasAddedState: ActOnOneThing = async (world, name) => {
   await organiserAddsState(world, { name });
-  expect(await statesOffered(world)).toContain(name);
+  assertArrayIncludes(await statesOffered(world), [name]);
 };

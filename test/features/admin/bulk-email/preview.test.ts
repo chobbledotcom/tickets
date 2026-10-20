@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -73,7 +74,10 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       expectFlash(response, "Subject is required", false);
       // The error is aimed at the compose form, so the page can show it
       // beside the field rather than only at the top.
-      expect(response.headers.get("location")).toContain("form=bulk-email");
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
+        "form=bulk-email",
+      );
     });
 
     test("rejects a posted listing that no longer exists", async () => {
@@ -117,13 +121,13 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Big news",
       });
-      expect(html).toContain("Big news");
-      expect(html).toContain("<strong>world</strong>");
-      expect(html).toContain("via Resend");
-      expect(html).toContain('action="/admin/emails/send"');
-      expect(html).toContain("Transactional / service email");
-      expect(html).toContain('class="recipient-emails"');
-      expect(html).toContain("alice@example.com, bob@example.com");
+      assertStringIncludes(html, "Big news");
+      assertStringIncludes(html, "<strong>world</strong>");
+      assertStringIncludes(html, "via Resend");
+      assertStringIncludes(html, 'action="/admin/emails/send"');
+      assertStringIncludes(html, "Transactional / service email");
+      assertStringIncludes(html, 'class="recipient-emails"');
+      assertStringIncludes(html, "alice@example.com, bob@example.com");
     });
 
     test("BCCs several recipients from the owner's business email", async () => {
@@ -135,9 +139,9 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Big news",
       });
-      expect(html).toContain("everyone in BCC");
-      expect(html).toContain("Open a BCC draft to 2 recipients");
-      expect(html).toContain("mailto:owner%40example.com?bcc=");
+      assertStringIncludes(html, "everyone in BCC");
+      assertStringIncludes(html, "Open a BCC draft to 2 recipients");
+      assertStringIncludes(html, "mailto:owner%40example.com?bcc=");
     });
 
     test("addresses a lone recipient directly instead of using BCC", async () => {
@@ -150,17 +154,17 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Big news",
       });
-      expect(html).toContain("Open a draft to 1 recipient");
-      expect(html).toContain("addressed straight to your one recipient");
-      expect(html).toContain("mailto:alice%40example.com?");
-      expect(html).not.toContain("Open a BCC draft");
-      expect(html).not.toContain("everyone in BCC");
+      assertStringIncludes(html, "Open a draft to 1 recipient");
+      assertStringIncludes(html, "addressed straight to your one recipient");
+      assertStringIncludes(html, "mailto:alice%40example.com?");
+      assert(!html.includes("Open a BCC draft"));
+      assert(!html.includes("everyone in BCC"));
     });
 
     test("omits the address list when there are no recipients", async () => {
       useResend();
       const html = await staleListingDraftHtml();
-      expect(html).not.toContain('class="recipient-emails"');
+      assert(!html.includes('class="recipient-emails"'));
     });
 
     test("disables sending and explains marketing when not sendable", async () => {
@@ -171,9 +175,9 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         marketing: "1",
         subject: "Sale",
       });
-      expect(html).toContain("Sending is disabled");
-      expect(html).toContain("Marketing email");
-      expect(html).toContain("unsubscribe footer is appended");
+      assertStringIncludes(html, "Sending is disabled");
+      assertStringIncludes(html, "Marketing email");
+      assertStringIncludes(html, "unsubscribe footer is appended");
     });
 
     test("shows the audience description for an audience send", async () => {
@@ -184,12 +188,13 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         body: "Newsletter",
         subject: "Monthly news",
       });
-      expect(html).toContain("Active listing attendees");
-      expect(html).toContain(
+      assertStringIncludes(html, "Active listing attendees");
+      assertStringIncludes(
+        html,
         "Everyone booked onto a listing that is currently active.",
       );
-      expect(html).toContain("1 recipient");
-      expect(html).not.toContain("1 recipients");
+      assertStringIncludes(html, "1 recipient");
+      assert(!html.includes("1 recipients"));
     });
 
     /**
@@ -202,9 +207,9 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       useResend();
       await seedMarketingDraftWithUnsubscriber();
       const html = await getPreviewHtml();
-      expect(html).toContain("1 unsubscribed will be skipped");
+      assertStringIncludes(html, "1 unsubscribed will be skipped");
       // The other attendee is still sendable, so the send is not empty.
-      expect(html).toContain("1 recipient");
+      assertStringIncludes(html, "1 recipient");
     });
 
     test("skips nobody when the same audience gets a plain send", async () => {
@@ -221,14 +226,14 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
 
       const html = await getPreviewHtml();
 
-      expect(html).not.toContain("will be skipped");
-      expect(html).toContain("2 recipients");
+      assert(!html.includes("will be skipped"));
+      assertStringIncludes(html, "2 recipients");
     });
 
     test("labels a target whose listing has since been deleted", async () => {
       useResend();
       const html = await staleListingDraftHtml();
-      expect(html).toContain("Listing attendees");
+      assertStringIncludes(html, "Listing attendees");
     });
   });
 });

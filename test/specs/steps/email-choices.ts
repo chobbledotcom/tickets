@@ -4,6 +4,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
@@ -75,7 +76,7 @@ Then(
   function (this: TicketsWorld): void {
     const browser = browserSeenBy(this, READER);
     expect(browser.currentUrl).toBe(CHOICES_PATH);
-    expect(browser.pageText).toContain(t("unsubscribe.subscribed_message"));
+    assertStringIncludes(browser.pageText, t("unsubscribe.subscribed_message"));
   },
 );
 
@@ -89,7 +90,8 @@ When(
 Then(
   "they are told they have unsubscribed",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, READER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, READER),
       t("unsubscribe.unsubscribed_flash"),
     );
   },
@@ -128,7 +130,8 @@ When(
 Then(
   "they are told they have resubscribed",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, READER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, READER),
       t("unsubscribe.resubscribed_flash"),
     );
   },
@@ -151,7 +154,8 @@ When(
 Then(
   "they are told their record was deleted",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, READER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, READER),
       t("unsubscribe.deleted_flash"),
     );
   },
@@ -174,7 +178,8 @@ When(
 );
 
 Then("they are told the link is invalid", function (this: TicketsWorld): void {
-  expect(browserSeenBy(this, READER).pageText).toContain(
+  assertStringIncludes(
+    browserSeenBy(this, READER).pageText,
     t("unsubscribe.invalid_link"),
   );
 });

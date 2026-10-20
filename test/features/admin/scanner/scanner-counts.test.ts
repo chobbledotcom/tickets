@@ -3,6 +3,7 @@
  * asks how many tickets, the ticket page reads the part count, and the
  * staff quantity page stays shut. */
 
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { moveTickets } from "#db/attendees/update.ts";
@@ -70,9 +71,9 @@ describeWithEnv("a scanner login and part bookings", { db: true }, () => {
     });
 
     expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 2 }]);
-    expect(await activityMessages()).toContain(
+    assertArrayIncludes(await activityMessages(), [
       "Attendee checked in 2 tickets via scanner for 'Doors'",
-    );
+    ]);
   });
 
   test("the ticket page shows a scanner the part count and both door actions", async () => {
@@ -85,13 +86,15 @@ describeWithEnv("a scanner login and part bookings", { db: true }, () => {
       await awaitTestRequest(`/checkin/${token}`, { cookie })
     ).text();
 
-    expect(body).toContain("Checked in (1 of 3)");
-    expect(body).toContain("Check In All");
-    expect(body).toContain("Check Out All");
+    assertStringIncludes(body, "Checked in (1 of 3)");
+    assertStringIncludes(body, "Check In All");
+    assertStringIncludes(body, "Check Out All");
     // The per-line quantity page is a staff page, so the door-only view
     // never links to it (never render a forbidden link).
-    expect(body).not.toContain(
-      `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+    assert(
+      !body.includes(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+      ),
     );
   });
 
@@ -134,8 +137,8 @@ describeWithEnv("a scanner login and part bookings", { db: true }, () => {
       })
     ).text();
 
-    expect(body).toContain(`data-attendee-id="${attendee.id}"`);
-    expect(body).toContain('data-quantity="1"');
-    expect(body).toContain("Pia (1 ticket)");
+    assertStringIncludes(body, `data-attendee-id="${attendee.id}"`);
+    assertStringIncludes(body, 'data-quantity="1"');
+    assertStringIncludes(body, "Pia (1 ticket)");
   });
 });

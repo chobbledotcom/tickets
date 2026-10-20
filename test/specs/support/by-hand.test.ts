@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -50,9 +51,10 @@ describe("csvDateColumn", () => {
     const path = csvEvidencePage("Retreat & <stay>", "Date & time");
 
     expect(path.startsWith("data:text/html,")).toBe(true);
-    expect(previewHtml(path)).toContain(
+    assertStringIncludes(
+      previewHtml(path),
       "Retreat &amp; &lt;stay&gt; attendee CSV",
     );
-    expect(previewHtml(path)).toContain("Date &amp; time");
+    assertStringIncludes(previewHtml(path), "Date &amp; time");
   });
 });

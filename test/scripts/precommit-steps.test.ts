@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getSteps } from "#scripts/precommit/steps.ts";
@@ -15,7 +16,7 @@ describe("precommit steps", () => {
 
     expect(tasks.length).toBeGreaterThan(0);
     for (const task of tasks) {
-      expect(workflow).toContain(`run: deno task ${task}`);
+      assertStringIncludes(workflow, `run: deno task ${task}`);
     }
   });
 

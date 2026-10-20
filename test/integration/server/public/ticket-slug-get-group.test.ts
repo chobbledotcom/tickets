@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { imagesTable, setItemsForImage } from "#db/images.ts";
@@ -134,8 +135,8 @@ describeWithEnv(
           mockRequest(`/ticket/${group.slug}`),
         );
         const html = await response.text();
-        expect(html).toContain("GROUP TERMS UNIQUE");
-        expect(html).not.toContain("GLOBAL TERMS UNIQUE");
+        assertStringIncludes(html, "GROUP TERMS UNIQUE");
+        assert(!html.includes("GLOBAL TERMS UNIQUE"));
       });
 
       test("group terms fall back to global when group terms are empty", async () => {
@@ -155,7 +156,7 @@ describeWithEnv(
           mockRequest(`/ticket/${group.slug}`),
         );
         const html = await response.text();
-        expect(html).toContain("GLOBAL FALLBACK UNIQUE");
+        assertStringIncludes(html, "GLOBAL FALLBACK UNIQUE");
       });
 
       test("group page shows shared date selector for daily listings", async () => {

@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { renderGuideSections } from "#templates/admin/guide/components.tsx";
@@ -28,49 +28,62 @@ describe("guide > email sections", () => {
 
   test("the variables entry shows the worked loop and the availability note", () => {
     const html = renderEmailGuide();
-    expect(html).toContain(`<pre><code>${shown(LOOP_EXAMPLE)}</code></pre>`);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
+      `<pre><code>${shown(LOOP_EXAMPLE)}</code></pre>`,
+    );
+    assertStringIncludes(
+      html,
       t("settings.advanced.email_variables.not_available"),
     );
   });
 
   test("the host email note renders with its links and joins intact", () => {
     const html = String(renderGuideSections(emailSections(hostWithEmail)));
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "using <strong>Host Mail</strong> and the address <code>host@example.com</code>. You can use your own company instead",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'enter it in <a href="/admin/settings-advanced#settings-email">Advanced Settings</a>. Your own settings come first',
     );
   });
 
   test("the setup steps and section anchors render exactly", () => {
     const html = renderEmailGuide();
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'Go to <a href="/admin/settings-advanced#settings-email">Advanced Settings</a> and find the <strong>Email</strong> section',
     );
-    expect(html).toContain("Choose your email company from the dropdown");
-    expect(html).toContain('<h3 id="email">');
-    expect(html).toContain('<h3 id="email-templates">');
-    expect(html).toContain('<h3 id="bulk-email">');
+    assertStringIncludes(html, "Choose your email company from the dropdown");
+    assertStringIncludes(html, '<h3 id="email">');
+    assertStringIncludes(html, '<h3 id="email-templates">');
+    assertStringIncludes(html, '<h3 id="bulk-email">');
   });
 
   test("the filters entry names both filters with their examples", () => {
     const html = renderEmailGuide();
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<code>{{ amount | currency }}</code> — formats a number",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<code>{{ count | pluralize: &quot;ticket&quot;, &quot;tickets&quot; }}</code> — returns the singular",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<code>{{ listing_names }}</code> — All listing names, joined with &quot;and&quot;",
     );
   });
 
   test("every settings link opens the advanced settings page", () => {
     const html = renderEmailGuide();
-    expect(html).not.toContain('href="/admin/settings"');
-    expect(html).toContain('href="/admin/settings-advanced#settings-email"');
+    assert(!html.includes('href="/admin/settings"'));
+    assertStringIncludes(
+      html,
+      'href="/admin/settings-advanced#settings-email"',
+    );
   });
 });

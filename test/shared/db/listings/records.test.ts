@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -275,7 +276,10 @@ describeWithEnv(
     });
 
     test("cache stats identify the listings cache by name", async () => {
-      expect(getAllCacheStats().map((stat) => stat.name)).toContain("listings");
+      assertArrayIncludes(
+        getAllCacheStats().map((stat) => stat.name),
+        ["listings"],
+      );
     });
   },
 );

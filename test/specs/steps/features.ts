@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { newcomerReading, ORGANISER } from "#test/specs/support/browser.ts";
@@ -87,7 +88,7 @@ Then(
       // The row has to name the feature too. A row that kept its address and
       // its status while losing its words is not a feature listed.
       const row = await featureRowOn(list, name);
-      expect(row).toContain(name);
+      assertStringIncludes(row, name);
       expect(statusIn(row, name)).toBe(t("features.status.disabled"));
     }
   },
@@ -98,7 +99,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const list = whatTheyWereTold(this, ORGANISER);
     for (const name of await everyFeatureName()) {
-      expect(list).toContain(linkToFeature(await featureNamed(name)));
+      assertStringIncludes(list, linkToFeature(await featureNamed(name)));
     }
   },
 );
@@ -119,9 +120,9 @@ Then(
     const feature = await featureNamed(printed);
     // Named as well as described: a correctly explained page with no name on
     // it leaves the owner guessing which feature they are about to change.
-    expect(page).toContain(t(feature.labelKey));
+    assertStringIncludes(page, t(feature.labelKey));
     const says = t(feature.descriptionKey);
-    expect(page).toContain(says);
+    assertStringIncludes(page, says);
     // Where each sits, not merely that both are there: a page that offered
     // the choice first would ask the owner to decide before reading.
     const choice = page.indexOf(`name="${CHOICE_FIELD}"`);
@@ -145,14 +146,14 @@ Then("they are offered no choice", function (this: TicketsWorld): void {
 Then(
   "the owner is told {string}",
   function (this: TicketsWorld, message: string): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(message);
+    assertStringIncludes(whatTheyWereTold(this, ORGANISER), message);
   },
 );
 
 Then(
   "the activity log says {string}",
   async function (this: TicketsWorld, message: string): Promise<void> {
-    expect(await activityMessages()).toContain(message);
+    assertArrayIncludes(await activityMessages(), [message]);
   },
 );
 
@@ -174,8 +175,8 @@ Then("the {string} page comes back offering No", comesBackOffering("false"));
 const pageAboutFeatureSays = (...keys: string[]) =>
   async function (this: TicketsWorld, printed: string): Promise<void> {
     const page = whatTheyWereTold(this, ORGANISER);
-    expect(page).toContain(t((await featureNamed(printed)).labelKey));
-    for (const key of keys) expect(page).toContain(t(key));
+    assertStringIncludes(page, t((await featureNamed(printed)).labelKey));
+    for (const key of keys) assertStringIncludes(page, t(key));
   };
 
 Then(
@@ -191,7 +192,8 @@ Then(
 Then(
   "they are told to remove its saved items first",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       t("features.in_use_help"),
     );
   },

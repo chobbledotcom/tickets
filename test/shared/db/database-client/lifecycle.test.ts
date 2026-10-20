@@ -1,4 +1,5 @@
 import type { Client } from "@libsql/client";
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -17,11 +18,12 @@ describe("database client delegation", () => {
     using remote = hranaTestDatabase();
     expect(await remote.client.migrate(["SELECT 2"])).toHaveLength(1);
     expect(remote.requests).toEqual([["batch", "close"]]);
-    expect(
+    assertArrayIncludes(
       remote.envelopes[0]!.requests[0]!.batch!.steps.map(
         (step) => step.stmt.sql,
       ),
-    ).toContain("SELECT 2");
+      ["SELECT 2"],
+    );
   });
 
   test("delegates interactive transactions through the shared limit", async () => {

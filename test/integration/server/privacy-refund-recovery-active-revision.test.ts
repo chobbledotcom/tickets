@@ -1,6 +1,6 @@
 /** A stale owner check cannot act on a newer active refund revision. */
 
-import { assert } from "@std/assert";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { loadRefundAuthorityById } from "#db/provider-refund-authority.ts";
@@ -30,7 +30,8 @@ describeWithEnv("owner active refund revision fence", { db: true }, () => {
       readyRefundTestState(identity),
     );
     const rendered = await adminGet(refundCasePath(id));
-    expect(await rendered.text()).toContain(
+    assertStringIncludes(
+      await rendered.text(),
       'name="revision" type="hidden" value="1"',
     );
 

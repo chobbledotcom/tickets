@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -205,9 +206,12 @@ describeWithEnv(
       expect(
         refundLegsOf(await transfersByAccount(attendeeAccount(18))).length,
       ).toBe(0);
-      expect(errors.lastMessage()).toContain("E_LEDGER_POST");
-      expect(errors.lastMessage()).toContain("Refund ledger post failed");
-      expect(errors.lastMessage()).toContain("attendee=18");
+      assertStringIncludes(errors.lastMessage() ?? "", "E_LEDGER_POST");
+      assertStringIncludes(
+        errors.lastMessage() ?? "",
+        "Refund ledger post failed",
+      );
+      assertStringIncludes(errors.lastMessage() ?? "", "attendee=18");
     });
 
     test("posts all refund groups for a balance-settled attendee in a bulk batch", async () => {
@@ -276,10 +280,11 @@ describeWithEnv(
           recordAttendeeRefundsBatch([target]),
         ),
       ).toEqual(new Map([[21, refundLedgerResult([], target.references)]]));
-      expect(errors.lastMessage()).toContain(
+      assertStringIncludes(
+        errors.lastMessage() ?? "",
         "Bulk refund ledger preparation failed for 1 attendee records",
       );
-      expect(errors.lastMessage()).not.toContain("ledger read failed");
+      assert(!(errors.lastMessage() ?? "").includes("ledger read failed"));
     });
 
     test("keeps every returned reference unrecorded when the shared write fails", async () => {
@@ -291,10 +296,11 @@ describeWithEnv(
           recordAttendeeRefundsBatch([target]),
         ),
       ).toEqual(new Map([[22, refundLedgerResult([], target.references)]]));
-      expect(errors.lastMessage()).toContain(
+      assertStringIncludes(
+        errors.lastMessage() ?? "",
         "Bulk refund ledger post failed for 1 attendee records",
       );
-      expect(errors.lastMessage()).not.toContain("ledger write failed");
+      assert(!(errors.lastMessage() ?? "").includes("ledger write failed"));
     });
   },
 );

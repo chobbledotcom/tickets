@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { ORGANISER } from "#test/specs/support/browser.ts";
 import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
@@ -35,14 +36,14 @@ Given(
 Then(
   "the owner is told the news post was created",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("News post created");
+    assertStringIncludes(ownerLastTold(this), "News post created");
   },
 );
 
 const newsPageReads = async (words: string): Promise<void> => {
   const read = await visitorOnNewsPage();
   expect(read.answered).toBe(200);
-  expect(read.said).toContain(words);
+  assertStringIncludes(read.said, words);
 };
 
 Then(
@@ -64,7 +65,7 @@ Then(
   async function (this: TicketsWorld, name: string, words: string) {
     const read = await visitorFollowsNewsLink(name);
     expect(read.answered).toBe(200);
-    expect(read.said).toContain(words);
+    assertStringIncludes(read.said, words);
   },
 );
 
@@ -114,7 +115,8 @@ When(
 Then(
   "the owner is told the post name does not match",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain(
+    assertStringIncludes(
+      ownerLastTold(this),
       "Post name does not match. Please type the exact post name to confirm deletion.",
     );
   },
@@ -123,6 +125,6 @@ Then(
 Then(
   "the owner is told the news post was deleted",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("News post deleted");
+    assertStringIncludes(ownerLastTold(this), "News post deleted");
   },
 );

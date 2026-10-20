@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
@@ -81,7 +82,7 @@ const renderActiveContactForm = async (): Promise<string> => {
   const response = await handleRequest(mockRequest("/contact"));
   const html = await response.text();
   expect(response.status).toBe(200);
-  expect(html).toContain('action="/contact"');
+  assertStringIncludes(html, 'action="/contact"');
   return html;
 };
 
@@ -93,7 +94,7 @@ const expectContactFormOmitted = async (): Promise<void> => {
   await settings.update.contactPageText("Just some text");
   const response = await handleRequest(mockRequest("/contact"));
   const html = await response.text();
-  expect(html).not.toContain("data-botpoison-public-key");
+  assert(!html.includes("data-botpoison-public-key"));
 };
 
 /** Submit the contact form with an invalid email and assert the server rejects
@@ -121,23 +122,26 @@ describeWithEnv(
     describe("GET /contact", () => {
       test("renders the form with the public key when active", async () => {
         const html = await renderActiveContactForm();
-        expect(html).toContain('data-botpoison-public-key="pk_test_public"');
-        expect(html).toContain('name="email"');
-        expect(html).toContain('name="message"');
+        assertStringIncludes(
+          html,
+          'data-botpoison-public-key="pk_test_public"',
+        );
+        assertStringIncludes(html, 'name="email"');
+        assertStringIncludes(html, 'name="message"');
       });
 
       test("loads the bundled contact widget script", async () => {
         await activateContactForm();
         const response = await handleRequest(mockRequest("/contact"));
         const html = await response.text();
-        expect(html).toContain("/contact.js");
+        assertStringIncludes(html, "/contact.js");
       });
 
       test("shows the Contact link in the public nav even without text", async () => {
         await activateContactForm();
         const response = await handleRequest(mockRequest("/"));
         const html = await response.text();
-        expect(html).toContain('href="/contact"');
+        assertStringIncludes(html, 'href="/contact"');
       });
 
       test("renders both contact text and the form together", async () => {
@@ -145,8 +149,8 @@ describeWithEnv(
         await settings.update.contactPageText("Reach us anytime");
         const response = await handleRequest(mockRequest("/contact"));
         const html = await response.text();
-        expect(html).toContain("Reach us anytime");
-        expect(html).toContain("data-botpoison-public-key");
+        assertStringIncludes(html, "Reach us anytime");
+        assertStringIncludes(html, "data-botpoison-public-key");
       });
 
       test("shows the website title heading when one is configured", async () => {
@@ -154,8 +158,8 @@ describeWithEnv(
         await settings.update.websiteTitle("Acme Tickets");
         const response = await handleRequest(mockRequest("/contact"));
         const html = await response.text();
-        expect(html).toContain("<h1>Acme Tickets</h1>");
-        expect(html).toContain("<title>Contact - Acme Tickets</title>");
+        assertStringIncludes(html, "<h1>Acme Tickets</h1>");
+        assertStringIncludes(html, "<title>Contact - Acme Tickets</title>");
       });
 
       test("renders a success flash after a redirect", async () => {
@@ -165,7 +169,7 @@ describeWithEnv(
           { cookie: flashCookieHeader("Message sent") },
         );
         const html = await response.text();
-        expect(html).toContain("Message sent");
+        assertStringIncludes(html, "Message sent");
       });
 
       test("renders an error flash after a redirect", async () => {
@@ -175,7 +179,7 @@ describeWithEnv(
           { cookie: flashCookieHeader("Please enter a message.", false) },
         );
         const html = await response.text();
-        expect(html).toContain("Please enter a message.");
+        assertStringIncludes(html, "Please enter a message.");
       });
 
       test("404s when the form is off and there is no contact text", async () => {
@@ -201,7 +205,10 @@ describeWithEnv(
       test("allows the Botpoison API in connect-src when configured", async () => {
         const response = await handleRequest(mockRequest("/"));
         const csp = getHeader(response, "content-security-policy");
-        expect(csp).toContain("connect-src 'self' https://api.botpoison.com");
+        assertStringIncludes(
+          csp,
+          "connect-src 'self' https://api.botpoison.com",
+        );
       });
     });
 
@@ -345,7 +352,8 @@ describeWithEnv(
       test("serves the bundled widget as JavaScript", async () => {
         const response = await handleRequest(mockRequest("/contact.js"));
         expect(response.status).toBe(200);
-        expect(getHeader(response, "content-type")).toContain(
+        assertStringIncludes(
+          getHeader(response, "content-type"),
           "application/javascript",
         );
       });
@@ -375,10 +383,10 @@ describeWithEnv(
   () => {
     test("renders the form without the Botpoison widget", async () => {
       const html = await renderActiveContactForm();
-      expect(html).toContain('name="email"');
-      expect(html).toContain('name="message"');
-      expect(html).not.toContain("data-botpoison-public-key");
-      expect(html).not.toContain("/contact.js");
+      assertStringIncludes(html, 'name="email"');
+      assertStringIncludes(html, 'name="message"');
+      assert(!html.includes("data-botpoison-public-key"));
+      assert(!html.includes("/contact.js"));
     });
 
     test("accepts a submission without verification and emails the owner", async () => {
@@ -421,7 +429,7 @@ describeWithEnv(
       await enablePublicSite();
       const response = await handleRequest(mockRequest("/"));
       const csp = getHeader(response, "content-security-policy");
-      expect(csp).not.toContain("api.botpoison.com");
+      assert(!csp.includes("api.botpoison.com"));
     });
   },
 );

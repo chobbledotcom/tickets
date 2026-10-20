@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { supportMessageApi } from "#shared/site-support-message.ts";
@@ -45,10 +45,10 @@ describeWithEnv(
         );
         const response = await adminGet(tabPath(site.id));
         const html = await expectHtmlResponse(response, 200, "Support message");
-        expect(html).toContain("data-markdown-preview");
+        assertStringIncludes(html, "data-markdown-preview");
         // The byte-budget hint replaces a character maxlength, which cannot
         // express the UTF-8 byte rule.
-        expect(html).toContain("at most 2,048 bytes");
+        assertStringIncludes(html, "at most 2,048 bytes");
       });
 
       test("shows the read error on the panel on Bunny failure", async () => {
@@ -84,8 +84,8 @@ describeWithEnv(
         using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
         const response = await adminGet(tabPath(site.id));
         const html = await expectHtmlResponse(response, 200, "Support message");
-        expect(html).toContain("<h1>Quiet hours</h1>");
-        expect(html).not.toContain('name="support_message"');
+        assertStringIncludes(html, "<h1>Quiet hours</h1>");
+        assert(!html.includes('name="support_message"'));
       });
 
       test("opens the tab for a Deno-hosted site too", async () => {
@@ -107,7 +107,7 @@ describeWithEnv(
 
         const edit = await adminGet(`/admin/built-sites/${site.id}`);
         const html = await expectHtmlResponse(edit, 200, "Deno Site");
-        expect(html).toContain(tabPath(site.id));
+        assertStringIncludes(html, tabPath(site.id));
       });
     });
   },

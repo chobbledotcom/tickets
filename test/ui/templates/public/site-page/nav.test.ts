@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { buildForest, buildNavModel } from "#shared/site-pages/core.ts";
@@ -41,11 +41,12 @@ describe("sitePagePage (nav-model race)", () => {
       },
       "",
     );
-    expect(html).toContain("<h1>Racy Page</h1>");
-    expect(html).toContain(
+    assertStringIncludes(html, "<h1>Racy Page</h1>");
+    assertStringIncludes(
+      html,
       '</nav></div><div class="page-regions public-page"><h1>Racy Page</h1>',
     );
-    expect(html).toContain("<strong>here</strong>");
-    expect(html).not.toContain('class="page-items"');
+    assertStringIncludes(html, "<strong>here</strong>");
+    assert(!html.includes('class="page-items"'));
   });
 });

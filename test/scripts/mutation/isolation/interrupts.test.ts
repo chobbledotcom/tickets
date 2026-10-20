@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -167,7 +168,7 @@ describe("interrupting a snapshot run", () => {
         // Only because the test stubbed the exit away does the run carry on
         // to its release, which finds the claim gone — in production the
         // process is over the moment the claim comes down.
-        expect(String(await run)).toContain("was lost while the work ran");
+        assertStringIncludes(String(await run), "was lost while the work ran");
       });
     });
   });

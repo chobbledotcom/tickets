@@ -4,6 +4,7 @@
  * gate runs against overrides.ts.
  */
 
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
@@ -48,7 +49,10 @@ describeWithEnv("demo overrides", { db: true }, () => {
     });
 
     expect(result).toBe(form);
-    expect(["Demo Person", "Another Person"]).toContain(result.get("name"));
+    assertArrayIncludes(
+      ["Demo Person", "Another Person"],
+      [result.get("name")],
+    );
     expect(result.get("untouched")).toBe("kept");
   });
 

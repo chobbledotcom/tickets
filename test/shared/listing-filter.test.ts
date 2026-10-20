@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups } from "#i18n";
@@ -177,8 +178,8 @@ describe("renderTypeFilter", () => {
         ' / <a href="/admin/listings?type=standard">Standard</a>' +
         "</div>",
     );
-    expect(html).not.toContain("?type=daily");
-    expect(html).not.toContain("No check-in");
+    assert(!html.includes("?type=daily"));
+    assert(!html.includes("No check-in"));
   });
 
   test("does not duplicate 'All' when 'all' is itself passed in categories", () => {
@@ -323,8 +324,8 @@ describe("renderGroupFilter", () => {
       [{ id: 4, name: "<img src=x onerror=alert(1)>" }],
       href,
     );
-    expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
-    expect(html).not.toContain("<img");
+    assertStringIncludes(html, "&lt;img src=x onerror=alert(1)&gt;");
+    assert(!html.includes("<img"));
   });
 
   test("renders nothing when the site stores no groups", () => {

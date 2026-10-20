@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { runGradeCodeCli, USAGE } from "#scripts/grade-code/cli.ts";
@@ -35,14 +36,14 @@ describe("runGradeCodeCli", () => {
   test("prints the check schema", async () => {
     const { io, out } = ioWith(["--list-checks"]);
     expect(await runGradeCodeCli(io, depsOver({ files: {} }))).toBe(0);
-    expect(out.join("\n")).toContain("file_length");
-    expect(out.join("\n")).toContain("comments_earn_place");
+    assertStringIncludes(out.join("\n"), "file_length");
+    assertStringIncludes(out.join("\n"), "comments_earn_place");
   });
 
   test("reports a bad option", async () => {
     const { io, err } = ioWith(["--nope"]);
     expect(await runGradeCodeCli(io, depsOver({ files: {} }))).toBe(2);
-    expect(err[0]).toContain("unknown option --nope");
+    assertStringIncludes(err[0] ?? "", "unknown option --nope");
   });
 
   test("grades one clean file mechanically and exits clean", async () => {
@@ -55,7 +56,7 @@ describe("runGradeCodeCli", () => {
       depsOver({ files: { "src/features/admin/a-page.ts": CLEAN_CODE } }),
     );
     expect(code).toBe(0);
-    expect(out.join("\n")).toContain("Score: 100/100 (A)");
+    assertStringIncludes(out.join("\n"), "Score: 100/100 (A)");
     expect(err).toEqual([]);
   });
 
@@ -66,7 +67,7 @@ describe("runGradeCodeCli", () => {
       depsOver({ files: { "src/features/admin/a-page.ts": BROKEN_CODE } }),
     );
     expect(code).toBe(1);
-    expect(out.join("\n")).toContain("[CRITICAL]");
+    assertStringIncludes(out.join("\n"), "[CRITICAL]");
   });
 
   test("reports a read failure that is not an Error", async () => {
@@ -83,7 +84,7 @@ describe("runGradeCodeCli", () => {
     };
     const code = await runGradeCodeCli(io, failing);
     expect(code).toBe(2);
-    expect(err.join("\n")).toContain("disk said no");
+    assertStringIncludes(err.join("\n"), "disk said no");
   });
 
   test("asks Jev when a key exists and merges the answers", async () => {
@@ -96,8 +97,8 @@ describe("runGradeCodeCli", () => {
     );
     expect(code).toBe(0);
     const report = out.join("\n");
-    expect(report).toContain("Comments earn their place");
-    expect(report).toContain("Jev: model=jev-test");
+    assertStringIncludes(report, "Comments earn their place");
+    assertStringIncludes(report, "Jev: model=jev-test");
   });
 
   test("falls back to mechanical-only when Jev fails", async () => {
@@ -112,8 +113,8 @@ describe("runGradeCodeCli", () => {
       }),
     );
     expect(code).toBe(0);
-    expect(out.join("\n")).toContain("Score: 100/100 (A)");
-    expect(err.join("\n")).toContain("Jev unavailable (HTTP 402");
+    assertStringIncludes(out.join("\n"), "Score: 100/100 (A)");
+    assertStringIncludes(err.join("\n"), "Jev unavailable (HTTP 402");
   });
 
   test("keeps the mechanical report when Jev replies with text that is not JSON", async () => {
@@ -133,8 +134,11 @@ describe("runGradeCodeCli", () => {
     };
     const code = await runGradeCodeCli(io, html);
     expect(code).toBe(0);
-    expect(out.join("\n")).toContain("Score: 100/100 (A)");
-    expect(err.join("\n")).toContain("Jev unavailable (the answer is not JSON");
+    assertStringIncludes(out.join("\n"), "Score: 100/100 (A)");
+    assertStringIncludes(
+      err.join("\n"),
+      "Jev unavailable (the answer is not JSON",
+    );
   });
 
   test("marks each batch file Jev failed on, apart from complete grades", async () => {
@@ -150,10 +154,11 @@ describe("runGradeCodeCli", () => {
       }),
     );
     expect(code).toBe(0);
-    expect(err.join("\n")).toContain(
+    assertStringIncludes(
+      err.join("\n"),
       "(Jev failed) src/features/admin/a-page.ts",
     );
-    expect(out.join("\n")).toContain("0 graded, 0 errored, 2 Jev failed");
+    assertStringIncludes(out.join("\n"), "0 graded, 0 errored, 2 Jev failed");
   });
 
   test("writes the CSV when one file is graded with --csv", async () => {
@@ -172,7 +177,8 @@ describe("runGradeCodeCli", () => {
       "--no-jev",
     ]);
     expect(await runGradeCodeCli(io, deps)).toBe(0);
-    expect(written["out.csv"]?.split("\n")[1]).toContain(
+    assertStringIncludes(
+      written["out.csv"]?.split("\n")[1] ?? "",
       "src/features/admin/a-page.ts",
     );
   });
@@ -199,7 +205,7 @@ describe("runGradeCodeCli", () => {
     });
     expect(await runGradeCodeCli(withEnv.io, deps)).toBe(0);
     expect(reads()).toBe(0);
-    expect(withEnv.out.join("\n")).toContain("Jev: model=jev-test");
+    assertStringIncludes(withEnv.out.join("\n"), "Jev: model=jev-test");
     const off = ioWith(["src/features/admin/a-page.ts", "--no-jev"]);
     expect(await runGradeCodeCli(off.io, deps)).toBe(0);
     expect(reads()).toBe(0);
@@ -218,7 +224,7 @@ describe("runGradeCodeCli", () => {
       }),
     );
     expect(code).toBe(0);
-    expect(out.join("\n")).toContain("2 graded, 0 errored, 0 Jev failed");
+    assertStringIncludes(out.join("\n"), "2 graded, 0 errored, 0 Jev failed");
     expect(err.filter((line) => line.includes("no Jev API key"))).toHaveLength(
       1,
     );
@@ -248,8 +254,11 @@ describe("runGradeCodeCli", () => {
       "src/features/admin/b-page.ts",
       "src/features/admin/a-page.ts",
     ]);
-    expect(written[csvPath]?.split("\n")[0]).toContain("failed_checks");
-    expect(err.join("\n")).toContain("CSV written to");
+    assertStringIncludes(
+      written[csvPath]?.split("\n")[0] ?? "",
+      "failed_checks",
+    );
+    assertStringIncludes(err.join("\n"), "CSV written to");
   });
 
   test("prints a skip line for a file that cannot be graded", async () => {
@@ -264,8 +273,8 @@ describe("runGradeCodeCli", () => {
       }),
     );
     expect(code).toBe(0);
-    expect(err.join("\n")).toContain("SKIP src/features/admin/b-page.ts");
-    expect(out.join("\n")).toContain("1 graded, 1 errored");
+    assertStringIncludes(err.join("\n"), "SKIP src/features/admin/b-page.ts");
+    assertStringIncludes(out.join("\n"), "1 graded, 1 errored");
   });
 
   test("exits 2 when the alias table or the over-limit list cannot be read", async () => {
@@ -275,7 +284,7 @@ describe("runGradeCodeCli", () => {
     };
     const { io, err } = ioWith(["src/features/admin/a-page.ts", "--no-jev"]);
     expect(await runGradeCodeCli(io, noAliases)).toBe(2);
-    expect(err.join("\n")).toContain("cannot read deno.json");
+    assertStringIncludes(err.join("\n"), "cannot read deno.json");
 
     const noList = {
       ...depsOver({ files: { "src/features/admin/a-page.ts": CLEAN_CODE } }),
@@ -283,13 +292,13 @@ describe("runGradeCodeCli", () => {
     };
     const again = ioWith(["src/features/admin/a-page.ts", "--no-jev"]);
     expect(await runGradeCodeCli(again.io, noList)).toBe(2);
-    expect(again.err.join("\n")).toContain("cannot read");
+    assertStringIncludes(again.err.join("\n"), "cannot read");
   });
 
   test("exits 2 on a target that does not read", async () => {
     const { io, err } = ioWith(["src/features/admin/nope-page.ts"]);
     expect(await runGradeCodeCli(io, depsOver({ files: {} }))).toBe(2);
-    expect(err.join("\n")).toContain("cannot read");
+    assertStringIncludes(err.join("\n"), "cannot read");
   });
 
   test("prints the call without token counts when the reply carries none", async () => {
@@ -313,7 +322,7 @@ describe("runGradeCodeCli", () => {
     };
     const code = await runGradeCodeCli(io, bare);
     expect(code).toBe(0);
-    expect(out.join("\n")).toContain("Jev: model=jev-1.13, 0.00s");
+    assertStringIncludes(out.join("\n"), "Jev: model=jev-1.13, 0.00s");
   });
 
   test("prints input tokens alone when the reply carries no output count", async () => {
@@ -337,7 +346,8 @@ describe("runGradeCodeCli", () => {
     };
     const code = await runGradeCodeCli(io, half);
     expect(code).toBe(0);
-    expect(out.join("\n")).toContain(
+    assertStringIncludes(
+      out.join("\n"),
       "Jev: model=jev-test, 7 in / ? out tokens",
     );
   });
@@ -355,9 +365,9 @@ describe("runGradeCodeCli", () => {
       }),
     );
     expect(code).toBe(0);
-    expect(out.join("\n")).toContain("batch of 2");
-    expect(out.join("\n")).toContain("2 graded, 0 errored");
-    expect(err.join("\n")).toContain("[2/2]");
+    assertStringIncludes(out.join("\n"), "batch of 2");
+    assertStringIncludes(out.join("\n"), "2 graded, 0 errored");
+    assertStringIncludes(err.join("\n"), "[2/2]");
   });
 });
 
@@ -378,7 +388,7 @@ describe("the fake repository the CLI tests run on", () => {
       }),
     );
     expect(code).toBe(0);
-    expect(out.join("\n")).toContain("Jev: model=jev-test");
+    assertStringIncludes(out.join("\n"), "Jev: model=jev-test");
   });
 
   test("writes the CSV path through the fake's write hook", async () => {
@@ -393,6 +403,6 @@ describe("the fake repository the CLI tests run on", () => {
       }),
     );
     expect(code).toBe(0);
-    expect(err.join("\n")).toContain("CSV written to out.csv");
+    assertStringIncludes(err.join("\n"), "CSV written to out.csv");
   });
 });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -14,26 +15,26 @@ describe("authFailure", () => {
     test("forbidden returns 403 with Forbidden body", async () => {
       const res = authFailure("html", "forbidden");
       expect(res.status).toBe(403);
-      expect(res.headers.get("content-type")).toContain("text/html");
+      assertStringIncludes(res.headers.get("content-type") ?? "", "text/html");
     });
 
     test("an owner-only refusal says only the owner account can open the page", async () => {
       const res = authFailure("html", "forbidden", "owner-only");
       expect(res.status).toBe(403);
-      expect(await res.text()).toContain(t("auth.forbidden_owner_only"));
+      assertStringIncludes(await res.text(), t("auth.forbidden_owner_only"));
     });
 
     test("a role refusal names the account as the thing that cannot open the page", async () => {
       const res = authFailure("html", "forbidden");
       expect(res.status).toBe(403);
-      expect(await res.text()).toContain(t("auth.forbidden_role"));
+      assertStringIncludes(await res.text(), t("auth.forbidden_role"));
     });
 
     test("invalid-csrf returns 403 with Invalid CSRF token body", async () => {
       const res = authFailure("html", "invalid-csrf");
       expect(res.status).toBe(403);
       expect(await res.text()).toBe("Invalid CSRF token");
-      expect(res.headers.get("content-type")).toContain("text/html");
+      assertStringIncludes(res.headers.get("content-type") ?? "", "text/html");
     });
 
     test("invalid-api-key returns 403 with the role-refusal copy", async () => {

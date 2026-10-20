@@ -3,6 +3,7 @@
  * newest-first and oldest-first registration order a click away.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -37,11 +38,16 @@ describe("adminListingPage roster sort", () => {
 
   test("offers its own order plus the two registration orders", () => {
     const html = detailHtml(listing(), { attendees: trio() });
-    expect(html).toContain("Sort: <strong><u>By date and name</u></strong>");
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
+      "Sort: <strong><u>By date and name</u></strong>",
+    );
+    assertStringIncludes(
+      html,
       'href="/admin/listing/1/attendees?sort=newest">Newest first</a>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'href="/admin/listing/1/attendees?sort=oldest">Oldest first</a>',
     );
   });
@@ -62,7 +68,7 @@ describe("adminListingPage roster sort", () => {
       "Alpha Person",
       "Mid Person",
     ]);
-    expect(html).toContain("<strong><u>Newest first</u></strong>");
+    assertStringIncludes(html, "<strong><u>Newest first</u></strong>");
   });
 
   test("oldest first puts the earliest registration on top", () => {
@@ -79,6 +85,9 @@ describe("adminListingPage roster sort", () => {
       attendees: [testAttendee({ id: 1 })],
       sort: "newest",
     });
-    expect(html).toContain('value="/admin/listing/1/attendees?sort=newest"');
+    assertStringIncludes(
+      html,
+      'value="/admin/listing/1/attendees?sort=newest"',
+    );
   });
 });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
@@ -75,8 +76,8 @@ describe("currency", () => {
 
     testWithSetting("formats EUR with euro symbol", { currency: "EUR" }, () => {
       const result = formatCurrency(1050);
-      expect(result).toContain("10.50");
-      expect(result).toContain("€");
+      assertStringIncludes(result, "10.50");
+      assertStringIncludes(result, "€");
     });
 
     testWithSetting(
@@ -92,7 +93,7 @@ describe("currency", () => {
       { currency: "KWD" },
       () => {
         const result = formatCurrency(1050);
-        expect(result).toContain("1.050");
+        assertStringIncludes(result, "1.050");
       },
     );
 

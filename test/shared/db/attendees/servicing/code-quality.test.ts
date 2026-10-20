@@ -8,7 +8,9 @@
  * *specific* shared helpers so the feature can't land as near-duplicate logic
  * sprinkled across files.
  */
+
 import { join } from "node:path";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -76,8 +78,8 @@ describe("servicing §20 — servicing query readers reuse the shared attendee S
     // The servicing reads go through the shared getAttendees façade with a
     // declared `kind: "servicing"` filter — not a hand-written SELECT with a
     // copy-pasted column list.
-    expect(src).toContain("getAttendees");
-    expect(src).toContain('kind: "servicing"');
+    assertStringIncludes(src, "getAttendees");
+    assertStringIncludes(src, 'kind: "servicing"');
     // And it does NOT hand-write the attendee SELECT (a copy-paste giveaway).
     expect(src).not.toMatch(/SELECT\s+attendee\.id/);
   });
@@ -87,13 +89,13 @@ describe("servicing §20 — servicing query readers reuse the shared attendee S
     const none = attendeeColumns("inner", []);
     // Both carry the always-present core (identity + cheap per-listing columns),
     // so every reader projects the same base regardless of its field set.
-    expect(none).toContain("attendee.pii_blob");
-    expect(none).toContain("listingAttendee.listing_id");
+    assertStringIncludes(none, "attendee.pii_blob");
+    assertStringIncludes(none, "listingAttendee.listing_id");
     // The money subqueries are opt-in: `price_paid` is projected only when its
     // field is requested, so a money-free read runs none of its subqueries and
     // its column list is strictly shorter.
-    expect(full).toContain("AS price_paid");
-    expect(none).not.toContain("AS price_paid");
+    assertStringIncludes(full, "AS price_paid");
+    assert(!none.includes("AS price_paid"));
     expect(none.length).toBeLessThan(full.length);
   });
 });

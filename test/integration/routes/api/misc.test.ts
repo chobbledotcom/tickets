@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
@@ -137,7 +138,10 @@ describePublicApi(() => {
     test("lists the bundle and the standalone member", async () => {
       const member = await hiddenPackageMember();
       const { listings } = await fetchListingsList();
-      expect(listings.map((listing) => listing.slug)).toContain(member.slug);
+      assertArrayIncludes(
+        listings.map((listing) => listing.slug),
+        [member.slug],
+      );
       const raw = await (
         await handleRequest(jsonRequest("/api/listings"))
       ).json();
@@ -161,7 +165,10 @@ describePublicApi(() => {
         name: "Open Member",
       });
       const { listings } = await fetchListingsList();
-      expect(listings.map((l) => l.slug)).toContain(member.slug);
+      assertArrayIncludes(
+        listings.map((l) => l.slug),
+        [member.slug],
+      );
       expect((await fetchListingBySlug(member.slug)).response.status).toBe(200);
     });
   });

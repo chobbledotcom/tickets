@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
@@ -173,7 +174,8 @@ const outsiderIdsOf = (world: TicketsWorld, groupName: string): number[] => {
 Then(
   "the organiser is told the group name does not match",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       "Group name does not match",
     );
   },

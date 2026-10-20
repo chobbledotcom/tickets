@@ -5,6 +5,7 @@
  * quantity-0 lines, while admin record views keep them.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -64,8 +65,8 @@ describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
     const body = await (
       await awaitTestRequest(`/t/${result.attendees[0]!.ticket_token}`)
     ).text();
-    expect(body).toContain("RealShow");
-    expect(body).not.toContain("GhostShow");
+    assertStringIncludes(body, "RealShow");
+    assert(!body.includes("GhostShow"));
   });
 
   test("the reservation success page drops the CTA for a ghost-only token", async () => {
@@ -79,7 +80,7 @@ describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
       await awaitTestRequest(`/ticket/reserved?tokens=${token}`)
     ).text();
     // No "booking confirmed" CTA linking to a /t URL that would 404.
-    expect(body).not.toContain(`/t/${token}`);
+    assert(!body.includes(`/t/${token}`));
   });
 
   test("the reservation success page keeps the CTA for a real-line token", async () => {
@@ -93,7 +94,7 @@ describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
     const body = await (
       await awaitTestRequest(`/ticket/reserved?tokens=${token}`)
     ).text();
-    expect(body).toContain(`/t/${token}`);
+    assertStringIncludes(body, `/t/${token}`);
   });
 
   test("the payment success page rejects a ghost-only token", async () => {
@@ -106,7 +107,7 @@ describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
     const body = await (
       await awaitTestRequest(`/payment/success?tokens=${token}`)
     ).text();
-    expect(body).not.toContain(`/t/${token}`);
+    assert(!body.includes(`/t/${token}`));
   });
 });
 

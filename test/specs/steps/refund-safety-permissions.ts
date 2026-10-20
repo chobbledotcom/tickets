@@ -1,5 +1,7 @@
 // jscpd:ignore-start
+
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   completedRefundFor,
@@ -99,7 +101,7 @@ When(
     await browser.visit(
       `/admin/attendees/${safetyBooking(this, attendee).attendeeId}/actions`,
     );
-    expect(browser.pageText).toContain(attendee);
+    assertStringIncludes(browser.pageText, attendee);
     this.attendeeName = attendee;
   },
 );

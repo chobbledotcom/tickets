@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { logRefundLedgerError } from "#shared/refund-ledger/log.ts";
 import { initSentry } from "#shared/sentry.ts";
@@ -31,14 +31,17 @@ describe("refund ledger diagnostics", () => {
       return Promise.resolve();
     });
 
-    expect(errors.lastMessage()).toContain("Refund ledger post failed");
-    expect(errors.lastMessage()).toContain("attendee=17");
-    expect(errors.lastMessage()).not.toContain(failure.message);
+    assertStringIncludes(
+      errors.lastMessage() ?? "",
+      "Refund ledger post failed",
+    );
+    assertStringIncludes(errors.lastMessage() ?? "", "attendee=17");
+    assert(!(errors.lastMessage() ?? "").includes(failure.message));
 
     const body = sentryRequestBody(fetchStub.calls);
-    expect(body).toContain('"value":"ledger backend failed"');
-    expect(body).toContain("stacktrace");
-    expect(body).toContain('"detail":"Refund ledger post failed"');
-    expect(body).toContain('"attendeeId":"17"');
+    assertStringIncludes(body, '"value":"ledger backend failed"');
+    assertStringIncludes(body, "stacktrace");
+    assertStringIncludes(body, '"detail":"Refund ledger post failed"');
+    assertStringIncludes(body, '"attendeeId":"17"');
   });
 });

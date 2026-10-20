@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handlePublicContactSubmit } from "#routes/public/pages.ts";
@@ -183,8 +184,8 @@ describeWithEnv(
       const html = await response.text();
 
       expect(response.status).toBe(200);
-      expect(html).toContain("Write to the team.");
-      expect(html).not.toContain('action="/contact"');
+      assertStringIncludes(html, "Write to the team.");
+      assert(!html.includes('action="/contact"'));
     });
 
     test("shows the active form without contact text", async () => {
@@ -192,8 +193,9 @@ describeWithEnv(
       const response = await awaitTestRequest("/contact");
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain('action="/contact"');
-      expect(inputNamed(html, "email")).toContain(
+      assertStringIncludes(html, 'action="/contact"');
+      assertStringIncludes(
+        inputNamed(html, "email"),
         `maxlength="${MAX_INPUT_LENGTH}"`,
       );
     });
@@ -204,12 +206,12 @@ describeWithEnv(
         `/contact?flash=${FLASH_TEST_ID}`,
         { cookie: flashCookieHeader("Sent") },
       );
-      expect(await success.text()).toContain("Sent");
+      assertStringIncludes(await success.text(), "Sent");
 
       const error = await awaitTestRequest(`/contact?flash=${FLASH_TEST_ID}`, {
         cookie: flashCookieHeader("Try again", false),
       });
-      expect(await error.text()).toContain("Try again");
+      assertStringIncludes(await error.text(), "Try again");
     });
   },
 );

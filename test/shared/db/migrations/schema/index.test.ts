@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -35,7 +36,7 @@ describe("db > migrations > schema assembly", () => {
   test("leaves the migrations bookkeeping table out of the app schema", () => {
     // The bookkeeping table is the app's own record of what it has run, so a
     // site's schema is compared without it.
-    expect(SCHEMA_TABLE_NAMES).toContain(SCHEMA_MIGRATIONS_TABLE);
+    assertArrayIncludes(SCHEMA_TABLE_NAMES, [SCHEMA_MIGRATIONS_TABLE]);
     // Compared whole rather than by name and count, so a table swapped for
     // another, or listed twice, cannot slip through.
     expect(APP_SCHEMA).toEqual(

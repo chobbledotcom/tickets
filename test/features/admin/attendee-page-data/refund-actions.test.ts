@@ -1,5 +1,6 @@
 /** Refund controls rendered from the attendee page's authoritative payment facts. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { loadAttendeeForEdit } from "#routes/admin/attendee-page-data.ts";
@@ -81,7 +82,7 @@ describeWithEnv("server (admin refund actions)", { db: true }, () => {
       "Free User",
       "free@example.com",
     );
-    expect(html).not.toContain("Refund All");
+    assert(!html.includes("Refund All"));
   });
 
   test("shows the per-attendee Refund action on a paid attendee's edit page", async () => {
@@ -94,7 +95,7 @@ describeWithEnv("server (admin refund actions)", { db: true }, () => {
     );
     const response = await adminGet(`/admin/attendees/${attendee.id}/actions`);
     const html = await expectHtmlResponse(response, 200);
-    expect(html).toContain(`/admin/attendees/${attendee.id}/refund`);
+    assertStringIncludes(html, `/admin/attendees/${attendee.id}/refund`);
   });
 
   test("hides Refund but keeps delete and resend when there is no payment", async () => {
@@ -107,9 +108,10 @@ describeWithEnv("server (admin refund actions)", { db: true }, () => {
     );
     const response = await adminGet(`/admin/attendees/${attendee.id}/actions`);
     const html = await expectHtmlResponse(response, 200);
-    expect(html).not.toContain(`/admin/attendees/${attendee.id}/refund`);
-    expect(html).toContain(`/admin/attendees/${attendee.id}/delete`);
-    expect(html).toContain(
+    assert(!html.includes(`/admin/attendees/${attendee.id}/refund`));
+    assertStringIncludes(html, `/admin/attendees/${attendee.id}/delete`);
+    assertStringIncludes(
+      html,
       `/admin/attendees/${attendee.id}/resend-notification`,
     );
   });
@@ -196,9 +198,9 @@ describeWithEnv("server (admin refund actions)", { db: true }, () => {
       await withTestSession(() => loadAttendeeForEdit(attendee.id)),
     ).toMatchObject({ canRefund: true });
     const refundUrl = `/admin/attendees/${attendee.id}/refund`;
-    expect(await tabHtml(attendee.id, "actions")).toContain(refundUrl);
-    expect(await tabHtml(attendee.id, "actions", MANAGER)).not.toContain(
-      refundUrl,
+    assertStringIncludes(await tabHtml(attendee.id, "actions"), refundUrl);
+    assert(
+      !(await tabHtml(attendee.id, "actions", MANAGER)).includes(refundUrl),
     );
   });
 });

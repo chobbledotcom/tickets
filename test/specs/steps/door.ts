@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   dayLog,
@@ -252,7 +253,7 @@ Then(
     who: string,
   ): Promise<void> {
     const written = await dayLog(this, listing);
-    expect(written).toContain(who);
+    assertStringIncludes(written, who);
     expect(written).toMatch(
       new RegExp(`checked in \\d+ tickets? via scanner for '${listing}'`),
     );
@@ -277,14 +278,14 @@ Then(
     listing: string,
     who: string,
   ): Promise<void> {
-    expect(
-      (await peopleOfferedAtDoor(this, listing)).map(({ name }) => name),
-    ).not.toContain(who);
+    assert(
+      !(await peopleOfferedAtDoor(this, listing))
+        .map(({ name }) => name)
+        .includes(who),
+    );
     // Their ticket code must be off the page altogether, not merely out of the
     // list — anything left behind is a code the door would still take.
-    expect(await doorPageHtml(this, listing)).not.toContain(
-      ticketOf(this, who),
-    );
+    assert(!(await doorPageHtml(this, listing)).includes(ticketOf(this, who)));
   },
 );
 

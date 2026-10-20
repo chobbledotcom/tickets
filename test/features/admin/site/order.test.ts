@@ -1,3 +1,5 @@
+/* jscpd:ignore-start -- imports */
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -15,6 +17,8 @@ import { hasCheckedInput } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
+
+/* jscpd:ignore-end */
 
 describeWithEnv("server (admin site order)", { db: true }, () => {
   describe("GET /admin/site/order", () => {
@@ -35,7 +39,7 @@ describeWithEnv("server (admin site order)", { db: true }, () => {
     test("warns when there are no bookable listings", async () => {
       const response = await adminGet("/admin/site/order");
       const html = await response.text();
-      expect(html).toContain("no bookable listings");
+      assertStringIncludes(html, "no bookable listings");
     });
 
     test("counts every active, visible listing", async () => {
@@ -46,8 +50,8 @@ describeWithEnv("server (admin site order)", { db: true }, () => {
       await createTestListing({ name: "Regular Ticket" });
       const response = await adminGet("/admin/site/order");
       const html = await response.text();
-      expect(html).toContain("2 listings will be shown");
-      expect(html).not.toContain("no bookable listings");
+      assertStringIncludes(html, "2 listings will be shown");
+      assert(!html.includes("no bookable listings"));
     });
 
     test("uses the singular for a single listing", async () => {
@@ -57,14 +61,14 @@ describeWithEnv("server (admin site order)", { db: true }, () => {
       await createTestListing({ name: "Solo" });
       const response = await adminGet("/admin/site/order");
       const html = await response.text();
-      expect(html).toContain("1 listing will be shown");
+      assertStringIncludes(html, "1 listing will be shown");
     });
 
     test("displays existing intro text", async () => {
       await settings.update.orderIntroText("Pick your items");
       const response = await adminGet("/admin/site/order");
       const html = await response.text();
-      expect(html).toContain("Pick your items");
+      assertStringIncludes(html, "Pick your items");
     });
 
     test("reflects the enabled state in the checkbox", async () => {

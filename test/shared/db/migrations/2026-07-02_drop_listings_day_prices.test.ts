@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, queryAll } from "#db/client.ts";
@@ -61,7 +62,7 @@ describeWithEnv(
         { listing_id: 10, price_id: "3", unit_price: 1000 },
       ]);
       // The column is gone; the listing rows survive the rebuild.
-      expect(await listingsColumns()).not.toContain("day_prices");
+      assert(!(await listingsColumns()).includes("day_prices"));
       const ids = await queryAll<{ id: number }>(
         "SELECT id FROM listings ORDER BY id",
       );

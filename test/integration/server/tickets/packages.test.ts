@@ -10,6 +10,7 @@
  */
 
 // jscpd:ignore-start
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -80,8 +81,8 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
         [{ listingId: widget.id, quantity: 1 }],
         "standalone",
       );
-      expect(body).toContain("Widget");
-      expect(body).not.toContain("Kit Bag");
+      assertStringIncludes(body, "Widget");
+      assert(!body.includes("Kit Bag"));
     });
 
     test("collapses the package half of a mixed token and leaves the rest", async () => {
@@ -106,9 +107,9 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       });
 
       const body = await fetchTicketBody(token);
-      expect(body).toContain("Kit Bag");
-      expect(body).toContain("Standalone Ticket");
-      expect(body).not.toContain("Widget");
+      assertStringIncludes(body, "Kit Bag");
+      assertStringIncludes(body, "Standalone Ticket");
+      assert(!body.includes("Widget"));
     });
   });
 
@@ -125,11 +126,11 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
     const tokenB = await bookedToken(asPackage, "b");
 
     const body = await fetchTicketBody(`${tokenA}+${tokenB}`);
-    expect(body).toContain("2 Tickets");
-    expect(body).toContain(`/t/${tokenA}/svg`);
-    expect(body).toContain(`/t/${tokenB}/svg`);
-    expect(body).toContain("Kit Bag");
-    expect(body).not.toContain("Widget");
+    assertStringIncludes(body, "2 Tickets");
+    assertStringIncludes(body, `/t/${tokenA}/svg`);
+    assertStringIncludes(body, `/t/${tokenB}/svg`);
+    assertStringIncludes(body, "Kit Bag");
+    assert(!body.includes("Widget"));
   });
 
   describe("the date a dated package card carries", () => {
@@ -196,7 +197,8 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
         ],
         "tripper",
       );
-      expect(body).toContain(
+      assertStringIncludes(
+        body,
         formatDateRangeLabelCompactEn(date, addDays(date, 1)),
       );
     });
@@ -236,11 +238,12 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
         ],
         "flexer",
       );
-      expect(body).toContain(
+      assertStringIncludes(
+        body,
         formatDateRangeLabelCompactEn(date, addDays(date, 2)),
       );
-      expect(body).not.toContain(
-        formatDateRangeLabelCompactEn(date, addDays(date, 6)),
+      assert(
+        !body.includes(formatDateRangeLabelCompactEn(date, addDays(date, 6))),
       );
     });
   });
@@ -288,7 +291,7 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       );
 
       const submit = await buyOnePackage(group, "freepkg");
-      expect([302, 303]).toContain(submit.status);
+      assertArrayIncludes([302, 303], [submit.status]);
 
       const row = (
         await getDb().execute({
@@ -309,10 +312,10 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       });
 
       const submit = await buyOnePackage(group, "secret");
-      expect([302, 303]).toContain(submit.status);
+      assertArrayIncludes([302, 303], [submit.status]);
       const location = submit.headers.get("location") ?? "";
-      expect(location).not.toContain("concealed-member");
-      expect(location).toContain("/ticket/reserved");
+      assert(!location.includes("concealed-member"));
+      assertStringIncludes(location, "/ticket/reserved");
     });
   });
 });

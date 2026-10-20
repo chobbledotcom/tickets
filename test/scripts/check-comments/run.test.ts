@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -33,17 +34,20 @@ describe("runCommentCheck", () => {
   test("fails and names the offending file and line", async () => {
     await run.write("src/a.ts", "/**\n * a\n * b\n */\nexport const a = 1;\n");
     expect(await check()).toBe(1);
-    expect(run.errors[0]).toContain(`${run.path}/src/a.ts:1`);
-    expect(run.errors[0]).toContain("comment runs 4 lines (limit 2)");
-    expect(run.errors.at(-1)).toContain("1 comment issue(s) found");
-    expect(run.errors.at(-1)).toContain('"Comments are short" in AGENTS.md');
+    assertStringIncludes(run.errors[0] ?? "", `${run.path}/src/a.ts:1`);
+    assertStringIncludes(run.errors[0] ?? "", "comment runs 4 lines (limit 2)");
+    assertStringIncludes(run.errors.at(-1) ?? "", "1 comment issue(s) found");
+    assertStringIncludes(
+      run.errors.at(-1) ?? "",
+      '"Comments are short" in AGENTS.md',
+    );
   });
 
   test("counts every issue across several files", async () => {
     await run.write("src/a.ts", "/**\n * a\n * b\n */\n");
     await run.write("src/b.ts", "/**\n * a\n * b\n */\n");
     expect(await check()).toBe(1);
-    expect(run.errors.at(-1)).toContain("2 comment issue(s) found");
+    assertStringIncludes(run.errors.at(-1) ?? "", "2 comment issue(s) found");
   });
 
   test("checks .tsx as well as .ts", async () => {
@@ -95,14 +99,15 @@ describe("runCommentCheck", () => {
       "/**\n * a\n * b\n */\n",
     );
     expect(await check()).toBe(1);
-    expect(run.errors.at(-1)).toContain("2 comment issue(s) found");
+    assertStringIncludes(run.errors.at(-1) ?? "", "2 comment issue(s) found");
   });
 
   test("fails a link naming something no file defines", async () => {
     await run.write("src/a.ts", "/** See {@link vanished}. */\n");
     expect(await check()).toBe(1);
-    expect(run.errors[0]).toContain(`${run.path}/src/a.ts:1`);
-    expect(run.errors[0]).toContain(
+    assertStringIncludes(run.errors[0] ?? "", `${run.path}/src/a.ts:1`);
+    assertStringIncludes(
+      run.errors[0] ?? "",
       "{@link vanished} names nothing in the tree",
     );
   });
@@ -118,10 +123,11 @@ describe("runCommentCheck", () => {
     // so the length exemption must not carry the link check with it.
     await run.write("doc.ts", "/**\n * a\n * b\n * {@link vanished}\n */\n");
     expect(await check()).toBe(1);
-    expect(run.errors[0]).toContain(
+    assertStringIncludes(
+      run.errors[0] ?? "",
       "{@link vanished} names nothing in the tree",
     );
-    expect(run.errors[0]).not.toContain("comment runs");
+    assert(!(run.errors[0] ?? "").includes("comment runs"));
   });
 
   test("reports a file's issues in line order", async () => {
@@ -130,16 +136,16 @@ describe("runCommentCheck", () => {
       `// {@link gone}\nconst a = 1;\n// ${"w".repeat(50)}\n`,
     );
     expect(await check()).toBe(1);
-    expect(run.errors[0]).toContain("src/a.ts:1");
-    expect(run.errors[1]).toContain("src/a.ts:3");
+    assertStringIncludes(run.errors[0] ?? "", "src/a.ts:1");
+    assertStringIncludes(run.errors[1] ?? "", "src/a.ts:3");
   });
 
   test("reports files in a stable order", async () => {
     await run.write("src/b.ts", "/**\n * a\n * b\n */\n");
     await run.write("src/a.ts", "/**\n * a\n * b\n */\n");
     await check();
-    expect(run.errors[0]).toContain("/a.ts");
-    expect(run.errors[1]).toContain("/b.ts");
+    assertStringIncludes(run.errors[0] ?? "", "/a.ts");
+    assertStringIncludes(run.errors[1] ?? "", "/b.ts");
   });
 });
 

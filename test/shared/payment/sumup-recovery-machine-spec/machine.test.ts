@@ -1,4 +1,5 @@
 /* jscpd:ignore-start -- imports */
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -50,7 +51,7 @@ describe("sumup recovery machine", () => {
     ]);
     for (const node of unaccountedNodes) {
       expect(node.prunable, `${node.id} must not be prunable`).toBe(false);
-      expect(RECOVERY_PRUNABLE_NODES).not.toContain(node.id);
+      assert(!RECOVERY_PRUNABLE_NODES.includes(node.id));
     }
   });
 

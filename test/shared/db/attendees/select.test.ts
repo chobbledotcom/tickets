@@ -8,6 +8,7 @@
  * that drops a clause, flips a join, or mis-orders the bound args is caught.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -65,14 +66,14 @@ describe("attendeeColumns", () => {
   test("always emits every core column, for either join", () => {
     for (const join of ["inner", "left"] as const) {
       const cols = attendeeColumns(join, []);
-      for (const alias of CORE_ALIASES) expect(cols).toContain(alias);
+      for (const alias of CORE_ALIASES) assertStringIncludes(cols, alias);
     }
   });
 
   test("an empty field set projects no opt-in field", () => {
     const cols = attendeeColumns("inner", []);
     for (const marker of Object.values(FIELD_MARKER)) {
-      expect(cols).not.toContain(marker);
+      assert(!cols.includes(marker));
     }
   });
 
@@ -80,35 +81,41 @@ describe("attendeeColumns", () => {
     for (const field of ATTENDEE_FIELDS) {
       const withField = attendeeColumns("inner", [field]);
       const without = attendeeColumns("inner", []);
-      expect(withField).toContain(FIELD_MARKER[field]);
-      expect(without).not.toContain(FIELD_MARKER[field]);
+      assertStringIncludes(withField, FIELD_MARKER[field]);
+      assert(!without.includes(FIELD_MARKER[field]));
     }
   });
 
   test("the full field set projects all six opt-in fields", () => {
     const cols = attendeeColumns("inner", ATTENDEE_FIELDS);
     for (const marker of Object.values(FIELD_MARKER)) {
-      expect(cols).toContain(marker);
+      assertStringIncludes(cols, marker);
     }
   });
 
   test("a LEFT join COALESCEs the cheap per-listing columns; an INNER join does not", () => {
     const left = attendeeColumns("left", ["attachment_downloads"]);
-    expect(left).toContain(
+    assertStringIncludes(
+      left,
       "COALESCE(listingAttendee.listing_id, 0) as listing_id",
     );
-    expect(left).toContain("COALESCE(listingAttendee.quantity, 0) as quantity");
-    expect(left).toContain(
+    assertStringIncludes(
+      left,
+      "COALESCE(listingAttendee.quantity, 0) as quantity",
+    );
+    assertStringIncludes(
+      left,
       "COALESCE(listingAttendee.checked_in, 0) as checked_in",
     );
-    expect(left).toContain(
+    assertStringIncludes(
+      left,
       "COALESCE(listingAttendee.attachment_downloads, 0) as attachment_downloads",
     );
 
     const inner = attendeeColumns("inner", ["attachment_downloads"]);
-    expect(inner).not.toContain("COALESCE(listingAttendee.listing_id");
-    expect(inner).toContain("listingAttendee.listing_id");
-    expect(inner).toContain("listingAttendee.attachment_downloads");
+    assert(!inner.includes("COALESCE(listingAttendee.listing_id"));
+    assertStringIncludes(inner, "listingAttendee.listing_id");
+    assertStringIncludes(inner, "listingAttendee.attachment_downloads");
   });
 
   test("omitting the money fields makes the column list strictly shorter", () => {
@@ -134,82 +141,91 @@ describe("attendeeColumns", () => {
       "attachment_downloads",
       "package_group_id",
     ] as const) {
-      expect(attendeeColumns("inner", [field])).not.toContain("(SELECT");
+      assert(!attendeeColumns("inner", [field]).includes("(SELECT"));
     }
   });
 });
 
 describe("attendee filter and order SQL", () => {
   test("uses the requested join keyword", () => {
-    expect(attendeeFromWhere("inner", { attendeeIds: [1] }).from).toContain(
+    assertStringIncludes(
+      attendeeFromWhere("inner", { attendeeIds: [1] }).from,
       "FROM attendees AS attendee JOIN listing_attendees AS listingAttendee",
     );
-    expect(attendeeFromWhere("left", { attendeeIds: [1] }).from).toContain(
+    assertStringIncludes(
+      attendeeFromWhere("left", { attendeeIds: [1] }).from,
       "FROM attendees AS attendee LEFT JOIN listing_attendees AS listingAttendee",
     );
   });
 
   test("defaults to the regular-attendee kind filter", () => {
-    expect(attendeeFromWhere("inner", {}).from).toContain(
+    assertStringIncludes(
+      attendeeFromWhere("inner", {}).from,
       `attendee.kind = '${ATTENDEE_KIND}'`,
     );
   });
 
   test("each kind filter emits the matching predicate", () => {
-    expect(attendeeFromWhere("inner", { kind: "servicing" }).from).toContain(
+    assertStringIncludes(
+      attendeeFromWhere("inner", { kind: "servicing" }).from,
       `attendee.kind = '${SERVICING_KIND}'`,
     );
-    expect(
+    assertStringIncludes(
       attendeeFromWhere("inner", { kind: "attendee-or-servicing" }).from,
-    ).toContain(`attendee.kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}')`);
+      `attendee.kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}')`,
+    );
   });
 
   test("a single id is a one-element IN list — one path for one or many", () => {
     const one = attendeeFromWhere("left", { attendeeIds: [9] });
-    expect(one.from).toContain("attendee.id IN (?)");
+    assertStringIncludes(one.from, "attendee.id IN (?)");
     expect(one.args).toEqual([9]);
 
     const oneListing = attendeeFromWhere("inner", { listingIds: [5] });
-    expect(oneListing.from).toContain("listingAttendee.listing_id IN (?)");
+    assertStringIncludes(oneListing.from, "listingAttendee.listing_id IN (?)");
     expect(oneListing.args).toEqual([5]);
   });
 
   test("an empty id list matches nothing via IN (NULL), never invalid IN ()", () => {
     const attendees = attendeeFromWhere("inner", { attendeeIds: [] });
-    expect(attendees.from).toContain("attendee.id IN (NULL)");
-    expect(attendees.from).not.toContain("IN ()");
+    assertStringIncludes(attendees.from, "attendee.id IN (NULL)");
+    assert(!attendees.from.includes("IN ()"));
     expect(attendees.args).toEqual([]);
 
     const listings = attendeeFromWhere("inner", { listingIds: [] });
-    expect(listings.from).toContain("listingAttendee.listing_id IN (NULL)");
-    expect(listings.from).not.toContain("IN ()");
+    assertStringIncludes(listings.from, "listingAttendee.listing_id IN (NULL)");
+    assert(!listings.from.includes("IN ()"));
     expect(listings.args).toEqual([]);
   });
 
   test("an id list expands to one placeholder each, in order", () => {
     const ids = attendeeFromWhere("inner", { attendeeIds: [3, 1, 2] });
-    expect(ids.from).toContain("attendee.id IN (?, ?, ?)");
+    assertStringIncludes(ids.from, "attendee.id IN (?, ?, ?)");
     expect(ids.args).toEqual([3, 1, 2]);
 
     const listings = attendeeFromWhere("inner", { listingIds: [7, 8] });
-    expect(listings.from).toContain("listingAttendee.listing_id IN (?, ?)");
+    assertStringIncludes(listings.from, "listingAttendee.listing_id IN (?, ?)");
     expect(listings.args).toEqual([7, 8]);
   });
 
   test("realLinesOnly adds the quantity guard only when true", () => {
-    expect(attendeeFromWhere("inner", { realLinesOnly: true }).from).toContain(
+    assertStringIncludes(
+      attendeeFromWhere("inner", { realLinesOnly: true }).from,
       "listingAttendee.quantity > 0",
     );
-    expect(
-      attendeeFromWhere("inner", { realLinesOnly: false }).from,
-    ).not.toContain("listingAttendee.quantity > 0");
+    assert(
+      !attendeeFromWhere("inner", { realLinesOnly: false }).from.includes(
+        "listingAttendee.quantity > 0",
+      ),
+    );
   });
 
   test("upcomingFrom keeps undated rows and binds the date", () => {
     const { from, args } = attendeeFromWhere("inner", {
       upcomingFrom: "2026-07-12",
     });
-    expect(from).toContain(
+    assertStringIncludes(
+      from,
       "(listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?)",
     );
     expect(args).toEqual(["2026-07-12"]);
@@ -222,12 +238,13 @@ describe("attendee filter and order SQL", () => {
         before: "2026-07-13T00:00:00Z",
       },
     });
-    expect(from).toContain(
+    assertStringIncludes(
+      from,
       "JOIN listings AS listing ON listingAttendee.listing_id = listing.id",
     );
-    expect(from).toContain("listing.listing_type = 'daily'");
-    expect(from).toContain("listingAttendee.start_at < ?");
-    expect(from).toContain("listingAttendee.end_at > ?");
+    assertStringIncludes(from, "listing.listing_type = 'daily'");
+    assertStringIncludes(from, "listingAttendee.start_at < ?");
+    assertStringIncludes(from, "listingAttendee.end_at > ?");
     // before fills the `< ?` bound, after the `> ?` bound.
     expect(args).toEqual(["2026-07-13T00:00:00Z", "2026-07-12T00:00:00Z"]);
   });
@@ -239,7 +256,8 @@ describe("attendee filter and order SQL", () => {
         sql: "SELECT newest.id FROM attendees AS newest LIMIT ?",
       },
     });
-    expect(from).toContain(
+    assertStringIncludes(
+      from,
       "attendee.id IN (SELECT newest.id FROM attendees AS newest LIMIT ?)",
     );
     expect(args).toEqual([10]);
@@ -272,12 +290,15 @@ describe("attendee filter and order SQL", () => {
       ],
     ];
     for (const [order, sql] of cases) {
-      expect(
+      assertStringIncludes(
         attendeeFromWhere("inner", { attendeeIds: [1] }, order).from,
-      ).toContain(sql);
+        sql,
+      );
     }
-    expect(attendeeFromWhere("inner", { attendeeIds: [1] }).from).not.toContain(
-      "ORDER BY",
+    assert(
+      !attendeeFromWhere("inner", { attendeeIds: [1] }).from.includes(
+        "ORDER BY",
+      ),
     );
   });
 });

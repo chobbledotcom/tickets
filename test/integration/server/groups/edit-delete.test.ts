@@ -1,3 +1,4 @@
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -67,7 +68,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       });
       const response = await adminGet(`/admin/groups/${group.id}/edit`);
       const html = await expectHtmlResponse(response, 200, "Hidden Editable");
-      expect(html).toContain("checked");
+      assertStringIncludes(html, "checked");
     });
 
     test("returns 404 for non-existent group", async () => {
@@ -243,7 +244,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
         groupId: group.id,
         name: "Grouped Listing",
       });
-      expect(await listingGroups.getIds(listing.id)).toContain(group.id);
+      assertArrayIncludes(await listingGroups.getIds(listing.id), [group.id]);
 
       await deleteTestGroup(group.id);
 
