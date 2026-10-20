@@ -66,6 +66,12 @@ Feature: The organiser sees which bookings still owe a notification
       And the organiser opens the attendee list
       Then the list says nothing about Ada's sends
 
+    @case:unsent.the-notice-keeps-its-own-words-apart-from-the-name
+    Scenario: The notice reads as its own words beside the name
+      Given Ada has a ticket for the Ceilidh whose email never went out
+      When the organiser opens the attendee list
+      Then the list shows Ada's name and the email notice as separate words
+
   @rule:attendees.the-dashboard-counts-the-bookings-still-owed-a-send
   @surface:admin
   Rule: The dashboard counts the attendees still owed a send

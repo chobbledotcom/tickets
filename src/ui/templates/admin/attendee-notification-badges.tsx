@@ -20,15 +20,20 @@ export type PendingNotificationFlags = Pick<
   "email_owed" | "email_pending" | "webhooks_pending"
 >;
 
-/** One pill for a flag that is still up. None for a flag that is down. */
+/** One pill for a flag that is still up. None for a flag that is down. The
+ * space keeps the pill off the name. JSX adds no space between expressions,
+ * so a screen reader reads the name and the pill as one glued word. */
 const pendingBadge = (value: number, label: string): JSX.Element | null => {
   if (value === PENDING_NOTIFICATION.none) return null;
   return (
-    <Badge
-      variant={value === PENDING_NOTIFICATION.online ? "danger" : "warning"}
-    >
-      {label}
-    </Badge>
+    <>
+      {" "}
+      <Badge
+        variant={value === PENDING_NOTIFICATION.online ? "danger" : "warning"}
+      >
+        {label}
+      </Badge>
+    </>
   );
 };
 

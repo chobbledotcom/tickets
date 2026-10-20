@@ -130,6 +130,15 @@ When(
 Then("the list says {word}'s email never went out", listSays(emailNotice));
 
 Then(
+  "the list shows {word}'s name and the email notice as separate words",
+  function (this: TicketsWorld, who: string): void {
+    // The pill carries its own leading space. Read the space off the rendered
+    // row, where a screen reader or a copy meets it.
+    expect(rowOnTheList(this, who)).toContain(`${who}</a> <span`);
+  },
+);
+
+Then(
   "the list says {word}'s webhooks never went out",
   listSays(webhooksNotice),
 );

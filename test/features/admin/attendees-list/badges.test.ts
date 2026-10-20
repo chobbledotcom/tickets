@@ -15,8 +15,12 @@ describeWithEnv("pending notification badges", { db: true }, () => {
   test("a red badge says the email never went out for an online booking", async () => {
     await bookTestAttendeeWithFlags("Flagged Buyer", 1, 0);
 
+    // The whole rendered cell: the space text node between the name and the
+    // pill is the fix for the glued "Flagged BuyerEmail not sent" read.
     await expectHtml(await adminGet("/admin/attendees"), {
-      contains: ["Flagged Buyer", "Email not sent", "badge danger"],
+      contains: [
+        'Flagged Buyer</a> <span class="badge danger">Email not sent</span>',
+      ],
       notContains: ["Webhooks not sent"],
     });
   });
