@@ -36,11 +36,28 @@ export const benchmarkCatalogueMarkers = (): string[] => [
  * listing's own page. */
 export const BENCHMARK_BOOKING_SLUG = "benchmark-listing-1";
 
+/** The site pages the booking-nav scenario's tree carries; the markers quote
+ * the root page's rendered link. */
+export const BENCHMARK_NAV_PAGES = {
+  extras: { name: "Extras", slug: "benchmark-nav-extras" },
+  visit: { name: "Visit", slug: "benchmark-nav-visit" },
+} as const;
+
+/** The exact anchor NodeLink renders for an active chain node. */
+const activeLink = (href: string, label: string): string =>
+  `<a class="active" href="${href}">${label}</a>`;
+
 /** The booking page's completeness markers: its own form for the seeded
- * listing. */
+ * listing, and the active nav chain it highlights — the Visit root page and
+ * the listing itself. A page that rendered no navigation fails these. */
 export const benchmarkBookingMarkers = (): string[] => [
   benchmarkListingName(1),
   `action="/ticket/${BENCHMARK_BOOKING_SLUG}"`,
+  activeLink(
+    `/page/${BENCHMARK_NAV_PAGES.visit.slug}`,
+    BENCHMARK_NAV_PAGES.visit.name,
+  ),
+  activeLink(`/ticket/${BENCHMARK_BOOKING_SLUG}`, benchmarkListingName(1)),
 ];
 
 /** Require the response rendered every marker, so a faster partial page
@@ -179,8 +196,14 @@ export const seedBenchmarkNavTree = async (
   };
 
   // createSitePage orders root pages by creation, so Visit roots first.
-  const visit = await addPage("Visit", "benchmark-nav-visit");
-  const extras = await addPage("Extras", "benchmark-nav-extras");
+  const visit = await addPage(
+    BENCHMARK_NAV_PAGES.visit.name,
+    BENCHMARK_NAV_PAGES.visit.slug,
+  );
+  const extras = await addPage(
+    BENCHMARK_NAV_PAGES.extras.name,
+    BENCHMARK_NAV_PAGES.extras.slug,
+  );
   await addPageItem(visit.id, "page", extras.id);
   await addPageItem(visit.id, "listing", ids.listingIds.get(1)!);
   await addPageItem(visit.id, "listing", ids.listingIds.get(2)!);

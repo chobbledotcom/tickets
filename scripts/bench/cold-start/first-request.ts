@@ -60,8 +60,17 @@ const SCENARIOS: Record<"booking-nav" | "listings", BenchScenario> = {
   listings: { path: "/listings" },
 };
 
-const scenarioName = (Deno.args[0] ?? "listings") as keyof typeof SCENARIOS;
-const scenario = SCENARIOS[scenarioName];
+const scenarioName = Deno.args[0] ?? "listings";
+const scenario = Object.entries(SCENARIOS).find(
+  ([name]) => name === scenarioName,
+)?.[1];
+if (scenario === undefined) {
+  throw new Error(
+    `Unknown scenario ${scenarioName}. Supported scenarios: ${Object.keys(
+      SCENARIOS,
+    ).join(", ")}`,
+  );
+}
 
 /** Create and fully migrate a database file, then complete site setup. */
 const prepareDatabase = async (): Promise<void> => {
