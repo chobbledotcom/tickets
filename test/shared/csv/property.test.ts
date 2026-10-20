@@ -13,6 +13,32 @@ const seedArgs = { numRuns: 100, seed: 20261018 } as const;
 /** The documented OWASP formula-starter set the generator neutralizes. */
 const FORMULA_START = /^[=+\-@\t\r\n＝＋－＠]/;
 
+/** A cell that mixes the CSV-significant characters — separators, quotes,
+ * line breaks, tab, and every formula starter — with arbitrary bytes, so
+ * the properties reach the quoted-field and neutralizer paths. */
+const arbitraryCell = fc.string({
+  maxLength: 40,
+  minLength: 0,
+  unit: fc.oneof(
+    fc.constantFrom(
+      ",",
+      '"',
+      "\n",
+      "\r",
+      "\t",
+      "=",
+      "+",
+      "-",
+      "@",
+      "＝",
+      "＋",
+      "－",
+      "＠",
+    ),
+    fc.string({ maxLength: 1, minLength: 1, unit: "binary-ascii" }),
+  ),
+});
+
 /** One parser's mutable position: the current cell, row, and quoting state. */
 type ParserState = {
   cell: string;
@@ -111,10 +137,10 @@ const headerOf = (cells: string[]): string[] =>
 
 describe("CSV.generate properties", () => {
   test("parses back to the cells, or to their tab-neutralized form", () => {
-    const arbitraryCells = fc.array(
-      fc.string({ maxLength: 40, minLength: 0 }),
-      { maxLength: 6, minLength: 1 },
-    );
+    const arbitraryCells = fc.array(arbitraryCell, {
+      maxLength: 6,
+      minLength: 1,
+    });
     fc.assert(
       fc.property(arbitraryCells, (cells) => {
         const parsed = parseCsv(generateRow(cells));
@@ -130,10 +156,7 @@ describe("CSV.generate properties", () => {
 
   test("keeps one line per item and one field per column", () => {
     const arbitraryRows = fc.array(
-      fc.array(fc.string({ maxLength: 40, minLength: 0 }), {
-        maxLength: 6,
-        minLength: 1,
-      }),
+      fc.array(arbitraryCell, { maxLength: 6, minLength: 1 }),
       { maxLength: 8, minLength: 0 },
     );
     fc.assert(

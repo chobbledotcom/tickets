@@ -58,12 +58,11 @@ describe("isSafeServerFetchUrl properties", () => {
   });
 
   test("rejects the documented unsafe classes", () => {
-    fc.assert(
-      fc.property(fc.constantFrom(...UNSAFE_URLS), (raw) => {
-        expect(isSafeServerFetchUrl(raw)).toBe(false);
-      }),
-      seedArgs,
-    );
+    // Sampling a fixed list can miss an entry, so every documented reject
+    // class is asserted on its own line.
+    for (const raw of UNSAFE_URLS) {
+      expect(isSafeServerFetchUrl(raw)).toBe(false);
+    }
   });
 
   test("never accepts a non-https scheme", () => {
