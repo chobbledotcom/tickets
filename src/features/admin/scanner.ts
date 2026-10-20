@@ -105,7 +105,6 @@ const handleScannerGet: IdRouteHandler = createIdEntityHandler<
 const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(
   getGroupById,
 )(pageGuardFor(adminDestination("groupScanner")))(async (group, session) => {
-  const _privateKey = await requireRequestPrivateKey();
   const scope = await groupScope(group);
   const attendees = await scopeAttendees(scope);
   // A door that spans several listings names the listing each place is for.

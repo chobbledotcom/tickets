@@ -2,13 +2,13 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { sha256Hex } from "#scripts/checksum.ts";
 import {
   defaultJscpdPaths,
   ensureJscpd,
   type JscpdPaths,
 } from "#scripts/jscpd/install.ts";
 import { removeTree } from "#scripts/process.ts";
+import { sha256Hex } from "#shared/sha256.ts";
 
 const knownBytes = new TextEncoder().encode("#!/bin/sh\necho fake-jscpd");
 

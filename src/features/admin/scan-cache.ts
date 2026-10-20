@@ -6,13 +6,14 @@
 
 /* jscpd:ignore-start -- imports */
 import { remainingTickets } from "#booking/remaining-tickets.ts";
+import type { DecryptedAttendeeRow } from "#db/attendees/pii.ts";
 import { getGroupById } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { groupToMap } from "#fp";
 import { SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import { jsonResponse, notFoundResponse } from "#routes/response.ts";
-import { sha256HexOfText } from "#shared/sha256.ts";
+import { sha256Hex } from "#shared/sha256.ts";
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
 import {
   groupScope,
@@ -45,8 +46,7 @@ export const ticketHashesForScope = async (
         remainingTickets(row) > 0 && !row.refunded && hasTicketQuantity(row),
     );
     if (!owes) continue;
-    for (const row of lines)
-      hashes.push(await sha256HexOfText(row.ticket_token));
+    for (const row of lines) hashes.push(await sha256Hex(row.ticket_token));
   }
   return [...new Set(hashes)].sort();
 };

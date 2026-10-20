@@ -1,6 +1,6 @@
 /** The SHA-256 digest of one text's UTF-8 bytes, or of raw bytes. The
- * scanner's ticket-hash cache hashes on both sides — the door's endpoint and
- * the device — so the two compare digests only, and both must agree byte for
+ * scanner's ticket-hash cache hashes on both sides, the door's endpoint and
+ * the device. The two compare digests only, and both must agree byte for
  * byte. */
 export const sha256Digest = (
   input: string | Uint8Array,
@@ -9,8 +9,8 @@ export const sha256Digest = (
     "SHA-256",
     typeof input === "string"
       ? new TextEncoder().encode(input)
-      : // A caller's view may sit on a SharedArrayBuffer, which subtle.digest
-        // refuses; the copy always carries a plain ArrayBuffer.
+      : // A caller's view can sit on a SharedArrayBuffer, which subtle.digest
+        // refuses. The copy always carries a plain ArrayBuffer.
         Uint8Array.from(input),
   );
 

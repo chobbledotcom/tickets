@@ -11,7 +11,7 @@
  */
 
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
-import { emptyListsFor } from "#fp";
+import { emptyListsFor, requiredMapValue } from "#fp";
 import { serveAndDrain } from "./serve-request.ts";
 import { spawnChildJson } from "./spawn-child.ts";
 import { median, medianAbsoluteDeviation } from "./strip-lib.ts";
@@ -294,11 +294,13 @@ const main = async (): Promise<void> => {
         reportsByLatency.set(latency, report);
       }
       runs.push(
-        LATENCIES_MS.map((latency) => {
-          const report = reportsByLatency.get(latency);
-          if (!report) throw new Error(`Report missing for ${latency}ms`);
-          return report;
-        }),
+        LATENCIES_MS.map((latency) =>
+          requiredMapValue(
+            reportsByLatency,
+            latency,
+            `Report missing for ${latency}ms`,
+          ),
+        ),
       );
     }
     printReport(

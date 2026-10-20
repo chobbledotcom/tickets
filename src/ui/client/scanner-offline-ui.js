@@ -5,7 +5,7 @@
 // outcome. The module also validates a scan offline, and replays the queue
 // once the connection is back.
 
-import { sha256HexOfText } from "#shared/sha256.ts";
+import { sha256Hex } from "#shared/sha256.ts";
 import { getMessage, interpolate, showStatus } from "./scanner-messages.js";
 import {
   dropFromQueue,
@@ -164,7 +164,7 @@ export const offlineScan = async (
     );
     return;
   }
-  const hash = await sha256HexOfText(token);
+  const hash = await sha256Hex(token);
   if (!cache.hashes.includes(hash)) {
     showStatus(
       statusEl,
@@ -262,9 +262,11 @@ export const initOfflineScanner = ({
   const toggle = lookup("scanner-offline-toggle");
 
   /** The page loads with the door's ticket hashes on file, so a scan can be
-   * validated before any connection is needed. A refresh that fails keeps
-   * whatever stored set the door already holds. */
-  const refreshQuietly = () => refreshTicketCache(scanPath).catch(() => {});
+   * validated before any connection is needed. */
+  const refreshQuietly = () =>
+    refreshTicketCache(scanPath).catch(() => {
+      // A failed refresh keeps whatever stored set the door already holds.
+    });
 
   /** The switch, the banner, and the queue all read one offline state. */
   const renderOfflineState = () => {

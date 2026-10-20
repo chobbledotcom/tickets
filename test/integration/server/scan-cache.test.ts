@@ -10,6 +10,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { sha256Hex } from "#shared/sha256.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -24,17 +25,6 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-
-/** The same digest the endpoint answers with: hex SHA-256 of one token. */
-const hashOf = async (token: string): Promise<string> => {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(token),
-  );
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-};
 
 const authedGet = async (path: string): Promise<Response> =>
   awaitTestRequest(path, { cookie: await testCookie() });
@@ -55,7 +45,7 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       200,
     );
     expect(body).toEqual({
-      hashes: (await Promise.all([hashOf(kept), hashOf(other)])).sort(),
+      hashes: (await Promise.all([sha256Hex(kept), sha256Hex(other)])).sort(),
     });
   });
 
@@ -86,7 +76,7 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       authedGet(`/admin/listing/${listing.id}/scan-cache`),
       200,
     );
-    expect(body.hashes).toEqual([await hashOf(waiting)]);
+    expect(body.hashes).toEqual([await sha256Hex(waiting)]);
   });
 
   test("serves a group door's tokens across its member listings", async () => {
@@ -108,7 +98,7 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       200,
     );
     expect(body.hashes).toEqual(
-      (await Promise.all([hashOf(first), hashOf(second)])).sort(),
+      (await Promise.all([sha256Hex(first), sha256Hex(second)])).sort(),
     );
   });
 

@@ -1,11 +1,7 @@
 // Browser-only code - bundled with jsQR by scripts/build-edge.ts
 import jsQR from "jsqr";
-import {
-  initOfflineScanner,
-  isSyncing,
-  offlineModeActive,
-  offlineScan,
-} from "./scanner-offline-ui.js";
+import { isSyncing, offlineModeActive } from "./scanner-offline.js";
+import { initOfflineScanner, offlineScan } from "./scanner-offline-ui.js";
 import {
   formatTicketCount,
   getMessage,
