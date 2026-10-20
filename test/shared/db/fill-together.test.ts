@@ -38,6 +38,7 @@ describeWithEnv("db > fill-together", { db: true }, () => {
 
   test("serves the rows a later reader expects, with sealed columns opened", async () => {
     const page = await sitePages.table.insert({
+      hidden: true,
       name: "About us",
       slug: "about-us",
       slugIndex: await hmacHash("about-us"),
@@ -48,7 +49,13 @@ describeWithEnv("db > fill-together", { db: true }, () => {
       await fillTogether(navReads);
 
       expect(await sitePages.getAll()).toEqual([
-        { id: page.id, name: "About us", slug: "about-us", sort_order: 3 },
+        {
+          hidden: true,
+          id: page.id,
+          name: "About us",
+          slug: "about-us",
+          sort_order: 3,
+        },
       ]);
       expect(await hasNewsPosts()).toBe(false);
     });

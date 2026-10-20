@@ -34,10 +34,10 @@ import type { SitePage, SitePageNavRow } from "#types";
  * optional only for the update path, which never writes it — create always
  * supplies it. `hidden` is optional on the raw insert path, where the column
  * default (visible) applies. The admin write always names it. */
-export type SitePageInput = SluggedContentInput & {
-  hidden?: boolean;
-  sortOrder?: number;
-};
+export type SitePageInput = SluggedContentInput &
+  Partial<Pick<SitePage, "hidden">> & {
+    sortOrder?: number;
+  };
 
 /** Raw table with CRUD — all free text encrypted, `slug_index` is the HMAC. */
 const rawSitePagesTable = defineIdTable<SitePage, SitePageInput>("site_pages", {
@@ -55,9 +55,8 @@ const sitePageNavColumns = rawSitePagesTable.read.pick([
   "sort_order",
 ]);
 
-/** Load the nav columns: only id/slug/name/sort_order, decrypting just slug
- * and name (never content/meta). Ordered by (sort_order, id). The raw row
- * carries name and slug still sealed; the map below opens them. */
+/** Load id, slug, name, sort_order, and hidden. Decrypt only slug and name.
+ * Order by sort_order, then id. */
 const NAV_ROW_ORDER = { order: "sort_order ASC, id ASC" } as const;
 
 const fetchNavRows = (): Promise<SitePageNavRow[]> =>

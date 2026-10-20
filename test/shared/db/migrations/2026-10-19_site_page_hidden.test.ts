@@ -1,14 +1,21 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#db/client.ts";
+import { executeBatch, getDb } from "#db/client.ts";
 import sitePageHidden from "#db/migrations/2026-10-19_site_page_hidden.ts";
 import {
   applySchemaChanges,
   getExistingColumns,
   syncIndexes,
 } from "#db/migrations/schema-sync.ts";
+import { initDb, invalidateInitDbCache, SCHEMA_HASH } from "#db/migrations.ts";
+import { getSitePageById } from "#db/site-pages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+import {
+  appliedMigrationIds,
+  buildMigrationContext,
+  settingsValueOrNull,
+} from "#test-utils/migrations.ts";
 
 const context = buildMigrationContext({ applySchemaChanges, syncIndexes });
 const migration = () => sitePageHidden(context);
@@ -31,18 +38,33 @@ describeWithEnv("db > migrations > site page hidden", { db: true }, () => {
     expect(Number(result.rows[0]?.hidden)).toBe(0);
   });
 
-  test("declares every object it owns", () => {
-    // Anything left off this list is never verified, so a partial upgrade
-    // would record itself as applied.
-    expect(migration().id).toBe("2026-10-19_site_page_hidden");
-    expect(migration().requires).toEqual({
-      columns: { site_pages: ["hidden"] },
+  test("upgrades an existing site through the registered migration without changing its pages", async () => {
+    await initDb();
+    const page = await createTestSitePage("upgrade-page", {
+      content: "Saved page text.",
+      metaDescription: "Saved description.",
+      metaTitle: "Saved title",
+      name: "Saved page",
     });
-    expect(migration().description).toBe(
-      "Add site_pages.hidden. The page editor's Hidden checkbox keeps a page off " +
-        "the public menus and the sitemap; the page's direct link keeps serving " +
-        "and answers with a noindex robots tag. The column defaults to 0, so " +
-        "every stored page stays visible until an operator ticks the box.",
+    await executeBatch([
+      { args: [], sql: "ALTER TABLE site_pages DROP COLUMN hidden" },
+      {
+        args: ["1qv5isp"],
+        sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+      },
+      {
+        args: ["2026-10-19_site_page_hidden"],
+        sql: "DELETE FROM schema_migrations WHERE id = ?",
+      },
+    ]);
+    invalidateInitDbCache();
+
+    await initDb();
+
+    expect(await getSitePageById(page.id)).toEqual(page);
+    expect(await appliedMigrationIds()).toContain(
+      "2026-10-19_site_page_hidden",
     );
+    expect(await settingsValueOrNull("db_schema_hash")).toBe(SCHEMA_HASH);
   });
 });
