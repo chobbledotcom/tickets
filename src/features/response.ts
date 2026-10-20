@@ -2,6 +2,7 @@
  * Response builder utilities for route handlers
  */
 
+import { addFooterImageUrls } from "#db/images.ts";
 import { buildFlashCookie, type FlashLevel } from "#shared/cookies.ts";
 import { stashForm } from "#shared/form-stash.ts";
 import { getSavedFormData } from "#shared/forms/saved-data.ts";
@@ -55,10 +56,16 @@ export const orResponse = async <T>(
 export const htmlResponse: EncodedResponse = encodedResponse("text/html");
 
 /**
- * Create 404 not found response
+ * Create 404 not found response. The not-found page renders the site footer,
+ * so it resolves the footer's img#N table before rendering. The page render
+ * paths that show the footer do the same. The lookup no-ops outside a request
+ * and on an embedded page. A failed lookup renders the footer without its
+ * images instead of failing the 404.
  */
-export const notFoundResponse = (): Response =>
-  htmlResponse(notFoundPage(), 404);
+export const notFoundResponse = async (): Promise<Response> => {
+  await addFooterImageUrls();
+  return htmlResponse(notFoundPage(), 404);
+};
 
 /**
  * Create 429 rate limited response for token URLs.
