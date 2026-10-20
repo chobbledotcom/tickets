@@ -1,1 +1,2 @@
-2612: 1196 lines - user-granted exception (extraction split; no new scope)
+2610 20 Oct: the user allowed 1,146 lines (img#N stack)
+2611 20 Oct: the user allowed 1,352 lines (img#N stack)
