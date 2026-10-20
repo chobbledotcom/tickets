@@ -6,10 +6,13 @@
 
 // jscpd:ignore-start
 import {
+  imageNamed,
+  ownerHasImageInLibrary,
+} from "#test/specs/support/images.ts";
+import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { makeImage } from "#test-utils/admin-images.ts";
 
 // jscpd:ignore-end
 
@@ -33,12 +36,15 @@ export const textWithSitePicture = (world: TicketsWorld): string => {
   return `Have a look. ![${alt}](img#${id})`;
 };
 
-/** The owner uploads a picture, kept under the name their text gives it. */
+/** The owner uploads a picture, kept under the name their text gives it. The
+ * library write is the editor stories' helper; the story then keeps the row's
+ * own id and filename, and the name their words use. */
 export const uploadsSitePicture = async (
   world: TicketsWorld,
   name: string,
 ): Promise<void> => {
-  const image = await makeImage(name);
+  await ownerHasImageInLibrary(world, name);
+  const image = await imageNamed(name);
   world.siteImage = { alt: name, filename: image.filename, id: image.id };
 };
 
