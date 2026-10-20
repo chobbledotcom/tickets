@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   AGGREGATION_MODULES,
   ALLOWED_DUPLICATE_TYPE_SHAPES,
+  ALLOWED_REPEATED_BINDS,
   ALLOWED_TEST_HOOKS,
   LIBRARY_PATHS,
 } from "#test/integration/code-quality/allowlists.ts";
@@ -20,6 +21,10 @@ import {
   type NamedTypeShape,
   type Site,
 } from "#test/scripts/code-quality/detectors.ts";
+import {
+  findHandNumberedSql,
+  findRepeatedBinds,
+} from "#test/scripts/code-quality/numbered-binds.ts";
 import { detectRelativeImport } from "#test/scripts/code-quality/relative-import.ts";
 import {
   ensureLoaded,
@@ -109,6 +114,40 @@ describe("code quality", () => {
           ALLOWED_RAW_DB,
         );
         if (violation) violations.push(violation);
+      }
+
+      expect(violations).toEqual([]);
+    });
+  });
+
+  describe("sql statements bind each value once", () => {
+    test("no source statement binds one value more than once", async () => {
+      const { srcFiles, srcContents } = await ensureLoaded();
+      const violations: string[] = [];
+
+      for (const file of srcFiles) {
+        violations.push(
+          ...findRepeatedBinds(
+            getRelativePath(file),
+            srcContents.get(file)!,
+            ALLOWED_REPEATED_BINDS,
+          ),
+        );
+      }
+
+      expect(violations).toEqual([]);
+    });
+  });
+
+  describe("sql text carries no hand-numbered tokens", () => {
+    test("no source string spells a ?N parameter itself", async () => {
+      const { srcFiles, srcContents } = await ensureLoaded();
+      const violations: string[] = [];
+
+      for (const file of srcFiles) {
+        violations.push(
+          ...findHandNumberedSql(getRelativePath(file), srcContents.get(file)!),
+        );
       }
 
       expect(violations).toEqual([]);
