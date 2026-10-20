@@ -162,15 +162,13 @@ export type TicketPageTexts = {
 export const addTicketPageImageUrls = async (
   page: TicketPageTexts,
 ): Promise<void> =>
-  mergePageImageUrls(
-    await imageUrlsFor([
-      ...page.listings.map((entry) => entry.listing.description),
-      ...page.questions.map((question) => question.text),
-      page.groupDescription,
-      page.terms,
-      ...page.packages.map((pkg) => pkg.description),
-    ]),
-  );
+  addPageImageUrls([
+    ...page.listings.map((entry) => entry.listing.description),
+    ...page.questions.map((question) => question.text),
+    page.groupDescription,
+    page.terms,
+    ...page.packages.map((pkg) => pkg.description),
+  ]);
 
 export const getAllImages = (): Promise<Image[]> =>
   imageColumns.many({}, { order: "id DESC" });
