@@ -19,7 +19,7 @@ import {
   type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { numberedListStatement } from "#db/numbered-statement.ts";
 import { reduce, requiredMapValue, unique } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestBatchCache } from "#shared/request-cache.ts";
@@ -245,10 +245,11 @@ export const selfLinkTableSides = (
     if (ids.length === 0) return linksById;
     // Both directions read the same ids, so the list is bound once and its
     // slots appear under both columns.
-    const { sql, args } = numberedStatement((bind) => {
-      const idSlots = ids.map(bind).join(", ");
-      return `${keyColumn} IN (${idSlots}) OR ${valueColumn} IN (${idSlots})`;
-    });
+    const { sql, args } = numberedListStatement(
+      ids,
+      (idSlots) =>
+        `${keyColumn} IN (${idSlots}) OR ${valueColumn} IN (${idSlots})`,
+    );
     const rows = await queryAll<LinkRow>(
       `SELECT ${keyColumn} AS key_id, ${valueColumn} AS value_id
          FROM ${table}

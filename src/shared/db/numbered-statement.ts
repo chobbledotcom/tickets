@@ -20,3 +20,18 @@ export const numberedStatement = (buildSql: NumberedSql): SqlStatement => {
   };
   return { args, sql: buildSql(bind) };
 };
+
+/** The parameter slots for one list of values, bound once in list order: the
+ * text to place wherever the same list repeats inside one statement. */
+export const boundSlots = (
+  bind: SqlParameter,
+  values: readonly InValue[],
+): string => values.map((value) => bind(value)).join(", ");
+
+/** A numbered statement that repeats one list of values: the list is bound
+ * once and its slots are placed wherever the statement says. */
+export const numberedListStatement = (
+  values: readonly InValue[],
+  buildSql: (slots: string) => string,
+): SqlStatement =>
+  numberedStatement((bind) => buildSql(boundSlots(bind, values)));

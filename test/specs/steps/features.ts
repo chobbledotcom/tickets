@@ -3,7 +3,11 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
-import { newcomerReading, ORGANISER } from "#test/specs/support/browser.ts";
+import {
+  adminPageHtmlAt,
+  newcomerReading,
+  ORGANISER,
+} from "#test/specs/support/browser.ts";
 import {
   everyFeatureName,
   featureNamed,
@@ -14,6 +18,8 @@ import {
   ownerChoosesFeature,
   ownerLooksAtSettings,
   ownerOpensFeature,
+  ownerOpensFeatureChoice,
+  ownerSendsTheChoiceTheyOpened,
   statusIn,
 } from "#test/specs/support/features.ts";
 import {
@@ -194,6 +200,56 @@ Then(
     expect(whatTheyWereTold(this, ORGANISER)).toContain(
       t("features.in_use_help"),
     );
+  },
+);
+
+When(
+  "the owner opens the {string} feature, still offering the choice",
+  function (this: TicketsWorld, printed: string): Promise<void> {
+    return ownerOpensFeatureChoice(this, printed);
+  },
+);
+
+When(
+  "an item that uses {string} is saved on the site",
+  async function (this: TicketsWorld, printed: string): Promise<void> {
+    // The item the features list counts under this name is a modifier; a
+    // story naming another feature here would lie about what was saved.
+    if (printed !== "Modifiers") {
+      throw new Error(`This story saves no ${printed} item`);
+    }
+    await saveAModifier("Fee");
+  },
+);
+
+When(
+  "the owner sends the choice they opened, saying {string} is disabled",
+  function (this: TicketsWorld, printed: string): Promise<void> {
+    return ownerSendsTheChoiceTheyOpened(this, printed, false);
+  },
+);
+
+Then(
+  "{string} is still enabled",
+  async function (this: TicketsWorld, printed: string): Promise<void> {
+    // Read off the page the site serves now: the status line is what the
+    // owner would see.
+    const page = await featurePageHtml(this, printed);
+    expect(page).toContain(t("features.status_label"));
+    expect(page).toContain(t("features.status.enabled"));
+  },
+);
+
+Then(
+  "the saved {string} item still works",
+  async function (this: TicketsWorld, printed: string): Promise<void> {
+    if (printed !== "Modifiers") {
+      throw new Error(`This story saves no ${printed} item`);
+    }
+    // The item the owner manages on their own list: the list showing it is
+    // what "still works" reads like.
+    const page = await adminPageHtmlAt(this, "/admin/modifiers");
+    expect(page).toContain("Fee");
   },
 );
 

@@ -9,7 +9,7 @@
  */
 
 import { resultRows, type TxScope } from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { boundSlots, numberedStatement } from "#db/numbered-statement.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import {
@@ -118,8 +118,8 @@ export const guardEdgeWriteTx = async (
   const [state] = resultRows<EdgeState>(
     await tx.execute(
       numberedStatement((bind) => {
-        const childSlots = uniqueChildIds.map(bind).join(", ");
-        const parentSlots = uniqueParentIds.map(bind).join(", ");
+        const childSlots = boundSlots(bind, uniqueChildIds);
+        const parentSlots = boundSlots(bind, uniqueParentIds);
         // One fact per line, named for the role set it reads.
         return `SELECT
           ${packageMembershipExists(childSlots, false)} AS child_is_package_member,

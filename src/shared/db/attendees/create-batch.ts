@@ -16,7 +16,7 @@ import {
   type ModifierUsage,
   usageInsert,
 } from "#db/modifier-usage.ts";
-import type { NumberedSql } from "#db/numbered-statement.ts";
+import { boundSlots, type NumberedSql } from "#db/numbered-statement.ts";
 import { batchFinalizeStatements } from "#db/payment-finalize.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
@@ -143,7 +143,7 @@ const noExistingLedgerCondition = (legs: TransferInput[]): NumberedSql => {
   const references = legs.map((leg) => leg.reference);
   return (bind) => {
     const eventGroup = bind(legs[0]!.eventGroup);
-    const referenceSlots = references.map(bind).join(", ");
+    const referenceSlots = boundSlots(bind, references);
     return `NOT EXISTS (SELECT 1 FROM transfers WHERE event_group = ${eventGroup})
           AND NOT EXISTS (SELECT 1 FROM transfers WHERE reference IN (${referenceSlots}))`;
   };

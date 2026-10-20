@@ -8,18 +8,21 @@
 const FIELD = "bookable_alone";
 
 import { expect } from "@std/expect";
-import { groups } from "#db/groups.ts";
+import { groups, setListingGroups } from "#db/groups.ts";
 // jscpd:ignore-start
 import {
+  adminBrowser,
   type OpensASalesPage,
   openAsNewcomer,
   opensSalesPagesAt,
+  organiserSendsAndIsTold,
 } from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
   tickedCheckboxes,
 } from "#test/specs/support/form-controls/reading.ts";
 import {
+  listingIdNamed,
   listingNamed,
   rememberListing,
   setBoxOnListing,
@@ -32,6 +35,12 @@ import type {
 } from "#test/specs/support/world.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  insertModifier,
+  linkModifierGroup,
+  optInAddOnForListings,
+  patchModifier,
+} from "#test-utils/modifiers.ts";
 import { makeParent, ticketPageStatus } from "#test-utils/parents.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -103,6 +112,17 @@ const expectTicketPageAnswers =
 export const expectCustomerCannotOpen: ActOnOneThing =
   expectTicketPageAnswers(404);
 
+/** What the served edit form's own box sends, checked against the state the
+ * story expects to find: the offered value when the story ticks it, nothing
+ * when it unticks (a real browser sends nothing for an unticked box). */
+const servedBoxSend = (served: string, tick: boolean): string[] => {
+  // Send whatever the page's own box sends, rather than a value this file
+  // believes in: a box rewritten to carry something else must fail the story.
+  const ticked = checkboxValueOffered(served, FIELD);
+  expect(tickedCheckboxes(served, FIELD)).toEqual(tick ? [] : [ticked]);
+  return tick ? [ticked] : [];
+};
+
 /** The organiser turns selling-on-its-own on or off, by ticking or unticking
  * the box on the listing's own edit form. The box has to be there and be
  * usable, so a page that stops offering it fails the story rather than the
@@ -112,20 +132,57 @@ export const sellOnItsOwn: ChangeOneThing<boolean> = async (
   name,
   onItsOwn,
 ) => {
-  await setBoxOnListing(world, name, FIELD, (served) => {
-    // Send whatever the page's own box sends, rather than a value this file
-    // believes in: a box rewritten to carry something else must fail the story.
-    const ticked = checkboxValueOffered(served, FIELD);
-    expect(tickedCheckboxes(served, FIELD)).toEqual(onItsOwn ? [] : [ticked]);
-    // Unticking a box sends nothing at all for it, which is what a real browser
-    // does.
-    return onItsOwn ? [ticked] : [];
-  });
+  await setBoxOnListing(world, name, FIELD, (served) =>
+    servedBoxSend(served, onItsOwn),
+  );
 };
 
 /** Whether the Chair's own booking page still offers the Cover with it. */
 export const bookingPageFor: OpensASalesPage =
   opensSalesPagesAt(bookingLinkFor);
+
+/** An optional buyer's choice on the named pages' listings: the refusal
+ * setups and the passing one differ only in which pages the choice shows
+ * on. */
+export const offerChoiceOnPages = async (
+  world: TicketsWorld,
+  choice: string,
+  ...pageNames: string[]
+): Promise<void> => {
+  await optInAddOnForListings(
+    choice,
+    pageNames.map((name) => listingIdNamed(world, name)),
+  );
+};
+
+/** An optional buyer's choice offered through the group the add-on is in:
+ * the same dead end, reached by the choice's other scope. */
+export const offerChoiceThroughAddOnGroup = async (
+  world: TicketsWorld,
+  addOn: string,
+  choice: string,
+): Promise<void> => {
+  const charge = await insertModifier({ name: choice });
+  await patchModifier(charge.id, { scope: "groups", trigger: "optional" });
+  const group = await createTestGroup({ name: `${addOn} group` });
+  await setListingGroups(listingIdNamed(world, addOn), [group.id]);
+  await linkModifierGroup(charge.id, group.id);
+};
+
+/** The organiser unticks sell-on-its-own on the real edit form and keeps
+ * what the site said — a refused save is a message, not a thrown-away send. */
+export const tryStopSellingOnItsOwn: ChangeOneThing<void> = async (
+  world,
+  name,
+) => {
+  const browser = await adminBrowser(world);
+  await browser.visit(`/admin/listing/${listingIdNamed(world, name)}/edit`);
+  // The send must carry nothing for the box: the form's own ticked value
+  // would ride along and the site would never see the untick.
+  await organiserSendsAndIsTold(world, browser, {}, "Save Changes", {
+    [FIELD]: servedBoxSend(browser.currentHtml, false),
+  });
+};
 
 /** Everything the site currently offers for sale, as the customer sees it. */
 export const everythingForSale = async (): Promise<TestBrowser> => {

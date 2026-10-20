@@ -2,21 +2,27 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { t } from "#i18n";
 import {
   bookingLinkFor,
   bookingPageFor,
   everythingForSale,
   expectCustomerCannotOpen,
   expectCustomerCanOpen,
+  offerChoiceOnPages,
+  offerChoiceThroughAddOnGroup,
   sellHiddenBundle,
   sellOnItsOwn,
   sellWithAddOn,
+  tryStopSellingOnItsOwn,
 } from "#test/specs/support/add-ons.ts";
 import {
   browserSeenBy,
   CUSTOMER,
   rememberBrowser,
 } from "#test/specs/support/browser.ts";
+import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
+import { copyLoaded } from "#test/specs/support/copy.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -124,6 +130,55 @@ Then(
   function (this: TicketsWorld, name: string): void {
     expect(forSalePage(this).links.map(({ href }) => href)).toContain(
       bookingLinkFor(this, name),
+    );
+  },
+);
+
+Given(
+  "a buyer's choice called {string} offered on the {word}'s own page only",
+  function (this: TicketsWorld, choice: string, addOn: string): Promise<void> {
+    return offerChoiceOnPages(this, choice, addOn);
+  },
+);
+
+Given(
+  "a buyer's choice called {string} offered through the group the {word} is in",
+  function (this: TicketsWorld, choice: string, addOn: string): Promise<void> {
+    return offerChoiceThroughAddOnGroup(this, addOn, choice);
+  },
+);
+
+Given(
+  "a buyer's choice called {string} offered on the {word}'s page as well as the {word}'s",
+  function (
+    this: TicketsWorld,
+    choice: string,
+    mainThing: string,
+    addOn: string,
+  ): Promise<void> {
+    return offerChoiceOnPages(this, choice, mainThing, addOn);
+  },
+);
+
+When(
+  "the organiser tries to stop selling the {word} on its own",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    await tryStopSellingOnItsOwn(this, name);
+  },
+);
+
+Then(
+  "the organiser is told {string} still needs the {word}'s page",
+  async function (
+    this: TicketsWorld,
+    choice: string,
+    _addOn: string,
+  ): Promise<void> {
+    await copyLoaded("modifiers");
+    // The unmark save refuses through the add-on reachability guard, whose
+    // words name the add-on and the required child listing.
+    expect(ownerLastTold(this)).toContain(
+      t("modifiers.err_child_only_addon", { name: choice }),
     );
   },
 );

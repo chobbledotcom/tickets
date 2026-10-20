@@ -128,6 +128,9 @@ export interface TicketsWorld extends World, EvidencePages {
   cleanup: PutsThingsBack;
   closedDayOn?: string;
   codeLedTo?: WhereTheCodeLed;
+  /** What the code-standard job last reported, ready for the Then that
+   * reads it. */
+  codeStandardFindings?: string[];
   confirmName?: string;
   daysOfferedLastLook?: string;
   doorAnswer?: DoorAnswer;
@@ -164,6 +167,7 @@ export interface TicketsWorld extends World, EvidencePages {
   orderDay?: string;
   orderFilledIn?: OrderInHand;
   orderSent?: BookingAttempt;
+  otherBuyerQuestions?: { id: number; text: string }[];
   placeholderId?: number;
   providerCharges: Map<string, ChargeMoney>;
   /** What the email provider answers in this story, when it is not the

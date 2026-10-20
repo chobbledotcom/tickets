@@ -5,7 +5,7 @@
   "src/features/auth.ts": 743,
   "src/features/public/ticket-submit.ts": 575,
   "src/fp.ts": 585,
-  "src/shared/db/attendees/servicing.ts": 908,
+  "src/shared/db/attendees/servicing.ts": 905,
   "src/shared/db/client.ts": 932,
   "src/shared/db/groups.ts": 800,
   "src/shared/db/migrations/schema-sync.ts": 657,
