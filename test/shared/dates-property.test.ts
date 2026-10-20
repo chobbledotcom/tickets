@@ -186,16 +186,25 @@ describe("addMonthsIso properties", () => {
 describe("parseIsoDateParam properties", () => {
   test("is total on arbitrary input", () => {
     fc.assert(
-      fc.property(fc.string({ maxLength: 40 }), (value) => {
-        const parsed = new Date(`${value}T00:00:00Z`);
-        const realDay =
-          CALENDAR_DATE.test(value) &&
-          parsed.getUTCFullYear() === Number(value.slice(0, 4)) &&
-          parsed.getUTCMonth() + 1 === Number(value.slice(5, 7)) &&
-          parsed.getUTCDate() === Number(value.slice(8, 10));
-        const result = parseIsoDateParam(value);
-        expect(result).toBe(realDay ? value : null);
-      }),
+      fc.property(
+        // A plain string almost never forms a date. Mix in date-shaped
+        // strings with impossible months and days, so the oracle below sees
+        // both outcomes.
+        fc.oneof(
+          fc.string({ maxLength: 40 }),
+          fc.stringMatching(/^\d{4}-(0\d|1[0-3])-([0-3]\d)$/),
+        ),
+        (value) => {
+          const parsed = new Date(`${value}T00:00:00Z`);
+          const realDay =
+            CALENDAR_DATE.test(value) &&
+            parsed.getUTCFullYear() === Number(value.slice(0, 4)) &&
+            parsed.getUTCMonth() + 1 === Number(value.slice(5, 7)) &&
+            parsed.getUTCDate() === Number(value.slice(8, 10));
+          const result = parseIsoDateParam(value);
+          expect(result).toBe(realDay ? value : null);
+        },
+      ),
       seedArgs,
     );
   });
