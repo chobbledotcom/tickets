@@ -23,6 +23,7 @@ import {
   scanNotFoundResponse,
   scannerPrivateKey,
 } from "./scan-answer.ts";
+
 // jscpd:ignore-end
 
 /** The lines a saved list may stand for: a line the door's own scan admits
