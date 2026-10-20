@@ -113,11 +113,10 @@ describe("qr token properties", () => {
         fc.asyncProperty(
           arbitrarySlug,
           arbitraryPayload(),
-          fc.nat({ max: 40 }),
+          fc.nat(),
           async (slug, payload, offset) => {
             const token = await signQrBookToken(slug, payload);
-            const position =
-              token.length - 1 - (offset % Math.min(20, token.length));
+            const position = token.length - 1 - (offset % token.length);
             const original = token[position]!;
             const flipped = original === "A" ? "B" : "A";
             const tampered =
