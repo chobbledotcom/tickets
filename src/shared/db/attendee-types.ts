@@ -49,6 +49,8 @@ export type BuildAttendeeInput = ContactInfo & {
   insertId: number | bigint | undefined;
   listingId: number;
   created: string;
+  /** The confirmation-email flag the create batch wrote for this row. */
+  emailPending?: PendingNotificationFlag | undefined;
   webhooksPending?: PendingNotificationFlag | undefined;
   kind: string;
   paymentId: string;
@@ -174,6 +176,10 @@ export type AttendeeWithBookings = {
   status_id: number | null;
   /** The registration webhooks still owed, so a failed send stays visible. */
   webhooks_pending: number;
+  /** 1 while a booked listing still collects an email (`emailOwedSql`). */
+  email_owed: number;
+  /** 0 none, 1 online booking, 2 admin add — an owed confirmation email. */
+  email_pending: number;
   /** Per-listing bookings, sorted by start_at then listing_id */
   bookings: ListingAttendeeRow[];
 };

@@ -1,4 +1,5 @@
 import type { BlindIndex } from "#crypto/sealed.ts";
+import { emailOwedSql } from "#db/attendees/notification-flags.ts";
 import { contactFields } from "#db/attendees/pii.ts";
 import {
   pricePaidFromLedger,
@@ -25,6 +26,8 @@ type CommittedBookingRow = {
   remaining_balance: number;
   status_id: number | null;
   ticket_token_index: BlindIndex;
+  email_owed: number;
+  email_pending: number;
   webhooks_pending: number;
 };
 
@@ -55,7 +58,11 @@ export const committedEntries = async (
                    ${remainingBalanceFromLedger("attendee.id")},
                    attendee.status_id,
                    attendee.ticket_token_index,
-                   attendee.webhooks_pending
+                   attendee.email_pending,
+                   attendee.webhooks_pending,
+                   (CASE WHEN attendee.email_pending > 0
+                         THEN ${emailOwedSql("attendee")}
+                         ELSE 0 END) AS email_owed
             FROM attendees AS attendee
             JOIN listing_attendees AS listingAttendee
               ON listingAttendee.attendee_id = attendee.id
@@ -68,6 +75,8 @@ export const committedEntries = async (
     checked_in: 0,
     created: row.created,
     date: row.date,
+    email_owed: row.email_owed,
+    email_pending: row.email_pending,
     end_date: row.end_date,
     id: attendeeId,
     kind: row.kind,
