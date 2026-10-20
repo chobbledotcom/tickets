@@ -166,7 +166,7 @@ Feature: An organiser checks people in at the door
     @case:door.the-door-saves-its-list
     Scenario: The organiser saves the day's tickets at the door
       Given Alice has a ticket for the Ceilidh
-      And Bruno has a ticket for the Ceilidh
+      And Bruno has a ticket for the Ceilidh too
       When the Ceilidh door saves its tickets for offline reading
       Then the Ceilidh door's saved list holds one-way codes for Alice's and Bruno's tickets
       And the Ceilidh door's saved list holds no ticket code in full
@@ -195,6 +195,7 @@ Feature: An organiser checks people in at the door
     Scenario: Somebody without door duties cannot save a door's list
       Given the owner invites Bob to help with the listings
       And Bob follows the invite and chooses a password
+      And Bob logs in
       And Alice has a ticket for the Ceilidh
       When Bob asks the Ceilidh door to save its tickets for offline reading
       Then the site refuses to save the Ceilidh's list

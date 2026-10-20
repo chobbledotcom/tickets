@@ -9,6 +9,7 @@ import {
   peopleOfferedAtDoor,
   personWithStayTicket,
   personWithTicket,
+  personWithTicketToo,
   refundTicket,
   showTicketAtDoor,
   ticketOf,
@@ -29,6 +30,13 @@ Given(
   "{word} has a ticket for the {word}",
   function (this: TicketsWorld, who: string, listing: string): Promise<void> {
     return personWithTicket(this, who, listing);
+  },
+);
+
+Given(
+  "{word} has a ticket for the {word} too",
+  function (this: TicketsWorld, who: string, listing: string): Promise<void> {
+    return personWithTicketToo(this, who, listing);
   },
 );
 

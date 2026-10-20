@@ -17,9 +17,10 @@ import { expectAccepted, openAdminPage } from "#test/specs/support/browser.ts";
 import {
   cookiesOf,
   type DoorAnswer,
+  doorScanRequest,
   type DoorPaths,
   listingPath,
-  sendDoorScan,
+  readDoorAnswer,
   ticketOf,
 } from "#test/specs/support/door.ts";
 import { groupDoorPaths } from "#test/specs/support/group-door.ts";
@@ -107,21 +108,33 @@ export const trySavingListingDoorCodes = async (
 
 /** One saved check-in: the code the door stored, and the delivery id the
  * device made up for it. The id is what makes the delivery's retry land
- * nowhere: the same delivery twice admits once. */
-export type SavedDelivery = { code: string; operationId: string };
+ * nowhere: the same delivery twice admits once. The retry sends the same
+ * request the first send made, quantity pick included. */
+export type SavedDelivery = {
+  code: string;
+  operationId: string;
+  places?: number;
+};
 
-/** Send one saved delivery to a door, through the door's own scanner page. */
+/** Send one saved delivery to a door, through the door's own scanner page.
+ * The answer the door reads comes back whatever the site answered: a
+ * check-in the site cannot match arrives as 404 with the door's own JSON
+ * body, and the story reads the body. */
 const postSavedDelivery = async (
   world: TicketsWorld,
   paths: DoorPaths,
   delivery: SavedDelivery,
-  places?: number,
-): Promise<DoorAnswer> =>
-  sendDoorScan(paths.scan, await openAdminPage(world, paths.page), "", {
-    operationId: delivery.operationId,
-    savedCode: delivery.code,
-    ...(places === undefined ? {} : { tickets: places }),
-  });
+): Promise<DoorAnswer> => {
+  const browser = await openAdminPage(world, paths.page);
+  const response = await handleRequest(
+    doorScanRequest(paths.scan, browser, {
+      operation_id: delivery.operationId,
+      token_hash: delivery.code,
+      ...(delivery.places === undefined ? {} : { quantity: delivery.places }),
+    }),
+  );
+  return readDoorAnswer(response);
+};
 
 /** Deliver one saved check-in at a door. The code must be on the list of the
  * door the story names, so a delivery no door saved fails here rather than
@@ -139,9 +152,13 @@ const deliverSavedCheckIn = async (
       `${listDoorName} saved no one-way code for ${who}'s ticket`,
     );
   }
-  const delivery: SavedDelivery = { code, operationId: crypto.randomUUID() };
+  const delivery: SavedDelivery = {
+    code,
+    operationId: crypto.randomUUID(),
+    ...(places === undefined ? {} : { places }),
+  };
   world.things.remember("saved_delivery", "last", delivery);
-  return postSavedDelivery(world, paths, delivery, places);
+  return postSavedDelivery(world, paths, delivery);
 };
 
 /** Deliver one person's saved check-in at the listing door. */

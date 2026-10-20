@@ -9,7 +9,9 @@
 
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { handleRequest } from "#routes";
+import * as v from "valibot";
 // jscpd:ignore-start
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { expectAccepted, openAdminPage } from "#test/specs/support/browser.ts";
 import {
@@ -109,6 +111,21 @@ export const rememberTicket = (
   world.things.remember("ticket", who, ticket);
 };
 
+/** A second person's ticket for a listing the story already made, booked
+ * straight onto that listing instead of making the listing a second time. */
+export const personWithTicketToo = async (
+  world: TicketsWorld,
+  who: string,
+  listing: string,
+): Promise<void> => {
+  const { token } = await createTestAttendeeDirect(
+    listingIdNamed(world, listing),
+    who,
+    `${who.toLowerCase()}@example.com`,
+  );
+  rememberTicket(world, who, token);
+};
+
 /** Someone who booked a stay of several days through the listing's own page.
  * The ticket they hold is the one the site hands them on the page their
  * booking lands on — nothing is invented for them. */
@@ -171,6 +188,44 @@ export const cookiesOf = (browser: TestBrowser): string =>
     .map(([name, value]) => `${name}=${value}`)
     .join("; ");
 
+/** The door's answer body, checked at the boundary: whose ticket, what the
+ * door decided, and the numbers it names. Every field but the decision is
+ * optional, because a refusal names less. */
+const doorAnswerBody = v.object({
+  listingName: v.optional(v.string()),
+  max: v.optional(v.number()),
+  name: v.optional(v.string()),
+  quantity: v.optional(v.number()),
+  remaining: v.optional(v.number()),
+  status: v.string(),
+  total: v.optional(v.number()),
+});
+
+/** One door scan request as the page's own script sends it: the body, the
+ * browser's cookies, and the one-use code off that browser's page. Both the
+ * strict sender and the saved-delivery sender build on it. */
+export const doorScanRequest = (
+  scanPath: string,
+  browser: TestBrowser,
+  body: Record<string, unknown>,
+): Request =>
+  new Request(`http://localhost${scanPath}`, {
+    body: JSON.stringify(body),
+    headers: {
+      "content-type": "application/json",
+      cookie: cookiesOf(browser),
+      host: "localhost",
+      "x-csrf-token": codeOnPage(browser),
+    },
+    method: "POST",
+  });
+
+/** Read the door's answer out of one response, whatever status it came
+ * with. A check-in the site cannot match comes back as 404 with the same
+ * JSON body, and the door reads the body either way. */
+export const readDoorAnswer = async (response: Response): Promise<DoorAnswer> =>
+  v.parse(doorAnswerBody, await response.json());
+
 /** Send one scanned ticket to a door's JSON API, carrying one browser's own
  * cookies and the one-use code off that browser's page — the request the
  * door page's own script sends. Every door reader stands on this. */
@@ -181,32 +236,23 @@ export const sendDoorScan = async (
   choices: DoorChoice = {},
 ): Promise<DoorAnswer> => {
   const response = await handleRequest(
-    new Request(`http://localhost${scanPath}`, {
-      body: JSON.stringify({
-        ...(choices.savedCode === undefined
-          ? { token: ticket }
-          : {
-              operation_id: choices.operationId,
-              token_hash: choices.savedCode,
-            }),
-        ...(choices.letInAnyway === undefined
-          ? {}
-          : { force: choices.letInAnyway }),
-        ...(choices.confirmedTheirId === undefined
-          ? {}
-          : { id_verified: choices.confirmedTheirId }),
-        ...(choices.tickets === undefined ? {} : { quantity: choices.tickets }),
-      }),
-      headers: {
-        "content-type": "application/json",
-        cookie: cookiesOf(browser),
-        host: "localhost",
-        "x-csrf-token": codeOnPage(browser),
-      },
-      method: "POST",
+    doorScanRequest(scanPath, browser, {
+      ...(choices.savedCode === undefined
+        ? { token: ticket }
+        : {
+            operation_id: choices.operationId,
+            token_hash: choices.savedCode,
+          }),
+      ...(choices.letInAnyway === undefined
+        ? {}
+        : { force: choices.letInAnyway }),
+      ...(choices.confirmedTheirId === undefined
+        ? {}
+        : { id_verified: choices.confirmedTheirId }),
+      ...(choices.tickets === undefined ? {} : { quantity: choices.tickets }),
     }),
   );
-  return (await expectAccepted(response).json()) as DoorAnswer;
+  return readDoorAnswer(expectAccepted(response));
 };
 
 /** Post one scanned ticket to a scanner page's own JSON door, as the page's
