@@ -95,9 +95,14 @@ src/shared/db/attendees/create-batch.ts::IncompleteBooking~03v6osk  IncompleteBo
 
 # The image-use collection calls only next and nextMany. These operations read
 # the table and scope fields, but they do not read the key field.
-src/shared/db/images.ts::getImageFilenamesForItem.stored~0ejzw5s  image → "" audited:0isxtpb # this query reads one image table, so each selected image column stays unambiguous without its qualifier
-src/shared/db/images.ts::getImagesForItem.rows~03xuvta  image → "" audited:0isxtpb # image_uses has none of the selected image column names, so each unqualified name resolves to images
-src/shared/db/images.ts::imageUseOrder.key~0srejmf  image_id → "" audited:0isxtpb # no production caller uses append, swap, or another ordered-collection operation that reads key
+src/shared/db/images.ts::getImageFilenamesForItem.stored~0ejzw5s  image → "" audited:1wrem49 # this query reads one image table, so each selected image column stays unambiguous without its qualifier
+src/shared/db/images.ts::getImagesForItem.rows~03xuvta  image → "" audited:1wrem49 # image_uses has none of the selected image column names, so each unqualified name resolves to images
+src/shared/db/images.ts::imageUseOrder.key~0srejmf  image_id → "" audited:1wrem49 # no production caller uses append, swap, or another ordered-collection operation that reads key
+
+# imageUrlsFor's id filter: the regex admits only digit strings, and images.id
+# is AUTOINCREMENT from 1, so the extra ids the mutant admits (0, and floats at
+# or above 2^53) match no row and the bounded read returns the same rows.
+src/shared/db/images.ts::imageUrlsFor.ids~1j359hk  && → ||  audited:1wrem49 # 0 and unsafe floats name no image row, so the wider query set maps the same id→URL table
 
 # Group readers return truthy records and arrays. Their batch methods also make
 # an entry for each requested key before they read rows.
