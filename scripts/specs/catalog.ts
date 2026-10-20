@@ -18,8 +18,10 @@ const BASE_REGISTRY: Omit<SpecRegistry, "owners"> = {
   // An editor is an organiser-side helper who may write listings and nothing
   // else, so a story about what they can reach has a different actor from one
   // about the person who runs the site. A scanner is the same kind of helper
-  // for the door: they check people in and out, and nothing else.
-  actors: ["customer", "editor", "organiser", "scanner"],
+  // for the door: they check people in and out, and nothing else. A developer
+  // is the person the repo's own quality jobs answer to: the stories about
+  // what those jobs refuse are theirs.
+  actors: ["customer", "developer", "editor", "organiser", "scanner"],
   editions: ["managed", "self-hosted"],
   risks: ["high", "medium", "low"],
   // "public" is a page a customer opens themselves, without signing in and

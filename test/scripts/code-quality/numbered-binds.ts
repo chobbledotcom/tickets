@@ -7,6 +7,7 @@
  */
 
 import { blankSpans, lexicalSpans } from "#scripts/typescript-lex.ts";
+import { argumentUses } from "#test/scripts/code-quality/helper-binds.ts";
 
 /** The one file whose own job is to emit `?N` tokens. */
 const NUMBERED_STATEMENT_PATH = "shared/db/numbered-statement.ts";
@@ -37,10 +38,12 @@ const TYPE_WORDS = new Set([
   "void",
 ]);
 
-/** One local array literal's span in the blanked text. */
-type LocalArray = { open: number; close: number };
+/** One local array literal: its declaration's keyword and its literal's
+ * brackets, all in the blanked text. */
+type LocalArray = { close: number; open: number; start: number };
 
-/** The lookup one spread name resolves: the local arrays it names. */
+/** The lookup one spread name resolves: the one visible declaration it names,
+ * or nothing when no declaration reaches the use. */
 type LocalArrays = (name: string) => LocalArray[] | undefined;
 
 /** The one-based line an index sits on. */
@@ -78,7 +81,7 @@ const withoutInterpolations = (spanText: string): string => {
 
 /** The bracket that closes the `[` at `open`, or -1. Brackets inside strings
  * and comments cannot mislead the walk: the text arrives pre-blanked. */
-const matchingBracket = (blanked: string, open: number): number => {
+export const matchingBracket = (blanked: string, open: number): number => {
   let depth = 0;
   for (let at = open; at < blanked.length; at++) {
     const character = blanked[at] as string;
@@ -212,51 +215,66 @@ const localArrayLiterals = (blanked: string): Map<string, LocalArray[]> => {
     if (close < 0) continue;
     const name = match[1] as string;
     const spans = literals.get(name) ?? [];
-    spans.push({ close, open });
+    spans.push({ close, open, start: match.index });
     literals.set(name, spans);
   }
   return literals;
 };
 
-/** The bare name of a call's second argument, or null when the call passes
- * nothing comparable there: one argument only, or a member chain, or a
- * literal. */
-const secondCallArgument = (blanked: string, open: number): string | null => {
-  let depth = 0;
-  let at = open + 1;
-  for (; at < blanked.length; at++) {
-    const character = blanked[at] as string;
-    if ("([{".includes(character)) depth += 1;
-    if (")]}".includes(character)) {
-      if (depth === 0) return null;
-      depth -= 1;
+/** One matched `{`…`}` pair of the blanked text. Strings, comments, and
+ * regular expressions arrive pre-blanked, so no phantom brace pairs. */
+type Block = { close: number; open: number };
+
+/** Every matched brace pair of one file, in source order. */
+const matchedBlocks = (blanked: string): Block[] => {
+  const blocks: Block[] = [];
+  const opens: number[] = [];
+  for (let at = 0; at < blanked.length; at++) {
+    if (blanked[at] === "{") opens.push(at);
+    if (blanked[at] === "}") {
+      const open = opens.pop();
+      if (open !== undefined) blocks.push({ close: at, open });
     }
-    if (character === "," && depth === 0) break;
   }
-  if (at >= blanked.length) return null;
-  const named = blanked.slice(at + 1).match(/^\s*([A-Za-z_$][\w$]*)\s*[,)\]]/);
-  return named ? (named[1] as string) : null;
+  return blocks;
 };
 
-/** The positions where a bare name reaches a statement as its bind list: an
- * `args: name` property, the `args` shorthand in an object literal, and the
- * second argument of an `execute` call. */
-const argumentUses = (blanked: string): { name: string; at: number }[] => {
-  const uses: { name: string; at: number }[] = [];
-  for (const match of [
-    ...blanked.matchAll(/\bargs\s*:\s*([A-Za-z_$][\w$]*)\s*(?=[,}])/g),
-  ]) {
-    uses.push({ at: match.index, name: match[1] as string });
+/** The innermost block that holds `at`, or undefined for the file itself. */
+const innermostBlockAt = (blocks: Block[], at: number): Block | undefined => {
+  let found: Block | undefined;
+  for (const block of blocks) {
+    if (block.open < at && at < block.close) {
+      if (found === undefined || block.open > found.open) found = block;
+    }
   }
-  for (const match of [...blanked.matchAll(/\{[^{}]*\bargs\s*(?=[,}])/g)]) {
-    uses.push({ at: match.index, name: "args" });
+  return found;
+};
+
+/** The one declaration of a name that reaches a use at `at`: the innermost
+ * scope that declares the name wins, and inside it the declaration that
+ * precedes the use. A declaration in an unrelated scope never reaches the
+ * use, and a same-scope declaration after the use shadows it to nothing. */
+const visibleDeclaration = (
+  blocks: Block[],
+  declarations: LocalArray[] | undefined,
+  at: number,
+): LocalArray | undefined => {
+  if (declarations === undefined) return;
+  const scopes = [
+    ...blocks
+      .filter((block) => block.open < at && at < block.close)
+      .sort((one, other) => other.open - one.open),
+    undefined,
+  ];
+  for (const scope of scopes) {
+    const inScope = declarations.filter(
+      (declaration) => innermostBlockAt(blocks, declaration.start) === scope,
+    );
+    if (inScope.length > 0) {
+      return inScope.filter((declaration) => declaration.start < at).at(-1);
+    }
   }
-  for (const match of [...blanked.matchAll(/\bexecute\s*\(/g)]) {
-    const open = match.index + match[0].length - 1;
-    const name = secondCallArgument(blanked, open);
-    if (name !== null) uses.push({ at: match.index, name });
-  }
-  return uses;
+  return;
 };
 
 /** One args array a statement binds: where the array sits, the line it is
@@ -284,7 +302,11 @@ export const findRepeatedBinds = (
       return start >= 0 && at >= start && at < end;
     });
   const locals = localArrayLiterals(blanked);
-  const expand = (name: string) => locals.get(name);
+  const blocks = matchedBlocks(blanked);
+  const resolve = (name: string, at: number): LocalArray[] | undefined => {
+    const visible = visibleDeclaration(blocks, locals.get(name), at);
+    return visible === undefined ? undefined : [visible];
+  };
   const violations: string[] = [];
   const report = (found: FoundBinds): void => {
     if (exempt(found.at)) return;
@@ -295,7 +317,7 @@ export const findRepeatedBinds = (
         found.open,
         found.close,
         found.line,
-        expand,
+        (name) => resolve(name, found.at),
       ).map((violation) => `${relativePath}:${violation}`),
     );
   };
@@ -311,7 +333,16 @@ export const findRepeatedBinds = (
     });
   }
   for (const use of argumentUses(blanked)) {
-    for (const { open, close } of locals.get(use.name) ?? []) {
+    if (use.kind === "array") {
+      report({
+        at: use.at,
+        close: use.array.close,
+        line: lineAt(content, use.array.open),
+        open: use.array.open,
+      });
+      continue;
+    }
+    for (const { open, close } of resolve(use.name, use.at) ?? []) {
       report({ at: use.at, close, line: lineAt(content, open), open });
     }
   }

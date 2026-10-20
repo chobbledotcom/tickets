@@ -256,6 +256,124 @@ await execute(row.sql);`,
       ),
     ).toEqual([]);
   });
+
+  test("fires on an inline array an execute call carries", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "await execute(writeSql, [sessionId, sessionId]);",
+        [],
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: binds sessionId more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
+
+  test("fires on an inline array a generic requireOne call carries", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        [
+          "const pair = [acct.type, acct.id];",
+          "const row = await requireOne<{ balance: number | bigint }>(",
+          "  readSql,",
+          "  [...pair, ...pair, ...pair, ...pair],",
+          ");",
+        ].join("\n"),
+        [],
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:4: binds acct.type more than once; numberedStatement binds it once and reuses the token",
+      "shared/db/synthetic.ts:4: binds acct.id more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
+
+  test("fires on a named array a generic queryAll call carries", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        [
+          "const ids = [batchId, batchId];",
+          "const rows = await queryAll<Row>(readSql, ids);",
+        ].join("\n"),
+        [],
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: binds batchId more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
+
+  test("stays quiet on a helper call whose inline array has distinct values", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        [
+          "await execute(writeSql, [sessionId, priceType]);",
+          "const row = await requireOne<Row>(readSql, [type, id]);",
+        ].join("\n"),
+        [],
+      ),
+    ).toEqual([]);
+  });
+
+  test("stays quiet when two functions declare arrays of one name and bind each once", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        [
+          "const readFirst = (id: string) => {",
+          "  const ids = [id];",
+          "  const statement = { args: [...ids], sql: readSql };",
+          "  return statement;",
+          "};",
+          "const readSecond = (id: string) => {",
+          "  const ids = [id];",
+          "  const statement = { args: [...ids], sql: otherSql };",
+          "  return statement;",
+          "};",
+        ].join("\n"),
+        [],
+      ),
+    ).toEqual([]);
+  });
+
+  test("fires only on the function whose own array repeats a value", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        [
+          "const readFirst = () => {",
+          "  const ids = [batchId, batchId];",
+          "  return execute(writeSql, ids);",
+          "};",
+          "const readSecond = () => {",
+          "  const ids = [batchId];",
+          "  return execute(otherSql, ids);",
+          "};",
+        ].join("\n"),
+        [],
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:2: binds batchId more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
+
+  test("keeps an enclosing array visible to a statement inside a nested function", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        [
+          "const makeRunner = () => {",
+          "  const ids = [ownerId, ownerId];",
+          "  return () => execute(writeSql, ids);",
+          "};",
+        ].join("\n"),
+        [],
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:2: binds ownerId more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
 });
 
 describe("hand-numbered tokens", () => {
