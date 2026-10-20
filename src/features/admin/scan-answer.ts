@@ -315,16 +315,15 @@ const scanDecisionResponse = async (
 const isAdmitCount = (value: unknown): value is number =>
   typeof value === "number" && isPositiveSafeInteger(value);
 
-/** The longest operation id a queued delivery may name. A device makes its
- * own id up, so the cap only bounds the column a hostile caller could
- * fill. */
+/** The longest operation id a queued delivery can name. A device makes its
+ * own id up, so the cap only bounds the column a hostile caller fills. */
 const OPERATION_ID_MAX = 100;
 
 /** Read a queued delivery's operation id from the request body. The id is
- * the replay guard's whole key, so it must be a real one: a missing id
- * means no guard, and anything that is not a plain short string claims
+ * the replay guard's whole key, so it must be a real one. A missing id
+ * means no guard. Anything that is not a plain short string claims
  * nothing. An id beside a raw token or a picked attendee id names no
- * delivery the API defines, so it is refused rather than quietly ignored. */
+ * delivery the API defines, so the request is refused, not ignored. */
 const queuedOperationId = (
   body: Record<string, unknown>,
 ): string | Response | undefined => {

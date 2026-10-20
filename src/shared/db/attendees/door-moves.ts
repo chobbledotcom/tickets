@@ -17,10 +17,11 @@ import { type TxScope, withTransaction } from "#db/client.ts";
  * no row. Answers every move's result.
  *
  * `claim`, when the caller hands one over, reserves the caller's operation
- * id inside this same transaction before any move runs, and answers false
+ * id inside this same transaction before any move runs. It answers false
  * when that id is already stored. A queued offline delivery that lost its
- * first answer replays with the id it made up, so the replay claims
- * nothing and moves nothing — one delivery never admits a second ticket. */
+ * first answer replays with the id it made up. The replay then claims
+ * nothing and moves nothing, so one delivery never admits a second
+ * ticket. */
 export const moveTicketsAndLog = (
   direction: TicketDirection,
   moves: readonly TicketMove[],

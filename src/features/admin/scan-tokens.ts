@@ -26,11 +26,11 @@ import {
 
 // jscpd:ignore-end
 
-/** The lines a saved list may stand for: a line the door's own scan admits
+/** The lines a saved list can stand for: a line the door's own scan admits
  * or counts as used. A refunded order and a no-quantity line both turn a
- * scan away online, so a digest that stands for only those would answer
- * "looks legit" offline for a ticket the door refuses. A line still owing
- * nothing stays: the door's own scan answers "already checked in" for it,
+ * scan away online. A digest that stands for only those tells the offline
+ * door a refused ticket looks legitimate. A line still owing nothing stays
+ * in the list. The door's own scan answers "already checked in" for it,
  * and that is the answer a replayed delivery must fetch home. */
 const cacheWorthyTokens = (
   attendees: readonly DecryptedAttendeeRow<Attendee>[],

@@ -51,9 +51,10 @@ export const attendeeTables: [name: string, table: Table][] = [
         // admin sees it.
         ["email_pending", "INTEGER NOT NULL DEFAULT 0"],
         ["webhooks_pending", "INTEGER NOT NULL DEFAULT 0"],
-        // HMAC blind-index of the attendee's phone, populated lazily the first
-        // time an admin texts them, so inbound SMS replies can be matched back
-        // to the attendee without storing the number in the clear.
+        // HMAC blind-index of the attendee's phone. The index is filled
+        // lazily the first time an admin texts them, so inbound SMS replies
+        // can be matched back to the attendee. The number is never stored
+        // in the clear.
         ["phone_index", "TEXT NOT NULL DEFAULT ''"],
       ],
       indexes: [
@@ -251,7 +252,7 @@ export const attendeeTables: [name: string, table: Table][] = [
   ],
 
   // The door's replay ledger for queued offline check-ins: one row per
-  // operation id a hash admission has claimed, so a retried delivery can
+  // operation id a hash admission claimed, so a retried delivery can
   // never admit a second ticket. Holds the id alone — no ticket token,
   // digest, or guest detail.
   [
