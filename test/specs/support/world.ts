@@ -51,6 +51,14 @@ export type ActOnSomeMoney = (
   amount: string,
 ) => Promise<void>;
 
+/** Something a story sets up under a name before the steps run — a picture
+ * the site holds, a site the story builds — so later steps read that thing
+ * back by the name. */
+export type SeedsOneNamedThing = (
+  world: TicketsWorld,
+  knownAs: string,
+) => Promise<void>;
+
 /** Something a story reads back about one of the things the site sells — a
  * page's words, a downloaded file, what an organiser was told, the address of
  * the link that leads into it. Readers that hand back several answers rather
@@ -159,6 +167,17 @@ export interface TicketsWorld extends World, EvidencePages {
   modifierId?: number;
   moneyFault?: RefundLedgerFault;
   newStayLength?: number;
+  /** The picture a story put in a note or a question, with the words the
+   * story typed around it: the image row, the address its picture shows at,
+   * and the note as it was first typed. */
+  noteImage?: {
+    alt: string;
+    filename: string;
+    id: number;
+    /** The note row that names the picture, when the story wrote one. */
+    noteId?: number;
+    noteText: string;
+  };
   orderCatalogSpec?: JourneyCatalogSpec;
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;

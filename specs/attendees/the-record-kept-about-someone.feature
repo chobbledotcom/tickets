@@ -31,6 +31,29 @@ Feature: An organiser reads and corrects the record kept about someone
       Then the record shows nothing was ever counted
       And the record says they have never been in touch
 
+  @rule:attendees.a-picture-in-the-note-shows-where-it-is-read
+  @surface:admin
+  Rule: A picture in the private note shows where the note is read
+    The record and the person's page each show the note written out, with the
+    picture in place of the reference. A note the site refuses to keep comes
+    back with the picture still showing, and the site keeps nothing of it.
+
+    @case:contact-record.a-note-with-a-picture-shows-on-both-pages
+    Scenario: The organiser reads the note and its picture in both places
+      Given the site has a note about Sam with a picture called "Poster" in it
+      When the organiser opens Sam's record
+      Then the record's note shows the "Poster" picture
+      When the organiser opens Sam's page
+      Then the outreach panel shows the "Poster" picture
+
+    @case:contact-record.a-refused-note-comes-back-with-its-picture
+    Scenario: The organiser saves a note that is too long
+      Given the site has a note about Sam with a picture called "Poster" in it
+      When the organiser saves Sam's record with a note past the length limit
+      Then the organiser is told the note is too long
+      And the returned note shows the "Poster" picture
+      And the note kept about Sam still holds what was typed before
+
   @rule:attendees.the-organiser-can-put-the-record-right
   @surface:admin
   Rule: The organiser can put the record right
