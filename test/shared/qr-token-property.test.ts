@@ -32,8 +32,14 @@ const withFrozenClock = async (run: () => Promise<void>): Promise<void> => {
 const arbitraryPayload = (): fc.Arbitrary<QrBookPayload> =>
   fc
     .record({
+      // UTC-anchored bounds: local-midnight Dates shift the sampling range
+      // with the ambient timezone, and toISOString reads UTC, so the
+      // generated calendar dates must come from UTC instants.
       date: fc
-        .date({ max: new Date(2100, 0, 1), min: new Date(2020, 0, 1) })
+        .date({
+          max: new Date(Date.UTC(2100, 0, 1)),
+          min: new Date(Date.UTC(2020, 0, 1)),
+        })
         .map((date) => date.toISOString().slice(0, 10)),
       name: fc.string({ maxLength: 60 }),
       quantity: fc.integer({ max: 100, min: 1 }),
