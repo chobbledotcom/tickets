@@ -36,26 +36,25 @@ export const UPLOAD_DEADLINE_MS = 30_000;
  * product's abort path, and the failure names that outcome. */
 export const TEST_UPLOAD_SIGNAL_MS = 10_000;
 
-/** Reject with a named failure when `work` has not settled in time. The
- * upload can wedge: the request never emits "error" or "close", so the
- * promise never settles and the server's shutdown then waits on the open
- * connection forever (issue #2556). Without this bound the whole hosted
- * job hangs until the runner's timeout, and nothing names the cause. A real
- * timer: the wedge is the platform's own scheduling of the socket close and
- * the polyfill's write task. */
+/** Reject with a named failure when `work` has not settled in time. A wedged
+ * upload or a shutdown waiting on its connection would otherwise hold the
+ * whole hosted job until the runner times out, with nothing naming the
+ * cause (issue #2556). A real timer: the wedge is the platform's own
+ * scheduling of the socket close and the polyfill's write task. */
 export const withinDeadline = <T>(
   work: Promise<T>,
   label: string,
+  timeoutMs = UPLOAD_DEADLINE_MS,
 ): Promise<T> => {
   const deadline = Promise.withResolvers<T>();
   const timer = setTimeout(
     () =>
       deadline.reject(
         new Error(
-          `${label} did not settle within ${UPLOAD_DEADLINE_MS}ms; the upload wedged (issue #2556).`,
+          `${label} did not settle within ${timeoutMs}ms; the upload wedged (issue #2556).`,
         ),
       ),
-    UPLOAD_DEADLINE_MS,
+    timeoutMs,
   );
   return Promise.race([work, deadline.promise]).finally(() =>
     clearTimeout(timer),
@@ -81,7 +80,6 @@ export const withUploadServer = async (
     handler,
   );
   const address = server.addr;
-  if (!("port" in address)) throw new Error("Expected a network address");
   const controllers: AbortController[] = [];
   const transport: DatabaseUploadTransport = {
     request: (url, options, receive) => {
@@ -90,10 +88,10 @@ export const withUploadServer = async (
       localUrl.protocol = "http:";
       const controller = new AbortController();
       // The caller's own signal keeps working: a combined signal aborts the
-      // request when either side fires.
-      options.signal = options.signal
-        ? AbortSignal.any([options.signal, controller.signal])
-        : controller.signal;
+      // request when either side fires. The upload always supplies one.
+      const callerSignal = options.signal;
+      assertExists(callerSignal, "The upload must pass on its signal");
+      options.signal = AbortSignal.any([callerSignal, controller.signal]);
       controllers.push(controller);
       return httpRequest(localUrl, options, receive);
     },
@@ -118,7 +116,9 @@ export const earlyAnswerBody = JSON.stringify({
 
 /** The server handler both early-answer tests share: read one chunk so the
  * socket stays alive until the answer is on the wire, then answer with the
- * padded rejection body while the write is still running. */
+ * padded rejection body while the write is still running. The unread rest of
+ * the body is cancelled so the server does not hold the connection open for
+ * a body it will never finish, which would stall its shutdown (issue #2556). */
 export const earlyAnswerHandler = async (
   request: Request,
 ): Promise<Response> => {
@@ -126,6 +126,7 @@ export const earlyAnswerHandler = async (
   assertExists(body, "Expected an upload body");
   const reader = body.getReader();
   await reader.read();
+  await reader.cancel();
   return new Response(earlyAnswerBody, { status: 400 });
 };
 
@@ -175,17 +176,18 @@ export const scriptedTransport = (
 });
 
 /** Upload a small file through a scripted transport and return the result. */
-export const uploadThroughScript = async (
+export const uploadThroughScript = (
   dir: string,
   request: Writable,
   play: (receive: (response: IncomingMessage) => void) => void,
 ): Promise<void> => {
   const path = join(dir, "database.sqlite");
-  await Deno.writeTextFile(path, "sqlite bytes");
-  await uploadTursoDatabaseFile(
-    path,
-    TEST_TURSO_CREDENTIALS,
-    undefined,
-    scriptedTransport(request, play),
+  return Deno.writeTextFile(path, "sqlite bytes").then(() =>
+    uploadTursoDatabaseFile(
+      path,
+      TEST_TURSO_CREDENTIALS,
+      undefined,
+      scriptedTransport(request, play),
+    ),
   );
 };

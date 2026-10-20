@@ -19,6 +19,7 @@ import {
   scriptedTransport,
   uploadCredentials,
   uploadThroughScript,
+  withinDeadline,
   withUploadServer,
 } from "./turso-upload-harness.ts";
 
@@ -243,6 +244,20 @@ describe("Turso migration file", () => {
     const error = await uploadInterruptedBy("stop now");
 
     expect(error.message).toBe("Upload aborted: stop now");
+  });
+
+  /** The suite's own guard: a wait that never settles must fail with the
+   * label it was given, not hold the job open (issue #2556). */
+  test("names a wait that never settles instead of holding the job", async () => {
+    const error = await withinDeadline(
+      new Promise<never>(() => {}),
+      "the test work",
+      0,
+    ).catch((reason: Error) => reason);
+
+    expect(error.message).toBe(
+      "the test work did not settle within 0ms; the upload wedged (issue #2556).",
+    );
   });
 
   test("rejects an interrupted upload before opening the snapshot", () =>
