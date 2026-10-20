@@ -46,6 +46,15 @@ export type ActOnOnePerson = (
   world: TicketsWorld,
   who: string,
 ) => Promise<void>;
+
+/** A fixture the story runs about one person and the picture's name: it sets
+ * the world up so a note or a question names that picture. */
+export type NoteAPictureAboutOnePerson = (
+  world: TicketsWorld,
+  who: string,
+  name: string,
+) => Promise<void>;
+
 export type ActOnSomeMoney = (
   world: TicketsWorld,
   amount: string,
@@ -192,14 +201,7 @@ export interface TicketsWorld extends World, EvidencePages {
   /** The picture a story put in a note or a question, with the words the
    * story typed around it: the image row, the address its picture shows at,
    * and the note as it was first typed. */
-  noteImage?: {
-    alt: string;
-    filename: string;
-    id: number;
-    /** The note row that names the picture, when the story wrote one. */
-    noteId?: number;
-    noteText: string;
-  };
+  noteImage?: NoteImage;
   orderCatalogSpec?: JourneyCatalogSpec;
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;

@@ -9,12 +9,12 @@
 // jscpd:ignore-start
 import { stub } from "@std/testing/mock";
 import { supportMessageApi } from "#shared/site-support-message.ts";
+import { uploadsAPicture } from "#test/specs/support/attendee-images.ts";
 import {
   type SeedsOneNamedThing,
   scenarioEnv,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { makeImage } from "#test-utils/admin-images.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 // jscpd:ignore-end
 
@@ -33,25 +33,13 @@ export const siteCarriesSupportMessageWithPicture: SeedsOneNamedThing = async (
     hostingId: "8200",
     name: "Reader Site",
   });
-  const image = await makeImage(name);
+  const picture = await uploadsAPicture(world, name);
   const watch = stub(supportMessageApi, "readSupportMessage", () =>
     Promise.resolve({
       ok: true as const,
-      value: `Questions? ![${name}](img#${image.id})`,
+      value: `Questions? ![${name}](img#${picture.id})`,
     }),
   );
   world.cleanup.add(watch.restore);
   world.things.remember("record", "built site", site.id);
-  world.noteImage = {
-    alt: name,
-    filename: image.filename,
-    id: image.id,
-    noteText: "",
-  };
-};
-
-/** The whole site is inside its read-only window, so every panel reads as
- * written and nothing offers to change. */
-export const siteIsReadOnly = (world: TicketsWorld): void => {
-  scenarioEnv(world, { READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
 };

@@ -141,6 +141,55 @@ const typedNoteWithPicture = async (
   return { attendeeId: attendee.id, picture, typed };
 };
 
+/** Hold the page as a whole to the picture: it shows at its own address, and
+ * no reference stays anywhere on the page. */
+export const pageShowsPicture = (html: string, world: TicketsWorld): void => {
+  expect(html).toContain(pictureTag(world));
+  expect(html).not.toContain("img#");
+};
+
+/** The picture the story named, uploaded now. The world keeps it as the
+ * picture the story's reference points at; the caller writes the words that
+ * name it. */
+export const uploadsAPicture = async (
+  world: TicketsWorld,
+  name: string,
+): Promise<NoteImage> => {
+  const image = await makeImage(name);
+  const picture: NoteImage = {
+    alt: name,
+    filename: image.filename,
+    id: image.id,
+    noteText: "",
+  };
+  world.noteImage = picture;
+  return picture;
+};
+
+/** Someone booked onto the note listing under their own email, with a
+ * picture uploaded and the note typed around the picture's reference. The
+ * world remembers the person and the picture; the caller writes the note
+ * where their story does. */
+const typedNoteWithPicture = async (
+  world: TicketsWorld,
+  who: string,
+  name: string,
+  wordsBefore: string,
+): Promise<{ attendeeId: number; picture: NoteImage; typed: string }> => {
+  const listing = await createTestListing({ name: NOTE_LISTING });
+  const attendee = await createTestAttendee(
+    listing.id,
+    listing.slug,
+    who,
+    emailFor(who),
+  );
+  const picture = await uploadsAPicture(world, name);
+  world.attendeeId = attendee.id;
+  world.things.remember("listing", NOTE_LISTING, listing);
+  const typed = `${wordsBefore} ![${name}](img#${picture.id})`;
+  return { attendeeId: attendee.id, picture, typed };
+};
+
 /** The organiser booked someone onto the note listing and wrote a note that
  * names the picture. The note goes in through the real note form, so the row
  * the site keeps is the one a browser would have made. */
