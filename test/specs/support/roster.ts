@@ -16,7 +16,7 @@ import { rosterPath } from "#test/specs/support/by-hand.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { rememberListing } from "#test/specs/support/listings.ts";
 import { emailFor } from "#test/specs/support/tickets.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type { StoryJourney, TicketsWorld } from "#test/specs/support/world.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -42,12 +42,10 @@ export const attendeeListHtml = (
  * the second booking is never the first line their record carries. The
  * listings are created one after the other, so the first booking's listing
  * also carries the lower id. */
-export const personWithTicketsForTwoListings = async (
-  world: TicketsWorld,
-  who: string,
-  first: string,
-  second: string,
-): Promise<void> => {
+export const personWithTicketsForTwoListings: StoryJourney<
+  [who: string, first: string, second: string],
+  void
+> = async (world, who, first, second) => {
   const homeListing = await createTestListing({
     maxAttendees: 10,
     name: first,

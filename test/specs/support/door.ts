@@ -7,11 +7,9 @@
  * than being stepped around.
  */
 
+import * as v from "valibot";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { handleRequest } from "#routes";
-import * as v from "valibot";
-// jscpd:ignore-start
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { expectAccepted, openAdminPage } from "#test/specs/support/browser.ts";
 import {
@@ -25,27 +23,22 @@ import {
 } from "#test/specs/support/public-booking.ts";
 import { dayFromToday, openStayListing } from "#test/specs/support/stays.ts";
 import {
+  type ActOnOnePersonAtOneThing,
   type ActOnOneThing,
   type ReadAboutOneThing,
   type ReadsWhatWasKept,
   type TicketsWorld,
   whatWasKeptFor,
 } from "#test/specs/support/world.ts";
-import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+// jscpd:ignore-start
+import {
+  createTestAttendeeDirect,
+  createTestAttendeeWithToken,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund } from "#test-utils/ledger.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
-
-/** What the site says about one person at the door. */
-export interface DoorAnswer {
-  listingName?: string;
-  max?: number;
-  name?: string;
-  quantity?: number;
-  status: string;
-  total?: number;
-}
 
 /** An admin page belonging to one record — its listing, or the group its
  * listings sit under. Shared by the listing door and the group door. */
@@ -76,6 +69,18 @@ export type DoorChoice = {
 
 /** One door's own pages: its scanner page, and the door that page answers. */
 export type DoorPaths = { page: string; scan: string };
+
+/** A door's own pages, found by the name the story calls the door. */
+export type PathsOfDoor = (world: TicketsWorld, doorName: string) => DoorPaths;
+
+/** One listing door's own pages, at the paths the listing's pages live at. */
+export const listingDoorPaths = (
+  world: TicketsWorld,
+  listing: string,
+): DoorPaths => ({
+  page: listingPath(world, listing, "scanner"),
+  scan: listingPath(world, listing, "scan"),
+});
 
 /** Someone with a ticket for one of the story's listings. Both the listing and
  * the ticket are kept under the names the story uses for them. */
@@ -113,11 +118,11 @@ export const rememberTicket = (
 
 /** A second person's ticket for a listing the story already made, booked
  * straight onto that listing instead of making the listing a second time. */
-export const personWithTicketToo = async (
-  world: TicketsWorld,
-  who: string,
-  listing: string,
-): Promise<void> => {
+export const personWithTicketToo: ActOnOnePersonAtOneThing = async (
+  world,
+  who,
+  listing,
+) => {
   const { token } = await createTestAttendeeDirect(
     listingIdNamed(world, listing),
     who,
@@ -156,16 +161,21 @@ export const otherListing: ActOnOneThing = async (world, listing) => {
 /** The ticket code the story gave this person. */
 export const ticketOf: ReadsWhatWasKept<"ticket"> = whatWasKeptFor("ticket");
 
-/** Their money is given back, so the ticket should no longer let them in. */
-export const refundTicket = async (
-  world: TicketsWorld,
-  who: string,
-  listing: string,
-): Promise<void> => {
+/** The attendee one person's ticket names. */
+export const attendeeOf = async (world: TicketsWorld, who: string) => {
   const [attendee] = await getAttendeesByTokens([ticketOf(world, who)]);
   if (!attendee) throw new Error(`${who}'s ticket is not on any booking`);
+  return attendee;
+};
+
+/** Their money is given back, so the ticket should no longer let them in. */
+export const refundTicket: ActOnOnePersonAtOneThing = async (
+  world,
+  who,
+  listing,
+) => {
   await postAttendeeRefund({
-    attendeeId: attendee.id,
+    attendeeId: (await attendeeOf(world, who)).id,
     listingId: listingIdNamed(world, listing),
   });
 };
@@ -200,6 +210,10 @@ const doorAnswerBody = v.object({
   status: v.string(),
   total: v.optional(v.number()),
 });
+
+/** What the site says about one person at the door — the body above, as the
+ * site sent it. */
+export type DoorAnswer = v.InferOutput<typeof doorAnswerBody>;
 
 /** One door scan request as the page's own script sends it: the body, the
  * browser's cookies, and the one-use code off that browser's page. Both the
@@ -283,9 +297,7 @@ export type ShowTicketAtDoor = (
 /** One door's scan, from the paths its own pages live at. Both the listing
  * door and the group door stand on this. */
 export const scanAt =
-  (
-    pathsOf: (world: TicketsWorld, doorName: string) => DoorPaths,
-  ): ShowTicketAtDoor =>
+  (pathsOf: PathsOfDoor): ShowTicketAtDoor =>
   async (world, doorName, ticket, choices = {}) =>
     postScanAtPath(world, pathsOf(world, doorName), ticket, choices);
 
@@ -293,10 +305,7 @@ export const scanAt =
  * with the person in front of them. Letting someone in who belongs to another
  * listing is a deliberate second press, so it is asked for rather than assumed.
  */
-export const showTicketAtDoor: ShowTicketAtDoor = scanAt((world, listing) => ({
-  page: listingPath(world, listing, "scanner"),
-  scan: listingPath(world, listing, "scan"),
-}));
+export const showTicketAtDoor: ShowTicketAtDoor = scanAt(listingDoorPaths);
 
 /** The whole door page, for checks about what is not on it at all. */
 export const doorPageHtml: ReadAboutOneThing = async (world, listing) =>

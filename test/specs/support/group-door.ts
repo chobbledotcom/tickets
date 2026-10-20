@@ -32,10 +32,7 @@ import {
   type TicketsWorld,
   whatWasKeptFor,
 } from "#test/specs/support/world.ts";
-import {
-  createMultiBookingAttendee,
-  createTestAttendeeDirect,
-} from "#test-utils/db-helpers/attendees.ts";
+import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -84,20 +81,6 @@ export const groupDoorWithTiers: TierStep = async (world, groupName, tiers) => {
       }),
     );
   }
-};
-
-/** Someone with a ticket for one tier of the group. */
-export const personWithTierTicket = async (
-  world: TicketsWorld,
-  who: string,
-  tier: string,
-): Promise<void> => {
-  const { token } = await createTestAttendeeDirect(
-    listingIdNamed(world, tier),
-    who,
-    `${who.toLowerCase()}@example.com`,
-  );
-  rememberTicket(world, who, token);
 };
 
 /** Someone with one ticket that covers several of the group's tiers. */

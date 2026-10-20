@@ -14,6 +14,18 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 
+/** A party of three on one ticket at the door's first listing: a delivery
+ * admits one place, and the other two still wait. */
+const partyOfThree = async () => {
+  const door = await groupDoor(1);
+  const attendee = await bookTestAttendee(
+    [{ listingId: door.members[0]!.id, quantity: 3 }],
+    "Cara",
+    "cara@example.com",
+  );
+  return { attendee, door };
+};
+
 describeWithEnv(
   "a queued check-in replaying by token digest",
   { db: true },
@@ -95,12 +107,7 @@ describeWithEnv(
       // answer was lost on the way home, and the queue sent the same
       // delivery again. The second send must land nowhere: the first one
       // already took a place.
-      const door = await groupDoor(1);
-      const attendee = await bookTestAttendee(
-        [{ listingId: door.members[0]!.id, quantity: 3 }],
-        "Cara",
-        "cara@example.com",
-      );
+      const { door, attendee } = await partyOfThree();
       const body = {
         operation_id: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b01",
         quantity: 1,
@@ -148,12 +155,7 @@ describeWithEnv(
     test("a fresh delivery of the same ticket still admits the next place", async () => {
       // The guard guards one delivery, not the ticket: the party's next
       // arrival is a new delivery with an id of its own, and it gets in.
-      const door = await groupDoor(1);
-      const attendee = await bookTestAttendee(
-        [{ listingId: door.members[0]!.id, quantity: 3 }],
-        "Cara",
-        "cara@example.com",
-      );
+      const { door, attendee } = await partyOfThree();
       const tokenHash = await sha256Hex(attendee.ticket_token);
 
       const first = await scanAtDoor(door.group.id, {

@@ -10,9 +10,11 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { settings } from "#db/settings.ts";
-import { todayInTz } from "#shared/timezone.ts";
-import { groupDoor, scanAtDoor } from "#test/features/admin/scanner/support.ts";
+import {
+  groupDoor,
+  refundedOrderWithALiveOrder,
+  scanAtDoor,
+} from "#test/features/admin/scanner/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { orphanAttendeeBooking } from "#test-utils/db-fault.ts";
 import {
@@ -21,8 +23,6 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { refundThroughLedger } from "#test-utils/ledger.ts";
-import { insertSecondBookingRow } from "#test-utils/logistics.ts";
 
 /** An orphaned booking: a real token whose only line points at a listing
  * that no longer resolves, so the door's scope matches none of its rows and
@@ -221,17 +221,9 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
   test("a door action leaves a merged attendee's refunded order untouched", async () => {
     // One attendee, two orders on the same listing: the first is refunded
     // (the state an attendee merge supports), the second still waits.
-    const door = await groupDoor(1);
-    const attendee = await bookTestAttendee(
-      [door.members[0]!.id],
+    const { door, attendee } = await refundedOrderWithALiveOrder(
       "Merged Person",
       "merged@example.com",
-    );
-    await refundThroughLedger(attendee.id, door.members[0]!.id);
-    await insertSecondBookingRow(
-      attendee.id,
-      door.members[0]!.id,
-      todayInTz(settings.timezone),
     );
 
     const answer = await scanAtDoor(door.group.id, {

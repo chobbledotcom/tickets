@@ -10,10 +10,9 @@ import {
   deliverAtListingDoor,
   deliverSavedFromAnotherDoor,
   deliverUnknownCode,
-  expectNoTicketCodesIn,
   expectSavedCodesFor,
+  expectSavedList,
   expectSavedListEmpty,
-  expectSavedListNamesNobody,
   placesAdmittedFor,
   redeliverAtGroupDoor,
   redeliverAtListingDoor,
@@ -30,6 +29,24 @@ import {
 /** What the door said about the last saved check-in it delivered. */
 const savedAnswer = (world: TicketsWorld) =>
   requiredWorldValue(world.doorAnswer, "the saved check-in's answer");
+
+/** No ticket the story holds appears in the saved list in any readable
+ * form. */
+const expectNoTicketCodesIn = (world: TicketsWorld, door: string): void =>
+  expectSavedList(world, door, (saved) => {
+    for (const name of world.things.names("ticket")) {
+      expect(saved.body).not.toContain(world.things.require("ticket", name));
+    }
+  });
+
+/** The saved list's whole body is the sorted one-way codes and nothing
+ * else, so no guest name or address can hide anywhere in it. */
+const expectSavedListNamesNobody = (world: TicketsWorld, door: string): void =>
+  expectSavedList(world, door, (saved) =>
+    expect(saved.body).toMatch(
+      /^\{"hashes":\["[0-9a-f]{64}"(?:,"[0-9a-f]{64}")*\]\}$/,
+    ),
+  );
 
 When(
   "the {word} door saves its tickets for offline reading",
@@ -143,8 +160,8 @@ Then(
 
 Then(
   "the {word} door's saved list is empty",
-  function (this: TicketsWorld, door: string): void {
-    expectSavedListEmpty(this, door);
+  async function (this: TicketsWorld, door: string): Promise<void> {
+    await expectSavedListEmpty(this, door);
   },
 );
 

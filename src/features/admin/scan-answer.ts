@@ -355,23 +355,8 @@ export const processScan = async (
   if (operationId instanceof Response) return operationId;
   const privateKey = await scannerPrivateKey();
   if (privateKey instanceof Response) return privateKey;
-  // A camera read carries the ticket token it decoded. A queued check-in
-  // replaying after an outage carries only the token's digest — the device
-  // never held the token. A manual pick carries the attendee id its roster
-  // option holds.
   const cameraRead = typeof body.token === "string";
-  const hashRead = typeof body.token_hash === "string";
-  const load = cameraRead
-    ? async (): Promise<AttendeeWithBookings | null> =>
-        (await getAttendeesByTokens([body.token as string]))[0] ?? null
-    : hashRead
-      ? loadByTokenHash(body.token_hash as string, scope, privateKey)
-      : typeof body.attendee_id === "number"
-        ? async (): Promise<AttendeeWithBookings | null> =>
-            (
-              await getAttendeesByIdsWithBookings([body.attendee_id as number])
-            ).get(body.attendee_id as number) ?? null
-        : null;
+  const load = attendeeLoader(scope, body, privateKey);
   if (!load) return apiErrorResponse("Missing token");
   // A camera token is the credential the guest presented. The answer can
   // name a wrong door, and the credential is what force overrides. A
@@ -391,6 +376,32 @@ export const processScan = async (
     !cameraRead,
     operationId,
   );
+};
+
+/** How a scan request names its attendee. A camera read carries the ticket
+ * token it decoded. A queued check-in replaying after an outage carries
+ * only the token's digest — the device never held the token. A manual pick
+ * carries the attendee id its roster option holds. A request that names
+ * none of the three returns no loader. */
+const attendeeLoader = (
+  scope: ScanScope,
+  body: Record<string, unknown>,
+  privateKey: CryptoKey,
+): (() => Promise<AttendeeWithBookings | null>) | null => {
+  if (typeof body.token === "string") {
+    return async (): Promise<AttendeeWithBookings | null> =>
+      (await getAttendeesByTokens([body.token as string]))[0] ?? null;
+  }
+  if (typeof body.token_hash === "string") {
+    return loadByTokenHash(body.token_hash as string, scope, privateKey);
+  }
+  if (typeof body.attendee_id === "number") {
+    return async (): Promise<AttendeeWithBookings | null> =>
+      (await getAttendeesByIdsWithBookings([body.attendee_id as number])).get(
+        body.attendee_id as number,
+      ) ?? null;
+  }
+  return null;
 };
 
 /** Resolve a queued check-in's token digest against the door's own tickets.

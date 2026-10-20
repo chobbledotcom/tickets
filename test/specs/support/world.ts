@@ -46,6 +46,13 @@ export type ActOnOnePerson = (
   world: TicketsWorld,
   who: string,
 ) => Promise<void>;
+/** A step about one person at one thing the story keeps — a ticket holder
+ * and the listing (or door) their ticket is for. */
+export type ActOnOnePersonAtOneThing = (
+  world: TicketsWorld,
+  who: string,
+  name: string,
+) => Promise<void>;
 export type ActOnSomeMoney = (
   world: TicketsWorld,
   amount: string,

@@ -6,9 +6,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { sha256Hex } from "#crypto/sha256.ts";
-import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { todayInTz } from "#shared/timezone.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookTestAttendee,
@@ -17,14 +15,17 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { refundThroughLedger } from "#test-utils/ledger.ts";
-import { insertSecondBookingRow } from "#test-utils/logistics.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
   createTestEditorSession,
   requestAsSession,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import { groupDoor, scanAtDoor } from "./support.ts";
+import {
+  groupDoor,
+  refundedOrderWithALiveOrder,
+  scanAtDoor,
+} from "./support.ts";
 
 /** The door's token list, fetched the way the scanner page fetches it. */
 const tokensAsScanner = async (
@@ -38,6 +39,19 @@ const tokensAsScanner = async (
     json: (await response.json()) as Record<string, unknown>,
     status: response.status,
   };
+};
+
+/** The saved list a scanner session reads for a group door. Unasserted:
+ * each test names the hashes it expects. */
+const savedGroupHashes = async (
+  groupId: number,
+): Promise<Record<string, unknown>> => {
+  const { cookie } = await createTestScannerSession();
+  const { json } = await tokensAsScanner(
+    `/admin/groups/${groupId}/scan-tokens`,
+    cookie,
+  );
+  return json;
 };
 
 describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
@@ -154,12 +168,7 @@ describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
       "ada@example.com",
     );
     await refundThroughLedger(attendee.id, door.members[0]!.id);
-    const { cookie } = await createTestScannerSession();
-
-    const { json } = await tokensAsScanner(
-      `/admin/groups/${door.group.id}/scan-tokens`,
-      cookie,
-    );
+    const json = await savedGroupHashes(door.group.id);
     // The door's own scan turns a refunded ticket away, so the saved list
     // must never tell the door the ticket looks legitimate.
     expect(json).toEqual({ hashes: [] });
@@ -173,34 +182,16 @@ describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
       "ghost@example.com",
       0,
     );
-    const { cookie } = await createTestScannerSession();
-
-    const { json } = await tokensAsScanner(
-      `/admin/groups/${door.group.id}/scan-tokens`,
-      cookie,
-    );
+    const json = await savedGroupHashes(door.group.id);
     expect(json).toEqual({ hashes: [] });
   });
 
   test("a ticket with a refunded order and a live order is saved once", async () => {
-    const door = await groupDoor(1);
-    const attendee = await bookTestAttendee(
-      [door.members[0]!.id],
+    const { door, attendee } = await refundedOrderWithALiveOrder(
       "Merged",
       "merged@example.com",
     );
-    await refundThroughLedger(attendee.id, door.members[0]!.id);
-    await insertSecondBookingRow(
-      attendee.id,
-      door.members[0]!.id,
-      todayInTz(settings.timezone),
-    );
-    const { cookie } = await createTestScannerSession();
-
-    const { json } = await tokensAsScanner(
-      `/admin/groups/${door.group.id}/scan-tokens`,
-      cookie,
-    );
+    const json = await savedGroupHashes(door.group.id);
     // The live order still gets in, so its one digest travels.
     expect(json).toEqual({ hashes: [await sha256Hex(attendee.ticket_token)] });
   });
@@ -218,12 +209,7 @@ describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
       token: attendee.ticket_token,
     });
     expect(used.json.status).toBe("checked_in");
-    const { cookie } = await createTestScannerSession();
-
-    const { json } = await tokensAsScanner(
-      `/admin/groups/${door.group.id}/scan-tokens`,
-      cookie,
-    );
+    const json = await savedGroupHashes(door.group.id);
     expect(json).toEqual({ hashes: [await sha256Hex(attendee.ticket_token)] });
   });
 

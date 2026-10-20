@@ -2,9 +2,14 @@
  * and the exact request the page's own script would send. */
 
 import { expect } from "@std/expect";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
+import { todayInTz } from "#shared/timezone.ts";
+import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { refundThroughLedger } from "#test-utils/ledger.ts";
+import { insertSecondBookingRow } from "#test-utils/logistics.ts";
 import {
   adminGet,
   createTestEditorSession,
@@ -35,6 +40,24 @@ export const groupDoor = async (
     );
   }
   return { group, members };
+};
+
+/** One attendee holds two orders on the door's first listing. The first
+ * order's money was given back, and the second order still waits. This is
+ * the order shape an attendee merge leaves behind. */
+export const refundedOrderWithALiveOrder = async (
+  who: string,
+  email: string,
+) => {
+  const door = await groupDoor(1);
+  const attendee = await bookTestAttendee([door.members[0]!.id], who, email);
+  await refundThroughLedger(attendee.id, door.members[0]!.id);
+  await insertSecondBookingRow(
+    attendee.id,
+    door.members[0]!.id,
+    todayInTz(settings.timezone),
+  );
+  return { attendee, door };
 };
 
 /** A group-door scan as the page's own script would send it. The JSON body

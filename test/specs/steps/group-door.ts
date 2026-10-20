@@ -3,7 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
-import { ticketOf } from "#test/specs/support/door.ts";
+import { personWithTicketToo, ticketOf } from "#test/specs/support/door.ts";
 import {
   editPageKeepsEveryListingBoxTicked,
   groupDoorChecksInAll,
@@ -11,7 +11,6 @@ import {
   groupDoorWithTiers,
   peopleOfferedAtGroupDoor,
   personWithMultiTierTicket,
-  personWithTierTicket,
   showTicketAtGroupDoor,
 } from "#test/specs/support/group-door.ts";
 import {
@@ -40,7 +39,7 @@ Given(
 Given(
   "{word} has a ticket for the {word} tier",
   function (this: TicketsWorld, who: string, tier: string): Promise<void> {
-    return personWithTierTicket(this, who, tier);
+    return personWithTicketToo(this, who, tier);
   },
 );
 

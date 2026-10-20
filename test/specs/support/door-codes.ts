@@ -11,15 +11,17 @@
 import { expect } from "@std/expect";
 import * as v from "valibot";
 import { sha256Hex } from "#crypto/sha256.ts";
-import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { handleRequest } from "#routes";
 import { expectAccepted, openAdminPage } from "#test/specs/support/browser.ts";
 import {
+  attendeeOf,
   cookiesOf,
   type DoorAnswer,
-  doorScanRequest,
   type DoorPaths,
+  doorScanRequest,
+  listingDoorPaths,
   listingPath,
+  type PathsOfDoor,
   readDoorAnswer,
   ticketOf,
 } from "#test/specs/support/door.ts";
@@ -52,17 +54,29 @@ const listRequest = (path: string, browser: TestBrowser): Request =>
     headers: { cookie: cookiesOf(browser), host: "localhost" },
   });
 
+/** Send one request from the door's own scanner page: the page is opened
+ * first, so its cookies — and where the request changes something, its
+ * one-use code — are the request's own. */
+const fromDoorPage = async (
+  world: TicketsWorld,
+  paths: DoorPaths,
+  request: (browser: TestBrowser) => Request,
+): Promise<Response> => {
+  const browser = await openAdminPage(world, paths.page);
+  return handleRequest(request(browser));
+};
+
 /** Save one door's list the way the door's own page saves it on load. The
  * list is kept under the door's name, raw body and all, so the story can
  * check what travelled. */
 const saveDoorCodes = async (
   world: TicketsWorld,
   doorName: string,
-  pagePath: string,
-  savePath: string,
+  paths: DoorPaths,
 ): Promise<void> => {
-  const browser = await openAdminPage(world, pagePath);
-  const response = await handleRequest(listRequest(savePath, browser));
+  const response = await fromDoorPage(world, paths, (browser) =>
+    listRequest(`${paths.scan}-tokens`, browser),
+  );
   const body = await expectAccepted(response).text();
   const hashes = v.parse(savedListBody, JSON.parse(body)).hashes;
   world.things.remember("saved_codes", doorName, { body, hashes });
@@ -73,24 +87,14 @@ export const saveListingDoorCodes = (
   world: TicketsWorld,
   listing: string,
 ): Promise<void> =>
-  saveDoorCodes(
-    world,
-    listing,
-    listingPath(world, listing, "scanner"),
-    listingPath(world, listing, "scan-tokens"),
-  );
+  saveDoorCodes(world, listing, listingDoorPaths(world, listing));
 
 /** Save the group door's list, named the way the story names the group. */
 export const saveGroupDoorCodes = (
   world: TicketsWorld,
   groupName: string,
 ): Promise<void> =>
-  saveDoorCodes(
-    world,
-    groupName,
-    groupDoorPaths(world, groupName).page,
-    `${groupDoorPaths(world, groupName).scan}-tokens`,
-  );
+  saveDoorCodes(world, groupName, groupDoorPaths(world, groupName));
 
 /** Reach for one listing door's list in one browser, and answer the status
  * the site answers with — the way somebody without door duties reaches for
@@ -125,8 +129,7 @@ const postSavedDelivery = async (
   paths: DoorPaths,
   delivery: SavedDelivery,
 ): Promise<DoorAnswer> => {
-  const browser = await openAdminPage(world, paths.page);
-  const response = await handleRequest(
+  const response = await fromDoorPage(world, paths, (browser) =>
     doorScanRequest(paths.scan, browser, {
       operation_id: delivery.operationId,
       token_hash: delivery.code,
@@ -136,22 +139,14 @@ const postSavedDelivery = async (
   return readDoorAnswer(response);
 };
 
-/** Deliver one saved check-in at a door. The code must be on the list of the
- * door the story names, so a delivery no door saved fails here rather than
- * testing nothing. */
-const deliverSavedCheckIn = async (
+/** Send one queued delivery through the door's own page, and keep it as the
+ * delivery a retry sends once more. */
+const deliverAndRemember = async (
   world: TicketsWorld,
   paths: DoorPaths,
-  listDoorName: string,
-  who: string,
+  code: string,
   places?: number,
 ): Promise<DoorAnswer> => {
-  const code = await codeFor(world, who);
-  if (!savedCodesAt(world, listDoorName).hashes.includes(code)) {
-    throw new Error(
-      `${listDoorName} saved no one-way code for ${who}'s ticket`,
-    );
-  }
   const delivery: SavedDelivery = {
     code,
     operationId: crypto.randomUUID(),
@@ -161,150 +156,119 @@ const deliverSavedCheckIn = async (
   return postSavedDelivery(world, paths, delivery);
 };
 
-/** Deliver one person's saved check-in at the listing door. */
-export const deliverAtListingDoor = (
+/** The code one door saved for one person, checked against that door's own
+ * saved list. A code no door saved fails here rather than testing nothing. */
+const savedCodeFor = async (
   world: TicketsWorld,
-  listing: string,
+  listDoorName: string,
   who: string,
-  places?: number,
-): Promise<DoorAnswer> =>
-  deliverSavedCheckIn(
-    world,
-    {
-      page: listingPath(world, listing, "scanner"),
-      scan: listingPath(world, listing, "scan"),
-    },
-    listing,
-    who,
-    places,
-  );
+): Promise<string> => {
+  const code = await codeFor(world, who);
+  if (!savedCodesAt(world, listDoorName).hashes.includes(code)) {
+    throw new Error(
+      `${listDoorName} saved no one-way code for ${who}'s ticket`,
+    );
+  }
+  return code;
+};
+
+/** Deliver one person's saved check-in at one door the story names: the
+ * delivery must be on that same door's saved list. */
+const deliverAt =
+  (pathsOf: PathsOfDoor) =>
+  async (
+    world: TicketsWorld,
+    doorName: string,
+    who: string,
+    places?: number,
+  ): Promise<DoorAnswer> =>
+    deliverAndRemember(
+      world,
+      pathsOf(world, doorName),
+      await savedCodeFor(world, doorName, who),
+      places,
+    );
+
+/** Deliver one person's saved check-in at the listing door. */
+export const deliverAtListingDoor = deliverAt(listingDoorPaths);
 
 /** Deliver one person's saved check-in at the group door. */
-export const deliverAtGroupDoor = (
+export const deliverAtGroupDoor = deliverAt(groupDoorPaths);
+
+/** Deliver one check-in by its one-way code at the listing door, and keep
+ * it as the delivery a retry sends once more. */
+const deliverSavedCheckIn = (
   world: TicketsWorld,
-  groupName: string,
-  who: string,
-  places?: number,
+  listing: string,
+  code: string,
 ): Promise<DoorAnswer> =>
-  deliverSavedCheckIn(
-    world,
-    groupDoorPaths(world, groupName),
-    groupName,
-    who,
-    places,
-  );
+  deliverAndRemember(world, listingDoorPaths(world, listing), code);
 
 /** Deliver the saved check-in one named door stored for one person, at the
  * listing door: the check-in another door's device queued. */
-export const deliverSavedFromAnotherDoor = (
+export const deliverSavedFromAnotherDoor = async (
   world: TicketsWorld,
   listing: string,
   savedAt: string,
   who: string,
 ): Promise<DoorAnswer> =>
-  deliverSavedCheckIn(
-    world,
-    {
-      page: listingPath(world, listing, "scanner"),
-      scan: listingPath(world, listing, "scan"),
-    },
-    savedAt,
-    who,
-  );
+  deliverSavedCheckIn(world, listing, await savedCodeFor(world, savedAt, who));
 
 /** Deliver a saved check-in whose code no door saved: a queued check-in the
  * site cannot match to anybody. */
 export const deliverUnknownCode = async (
   world: TicketsWorld,
   listing: string,
-): Promise<DoorAnswer> => {
-  const delivery: SavedDelivery = {
-    code: await sha256Hex("a one-way code no ticket holds"),
-    operationId: crypto.randomUUID(),
-  };
-  world.things.remember("saved_delivery", "last", delivery);
-  return postSavedDelivery(
-    world,
-    {
-      page: listingPath(world, listing, "scanner"),
-      scan: listingPath(world, listing, "scan"),
-    },
-    delivery,
-  );
-};
-
-/** Send the last saved delivery once more: the retry a device makes when its
- * first answer never arrived. */
-const redeliverLast = (
-  world: TicketsWorld,
-  paths: DoorPaths,
 ): Promise<DoorAnswer> =>
-  postSavedDelivery(
+  deliverSavedCheckIn(
     world,
-    paths,
-    world.things.require("saved_delivery", "last"),
+    listing,
+    await sha256Hex("a one-way code no ticket holds"),
   );
 
-export const redeliverAtListingDoor = (
-  world: TicketsWorld,
-  listing: string,
-): Promise<DoorAnswer> =>
-  redeliverLast(world, {
-    page: listingPath(world, listing, "scanner"),
-    scan: listingPath(world, listing, "scan"),
-  });
+/** Send the last saved delivery once more, at one door the story names: the
+ * retry a device makes when its first answer never arrived. */
+const redeliverAt =
+  (pathsOf: PathsOfDoor) =>
+  (world: TicketsWorld, doorName: string): Promise<DoorAnswer> =>
+    postSavedDelivery(
+      world,
+      pathsOf(world, doorName),
+      world.things.require("saved_delivery", "last"),
+    );
 
-export const redeliverAtGroupDoor = (
-  world: TicketsWorld,
-  groupName: string,
-): Promise<DoorAnswer> =>
-  redeliverLast(world, groupDoorPaths(world, groupName));
+export const redeliverAtListingDoor = redeliverAt(listingDoorPaths);
+
+export const redeliverAtGroupDoor = redeliverAt(groupDoorPaths);
 
 /** The places the door's stored rows say were admitted for one person. */
 export const placesAdmittedFor = async (
   world: TicketsWorld,
   who: string,
 ): Promise<number> => {
-  const [attendee] = await getAttendeesByTokens([ticketOf(world, who)]);
-  if (!attendee) throw new Error(`${who}'s ticket is not on any booking`);
-  const rows = await storedCheckinRows(attendee.id);
+  const rows = await storedCheckinRows((await attendeeOf(world, who)).id);
   return rows.reduce((sum: number, row) => sum + row.checked_in, 0);
 };
 
+/** Assert on one door's saved list: the body the door saved, and the codes
+ * it holds. The story names the part of it it checks. */
+export const expectSavedList = (
+  world: TicketsWorld,
+  door: string,
+  holds: (saved: { body: string; hashes: string[] }) => void,
+): void => holds(savedCodesAt(world, door));
+
 /** The saved list holds exactly the one-way codes of the tickets the story
- * names — no more, no fewer. */
+ * names — no more, no fewer. No names at all means the door saved an empty
+ * list. */
 export const expectSavedCodesFor = async (
   world: TicketsWorld,
   door: string,
-  first: string,
-  second: string,
+  ...who: string[]
 ): Promise<void> => {
-  const codes = await Promise.all(
-    [first, second].map((who) => codeFor(world, who)),
-  );
-  expect(savedCodesAt(world, door).hashes).toEqual(codes.sort());
-};
-
-/** No ticket the story holds appears in the saved list in any readable
- * form. */
-export const expectNoTicketCodesIn = (
-  world: TicketsWorld,
-  door: string,
-): void => {
-  const saved = savedCodesAt(world, door);
-  for (const name of world.things.names("ticket")) {
-    expect(saved.body).not.toContain(world.things.require("ticket", name));
-  }
-};
-
-/** The saved list's whole body is the sorted one-way codes and nothing
- * else, so no guest name or address can hide anywhere in it. */
-export const expectSavedListNamesNobody = (
-  world: TicketsWorld,
-  door: string,
-): void => {
-  expect(savedCodesAt(world, door).body).toMatch(
-    /^\{"hashes":\["[0-9a-f]{64}"(?:,"[0-9a-f]{64}")*\]\}$/,
+  const codes = await Promise.all(who.map((name) => codeFor(world, name)));
+  expectSavedList(world, door, (saved) =>
+    expect(saved.hashes).toEqual(codes.sort()),
   );
 };
 
@@ -312,6 +276,4 @@ export const expectSavedListNamesNobody = (
 export const expectSavedListEmpty = (
   world: TicketsWorld,
   door: string,
-): void => {
-  expect(savedCodesAt(world, door).hashes).toEqual([]);
-};
+): Promise<void> => expectSavedCodesFor(world, door);
