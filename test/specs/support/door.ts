@@ -60,10 +60,14 @@ const listingPath = (
   page: string,
 ): string => recordPath("listing", listingIdNamed(world, listing), page);
 
-/** What the organiser decides about a ticket the door queried. */
+/** What the organiser decides about a ticket the door queried. A queued
+ * check-in replaying from the door's own device names its person by the
+ * token digest the device stored, so `replayed` sends the digest instead of
+ * the ticket code. */
 export type DoorChoice = {
   confirmedTheirId?: boolean;
   letInAnyway?: boolean;
+  replayed?: boolean;
   tickets?: number;
 };
 
@@ -166,6 +170,16 @@ export const cookiesOf = (browser: TestBrowser): string =>
     .map(([name, value]) => `${name}=${value}`)
     .join("; ");
 
+/** The browser's own cookies and the one-use code off its page: what every
+ * door request carries, however it names the person. */
+export const doorRequestHeaders = (
+  browser: TestBrowser,
+): Record<string, string> => ({
+  cookie: cookiesOf(browser),
+  host: "localhost",
+  "x-csrf-token": codeOnPage(browser),
+});
+
 /** Send one scanned ticket to a door's JSON API, carrying one browser's own
  * cookies and the one-use code off that browser's page — the request the
  * door page's own script sends. Every door reader stands on this. */
@@ -178,7 +192,9 @@ export const sendDoorScan = async (
   const response = await handleRequest(
     new Request(`http://localhost${scanPath}`, {
       body: JSON.stringify({
-        token: ticket,
+        ...(choices.replayed === true
+          ? { token_hash: ticket }
+          : { token: ticket }),
         ...(choices.letInAnyway === undefined
           ? {}
           : { force: choices.letInAnyway }),
@@ -189,9 +205,7 @@ export const sendDoorScan = async (
       }),
       headers: {
         "content-type": "application/json",
-        cookie: cookiesOf(browser),
-        host: "localhost",
-        "x-csrf-token": codeOnPage(browser),
+        ...doorRequestHeaders(browser),
       },
       method: "POST",
     }),

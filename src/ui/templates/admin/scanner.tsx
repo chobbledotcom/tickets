@@ -191,6 +191,9 @@ export const adminScannerPage = (
             // The client knows the count. The hole reaches it intact.
             { count: "{count}" },
           )}
+          data-message-offline-scan-no-list={t(
+            "admin.scanner.offline_scan_no_list",
+          )}
           data-message-offline-scan-saved={t(
             "admin.scanner.offline_scan_saved",
           )}
@@ -199,6 +202,11 @@ export const adminScannerPage = (
           )}
           data-message-offline-send-failed={t(
             "admin.scanner.offline_send_failed",
+          )}
+          data-message-offline-sync-already-checked-in={t(
+            "admin.scanner.offline_sync_already_checked_in",
+            // The client knows the name. The hole reaches it intact.
+            { name: "{name}" },
           )}
           data-message-offline-toggle-off={t(
             "admin.scanner.offline_toggle_off",

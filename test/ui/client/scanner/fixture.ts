@@ -25,6 +25,7 @@ import { expect } from "@std/expect";
 import { afterEach } from "@std/testing/bdd";
 import type { Stub } from "@std/testing/mock";
 import { Window } from "happy-dom";
+import type { KeyValueStore } from "#src/ui/client/scanner-door-store.ts";
 import type { OfflineScanner } from "#src/ui/client/scanner-offline.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { createGlobalStash } from "#test-utils/happy-dom.ts";
@@ -128,7 +129,9 @@ const SCANNER_PAGE = `
     data-message-offline-queue-other="{count} check-ins waiting to send."
     data-message-offline-scan-saved="Saved ticket. The check-in will send when the connection is back."
     data-message-offline-scan-unknown="This ticket is not in the saved list. Go online to check it."
+    data-message-offline-scan-no-list="The saved ticket list is out of date or missing. Go online and reload the page to refresh it."
     data-message-offline-send-failed="Some check-ins did not send. They stay saved on this device."
+    data-message-offline-sync-already-checked-in="{name} was already checked in elsewhere."
     data-message-offline-toggle-off="Offline mode: off"
     data-message-offline-toggle-on="Offline mode: on"
     data-message-refunded="{name} has been refunded"
@@ -200,7 +203,10 @@ export const el = (document: Window["document"], id: string): HTMLElement => {
  * the scanner. */
 export const evaluateBundle = (): void => runBundleOnce();
 
-export const useScanner = (page: string = SCANNER_PAGE): ScannerHarness => {
+export const useScanner = (
+  page: string = SCANNER_PAGE,
+  storage: KeyValueStore,
+): ScannerHarness => {
   const window = new Window({ url: "http://localhost/" });
   const document = window.document;
   document.body.innerHTML = page;
@@ -209,6 +215,10 @@ export const useScanner = (page: string = SCANNER_PAGE): ScannerHarness => {
   // The offline shell listens for the online event on the page's window;
   // stashing it keeps that listener on this window and off the test global.
   stash.set("window", window);
+  // The door's offline store: one per suite, so the bundle's saved list and
+  // queue live in this suite's own storage and never touch the storage
+  // another test file's worker holds at the same time.
+  stash.set("localStorage", storage);
 
   runBundleOnce();
 
@@ -251,13 +261,22 @@ export const useScanner = (page: string = SCANNER_PAGE): ScannerHarness => {
 };
 
 /** The wiring both scanner suites share: one fresh page per test, and every
- * page torn down after it. Call inside a describe body. */
+ * page torn down after it. Call inside a describe body. The suite's storage
+ * is its own: one Map-backed store per suite, cleared between tests, so the
+ * door's saved list and queue never touch what another test file's worker
+ * holds at the same time. */
 export const useScannerSuite = (
   page: string = SCANNER_PAGE,
 ): (() => ScannerHarness) => {
+  const suiteStorage = new Map<string, string>();
+  const storage: KeyValueStore = {
+    getItem: (key) => suiteStorage.get(key) ?? null,
+    removeItem: (key) => void suiteStorage.delete(key),
+    setItem: (key, value) => void suiteStorage.set(key, value),
+  };
   const harnesses: ScannerHarness[] = [];
   const fresh = (): ScannerHarness => {
-    const h = useScanner(page);
+    const h = useScanner(page, storage);
     harnesses.push(h);
     return h;
   };
@@ -266,6 +285,7 @@ export const useScannerSuite = (
       h.restore();
       await h.cleanup();
     }
+    suiteStorage.clear();
   });
   return fresh;
 };

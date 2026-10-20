@@ -1,10 +1,11 @@
-/** The scanner's offline ticket list: the door's own tokens for the scanner
- * page to save on load. A door role reads its scope's list, a staff-only
- * role is refused before the door is looked up, and a "No check-in" listing
- * hands out nothing. */
+/** The scanner's offline ticket list: the door's own tickets for the scanner
+ * page to save on load, answered only as SHA-256 digests. A door role reads
+ * its scope's list, a staff-only role is refused before the door is looked
+ * up, and a "No check-in" listing hands out nothing. */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { sha256Hex } from "#crypto/sha256.ts";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -35,7 +36,7 @@ const tokensAsScanner = async (
 };
 
 describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
-  test("a listing door's list carries its ticket tokens", async () => {
+  test("a listing door's list answers its tickets only as digests", async () => {
     const first = await createTestAttendeeWithToken("Pia", "pia@example.com", {
       name: "Quiz door",
     });
@@ -51,7 +52,13 @@ describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
       cookie,
     );
     expect(status).toBe(200);
-    expect(json).toEqual({ tokens: [first.token, second.token].sort() });
+    const digests = await Promise.all(
+      [first.token, second.token].map(sha256Hex),
+    );
+    expect(json).toEqual({ hashes: digests.sort() });
+    // The credential itself never leaves the server.
+    expect(JSON.stringify(json)).not.toContain(first.token);
+    expect(JSON.stringify(json)).not.toContain(second.token);
   });
 
   test("a listing with no tickets answers an empty list", async () => {
@@ -63,7 +70,7 @@ describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
       cookie,
     );
     expect(status).toBe(200);
-    expect(json).toEqual({ tokens: [] });
+    expect(json).toEqual({ hashes: [] });
   });
 
   test("an unknown listing answers 404", async () => {
@@ -128,7 +135,10 @@ describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
     expect(status).toBe(200);
     expect(quizToken).not.toBe(talkToken);
     expect(shopToken).toMatch(/^[0-9A-F]{10}$/);
-    expect(json).toEqual({ tokens: [quizToken, talkToken].sort() });
+    const digests = await Promise.all([quizToken, talkToken].map(sha256Hex));
+    expect(json).toEqual({ hashes: digests.sort() });
+    // No member token of any kind travels, the shop's included.
+    expect(JSON.stringify(json)).not.toContain(shopToken);
   });
 
   test("an unknown group answers 404", async () => {

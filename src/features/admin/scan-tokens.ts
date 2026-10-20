@@ -1,13 +1,14 @@
 /**
- * The scanner's offline ticket list: the plain ticket tokens of one door's
- * scope, for the scanner page to save on load. The tokens are the check-in
- * credential itself, so the list travels under the scan API's own auth. The
- * same door roles guard it, and it serves only the door the session works.
+ * The scanner's offline ticket list: the ticket tokens of one door's scope,
+ * answered as SHA-256 digests for the scanner page to save on load. The
+ * device caches digests only. It never caches the token itself or a guest
+ * detail. A read of the device's storage hands over nothing that opens a
+ * door. The list travels under the scan API's own auth. The same door roles
+ * guard it, and it serves only the door the session works.
  */
 
-import { decryptAttendees } from "#db/attendees/pii.ts";
+import { sha256Hex } from "#crypto/sha256.ts";
 import { getGroupById } from "#db/groups.ts";
-import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { unique } from "#fp";
 import { SCANNER_JSON, withAuth } from "#routes/auth.ts";
@@ -15,26 +16,25 @@ import type { IdRouteHandler } from "#routes/entity.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { Group } from "#types";
 import {
+  doorAttendees,
   groupScope,
   scanNotFoundResponse,
   scannerPrivateKey,
 } from "./scan-answer.ts";
 
 /** Answer the door's token list: every attendee of the scope's listings,
- * decrypted, tokens out, one entry per token. The list is sorted, so the
- * same door always answers the same list. */
+ * decrypted, each token answered only as its SHA-256 digest. The list is
+ * sorted, so the same door always answers the same list. */
 const tokenListResponse = async (
   listingIds: readonly number[],
 ): Promise<Response> => {
   const privateKey = await scannerPrivateKey();
   if (privateKey instanceof Response) return privateKey;
-  const attendees = await decryptAttendees(
-    await getAttendeesByListingIds([...listingIds]),
-    privateKey,
+  const attendees = await doorAttendees(listingIds, privateKey);
+  const hashes = await Promise.all(
+    unique(attendees.map((attendee) => attendee.ticket_token)).map(sha256Hex),
   );
-  return jsonResponse({
-    tokens: unique(attendees.map((attendee) => attendee.ticket_token)).sort(),
-  });
+  return jsonResponse({ hashes: hashes.sort() });
 };
 
 /** One authed GET of a door's token list: the scan API's guard runs, then

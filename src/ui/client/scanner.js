@@ -1,11 +1,8 @@
 // Browser-only code - bundled with jsQR by scripts/build-edge.ts
 import jsQR from "jsqr";
 import { SCANNER_SERVICE_WORKER_PATH } from "#shared/asset-paths.ts";
-import {
-  interpolate,
-  setupOfflineScanner,
-  strictScannerPost,
-} from "./scanner-offline.ts";
+import { interpolate, strictScannerPost } from "./scanner-door-store.ts";
+import { setupOfflineScanner } from "./scanner-offline.ts";
 import { showQuantitySelect } from "./quantity-select.ts";
 import { showConfirm } from "./confirm-dialog.ts";
 
@@ -27,8 +24,8 @@ const extractToken = (data) => {
 
 /** POST to scan API — the page names it door it posts to (one listing or a
  * whole group), so the same client serves both. */
-const postScan = async (scanPath, token, csrfToken, { force, idVerified, quantity } = {}) => {
-  const body = { token };
+const postScan = async (scanPath, token, csrfToken, { force, idVerified, quantity } = {}, asHash = false) => {
+  const body = asHash ? { token_hash: token } : { token };
   if (force) body.force = true;
   if (idVerified) body.id_verified = true;
   if (quantity) body.quantity = quantity;
@@ -44,6 +41,11 @@ const postScan = async (scanPath, token, csrfToken, { force, idVerified, quantit
 
   return res.json();
 };
+
+/** The POST a replay runs: it names the person by the token digest the
+ * device stored, because the device never held the token itself. */
+const postScanHash = (scanPath, tokenHash, csrfToken, choices) =>
+  postScan(scanPath, tokenHash, csrfToken, choices, true);
 
 /** The scan POST a replay trusts: only real scan answers pass, so a login
  * page or a bare error can never settle a queued check-in. */
@@ -200,17 +202,31 @@ const admitScan = async (scanPath, token, csrfToken, statusEl, messages, post = 
   }
 };
 
-/** One scan, wherever the door is working. Offline, the scan reads the
- * saved list and queues. Online, the scan settles with the server, and a
- * send that cannot land falls back to the saved list. */
-const dispatchScan = (offline, scanPath, token, csrfToken, statusEl, messages) => {
-  if (offline.routeScan() === "offline") {
-    offline.scan(token);
-    return Promise.resolve();
+/** One scan, wherever the door is working. Offline mode routes every scan
+ * to the saved list and queues. Online, the scan settles with the server.
+ * A send that cannot land settles offline when the switch sent the door
+ * offline meanwhile. A door working online says so the way it always has. */
+const dispatchScan = async (offline, scanPath, token, csrfToken, statusEl, messages) => {
+  /** The door takes one scan without the server. The saved list takes it
+   * while the door works offline. A door working online reports the send
+   * that could not land. */
+  const settleOffline = async () => {
+    if (offline.routeScan() === "offline") {
+      await offline.scan(token);
+    } else {
+      showStatus(statusEl, getMessage(messages, "messageNetworkError", "Network error"), "error");
+    }
+  };
+  if (offline.routeScan() !== "offline") {
+    try {
+      await admitScan(scanPath, token, csrfToken, statusEl, messages, offlinePost);
+      return;
+    } catch {
+      // A send that cannot land settles offline when the door went offline
+      // meanwhile, and reports otherwise. The settle below is that choice.
+    }
   }
-  return admitScan(scanPath, token, csrfToken, statusEl, messages, offlinePost)
-    .then(() => offline.noteScanSent(token))
-    .catch(() => offline.scanAfterFailedSend(token));
+  await settleOffline();
 };
 
 /** Main scanner loop */
@@ -308,10 +324,10 @@ const init = () => {
   document.addEventListener("pagehide", stopCamera);
 
   scannerOffline = setupOfflineScanner({
-    admitOne: (token) =>
-      admitScan(scanPath, token, csrfToken, statusEl, messages, offlinePost),
+    admitOne: (tokenHash, post, messages) =>
+      admitScan(scanPath, tokenHash, csrfToken, statusEl, messages, post),
     container: scannerContainer,
-    post: postScan,
+    post: postScanHash,
     serviceWorkerPath: SCANNER_SERVICE_WORKER_PATH,
     showStatus,
     statusEl,

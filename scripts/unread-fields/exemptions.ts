@@ -411,6 +411,13 @@ const exactExemptions = exactFieldExemptions([
     ["amount", "payment_intent"],
     stripeReason,
   ),
+  exactFieldsFrom("src/ui/client/scanner-offline.ts")(
+    [{ name: "OfflineScanner" }],
+    ["replaying", "routeScan", "scan"],
+    dynamicReason(
+      "the scanner page's hand-written bundle src/ui/client/scanner.js calls each method on the object setupOfflineScanner returns; the bundle is JavaScript outside the type-checked program",
+    ),
+  ),
 ]);
 
 export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [

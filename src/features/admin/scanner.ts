@@ -2,7 +2,6 @@ import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAllGroupNames, getGroupById } from "#db/groups.ts";
-import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { getListingPickerNames } from "#db/listings/catalog.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { filter, groupToMap, sumOf } from "#fp";
@@ -23,6 +22,7 @@ import {
 } from "#templates/admin/scanner.tsx";
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
 import {
+  doorAttendees,
   groupScope,
   listingScope,
   processScan,
@@ -104,10 +104,7 @@ const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(
 )(pageGuardFor(adminDestination("groupScanner")))(async (group, session) => {
   const privateKey = await requireRequestPrivateKey();
   const scope = await groupScope(group);
-  const attendees = await decryptAttendees(
-    await getAttendeesByListingIds([...scope.listingIds]),
-    privateKey,
-  );
+  const attendees = await doorAttendees([...scope.listingIds], privateKey);
   // A door that spans several listings names the listing each place is for.
   // A one-listing door's own page title already says it.
   const listingNames =
