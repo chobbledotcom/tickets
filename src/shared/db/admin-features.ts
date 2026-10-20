@@ -15,6 +15,7 @@ import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import {
   type BooleanJsonField,
   booleanJsonField,
+  type WhenClause,
 } from "#db/settings/json-field.ts";
 import { syncStoredSetting } from "#db/settings/raw-writes.ts";
 import { setSnapshotField } from "#db/settings/snapshot.ts";
@@ -92,9 +93,8 @@ export const getAdminFeatureUsage = async (): Promise<EnabledFeatures> => {
 const featureWriteStatement = (
   key: AdminFeatureKey,
   enabled: boolean,
-  whenSql: string,
-  whenArgs: readonly string[] = [],
-): SqlStatement => featureField(key, enabled).statement(whenSql, whenArgs);
+  when: WhenClause,
+): SqlStatement => featureField(key, enabled).statement(when);
 
 const syncFeatureSetting = (stored: string): void => {
   syncStoredSetting(CONFIG_KEYS.ENABLED_FEATURES, (values) =>
@@ -109,7 +109,7 @@ const writeAdminFeatureEnabled = async (
 ): Promise<boolean> => {
   const inUseSql = FEATURES_BY_KEY[key].inUseSql;
   const stored = await featureField(key, enabled).write(
-    !enabled && inUseSql ? `NOT (${inUseSql})` : "TRUE",
+    !enabled && inUseSql ? () => `NOT (${inUseSql})` : () => "TRUE",
     parseEnabledFeatures,
   );
   if (stored === null) return false;
@@ -184,7 +184,7 @@ const logisticsDisableStatements = (
   statements.push(
     requireSettingCondition(`NOT (${FEATURES_BY_KEY.logistics.inUseSql})`),
   );
-  statements.push(featureWriteStatement("logistics", false, "TRUE"));
+  statements.push(featureWriteStatement("logistics", false, () => "TRUE"));
   statements.push(
     requireSettingCondition(`EXISTS (
       SELECT 1 FROM settings

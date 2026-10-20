@@ -18,6 +18,7 @@ import {
   isIpLockedOut,
   makeAttemptRecorder,
 } from "#db/attempt-lockout.ts";
+import type { SqlParameter } from "#db/numbered-statement.ts";
 import {
   MAX_TOKEN_404S,
   TOKEN_LOCKOUT_MS,
@@ -27,35 +28,16 @@ import { nowMs } from "#shared/now.ts";
 
 /* jscpd:ignore-end */
 
-/** The numbered parameters every fragment below shares:
- *  ?1 hashed IP · ?2 this request's tokens as a JSON array · ?3 the distinct-
- *  token limit · ?4 the lockout deadline · ?5 now · ?6 the window length. */
-const IP = "?1";
-const NEW_TOKENS = "?2";
-const TOKEN_LIMIT = "?3";
-const LOCK_DEADLINE = "?4";
-const NOW = "?5";
-const WINDOW_MS = "?6";
-
-/** The stored tokens that still count: the saved set while the window is
- * live, an empty set once the window has tumbled. */
-const LIVE_TOKENS = `CASE
-  WHEN ${NOW} - token_attempts.window_start > ${WINDOW_MS} THEN '[]'
-  ELSE token_attempts.recent_tokens
-END`;
-
-/** The live tokens and this request's tokens as one set (UNION removes
- * duplicates, so retries of a known token never grow the set). */
-const UNION_TOKENS = `(
-  SELECT value FROM json_each(${LIVE_TOKENS})
-  UNION
-  SELECT value FROM json_each(${NEW_TOKENS})
-) AS hashedToken`;
-
-const MERGED_COUNT = `(SELECT count(*) FROM ${UNION_TOKENS})`;
-const MERGED_JSON = `(SELECT json_group_array(hashedToken.value) FROM ${UNION_TOKENS})`;
-
-const LOCK_IS_ACTIVE = `token_attempts.locked_until > ${NOW}`;
+/** The values one recorded failure carries. */
+interface TokenFailureValues {
+  hashedIp: string;
+  lockDeadline: number;
+  /** This request's tokens as a JSON array. */
+  newTokens: string;
+  now: number;
+  tokenLimit: number;
+  windowMs: number;
+}
 
 /** One statement tumbles the window, merges the new tokens, and applies the
  * lockout — all inside the database, so two failures arriving at once can
@@ -63,34 +45,65 @@ const LOCK_IS_ACTIVE = `token_attempts.locked_until > ${NOW}`;
  * stored set is cleared to "[]" (no fingerprint kept while locked). While a
  * lockout is active, both arms keep it: a straggling failure that queued
  * behind the locking one must not restart the count and drop the lock. */
-const RECORD_FAILURE_SQL = `
+const recordFailureStatement = (
+  bind: SqlParameter,
+  values: TokenFailureValues,
+): string => {
+  const ip = bind(values.hashedIp);
+  const newTokens = bind(values.newTokens);
+  const tokenLimit = bind(values.tokenLimit);
+  const lockDeadline = bind(values.lockDeadline);
+  const now = bind(values.now);
+  const windowMs = bind(values.windowMs);
+
+  /** The stored tokens that still count: the saved set while the window is
+   * live, an empty set once the window has tumbled. */
+  const liveTokens = `CASE
+    WHEN ${now} - token_attempts.window_start > ${windowMs} THEN '[]'
+    ELSE token_attempts.recent_tokens
+  END`;
+
+  /** The live tokens and this request's tokens as one set (UNION removes
+   * duplicates, so retries of a known token never grow the set). */
+  const unionTokens = `(
+    SELECT value FROM json_each(${liveTokens})
+    UNION
+    SELECT value FROM json_each(${newTokens})
+  ) AS hashedToken`;
+
+  const mergedCount = `(SELECT count(*) FROM ${unionTokens})`;
+  const mergedJson = `(SELECT json_group_array(hashedToken.value) FROM ${unionTokens})`;
+  const lockIsActive = `token_attempts.locked_until > ${now}`;
+
+  return `
   INSERT INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt)
   VALUES (
-    ${IP},
-    CASE WHEN json_array_length(${NEW_TOKENS}) >= ${TOKEN_LIMIT} THEN '[]' ELSE ${NEW_TOKENS} END,
-    CASE WHEN json_array_length(${NEW_TOKENS}) >= ${TOKEN_LIMIT} THEN ${LOCK_DEADLINE} ELSE NULL END,
-    ${NOW},
-    ${NOW}
+    ${ip},
+    CASE WHEN json_array_length(${newTokens}) >= ${tokenLimit} THEN '[]' ELSE ${newTokens} END,
+    CASE WHEN json_array_length(${newTokens}) >= ${tokenLimit} THEN ${lockDeadline} ELSE NULL END,
+    ${now},
+    ${now}
   )
   ON CONFLICT (ip) DO UPDATE SET
     recent_tokens = CASE
-      WHEN ${LOCK_IS_ACTIVE} THEN token_attempts.recent_tokens
-      WHEN ${MERGED_COUNT} >= ${TOKEN_LIMIT} THEN '[]'
-      ELSE ${MERGED_JSON}
+      WHEN ${lockIsActive} THEN token_attempts.recent_tokens
+      WHEN ${mergedCount} >= ${tokenLimit} THEN '[]'
+      ELSE ${mergedJson}
     END,
     locked_until = CASE
-      WHEN ${LOCK_IS_ACTIVE} THEN token_attempts.locked_until
-      WHEN ${MERGED_COUNT} >= ${TOKEN_LIMIT} THEN ${LOCK_DEADLINE}
+      WHEN ${lockIsActive} THEN token_attempts.locked_until
+      WHEN ${mergedCount} >= ${tokenLimit} THEN ${lockDeadline}
       ELSE NULL
     END,
     window_start = CASE
-      WHEN ${NOW} - token_attempts.window_start > ${WINDOW_MS} THEN ${NOW}
+      WHEN ${now} - token_attempts.window_start > ${windowMs} THEN ${now}
       ELSE token_attempts.window_start
     END,
-    last_attempt = ${NOW}
+    last_attempt = ${now}
   RETURNING locked_until`;
+};
 
-const recordFailure = makeAttemptRecorder(RECORD_FAILURE_SQL);
+const recordFailure = makeAttemptRecorder(recordFailureStatement);
 
 /**
  * Check if IP is currently locked out of token URLs.
@@ -115,15 +128,14 @@ export const recordTokenFailure = async (
   const hashedTokens = await Promise.all(tokens.map((t) => hmacHash(t)));
   const current = nowMs();
 
-  // One value per numbered parameter, in ?1..?6 order.
-  return recordFailure([
+  return recordFailure({
     hashedIp,
-    JSON.stringify([...new Set(hashedTokens)]),
-    MAX_TOKEN_404S,
-    current + TOKEN_LOCKOUT_MS,
-    current,
-    TOKEN_WINDOW_MS,
-  ]);
+    lockDeadline: current + TOKEN_LOCKOUT_MS,
+    newTokens: JSON.stringify([...new Set(hashedTokens)]),
+    now: current,
+    tokenLimit: MAX_TOKEN_404S,
+    windowMs: TOKEN_WINDOW_MS,
+  });
 };
 
 /**

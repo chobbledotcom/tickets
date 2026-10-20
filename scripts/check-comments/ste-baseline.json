@@ -1242,8 +1242,7 @@
   "src/shared/db/prune.ts": {
     "banned-modal": 2,
     "long-sentence": 3,
-    "present-perfect": 1,
-    "semicolon": 2
+    "present-perfect": 1
   },
   "src/shared/db/query-log.ts": {
     "long-sentence": 8,
@@ -1439,7 +1438,7 @@
     "contraction": 1
   },
   "src/shared/db/token-attempts.ts": {
-    "long-sentence": 4,
+    "long-sentence": 3,
     "present-perfect": 1,
     "semicolon": 1,
     "contraction": 1
