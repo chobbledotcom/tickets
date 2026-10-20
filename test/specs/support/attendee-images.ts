@@ -14,6 +14,7 @@ import { makeImage } from "#test-utils/admin-images.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+
 // jscpd:ignore-end
 
 /** Everyone a story talks about has an email the site files them under. */
@@ -42,11 +43,7 @@ export const pictureTag = (world: TicketsWorld): string => {
  * opening tag's attributes, so the scan starts at the `<tag` that holds it.
  * One pass over that tag's open and close tokens counts the nesting, so a
  * region that holds children does not end at a child's close. */
-const regionFrom = (
-  html: string,
-  openMarker: string,
-  tag: string,
-): string => {
+const regionFrom = (html: string, openMarker: string, tag: string): string => {
   const markerAt = html.indexOf(openMarker);
   if (markerAt < 0) return "";
   const openTag = `<${tag}`;

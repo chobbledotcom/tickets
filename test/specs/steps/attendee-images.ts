@@ -2,10 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import {
-  openAdminPage,
-  scenarioBrowser,
-} from "#test/specs/support/browser.ts";
+import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 // jscpd:ignore-end
