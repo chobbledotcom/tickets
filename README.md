@@ -231,6 +231,16 @@ for all optional variables.
   progressive enhancement: set `BOTPOISON_PUBLIC_KEY`/`BOTPOISON_SECRET_KEY` and
   submissions must also pass server-side verification
 
+### Site pages
+
+- Owners and editors create pages under **Site → Pages**.
+- The **Hidden** checkbox removes a page from public menus and `/sitemap.xml`.
+- Its direct `/page/:slug` link remains public and returns
+  `X-Robots-Tag: noindex, nofollow`.
+- Visible children of a hidden page appear at the top menu level.
+- Fixed pages do not have this checkbox.
+- Cached sitemap documents can show the previous state for up to five minutes.
+
 ### Public JSON API
 
 - RESTful API for listing and booking (`/api/listings`, `/api/listings/:slug`,
