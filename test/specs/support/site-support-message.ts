@@ -13,7 +13,6 @@ import { uploadsAPicture } from "#test/specs/support/attendee-images.ts";
 import {
   type SeedsOneNamedThing,
   scenarioEnv,
-  type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 // jscpd:ignore-end
