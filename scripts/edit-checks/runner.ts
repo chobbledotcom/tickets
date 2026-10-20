@@ -1,7 +1,9 @@
 // Runs one check command and bounds it in time: a stalled checker must not
 // hold the edit hook open, so the child is terminated after the timeout.
-import { execFile } from "node:child_process";
+
 import type { RunTool } from "#scripts/edit-checks/pipeline.ts";
+import { captureOutput } from "#scripts/process.ts";
+import { errorMessage } from "#shared/error-message.ts";
 
 export const CHECK_TIMEOUT_MS = 120_000;
 
@@ -22,53 +24,50 @@ export const createRunner =
     timeoutMs?: number;
     prefix: [string, ...string[]];
   }): RunTool =>
-  (args) =>
-    new Promise((resolve) => {
-      // The abort terminates the child; the flag tells a timeout apart
-      // from other failures, and the timeout reports no captured output.
-      const signal = AbortSignal.timeout(timeoutMs);
-      let timedOut = false;
-      signal.addEventListener(
-        "abort",
-        () => {
-          timedOut = true;
-        },
-        { once: true },
-      );
-      let failure: Error | null = null;
-      let output = "";
+  async (args) => {
+    // The abort terminates the child. A timeout reports no captured output.
+    const signal = AbortSignal.timeout(timeoutMs);
+    try {
       // The checker must not join a surrounding coverage run: a child
       // spawned under DENO_COVERAGE_DIR records coverage for a tool
       // fixture the caller may delete.
-      const env = { ...process.env };
-      delete env.DENO_COVERAGE_DIR;
-      const child = execFile(
-        prefix[0],
-        [...prefix.slice(1), "run", "-A", ...args],
-        { cwd: worktree, env, maxBuffer: 10 * 1024 * 1024, signal },
-        (err, stdout, stderr) => {
-          failure = err;
-          output = `${stdout}\n${stderr}`;
-          if (child.pid === undefined) resolve(run(failure));
-        },
-        // Resolving on close, not in the callback, keeps the resolve
-        // behind the child process teardown. A command that never spawned
-        // sends no close, so the spawn-failure error resolves above.
-      ).on("close", () => resolve(run(failure)));
-
-      function run(err: Error | null): { ok: boolean; text: string } {
-        if (timedOut) {
-          return {
-            ok: false,
-            text: `check timed out after ${timeoutMs / 1000}s`,
-          };
-        }
-        if (err !== null) {
-          return {
-            ok: false,
-            text: `check hook could not run: ${err.message}\n${output}`,
-          };
-        }
-        return { ok: true, text: output };
+      const env = Object.fromEntries(
+        Object.entries(Deno.env.toObject()).filter(
+          ([name]) => name !== "DENO_COVERAGE_DIR",
+        ),
+      );
+      const output = await captureOutput(
+        new Deno.Command(prefix[0], {
+          args: [...prefix.slice(1), "run", "-A", ...args],
+          cwd: worktree,
+          env,
+          signal,
+          stderr: "piped",
+          stdout: "piped",
+        }),
+      );
+      // The signal's SIGTERM lands as an ordinary exit, so the timeout is
+      // checked against the signal, not the child's status.
+      if (signal.aborted) {
+        return {
+          ok: false,
+          text: `check timed out after ${timeoutMs / 1000}s`,
+        };
       }
-    });
+      return {
+        ok: output.success,
+        text: output.stdout + output.stderr,
+      };
+    } catch (error) {
+      if (signal.aborted) {
+        return {
+          ok: false,
+          text: `check timed out after ${timeoutMs / 1000}s`,
+        };
+      }
+      return {
+        ok: false,
+        text: `check hook could not run: ${errorMessage(error)}`,
+      };
+    }
+  };
