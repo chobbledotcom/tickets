@@ -208,8 +208,8 @@ const upcomingHolidaysSection = (holidays: Holiday[]): string =>
     />,
   );
 
-/** The bookings still owed a notification send, shown when the count is above
- * zero. Links to the attendees browser, where each booking's badges name what
+/** The attendees still owed a notification send, shown when the count is above
+ * zero. Links to the attendees browser, where each attendee's badges name what
  * never went out. */
 const pendingNotificationsSection = (count: number): string =>
   String(

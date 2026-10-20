@@ -189,7 +189,14 @@ Then(
 Then(
   "the dashboard says nothing about unsent notifications",
   function (this: TicketsWorld): void {
-    expect(pageSeen(this)).not.toContain("unsent notifications");
+    // The section renders only above zero, so every wording it can ever
+    // print — one attendee, several, and the zero it must never print —
+    // stays absent.
+    for (const count of [0, 1, 2]) {
+      expect(pageSeen(this)).not.toContain(
+        t("admin.dashboard.pending_notifications", { count }),
+      );
+    }
   },
 );
 

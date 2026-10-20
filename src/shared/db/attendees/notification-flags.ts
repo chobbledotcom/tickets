@@ -157,7 +157,7 @@ export const emailBadgeOwed = (
   attendee: Pick<Attendee, "email_owed" | "email_pending">,
 ): boolean => attendee.email_pending > 0 && attendee.email_owed === 1;
 
-/** How many bookings still owe a notification send. The dashboard shows this
+/** How many attendees still owe a notification send. The dashboard shows this
  * count when it is above zero. An email flag counts only while a booked
  * listing still collects an email, the same rule the badge applies. */
 export const countAttendeesWithPendingFlags = async (): Promise<number> => {
