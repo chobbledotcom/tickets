@@ -8,18 +8,23 @@ export const uploadCredentials = (dbUrl: string) => ({
   dbUrl,
 });
 
+const realSetTimeout = globalThis.setTimeout;
+const realClearTimeout = globalThis.clearTimeout;
+
 /** Fail a stalled socket operation instead of an indefinite wait. */
 export const withinDeadline = <T>(
   work: Promise<T>,
   label: string,
+  timeoutMs = 30_000,
 ): Promise<T> => {
   const deadline = Promise.withResolvers<T>();
-  const timer = setTimeout(
-    () => deadline.reject(new Error(`${label} did not settle within 30000ms`)),
-    30_000,
+  const timer = realSetTimeout(
+    () =>
+      deadline.reject(new Error(`${label} did not settle within ${timeoutMs}ms`)),
+    timeoutMs,
   );
   return Promise.race([work, deadline.promise]).finally(() =>
-    clearTimeout(timer),
+    realClearTimeout(timer),
   );
 };
 

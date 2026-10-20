@@ -74,6 +74,19 @@ const withPendingUploadResponse = (
   });
 
 describe("Turso upload lifecycle", () => {
+  test("ends a stalled wait even when the upload clock is frozen", async () => {
+    const schedule = globalThis.setTimeout;
+    using time = new FakeTime();
+    const work = Promise.withResolvers<void>();
+    const outcome = withinDeadline(work.promise, "Stalled upload", 0).catch(
+      (error: unknown) => error,
+    );
+    schedule(work.resolve, 0);
+    const error = await outcome;
+    assertInstanceOf(error, Error);
+    expect(error.message).toContain("Stalled upload");
+  });
+
   test("rejects an early answer without a timeout or stray rejection", () =>
     withUploadFile(async (path) => {
       let received = 0;
@@ -179,12 +192,12 @@ describe("Turso upload lifecycle", () => {
       await time.tickAsync(599_999);
       expect(settled).toBe(false);
       await time.tickAsync(1);
-      const error = await observed;
+      const error = await withinDeadline(observed, "Upload deadline");
       assertInstanceOf(error, Error);
       expect(error.message).toBe(
         "Upload aborted: Upload exceeded the 10-minute deadline",
       );
-      await cancelledBody;
+      await withinDeadline(cancelledBody, "Response cancellation");
     });
   });
 });
