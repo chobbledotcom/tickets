@@ -182,12 +182,11 @@ export const uploadThroughScript = (
   play: (receive: (response: IncomingMessage) => void) => void,
 ): Promise<void> => {
   const path = join(dir, "database.sqlite");
-  return Deno.writeTextFile(path, "sqlite bytes").then(() =>
-    uploadTursoDatabaseFile(
-      path,
-      TEST_TURSO_CREDENTIALS,
-      undefined,
-      scriptedTransport(request, play),
-    ),
+  Deno.writeTextFileSync(path, "sqlite bytes");
+  return uploadTursoDatabaseFile(
+    path,
+    TEST_TURSO_CREDENTIALS,
+    undefined,
+    scriptedTransport(request, play),
   );
 };

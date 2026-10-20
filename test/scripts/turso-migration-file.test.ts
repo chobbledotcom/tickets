@@ -223,12 +223,13 @@ describe("Turso migration file", () => {
       );
       await started.promise;
       controller.abort(reason);
-      return await upload.then(
-        () => {
-          throw new Error("The upload should have rejected");
-        },
-        (error: Error) => error,
-      );
+      try {
+        await upload;
+      } catch (error) {
+        if (!(error instanceof Error)) throw error;
+        return error;
+      }
+      throw new Error("The upload should have rejected");
     });
 
   /** The polyfill can leave the upload pending with no event at all (issue
