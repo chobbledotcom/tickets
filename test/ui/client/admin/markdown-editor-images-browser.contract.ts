@@ -226,15 +226,17 @@ describeWithEnv(
 
     /** The page's own words typed first, then the dropdown opened and the
      * note it settles on read back — the shape the empty and unreachable
-     * libraries share. */
+     * libraries share. The expected message pins the wait: the loading
+     * state shows the same note element with different words. */
     const openDropdownOverUnchangedWords = async (
       page: Page,
+      message: string,
     ): Promise<{ content: string; note: string; panel: Locator }> => {
       await openPageEditor(page);
       await page.locator(".ProseMirror").click();
       await page.keyboard.type("Unchanged words.");
       const panel = await openDropdown(page);
-      await page.locator(NOTE).waitFor();
+      await panel.locator(NOTE).filter({ hasText: message }).waitFor();
       return {
         content: await contentValue(page),
         note: (await panel.textContent()) ?? "",
@@ -244,8 +246,10 @@ describeWithEnv(
 
     test("says the library is empty and offers nothing to choose", async () => {
       await withPage(async (page) => {
-        const { content, note, panel } =
-          await openDropdownOverUnchangedWords(page);
+        const { content, note, panel } = await openDropdownOverUnchangedWords(
+          page,
+          EMPTY_MESSAGE,
+        );
 
         expect(note).toContain(EMPTY_MESSAGE);
         expect(await panel.locator(OPTION).count()).toBe(0);
@@ -256,8 +260,10 @@ describeWithEnv(
     test("says the images are unavailable when the library cannot be reached", async () => {
       await withPage(async (page) => {
         await page.route("**/admin/images/options", (route) => route.abort());
-        const { content, note, panel } =
-          await openDropdownOverUnchangedWords(page);
+        const { content, note, panel } = await openDropdownOverUnchangedWords(
+          page,
+          UNAVAILABLE_MESSAGE,
+        );
 
         expect(note).toContain(UNAVAILABLE_MESSAGE);
         expect(await panel.locator(OPTION).count()).toBe(0);
@@ -277,7 +283,10 @@ describeWithEnv(
         await openPageEditor(page);
 
         const panel = await openDropdown(page);
-        await page.locator(NOTE).waitFor();
+        await panel
+          .locator(NOTE)
+          .filter({ hasText: UNAVAILABLE_MESSAGE })
+          .waitFor();
         expect(await panel.textContent()).toContain(UNAVAILABLE_MESSAGE);
 
         // Shut and reopen: a failed load is never cached, so the second open
@@ -341,10 +350,11 @@ describeWithEnv(
     test("stays closed when the library answers after the owner dismissed it", async () => {
       await makeImage("Harbour");
       await withPage(async (page) => {
+        // The gate holds the answer until the click has dismissed the
+        // panel, so the test observes the answer arriving after dismissal.
+        const responseGate = Promise.withResolvers<void>();
         await page.route("**/admin/images/options", async (route) => {
-          const { promise, resolve } = Promise.withResolvers<void>();
-          setTimeout(resolve, 300);
-          await promise;
+          await responseGate.promise;
           await route.fulfill({
             body: JSON.stringify({ images: [{ id: 2, name: "Harbour" }] }),
             contentType: "application/json",
@@ -354,6 +364,7 @@ describeWithEnv(
 
         const panel = await openDropdown(page);
         await page.locator("h1").click();
+        responseGate.resolve();
         await page.waitForTimeout(500);
 
         expect(await panel.isVisible()).toBe(false);
