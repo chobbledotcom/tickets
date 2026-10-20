@@ -226,6 +226,8 @@ const ADMIN_API_EXAMPLE_ATTENDEE = {
   created: "2026-06-01T10:00:00.000Z",
   date: null,
   email: "jane@example.com",
+  email_owed: 0,
+  email_pending: 0,
   end_date: null,
   id: 7,
   kind: "attendee",
