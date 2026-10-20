@@ -2,6 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import checkedInCount from "#db/migrations/2026-09-30_checked_in_count.ts";
+import { initDb, invalidateInitDbCache } from "#db/migrations.ts";
+import { executeStatements } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
@@ -65,19 +67,17 @@ describeWithEnv("db > migrations > checked_in count", { db: true }, () => {
     expect(await storedCount(905)).toBe(2);
   });
 
-  test("declares every object it owns", () => {
-    // Anything left off this list is never verified, so a partial upgrade
-    // would record itself as applied.
-    expect(migration().id).toBe("2026-09-30_checked_in_count");
-    expect(migration().requires).toEqual({});
-    expect(migration().description).toBe(
-      "checked_in becomes a count of admitted tickets, 0..quantity, instead of " +
-        "a 0/1 flag. A line an operator marked as arrived held its full quantity " +
-        "in practice, because the flag could not record less, so every stored 1 " +
-        "becomes the row's quantity. Ghost rows (quantity 0) and never-checked " +
-        "rows keep 0. It runs before this build serves a request, so every " +
-        "stored 1 it reads is still a flag. The count writers and readers land " +
-        "in the same build, so nothing reads a count as a flag.",
-    );
+  test("upgrades stored flags through the registered migration when the schema already matches", async () => {
+    await initDb();
+    await lineWith(906, 4, 1);
+    await executeStatements([
+      "DELETE FROM schema_migrations WHERE id = '2026-09-30_checked_in_count'",
+      "UPDATE settings SET value = 'stale' WHERE key = 'latest_db_update'",
+    ]);
+    invalidateInitDbCache();
+
+    await initDb();
+
+    expect(await storedCount(906)).toBe(4);
   });
 });
