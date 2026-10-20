@@ -7,6 +7,7 @@
  * guard it, and it serves only the door the session works.
  */
 
+// jscpd:ignore-start -- imports
 import { sha256Hex } from "#crypto/sha256.ts";
 import type { DecryptedAttendeeRow } from "#db/attendees/pii.ts";
 import { getGroupById } from "#db/groups.ts";
@@ -22,6 +23,7 @@ import {
   scanNotFoundResponse,
   scannerPrivateKey,
 } from "./scan-answer.ts";
+// jscpd:ignore-end
 
 /** The lines a saved list may stand for: a line the door's own scan admits
  * or counts as used. A refunded order and a no-quantity line both turn a
