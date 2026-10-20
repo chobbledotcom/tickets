@@ -40,7 +40,7 @@ src/features/public/ticket-payment.ts::loadPagePackages~0vaeh8c  Missing package
 src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.existingBooking~1genp17  ?? → || audited:0ni0min # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.listing~1y7j49h  ?? → || audited:0ni0min # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts::isPaymentLockedLine~1cyk75e  ?? → || audited:0ni0min # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
-src/features/admin/attendee-page-data.ts::computeWarnings.warns~1e9bm1v  ?? → || audited:17hf8t3 # incompleteParents stores only a non-empty translated warning string, otherwise get returns undefined
+src/features/admin/booking-warnings.ts::computeWarnings.warns~1e9bm1v  ?? → || audited:0wzoevf # incompleteParents stores only a non-empty translated warning string, otherwise get returns undefined
 src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0axstbd  ?? → || audited:17hf8t3 # remaining_balance is an integer; its only falsy value is 0, which equals the fallback
 src/features/admin/attendee-page-data.ts::assembleTemplateData.hasMixedTimings~1hmlq9c  ?? → || audited:17hf8t3 # hasMixedTimings is boolean|undefined, and false equals the fallback
 src/features/admin/attendee-page-data.ts::assembleTemplateData.selectedAnswerIds~1og9d80  ?? → || audited:17hf8t3 # selectedAnswerIds is an array when present, and arrays are always truthy
@@ -242,8 +242,8 @@ src/features/public/ticket-routes.ts::handleReservedGet.tokens~09d2xk9  0 → 1 
 src/features/admin/attendee-page-data.ts::loadPackagePaths.memberPrices~1xcdymp  ?? → || audited:17hf8t3 # the price loader answers an array or undefined, and arrays (including []) are truthy, so the [] fallback fires only on undefined
 src/features/admin/attendee-page-data.ts::packagesByListingIdFrom.groups~183l51m  ?? → || audited:17hf8t3 # byListing.get answers a Map or undefined, and Maps are truthy
 src/features/admin/attendee-page-data.ts::buildFormLines.standaloneBlanks~11c4q19  ?? → || audited:17hf8t3 # the fallback is 0 and the stored preselected quantities are non-negative counts, so 0 || 0 = 0 ?? 0
-src/features/admin/attendee-page-data.ts::listingBookingFor.durationDays~1vg0u7m  1 → 0 audited:17hf8t3 # a standard line carries date null, and addDemandToBucket reads duration only inside the dated branch (expandDailyRange), so the standard branch never reads it
-src/features/admin/attendee-page-data.ts::overbookedListingIds~11ijbqo  ?? → || audited:17hf8t3 # the fallback is 0 and the running totals are non-negative counts, so 0 || 0 = 0 ?? 0
+src/features/admin/booking-warnings.ts::listingBookingFor.durationDays~1vg0u7m  1 → 0 audited:0wzoevf # a standard line carries date null, and addDemandToBucket reads duration only inside the dated branch (expandDailyRange), so the standard branch never reads it
+src/features/admin/booking-warnings.ts::overbookedListingIds~11ijbqo  ?? → || audited:0wzoevf # the fallback is 0 and the running totals are non-negative counts, so 0 || 0 = 0 ?? 0
 src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0gnct02  ?? → || audited:17hf8t3 # the fallback is 0 and remaining balances are non-negative money, so 0 || 0 = 0 ?? 0
 src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0g9qz7c  ?? → || audited:17hf8t3 # the fallback is 0 and full prices are non-negative money, so 0 || 0 = 0 ?? 0
 src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0ec14e6  ?? → || audited:17hf8t3 # the fallback is 0 and deposit amounts are non-negative money, so 0 || 0 = 0 ?? 0

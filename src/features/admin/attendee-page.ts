@@ -31,7 +31,6 @@ import {
   loadAttendeeActivity,
   loadAttendeeActivityPreview,
   loadAttendeeForEdit,
-  loadContactRecords,
   loadPackagePaths,
 } from "#routes/admin/attendee-page-data.ts";
 import { loadQuestionsForExisting } from "#routes/admin/attendee-questions.ts";
@@ -40,6 +39,7 @@ import {
   attendeeActions,
   paymentRecoveryAction,
 } from "#routes/admin/attendees-route-helpers.ts";
+import { loadContactRecords } from "#routes/admin/contact-records.ts";
 import {
   type ActionDef,
   customSection,
