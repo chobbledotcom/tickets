@@ -2,6 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { executeBatch, queryAll } from "#db/client.ts";
 import {
+  addPageImageUrls,
+  addTicketPageImageUrls,
   appendImageToItem,
   clearImageUsesForItemStatement,
   deleteImageRecord,
@@ -18,12 +20,17 @@ import {
 import { getListingWithCount } from "#db/listings/records.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
+import {
+  currentRequestStore,
+  getPageImageUrls,
+} from "#shared/request-context.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import type { Image } from "#types";
 
 const makeImage = (
@@ -334,6 +341,93 @@ describeWithEnv("db > images", { db: true }, () => {
 
       expect(await linkedImageIds("listing", listing.id)).toEqual([]);
       expect(await linkedImageIds("group", group.id)).toEqual([]);
+    });
+  });
+
+  describe("page image urls", () => {
+    /** The request's page-image slot as id-sorted [id, url] pairs. */
+    const slotEntries = (): [number, string][] =>
+      [...(currentRequestStore()?.pageImageUrls ?? [])].sort(
+        (a, b) => a[0] - b[0],
+      );
+
+    test("writes one ticket page's references into the request's page-image slot", async () => {
+      const poster = await makeImage("Poster");
+      const kit = await makeImage("Kit");
+      const coast = await makeImage("Coast");
+      const dune = await makeImage("Dune");
+      const anchor = await makeImage("Anchor");
+
+      await withRequestContext(async () => {
+        await addTicketPageImageUrls({
+          groupDescription: `![Coast](img#${coast.id})`,
+          listings: [
+            { listing: { description: null } },
+            { listing: { description: `![Poster](img#${poster.id})` } },
+          ],
+          packages: [
+            { description: "plain words" },
+            {
+              description: `![Anchor](img#${anchor.id}) ![Ghost](img#424242) img#0`,
+            },
+          ],
+          questions: [
+            { text: "no image named here" },
+            { text: `![Kit](img#${kit.id})` },
+          ],
+          terms: `![Dune](img#${dune.id})`,
+        });
+
+        expect(slotEntries()).toEqual([
+          [poster.id, "/image/poster.webp"],
+          [kit.id, "/image/kit.webp"],
+          [coast.id, "/image/coast.webp"],
+          [dune.id, "/image/dune.webp"],
+          [anchor.id, "/image/anchor.webp"],
+        ]);
+      });
+    });
+
+    test("adds one page's urls beside an earlier loader's", async () => {
+      const poster = await makeImage("Poster");
+      const anchor = await makeImage("Anchor");
+
+      await withRequestContext(async () => {
+        await addPageImageUrls([`![Poster](img#${poster.id})`]);
+        await addTicketPageImageUrls({
+          listings: [],
+          packages: [{ description: `![Anchor](img#${anchor.id})` }],
+          questions: [],
+        });
+
+        expect(slotEntries()).toEqual([
+          [poster.id, "/image/poster.webp"],
+          [anchor.id, "/image/anchor.webp"],
+        ]);
+      });
+    });
+
+    test("writes an empty slot when no text names an image", async () => {
+      await withRequestContext(async () => {
+        await addTicketPageImageUrls({
+          listings: [{ listing: { description: null } }],
+          packages: [{ description: "plain words only" }],
+          questions: [],
+        });
+
+        expect(getPageImageUrls().size).toBe(0);
+      });
+    });
+
+    test("stays silent outside a request", async () => {
+      await addPageImageUrls(["![Poster](img#1)"]);
+      await addTicketPageImageUrls({
+        listings: [],
+        packages: [{ description: "![Anchor](img#2)" }],
+        questions: [],
+      });
+
+      expect(currentRequestStore()).toBeUndefined();
     });
   });
 });
