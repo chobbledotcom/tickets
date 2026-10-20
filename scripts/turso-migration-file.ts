@@ -117,20 +117,57 @@ const readResponse = (
 const POLYFILL_BODY_STREAM_ERROR =
   "Failed to fetch: request body stream errored";
 
+/** The bare string the same polyfill write task rejects with when the
+ * connection is torn down mid-write instead of answering — an abort or a
+ * socket close leaves this exact value, never an Error instance. It escaped
+ * as an uncaught rejection and cancelled three hosted runs. */
+const POLYFILL_RESOURCE_CLOSED = "resource closed";
+
+/** The first stack frame of an error the polyfill's own async task throws
+ * from inside its internals. Our code never throws from there: a rejection
+ * our code creates names one of our own files first, and a polyfill frame
+ * deeper in a stack cannot move the origin. */
+const POLYFILL_INTERNAL_FRAME = /^at (?:async )?(?:node:|ext:deno_node)/;
+
+const firstStackFrameIsPolyfillInternal = (stack: string): boolean => {
+  const frame = stack
+    .split("\n")
+    .find((line) => line.trimStart().startsWith("at "));
+  return frame !== undefined && POLYFILL_INTERNAL_FRAME.test(frame.trimStart());
+};
+
+/** Whether an unhandled rejection is one of the polyfill's own defect
+ * values. Two carry fixed shapes: the wrapped body-stream TypeError and the
+ * bare "resource closed" string. The polyfill's catch can also crash on an
+ * op rejection that carries no message — it reads `.message.includes` off a
+ * value that has none — and the secondary error it throws then escapes with
+ * a foreign message, so the origin on the stack is the only honest test
+ * left. A real failure our code rejects never reaches here: our promises
+ * are awaited, and an error we build names our own files first. */
+const isPolyfillBodyStreamDefect = (reason: unknown): boolean => {
+  if (reason === POLYFILL_RESOURCE_CLOSED) return true;
+  if (!(reason instanceof Error)) return false;
+  if (
+    reason instanceof TypeError &&
+    reason.message === POLYFILL_BODY_STREAM_ERROR
+  ) {
+    return true;
+  }
+  return firstStackFrameIsPolyfillInternal(reason.stack ?? "");
+};
+
 /**
- * Ignore node:http's duplicate rejection, from the first upload onwards.
+ * Ignore node:http's duplicate rejections, from the first upload onwards.
  *
  * Nothing says when the internal task that broke the write will surface its
  * rejection, so the watch cannot be narrow about *when*. It is narrow about
- * *what* instead: this exact message is built by the polyfill's own internals
- * and no code of ours can produce it, so a real failure never reaches here.
+ * *what* instead: every value it eats is built by the polyfill's own
+ * internals and no code of ours can produce one, so a real failure never
+ * reaches here.
  */
 const watchPolyfillBodyStreamDefect = once(() => {
   globalThis.addEventListener("unhandledrejection", (event) => {
-    if (
-      event.reason instanceof TypeError &&
-      event.reason.message === POLYFILL_BODY_STREAM_ERROR
-    ) {
+    if (isPolyfillBodyStreamDefect(event.reason)) {
       event.preventDefault();
     }
   });

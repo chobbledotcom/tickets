@@ -114,6 +114,14 @@ const expectUploadRejection = (
 const fakeRequest = (): Writable =>
   new Writable({ write: (_chunk, _encoding, done) => done() });
 
+/** An error whose stack frames sit at `frames`, the way the polyfill's own
+ * internals and our own files each stamp their errors. */
+const throwFrom = (message: string, ...frames: string[]): TypeError => {
+  const error = new TypeError(message);
+  error.stack = `TypeError: ${message}\n    ${frames.join("\n    ")}`;
+  return error;
+};
+
 /** A transport that plays a scripted sequence of events once the upload
  * starts, instead of talking to a real server. */
 const scriptedTransport = (
@@ -333,15 +341,13 @@ describe("Turso migration file", () => {
 
       const stray: string[] = [];
       const onRejection = (event: PromiseRejectionEvent) => {
+        // The watch's listener sits ahead of this one, so a rejection it
+        // eats arrives here already prevented. Anything still unprevented
+        // is a stray the watch missed, and a real escape still fails this
+        // file: this listener never prevents the default.
+        if (event.defaultPrevented) return;
         const reason = event.reason;
-        if (
-          !(
-            reason instanceof TypeError &&
-            reason.message === "Failed to fetch: request body stream errored"
-          )
-        ) {
-          stray.push(reason instanceof Error ? reason.message : String(reason));
-        }
+        stray.push(reason instanceof Error ? reason.message : String(reason));
       };
       globalThis.addEventListener("unhandledrejection", onRejection);
       try {
@@ -408,6 +414,55 @@ describe("Turso migration file", () => {
       // the one this watch exists for.
       expect(prevented(defect())).toBe(true);
       expect(prevented(new TypeError("some other failure"))).toBe(false);
+      // The same polyfill write task rejects with a bare "resource closed"
+      // string when the connection is torn down mid-write instead of
+      // answering. It is not an Error instance, and three hosted runs died
+      // on it; the watch eats it and nothing else new.
+      expect(prevented("resource closed")).toBe(true);
+      expect(prevented(new TypeError("some other failure"))).toBe(false);
+      expect(prevented("upload database failed")).toBe(false);
+      // The polyfill's own catch crashes when an op rejects with a value
+      // that carries no message, and the secondary error it throws from
+      // inside its internals escapes with a foreign message. Its first
+      // stack frame names node:http; an error our code builds names one of
+      // our own files first, and the watch leaves that alone.
+      expect(
+        prevented(
+          throwFrom(
+            "Cannot read properties of undefined (reading 'includes')",
+            "at node:http:571:12",
+          ),
+        ),
+      ).toBe(true);
+      // An application frame first with a polyfill frame after it: the
+      // origin sits at the first frame, so the watch leaves it alone.
+      expect(
+        prevented(
+          throwFrom(
+            "Upload database failed (400): invalid",
+            "at file:///scripts/turso-migration-file.ts:208:5",
+            "at node:http:571:12",
+          ),
+        ),
+      ).toBe(false);
+      // An error that carries no stack at all reaches the origin test
+      // through its fallback branch. Nothing matches there either, so the
+      // watch leaves it alone.
+      expect(
+        prevented(
+          Object.assign(new TypeError("some other failure"), {
+            stack: undefined,
+          }),
+        ),
+      ).toBe(false);
+      // A stack with no frame lines names no origin either.
+      expect(
+        prevented(
+          Object.assign(new TypeError("some other failure"), {
+            stack: "TypeError: some other failure",
+          }),
+        ),
+      ).toBe(false);
     }));
 
   test("rejects an interrupted upload before opening the snapshot", () =>
