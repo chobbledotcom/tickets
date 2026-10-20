@@ -3,6 +3,7 @@ import jsQR from "jsqr";
 import { isSyncing, offlineModeActive } from "./scanner-offline.js";
 import { initOfflineScanner, offlineScan } from "./scanner-offline-ui.js";
 import {
+  FADE_DELAY_MS,
   formatTicketCount,
   getMessage,
   interpolate,

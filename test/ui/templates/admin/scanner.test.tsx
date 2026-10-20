@@ -324,10 +324,11 @@ describe("the admin scanner page template", () => {
     expect(html).toContain('id="ticket-options"');
     expect(html).toContain('id="manual-checkin-status"');
     // Two hidden fields: the form's own code, and the chosen person's
-    // ticket; plus the three plainly hidden boxes the script reveals (the
-    // overlays carry their hidden state inside a two-class attribute).
+    // ticket; plus the five plainly hidden boxes the script reveals (the
+    // offline banner, the queue panel, and the overlays carry their hidden
+    // state inside a two-class attribute).
     expect(times(html, 'type="hidden"')).toBe(2);
-    expect(times(html, 'class="hidden"')).toBe(3);
+    expect(times(html, 'class="hidden"')).toBe(5);
 
     // The way out to the guide.
     expect(html).toContain('href="/admin/guide#checkin"');

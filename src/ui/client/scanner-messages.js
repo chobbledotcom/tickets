@@ -19,7 +19,7 @@ export const formatTicketCount = (messages, count) => {
   });
 };
 
-const FADE_DELAY_MS = 5000;
+export const FADE_DELAY_MS = 5000;
 
 let fadeTimer = 0;
 

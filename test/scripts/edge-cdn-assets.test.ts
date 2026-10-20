@@ -70,6 +70,8 @@ test("ASSET_DEFS describes every embedded and published browser asset", () => {
       "handleScannerSwJs",
       "application/javascript; charset=utf-8",
       "",
+      false,
+      true,
     ],
     "scanner.js": [
       "handleScannerJs",

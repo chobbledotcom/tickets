@@ -120,9 +120,17 @@ export const queueCheckIn = (scanPath, token) => {
   return item;
 };
 
-/** Drop one settled item from the queue. */
+/** Drop one settled item from the queue. The rendered rows hold parsed
+ * copies, so the match is on the item's stored fields, not its reference. */
 export const dropFromQueue = (item) =>
-  writeQueue(readQueue().filter((queued) => queued !== item));
+  writeQueue(
+    readQueue().filter(
+      (queued) =>
+        queued.queuedAt !== item.queuedAt ||
+        queued.scanPath !== item.scanPath ||
+        queued.token !== item.token,
+    ),
+  );
 
 /** Whether a sync is running. The camera loop holds its scans while the
  * queue settles, so one overlay asks one question at a time. */
