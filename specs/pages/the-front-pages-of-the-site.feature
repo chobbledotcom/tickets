@@ -57,8 +57,8 @@ Feature: An owner writes the front pages of the site
   @surface:public
   Rule: Pictures in the front pages show as pictures
     The owner can place a picture they uploaded in the homepage text, the
-    contact page, or the order page's introduction. A visitor sees the picture
-    itself, and never sees the reference that names it.
+    contact page, the terms, or the order page's introduction. A visitor sees
+    the picture itself, and never sees the reference that names it.
 
     @case:front-pages.homepage-picture
     Scenario: The owner puts a picture in the homepage
@@ -80,6 +80,13 @@ Feature: An owner writes the front pages of the site
       And the owner has uploaded a picture called "PickPoster"
       When the owner turns the order page on, introducing it with the picture in it
       Then a visitor on the order page sees the picture
+
+    @case:front-pages.terms-picture
+    Scenario: The owner puts a picture in the terms
+      Given the public site is on
+      And the owner has uploaded a picture called "Rules"
+      When the owner writes the terms with the picture in it
+      Then a visitor on the terms page sees the picture
 
     @case:front-pages.unknown-picture-keeps-its-describing-words
     Scenario: The homepage names a picture that is not there

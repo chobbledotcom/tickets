@@ -59,14 +59,23 @@ Feature: The list a visitor reads
   @rule:catalogue.pictures-in-the-list-s-words-show-on-the-list
   Rule: Pictures in the list's words show on the list
     Something on sale can carry a picture the owner uploaded in its
-    description. A visitor looking at everything on sale sees the picture
-    itself, and never sees the reference that names it.
+    description. A group can carry one in its own description. A visitor
+    looking at everything on sale sees the picture itself, and never sees the
+    reference that names it.
 
     @case:visitor-list.description-picture
     Scenario: A description on the list carries a picture
       Given the public site is on
       And the owner has uploaded a picture called "Festival"
       And the site sells a FestivalEntry with the picture in its description
+      When a customer looks at everything on sale
+      Then the list shows the picture
+
+    @case:visitor-list.group-description-picture
+    Scenario: A group's description carries a picture
+      Given the public site is on
+      And the owner has uploaded a picture called "Festival"
+      And a Festival group with the picture in its description holding a Concert
       When a customer looks at everything on sale
       Then the list shows the picture
 
