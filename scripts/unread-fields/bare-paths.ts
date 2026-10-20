@@ -140,13 +140,12 @@ export const pathsFromInfo = (
   return paths;
 };
 
-/** Ask `deno info` with this runtime's own executable, so the answer does not
- * depend on what PATH names. */
+/** Ask `deno info` through the command the task permission allows. */
 const runInfo = async (
   root: string,
   args: readonly string[],
 ): Promise<InfoJson> => {
-  const output = await new Deno.Command(Deno.execPath(), {
+  const output = await new Deno.Command("deno", {
     args: ["info", "--json", ...args],
     cwd: root,
     stderr: "piped",
