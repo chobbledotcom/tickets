@@ -9,7 +9,7 @@ import type {
 } from "#booking/ticket-moves.ts";
 import { logActivities } from "#db/activity-log.ts";
 import { moveTickets } from "#db/attendees/update.ts";
-import { withTransaction } from "#db/client.ts";
+import { type TxScope, withTransaction } from "#db/client.ts";
 
 /** Move the tickets and log one activity row per move that really moved
  * some, worded by `describe`. A move that moved nothing (another door took

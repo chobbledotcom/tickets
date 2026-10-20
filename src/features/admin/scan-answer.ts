@@ -200,7 +200,7 @@ const performCheckIns = async (
         move.listingId,
         `Listing ${move.listingId} is no unit of this scan`,
       )}'`,
-    operationId && claimScanOperation(operationId),
+    operationId === undefined ? undefined : claimScanOperation(operationId),
   );
   // What the write left: the touched pairs' post-write owed, plus the owed
   // of rows the scan did not admit. The transaction saw every ticket a
