@@ -35,16 +35,20 @@ const valibotGraph: InfoJson = {
   redirects: { "npm:valibot@^1.4.1": "npm:/valibot@1.4.1" },
 };
 
+/** The entry module of the graph for an entry whose only bare import is a
+ * jsr package. */
+const stdPathEntry = {
+  dependencies: [
+    { code: { specifier: "jsr:@std/path@^1" }, specifier: "@std/path" },
+  ],
+  local: "/repo/src/index.ts",
+  specifier: "./src/index.ts",
+};
+
 /** The graph for an entry whose only bare import is a jsr package. */
 const stdPathGraph: InfoJson = {
   modules: [
-    {
-      dependencies: [
-        { code: { specifier: "jsr:@std/path@^1" }, specifier: "@std/path" },
-      ],
-      local: "/repo/src/index.ts",
-      specifier: "./src/index.ts",
-    },
+    stdPathEntry,
     {
       local: "/home/me/.cache/deno/remote/http+jsr.io/@std/path/1.1.0/mod.ts",
       specifier: "jsr:/@std/path@1.1.0",
@@ -85,6 +89,17 @@ describe("paths from deno info", () => {
         "/home/me/.cache/deno/remote/http+jsr.io/@std/path/1.1.0/mod.ts",
       ],
     });
+  });
+
+  test("answers nothing when the graph names no file for the module", () => {
+    const graph: InfoJson = {
+      ...stdPathGraph,
+      modules: [
+        stdPathEntry,
+        { local: null, specifier: "jsr:/@std/path@1.1.0" },
+      ],
+    };
+    expect(pathsFromInfo(graph, "/home/me/.cache/deno/npm")).toEqual({});
   });
 
   test("keeps the specifiers the compiler already resolves out", () => {
@@ -175,6 +190,150 @@ describe("paths from deno info", () => {
     expect(pathsFromInfo(graph, "/cache/npm")).toEqual({
       valibot: ["/cache/npm/registry.npmjs.org/valibot/1.4.1"],
     });
+  });
+
+  test("answers nothing for a dependency with no code and no type", () => {
+    const graph: InfoJson = {
+      ...valibotGraph,
+      modules: [
+        valibotModule,
+        {
+          dependencies: [{ specifier: "valibot" }],
+          local: "/repo/src/index.ts",
+          specifier: "./src/index.ts",
+        },
+      ],
+    };
+    expect(pathsFromInfo(graph, "/home/me/.cache/deno/npm")).toEqual({});
+  });
+
+  test("answers nothing for a dependency written with no specifier", () => {
+    const graph: InfoJson = {
+      ...valibotGraph,
+      modules: [
+        valibotModule,
+        {
+          dependencies: [{ code: { specifier: "npm:valibot@^1.4.1" } }],
+          local: "/repo/src/index.ts",
+          specifier: "./src/index.ts",
+        },
+      ],
+    };
+    expect(pathsFromInfo(graph, "/home/me/.cache/deno/npm")).toEqual({});
+  });
+
+  test("answers nothing when the graph names no npm package entry", () => {
+    expect(
+      pathsFromInfo(
+        { ...valibotGraph, npmPackages: {} },
+        "/home/me/.cache/deno/npm",
+      ),
+    ).toEqual({});
+  });
+
+  test("answers an empty mapping when the graph holds no dependencies", () => {
+    expect(pathsFromInfo({}, "/home/me/.cache/deno/npm")).toEqual({});
+    expect(
+      pathsFromInfo(
+        { modules: [{ local: null, specifier: "./src/index.ts" }] },
+        "/home/me/.cache/deno/npm",
+      ),
+    ).toEqual({});
+  });
+
+  test("maps a bare npm subpath to its file in the package folder", () => {
+    const graph: InfoJson = {
+      modules: [
+        {
+          local: null,
+          npmPackage: "@jsquash/jpeg@1.6.0",
+          specifier: "npm:/@jsquash/jpeg@1.6.0/decode.js",
+        },
+        {
+          dependencies: [
+            {
+              code: { specifier: "npm:/@jsquash/jpeg@^1.5.0/decode.js" },
+              specifier: "@jsquash/jpeg/decode.js",
+            },
+          ],
+          local: "/repo/src/image.ts",
+          specifier: "./src/image.ts",
+        },
+      ],
+      npmPackages: {
+        "@jsquash/jpeg@1.6.0": {
+          name: "@jsquash/jpeg",
+          registryUrl: "https://registry.npmjs.org/",
+          version: "1.6.0",
+        },
+      },
+      redirects: {
+        "npm:/@jsquash/jpeg@^1.5.0/decode.js":
+          "npm:/@jsquash/jpeg@1.6.0/decode.js",
+      },
+    };
+    expect(pathsFromInfo(graph, "/home/me/.cache/deno/npm")).toEqual({
+      "@jsquash/jpeg/decode.js": [
+        "/home/me/.cache/deno/npm/registry.npmjs.org/@jsquash/jpeg/1.6.0/decode.js",
+      ],
+    });
+  });
+
+  test("keeps the package folder for a peer variant the graph names by version", () => {
+    const graph: InfoJson = {
+      ...valibotGraph,
+      modules: [
+        {
+          local: null,
+          npmPackage: "valibot@1.4.1_typescript@5.9.2",
+          specifier: "npm:/valibot@1.4.1",
+        },
+        entryImportingValibotByCode,
+      ],
+      npmPackages: {
+        "valibot@1.4.1_typescript@5.9.2": {
+          name: "valibot",
+          registryUrl: "https://registry.npmjs.org/",
+          version: "1.4.1",
+        },
+      },
+    };
+    expect(pathsFromInfo(graph, "/home/me/.cache/deno/npm")).toEqual({
+      valibot: ["/home/me/.cache/deno/npm/registry.npmjs.org/valibot/1.4.1"],
+    });
+  });
+
+  test("raises when the graph module does not sit under its package", () => {
+    const graph: InfoJson = {
+      ...valibotGraph,
+      modules: [
+        {
+          local: null,
+          npmPackage: "valibot@1.4.1_typescript@5.9.2",
+          specifier: "npm:/other@2.0.0",
+        },
+        {
+          dependencies: [
+            {
+              code: { specifier: "npm:/other@2.0.0" },
+              specifier: "valibot",
+            },
+          ],
+          local: "/repo/src/index.ts",
+          specifier: "./src/index.ts",
+        },
+      ],
+      npmPackages: {
+        "valibot@1.4.1_typescript@5.9.2": {
+          name: "valibot",
+          registryUrl: "https://registry.npmjs.org/",
+          version: "1.4.1",
+        },
+      },
+    };
+    expect(() => pathsFromInfo(graph, "/home/me/.cache/deno/npm")).toThrow(
+      "npm:/other@2.0.0 does not sit under npm:/valibot@1.4.1",
+    );
   });
 });
 

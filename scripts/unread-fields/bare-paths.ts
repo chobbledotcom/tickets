@@ -54,49 +54,61 @@ const isBareSpecifier = (specifier: string): boolean => {
   );
 };
 
-/** The module one dependency's constraint resolves to, after the redirects
- * table has had its say. A constraint such as "npm:valibot@^1.4.1" names the
- * concrete module the redirects table maps it to. */
-const resolvesTo = (
+/** The bare dependency one module dependency answers: the specifier as the
+ * repository writes it, with the cached path that resolves it, or nothing for
+ * a dependency the graph leaves unmapped. The constraint names the concrete
+ * module that the redirects table maps it to. */
+const resolveDependency = (
   dependency: InfoDependency,
-  moduleBySpecifier: ReadonlyMap<string, InfoModule>,
+  moduleBySpecifier: Record<string, InfoModule>,
   redirects: Record<string, string>,
-): InfoModule | undefined => {
+  info: InfoJson,
+  npmCache: string,
+): readonly [specifier: string, target: string] | undefined => {
+  const written = dependency.specifier ?? "";
+  if (!isBareSpecifier(written)) return;
   const constraint =
     dependency.code?.specifier ?? dependency.type?.specifier ?? "";
-  return moduleBySpecifier.get(redirects[constraint] ?? constraint);
+  const resolved = moduleBySpecifier[redirects[constraint] ?? constraint];
+  const target = resolved && cachedPathOf(resolved, info, npmCache);
+  return target === undefined ? undefined : [written, target];
+};
+
+/** The cached folder one npm module sits in, with the module's subpath after
+ * it, or nothing when the graph names no package entry. Raises when the graph
+ * module does not sit under its package. */
+const npmPathOf = (
+  npmPackage: string,
+  specifier: string,
+  info: InfoJson,
+  npmCache: string,
+): string | null => {
+  const npm = info.npmPackages?.[npmPackage];
+  if (npm === undefined) return null;
+  // The graph names a module `npm:/<name>@<version>` plus its subpath, so the
+  // path after the package is the subpath the compiler resolves.
+  const packagePrefix = `npm:/${npm.name}@${npm.version}`;
+  if (!specifier.startsWith(packagePrefix)) {
+    throw new Error(
+      `The graph module ${specifier} does not sit under ${packagePrefix}`,
+    );
+  }
+  return `${npmFolder(npmCache, npm)}${specifier.slice(packagePrefix.length)}`;
 };
 
 /** The cached path one resolved module sits at, or nothing when the graph
- * names no place for it. An npm package sits in its registry's folder; a jsr
- * or https module carries its own file. */
+ * names no place for it. An npm package sits in its registry's folder under
+ * its subpath; a jsr or https module carries its own file. */
 const cachedPathOf = (
   resolved: InfoModule,
   info: InfoJson,
   npmCache: string,
 ): string | undefined => {
-  if (resolved.npmPackage === undefined) return resolved.local ?? undefined;
-  const npm = info.npmPackages?.[resolved.npmPackage];
-  return npm === undefined ? undefined : npmFolder(npmCache, npm);
-};
-
-/** The answers one graph contributes: each bare dependency of any module,
- * with the cached path that resolves it, or nothing for a dependency the
- * graph leaves unmapped. */
-const resolverOf = (info: InfoJson, npmCache: string) => {
-  const moduleBySpecifier = new Map(
-    info.modules?.map((module) => [module.specifier, module]),
-  );
-  const redirects = info.redirects ?? {};
-  return (
-    dependency: InfoDependency,
-  ): readonly [specifier: string, target: string] | undefined => {
-    const written = dependency.specifier ?? "";
-    if (!isBareSpecifier(written)) return;
-    const resolved = resolvesTo(dependency, moduleBySpecifier, redirects);
-    const target = resolved && cachedPathOf(resolved, info, npmCache);
-    return target === undefined ? undefined : [written, target];
-  };
+  const target =
+    resolved.npmPackage === undefined
+      ? resolved.local
+      : npmPathOf(resolved.npmPackage, resolved.specifier, info, npmCache);
+  return target ?? undefined;
 };
 
 /** Each bare specifier of the graph, with the cached path that resolves it.
@@ -106,11 +118,20 @@ export const pathsFromInfo = (
   info: InfoJson,
   npmCache: string,
 ): Record<string, string[]> => {
-  const resolve = resolverOf(info, npmCache);
+  const moduleBySpecifier: Record<string, InfoModule> = Object.fromEntries(
+    info.modules?.map((module) => [module.specifier, module]) ?? [],
+  );
+  const redirects = info.redirects ?? {};
   const paths: Record<string, string[]> = {};
   for (const module of info.modules ?? []) {
     for (const dependency of module.dependencies ?? []) {
-      const answer = resolve(dependency);
+      const answer = resolveDependency(
+        dependency,
+        moduleBySpecifier,
+        redirects,
+        info,
+        npmCache,
+      );
       if (answer === undefined) continue;
       const [written, target] = answer;
       paths[written] ??= [target];
@@ -140,6 +161,13 @@ const runInfo = async (
   return JSON.parse(new TextDecoder().decode(output.stdout));
 };
 
+/** The value of one settled spawn. A rejected spawn raises its reason, so the
+ * scan says why the graph cannot be read. */
+const settledValue = <T>(settled: PromiseSettledResult<T>): T => {
+  if (settled.status === "rejected") throw settled.reason;
+  return settled.value;
+};
+
 /** The bare-specifier paths for the scan's compiler, from the module graph of
  * the repository's entry. A repository without its entry file has no graph to
  * ask, and its bare specifiers stay unmapped, as they were before this
@@ -150,15 +178,14 @@ export const barePaths = async (
 ): Promise<Record<string, string[]>> => {
   if (!pathIs("isFile")(`${root}/${entry.replace(/^\.\//, "")}`)) return {};
   // Both spawns settle even when one fails, so no child or stream is left
-  // behind when the scan raises.
-  const [bare, graphed] = await Promise.allSettled([
-    runInfo(root, []),
+  // behind when the scan raises. The graph's answer is settled first, so a
+  // repository that cannot be read reports its own graph.
+  const [graphed, bare] = await Promise.allSettled([
     runInfo(root, [entry]),
+    runInfo(root, []),
   ]);
-  if (graphed.status === "rejected") throw graphed.reason;
-  if (bare.status === "rejected") throw bare.reason;
   return pathsFromInfo(
-    graphed.value,
-    answered(bare.value.npmCache, "npm cache folder"),
+    settledValue(graphed),
+    answered(settledValue(bare).npmCache, "npm cache folder"),
   );
 };
