@@ -3,6 +3,7 @@
  * opened by somebody never signed in, because that is who these pages are for.
  */
 
+import { expect } from "@std/expect";
 import { sitePages } from "#db/site-pages.ts";
 import { t } from "#i18n";
 // jscpd:ignore-start
@@ -11,12 +12,17 @@ import {
   findsTheWayInFrom,
   newcomerReading,
   openAdminPage,
+  openAsNewcomer,
   opensListAtRow,
   type PageRead,
   type TakesOneThingDown,
   takesDownFromList,
   withAdminPage,
 } from "#test/specs/support/browser.ts";
+import {
+  checkboxValueOffered,
+  tickedCheckboxes,
+} from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { movingRowsOn } from "#test/specs/support/reordering.ts";
 import {
@@ -29,6 +35,7 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -145,3 +152,87 @@ export const ownerTriesToTakePageDown: StoryJourney<
 /** What the owner was told the last time they wrote a page. */
 export const whatOwnerWasTold = (world: TicketsWorld): string =>
   whatTheyWereTold(world, OWNER);
+
+/** The name the page's Hidden box sends under: the form control the editor's
+ * form carries for it. */
+const HIDDEN_BOX = "hidden";
+
+/** The owner opens one page's editor, by the way in from that page's own row
+ * on their list. */
+const openPageEditor = async (
+  world: TicketsWorld,
+  name: string,
+): Promise<TestBrowser> =>
+  openAdminPage(world, await linkIntoPage(world, name));
+
+/** One page's own editor, open on the screen, with its Hidden box read off the
+ * served form: the value ticking the box would send, and the boxes the page
+ * shows ticked already. Both of the story's Hidden-box helpers read the page
+ * this way, so a form that lost the box — or came back pre-ticked — fails
+ * before any step acts on it. */
+const editorServingHiddenBox = async (world: TicketsWorld, name: string) => {
+  const browser = await openPageEditor(world, name);
+  return {
+    browser,
+    tick: checkboxValueOffered(browser.currentHtml, HIDDEN_BOX),
+    ticked: tickedCheckboxes(browser.currentHtml, HIDDEN_BOX),
+  };
+};
+
+/** Both Hidden-box story actions open one page's own editor and read its box
+ * through the same reader, so both carry this signature and nothing else is
+ * shared between them. */
+export type ActsOnAPagesHiddenBox = (
+  world: TicketsWorld,
+  name: string,
+  hidden: boolean,
+) => Promise<void>;
+
+/** The owner ticks or clears the Hidden box on one page's own editor and
+ * saves. The form's own values ride along the way a real browser sends them;
+ * only the box is named, and an empty list for it is exactly the nothing a
+ * browser sends for a cleared box. A tick is only a tick when the box started
+ * clear, and a clear only when it started ticked, so a save that silently
+ * dropped the box — or a form that came back pre-ticked — fails here. */
+export const ownerSetsPageHidden: ActsOnAPagesHiddenBox = async (
+  world,
+  name,
+  hidden,
+) => {
+  const { browser, tick, ticked } = await editorServingHiddenBox(world, name);
+  if (hidden) expect(ticked).not.toContain(tick);
+  else expect(ticked).toContain(tick);
+  await fillInAndSend(browser, {}, t("common.save_changes"), {
+    [HIDDEN_BOX]: hidden ? [tick] : [],
+  });
+  keepWhatTheyWereTold(world, OWNER, browser.pageText);
+};
+
+/** The page's editor comes back showing the Hidden box as the owner left it,
+ * read off the form the editor serves rather than out of the stored row. */
+export const pageEditorShowsHidden: ActsOnAPagesHiddenBox = async (
+  world,
+  name,
+  hidden,
+) => {
+  const { tick, ticked } = await editorServingHiddenBox(world, name);
+  expect(ticked).toEqual(hidden ? [tick] : []);
+};
+
+/** The address one of the owner's pages lives at, read from the site's own
+ * record. A story names the page; the menu link to it carries the address. */
+export const pageAddress = async (name: string): Promise<string> => {
+  const page = (await sitePages.getAll()).find(
+    ({ name: stored }) => stored === name,
+  );
+  if (!page) throw new Error(`The site has no page called "${name}"`);
+  return page.slug;
+};
+
+/** Whether the menus on a public page offer one of the owner's pages, read off
+ * the front page somebody never signed in opens. A menu link carries the
+ * address the page lives at. */
+export const menusOfferPage = async (address: string): Promise<boolean> =>
+  (await openAsNewcomer("/")).currentHtml.includes(
+    `<a href="/page/${address}">`,
+  );
