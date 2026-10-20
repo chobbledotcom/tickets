@@ -8,26 +8,11 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 // jscpd:ignore-start
-import { makeImage } from "#test-utils/admin-images.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 // jscpd:ignore-end
 
 /** Whose preview the story reads. */
 export const PREVIEWER = "the editor";
-
-/** A picture the editor uploaded, kept with the name their text names it by. */
-export const uploadsAPicture = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
-  const image = await makeImage(name);
-  world.noteImage = {
-    alt: name,
-    filename: image.filename,
-    id: image.id,
-    noteText: "",
-  };
-};
 
 /** The editor previews one piece of text and the answer is kept for the
  * steps that read it back. */

@@ -2,12 +2,11 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { pictureTag } from "#test/specs/support/attendee-images.ts";
 import {
-  PREVIEWER,
-  previewsText,
+  pictureTag,
   uploadsAPicture,
-} from "#test/specs/support/preview.ts";
+} from "#test/specs/support/attendee-images.ts";
+import { PREVIEWER, previewsText } from "#test/specs/support/preview.ts";
 import {
   type TicketsWorld,
   whatTheyWereTold,
