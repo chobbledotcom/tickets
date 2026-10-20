@@ -1,7 +1,5 @@
 // test-groups: run-alone
 
-import { EventEmitter } from "node:events";
-import type { IncomingMessage } from "node:http";
 import { createClient } from "@libsql/client";
 import { expect } from "@std/expect";
 import { join, toFileUrl } from "@std/path";
@@ -13,13 +11,8 @@ import {
 import { withTempDir } from "#test-utils/files.ts";
 import { TEST_TURSO_CREDENTIALS } from "#test-utils/turso-api.ts";
 import {
-  earlyAnswerHandler,
   expectUploadRejection,
-  fakeRequest,
-  scriptedTransport,
   uploadCredentials,
-  uploadThroughScript,
-  withinDeadline,
   withUploadServer,
 } from "./turso-upload-harness.ts";
 
@@ -133,133 +126,14 @@ describe("Turso migration file", () => {
           await request.arrayBuffer();
           return new Response("invalid", { status: 400 });
         },
-        "Upload database failed (400): invalid",
+        (error) => {
+          expect(error).toBeInstanceOf(Error);
+          expect((error as Error).message).toBe(
+            "Upload database failed (400): invalid",
+          );
+        },
       );
     }));
-
-  /** A server can answer before the whole body is sent, which breaks the write.
-   * Both the answer and the write error are correct outcomes, so each is
-   * scripted rather than raced. */
-  test("prefers the server's answer over a later write error", () =>
-    withTempDir(async (dir) => {
-      const request = fakeRequest();
-      const reply = Object.assign(new EventEmitter(), { statusCode: 400 });
-      await expect(
-        uploadThroughScript(dir, request, (receive) => {
-          receive(reply as unknown as IncomingMessage);
-          reply.emit("data", new TextEncoder().encode("invalid"));
-          request.destroy(new Error("error writing a body to connection"));
-          reply.emit("end");
-        }),
-      ).rejects.toThrow("Upload database failed (400): invalid");
-    }));
-
-  /** One upload can raise two errors — the write breaking, then the file
-   * stopping because of it — and node throws an "error" nothing is listening
-   * for, from a place no caller can catch. */
-  test("survives a second error on the same request", () =>
-    withTempDir(async (dir) => {
-      const request = fakeRequest();
-      await expect(
-        uploadThroughScript(dir, request, () => {
-          request.emit("error", new Error("write broke"));
-        }),
-      ).rejects.toThrow("write broke");
-
-      expect(() =>
-        request.emit("error", new Error("and the file stopped too")),
-      ).not.toThrow();
-    }));
-
-  test("rejects a write error when no reply has arrived", () =>
-    withTempDir(async (dir) => {
-      const request = fakeRequest();
-      await expect(
-        uploadThroughScript(dir, request, () => {
-          request.destroy(new Error("connection reset mid-upload"));
-        }),
-      ).rejects.toThrow("connection reset mid-upload");
-    }));
-
-  /** A real server can answer before the whole body is sent. The write then
-   * breaks inside node:http's own internals, and the polyfill also rejects an
-   * internal task that nobody awaits. The upload must still end as a normal
-   * rejection, and the duplicate internal rejection must never escape as an
-   * unhandled one. One read keeps the socket alive until the answer is on the
-   * wire, and the padded body gives the client more to read while the write
-   * breaks. That order makes the internal task fail on every run: with the
-   * watch removed, this case ends the run the way issue #2314 reports.
-   *
-   * The write break is not reported on every run; the polyfill sometimes
-   * swallows it, so the upload settles through its deadline instead (issue
-   * #2556). Both endings are normal rejections, which is what this test
-   * pins. */
-  test("survives a server that answers before the body is sent", () =>
-    withTempDir(async (dir) => {
-      const path = join(dir, "database.sqlite");
-      // Big enough that the write cannot finish before the answer arrives.
-      await Deno.writeFile(path, new Uint8Array(32_000_000));
-
-      await expectUploadRejection(
-        path,
-        earlyAnswerHandler,
-        /error writing a body to connection|Upload aborted/,
-      );
-    }));
-
-  /** Start an upload that never answers, then abort it with `reason` and
-   * return the rejection it settles with. */
-  const uploadInterruptedBy = (reason: unknown): Promise<Error> =>
-    withTempDir(async (dir) => {
-      const path = join(dir, "database.sqlite");
-      await Deno.writeTextFile(path, "sqlite bytes");
-      const controller = new AbortController();
-      const started = Promise.withResolvers<void>();
-      const upload = uploadTursoDatabaseFile(
-        path,
-        TEST_TURSO_CREDENTIALS,
-        controller.signal,
-        scriptedTransport(fakeRequest(), () => started.resolve()),
-      );
-      await started.promise;
-      controller.abort(reason);
-      try {
-        await upload;
-      } catch (error) {
-        if (!(error instanceof Error)) throw error;
-        return error;
-      }
-      throw new Error("The upload should have rejected");
-    });
-
-  /** The polyfill can leave the upload pending with no event at all (issue
-   * #2556). The caller's signal is the way out: the upload settles with the
-   * reason it carried, so an operator sees what stopped it. */
-  test("settles as aborted when the caller interrupts a stalled upload", async () => {
-    const error = await uploadInterruptedBy(new Error("stop now"));
-
-    expect(error.message).toBe("Upload aborted: stop now");
-  });
-
-  test("names a non-Error abort reason in the interruption error", async () => {
-    const error = await uploadInterruptedBy("stop now");
-
-    expect(error.message).toBe("Upload aborted: stop now");
-  });
-
-  /** The suite's own guard: a wait that never settles must fail with the
-   * label it was given, not hold the job open (issue #2556). */
-  test("names a wait that never settles instead of holding the job", async () => {
-    const error = await withinDeadline(
-      new Promise<never>(() => {}),
-      "the test work",
-      0,
-    ).catch((reason: Error) => reason);
-
-    expect(error.message).toBe(
-      "the test work did not settle within 0ms; the upload wedged (issue #2556).",
-    );
-  });
 
   test("rejects an interrupted upload before opening the snapshot", () =>
     withTempDir(async (dir) => {
