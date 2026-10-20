@@ -64,3 +64,17 @@ Feature: An owner tells people the news
       Then the owner is told the news post was deleted
       And a visitor asking for the news page finds nothing there
       And a visitor on the front page is offered no News link
+
+  @rule:pages.a-post-s-pictures-show-on-the-post-s-page
+  Rule: A post's pictures show on the post's page
+    A post can carry a picture the owner uploaded. A visitor who follows the
+    post's link sees the picture itself, and never sees the reference that
+    names it.
+
+    @case:news.post-picture
+    Scenario: The owner posts news with a picture in it
+      Given the public site is on
+      And the owner has uploaded a picture called "LaunchPoster"
+      When the owner posts news called "Big launch" with the picture in it
+      Then the owner is told the news post was created
+      And a visitor following "Big launch" from the news page sees the picture
