@@ -1,4 +1,5 @@
 import { expect } from "@std/expect";
+import { fromFileUrl } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
 import { scanUnreadFields } from "#scripts/unread-fields/scan.ts";
 import { scannedFixture } from "./fixture/build.ts";
@@ -381,7 +382,7 @@ describe("the shapes a bare specifier holds", () => {
     // be a static import: it runs only when this test does, and its whole job
     // is to have the package cached before the child resolves it.
     await import("valibot");
-    const repoRoot = new URL("../../../", import.meta.url).pathname.replace(
+    const repoRoot = fromFileUrl(new URL("../../../", import.meta.url)).replace(
       /\/$/,
       "",
     );
