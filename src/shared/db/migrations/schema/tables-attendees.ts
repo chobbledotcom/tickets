@@ -250,6 +250,18 @@ export const attendeeTables: [name: string, table: Table][] = [
     },
   ],
 
+  // The door's replay ledger for queued offline check-ins: one row per
+  // operation id a hash admission has claimed, so a retried delivery can
+  // never admit a second ticket. Holds the id alone — no ticket token,
+  // digest, or guest detail.
+  [
+    "processed_scan_operations",
+    {
+      columns: [["operation_id", "TEXT PRIMARY KEY"]],
+      indexes: [],
+    },
+  ],
+
   [
     "activity_log",
     {

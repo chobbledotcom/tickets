@@ -45,7 +45,10 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 const doorIdNamed = whatWasKeptFor("group_door");
 
 /** One group door's own pages: its scanner, and the door it answers. */
-const groupDoorPaths = (world: TicketsWorld, groupName: string): DoorPaths => {
+export const groupDoorPaths = (
+  world: TicketsWorld,
+  groupName: string,
+): DoorPaths => {
   const id = doorIdNamed(world, groupName);
   return {
     page: `/admin/groups/${id}/scanner`,

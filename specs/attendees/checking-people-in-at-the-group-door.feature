@@ -117,3 +117,37 @@ Feature: An organiser checks people in at a group's door
       And the Festival door checks in every listing when scanning
       And the organiser reads Alice's ticket at the Festival group door
       Then the Festival group's scanner does not offer Alice
+
+  @rule:attendees.a-group-door-saves-its-tiers-for-offline-reading
+  @surface:admin
+  Rule: The group door saves its tiers before the connection goes
+    The group's door keeps one list for every tier it admits, so a ticket of
+    any tier can still be read while the site is out of reach. The list
+    holds codes only: no ticket in full, and no guest detail.
+
+    @case:group-door.the-group-door-saves-its-tier-list
+    Scenario: The organiser saves the group's tickets at its door
+      Given a group door for the Festival holds the Standard and Society tiers
+      And Alice has a ticket for the Standard tier
+      And Bruno has a ticket for the Society tier
+      When the Festival group door saves its tickets for offline reading
+      Then the Festival group door's saved list holds one-way codes for Alice's and Bruno's tickets
+      And the Festival group door's saved list holds no ticket code in full
+      And the Festival group door's saved list names nobody
+
+  @rule:attendees.a-saved-delivery-at-a-group-door-runs-once
+  @surface:admin
+  Rule: A saved check-in at the group door runs once
+    Delivering the same saved check-in twice lets nobody in twice: the retry
+    is told the person is already in, and the ticket's remaining tiers wait
+    for their own scan.
+
+    @case:group-door.a-retried-delivery-admits-no-second-tier
+    Scenario: The organiser delivers the same saved check-in twice at the group door
+      Given a group door for the Festival holds the Standard and Society tiers
+      And Alice has a ticket for the Standard and Society tiers
+      And the Festival group door saves its tickets for offline reading
+      When the organiser delivers Alice's saved check-in at the Festival group door
+      And the organiser delivers the same saved check-in again at the Festival group door
+      Then the door says Alice is already in
+      And the Festival group door has let 1 of Alice's tickets in

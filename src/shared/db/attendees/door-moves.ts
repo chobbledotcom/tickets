@@ -14,13 +14,21 @@ import { withTransaction } from "#db/client.ts";
 /** Move the tickets and log one activity row per move that really moved
  * some, worded by `describe`. A move that moved nothing (another door took
  * the tickets first, or the lines were already in the asked state) writes
- * no row. Answers every move's result. */
+ * no row. Answers every move's result.
+ *
+ * `claim`, when the caller hands one over, reserves the caller's operation
+ * id inside this same transaction before any move runs, and answers false
+ * when that id is already stored. A queued offline delivery that lost its
+ * first answer replays with the id it made up, so the replay claims
+ * nothing and moves nothing — one delivery never admits a second ticket. */
 export const moveTicketsAndLog = (
   direction: TicketDirection,
   moves: readonly TicketMove[],
   describe: (move: TicketMoveAnswer) => string,
+  claim?: (tx: TxScope) => Promise<boolean>,
 ): Promise<TicketMoveAnswer[]> =>
   withTransaction(async (tx) => {
+    if (claim && !(await claim(tx))) return [];
     const moved = await moveTickets(direction, moves, tx);
     await logActivities(
       moved

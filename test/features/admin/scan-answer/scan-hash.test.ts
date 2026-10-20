@@ -8,7 +8,11 @@ import { it as test } from "@std/testing/bdd";
 import { sha256Hex } from "#crypto/sha256.ts";
 import { groupDoor, scanAtDoor } from "#test/features/admin/scanner/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import {
+  bookTestAttendee,
+  createMultiBookingAttendee,
+} from "#test-utils/db-helpers/attendees.ts";
+import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 
 describeWithEnv(
   "a queued check-in replaying by token digest",
@@ -78,6 +82,120 @@ describeWithEnv(
       const second = await scanAtDoor(door.group.id, body);
       expect(second.json.status).toBe("already_checked_in");
       expect(second.json.name).toBe("Bruno");
+    });
+  },
+);
+
+describeWithEnv(
+  "a queued delivery that names its operation",
+  { db: true },
+  () => {
+    test("a lost answer's retry admits one place of a party, once", async () => {
+      // A party of three on one ticket. The device delivered one place, the
+      // answer was lost on the way home, and the queue sent the same
+      // delivery again. The second send must land nowhere: the first one
+      // already took a place.
+      const door = await groupDoor(1);
+      const attendee = await bookTestAttendee(
+        [{ listingId: door.members[0]!.id, quantity: 3 }],
+        "Cara",
+        "cara@example.com",
+      );
+      const body = {
+        operation_id: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b01",
+        quantity: 1,
+        token_hash: await sha256Hex(attendee.ticket_token),
+      };
+
+      const first = await scanAtDoor(door.group.id, body);
+      expect(first.json.status).toBe("checked_in");
+      expect(first.json.quantity).toBe(1);
+      expect(first.json.remaining).toBe(2);
+
+      const retry = await scanAtDoor(door.group.id, body);
+      expect(retry.json.status).toBe("already_checked_in");
+      expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 1 }]);
+    });
+
+    test("a lost answer's retry of a two-tier ticket admits no second tier", async () => {
+      const door = await groupDoor(2, {}, ["Standard", "Society"]);
+      const attendee = await createMultiBookingAttendee(
+        "Nia",
+        "nia@example.com",
+        [
+          { listingId: door.members[0]!.id },
+          { listingId: door.members[1]!.id },
+        ],
+      );
+      const body = {
+        operation_id: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b02",
+        token_hash: await sha256Hex(attendee.ticket_token),
+      };
+
+      const first = await scanAtDoor(door.group.id, body);
+      expect(first.json.status).toBe("checked_in");
+
+      const retry = await scanAtDoor(door.group.id, body);
+      expect(retry.json.status).toBe("already_checked_in");
+      // The first tier is in once, and the second tier still waits.
+      expect(
+        (await storedCheckinRows(attendee.id)).sort(
+          (a, b) => b.checked_in - a.checked_in,
+        ),
+      ).toEqual([{ checked_in: 1 }, { checked_in: 0 }]);
+    });
+
+    test("a fresh delivery of the same ticket still admits the next place", async () => {
+      // The guard guards one delivery, not the ticket: the party's next
+      // arrival is a new delivery with an id of its own, and it gets in.
+      const door = await groupDoor(1);
+      const attendee = await bookTestAttendee(
+        [{ listingId: door.members[0]!.id, quantity: 3 }],
+        "Cara",
+        "cara@example.com",
+      );
+      const tokenHash = await sha256Hex(attendee.ticket_token);
+
+      const first = await scanAtDoor(door.group.id, {
+        operation_id: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b03",
+        quantity: 1,
+        token_hash: tokenHash,
+      });
+      expect(first.json.status).toBe("checked_in");
+
+      const second = await scanAtDoor(door.group.id, {
+        operation_id: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b04",
+        quantity: 1,
+        token_hash: tokenHash,
+      });
+      expect(second.json.status).toBe("checked_in");
+      expect(second.json.quantity).toBe(1);
+      expect(second.json.remaining).toBe(1);
+    });
+
+    test("a delivery that names no real operation is refused", async () => {
+      const door = await groupDoor(1);
+      const attendee = await bookTestAttendee(
+        [door.members[0]!.id],
+        "Pia",
+        "pia@example.com",
+      );
+      const tokenHash = await sha256Hex(attendee.ticket_token);
+
+      for (const body of [
+        { operation_id: "", token_hash: tokenHash },
+        { operation_id: 7, token_hash: tokenHash },
+        // A live scan reads the ticket itself, so it names no delivery.
+        {
+          operation_id: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b05",
+          token: attendee.ticket_token,
+        },
+      ]) {
+        const answer = await scanAtDoor(door.group.id, body);
+        expect(answer.response.status).toBe(400);
+        expect(answer.json.error).toBe("Invalid operation");
+      }
+      expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 0 }]);
     });
   },
 );

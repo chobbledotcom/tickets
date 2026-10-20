@@ -37,6 +37,10 @@ export interface ThingsByKind {
   /** The number the site filed something under, kept by the story's name
    * for it — a news post, a holiday, anything made through a form. */
   record: number;
+  /** One door's saved tickets: the raw body, and the one-way codes in it. */
+  saved_codes: { body: string; hashes: string[] };
+  /** The saved check-in a door delivered last, ready to send once more. */
+  saved_delivery: { code: string; operationId: string };
   /** The code one person holds to get in. */
   ticket: string;
   /** What somebody was told the last time they did something. */

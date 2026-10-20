@@ -8,13 +8,14 @@
  */
 
 import { sha256Hex } from "#crypto/sha256.ts";
+import type { DecryptedAttendeeRow } from "#db/attendees/pii.ts";
 import { getGroupById } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { unique } from "#fp";
 import { SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import { jsonResponse } from "#routes/response.ts";
-import type { Group } from "#types";
+import { type Attendee, type Group, hasTicketQuantity } from "#types";
 import {
   doorAttendees,
   groupScope,
@@ -22,18 +23,31 @@ import {
   scannerPrivateKey,
 } from "./scan-answer.ts";
 
-/** Answer the door's token list: every attendee of the scope's listings,
- * decrypted, each token answered only as its SHA-256 digest. The list is
- * sorted, so the same door always answers the same list. */
+/** The lines a saved list may stand for: a line the door's own scan admits
+ * or counts as used. A refunded order and a no-quantity line both turn a
+ * scan away online, so a digest that stands for only those would answer
+ * "looks legit" offline for a ticket the door refuses. A line still owing
+ * nothing stays: the door's own scan answers "already checked in" for it,
+ * and that is the answer a replayed delivery must fetch home. */
+const cacheWorthyTokens = (
+  attendees: readonly DecryptedAttendeeRow<Attendee>[],
+): string[] =>
+  unique(
+    attendees
+      .filter((line) => hasTicketQuantity(line) && !line.refunded)
+      .map((line) => line.ticket_token),
+  );
+
+/** Answer the door's token list: every eligible attendee of the scope's
+ * listings, decrypted, each token answered only as its SHA-256 digest. The
+ * list is sorted, so the same door always answers the same list. */
 const tokenListResponse = async (
   listingIds: readonly number[],
 ): Promise<Response> => {
   const privateKey = await scannerPrivateKey();
   if (privateKey instanceof Response) return privateKey;
   const attendees = await doorAttendees(listingIds, privateKey);
-  const hashes = await Promise.all(
-    unique(attendees.map((attendee) => attendee.ticket_token)).map(sha256Hex),
-  );
+  const hashes = await Promise.all(cacheWorthyTokens(attendees).map(sha256Hex));
   return jsonResponse({ hashes: hashes.sort() });
 };
 

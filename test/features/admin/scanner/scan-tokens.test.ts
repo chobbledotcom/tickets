@@ -6,20 +6,25 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { sha256Hex } from "#crypto/sha256.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
+import { todayInTz } from "#shared/timezone.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  bookTestAttendee,
   createTestAttendeeDirect,
   createTestAttendeeWithToken,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { refundThroughLedger } from "#test-utils/ledger.ts";
+import { insertSecondBookingRow } from "#test-utils/logistics.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
   createTestEditorSession,
   requestAsSession,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import { groupDoor } from "./support.ts";
+import { groupDoor, scanAtDoor } from "./support.ts";
 
 /** The door's token list, fetched the way the scanner page fetches it. */
 const tokensAsScanner = async (
@@ -139,6 +144,87 @@ describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
     expect(json).toEqual({ hashes: digests.sort() });
     // No member token of any kind travels, the shop's included.
     expect(JSON.stringify(json)).not.toContain(shopToken);
+  });
+
+  test("a ticket whose money was given back is not saved", async () => {
+    const door = await groupDoor(1);
+    const attendee = await bookTestAttendee(
+      [door.members[0]!.id],
+      "Ada",
+      "ada@example.com",
+    );
+    await refundThroughLedger(attendee.id, door.members[0]!.id);
+    const { cookie } = await createTestScannerSession();
+
+    const { json } = await tokensAsScanner(
+      `/admin/groups/${door.group.id}/scan-tokens`,
+      cookie,
+    );
+    // The door's own scan turns a refunded ticket away, so the saved list
+    // must never tell the door the ticket looks legitimate.
+    expect(json).toEqual({ hashes: [] });
+  });
+
+  test("a line with no tickets behind it is not saved", async () => {
+    const door = await groupDoor(1);
+    await createTestAttendeeDirect(
+      door.members[0]!.id,
+      "Ghost",
+      "ghost@example.com",
+      0,
+    );
+    const { cookie } = await createTestScannerSession();
+
+    const { json } = await tokensAsScanner(
+      `/admin/groups/${door.group.id}/scan-tokens`,
+      cookie,
+    );
+    expect(json).toEqual({ hashes: [] });
+  });
+
+  test("a ticket with a refunded order and a live order is saved once", async () => {
+    const door = await groupDoor(1);
+    const attendee = await bookTestAttendee(
+      [door.members[0]!.id],
+      "Merged",
+      "merged@example.com",
+    );
+    await refundThroughLedger(attendee.id, door.members[0]!.id);
+    await insertSecondBookingRow(
+      attendee.id,
+      door.members[0]!.id,
+      todayInTz(settings.timezone),
+    );
+    const { cookie } = await createTestScannerSession();
+
+    const { json } = await tokensAsScanner(
+      `/admin/groups/${door.group.id}/scan-tokens`,
+      cookie,
+    );
+    // The live order still gets in, so its one digest travels.
+    expect(json).toEqual({ hashes: [await sha256Hex(attendee.ticket_token)] });
+  });
+
+  test("a ticket the door already used stays in the list", async () => {
+    // A used ticket answers "already checked in", not a refusal — and the
+    // per-delivery answers a replayed check-in fetches home rest on that.
+    const door = await groupDoor(1);
+    const attendee = await bookTestAttendee(
+      [door.members[0]!.id],
+      "Bruno",
+      "bruno@example.com",
+    );
+    const used = await scanAtDoor(door.group.id, {
+      token: attendee.ticket_token,
+    });
+    expect(used.json.status).toBe("checked_in");
+    const { cookie } = await createTestScannerSession();
+
+    const { json } = await tokensAsScanner(
+      `/admin/groups/${door.group.id}/scan-tokens`,
+      cookie,
+    );
+    expect(json).toEqual({ hashes: [await sha256Hex(attendee.ticket_token)] });
   });
 
   test("an unknown group answers 404", async () => {

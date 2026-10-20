@@ -18,6 +18,7 @@ import {
 } from "#db/attendees/tokens.ts";
 import { getListingsByGroupId } from "#db/groups.ts";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
+import { claimScanOperation } from "#db/processed-scan-operations.ts";
 import { requiredMapValue, sumOf, unique } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
@@ -174,9 +175,12 @@ const alreadyCheckedIn = (
  * check-in never lands without its activity record. The function answers
  * the tickets the lines really took (less than planned when another door
  * admitted some first). It also answers what the booking still owes after
- * the write. The response then never reports a door race as tickets left. */
+ * the write. The response then never reports a door race as tickets left.
+ * `operationId`, when the delivery names one, is claimed inside the same
+ * transaction, so a replay of the same queued delivery moves nothing. */
 const performCheckIns = async (
   decision: Extract<ScanDecision, { kind: "admit" }>,
+  operationId?: string,
 ): Promise<{ admitted: number; remaining: number }> => {
   const attendeeId = decision.rows[0]!.attendee.id;
   const listingOf = (unit: ScanUnit) => unit.rows[0]!.listing;
@@ -196,6 +200,7 @@ const performCheckIns = async (
         move.listingId,
         `Listing ${move.listingId} is no unit of this scan`,
       )}'`,
+    operationId && claimScanOperation(operationId),
   );
   // What the write left: the touched pairs' post-write owed, plus the owed
   // of rows the scan did not admit. The transaction saw every ticket a
@@ -236,6 +241,7 @@ const scanBy = async (
   controls: ScanControls,
   privateKey: CryptoKey,
   refuseWrongListing: boolean,
+  operationId?: string,
 ): Promise<Response> => {
   const awb = await load();
   if (!awb) return jsonResponse({ status: "not_found" }, 404);
@@ -250,15 +256,17 @@ const scanBy = async (
   if (refuseWrongListing && decision.kind === "wrong_listing") {
     return jsonResponse({ status: "not_found" }, 404);
   }
-  return scanDecisionResponse(decision, allEntries, attendeeName);
+  return scanDecisionResponse(decision, allEntries, attendeeName, operationId);
 };
 
 /** Answer one scan's decision: the shared responses a camera read and a
- * manual pick both reach. */
+ * manual pick both reach. A queued delivery's operation id rides along and
+ * guards its admission against a replay. */
 const scanDecisionResponse = async (
   decision: ScanDecision,
   allEntries: TokenEntry[],
   attendeeName: string,
+  operationId?: string,
 ): Promise<Response> => {
   switch (decision.kind) {
     case "not_found":
@@ -286,8 +294,12 @@ const scanDecisionResponse = async (
         status: "select_quantity",
       });
     case "admit": {
-      const { admitted, remaining } = await performCheckIns(decision);
-      // Another door took every ticket this scan planned to admit.
+      const { admitted, remaining } = await performCheckIns(
+        decision,
+        operationId,
+      );
+      // Another door took every ticket this scan planned to admit — and a
+      // replayed queued delivery claims nothing, so it lands here too.
       if (admitted === 0) return alreadyCheckedIn(decision.rows, attendeeName);
       return jsonResponse({
         ...scanBody(decision.rows, attendeeName, "checked_in", admitted),
@@ -303,6 +315,35 @@ const scanDecisionResponse = async (
 const isAdmitCount = (value: unknown): value is number =>
   typeof value === "number" && isPositiveSafeInteger(value);
 
+/** The longest operation id a queued delivery may name. A device makes its
+ * own id up, so the cap only bounds the column a hostile caller could
+ * fill. */
+const OPERATION_ID_MAX = 100;
+
+/** Read a queued delivery's operation id from the request body. The id is
+ * the replay guard's whole key, so it must be a real one: a missing id
+ * means no guard, and anything that is not a plain short string claims
+ * nothing. An id beside a raw token or a picked attendee id names no
+ * delivery the API defines, so it is refused rather than quietly ignored. */
+const queuedOperationId = (
+  body: Record<string, unknown>,
+): string | Response | undefined => {
+  const given = body.operation_id;
+  if (given === undefined) return;
+  const shaped =
+    typeof given === "string" &&
+    given !== "" &&
+    given.length <= OPERATION_ID_MAX;
+  if (
+    !shaped ||
+    typeof body.token === "string" ||
+    typeof body.attendee_id === "number"
+  ) {
+    return apiErrorResponse("Invalid operation");
+  }
+  return given;
+};
+
 /** Validate scan controls and load the request's decryption key. */
 export const processScan = async (
   scope: ScanScope,
@@ -311,6 +352,8 @@ export const processScan = async (
   if (body.quantity !== undefined && !isAdmitCount(body.quantity)) {
     return apiErrorResponse("Invalid quantity");
   }
+  const operationId = queuedOperationId(body);
+  if (operationId instanceof Response) return operationId;
   const privateKey = await scannerPrivateKey();
   if (privateKey instanceof Response) return privateKey;
   // A camera read carries the ticket token it decoded. A queued check-in
@@ -347,6 +390,7 @@ export const processScan = async (
     },
     privateKey,
     !cameraRead,
+    operationId,
   );
 };
 

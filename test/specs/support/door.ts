@@ -54,16 +54,21 @@ export const recordPath = (
 ): string => `/admin/${kind}/${id}/${page}`;
 
 /** A page belonging to one of the story's listings. */
-const listingPath = (
+export const listingPath = (
   world: TicketsWorld,
   listing: string,
   page: string,
 ): string => recordPath("listing", listingIdNamed(world, listing), page);
 
-/** What the organiser decides about a ticket the door queried. */
+/** What the organiser decides about a ticket the door queried. A saved
+ * check-in the door delivers after an outage carries no ticket: it travels
+ * by the one-way code the door stored, and names the delivery it belongs
+ * to, so a retry of the same delivery can never let a second person in. */
 export type DoorChoice = {
   confirmedTheirId?: boolean;
   letInAnyway?: boolean;
+  operationId?: string;
+  savedCode?: string;
   tickets?: number;
 };
 
@@ -178,7 +183,12 @@ export const sendDoorScan = async (
   const response = await handleRequest(
     new Request(`http://localhost${scanPath}`, {
       body: JSON.stringify({
-        token: ticket,
+        ...(choices.savedCode === undefined
+          ? { token: ticket }
+          : {
+              operation_id: choices.operationId,
+              token_hash: choices.savedCode,
+            }),
         ...(choices.letInAnyway === undefined
           ? {}
           : { force: choices.letInAnyway }),

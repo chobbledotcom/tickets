@@ -154,3 +154,96 @@ Feature: An organiser checks people in at the door
       Given Alice has a ticket for the Ceilidh
       And Alice's Ceilidh ticket has been refunded
       Then the Ceilidh door does not offer Alice
+
+  @rule:attendees.a-door-saves-its-tickets-before-the-connection-goes
+  @surface:admin
+  Rule: The door saves its tickets before the connection goes
+    On load the door keeps the day's tickets as one-way codes, so it can
+    still tell a real ticket from a strange one while the site is out of
+    reach. The list holds codes only: no ticket in full, and no guest
+    detail. A ticket the door would turn away leaves no code behind.
+
+    @case:door.the-door-saves-its-list
+    Scenario: The organiser saves the day's tickets at the door
+      Given Alice has a ticket for the Ceilidh
+      And Bruno has a ticket for the Ceilidh
+      When the Ceilidh door saves its tickets for offline reading
+      Then the Ceilidh door's saved list holds one-way codes for Alice's and Bruno's tickets
+      And the Ceilidh door's saved list holds no ticket code in full
+      And the Ceilidh door's saved list names nobody
+
+    @case:door.a-refunded-ticket-saves-no-code
+    Scenario: The organiser saves the list after a ticket was refunded
+      Given Alice has a ticket for the Ceilidh
+      And Alice's Ceilidh ticket has been refunded
+      When the Ceilidh door saves its tickets for offline reading
+      Then the Ceilidh door's saved list is empty
+
+    @case:door.a-door-with-nobody-to-check-in-saves-an-empty-list
+    Scenario: A door with nobody to check in saves an empty list
+      Given the Cabin is running its own door
+      When the Cabin door saves its tickets for offline reading
+      Then the Cabin door's saved list is empty
+
+    @case:door.a-thing-nobody-attends-saves-no-list
+    Scenario: The site saves no list for a thing nobody attends
+      Given the site sells a Raffle that nobody attends
+      When the organiser tries to save the Raffle door's tickets for offline reading
+      Then the site saves no list for the Raffle
+
+    @case:door.somebody-without-door-duties-saves-no-list
+    Scenario: Somebody without door duties cannot save a door's list
+      Given the owner invites Bob to help with the listings
+      And Bob follows the invite and chooses a password
+      And Alice has a ticket for the Ceilidh
+      When Bob asks the Ceilidh door to save its tickets for offline reading
+      Then the site refuses to save the Ceilidh's list
+
+  @rule:attendees.a-saved-check-in-is-delivered-by-its-one-way-code
+  @surface:admin
+  Rule: A saved check-in is delivered by its one-way code
+    While the site was out of reach, the door saved its check-ins. When the
+    connection is back, the door delivers each one by the code it stored,
+    and the door reads the same answer it would have read at the time. A
+    code another door stored opens nothing here, and the same delivery
+    twice admits nobody twice.
+
+    @case:door.a-saved-delivery-lets-them-in
+    Scenario: The organiser delivers a saved check-in
+      Given Alice has a ticket for the Ceilidh
+      And the Ceilidh door saves its tickets for offline reading
+      When the organiser delivers Alice's saved check-in at the Ceilidh door
+      Then the door lets Alice in
+
+    @case:door.a-saved-check-in-that-names-nobody-is-refused
+    Scenario: The organiser delivers a saved check-in that names nobody
+      Given Alice has a ticket for the Ceilidh
+      When the organiser delivers a saved check-in that names nobody at the Ceilidh door
+      Then the door refuses the saved check-in
+      And nobody has let Alice in at the Ceilidh door
+
+    @case:door.a-code-from-another-door-is-refused
+    Scenario: The organiser delivers a check-in another door saved
+      Given Alice has a ticket for the Quiz
+      And the Ceilidh is running its own door
+      When the Quiz door saves its tickets for offline reading
+      And the organiser delivers the saved check-in the Quiz door saved for Alice at the Ceilidh door
+      Then the door refuses the saved check-in
+      And nobody has let Alice in at the Ceilidh door
+
+    @case:door.a-saved-delivery-for-a-used-ticket-says-so
+    Scenario: The organiser delivers a saved check-in for a ticket already used
+      Given Alice has a ticket for the Ceilidh
+      And the organiser reads Alice's ticket at the Ceilidh door
+      And the Ceilidh door saves its tickets for offline reading
+      When the organiser delivers Alice's saved check-in at the Ceilidh door
+      Then the door says Alice is already in
+
+    @case:door.a-retried-delivery-lets-no-one-else-in
+    Scenario: The organiser delivers the same saved check-in twice
+      Given Cara has a ticket for 3 places at the Ceilidh
+      And the Ceilidh door saves its tickets for offline reading
+      When the organiser delivers 1 of Cara's saved tickets at the Ceilidh door
+      And the organiser delivers the same saved check-in again at the Ceilidh door
+      Then the door says Cara is already in
+      And the Ceilidh door has let 1 of Cara's tickets in
