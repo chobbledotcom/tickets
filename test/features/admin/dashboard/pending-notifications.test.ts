@@ -12,7 +12,7 @@ describeWithEnv(
   "the dashboard's unsent notification count",
   { db: true },
   () => {
-    test("counts the bookings with unsent notifications", async () => {
+    test("counts the attendees with unsent notifications", async () => {
       await bookTestAttendeeWithFlags("Counted Buyer", 1, 0);
       await bookTestAttendeeWithFlags("Second Counted Buyer", 0, 1);
       await bookTestAttendeeWithFlags("Clean Buyer", 0, 0);

@@ -178,7 +178,7 @@ Then(
 );
 
 Then(
-  "the dashboard counts {int} booking(s) with unsent notifications",
+  "the dashboard counts {int} attendee(s) with unsent notifications",
   function (this: TicketsWorld, count: number): void {
     expect(pageSeen(this)).toContain(
       t("admin.dashboard.pending_notifications", { count }),
