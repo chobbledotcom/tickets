@@ -3,8 +3,8 @@
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage~0r9wwy4  ?? → || audited:1i6yq97 # titleNav is undefined or a Promise from its declared type; every Promise is truthy, and both operators send undefined to null
 src/features/auth.ts::recordPageGuardFor~01c7xvj  ?? → || audited:1bovven # audience is undefined or a readonly AdminLevel array; every array is truthy, and both operators send undefined to the route audience
 
-src/features/response.ts::maybeStashForm.source~05i3xv9  ?? → || audited:0iy517h # Explicit forms are URLSearchParams objects or undefined. Captured forms are FormParams objects or null. Every present object is truthy.
-src/features/response.ts::redirect.flash~0r1iimg  ?? → || audited:0iy517h # maybeStashForm returns null or a non-empty token from generateSecureToken. Both operators select undefined only for null.
+src/features/response.ts::maybeStashForm.source~05i3xv9  ?? → || audited:1352b04 # Explicit forms are URLSearchParams objects or undefined. Captured forms are FormParams objects or null. Every present object is truthy.
+src/features/response.ts::redirect.flash~0r1iimg  ?? → || audited:1352b04 # maybeStashForm returns null or a non-empty token from generateSecureToken. Both operators select undefined only for null.
 
 src/features/admin/settings-general.ts::handlePaymentProviderPost.validate~1wzn0s8  0 → 1 audited:04hbhdx # recoveryChoices is never length 1: a single configured provider resolves unambiguously in existingPaymentProviderState, so the list is empty or holds two or more
 src/features/admin/api-listing-body.ts::bodyToUpdateInput.input.wouldBeGroupIds~1erbpzo  ?? → || audited:1ht6jt6 # joinIds.groupIds is an array or undefined, and arrays are always truthy
@@ -177,9 +177,9 @@ src/features/public/pages.ts::renderContactPage.content~1090zn7  || → ?? audit
 
 # Public order page (order.ts) — booking-span sums whose floor the capacity
 # reading applies again, and key halves that are always present.
-src/features/public/order.ts::loadOrderPools.widestSpanDays~1j2oze7  1 → 0 audited:0zxe3o4 # with no date chosen nothing is judged day by day, and daysOfSpan clamps the span back to one day
-src/features/public/order.ts::bookingUrlFor.chosen.kind~17n3p4g   → "mutated" audited:12s8dvt # a selection key is always built as kind:id by listingOptionKey/packageOptionKey, so the kind is never missing
-src/features/public/order.ts::bookingUrlFor.chosen.rawId~1xqr8m1   → "mutated" audited:12s8dvt # the same key always carries its id, so the id half is never missing
+src/features/public/order.ts::loadOrderPools.widestSpanDays~1j2oze7  1 → 0 audited:1jdhljg # with no date chosen nothing is judged day by day, and daysOfSpan clamps the span back to one day
+src/features/public/order.ts::bookingUrlFor.chosen.kind~17n3p4g   → "mutated" audited:1jdhljg # a selection key is always built as kind:id by listingOptionKey/packageOptionKey, so the kind is never missing
+src/features/public/order.ts::bookingUrlFor.chosen.rawId~1xqr8m1   → "mutated" audited:1jdhljg # the same key always carries its id, so the id half is never missing
 
 # Listing form (listings-form.ts) — a redundant day-price row the parser drops,
 # a default the field's own bounds make unreachable, error text no surface can
