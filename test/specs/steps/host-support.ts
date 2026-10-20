@@ -9,7 +9,10 @@ import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
-import { pictureTag } from "#test/specs/support/attendee-images.ts";
+import {
+  pageShowsPicture,
+  uploadsAPicture,
+} from "#test/specs/support/attendee-images.ts";
 import {
   adminBrowser,
   ORGANISER,
@@ -34,7 +37,6 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
-import { makeImage } from "#test-utils/admin-images.ts";
 import type { RecordedFetchCall } from "#test-utils/mocks.ts";
 
 // jscpd:ignore-end
@@ -106,17 +108,11 @@ Given(
 Given(
   "the host has written an introduction with a picture called {string} on the Support page",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    const image = await makeImage(name);
+    const picture = await uploadsAPicture(this, name);
     hostWritesOnTheSupportPage(
       this,
-      `# Help Center\n\nReach out anytime. ![${name}](img#${image.id})`,
+      `# Help Center\n\nReach out anytime. ![${name}](img#${picture.id})`,
     );
-    this.noteImage = {
-      alt: name,
-      filename: image.filename,
-      id: image.id,
-      noteText: "",
-    };
   },
 );
 
@@ -222,9 +218,7 @@ Then(
 Then(
   "the introduction shows the {string} picture",
   function (this: TicketsWorld, _name: string): void {
-    const html = scenarioBrowser(this).currentHtml;
-    expect(html).toContain(pictureTag(this));
-    expect(html).not.toContain("img#");
+    pageShowsPicture(scenarioBrowser(this).currentHtml, this);
   },
 );
 

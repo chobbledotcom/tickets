@@ -13,7 +13,11 @@ import { getNoteRows } from "#db/notes/queries.ts";
 import { t } from "#i18n";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { openRecord, recordFor } from "#test/specs/support/contact-records.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type {
+  NoteAPictureAboutOnePerson,
+  NoteImage,
+  TicketsWorld,
+} from "#test/specs/support/world.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -88,6 +92,55 @@ export const regionShowsPicture = (
   expect(region).not.toContain("img#");
 };
 
+/** Hold the page as a whole to the picture: it shows at its own address, and
+ * no reference stays anywhere on the page. */
+export const pageShowsPicture = (html: string, world: TicketsWorld): void => {
+  expect(html).toContain(pictureTag(world));
+  expect(html).not.toContain("img#");
+};
+
+/** The picture the story named, uploaded now. The world keeps it as the
+ * picture the story's reference points at; the caller writes the words that
+ * name it. */
+export const uploadsAPicture = async (
+  world: TicketsWorld,
+  name: string,
+): Promise<NoteImage> => {
+  const image = await makeImage(name);
+  const picture: NoteImage = {
+    alt: name,
+    filename: image.filename,
+    id: image.id,
+    noteText: "",
+  };
+  world.noteImage = picture;
+  return picture;
+};
+
+/** Someone booked onto the note listing under their own email, with a
+ * picture uploaded and the note typed around the picture's reference. The
+ * world remembers the person and the picture; the caller writes the note
+ * where their story does. */
+const typedNoteWithPicture = async (
+  world: TicketsWorld,
+  who: string,
+  name: string,
+  wordsBefore: string,
+): Promise<{ attendeeId: number; picture: NoteImage; typed: string }> => {
+  const listing = await createTestListing({ name: NOTE_LISTING });
+  const attendee = await createTestAttendee(
+    listing.id,
+    listing.slug,
+    who,
+    emailFor(who),
+  );
+  const picture = await uploadsAPicture(world, name);
+  world.attendeeId = attendee.id;
+  world.things.remember("listing", NOTE_LISTING, listing);
+  const typed = `${wordsBefore} ![${name}](img#${picture.id})`;
+  return { attendeeId: attendee.id, picture, typed };
+};
+
 /** The organiser booked someone onto the note listing and wrote a note that
  * names the picture. The note goes in through the real note form, so the row
  * the site keeps is the one a browser would have made. */
@@ -97,44 +150,30 @@ export const notedAboutWithPicture = async (
   noteText: string,
   name: string,
 ): Promise<void> => {
-  const listing = await createTestListing({ name: NOTE_LISTING });
-  const attendee = await createTestAttendee(
-    listing.id,
-    listing.slug,
+  const { attendeeId, picture, typed } = await typedNoteWithPicture(
+    world,
     who,
-    emailFor(who),
+    name,
+    noteText,
   );
-  const image = await makeImage(name);
-  const typed = `${noteText} ![${name}](img#${image.id})`;
-  await adminFormPost(`/admin/attendee/${attendee.id}/note`, { note: typed });
-  const [row] = await getNoteRows("attendee", [attendee.id]);
-  world.noteImage = {
-    alt: name,
-    filename: image.filename,
-    id: image.id,
-    noteId: row!.id,
-    noteText: typed,
-  };
-  world.attendeeId = attendee.id;
-  world.things.remember("listing", NOTE_LISTING, listing);
+  await adminFormPost(`/admin/attendee/${attendeeId}/note`, { note: typed });
+  const [row] = await getNoteRows("attendee", [attendeeId]);
+  world.noteImage = { ...picture, noteId: row!.id, noteText: typed };
 };
 
 /** The site keeps a private note about someone, with a picture named in it,
  * and that someone is booked with the email the record is filed under. */
-export const recordNoteWithPicture = async (
-  world: TicketsWorld,
-  who: string,
-  name: string,
-): Promise<void> => {
-  const listing = await createTestListing({ name: NOTE_LISTING });
-  const attendee = await createTestAttendee(
-    listing.id,
-    listing.slug,
+export const recordNoteWithPicture: NoteAPictureAboutOnePerson = async (
+  world,
+  who,
+  name,
+) => {
+  const { picture, typed } = await typedNoteWithPicture(
+    world,
     who,
-    emailFor(who),
+    name,
+    "Called first.",
   );
-  const image = await makeImage(name);
-  const typed = `Called first. ![${name}](img#${image.id})`;
   await saveContactRecord(await hashEmail(emailFor(who)), {
     adminBookingCount: 0,
     adminNotes: typed,
@@ -144,13 +183,7 @@ export const recordNoteWithPicture = async (
     publicBookingCount: 0,
     visits: 0,
   });
-  world.noteImage = {
-    alt: name,
-    filename: image.filename,
-    id: image.id,
-    noteText: typed,
-  };
-  world.attendeeId = attendee.id;
+  world.noteImage = { ...picture, noteText: typed };
 };
 
 /** Someone's record, opened through the same one-way code the record page

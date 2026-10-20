@@ -12,8 +12,10 @@ import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 
-import { regionShowsPicture } from "#test/specs/support/attendee-images.ts";
-import { makeImage } from "#test-utils/admin-images.ts";
+import {
+  regionShowsPicture,
+  uploadsAPicture,
+} from "#test/specs/support/attendee-images.ts";
 
 /** The words the picture question asks, with the reference the picture is
  * named by. The story's subject is the picture, so the prose around it stays
@@ -64,17 +66,11 @@ Given(
     listingName: string,
     name: string,
   ): Promise<void> {
-    const image = await makeImage(name);
-    this.noteImage = {
-      alt: name,
-      filename: image.filename,
-      id: image.id,
-      noteText: "",
-    };
+    const picture = await uploadsAPicture(this, name);
     await ownerAsksChoiceQuestion(
       this,
       listingName,
-      questionTextWithPicture(name, image.id),
+      questionTextWithPicture(name, picture.id),
       ["Small", "Large"],
     );
   },

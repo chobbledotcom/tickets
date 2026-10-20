@@ -2,11 +2,11 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { pictureTag } from "#test/specs/support/attendee-images.ts";
+import { pageShowsPicture } from "#test/specs/support/attendee-images.ts";
 import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
+import { keepSiteForReadingOnly } from "#test/specs/support/features.ts";
 import {
   siteCarriesSupportMessageWithPicture,
-  siteIsReadOnly,
   supportMessageTab,
 } from "#test/specs/support/site-support-message.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
@@ -21,7 +21,7 @@ Given(
 );
 
 Given("the site is read-only", function (this: TicketsWorld): void {
-  siteIsReadOnly(this);
+  keepSiteForReadingOnly(this);
 });
 
 When(
@@ -35,9 +35,7 @@ When(
 Then(
   "the message panel shows the {string} picture",
   function (this: TicketsWorld, _name: string): void {
-    const html = scenarioBrowser(this).currentHtml;
-    expect(html).toContain(pictureTag(this));
-    expect(html).not.toContain("img#");
+    pageShowsPicture(scenarioBrowser(this).currentHtml, this);
   },
 );
 
