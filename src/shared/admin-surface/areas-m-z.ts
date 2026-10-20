@@ -75,7 +75,9 @@ export const AREAS_M_Z = {
     view: {
       doors: "/admin/scanner",
       groupScanner: "/admin/groups/:id/scanner",
+      groupScanTokens: "/admin/groups/:id/scan-tokens",
       listingScanner: "/admin/listing/:id/scanner",
+      listingScanTokens: "/admin/listing/:id/scan-tokens",
     },
   },
   schemaAtlas: {

@@ -5,14 +5,19 @@
 /* jscpd:ignore-start -- imports */
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { type TicketMoveAnswer, ticketCount } from "#booking/ticket-moves.ts";
+import { sha256Hex } from "#crypto/sha256.ts";
 import type { AttendeeWithBookings } from "#db/attendee-types.ts";
 import { moveTicketsAndLog, ticketsWord } from "#db/attendees/door-moves.ts";
-import { decryptAttendees } from "#db/attendees/pii.ts";
+import {
+  type DecryptedAttendeeRow,
+  decryptAttendees,
+} from "#db/attendees/pii.ts";
 import {
   getAttendeesByIdsWithBookings,
   getAttendeesByTokens,
 } from "#db/attendees/tokens.ts";
 import { getListingsByGroupId } from "#db/groups.ts";
+import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { requiredMapValue, sumOf, unique } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
@@ -44,6 +49,33 @@ export const listingScope = (listingId: number): ScanScope => ({
   checkInEveryListing: false,
   listingIds: new Set([listingId]),
 });
+
+/** One door's tickets, decrypted: every attendee of the listings the door
+ * admits. The scan API's readers all stand on this one read. */
+export const doorAttendees = async (
+  listingIds: readonly number[],
+  privateKey: CryptoKey,
+): Promise<DecryptedAttendeeRow<Attendee>[]> =>
+  decryptAttendees(await getAttendeesByListingIds([...listingIds]), privateKey);
+
+/** The request's decryption key, or the 500 answer the door reads when it
+ * is missing. Every scanner read path answers the same way. */
+export const scannerPrivateKey = async (): Promise<CryptoKey | Response> => {
+  const privateKey = await getRequestPrivateKey();
+  if (!privateKey) {
+    logError({
+      code: ErrorCode.KEY_DERIVATION,
+      detail: "Scanner: private key unavailable",
+    });
+    return apiErrorResponse("Decryption unavailable", 500);
+  }
+  return privateKey;
+};
+
+/** The scan API's not-found answer: the same JSON shape whether the scan
+ * missed a person or the door itself is gone. */
+export const scanNotFoundResponse = (): Response =>
+  jsonResponse({ status: "not_found" }, 404);
 
 /** Load the scope one group's door admits: every member listing, minus the
  * members marked "No check-in" — they sell something that has no door.
@@ -279,31 +311,32 @@ export const processScan = async (
   if (body.quantity !== undefined && !isAdmitCount(body.quantity)) {
     return apiErrorResponse("Invalid quantity");
   }
-  const privateKey = await getRequestPrivateKey();
-  if (!privateKey) {
-    logError({
-      code: ErrorCode.KEY_DERIVATION,
-      detail: "Scanner: private key unavailable",
-    });
-    return apiErrorResponse("Decryption unavailable", 500);
-  }
-  // A camera read carries the ticket token it decoded. A manual pick
-  // carries the attendee id its roster option holds.
+  const privateKey = await scannerPrivateKey();
+  if (privateKey instanceof Response) return privateKey;
+  // A camera read carries the ticket token it decoded. A queued check-in
+  // replaying after an outage carries only the token's digest — the device
+  // never held the token. A manual pick carries the attendee id its roster
+  // option holds.
   const cameraRead = typeof body.token === "string";
+  const hashRead = typeof body.token_hash === "string";
   const load = cameraRead
     ? async (): Promise<AttendeeWithBookings | null> =>
         (await getAttendeesByTokens([body.token as string]))[0] ?? null
-    : typeof body.attendee_id === "number"
-      ? async (): Promise<AttendeeWithBookings | null> =>
-          (
-            await getAttendeesByIdsWithBookings([body.attendee_id as number])
-          ).get(body.attendee_id as number) ?? null
-      : null;
+    : hashRead
+      ? loadByTokenHash(body.token_hash as string, scope, privateKey)
+      : typeof body.attendee_id === "number"
+        ? async (): Promise<AttendeeWithBookings | null> =>
+            (
+              await getAttendeesByIdsWithBookings([body.attendee_id as number])
+            ).get(body.attendee_id as number) ?? null
+        : null;
   if (!load) return apiErrorResponse("Missing token");
-  // A token is the credential the guest presented, so the answer can name a
-  // wrong door, and the guest's own credential is what force overrides. A
-  // picked id is neither — force must never widen it. A crafted id otherwise
-  // admits someone on another door's listings outright.
+  // A camera token is the credential the guest presented. The answer can
+  // name a wrong door, and the credential is what force overrides. A
+  // digest resolves inside this door's own scope only. The device queued
+  // it from this door's saved list, so it never meets a wrong door. A
+  // picked id is neither. Force must never widen it. A crafted id
+  // otherwise admits someone on another door's listings outright.
   return scanBy(
     scope,
     load,
@@ -316,3 +349,27 @@ export const processScan = async (
     !cameraRead,
   );
 };
+
+/** Resolve a queued check-in's token digest against the door's own tickets.
+ * The digest the device stored names nobody on its own. It must match one
+ * token of this door's listings. A digest from another door answers
+ * not_found, never a roster. */
+const loadByTokenHash =
+  (
+    tokenHash: string,
+    scope: ScanScope,
+    privateKey: CryptoKey,
+  ): (() => Promise<AttendeeWithBookings | null>) =>
+  async () => {
+    const candidates = await doorAttendees([...scope.listingIds], privateKey);
+    for (const candidate of candidates) {
+      if ((await sha256Hex(candidate.ticket_token)) === tokenHash) {
+        return (
+          (await getAttendeesByIdsWithBookings([candidate.id])).get(
+            candidate.id,
+          ) ?? null
+        );
+      }
+    }
+    return null;
+  };
