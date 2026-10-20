@@ -15,13 +15,13 @@ import {
   ownerWritesHomepage,
 } from "#test/specs/support/front-pages.ts";
 import {
-  listingNamed,
-  putsPlainThingOnSale,
-} from "#test/specs/support/listings.ts";
-import {
   imageNamed,
   ownerHasImageInLibrary,
 } from "#test/specs/support/images.ts";
+import {
+  listingNamed,
+  putsPlainThingOnSale,
+} from "#test/specs/support/listings.ts";
 import { newsLinkTo, ownerPostsNews } from "#test/specs/support/news.ts";
 import { openBookingPage } from "#test/specs/support/public-booking.ts";
 import {
