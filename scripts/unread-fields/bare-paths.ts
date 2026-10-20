@@ -140,12 +140,15 @@ export const pathsFromInfo = (
   return paths;
 };
 
-/** Ask `deno info` through the command the task permission allows. */
+/** Ask `deno info` through the runtime's own executable. The task permission
+ * resolves its `deno` allow-list entry through PATH and canonicalizes it, so
+ * this absolute path matches the grant, and the child is the runtime that
+ * runs the scan, not a name PATH selects again. */
 const runInfo = async (
   root: string,
   args: readonly string[],
 ): Promise<InfoJson> => {
-  const output = await new Deno.Command("deno", {
+  const output = await new Deno.Command(Deno.execPath(), {
     args: ["info", "--json", ...args],
     cwd: root,
     stderr: "piped",
