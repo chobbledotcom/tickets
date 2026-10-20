@@ -88,6 +88,22 @@ describe("Turso upload lifecycle", () => {
     expect(time.now).toBe(0);
   });
 
+  test("reports an upload handler error after a successful client check", async () => {
+    const failure = new Error("Upload handler failed");
+    await expect(
+      withUploadServer(
+        () => {
+          throw failure;
+        },
+        async (dbUrl, fetcher) => {
+          const response = await fetcher(dbUrl);
+          await response.text();
+          expect(response.status).toBe(500);
+        },
+      ),
+    ).rejects.toBe(failure);
+  });
+
   test("rejects an early answer without a timeout or stray rejection", () =>
     withUploadFile(async (path) => {
       let received = 0;

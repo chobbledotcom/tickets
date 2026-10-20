@@ -1,4 +1,5 @@
 import { assertExists } from "@std/assert";
+import { throwCollectedErrors, withCleanup } from "#scripts/cleanup.ts";
 import { uploadTursoDatabaseFile } from "#scripts/turso-migration-file.ts";
 import { withTempDir } from "#test-utils/files.ts";
 import { TEST_TURSO_CREDENTIALS } from "#test-utils/turso-api.ts";
@@ -41,15 +42,26 @@ export const withUploadServer = async (
   handler: (request: Request) => Response | Promise<Response>,
   run: (dbUrl: string, fetcher: typeof fetch) => Promise<void>,
 ): Promise<void> => {
+  const handlerErrors: unknown[] = [];
   const server = Deno.serve(
-    { hostname: "127.0.0.1", onListen: () => {}, port: 0 },
+    {
+      hostname: "127.0.0.1",
+      onError: (error) => {
+        handlerErrors.push(error);
+        return new Response(null, { status: 500 });
+      },
+      onListen: () => {},
+      port: 0,
+    },
     handler,
   );
-  try {
-    await run(`https://127.0.0.1:${server.addr.port}`, localUploadFetch);
-  } finally {
-    await withinDeadline(server.shutdown(), "Upload server shutdown");
-  }
+  await withCleanup(
+    () => run(`https://127.0.0.1:${server.addr.port}`, localUploadFetch),
+    [
+      () => withinDeadline(server.shutdown(), "Upload server shutdown"),
+      () => throwCollectedErrors(handlerErrors),
+    ],
+  );
 };
 
 export const UPLOAD_SIZE = 32_000_000;
