@@ -44,6 +44,7 @@ describe("Cucumber story catalog", () => {
       "bookings.day-limits-shared-across-listings",
       "bookings.keeping-what-a-customer-typed",
       "bookings.ordering-several-things-at-once",
+      "bookings.pictures-on-the-ticket-page",
       "bookings.selling-things-as-one-bundle",
       "bookings.taking-a-holiday",
       "bookings.volunteer-sign-up",
