@@ -1,5 +1,6 @@
 /** Shared state helpers for fresh-process cold-start benchmarks. */
 
+import { requiredMapValue } from "#fp";
 import type { SitePage } from "#types";
 
 export const BENCHMARK_REGULAR_GROUPS = 12;
@@ -205,9 +206,21 @@ export const seedBenchmarkNavTree = async (
     BENCHMARK_NAV_PAGES.extras.slug,
   );
   await addPageItem(visit.id, "page", extras.id);
-  await addPageItem(visit.id, "listing", ids.listingIds.get(1)!);
-  await addPageItem(visit.id, "listing", ids.listingIds.get(2)!);
-  await addPageItem(extras.id, "group", ids.groupIds.get(1)!);
+  await addPageItem(
+    visit.id,
+    "listing",
+    requiredMapValue(ids.listingIds, 1, "Missing benchmark listing 1"),
+  );
+  await addPageItem(
+    visit.id,
+    "listing",
+    requiredMapValue(ids.listingIds, 2, "Missing benchmark listing 2"),
+  );
+  await addPageItem(
+    extras.id,
+    "group",
+    requiredMapValue(ids.groupIds, 1, "Missing benchmark group 1"),
+  );
   // The page tree's reads cache per process; drop the warmed entries so a
   // later request in this same prep process reads the seeded edges.
   sitePages.invalidate();
