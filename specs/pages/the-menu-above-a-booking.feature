@@ -21,7 +21,7 @@ Feature: The menu above a booking
       Given the public site is on
       And the site sells a Kayak
       And the site sells a Walk
-      And the owner has written a page called Visit at visit
+      And the owner has written a page called Visit at "visit"
       And the owner has put the Kayak and the Walk on the Visit page
       When a customer opens the booking page the Kayak is sold from
       Then the menu shows the Visit page's own list
@@ -38,7 +38,7 @@ Feature: The menu above a booking
       Given the public site is on
       And the site sells a Kayak
       And the site sells a Walk
-      And the owner has written a page called Visit at visit
+      And the owner has written a page called Visit at "visit"
       And the owner has put the Kayak and the Walk on the Visit page
       When a customer opens one booking for the Kayak and the Walk together
       Then the menu shows no Visit page's own list
