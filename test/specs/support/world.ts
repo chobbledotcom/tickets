@@ -159,6 +159,17 @@ export interface TicketsWorld extends World, EvidencePages {
   modifierId?: number;
   moneyFault?: RefundLedgerFault;
   newStayLength?: number;
+  /** The picture a story put in a note or a question, with the words the
+   * story typed around it: the image row, the address its picture shows at,
+   * and the note as it was first typed. */
+  noteImage?: {
+    alt: string;
+    filename: string;
+    id: number;
+    /** The note row that names the picture, when the story wrote one. */
+    noteId?: number;
+    noteText: string;
+  };
   orderCatalogSpec?: JourneyCatalogSpec;
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;
