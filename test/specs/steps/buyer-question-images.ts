@@ -107,18 +107,6 @@ When(
 );
 
 When(
-  "the organiser booked {word} onto the {word} starting in {int} day",
-  async function (
-    this: TicketsWorld,
-    who: string,
-    listingName: string,
-    startsIn: number,
-  ): Promise<void> {
-    await booksOnto(this, who, listingName, startsIn);
-  },
-);
-
-When(
   "the organiser opens the edit page for {word}'s booking",
   async function (this: TicketsWorld, who: string): Promise<void> {
     const attendeeId = this.things.require("record", `${who} booking`);
