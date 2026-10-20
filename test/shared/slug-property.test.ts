@@ -59,12 +59,14 @@ describe("slugify properties", () => {
 
   test("validateSlug accepts every non-empty slugify output", () => {
     fc.assert(
-      fc.property(arbitraryText(), (text) => {
-        const slug = slugify(text);
-        if (slug !== "") {
-          expect(validateSlug(slug)).toBeNull();
-        }
-      }),
+      fc.property(
+        fc
+          .tuple(fc.constantFrom("a", "Z", "3"), arbitraryText())
+          .map(([character, text]) => character + text),
+        (text) => {
+          expect(validateSlug(slugify(text))).toBeNull();
+        },
+      ),
       seedArgs,
     );
   });

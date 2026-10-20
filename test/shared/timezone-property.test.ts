@@ -30,6 +30,7 @@ const ZONES = [
   "Australia/Lord_Howe",
   "Pacific/Chatham",
   "America/St_Johns",
+  "America/Santiago",
 ] as const;
 
 /** The 2026 DST transition days of those zones: a generated day set alone
@@ -37,7 +38,9 @@ const ZONES = [
 const TRANSITION_DAYS = [
   "2026-03-08",
   "2026-03-29",
+  "2026-04-04",
   "2026-04-05",
+  "2026-09-06",
   "2026-09-27",
   "2026-10-04",
   "2026-10-25",
@@ -107,6 +110,8 @@ describe("timezone conversion properties", () => {
       ["Pacific/Chatham", "2026-09-27"],
       ["America/St_Johns", "2026-03-08"],
       ["America/St_Johns", "2026-11-01"],
+      ["America/Santiago", "2026-04-04"],
+      ["America/Santiago", "2026-09-06"],
     ];
     for (const [tz, day] of transitions) {
       expectDayBoundaries(tz, day);
