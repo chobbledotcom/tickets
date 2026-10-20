@@ -1,24 +1,25 @@
 // test-groups: run-alone
 
 import { EventEmitter } from "node:events";
-import {
-  type ClientRequest,
-  request as httpRequest,
-  type IncomingMessage,
-} from "node:http";
-import { Writable } from "node:stream";
+import type { IncomingMessage } from "node:http";
 import { createClient } from "@libsql/client";
-import { assertExists } from "@std/assert";
 import { expect } from "@std/expect";
 import { join, toFileUrl } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  type DatabaseUploadTransport,
   uploadTursoDatabaseFile,
   verifyTursoUploadFile,
 } from "#scripts/turso-migration-file.ts";
 import { withTempDir } from "#test-utils/files.ts";
 import { TEST_TURSO_CREDENTIALS } from "#test-utils/turso-api.ts";
+import {
+  earlyAnswerHandler,
+  expectUploadRejection,
+  fakeRequest,
+  uploadCredentials,
+  uploadThroughScript,
+  withUploadServer,
+} from "./turso-upload-harness.ts";
 
 const createSqliteFile = async (
   path: string,
@@ -33,132 +34,6 @@ const createSqliteFile = async (
   } finally {
     client.close();
   }
-};
-
-const uploadCredentials = (dbUrl: string) => ({
-  ...TEST_TURSO_CREDENTIALS,
-  dbUrl,
-});
-
-const withUploadServer = async (
-  handler: (request: Request) => Response | Promise<Response>,
-  run: (dbUrl: string, transport: DatabaseUploadTransport) => Promise<void>,
-): Promise<void> => {
-  const server = Deno.serve(
-    { hostname: "127.0.0.1", onListen: () => {}, port: 0 },
-    handler,
-  );
-  const address = server.addr;
-  if (!("port" in address)) throw new Error("Expected a network address");
-  // A server that answers before reading the body leaves the client still
-  // streaming after the upload has already settled. Aborting those requests
-  // here raises the break as each request's own "error" event, which the
-  // upload's handler consumes. A socket-level destroy instead races the
-  // polyfill's write task, which rejects with a bare "resource closed"
-  // string no watch may eat — the uncaught error that failed two hosted
-  // runs at an unknown location.
-  const controllers: AbortController[] = [];
-  const transport: DatabaseUploadTransport = {
-    request: (url, options, receive) => {
-      expect(url.protocol).toBe("https:");
-      const localUrl = new URL(url);
-      localUrl.protocol = "http:";
-      const controller = new AbortController();
-      // The caller's own signal keeps working: a combined signal aborts the
-      // request when either side fires.
-      options.signal = options.signal
-        ? AbortSignal.any([options.signal, controller.signal])
-        : controller.signal;
-      controllers.push(controller);
-      return httpRequest(localUrl, options, receive);
-    },
-  };
-  try {
-    await run(`https://127.0.0.1:${address.port}`, transport);
-  } finally {
-    for (const controller of controllers) controller.abort();
-    await server.shutdown();
-    await server.finished;
-  }
-};
-
-/** The answer a server sends when it rejects an upload without reading the
- * whole body. The body is huge, so the client is still busy with it when the
- * write breaks: the failed write then lands inside the response processing,
- * which is the order that makes the polyfill's internal task reject. The
- * message inside stays short. */
-const earlyAnswerBody = JSON.stringify({
-  message: "invalid",
-  pad: "x".repeat(8 * 1024 * 1024),
-});
-
-/** Upload the file at `path` to a server that answers with `handler`, and
- * expect the upload to reject with `match`. */
-const expectUploadRejection = (
-  path: string,
-  handler: (request: Request) => Response | Promise<Response>,
-  match: string | RegExp,
-): Promise<void> =>
-  withUploadServer(handler, (dbUrl, transport) =>
-    expect(
-      uploadTursoDatabaseFile(
-        path,
-        uploadCredentials(dbUrl),
-        undefined,
-        transport,
-      ),
-    ).rejects.toThrow(match),
-  );
-
-/** A request stub that swallows the piped file bytes. */
-const fakeRequest = (): Writable =>
-  new Writable({ write: (_chunk, _encoding, done) => done() });
-
-/** An error whose stack frames sit at `frames`, the way the polyfill's own
- * internals and our own files each stamp their errors. */
-const throwFrom = (message: string, ...frames: string[]): TypeError => {
-  const error = new TypeError(message);
-  error.stack = `TypeError: ${message}\n    ${frames.join("\n    ")}`;
-  return error;
-};
-
-/** A transport that plays a scripted sequence of events once the upload
- * starts, instead of talking to a real server. */
-const scriptedTransport = (
-  request: Writable,
-  play: (receive: (response: IncomingMessage) => void) => void,
-): DatabaseUploadTransport => ({
-  request: (_url, _options, receive) => {
-    queueMicrotask(() => play(receive));
-    return request as unknown as ClientRequest;
-  },
-});
-
-/** Upload a small file through a scripted transport and return the result. */
-const uploadThroughScript = async (
-  dir: string,
-  request: Writable,
-  play: (receive: (response: IncomingMessage) => void) => void,
-): Promise<void> => {
-  const path = join(dir, "database.sqlite");
-  await Deno.writeTextFile(path, "sqlite bytes");
-  await uploadTursoDatabaseFile(
-    path,
-    TEST_TURSO_CREDENTIALS,
-    undefined,
-    scriptedTransport(request, play),
-  );
-};
-
-/** The server handler both early-answer tests share: read one chunk so the
- * socket stays alive until the answer is on the wire, then answer with the
- * padded rejection body while the write is still running. */
-const earlyAnswerHandler = async (request: Request): Promise<Response> => {
-  const body = request.body;
-  assertExists(body, "Expected an upload body");
-  const reader = body.getReader();
-  await reader.read();
-  return new Response(earlyAnswerBody, { status: 400 });
 };
 
 describe("Turso migration file", () => {
@@ -325,173 +200,6 @@ describe("Turso migration file", () => {
         earlyAnswerHandler,
         "error writing a body to connection",
       );
-    }));
-
-  /** The harness's teardown aborts the still-streaming request through the
-   * signal it plants, so the break surfaces as the request's own "error"
-   * event. A teardown that breaks the socket instead leaves the polyfill's
-   * write task rejecting with a bare "resource closed" string — an uncaught
-   * error at an unknown location that failed two hosted runs. The listener
-   * here only records: it never prevents the default, so a real escape
-   * still fails this file. */
-  test("the teardown aborts an in-flight upload with no stray rejections", () =>
-    withTempDir(async (dir) => {
-      const path = join(dir, "database.sqlite");
-      await Deno.writeFile(path, new Uint8Array(32_000_000));
-
-      const stray: string[] = [];
-      const onRejection = (event: PromiseRejectionEvent) => {
-        // The watch's listener sits ahead of this one, so a rejection it
-        // eats arrives here already prevented. Anything still unprevented
-        // is a stray the watch missed, and a real escape still fails this
-        // file: this listener never prevents the default.
-        if (event.defaultPrevented) return;
-        const reason = event.reason;
-        stray.push(reason instanceof Error ? reason.message : String(reason));
-      };
-      globalThis.addEventListener("unhandledrejection", onRejection);
-      try {
-        for (let round = 0; round < 5; round += 1) {
-          await withUploadServer(earlyAnswerHandler, (dbUrl, transport) =>
-            expect(
-              uploadTursoDatabaseFile(
-                path,
-                uploadCredentials(dbUrl),
-                undefined,
-                transport,
-              ),
-            ).rejects.toThrow("error writing a body to connection"),
-          );
-        }
-        // One macrotask turn lets a rejection from the teardown's abort land
-        // while the listener still records it. The polyfill dispatches
-        // rejections on the platform's own schedule, so no deterministic
-        // clock can drive it.
-        const { promise, resolve } = Promise.withResolvers<void>();
-        setTimeout(resolve, 0);
-        await promise;
-      } finally {
-        globalThis.removeEventListener("unhandledrejection", onRejection);
-      }
-      expect(stray).toEqual([]);
-    }));
-
-  // The rejection surfaces whenever the runtime's own internal task ends, so
-  // the watch cannot be timed to the upload — it stays up once an upload has
-  // run, and earns that by only ever ignoring runtime-internal values.
-  test("ignores runtime-internal rejections and nothing else", () =>
-    withTempDir(async (dir) => {
-      const prevented = (reason: unknown): boolean => {
-        const event = new PromiseRejectionEvent("unhandledrejection", {
-          cancelable: true,
-          promise: Promise.resolve(),
-          reason,
-        });
-        globalThis.dispatchEvent(event);
-        return event.defaultPrevented;
-      };
-      const defect = () =>
-        new TypeError("Failed to fetch: request body stream errored");
-
-      // Hold the upload open: the scripted transport never answers. The
-      // watch is up by the time the transport runs, so wait for that.
-      const started = Promise.withResolvers<void>();
-      const request = fakeRequest();
-      const upload = uploadThroughScript(dir, request, () => {
-        started.resolve();
-      });
-      await started.promise;
-
-      expect(prevented(defect())).toBe(true);
-      expect(
-        prevented(new Error("Failed to fetch: request body stream errored")),
-      ).toBe(false);
-      expect(prevented(new TypeError("some other failure"))).toBe(false);
-
-      request.destroy(new Error("cut mid-upload"));
-      await expect(upload).rejects.toThrow("cut mid-upload");
-      // Still ignored after the upload settles: a late rejection is exactly
-      // the one this watch exists for.
-      expect(prevented(defect())).toBe(true);
-      expect(prevented(new TypeError("some other failure"))).toBe(false);
-      // The same polyfill write task rejects with a bare "resource closed"
-      // string when the connection is torn down mid-write instead of
-      // answering. It is not an Error instance, and three hosted runs died
-      // on it; the watch eats it and nothing else new.
-      expect(prevented("resource closed")).toBe(true);
-      expect(prevented(new TypeError("some other failure"))).toBe(false);
-      expect(prevented("upload database failed")).toBe(false);
-      // The polyfill's own catch crashes when an op rejects with a value
-      // that carries no message, and the secondary error it throws from
-      // inside its internals escapes with a foreign message. Its first
-      // stack frame names the runtime internals; an error our code builds
-      // names one of our own files first, and the watch leaves that alone.
-      expect(
-        prevented(
-          throwFrom(
-            "Cannot read properties of undefined (reading 'includes')",
-            "at node:http:571:12",
-          ),
-        ),
-      ).toBe(true);
-      // The upload runs under a Deno.serve server, whose own HTTP task can
-      // reject the same way when the teardown closes the connection. Its
-      // frames sit in ext:deno_http, not the node polyfill's modules, so
-      // every runtime-internal origin must count as the same defect.
-      expect(
-        prevented(
-          throwFrom(
-            "connection closed before message completed",
-            "at ext:deno_http/01_http.js:482:11",
-          ),
-        ),
-      ).toBe(true);
-      expect(
-        prevented(
-          throwFrom(
-            "Cannot read properties of undefined (reading 'includes')",
-            "at async ext:core/01_core.js:334:12",
-          ),
-        ),
-      ).toBe(true);
-      // An application frame first with an internal frame after it: the
-      // origin sits at the first frame, so the watch leaves it alone.
-      expect(
-        prevented(
-          throwFrom(
-            "Upload database failed (400): invalid",
-            "at file:///scripts/turso-migration-file.ts:208:5",
-            "at node:http:571:12",
-          ),
-        ),
-      ).toBe(false);
-      expect(
-        prevented(
-          throwFrom(
-            "Upload database failed (400): invalid",
-            "at file:///scripts/turso-migration-file.ts:208:5",
-            "at ext:deno_http/01_http.js:482:11",
-          ),
-        ),
-      ).toBe(false);
-      // An error that carries no stack at all reaches the origin test
-      // through its fallback branch. Nothing matches there either, so the
-      // watch leaves it alone.
-      expect(
-        prevented(
-          Object.assign(new TypeError("some other failure"), {
-            stack: undefined,
-          }),
-        ),
-      ).toBe(false);
-      // A stack with no frame lines names no origin either.
-      expect(
-        prevented(
-          Object.assign(new TypeError("some other failure"), {
-            stack: "TypeError: some other failure",
-          }),
-        ),
-      ).toBe(false);
     }));
 
   test("rejects an interrupted upload before opening the snapshot", () =>
