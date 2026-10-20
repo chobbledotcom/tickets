@@ -5,7 +5,7 @@
  * own session.
  */
 
-import * as v from "valibot";
+import { expect } from "@std/expect";
 import { getAllImages } from "#db/images.ts";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import {
@@ -60,15 +60,17 @@ export const imageIdNamed = async (name: string): Promise<number> => {
 
 /** The image names the editor is offered, in the order the site serves them.
  * Read through the owner's session, so a story cannot see choices a different
- * role could not load. The body is parsed at the boundary, so a broken list
- * fails the story loudly instead of reading as "no images offered". */
+ * role could not load. Each field is asserted where the story reads it, so a
+ * broken list fails the story loudly instead of reading as "no images
+ * offered". */
 export const imageChoicesOffered = async (
   world: TicketsWorld,
 ): Promise<string[]> => {
   const served = (await openAdminPage(world, IMAGE_OPTIONS)).currentHtml;
-  const choices = v.parse(
-    v.object({ images: v.array(v.object({ name: v.string() })) }),
-    JSON.parse(served),
-  );
-  return choices.images.map((image) => image.name);
+  const { images } = JSON.parse(served);
+  expect(Array.isArray(images)).toBe(true);
+  return images.map((image: { name: unknown }) => {
+    expect(typeof image.name).toBe("string");
+    return image.name as string;
+  });
 };
