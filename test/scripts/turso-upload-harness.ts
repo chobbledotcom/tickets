@@ -20,7 +20,9 @@ export const withinDeadline = <T>(
   const deadline = Promise.withResolvers<T>();
   const timer = realSetTimeout(
     () =>
-      deadline.reject(new Error(`${label} did not settle within ${timeoutMs}ms`)),
+      deadline.reject(
+        new Error(`${label} did not settle within ${timeoutMs}ms`),
+      ),
     timeoutMs,
   );
   return Promise.race([work, deadline.promise]).finally(() =>

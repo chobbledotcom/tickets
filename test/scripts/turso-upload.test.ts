@@ -76,7 +76,7 @@ const withPendingUploadResponse = (
 describe("Turso upload lifecycle", () => {
   test("ends a stalled wait even when the upload clock is frozen", async () => {
     const schedule = globalThis.setTimeout;
-    using time = new FakeTime();
+    using time = new FakeTime(0);
     const work = Promise.withResolvers<void>();
     const outcome = withinDeadline(work.promise, "Stalled upload", 0).catch(
       (error: unknown) => error,
@@ -85,6 +85,7 @@ describe("Turso upload lifecycle", () => {
     const error = await outcome;
     assertInstanceOf(error, Error);
     expect(error.message).toContain("Stalled upload");
+    expect(time.now).toBe(0);
   });
 
   test("rejects an early answer without a timeout or stray rejection", () =>
