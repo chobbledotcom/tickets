@@ -145,6 +145,11 @@ export const emailOwedSql = (attendeeRef: string): string => `EXISTS (
         ', ', ','), ' ,', ','), CHAR(160) || ',', ','), ',' || CHAR(160), ','), ',email,') > 0
 )`;
 
+/** The `email_owed` column every attendee read projects beside the stored
+ *  flag. All readers share it, so the badges cannot disagree across reads. */
+export const emailOwedColumn = (attendeeRef: string): string =>
+  `(CASE WHEN ${attendeeRef}.email_pending > 0 THEN ${emailOwedSql(attendeeRef)} ELSE 0 END) as email_owed`;
+
 /** Whether the email badge shows for one attendee row: the stored flag is up
  * and a booked listing still collects an email. The read that produced the
  * row resolved that rule into `email_owed`. */

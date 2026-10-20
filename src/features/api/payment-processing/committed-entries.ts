@@ -1,5 +1,5 @@
 import type { BlindIndex } from "#crypto/sealed.ts";
-import { emailOwedSql } from "#db/attendees/notification-flags.ts";
+import { emailOwedColumn } from "#db/attendees/notification-flags.ts";
 import { contactFields } from "#db/attendees/pii.ts";
 import {
   pricePaidFromLedger,
@@ -60,9 +60,7 @@ export const committedEntries = async (
                    attendee.ticket_token_index,
                    attendee.email_pending,
                    attendee.webhooks_pending,
-                   (CASE WHEN attendee.email_pending > 0
-                         THEN ${emailOwedSql("attendee")}
-                         ELSE 0 END) AS email_owed
+                   ${emailOwedColumn("attendee")}
             FROM attendees AS attendee
             JOIN listing_attendees AS listingAttendee
               ON listingAttendee.attendee_id = attendee.id
