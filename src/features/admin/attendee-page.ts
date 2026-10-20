@@ -7,6 +7,7 @@
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { hasAssignedBuiltSite } from "#db/built-sites/claims.ts";
+import { addNoteImageUrls } from "#db/images.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import {
@@ -313,16 +314,19 @@ const overviewTab: TabDef<AttendeePageEntity> = {
 
 /** The tabbed attendee page. */
 export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
-  banner: async ({ attendee }, ctx) =>
-    attendeeBanner({
+  banner: async ({ attendee }, ctx) => {
+    const notes = await getNotesFor(
+      attendeeNotes(attendee.id),
+      await requireRequestPrivateKey(),
+    );
+    await addNoteImageUrls(notes);
+    return attendeeBanner({
       attendee,
       isOwner: ctx.session.adminLevel === "owner",
-      notes: await getNotesFor(
-        attendeeNotes(attendee.id),
-        await requireRequestPrivateKey(),
-      ),
+      notes,
       statuses: await attendeeStatuses.getAll(),
-    }),
+    });
+  },
   destination: "attendee",
   load: (id) => loadAttendeePageEntity(id),
   // A single attendee is a page *within* the Attendees section: highlight the

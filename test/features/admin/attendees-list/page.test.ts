@@ -7,6 +7,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createSystemNote } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { assertAdminHtml, testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -160,6 +161,26 @@ describeWithEnv("the attendees browser page", { db: true }, () => {
       expect(html).toContain("1 attendee has notes");
       expect(html).toContain("Refunded — follow up tomorrow.");
       expect(html).toContain('href="/admin/attendees/');
+    });
+
+    test("resolves a summary note's img#N reference", async () => {
+      const listing = await makeListing("Poster Night");
+      const { attendee } = await createTestAttendeeDirect(
+        listing.id,
+        "Alice",
+        "alice-poster@example.com",
+      );
+      const image = await makeImage("ListPoster");
+      await createSystemNote(
+        attendeeNotes(attendee.id),
+        `Refunded. ![ListPoster](img#${image.id})`,
+      );
+
+      const html = await (await adminGet("/admin/attendees")).text();
+      expect(html).toContain(
+        `<img src="/image/${image.filename}" alt="ListPoster">`,
+      );
+      expect(html).not.toContain("img#");
     });
   });
 });
