@@ -200,7 +200,7 @@ Then(
 );
 
 Then(
-  "a visitor reading the {word}'s ticket page is shown no broken image for {word}",
+  "a visitor reading the {word}'s ticket page is shown {word}'s name and no picture",
   async function (
     this: TicketsWorld,
     name: string,

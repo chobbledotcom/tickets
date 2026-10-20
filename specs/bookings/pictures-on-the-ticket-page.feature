@@ -12,7 +12,7 @@ Feature: A customer sees the images the owner put in the ticket page
   Rule: The ticket page shows the image a reference names
     The owner writes a short reference, and the page shows the image the
     library holds under that reference. When the library holds no image for
-    a reference, the page shows no broken image.
+    a reference, the page shows the reference's name and no picture.
 
     @case:ticket-page.image-in-a-listing-description
     Scenario: The owner puts an image in what a thing is
@@ -59,4 +59,4 @@ Feature: A customer sees the images the owner put in the ticket page
     Scenario: A reference the library cannot answer
       Given the owner has no images in the library
       And the owner sells a Boat whose description carries a reference to an image called Ghost
-      Then a visitor reading the Boat's ticket page is shown no broken image for Ghost
+      Then a visitor reading the Boat's ticket page is shown Ghost's name and no picture
