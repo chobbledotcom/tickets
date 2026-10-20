@@ -76,3 +76,33 @@ Feature: An owner writes the pages people read
       When the owner tries to take down Directions by typing Parking
       Then the owner is told the page name does not match
       And a visitor reading "how-to-find-us" is shown Directions
+
+  @rule:pages.the-editor-offers-the-library-s-images
+  Rule: The editor offers the library's images while the owner writes
+    The owner's images live in the library. While they write a page, the
+    editor lists those images by name, and choosing one writes the page a
+    short reference to that image. The page keeps the reference when it is
+    saved and opened again, so what the page stores is the reference, not the
+    image's address. When the library holds no images, or its list cannot be
+    fetched, the editor says so in place of the choices, offers nothing to
+    choose, and leaves the page's own words alone.
+
+    @case:site-pages.image-choices-offered-in-name-order
+    Scenario: The editor offers the library's images by name
+      Given the owner has an image called Lighthouse in the library
+      And the owner has an image called Harbour in the library
+      When the owner starts writing a page
+      Then the editor offers the images Harbour and Lighthouse, in that order
+
+    @case:site-pages.image-chosen-while-writing
+    Scenario: The owner puts a library image in a page
+      Given the owner has an image called Harbour in the library
+      When the owner writes a page called Directions at "how-to-find-us" with the image Harbour in it
+      Then the owner is told it saved
+      And the reopened page called Directions still carries the image Harbour
+
+    @case:site-pages.empty-library-offers-no-images
+    Scenario: The library holds no images
+      Given the owner has no images in the library
+      When the owner starts writing a page
+      Then the editor offers no images
