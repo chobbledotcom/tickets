@@ -55,9 +55,11 @@
   right: 0;
   z-index: 10;
   /* The caps keep the panel inside the editor box when a long image name
-   * would widen it. */
+   * would widen it, or a long library would grow it past the page. */
   min-width: min(12rem, 100%);
   max-width: 100%;
+  max-height: 16rem;
+  overflow-y: auto;
   padding: var(--space-s);
   background: var(--color-bg);
   border: 1px solid var(--color-bg-secondary);

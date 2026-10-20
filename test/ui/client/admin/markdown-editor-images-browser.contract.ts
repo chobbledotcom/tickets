@@ -129,6 +129,60 @@ describeWithEnv(
       });
     });
 
+    test("caps a long library's panel and reaches the lower names by scrolling", async () => {
+      const names = [
+        "Alder",
+        "Birch",
+        "Cedar",
+        "Dune",
+        "Elm",
+        "Fern",
+        "Gorse",
+        "Hazel",
+        "Ivy",
+        "Juniper",
+        "Kelp",
+        "Larch",
+        "Moss",
+        "Nettle",
+        "Oak",
+      ];
+      for (const name of names) await makeImage(name);
+      await withPage(async (page) => {
+        await openPageEditor(page);
+        const panel = await openDropdown(page);
+        await page.locator(OPTION).first().waitFor();
+
+        // The panel is a scroller of its own: the library is taller than
+        // the panel, and the lower names wait below its visible box.
+        expect(
+          await panel.evaluate((el) => el.scrollHeight > el.clientHeight),
+        ).toBe(true);
+        expect(
+          await panel.evaluate((el) => getComputedStyle(el).overflowY),
+        ).toBe("auto");
+
+        const box = await panel.boundingBox();
+        const below = await page.locator(OPTION).last().boundingBox();
+        if (box === null || below === null) {
+          throw new Error("the panel or its last option is not on the page");
+        }
+        expect(below.y).toBeGreaterThanOrEqual(box.y + box.height);
+
+        // Scrolling inside the panel brings the lower names into it, so the
+        // owner reaches every image without the page's own scroll.
+        await panel.evaluate((el) => {
+          el.scrollTop = el.scrollHeight;
+        });
+        const scrolled = await panel.boundingBox();
+        const reached = await page.locator(OPTION).last().boundingBox();
+        if (scrolled === null || reached === null) {
+          throw new Error("the panel or its last option is not on the page");
+        }
+        expect(reached.y).toBeLessThan(scrolled.y + scrolled.height);
+      });
+    });
+
     test("inserts the chosen image at the caret and keeps the surrounding words", async () => {
       const harbour = await makeImage("Harbour");
       await withPage(async (page) => {
