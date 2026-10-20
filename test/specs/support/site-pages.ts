@@ -35,6 +35,7 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
+import { findAllNavLinks } from "#test-utils/test-browser/parsing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -229,10 +230,11 @@ export const pageAddress = async (name: string): Promise<string> => {
   return page.slug;
 };
 
-/** Whether the menus on a public page offer one of the owner's pages, read off
- * the front page somebody never signed in opens. A menu link carries the
- * address the page lives at. */
+/** Whether the menus on a public page offer one of the owner's pages, read
+ * off the front page somebody never signed in opens. The links come from the
+ * menus alone, so a page that only mentions the address in its own words is
+ * not offered; and a menu link counts however its anchor is written. */
 export const menusOfferPage = async (address: string): Promise<boolean> =>
-  (await openAsNewcomer("/")).currentHtml.includes(
-    `<a href="/page/${address}">`,
+  findAllNavLinks((await openAsNewcomer("/")).currentHtml).some(
+    ({ href }) => href === `/page/${address}`,
   );

@@ -64,6 +64,13 @@ export const findAllLinks = (html: string): LinkMatch[] =>
     text: decodeEntities(stripTags(m[2]!)),
   }));
 
+/** The links the page's navigation bars offer, read out of the bars alone — a
+ * link in the page's own words is not a menu link. */
+export const findAllNavLinks = (html: string): LinkMatch[] =>
+  regexCollect(/<nav\b[^>]*>([\s\S]*?)<\/nav>/gi, html, (m) => m[1]!).flatMap(
+    (nav) => findAllLinks(nav),
+  );
+
 /** Find a link whose visible text contains the search string (case-insensitive) */
 export const findLinkByText = (
   html: string,
