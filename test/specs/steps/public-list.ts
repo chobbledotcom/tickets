@@ -18,6 +18,7 @@ import {
   siteIsCalled,
   takeOffSale,
 } from "#test/specs/support/public-list.ts";
+import { textWithSitePicture } from "#test/specs/support/site-pictures.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
@@ -67,6 +68,15 @@ Given(
   ): Promise<void> {
     return groupHolding(this, group, [{ name: part, state: "on sale" }], {
       describedAs,
+    });
+  },
+);
+
+Given(
+  "a {word} group with the picture in its description holding a {word}",
+  function (this: TicketsWorld, group: string, part: string): Promise<void> {
+    return groupHolding(this, group, [{ name: part, state: "on sale" }], {
+      describedAs: textWithSitePicture(this),
     });
   },
 );
