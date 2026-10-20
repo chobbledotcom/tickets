@@ -88,6 +88,6 @@ describeWithEnv("the ticket page's image references", { db: true }, () => {
       name: "Kayak Tour",
     });
     const html = await ticketPageHtml(listing.slug);
-    expect(html).toContain('src=""');
+    expect(html).toContain('<img src="" alt="Poster">');
   });
 });

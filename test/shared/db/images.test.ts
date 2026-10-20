@@ -13,6 +13,7 @@ import {
   getImagesForItem,
   getImageUsesForImage,
   imagesTable,
+  imageUrlsFor,
   imageUseTargets,
   setImagesForItem,
   setItemsForImage,
@@ -428,6 +429,15 @@ describeWithEnv("db > images", { db: true }, () => {
       });
 
       expect(currentRequestStore()).toBeUndefined();
+    });
+  });
+
+  describe("image urls for references", () => {
+    test("answers an overlong img# reference with no image", async () => {
+      // A 400-digit id overflows to Infinity, which no binder accepts.
+      const urls = await imageUrlsFor([`![Poster](img#${"9".repeat(400)})`]);
+
+      expect(urls.size).toBe(0);
     });
   });
 });
