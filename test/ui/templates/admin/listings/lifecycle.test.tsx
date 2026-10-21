@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   adminDeactivateListingPage,
@@ -23,23 +23,26 @@ describe("listing lifecycle confirm pages", () => {
   test("delete page renders the warning, prompt, and dangerous submit", () => {
     const html = adminListingDeletePage(listing, OWNER_SESSION);
 
-    expect(html).toContain('action="/admin/listing/7/delete"');
-    expect(html).toContain(
+    assertStringIncludes(html, 'action="/admin/listing/7/delete"');
+    assertStringIncludes(
+      html,
       "<strong>Warning:</strong> This permanently deletes the listing",
     );
-    expect(html).toContain("Its 3 attendee(s) will be unlinked");
-    expect(html).toContain(
+    assertStringIncludes(html, "Its 3 attendee(s) will be unlinked");
+    assertStringIncludes(
+      html,
       "To delete this listing, type its name &quot;Summer Camp &amp; Fun&quot; into the box below:",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'name="confirm_identifier" placeholder="Summer Camp &amp; Fun" required',
     );
-    expect(html).toContain('<button class="danger" type="submit">');
-    expect(html).toContain("/icons.svg#trash-2");
-    expect(html).toContain("Delete Listing");
-    expect(html).toContain("<title>Delete: Summer Camp &amp; Fun");
+    assertStringIncludes(html, '<button class="danger" type="submit">');
+    assertStringIncludes(html, "/icons.svg#trash-2");
+    assertStringIncludes(html, "Delete Listing");
+    assertStringIncludes(html, "<title>Delete: Summer Camp &amp; Fun");
     // Confirm pages live under the Home nav, not a section's.
-    expect(html).toContain('<a class="active" href="/admin/"');
+    assertStringIncludes(html, '<a class="active" href="/admin/"');
   });
 
   test("delete page renders a rejected-submit error", () => {
@@ -49,52 +52,63 @@ describe("listing lifecycle confirm pages", () => {
       "Listing name does not match.",
     );
 
-    expect(html).toContain("Listing name does not match.");
+    assertStringIncludes(html, "Listing name does not match.");
   });
 
   test("deactivate page lists every effect with the dangerous submit", () => {
     const html = adminDeactivateListingPage(listing, OWNER_SESSION);
 
-    expect(html).toContain('action="/admin/listing/7/deactivate"');
-    expect(html).toContain(
+    assertStringIncludes(html, 'action="/admin/listing/7/deactivate"');
+    assertStringIncludes(
+      html,
       "<strong>Warning:</strong> Deactivating this listing will:",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<li>Return a 404 error on the public ticket page</li>",
     );
-    expect(html).toContain("<li>Prevent new registrations</li>");
-    expect(html).toContain("<li>Reject any pending payments</li>");
-    expect(html).toContain("<p>Existing attendees will not be affected.</p>");
-    expect(html).toContain(
+    assertStringIncludes(html, "<li>Prevent new registrations</li>");
+    assertStringIncludes(html, "<li>Reject any pending payments</li>");
+    assertStringIncludes(
+      html,
+      "<p>Existing attendees will not be affected.</p>",
+    );
+    assertStringIncludes(
+      html,
       "To deactivate this listing, type its name &quot;Summer Camp &amp; Fun&quot; into the box below:",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'name="confirm_identifier" placeholder="Summer Camp &amp; Fun" required',
     );
-    expect(html).toContain('<button class="danger" type="submit">');
-    expect(html).toContain("Deactivate Listing");
-    expect(html).toContain("<title>Deactivate: Summer Camp &amp; Fun");
+    assertStringIncludes(html, '<button class="danger" type="submit">');
+    assertStringIncludes(html, "Deactivate Listing");
+    assertStringIncludes(html, "<title>Deactivate: Summer Camp &amp; Fun");
   });
 
   test("reactivate page explains the effect with a non-dangerous submit", () => {
     const html = adminReactivateListingPage(listing, OWNER_SESSION);
 
-    expect(html).toContain('action="/admin/listing/7/reactivate"');
-    expect(html).toContain(
+    assertStringIncludes(html, 'action="/admin/listing/7/reactivate"');
+    assertStringIncludes(
+      html,
       "<p>Reactivating this listing will make it available for registrations again.</p>",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<p>The public ticket page will be accessible and new attendees can register.</p>",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "To reactivate this listing, type its name &quot;Summer Camp &amp; Fun&quot; into the box below:",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'name="confirm_identifier" placeholder="Summer Camp &amp; Fun" required',
     );
-    expect(html).not.toContain('<button class="danger" type="submit">');
-    expect(html).toContain("/icons.svg#check");
-    expect(html).toContain("Reactivate Listing");
-    expect(html).toContain("<title>Reactivate: Summer Camp &amp; Fun");
+    assert(!html.includes('<button class="danger" type="submit">'));
+    assertStringIncludes(html, "/icons.svg#check");
+    assertStringIncludes(html, "Reactivate Listing");
+    assertStringIncludes(html, "<title>Reactivate: Summer Camp &amp; Fun");
   });
 });
