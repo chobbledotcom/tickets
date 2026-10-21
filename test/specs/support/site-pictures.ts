@@ -32,6 +32,7 @@ export const textWithSitePicture = (world: TicketsWorld): string => {
 /** The page's site footer region, where the footer's own words show. */
 export const footerHtml = (html: string): string => {
   const start = html.indexOf('<footer class="site-footer">');
+  if (start === -1) throw new Error("the page renders no site footer");
   const end = html.indexOf("</footer>", start);
   return html.slice(start, end);
 };
