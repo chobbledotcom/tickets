@@ -303,6 +303,26 @@ await execute(row.sql);`,
     ]);
   });
 
+  test("skips a helper call whose inline array never closes", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "await execute(writeSql, [listingId, listingId",
+        [],
+      ),
+    ).toEqual([]);
+  });
+
+  test("skips a helper call whose type arguments never close", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "const count = queryOne < expected ? readSql : writeSql;",
+        [],
+      ),
+    ).toEqual([]);
+  });
+
   test("stays quiet on a helper call whose inline array has distinct values", () => {
     expect(
       findRepeatedBinds(

@@ -239,16 +239,11 @@ const matchedBlocks = (blanked: string): Block[] => {
   return blocks;
 };
 
-/** The innermost block that holds `at`, or undefined for the file itself. */
-const innermostBlockAt = (blocks: Block[], at: number): Block | undefined => {
-  let found: Block | undefined;
-  for (const block of blocks) {
-    if (block.open < at && at < block.close) {
-      if (found === undefined || block.open > found.open) found = block;
-    }
-  }
-  return found;
-};
+/** The innermost block that holds `at`, or undefined for the file itself.
+ * Blocks arrive in the order their `}` closes, so the innermost block that
+ * holds a position is the first one that holds it. */
+const innermostBlockAt = (blocks: Block[], at: number): Block | undefined =>
+  blocks.find((block) => block.open < at && at < block.close);
 
 /** The one declaration of a name that reaches a use at `at`: the innermost
  * scope that declares the name wins, and inside it the declaration that

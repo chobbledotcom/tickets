@@ -83,19 +83,40 @@ describe("finding a row's own arrow", () => {
     ).rejects.toThrow('The list offers no way to move "Confirmed" up');
   });
 
-  test("presses the row's own arrow, sending its form where it posts", async () => {
+  /** A page whose Confirmed row carries a move-up arrow that posts to
+   * postsTo, served by a recording browser. Moving the row up sends that
+   * form, so the send must be a POST to the arrow's own address. */
+  const pressingUpSendsTo = async (
+    postsTo: string,
+    listPath: string | ((world: TicketsWorld) => string),
+    mover: TicketsWorld,
+  ): Promise<void> => {
     const { browser, sent } = recordingBrowser();
-    const row = `<td>Confirmed</td>${arrowAt(7)}`;
+    const row =
+      `<td>Confirmed</td><td><form action="${postsTo}" method="POST"><button>➤</button></form></td>`;
     browser.currentHtml = `<table><tr>${row}</table>`;
     const arrows = movingRowsOn(
-      LIST,
+      listPath,
       confirmedOpenAt(browser, row, `${LIST}/7`),
     );
 
-    await arrows.move(world, "Confirmed", "up");
+    await arrows.move(mover, "Confirmed", "up");
 
     expect(sent().method).toBe("POST");
-    expect(sent().path).toBe(`${LIST}/7/move-up`);
+    expect(sent().path).toBe(postsTo);
+  };
+
+  test("presses the row's own arrow, sending its form where it posts", async () => {
+    await pressingUpSendsTo(`${LIST}/7/move-up`, LIST, world);
+  });
+
+  test("reads a list path the world carries", async () => {
+    const path = `${LIST}/7/answers`;
+    await pressingUpSendsTo(
+      `${path}/7/move-up`,
+      (w: TicketsWorld) => `${LIST}/${w.listingId}/answers`,
+      { listingId: 7 } as TicketsWorld,
+    );
   });
 
   test("does not read the other direction's arrow as this one's", async () => {
