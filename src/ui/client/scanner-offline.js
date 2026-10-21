@@ -92,9 +92,19 @@ export const readManualMode = () => {
   }
 };
 
+/** Store the door switch's position, and say whether the store took it. A
+ * blocked or full store keeps the old position: the switch stays where it
+ * was, and the caller tells the door why nothing changed. */
 export const writeManualMode = (on) => {
-  if (on) localStorage.setItem(MODE_KEY, "1");
-  else localStorage.removeItem(MODE_KEY);
+  try {
+    if (on) localStorage.setItem(MODE_KEY, "1");
+    else localStorage.removeItem(MODE_KEY);
+    return true;
+  } catch {
+    // Site data is blocked for this page, or the store is full: the same
+    // refusal every other write in this module answers with a message.
+    return false;
+  }
 };
 
 /** Whether a scan settles offline: the door switch says so, or the device

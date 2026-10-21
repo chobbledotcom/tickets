@@ -53,6 +53,18 @@ describe("scanner offline door", {
     return row;
   };
 
+  /** The door's answer one settled queue replay gets. A fresh response per
+   * call: the page load's cache refresh consumes the first one's body, and a
+   * reused body would fail the replay's read. */
+  const settledCheckIn = (): Response =>
+    Response.json({
+      listingName: "Standard",
+      name: "Ada",
+      quantity: 1,
+      status: "checked_in",
+      total: 1,
+    });
+
   /** The door's ticket cache, stamped by the clock the scan will read. The
    * camera fakes own the clock, so the seed lands after they do. */
   const seedTicketCache = async (
@@ -71,6 +83,11 @@ describe("scanner offline door", {
     h.stash.set(
       "localStorage",
       Object.create(h.window.localStorage, {
+        removeItem: {
+          value: () => {
+            throw new Error("The store is full");
+          },
+        },
         setItem: {
           value: () => {
             throw new Error("The store is full");
@@ -138,6 +155,49 @@ describe("scanner offline door", {
     ).toBe("true");
   });
 
+  test("shows the no-connection banner while the page has no connection", () => {
+    const h = fresh({ onLine: false });
+
+    // Nobody turned the switch: the dead connection alone puts the banner
+    // up, worded for the missing connection.
+    expect(el(h.document, "scanner-offline-banner").className).not.toContain(
+      "hidden",
+    );
+    expect(el(h.document, "scanner-offline-banner-text").textContent).toBe(
+      "No connection. Scans are queued and checked in when you are back online.",
+    );
+  });
+
+  test("stores the offline switch the door turns on", () => {
+    const h = fresh();
+    const toggle = el(h.document, "scanner-offline-toggle");
+
+    toggle.click();
+
+    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe("1");
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    expect(el(h.document, "scanner-offline-banner-text").textContent).toBe(
+      "Offline mode is on. Scans are queued and checked in when you are back online.",
+    );
+
+    // A fresh page restores the position the click stored.
+    const restored = fresh({
+      seed: (store) =>
+        store.setItem(
+          "scanner-offline-mode",
+          String(h.window.localStorage.getItem("scanner-offline-mode")),
+        ),
+    });
+    expect(
+      el(restored.document, "scanner-offline-banner").className,
+    ).not.toContain("hidden");
+    expect(
+      el(restored.document, "scanner-offline-toggle").getAttribute(
+        "aria-pressed",
+      ),
+    ).toBe("true");
+  });
+
   test("queues a valid scan offline without posting it", async () => {
     const fetchStub = stubFetch(() => Response.json({}, { status: 500 }));
     try {
@@ -199,6 +259,27 @@ describe("scanner offline door", {
     expect(storedQueue(h)).toBe(null);
   });
 
+  test("keeps the switch off and says so when the store refuses the change", () => {
+    const h = fresh();
+    fullStore(h);
+
+    el(h.document, "scanner-offline-toggle").click();
+
+    expect(h.statusEl.textContent).toBe(
+      "Your change was not saved. Free up space on this device, then try again.",
+    );
+    expect(h.statusEl.className).toContain("scanner-status-error");
+    // The refused arm left the switch, the banner, and the store as they
+    // were.
+    expect(
+      el(h.document, "scanner-offline-toggle").getAttribute("aria-pressed"),
+    ).toBe("false");
+    expect(el(h.document, "scanner-offline-banner").className).toContain(
+      "hidden",
+    );
+    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe(null);
+  });
+
   test("treats a cache stamped in the future as expired", async () => {
     using _fetch = stubFetch(new Error("offline"));
     const h = fresh({ onLine: false });
@@ -211,17 +292,7 @@ describe("scanner offline door", {
   });
 
   test("settles a queued check-in on the next page load", async () => {
-    // A fresh response per call: the page load's cache refresh consumes the
-    // first one's body, and a reused body would fail the replay's read.
-    const fetchStub = stubFetch(() =>
-      Response.json({
-        listingName: "Standard",
-        name: "Ada",
-        quantity: 1,
-        status: "checked_in",
-        total: 1,
-      }),
-    );
+    const fetchStub = stubFetch(settledCheckIn);
     try {
       const h = fresh({
         seed: (store) =>
@@ -245,6 +316,30 @@ describe("scanner offline door", {
     }
   });
 
+  test("settles the queue when the door turns offline mode off", async () => {
+    using _fetch = stubFetch(settledCheckIn);
+    const h = fresh({
+      seed: (store) => store.setItem("scanner-offline-mode", "1"),
+    });
+    // The scan queued while the switch was on; the page load's sync ran
+    // against an empty queue, so the switch's own disarm does the settling.
+    h.window.localStorage.setItem(
+      "scanner-queue",
+      JSON.stringify([queuedItem]),
+    );
+
+    el(h.document, "scanner-offline-toggle").click();
+
+    await whenTextShows(h.statusEl, "Queued tickets are done.");
+    expect(storedQueue(h)).toBe("[]");
+    expect(firstRow(h).textContent).toBe("Checked in");
+    // The switch disarmed: the store holds no mode and the banner is gone.
+    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe(null);
+    expect(el(h.document, "scanner-offline-banner").className).toContain(
+      "hidden",
+    );
+  });
+
   test("keeps a check-in the door did not answer and says so", async () => {
     using _fetch = stubFetch(new Error("offline"));
     const h = fresh({
@@ -263,17 +358,7 @@ describe("scanner offline door", {
   });
 
   test("stops the sync and names the store when a settled check-in will not save", async () => {
-    // A fresh response per call: the page load's cache refresh consumes the
-    // first one's body, and a reused body would fail the replay's read.
-    using _fetch = stubFetch(() =>
-      Response.json({
-        listingName: "Standard",
-        name: "Ada",
-        quantity: 1,
-        status: "checked_in",
-        total: 1,
-      }),
-    );
+    using _fetch = stubFetch(settledCheckIn);
     const h = fresh({
       seed: (store) =>
         store.setItem("scanner-queue", JSON.stringify([queuedItem])),

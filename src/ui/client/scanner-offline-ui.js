@@ -350,7 +350,18 @@ export const initOfflineScanner = ({
   };
 
   toggle.addEventListener("click", () => {
-    writeManualMode(!readManualMode());
+    if (!writeManualMode(!readManualMode())) {
+      showStatus(
+        statusEl,
+        getMessage(
+          messages,
+          "messageOfflineModeSaveFailed",
+          "Your change was not saved. Free up space on this device, then try again.",
+        ),
+        "error",
+      );
+      return;
+    }
     renderOfflineState();
     // Arming the mode wants a fresh list while there is still a connection.
     // Offline, the refresh fails and any stored set stands.
