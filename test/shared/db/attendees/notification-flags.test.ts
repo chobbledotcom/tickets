@@ -4,6 +4,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import {
   clearPendingFlagStatement,
   countAttendeesWithPendingFlags,
@@ -40,6 +41,24 @@ describeWithEnv(
       await bookTestAttendeeWithFlags("Both Sends Buyer", 1, 1);
 
       expect(await countAttendeesWithPendingFlags()).toBe(1);
+    });
+
+    test("counts only attendee rows, not a servicing row with its flags up", async () => {
+      const { attendee } = await bookTestAttendeeWithFlags(
+        "Servicing Flags Buyer",
+        1,
+        1,
+      );
+
+      // No create path raises a servicing row's flags, but the input type
+      // permits the combination and a restored backup can carry it. The
+      // count and the attendee list must agree on the rows they count.
+      await execute("UPDATE attendees SET kind = ? WHERE id = ?", [
+        SERVICING_KIND,
+        attendee.id,
+      ]);
+
+      expect(await countAttendeesWithPendingFlags()).toBe(0);
     });
 
     test("adds nothing once every send went out", async () => {

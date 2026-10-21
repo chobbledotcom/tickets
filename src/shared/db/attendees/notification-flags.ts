@@ -11,6 +11,7 @@
  * by hand shows orange.
  */
 
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import {
   executeBatch,
   inPlaceholders,
@@ -158,13 +159,15 @@ export const emailBadgeOwed = (
 ): boolean => attendee.email_pending > 0 && attendee.email_owed === 1;
 
 /** How many attendees still owe a notification send. The dashboard shows this
- * count when it is above zero. An email flag counts only while a booked
- * listing still collects an email, the same rule the badge applies. */
+ * count when it is above zero. Only customer attendee rows count, the rows
+ * the attendee list and the badges can show. An email flag counts only while
+ * a booked listing still collects an email, the same rule the badge applies. */
 export const countAttendeesWithPendingFlags = async (): Promise<number> => {
   const row = await queryOne<{ n: number }>(
     `SELECT COUNT(*) AS n FROM attendees
-     WHERE (email_pending > 0 AND ${emailOwedSql("attendees")})
-        OR webhooks_pending > 0`,
+     WHERE kind = '${ATTENDEE_KIND}'
+       AND ((email_pending > 0 AND ${emailOwedSql("attendees")})
+            OR webhooks_pending > 0)`,
   );
   // A COUNT always yields one row. A missing row means the query broke.
   return Number(
