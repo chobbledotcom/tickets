@@ -55,6 +55,11 @@ const sitePageNavColumns = rawSitePagesTable.read.pick([
   "sort_order",
 ]);
 
+/** The raw site_pages table, for the admin JSON API's reads (list, and the
+ * primary-pinned read-back after a write). Writes go through the wrappers
+ * below, which own the slug index and the root-order append. */
+export const sitePagesTable = rawSitePagesTable;
+
 /** Load id, slug, name, sort_order, and hidden. Decrypt only slug and name.
  * Order by sort_order, then id. */
 const NAV_ROW_ORDER = { order: "sort_order ASC, id ASC" } as const;

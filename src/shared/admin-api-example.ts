@@ -26,7 +26,6 @@ import type {
 } from "#routes/admin/api-listing-body.ts";
 import {
   ADMIN_API_RESOURCES,
-  type AdminApiResource,
   adminApiIdParam,
 } from "#shared/admin-api-resources.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
@@ -34,7 +33,13 @@ import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { DeleteBody } from "#shared/rest/crud-parsers.ts";
 import type { AdminListing } from "#types";
-import { type EndpointDoc, json } from "./admin-api-example/endpoint-doc.ts";
+import {
+  crudDocs,
+  customRoutePath,
+  type EndpointDoc,
+  json,
+} from "./admin-api-example/endpoint-doc.ts";
+import { SITE_PAGE_ENDPOINTS } from "./admin-api-example/site-pages.ts";
 
 /** The running totals a listing carries. Only a booking can move them, so a
  * listing that was just created has none of each. */
@@ -255,83 +260,6 @@ const attributeOptionBase = (): string => {
   return `/api/admin/${entry.path}/:${adminApiIdParam(entry.label)}/${child.path}`;
 };
 
-/** The documented path of one listing custom route. */
-const listingCustom = (
-  customKey: keyof typeof ADMIN_API_RESOURCES.listings.custom,
-): string => {
-  const custom = ADMIN_API_RESOURCES.listings.custom[customKey];
-  return `/api/admin/${ADMIN_API_RESOURCES.listings.path}/${custom.subpath}`;
-};
-
-/** The five standard admin-CRUD doc entries for a resource. The paths and the
- *  id param come from the resource table, so the docs cannot disagree with
- *  the server about them. Descriptions are passed in (they carry
- *  per-resource wording, such as the holiday's owner-only note), so this
- *  shares only the method/path/request/response shape every resource
- *  repeats. `desc` is [list, get, create, update, delete]. */
-const crudDocs = (c: {
-  singular: string;
-  entry: AdminApiResource;
-  example: unknown;
-  listResponse: unknown;
-  createBody: unknown;
-  updateBody: unknown;
-  deleteBody: unknown;
-  desc: [string, string, string, string, string];
-  /** Fields a brand-new record always has, whatever the caller sent — the
-   * running totals that only bookings can move. */
-  freshRecord?: Record<string, number>;
-  /** What the stored defaults give a new record where the create body is
-   * silent, for fields whose default differs from the example record. */
-  newRecordDefaults?: Record<string, unknown>;
-}): EndpointDoc[] => {
-  const base = `/api/admin/${c.entry.path}`;
-  const byId = `${base}/:${adminApiIdParam(c.entry.label)}`;
-  const answerWith = (...changes: unknown[]): string =>
-    json({ [c.singular]: Object.assign({}, c.example, ...changes) });
-  const one = answerWith();
-  // An update answers with the record as it now reads, and a create with the
-  // record as just stored: what the caller sent, over the defaults, with
-  // nothing yet booked against it.
-  const updated = answerWith(c.updateBody);
-  const created = answerWith(
-    c.newRecordDefaults ?? {},
-    c.createBody,
-    c.freshRecord ?? {},
-  );
-  const [list, get, create, update, del] = c.desc;
-  return [
-    {
-      description: list,
-      method: "GET",
-      path: base,
-      response: json(c.listResponse),
-    },
-    { description: get, method: "GET", path: byId, response: one },
-    {
-      description: create,
-      method: "POST",
-      path: base,
-      request: json(c.createBody),
-      response: created,
-    },
-    {
-      description: update,
-      method: "PUT",
-      path: byId,
-      request: json(c.updateBody),
-      response: updated,
-    },
-    {
-      description: del,
-      method: "DELETE",
-      path: byId,
-      request: json(c.deleteBody),
-      response: json({ status: "ok" }),
-    },
-  ];
-};
-
 export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
   ...crudDocs({
     createBody: ADMIN_API_ATTRIBUTE_CREATE_BODY,
@@ -411,7 +339,7 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
   {
     description: "Deactivate a listing",
     method: "POST",
-    path: listingCustom("deactivate"),
+    path: customRoutePath(ADMIN_API_RESOURCES.listings, "deactivate"),
     response: json({
       listing: { ...ADMIN_API_EXAMPLE_ADMIN_LISTING, active: false },
     }),
@@ -419,7 +347,7 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
   {
     description: "Reactivate a deactivated listing",
     method: "POST",
-    path: listingCustom("reactivate"),
+    path: customRoutePath(ADMIN_API_RESOURCES.listings, "reactivate"),
     response: json({
       listing: { ...ADMIN_API_EXAMPLE_ADMIN_LISTING, active: true },
     }),
@@ -428,7 +356,7 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     description:
       "List the attendees booked on a listing. checked_in counts the tickets on each line that the doors admitted, from 0 up to quantity.",
     method: "GET",
-    path: listingCustom("attendees"),
+    path: customRoutePath(ADMIN_API_RESOURCES.listings, "attendees"),
     response: json({ attendees: [ADMIN_API_EXAMPLE_ATTENDEE] }),
   },
   ...crudDocs({
@@ -463,4 +391,5 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     singular: "holiday",
     updateBody: ADMIN_API_HOLIDAY_UPDATE_BODY,
   }),
+  ...SITE_PAGE_ENDPOINTS,
 ];

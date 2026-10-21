@@ -371,8 +371,7 @@
   },
   "src/shared/admin-api-example.ts": {
     "semicolon": 1,
-    "banned-modal": 1,
-    "long-sentence": 1
+    "banned-modal": 1
   },
   "src/shared/admin-features.ts": {
     "long-sentence": 1,
