@@ -129,18 +129,17 @@ export const restoreClaimedNotificationFlags = (
   );
 
 /** SQL for "a listing this attendee booked currently collects an email".
- * The attendee row reads and the dashboard count share it, so the badge and
- * the count cannot disagree. `attendeeRef` names the alias the attendee
- * columns read through at the call site. `listingRef` optionally names the
- * row's own booking listing. A read whose row stands for one booking passes
- * it, so the badge asks about that booking's listing alone. An
- * attendee-wide read omits it, so the badge asks about every positive
- * booking the person holds. Writes store the contact fields as the parser's
- * own trimmed tokens (`storedListingFields`). The read wraps the stored
- * value in commas first. It then folds one space or non-breaking space at a
- * token edge into that boundary. A padded value still reads as its tokens. A
- * longer pad never matches, and a token with an inner space never matches.
- * Ghost lines (quantity 0) are not bookings. */
+ * The badge and the count share it, so they cannot disagree.
+ * `attendeeRef` names the alias the attendee columns read through at the
+ * call site. `listingRef` optionally names the row's own booking listing.
+ * A read whose row stands for one booking passes it, so the badge asks
+ * about that booking's listing alone. An attendee-wide read omits it, so
+ * the badge asks about every positive booking the person holds. Writes
+ * store the contact fields as the parser's own trimmed tokens. The read
+ * wraps the stored value in commas and folds one space or non-breaking
+ * space at a token edge. A padded value still reads as its tokens. A
+ * token with an inner space never matches. Ghost lines (quantity 0) are
+ * not bookings. */
 export const emailOwedSql = (
   attendeeRef: string,
   listingRef?: string,
