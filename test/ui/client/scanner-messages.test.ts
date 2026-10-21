@@ -47,6 +47,17 @@ describe("scanner wording helpers", () => {
     expect(formatTicketCount(messages, 3)).toBe("3 tickets");
   });
 
+  test("renders one ticket in a copy that differs from the fallback", () => {
+    // A supplied singular copy that differs from the fallback proves the
+    // singular lookup ran. A missed lookup renders the fallback's words.
+    const messages = {
+      messageTicketCountOne: "{count} booking",
+      messageTicketCountOther: "{count} bookings",
+    };
+    expect(formatTicketCount(messages, 1)).toBe("1 booking");
+    expect(formatTicketCount(messages, 3)).toBe("3 bookings");
+  });
+
   test("falls back to the module's own ticket words", () => {
     // Both fallback wordings are the same singular template; only the page's
     // rendered attributes carry the plural s.
@@ -63,9 +74,16 @@ describe("scanner wording helpers", () => {
       installDom("");
       // The fake clock keeps the fade timers the settled types schedule off
       // the real event loop.
-      using _time = new FakeTime();
+      using time = new FakeTime();
       const status = document.createElement("div");
       status.className = "scanner-status scanner-status-error hidden";
+
+      // The first status clears a handle the module has never set, so a
+      // timer armed before it must survive.
+      let earlierTimerRan = false;
+      setTimeout(() => {
+        earlierTimerRan = true;
+      }, 100);
 
       showStatus(status, "Not found", "error");
       expect(status.textContent).toBe("Not found");
@@ -82,6 +100,9 @@ describe("scanner wording helpers", () => {
 
       showStatus(status, "Ticket not found", "error");
       expect(status.className).toBe("scanner-status scanner-status-error");
+
+      time.tick(5_100);
+      expect(earlierTimerRan).toBe(true);
     });
 
     test("fades a settled status out after its delay", () => {
