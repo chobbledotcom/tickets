@@ -80,9 +80,12 @@ const handleTicketView = withResolvedEntries(async (entries, tokens) => {
   // QRs — separate while still collapsing each package. Disabling collapsing for
   // multi-token pages would render a hidden package's member rows as normal cards
   // and leak the concealed names, so it is always enabled.
-  const packageDisplays = await packageDisplaysForRows(entries);
   // The cards' listing descriptions can carry the editor's img#N references.
-  await addPageImageUrls(entries.map((entry) => entry.listing.description));
+  // The lookup does not feed the package reads, so both run in parallel.
+  const [packageDisplays] = await Promise.all([
+    packageDisplaysForRows(entries),
+    addPageImageUrls(entries.map((entry) => entry.listing.description)),
+  ]);
   return htmlResponse(
     ticketViewPage(
       cards,
