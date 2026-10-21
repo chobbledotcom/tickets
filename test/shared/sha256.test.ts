@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { hmacHex, sha256Hex } from "#shared/sha256.ts";
+import { spy } from "@std/testing/mock";
+import { hmacHex, importHmacKey, sha256Hex } from "#shared/sha256.ts";
 
 describe("SHA-256 digest", () => {
   test("returns a lowercase fixed-width hex digest", async () => {
@@ -38,5 +39,26 @@ describe("keyed HMAC-SHA256 digest", () => {
   test("changes with the key, so a digest without its key admits nothing", async () => {
     const one = await hmacHex(new Uint8Array(32).fill(1), "ticket");
     expect(one).not.toBe(await hmacHex(new Uint8Array(32).fill(2), "ticket"));
+  });
+
+  test("digests many messages under one imported key with a single key import", async () => {
+    const rawKey = new TextEncoder().encode("door key");
+    const messages = ["first", "second", "third"];
+    const expected = await Promise.all(
+      messages.map((message) => hmacHex(rawKey, message)),
+    );
+    const importSpy = spy(crypto.subtle, "importKey");
+    try {
+      const key = await importHmacKey(rawKey);
+      const digests = await Promise.all(
+        messages.map((message) => hmacHex(key, message)),
+      );
+      expect(importSpy.calls.length).toBe(1);
+      // A digest under the imported key matches the digest under the same
+      // key bytes, so both digest forms name the same token.
+      expect(digests).toEqual(expected);
+    } finally {
+      importSpy.restore();
+    }
   });
 });

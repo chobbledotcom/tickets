@@ -20,23 +20,33 @@ export const sha256Digest = (
   input: string | Uint8Array,
 ): Promise<ArrayBuffer> => crypto.subtle.digest("SHA-256", messageBytes(input));
 
+/** The key one digest signs under: raw key bytes the runtime imports per
+ * digest, or one key importHmacKey already imported. */
+export type HmacKey = CryptoKey | Uint8Array | string;
+
+/** The HMAC-SHA256 signing key imported once. A caller that digests many
+ * messages imports the key one time and hands the same key to every
+ * digest. */
+export const importHmacKey = (key: Uint8Array | string): Promise<CryptoKey> =>
+  crypto.subtle.importKey(
+    "raw",
+    messageBytes(key),
+    { hash: "SHA-256", name: "HMAC" },
+    false,
+    ["sign"],
+  );
+
 /** The HMAC-SHA256 digest of one text's UTF-8 bytes, or of raw bytes, under
  * one key. The same construction runs on both sides of the door cache. Node
  * derives the key on the server. The browser signs with the bytes the
  * scanner page carries. */
 export const hmacDigest = async (
-  key: Uint8Array | string,
+  key: HmacKey,
   input: string | Uint8Array,
 ): Promise<ArrayBuffer> =>
   crypto.subtle.sign(
     "HMAC",
-    await crypto.subtle.importKey(
-      "raw",
-      messageBytes(key),
-      { hash: "SHA-256", name: "HMAC" },
-      false,
-      ["sign"],
-    ),
+    key instanceof CryptoKey ? key : await importHmacKey(key),
     messageBytes(input),
   );
 
@@ -50,8 +60,8 @@ export const sha256Hex = (input: string | Uint8Array): Promise<string> =>
   hexOf(sha256Digest(input));
 
 /** The lowercase hex keyed digest of one text's UTF-8 bytes, or of raw
- * bytes. */
+ * bytes, under one key. */
 export const hmacHex = (
-  key: Uint8Array | string,
+  key: HmacKey,
   input: string | Uint8Array,
 ): Promise<string> => hexOf(hmacDigest(key, input));

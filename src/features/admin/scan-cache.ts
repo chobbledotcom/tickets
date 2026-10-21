@@ -13,11 +13,11 @@ import { toBase64Url } from "#crypto/utils.ts";
 import type { DecryptedAttendeeRow } from "#db/attendees/pii.ts";
 import { getGroupById } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { groupToMap } from "#fp";
+import { chunk, groupToMap, mapParallel } from "#fp";
 import { SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import { jsonResponse, notFoundResponse } from "#routes/response.ts";
-import { hmacHex } from "#shared/sha256.ts";
+import { hmacHex, importHmacKey } from "#shared/sha256.ts";
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
 import {
   groupScope,
@@ -40,6 +40,10 @@ export const doorCacheName = (kind: "group" | "listing", id: number): string =>
 export const pageDoorCacheKey = (door: string): string =>
   toBase64Url(deriveDoorCacheKey(door));
 
+/** The token digests one round signs at once, so a large door's cache
+ * build does not start every digest at the same time. */
+const DIGEST_BATCH = 100;
+
 /** The keyed digests of one door's admittable ticket tokens. A token belongs
  * in the set when its attendee holds at least one line on the door's
  * listings that still owes a ticket. That line must not be refunded, must
@@ -56,7 +60,7 @@ export const ticketHashesForScope = async (
     (row: DecryptedAttendeeRow<Attendee>) => row.id,
     (row: DecryptedAttendeeRow<Attendee>) => row,
   )(rows);
-  const hashes: string[] = [];
+  const tokens: string[] = [];
   for (const lines of rowsByAttendee.values()) {
     // One line that can still admit admits the person, so any of the
     // person's tickets at this door goes in the set.
@@ -65,11 +69,17 @@ export const ticketHashesForScope = async (
         remainingTickets(row) > 0 && !row.refunded && hasTicketQuantity(row),
     );
     if (!owes) continue;
-    for (const row of lines) {
-      hashes.push(await hmacHex(doorKey, row.ticket_token));
-    }
+    for (const row of lines) tokens.push(row.ticket_token);
   }
-  return [...new Set(hashes)].sort();
+  // One key import serves every digest. A per-digest import repeats the
+  // same work for each token.
+  const key = await importHmacKey(doorKey);
+  const digestBatch = (batch: string[]): Promise<string[]> =>
+    Promise.all(batch.map((token) => hmacHex(key, token)));
+  const digests = (
+    await mapParallel(digestBatch)(chunk(DIGEST_BATCH)(tokens))
+  ).flat();
+  return [...new Set(digests)].sort();
 };
 
 /** The cache response behind one door: the door's digest set, or the
