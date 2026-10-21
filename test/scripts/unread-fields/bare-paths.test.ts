@@ -70,6 +70,25 @@ const stdPathGraph: InfoJson = {
   },
 };
 
+/** The graph for an entry that imports a repository file through its bare
+ * specifier. The argument is the `local` path the file's module reports, or
+ * null when the graph names no file. */
+const vendorGraph = (vendorLocal: string | null): InfoJson => ({
+  modules: [
+    {
+      dependencies: [
+        {
+          code: { specifier: "file:///repo/src/vendor.ts" },
+          specifier: "vendor",
+        },
+      ],
+      local: "/repo/src/index.ts",
+      specifier: "./src/index.ts",
+    },
+    { local: vendorLocal, specifier: "file:///repo/src/vendor.ts" },
+  ],
+});
+
 describe("paths from deno info", () => {
   test("maps a bare npm specifier to its cached package folder", () => {
     expect(pathsFromInfo(valibotGraph, "/home/me/.cache/deno/npm")).toEqual({
@@ -101,22 +120,18 @@ describe("paths from deno info", () => {
   });
 
   test("answers nothing when the graph names no file for the module", () => {
-    const graph: InfoJson = {
-      modules: [
-        {
-          dependencies: [
-            {
-              code: { specifier: "file:///repo/src/vendor.ts" },
-              specifier: "vendor",
-            },
-          ],
-          local: "/repo/src/index.ts",
-          specifier: "./src/index.ts",
-        },
-        { local: null, specifier: "file:///repo/src/vendor.ts" },
-      ],
-    };
-    expect(pathsFromInfo(graph, "/home/me/.cache/deno/npm")).toEqual({});
+    expect(
+      pathsFromInfo(vendorGraph(null), "/home/me/.cache/deno/npm"),
+    ).toEqual({});
+  });
+
+  test("maps a bare specifier to a repository file", () => {
+    expect(
+      pathsFromInfo(
+        vendorGraph("/repo/src/vendor.ts"),
+        "/home/me/.cache/deno/npm",
+      ),
+    ).toEqual({ vendor: ["/repo/src/vendor.ts"] });
   });
 
   test("keeps the specifiers the compiler already resolves out", () => {
