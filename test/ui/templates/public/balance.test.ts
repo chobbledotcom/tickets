@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   balanceInvalidPage,
@@ -25,40 +25,40 @@ describe("public balance templates", () => {
       totalQuantity: 3,
     });
 
-    expect(html).toContain("<h1>Pay your balance</h1>");
-    expect(html).toContain("Here's a summary of your booking.");
-    expect(html).toContain("First item");
-    expect(html).toContain("Second item");
-    expect(html).toContain("Full order price:");
-    expect(html).toContain("Already paid:");
-    expect(html).toContain("Balance due:");
-    expect(html).toContain("£17.50");
-    expect(html).toContain("£5");
-    expect(html).toContain("£12.50");
-    expect(html).toContain('action="/pay/balance-token"');
-    expect(html).toContain("Pay £12.50 now");
+    assertStringIncludes(html, "<h1>Pay your balance</h1>");
+    assertStringIncludes(html, "Here's a summary of your booking.");
+    assertStringIncludes(html, "First item");
+    assertStringIncludes(html, "Second item");
+    assertStringIncludes(html, "Full order price:");
+    assertStringIncludes(html, "Already paid:");
+    assertStringIncludes(html, "Balance due:");
+    assertStringIncludes(html, "£17.50");
+    assertStringIncludes(html, "£5");
+    assertStringIncludes(html, "£12.50");
+    assertStringIncludes(html, 'action="/pay/balance-token"');
+    assertStringIncludes(html, "Pay £12.50 now");
   });
 
   test("renders the settled state", () => {
     const html = balanceSettledPage();
 
-    expect(html).toContain("<title>Nothing to pay</title>");
-    expect(html).toContain("This booking has no outstanding balance.");
+    assertStringIncludes(html, "<title>Nothing to pay</title>");
+    assertStringIncludes(html, "This booking has no outstanding balance.");
   });
 
   test("renders the invalid-link state", () => {
     const html = balanceInvalidPage();
 
-    expect(html).toContain("<title>Link not valid</title>");
-    expect(html).toContain("This payment link is not valid");
-    expect(html).toContain("expired or been mistyped");
+    assertStringIncludes(html, "<title>Link not valid</title>");
+    assertStringIncludes(html, "This payment link is not valid");
+    assertStringIncludes(html, "expired or been mistyped");
   });
 
   test("renders the no-items state", () => {
     const html = balanceNoItemsPage();
 
-    expect(html).toContain("<title>No tickets to pay for</title>");
-    expect(html).toContain("This booking has no tickets to pay for");
-    expect(html).toContain("This reservation has no bookable tickets");
+    assertStringIncludes(html, "<title>No tickets to pay for</title>");
+    assertStringIncludes(html, "This booking has no tickets to pay for");
+    assertStringIncludes(html, "This reservation has no bookable tickets");
   });
 });

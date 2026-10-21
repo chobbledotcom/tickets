@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import {
@@ -63,7 +63,8 @@ describe("ticketPage (cart conflict notes)", () => {
       ...dateClash({ name: "Near", slug: "near1" }),
       slugs: ["near1", "far01"],
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "'Near' and 'Far' do not share an available date. Book them separately.",
     );
   });
@@ -73,7 +74,8 @@ describe("ticketPage (cart conflict notes)", () => {
       listings: lengthClashListings({ name: "Short", slug: "shrt1" }),
       slugs: ["shrt1", "long1"],
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "'Short' and 'Long' do not share a booking length. Book them separately.",
     );
   });
@@ -85,7 +87,8 @@ describe("ticketPage (cart conflict notes)", () => {
       slugs: ["mystery", "secret", "far01"],
     });
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "'Secret Unit' and 'Far' do not share an available date.",
     );
   });
@@ -104,7 +107,7 @@ describe("ticketPage (concealed cart conflict items)", () => {
       packages: hiddenPackage(),
       slugs: ["mystery", "far01"],
     });
-    expect(html).not.toContain("do not share an available date");
+    assert(!html.includes("do not share an available date"));
   });
 
   test("warns about booking lengths for a member the cart also sells standalone", () => {
@@ -113,7 +116,8 @@ describe("ticketPage (concealed cart conflict items)", () => {
       packages: hiddenPackage(),
       slugs: ["mystery", "shrt1", "long1"],
     });
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "'Short' and 'Long' do not share a booking length. Book them separately.",
     );
   });
@@ -124,6 +128,6 @@ describe("ticketPage (concealed cart conflict items)", () => {
       packages: hiddenPackage(),
       slugs: ["mystery", "long1"],
     });
-    expect(html).not.toContain("do not share a booking length");
+    assert(!html.includes("do not share a booking length"));
   });
 });
