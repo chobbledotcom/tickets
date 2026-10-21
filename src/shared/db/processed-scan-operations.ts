@@ -3,16 +3,12 @@
  * checked a ticket in while offline sends the delivery again until it
  * reads an answer. One lost answer must never admit a second ticket.
  *
- * The delivery names itself with an operation id the device made up, and
- * travels with the token digest the device stored. The row's unique key is
- * that pair. The same id and digest retrying is one delivery landing
- * nowhere. The same id beside another ticket's digest is another delivery,
- * and it claims its own row. A reused id then never silently suppresses a
- * different ticket's admission. The row also keeps the listings the
- * delivery admitted, so a retry answers the tier the first send put in.
- * No ticket token and no guest detail rests here. The digest is the row's
- * only trace of the ticket, and the delivery's own identity needs it. The
- * prune task removes rows past the retention window.
+ * The row's unique key is the operation id the device made up beside the
+ * token digest the device stored. The same id and digest retrying is one
+ * delivery landing nowhere. The same id beside another ticket's digest
+ * claims its own row, so a reused id never silently suppresses another
+ * ticket's admission. No ticket token and no guest detail rests here,
+ * only the digest.
  */
 
 import { insert, orIgnore, queryOne, type TxScope } from "#db/client.ts";

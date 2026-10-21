@@ -17,11 +17,11 @@ import {
 } from "#payment/refund-authority-lifecycle.ts";
 import { RECOVERY_PRUNABLE_NODES } from "#payment/sumup-recovery-machine-spec.ts";
 import {
-  limit,
   MAINTENANCE_PRUNE_BATCH,
   PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_PAYMENTS_RETENTION_MS,
+  PRUNE_SCAN_OPERATIONS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
   PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
@@ -36,21 +36,6 @@ import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 import type { User } from "#types";
 
 type PruneStatement = SqlStatement;
-
-/**
- * Retention (days) for processed_scan_operations rows (default: 7). The
- * row guards one offline delivery's retry, and a device only retries while
- * its saved cache is valid — 12 hours. A week bounds that many times over.
- * A pruned row then never meets a retry that can still admit. The digest
- * does not outlive the door's delivery window.
- */
-export const PRUNE_SCAN_OPERATIONS_RETENTION_MS =
-  limit(
-    "PRUNE_SCAN_OPERATIONS_RETENTION_DAYS",
-    7,
-    "Prune: scan operations retention",
-    "days",
-  ) * DAY_MS;
 
 export interface DatabasePruningResult {
   checkpoint: string | null;

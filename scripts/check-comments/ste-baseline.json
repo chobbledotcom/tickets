@@ -1624,10 +1624,9 @@
     "semicolon": 2
   },
   "src/shared/limits.ts": {
-    "wordy": 1,
-    "long-sentence": 14,
     "semicolon": 3,
     "banned-modal": 10,
+    "long-sentence": 13,
     "present-perfect": 2
   },
   "src/shared/listing-defaults.ts": {

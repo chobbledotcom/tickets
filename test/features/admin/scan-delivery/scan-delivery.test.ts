@@ -9,9 +9,9 @@ import { deriveDoorCacheKey } from "#crypto/hashing.ts";
 import { hmacHex } from "#crypto/sha256.ts";
 import type { AttendeeWithBookings } from "#db/attendee-types.ts";
 import { doorAttendees } from "#routes/admin/scan-answer.ts";
-import type { QueuedDelivery } from "#routes/admin/scan-delivery.ts";
 import {
   attendeeByTokenHash,
+  type QueuedDelivery,
   queuedDelivery,
 } from "#routes/admin/scan-delivery.ts";
 import { getRequestPrivateKey } from "#shared/session-private-key.ts";

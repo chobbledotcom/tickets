@@ -1,16 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import {
-  PRUNE_SCAN_OPERATIONS_RETENTION_MS,
-  runDatabasePruning,
-} from "#db/prune.ts";
+import { runDatabasePruning } from "#db/prune.ts";
 import { createSession, getAllSessions } from "#db/sessions.ts";
 import { settings } from "#db/settings.ts";
 import {
   MAINTENANCE_PRUNE_BATCH,
   PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_LOGINS_RETENTION_MS,
+  PRUNE_SCAN_OPERATIONS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
   PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,

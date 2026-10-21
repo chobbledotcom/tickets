@@ -6,83 +6,15 @@
  * env vars fall back to the default.
  */
 
-import { getEnv } from "#shared/env.ts";
+import { computedLimit, limit, readLimit } from "#shared/limits/registry.ts";
 import { DAY_MS } from "#shared/now.ts";
 
-/**
- * Parse a string as a positive integer, falling back to the given default
- * if the input is empty, non-numeric, or non-positive.
- */
-export const positiveIntOrDefault = (raw: string, fallback: number): number => {
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-};
-
-/**
- * Read a limit from an env var with a fallback default.
- * Returns the env value when it parses to a positive integer, otherwise the default.
- */
-export const readLimit = (envKey: string, defaultValue: number): number => {
-  const raw = getEnv(envKey);
-  if (raw === undefined) return defaultValue;
-  return positiveIntOrDefault(raw, defaultValue);
-};
-
-// ---------------------------------------------------------------------------
-// Limit registry — the single source of truth
-// ---------------------------------------------------------------------------
-
-type LimitEntry = {
-  readonly label: string;
-  readonly envKey: string;
-  readonly defaultValue: number;
-  readonly current: number;
-  readonly unit: string;
-};
-
-/**
- * The debug-page display list. Each call to {@link limit} /
- * {@link computedLimit} appends one entry, so the table is derived from the
- * same declaration as the named constants — they can never drift. */
-const REGISTRY: LimitEntry[] = [];
-
-/** Register a computed limit whose value is derived from another limit (e.g.
- * `SCANNER_CSRF_MAX_AGE_S` defaults to `SESSION_MAX_AGE_S`, or
- * `PRUNE_PAYMENTS_RETENTION_DAYS` goes through `assertPaymentsRetentionSafe`).
- * Records its metadata for the debug table and returns the value. */
-const computedLimit = (
-  current: number,
-  defaultValue: number,
-  envKey: string,
-  label: string,
-  unit: string,
-): number => {
-  REGISTRY.push({ current, defaultValue, envKey, label, unit });
-  return current;
-};
-
-/** Declare a tunable limit: read from env with `defaultValue`, register its
- * metadata, and return the resolved value. Each limit is declared exactly
- * once — the named export AND the {@link LIMIT_ENTRIES} debug table both
- * reference this single declaration, eliminating the dual-declaration drift
- * that previously let `MAX_IMAGE_SIZE` disagree (32 MB constant vs 256 KB
- * table entry). A plain env-read limit is just a computed one whose value comes
- * from {@link readLimit}, so it shares that registration path. Exported so a
- * domain module (for example `#shared/square/limits.ts`) can register its own
- * limits into the one shared debug table. */
-export const limit = (
-  envKey: string,
-  defaultValue: number,
-  label: string,
-  unit: string,
-): number =>
-  computedLimit(
-    readLimit(envKey, defaultValue),
-    defaultValue,
-    envKey,
-    label,
-    unit,
-  );
+export {
+  LIMIT_ENTRIES,
+  limit,
+  positiveIntOrDefault,
+  readLimit,
+} from "#shared/limits/registry.ts";
 
 // ---------------------------------------------------------------------------
 // Storage limits
@@ -352,6 +284,18 @@ export const PRUNE_PAYMENTS_RETENTION_DAYS = computedLimit(
   "days",
 );
 
+/** Retention (days) for processed_scan_operations rows (default: 7). The
+ * row guards one offline delivery's retry, and a device only retries while
+ * its saved cache is valid — 12 hours. A week bounds that many times over.
+ * A pruned row then never meets a retry that can still admit. The digest
+ * does not outlive the door's delivery window. */
+export const PRUNE_SCAN_OPERATIONS_RETENTION_DAYS = limit(
+  "PRUNE_SCAN_OPERATIONS_RETENTION_DAYS",
+  7,
+  "Prune: scan operations retention",
+  "days",
+);
+
 /** Retention (days) past expiry for sessions rows (default: 90) */
 export const PRUNE_SESSIONS_RETENTION_DAYS = limit(
   "PRUNE_SESSIONS_RETENTION_DAYS",
@@ -606,6 +550,8 @@ export const PRUNE_INTERVAL_MS = PRUNE_INTERVAL_HOURS * 60 * 60 * 1000;
 /** Computed: retention windows in ms. */
 export const PRUNE_PAYMENTS_RETENTION_MS =
   PRUNE_PAYMENTS_RETENTION_DAYS * DAY_MS;
+export const PRUNE_SCAN_OPERATIONS_RETENTION_MS =
+  PRUNE_SCAN_OPERATIONS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_SESSIONS_RETENTION_MS =
   PRUNE_SESSIONS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_LOGINS_RETENTION_MS = PRUNE_LOGINS_RETENTION_DAYS * DAY_MS;
@@ -665,10 +611,3 @@ export const FORM_STASH_MAX_ENTRIES = limit(
   "Form re-fill stash max entries",
   "entries",
 );
-
-// ---------------------------------------------------------------------------
-// Debug page display
-// ---------------------------------------------------------------------------
-
-/** The debug-page display list, derived from the limit declarations above. */
-export const LIMIT_ENTRIES: readonly LimitEntry[] = REGISTRY;
