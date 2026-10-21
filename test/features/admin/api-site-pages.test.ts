@@ -6,7 +6,7 @@
 // test/features/admin/parity/site-pages.test.ts.
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { addPageItem } from "#db/site-page-items.ts";
+import { addPageItem, getAllPageItems } from "#db/site-page-items.ts";
 import { getSitePageById } from "#db/site-pages.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
@@ -33,6 +33,24 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
     const child = await createTestSitePage("extras", { name: "Extras" });
     await addPageItem(parent.id, "page", child.id);
     return { child, parent };
+  };
+
+  /** Put a page under `parentId` and check the API answers with that
+   *  parent. */
+  const putPageUnder = async (
+    pageId: number,
+    parentId: number,
+  ): Promise<void> => {
+    await assertJson(
+      apiRequest(`/api/admin/site-pages/${pageId}`, {
+        body: { parent: parentId },
+        method: "PUT",
+      }),
+      200,
+      (body) => {
+        expect(body.page.parent).toBe(parentId);
+      },
+    );
   };
 
   describe("GET /api/admin/site-pages", () => {
@@ -135,11 +153,18 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
           expect(body.page.name).toBe("Plan your weekend");
           expect(body.page.slug).toBe("plan-your-weekend");
           expect(body.page.hidden).toBe(true);
+          expect(body.page.meta_title).toBe("Plan");
+          expect(body.page.meta_description).toBe("Before you come");
           expect(body.page.parent).toBeNull();
         },
       );
       const stored = await getSitePageById(body.page.id);
       expect(stored?.hidden).toBe(true);
+      expect(stored?.meta_title).toBe("Plan");
+      expect(stored?.meta_description).toBe("Before you come");
+      expect(await wasActivityLogged("Page 'Plan your weekend' created")).toBe(
+        true,
+      );
     });
 
     test("defaults a silent body to a visible page with empty meta", async () => {
@@ -180,6 +205,37 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       );
     });
 
+    test("updates every field the form edits", async () => {
+      const page = await createTestSitePage("visit", { name: "Visit" });
+
+      await assertJson(
+        apiRequest(`/api/admin/site-pages/${page.id}`, {
+          body: {
+            content: "New text",
+            meta_description: "New summary",
+            meta_title: "New title",
+            name: "Renamed",
+            slug: "renamed",
+          },
+          method: "PUT",
+        }),
+        200,
+        (body) => {
+          expect(body.page.name).toBe("Renamed");
+          expect(body.page.slug).toBe("renamed");
+          expect(body.page.content).toBe("New text");
+          expect(body.page.meta_title).toBe("New title");
+          expect(body.page.meta_description).toBe("New summary");
+        },
+      );
+      const stored = await getSitePageById(page.id);
+      expect(stored?.name).toBe("Renamed");
+      expect(stored?.slug).toBe("renamed");
+      expect(stored?.content).toBe("New text");
+      expect(stored?.meta_title).toBe("New title");
+      expect(stored?.meta_description).toBe("New summary");
+    });
+
     test("flips the Hidden flag and the nav model follows", async () => {
       const page = await createTestSitePage("visit", { name: "Visit" });
       const key = sitePageItemTargets.key(
@@ -210,16 +266,7 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       const parent = await createTestSitePage("visit", { name: "Visit" });
       const child = await createTestSitePage("extras", { name: "Extras" });
 
-      await assertJson(
-        apiRequest(`/api/admin/site-pages/${child.id}`, {
-          body: { parent: parent.id },
-          method: "PUT",
-        }),
-        200,
-        (body) => {
-          expect(body.page.parent).toBe(parent.id);
-        },
-      );
+      await putPageUnder(child.id, parent.id);
 
       await assertJson(
         apiRequest(`/api/admin/site-pages/${child.id}`, {
@@ -233,20 +280,36 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       );
     });
 
-    test("refuses a parent on an already-nested page", async () => {
+    test("moves a nested page to a different parent in one request", async () => {
       const parent = await createTestSitePage("visit", { name: "Visit" });
       const child = await createTestSitePage("extras", { name: "Extras" });
       const second = await createTestSitePage("more", { name: "More" });
       await addPageItem(parent.id, "page", child.id);
 
+      await putPageUnder(child.id, second.id);
+    });
+
+    test("keeps a nested page in place when the update re-sends its parent", async () => {
+      const { child, parent } = await nestedPages();
+
+      await putPageUnder(child.id, parent.id);
+      // The no-op wrote no second parent edge for the child.
+      const edges = (await getAllPageItems()).filter(
+        (item) => item.item_type === "page" && item.item_id === child.id,
+      );
+      expect(edges.map((edge) => edge.page_id)).toEqual([parent.id]);
+    });
+
+    test("refuses nesting a page under itself", async () => {
+      const page = await createTestSitePage("visit", { name: "Visit" });
       await assertJson(
-        apiRequest(`/api/admin/site-pages/${child.id}`, {
-          body: { parent: second.id },
+        apiRequest(`/api/admin/site-pages/${page.id}`, {
+          body: { parent: page.id },
           method: "PUT",
         }),
         400,
         (body) => {
-          expect(body.error).toBe("That item can't be added to this page.");
+          expect(body.error).toBe(t("site.pages.error.ineligible"));
         },
       );
     });

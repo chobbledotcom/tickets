@@ -69,8 +69,13 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
         expect(body.page.slug).toBe("plan-api-weekend");
         expect(body.page.hidden).toBe(true);
         expect(body.page.content).toBe("Pack light.");
+        expect(body.page.meta_title).toBe("Plan");
+        expect(body.page.meta_description).toBe("Before you come");
       },
     );
+    const row = await pageBySlug("plan-api-weekend");
+    expect(row.meta_title).toBe("Plan");
+    expect(row.meta_description).toBe("Before you come");
   });
 
   test("page update unticks the Hidden box the way the form posts it", async () => {

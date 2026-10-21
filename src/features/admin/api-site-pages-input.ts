@@ -16,10 +16,10 @@ import { t } from "#i18n";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { requireEntityName } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
-import { eligibleChildPages, isReservedSlug } from "#shared/site-pages/core.ts";
+import { isReservedSlug, wouldCreateCycle } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
 import { normalizeSlug, validateSlug } from "#shared/slug.ts";
-import type { SitePage } from "#types";
+import type { SitePage, SitePageItem } from "#types";
 import { CONTENT_FIELD_LIMITS } from "./content-form-fields.ts";
 
 /** JSON body accepted by POST /api/admin/site-pages. A new page is always a
@@ -169,32 +169,55 @@ export const toPageWrite = (
   });
 };
 
-/** The parent change one update body asks for, validated the way the Items
- *  tab validates an add. The target must be a page the child can nest under:
- *  unparented pages only (the single-parent rule), never itself, never a
- *  cycle. `null` removes the current parent edge, so the page sits at the top
- *  level again. The atomic re-check runs inside the write transaction
- *  (addPageItem), so a concurrent add cannot slip past. */
+/** The tx step both parent writes share: drop the page's current parent
+ *  edge, if it has one, then run the next step. */
+const dropCurrentEdgeThen =
+  (
+    pageId: number,
+    edge: SitePageItem | undefined,
+    next: (tx: TxScope) => Promise<boolean>,
+  ) =>
+  async (tx: TxScope): Promise<boolean> => {
+    if (edge) await removePageItem(edge.page_id, "page", pageId, tx);
+    return next(tx);
+  };
+
+/** The parent change one update body asks for. `null` removes the current
+ *  parent edge, so the page sits at the top level again. A page id moves the
+ *  page under that page. A body that sends the page's own current parent
+ *  writes nothing. The target must be a page, and must not be the page
+ *  itself or one of its own descendants. The page keeps its subtree when it
+ *  moves, so a move under a descendant closes a loop. The atomic re-check
+ *  runs inside the write transaction (addPageItem), so a concurrent add
+ *  cannot slip past. */
 export const planParentChange = async (
   page: SitePage,
   raw: unknown,
 ): Promise<Result<(tx: TxScope) => Promise<boolean>>> => {
+  const currentEdge = (await getAllPageItems()).find(
+    (item) => item.item_type === "page" && item.item_id === page.id,
+  );
   if (raw === null) {
-    const edge = (await getAllPageItems()).find(
-      (item) => item.item_type === "page" && item.item_id === page.id,
+    return okResult(
+      dropCurrentEdgeThen(page.id, currentEdge, async () => true),
     );
-    return okResult(async (tx) => {
-      if (edge) await removePageItem(edge.page_id, "page", page.id, tx);
-      return true;
-    });
   }
   if (typeof raw !== "number" || !Number.isInteger(raw)) {
     return errorResult("parent must be a page id or null");
   }
   const { forest } = await loadPageForest();
-  const eligible = eligibleChildPages(forest, raw).some(
-    (candidate) => candidate.id === page.id,
+  if (forest.parentByChild.get(page.id) === raw) {
+    // The page already sits under this parent: nothing to write.
+    return okResult(async () => true);
+  }
+  if (!forest.byId.has(raw) || wouldCreateCycle(forest, raw, page.id)) {
+    return errorResult(t("site.pages.error.ineligible"));
+  }
+  // A move replaces the current parent edge in the same transaction, so the
+  // single-parent re-check in addPageItem sees the edge gone.
+  return okResult(
+    dropCurrentEdgeThen(page.id, currentEdge, (tx) =>
+      addPageItem(raw, "page", page.id, tx),
+    ),
   );
-  if (!eligible) return errorResult(t("site.pages.error.ineligible"));
-  return okResult((tx) => addPageItem(raw, "page", page.id, tx));
 };
