@@ -63,10 +63,11 @@ const isBareSpecifier = (specifier: string): boolean => {
 
 /** What the mapping reads the graph and the cache through: the graph itself,
  * the cache folder it names, the export maps its packages declare, and the
- * check that says the cache keeps a file. */
+ * checks that say the cache keeps a file and a package folder. */
 interface Sources {
   exportsOf: ExportsOf;
   holds: (path: string) => boolean;
+  holdsFolder: (path: string) => boolean;
   info: InfoJson;
   npmCache: string;
 }
@@ -250,7 +251,7 @@ const subpathTargetOf = (
  * package entry. A module at the package root sits in the package folder,
  * which the compiler reads with the package's own resolution; a subpath sits
  * at the file the package's export map names. Raises when the graph module
- * does not sit under its package. */
+ * does not sit under its package, or when the cache holds no such folder. */
 const npmPathOf = (
   npmPackage: string,
   specifier: string,
@@ -268,7 +269,13 @@ const npmPathOf = (
   }
   const folder = npmFolder(sources.npmCache, npm);
   const subpath = specifier.slice(packagePrefix.length);
-  return subpath === "" ? folder : subpathTargetOf(folder, subpath, sources);
+  if (subpath !== "") return subpathTargetOf(folder, subpath, sources);
+  if (!sources.holdsFolder(folder)) {
+    throw new Error(
+      `The graph resolves ${specifier} to ${folder}, and the cache holds no such folder`,
+    );
+  }
+  return folder;
 };
 
 /** The cached path one resolved module sits at, or nothing when the mapping
@@ -296,15 +303,17 @@ const cachedPathOf = (
 /** Each bare specifier of the graph, with the cached path that resolves it.
  * The first answer wins, because one specifier resolves one way for the whole
  * graph. An npm subpath resolves through the export map the package's cache
- * folder declares, which `exportsOf` reads, and `holds` says whether the
- * cache keeps the file the answer names. */
+ * folder declares, which `exportsOf` reads. `holds` says whether the cache
+ * keeps the file the answer names, and `holdsFolder` says the same for a
+ * package's folder. */
 export const pathsFromInfo = (
   info: InfoJson,
   npmCache: string,
   exportsOf: ExportsOf,
   holds: (path: string) => boolean = pathIs("isFile"),
+  holdsFolder: (path: string) => boolean = pathIs("isDirectory"),
 ): Record<string, string[]> => {
-  const sources = { exportsOf, holds, info, npmCache };
+  const sources = { exportsOf, holds, holdsFolder, info, npmCache };
   const moduleBySpecifier: Record<string, InfoModule> = Object.fromEntries(
     info.modules?.map((module) => [module.specifier, module]) ?? [],
   );

@@ -11,6 +11,20 @@ import {
  * the package folder. */
 const noExportMaps = (): undefined => undefined;
 
+/** The fixture cache keeps every package folder the graph names. */
+const holdsEveryFolder = (): boolean => true;
+
+/** The fixture cache keeps no package folder the graph names. */
+const holdsNoFolder = (): boolean => false;
+
+/** The paths the mapping reports when the cache holds every package folder
+ * the graph names. */
+const pathsFromAFilledCache = (
+  info: InfoJson,
+  npmCache: string,
+): Record<string, string[]> =>
+  pathsFromInfo(info, npmCache, noExportMaps, undefined, holdsEveryFolder);
+
 /** The graph `deno info --json` prints for an entry that imports valibot. */
 const valibotModule: InfoModule = {
   local: null,
@@ -96,7 +110,7 @@ const vendorGraph = (vendorLocal: string | null): InfoJson => ({
 describe("paths from deno info", () => {
   test("maps a bare npm specifier to its cached package folder", () => {
     expect(
-      pathsFromInfo(valibotGraph, "/home/me/.cache/deno/npm", noExportMaps),
+      pathsFromAFilledCache(valibotGraph, "/home/me/.cache/deno/npm"),
     ).toEqual({
       valibot: ["/home/me/.cache/deno/npm/registry.npmjs.org/valibot/1.4.1"],
     });
@@ -117,7 +131,7 @@ describe("paths from deno info", () => {
       ],
     };
     expect(
-      pathsFromInfo(graph, "/home/me/.cache/deno/npm", noExportMaps),
+      pathsFromAFilledCache(graph, "/home/me/.cache/deno/npm"),
     ).toEqual({
       valibot: ["/home/me/.cache/deno/npm/registry.npmjs.org/valibot/1.4.1"],
     });
@@ -234,7 +248,7 @@ describe("paths from deno info", () => {
         "npm:valibot@^1.4.1": "npm:/valibot@1.4.1",
       },
     };
-    expect(pathsFromInfo(graph, "/cache/npm", noExportMaps)).toEqual({
+    expect(pathsFromAFilledCache(graph, "/cache/npm")).toEqual({
       valibot: ["/cache/npm/registry.npmjs.org/valibot/1.4.1"],
     });
   });
@@ -316,7 +330,7 @@ describe("paths from deno info", () => {
       },
     };
     expect(
-      pathsFromInfo(graph, "/home/me/.cache/deno/npm", noExportMaps),
+      pathsFromAFilledCache(graph, "/home/me/.cache/deno/npm"),
     ).toEqual({
       valibot: ["/home/me/.cache/deno/npm/registry.npmjs.org/valibot/1.4.1"],
     });
@@ -353,6 +367,21 @@ describe("paths from deno info", () => {
     expect(() =>
       pathsFromInfo(graph, "/home/me/.cache/deno/npm", noExportMaps),
     ).toThrow("npm:/other@2.0.0 does not sit under npm:/valibot@1.4.1");
+  });
+
+  test("says so when the cache holds no package folder", () => {
+    expect(() =>
+      pathsFromInfo(
+        valibotGraph,
+        "/home/me/.cache/deno/npm",
+        noExportMaps,
+        undefined,
+        holdsNoFolder,
+      ),
+    ).toThrow(
+      "The graph resolves npm:/valibot@1.4.1 to " +
+        "/home/me/.cache/deno/npm/registry.npmjs.org/valibot/1.4.1, and the cache holds no such folder",
+    );
   });
 });
 
