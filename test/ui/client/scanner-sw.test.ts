@@ -82,21 +82,40 @@ describe("the scanner service worker's stored assets", () => {
     stash.restore();
   });
 
-  test("serves the stored copy to a cache-busted request and replaces it", async () => {
-    using _fetch = stubFetch(new Response("fresh"));
-
-    const answered = await fireFetch("/scanner.js?ts=2026102101", (store) =>
+  /** Seed one stored scanner.js copy and send one cache-busted request for
+   * it, with the network answering or failing as the test says. */
+  const fireSeededScannerFetch = async (
+    network: Response | Error,
+  ): Promise<Response | undefined> => {
+    using _fetch = stubFetch(network);
+    // The await holds this scope, and the stub with it, until the worker's
+    // own fetch is done.
+    return await fireFetch("/scanner.js?ts=2026102101", (store) =>
       store.entries.set("/scanner.js", new Response("stored")),
     );
+  };
 
-    // The page read the stored entry at once, though the request carried
-    // the build's cache-buster.
+  test("serves the network's fresh copy online and replaces the store", async () => {
+    const answered = await fireSeededScannerFetch(new Response("fresh"));
+
+    // The online door reads the new build at once, though the request carried
+    // the cache-buster, so a deploy never runs old client code against new
+    // markup.
     expect(answered?.status).toBe(200);
-    expect(await answered?.text()).toBe("stored");
-    // The refresh replaced the entry under the bare pathname, so the next
+    expect(await answered?.text()).toBe("fresh");
+    // The store holds the fresh copy under the bare pathname, so the next
     // build's request reads it and no variant piles up.
     expect([...cache.entries.keys()]).toEqual(["/scanner.js"]);
     expect(await cache.entries.get("/scanner.js")?.text()).toBe("fresh");
+  });
+
+  test("serves the stored copy when the network is down", async () => {
+    const answered = await fireSeededScannerFetch(new Error("offline"));
+
+    // The offline door reads the stored copy, though the request carried the
+    // cache-buster.
+    expect(answered?.status).toBe(200);
+    expect(await answered?.text()).toBe("stored");
   });
 
   test("keeps a deploy's error page out of the store", async () => {

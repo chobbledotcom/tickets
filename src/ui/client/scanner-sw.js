@@ -38,29 +38,25 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-const staleWhileRevalidate = async (request) => {
+const networkFirst = async (request) => {
   const cache = await caches.open(CACHE);
   // The precache and the refreshes sit under the bare pathname. A
-  // cache-busted request then reads the stored entry and replaces it, and
-  // no variant piles up per build.
+  // cache-busted request then stores and reads one entry, and no variant
+  // piles up per build.
   const key = new URL(request.url).pathname;
-  const cached = await cache.match(key);
-  const refresh = fetch(request)
-    .then((response) => {
-      // A deploy's 404 or 500 must not become the stored copy the door then
-      // serves offline.
-      if (response.ok) cache.put(key, response.clone());
-      return response;
-    })
-    .catch(() => {
-      // A failed refresh keeps the stored copy. A miss with no connection
-      // answers the 503 below.
-    });
-  return (
-    cached ??
-    (await refresh) ??
-    new Response("", { status: 503, statusText: "Offline" })
-  );
+  try {
+    const response = await fetch(request);
+    // A deploy's 404 or 500 must not become the stored copy the door then
+    // serves offline.
+    if (response.ok) cache.put(key, response.clone());
+    return response;
+  } catch {
+    // Offline: the stored copy serves the door, and a miss answers the 503.
+    return (
+      (await cache.match(key)) ??
+      new Response("", { status: 503, statusText: "Offline" })
+    );
+  }
 };
 
 self.addEventListener("fetch", (event) => {
@@ -82,6 +78,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   if (ASSETS.includes(url.pathname)) {
-    event.respondWith(staleWhileRevalidate(request));
+    event.respondWith(networkFirst(request));
   }
 });

@@ -10,13 +10,17 @@ export const ASSET_DEFS: AssetDef[] = [
   // so the app's own settings-reading handler ships in the bundle instead.
   ["favicon.svg", "handleFavicon", SVG, ""],
   ["icons.svg", "handleIcons", SVG, "ICONS_PATH"],
-  ["style.css", "handleStyleCss", CSS, "CSS_PATH", true],
+  // The scanner worker precaches style.css and scanner.js same-origin, so
+  // the edge handler must answer 200 with the content: the CDN twin's 302
+  // makes the precache cross-origin, and an install without CORS headers
+  // rejects.
+  ["style.css", "handleStyleCss", CSS, "CSS_PATH"],
   ["admin.js", "handleAdminJs", JS, "JS_PATH", true],
   // The client loader derives these sibling URLs from admin.js.
   ["markdown-editor.js", "handleMarkdownEditorJs", JS, "", true],
   ["logistics-map.js", "handleLogisticsMapJs", JS, "", true],
   ["logistics-map.css", "handleLogisticsMapCss", CSS, "", true],
-  ["scanner.js", "handleScannerJs", JS, "SCANNER_JS_PATH", true],
+  ["scanner.js", "handleScannerJs", JS, "SCANNER_JS_PATH"],
   // The scanner page registers this worker same-origin, so it never ships to
   // the CDN origin: a service worker cannot register across origins.
   ["scanner-sw.js", "handleScannerSwJs", JS, "", false, true],
