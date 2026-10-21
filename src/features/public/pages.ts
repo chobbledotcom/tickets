@@ -54,8 +54,7 @@ const renderPublicPage: ResponseHandler<
 > = (pageType, getContent) =>
   requirePublicSite(async () => {
     const content = getContent();
-    await addPageImageUrls([content]);
-    await addFooterImageUrls();
+    await Promise.all([addPageImageUrls([content]), addFooterImageUrls()]);
     return htmlResponse(
       publicSitePage(
         pageType,
@@ -144,11 +143,13 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
     ]);
     const soldOutPackages = soldOutPackageIds(publicGroups, unavailableOnDate);
     const homeListings = applyParentSoldOut(ticketListings, classification);
-    await addPageImageUrls([
-      ...homeListings.map((entry) => entry.listing.description),
-      ...groups.map((group) => group.description),
+    await Promise.all([
+      addPageImageUrls([
+        ...homeListings.map((entry) => entry.listing.description),
+        ...groups.map((group) => group.description),
+      ]),
+      addFooterImageUrls(),
     ]);
-    await addFooterImageUrls();
     return htmlResponse(
       homepagePage(
         homeListings,
@@ -171,8 +172,10 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
 export const handlePublicTerms: ResponseHandler = () =>
   requirePublicSite(async () => {
     if (!settings.terms) return notFoundResponse();
-    await addPageImageUrls([settings.terms]);
-    await addFooterImageUrls();
+    await Promise.all([
+      addPageImageUrls([settings.terms]),
+      addFooterImageUrls(),
+    ]);
     return htmlResponse(
       publicSitePage(
         "terms",
@@ -190,8 +193,10 @@ const renderContactPage = async (): Promise<Response> => {
   const formActive = isContactFormActive();
   if (!settings.contactPageText && !formActive) return notFoundResponse();
   if (formActive) await signCsrfToken();
-  await addPageImageUrls([settings.contactPageText]);
-  await addFooterImageUrls();
+  await Promise.all([
+    addPageImageUrls([settings.contactPageText]),
+    addFooterImageUrls(),
+  ]);
   return htmlResponse(
     contactPage({
       botpoisonPublicKey: getBotpoisonPublicKey(),

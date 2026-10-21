@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
+import { mergePageImageUrls } from "#db/image-urls.ts";
 import { settings } from "#db/settings.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import {
@@ -11,7 +12,7 @@ import {
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { consumeFlash, setFlashContext } from "#shared/flash-context.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
-import { detectIframeMode } from "#shared/request-context.ts";
+import { detectIframeMode, withRequestStore } from "#shared/request-context.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -232,6 +233,35 @@ describe("Layout document shell", () => {
 
     expect(html).not.toContain("Already shown");
     expect(html).toContain('<div class="page-regions">Page body</div>');
+  });
+});
+
+describe("Layout site footer images", () => {
+  beforeAll(setupLayoutTest);
+  afterEach(resetLayoutTest);
+
+  test("resolves the footer's img#N through the footer's table", async () => {
+    settings.setForTest({ site_footer: "![Poster](img#7)" });
+    const html = await withRequestContext(() => {
+      withRequestStore((store) => {
+        store.footerImageUrls = new Map([[7, "/image/poster.jpg"]]);
+      });
+      return String(Layout({ children: "", family: "public", title: "Test" }));
+    });
+
+    expect(html).toContain('<img src="/image/poster.jpg" alt="Poster">');
+  });
+
+  test("resolves an unset footer table to no image, even when the page's table has one", async () => {
+    settings.setForTest({ site_footer: "![Poster](img#7)" });
+    const html = await withRequestContext(() => {
+      mergePageImageUrls(new Map([[7, "/image/poster.jpg"]]));
+      return String(Layout({ children: "", family: "public", title: "Test" }));
+    });
+
+    expect(html).toContain('<footer class="site-footer">');
+    expect(html).toContain('<img src="" alt="Poster">');
+    expect(html).not.toContain('src="/image/poster.jpg"');
   });
 });
 
