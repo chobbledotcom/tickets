@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import type { AttendeeQuestionData } from "#templates/attendee-table/types.ts";
 import {
@@ -36,35 +36,35 @@ attendeeTableSuite(() => {
     );
 
   test("renders the Answers header when question data is provided", () => {
-    expect(renderAnswers(1)).toContain("<th>Answers</th>");
+    assertStringIncludes(renderAnswers(1), "<th>Answers</th>");
   });
 
   test("renders answer text in the answer cell", () => {
     const html = renderAnswers(1);
-    expect(html).toContain('class="answers-cell"');
-    expect(html).toContain("Small, Red");
+    assertStringIncludes(html, 'class="answers-cell"');
+    assertStringIncludes(html, "Small, Red");
   });
 
   test("puts questions and answers in the tooltip", () => {
-    expect(renderAnswers(1)).toContain('title="Size?: Small, Color?: Red"');
+    assertStringIncludes(renderAnswers(1), 'title="Size?: Small, Color?: Red"');
   });
 
   test("renders an empty answer for an attendee with no answers", () => {
     const html = renderAnswers(999);
-    expect(html).toContain('class="answers-cell"');
-    expect(html).toContain('title=""');
+    assertStringIncludes(html, 'class="answers-cell"');
+    assertStringIncludes(html, 'title=""');
   });
 
   test("renders only the answers saved for an attendee", () => {
     const html = renderAnswers(2);
-    expect(html).toContain("Large");
-    expect(html).not.toContain('title="Size?: Small');
+    assertStringIncludes(html, "Large");
+    assert(!html.includes('title="Size?: Small'));
   });
 
   test("omits Answers when question data is absent", () => {
     const html = render(makeOpts());
-    expect(html).not.toContain("<th>Answers</th>");
-    expect(html).not.toContain("answers-cell");
+    assert(!html.includes("<th>Answers</th>"));
+    assert(!html.includes("answers-cell"));
   });
 
   test("omits Answers when the question list is empty", () => {
@@ -73,13 +73,13 @@ attendeeTableSuite(() => {
         questionData: { attendeeAnswerMap: new Map(), questions: [] },
       }),
     );
-    expect(html).not.toContain("<th>Answers</th>");
+    assert(!html.includes("<th>Answers</th>"));
   });
 
   test("counts Answers in an empty table layout", () => {
     const html = render(makeOpts({ questionData, rows: [] }));
-    expect(html).toContain("<th>Answers</th>");
-    expect(html).toContain("No attendees yet");
-    expect(html).toContain('colspan="6"');
+    assertStringIncludes(html, "<th>Answers</th>");
+    assertStringIncludes(html, "No attendees yet");
+    assertStringIncludes(html, 'colspan="6"');
   });
 });
