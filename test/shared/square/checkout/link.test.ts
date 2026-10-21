@@ -151,7 +151,7 @@ describeSquare(() => {
           expect(args.idempotencyKey.length).toBeGreaterThan(0);
           expect(debugMessages(debugLog()).slice(-3)).toEqual([
             "[Square] Creating payment link for x1 listings",
-            "[SQL] INSERT INTO square_link_ends (session_index, state, sealed_handle, link_ends_at, next_attempt_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            "[SQL] INSERT INTO square_link_ends (session_index, state, sealed_handle, link_ends_at, next_attempt_at, created_at) VALUES (?2, ?3, ?4, ?1, ?1, ?5)",
             "[Square] Payment link created orderId=order_abc",
           ]);
         },
