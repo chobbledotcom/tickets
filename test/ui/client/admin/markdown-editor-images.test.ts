@@ -98,8 +98,16 @@ describe("the image dropdown toolbar control", () => {
     const button = window.document.querySelector(".md-toolbar-image");
     expect(button).toBeTruthy();
     expect(button?.getAttribute("aria-label")).toBe("Insert image");
-    expect(button?.getAttribute("aria-haspopup")).toBe("true");
+    // A disclosure, not a menu: the options are plain buttons the reader
+    // reaches with Tab, so the button points at the panel and never
+    // announces menu semantics.
+    expect(button?.getAttribute("aria-haspopup")).toBeNull();
     expect(button?.getAttribute("aria-expanded")).toBe("false");
+    expect(
+      window.document.getElementById(
+        button?.getAttribute("aria-controls") ?? "",
+      ),
+    ).toBe(dropdownPanel(window));
     handle.view.destroy();
   });
 

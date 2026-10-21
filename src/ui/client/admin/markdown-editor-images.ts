@@ -69,6 +69,7 @@ export const createImageToolbarItem = (): ImageToolbarItem => {
 
   const panel = document.createElement("div");
   panel.className = "md-image-dropdown";
+  panel.id = `md-image-dropdown-${crypto.randomUUID()}`;
   panel.hidden = true;
 
   const button = createToolbarButton(
@@ -76,8 +77,8 @@ export const createImageToolbarItem = (): ImageToolbarItem => {
     "Image",
     "Insert image",
   );
-  button.setAttribute("aria-haspopup", "true");
   button.setAttribute("aria-expanded", "false");
+  button.setAttribute("aria-controls", panel.id);
   button.addEventListener("click", () => {
     if (panel.hidden) open();
     else close();
