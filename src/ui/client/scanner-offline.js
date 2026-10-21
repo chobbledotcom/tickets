@@ -46,8 +46,12 @@ export const storeTicketCache = (scanPath, hashes) => {
   );
 };
 
-export const isCacheFresh = (cache) =>
-  Date.now() - cache.storedAt < CACHE_TTL_MS;
+export const isCacheFresh = (cache) => {
+  // A device clock that moved back after the write must not stretch the
+  // window: only an age inside it counts as fresh.
+  const age = Date.now() - cache.storedAt;
+  return age >= 0 && age < CACHE_TTL_MS;
+};
 
 /** Fetch one door's hash set from the scan-cache endpoint behind its scan
  * endpoint, and store it. Throws when the request or the body fails, so the

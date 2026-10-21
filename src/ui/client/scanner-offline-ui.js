@@ -208,7 +208,22 @@ export const offlineScan = async (
     );
     return;
   }
-  queueCheckIn(scanPath, token);
+  // A storage failure here leaves the scan unqueued. The network-error
+  // wording points the door at its router while the person walks in.
+  try {
+    queueCheckIn(scanPath, token);
+  } catch {
+    showStatus(
+      statusEl,
+      getMessage(
+        messages,
+        "messageOfflineSaveFailed",
+        "This scan was not saved. Free up space on this device, then scan it again.",
+      ),
+      "error",
+    );
+    return;
+  }
   renderQueuePanel(panel, messages);
   showStatus(
     statusEl,
@@ -239,29 +254,56 @@ const syncQueue = async (csrfToken, statusEl, messages, panel, settleScan) => {
       "success",
     );
     for (const { item, row } of panel.rows) {
+      let answer;
       try {
-        const answer = await settleScan(
+        answer = await settleScan(
           item.scanPath,
           item.token,
           csrfToken,
           statusEl,
           messages,
         );
-        dropFromQueue(item);
-        row.textContent = queueOutcome(messages, answer);
       } catch {
+        // The door gave no answer, so the item waits for the next sync.
         row.textContent = getMessage(
           messages,
           "messageQueueItemStillQueued",
           "Not sent yet — still queued",
         );
+        renderQueueCount(panel, messages);
+        continue;
       }
+      try {
+        dropFromQueue(item);
+      } catch {
+        // The door answered, so the check-in is safe, but the store refused
+        // the removal. A replay reads as already checked in, so the item
+        // stands and the door learns why the row still waits.
+        showStatus(
+          statusEl,
+          getMessage(
+            messages,
+            "messageQueueSaveFailed",
+            "This device could not save the queued check-ins. Free up space, then reload this page.",
+          ),
+          "error",
+        );
+        return;
+      }
+      row.textContent = queueOutcome(messages, answer);
       renderQueueCount(panel, messages);
     }
+    const settledAll = readQueue().length === 0;
     showStatus(
       statusEl,
-      getMessage(messages, "messageSyncDone", "Queued tickets are done."),
-      "success",
+      getMessage(
+        messages,
+        settledAll ? "messageSyncDone" : "messageSyncStillQueued",
+        settledAll
+          ? "Queued tickets are done."
+          : "Some tickets are still queued. The page will try to check them in again.",
+      ),
+      settledAll ? "success" : "warning",
     );
   } finally {
     setSyncing(false);
