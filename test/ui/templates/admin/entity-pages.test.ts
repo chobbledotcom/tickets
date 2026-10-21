@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -31,18 +32,19 @@ describe("summary section", () => {
 
   test("renders one key/value row per entry with translated labels", () => {
     const html = String(renderSection({ kind: "summary", rows }));
-    expect(html).toContain('<th scope="row">Name</th>');
-    expect(html).toContain("Jane");
+    assertStringIncludes(html, '<th scope="row">Name</th>');
+    assertStringIncludes(html, "Jane");
   });
 
   test("a row with an href renders its value as a link", () => {
     const html = String(renderSection({ kind: "summary", rows }));
-    expect(html).toContain('<a href="mailto:jane@example.com">');
+    assertStringIncludes(html, '<a href="mailto:jane@example.com">');
   });
 
   test("an external row opens in a new tab with rel=noopener", () => {
     const html = String(renderSection({ kind: "summary", rows }));
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<a href="https://dashboard.stripe.com/payments/pi_1" rel="noopener" target="_blank">',
     );
   });
@@ -54,7 +56,7 @@ describe("summary section", () => {
         rows: [{ labelKey: "common.name", value: "Jane" }],
       }),
     );
-    expect(html).not.toContain("<a ");
+    assert(!html.includes("<a "));
   });
 });
 
@@ -67,14 +69,14 @@ describe("activity section", () => {
         viewAllHref: "/admin/listing/7/log",
       }),
     );
-    expect(html).toContain('<a href="/admin/listing/7/log">');
+    assertStringIncludes(html, '<a href="/admin/listing/7/log">');
   });
 
   test("omits the 'view all' link when viewAllHref is null", () => {
     const html = String(
       renderSection({ entries: [], kind: "activity", viewAllHref: null }),
     );
-    expect(html).not.toContain("<a ");
+    assert(!html.includes("<a "));
   });
 });
 
@@ -107,11 +109,11 @@ describe("actions section", () => {
         titleKey: "entity.tab.actions",
       }),
     );
-    expect(html).toContain("<h3>Actions</h3>");
-    expect(html).toContain('href="/admin/x/refund"');
+    assertStringIncludes(html, "<h3>Actions</h3>");
+    assertStringIncludes(html, 'href="/admin/x/refund"');
     const zoneStart = html.indexOf('class="entity-danger-zone"');
     expect(zoneStart).toBeGreaterThan(-1);
-    expect(html).toContain("Danger zone");
+    assertStringIncludes(html, "Danger zone");
     // The delete button renders inside the zone, the refund one before it.
     expect(html.indexOf('href="/admin/x/delete"')).toBeGreaterThan(zoneStart);
     expect(html.indexOf('href="/admin/x/refund"')).toBeLessThan(zoneStart);
@@ -134,11 +136,12 @@ describe("actions section", () => {
         titleKey: "entity.tab.actions",
       }),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<span class="muted small">What the attendee still owes',
     );
     // Each action sits in its own entity-action row.
-    expect(html).toContain('<div class="entity-action">');
+    assertStringIncludes(html, '<div class="entity-action">');
   });
 
   test("omits the danger zone when no action is dangerous", () => {
@@ -150,7 +153,7 @@ describe("actions section", () => {
         titleKey: "entity.tab.actions",
       }),
     );
-    expect(html).not.toContain("entity-danger-zone");
+    assert(!html.includes("entity-danger-zone"));
   });
 
   test("renders nothing at all when both halves are empty", () => {
@@ -207,10 +210,10 @@ describe("entityPageView", () => {
 
   test("renders title, banner, tab strip, and the sections in order", () => {
     const html = entityPageView(view);
-    expect(html).toContain("<h1>Attendee: Jane</h1>");
-    expect(html).toContain('<output class="warning">note</output>');
-    expect(html).toContain('class="entity-tabs"');
-    expect(html).toContain("Jane");
+    assertStringIncludes(html, "<h1>Attendee: Jane</h1>");
+    assertStringIncludes(html, '<output class="warning">note</output>');
+    assertStringIncludes(html, 'class="entity-tabs"');
+    assertStringIncludes(html, "Jane");
     // Banner renders ABOVE the tab strip: alerts must not hide behind a tab.
     expect(html.indexOf("note")).toBeLessThan(html.indexOf("entity-tabs"));
   });
@@ -224,15 +227,15 @@ describe("entityPageView", () => {
     const proseStart = html.indexOf('<div class="prose entity-header">');
     const proseEnd = html.indexOf("</div>", proseStart);
     const prose = html.slice(proseStart, proseEnd);
-    expect(prose).toContain("<h1>Attendee: Jane</h1>");
-    expect(prose).toContain('<a href="/add-note">Add a note</a>');
+    assertStringIncludes(prose, "<h1>Attendee: Jane</h1>");
+    assertStringIncludes(prose, '<a href="/add-note">Add a note</a>');
   });
 
   test("pins the header block across view transitions via .entity-header", () => {
     const html = entityPageView(view);
     // The header carries the view-transition-name hook so the entity title
     // holds still while only the panel beneath the tabs transitions.
-    expect(html).toContain('<div class="prose entity-header">');
+    assertStringIncludes(html, '<div class="prose entity-header">');
   });
 
   test("renders flanking nav beside the h1, never inside it", () => {
@@ -249,23 +252,24 @@ describe("entityPageView", () => {
       html.indexOf('<div class="title-nav">'),
       html.indexOf("</div>", html.indexOf('<div class="title-nav">')),
     );
-    expect(row).toContain('<a href="/prev" aria-label="Previous">←</a>');
-    expect(row).toContain("<h1>Attendee: Jane</h1>");
-    expect(row).toContain('<a href="/next" aria-label="Next">→</a>');
+    assertStringIncludes(row, '<a href="/prev" aria-label="Previous">←</a>');
+    assertStringIncludes(row, "<h1>Attendee: Jane</h1>");
+    assertStringIncludes(row, '<a href="/next" aria-label="Next">→</a>');
   });
 
   test("marks only the active tab with aria-current=page", () => {
     const html = entityPageView(view);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<a aria-current="page" class="active" href="/admin/attendees/5">Overview</a>',
     );
-    expect(html).toContain('<a href="/admin/attendees/5/edit">Edit</a>');
+    assertStringIncludes(html, '<a href="/admin/attendees/5/edit">Edit</a>');
   });
 
   test("uses link semantics, never ARIA tablist", () => {
     const html = entityPageView(view);
-    expect(html).not.toContain("tablist");
-    expect(html).not.toContain('role="tab"');
+    assert(!html.includes("tablist"));
+    assert(!html.includes('role="tab"'));
   });
 
   test("groups the page and each tab section with the shared spacing components", () => {
@@ -276,12 +280,12 @@ describe("entityPageView", () => {
         { html: Raw({ html: "<p>Second section</p>" }), kind: "custom" },
       ],
     });
-    expect(html).toContain('<div class="page-regions entity-page">');
-    expect(html).toContain('<div class="page-regions entity-tab-panel">');
-    expect(html).toContain('<div class="page-block">');
+    assertStringIncludes(html, '<div class="page-regions entity-page">');
+    assertStringIncludes(html, '<div class="page-regions entity-tab-panel">');
+    assertStringIncludes(html, '<div class="page-block">');
     expect((html.match(/class="page-block"/g) ?? []).length).toBe(2);
-    expect(html).toContain("Second section");
-    expect(html).not.toContain('class="table-controls"');
+    assertStringIncludes(html, "Second section");
+    assert(!html.includes('class="table-controls"'));
   });
 
   test("a section that renders nothing is dropped, not left as an empty group", () => {
@@ -309,7 +313,7 @@ describe("entityPageView", () => {
       setFlashFormId("entity-edit");
       return entityPageView(view);
     });
-    expect(scoped).toContain("Saved.");
+    assertStringIncludes(scoped, "Saved.");
     // The backstop renders before the admin nav; a page-level render would
     // sit inside the page regions, below it.
     expect(scoped.indexOf('role="alert">Saved.')).toBeLessThan(
