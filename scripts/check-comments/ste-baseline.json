@@ -1396,7 +1396,7 @@
   },
   "src/shared/db/site-pages.ts": {
     "long-sentence": 7,
-    "semicolon": 3,
+    "semicolon": 2,
     "banned-modal": 2,
     "participle": 1
   },

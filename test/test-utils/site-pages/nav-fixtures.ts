@@ -14,6 +14,7 @@ export const navKey = (type: SitePageItemType, id: number): TargetKey =>
 
 /** One page in the nav, named and slugged after its id. */
 export const navPage = (id: number, sortOrder = 0): SitePageNavRow => ({
+  hidden: false,
   id,
   name: `Page ${id}`,
   slug: `page-${id}`,

@@ -13,6 +13,7 @@ import { expectOneSlugConflict } from "#test-utils/slug-conflicts.ts";
 
 const pageInput = (slug: string): SitePageWriteInput => ({
   content: "",
+  hidden: false,
   metaDescription: "",
   metaTitle: "",
   name: `Page ${slug}`,

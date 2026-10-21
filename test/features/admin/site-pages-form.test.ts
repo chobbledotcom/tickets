@@ -14,6 +14,7 @@ describe("site page forms", () => {
       "slug",
       "meta_title",
       "meta_description",
+      "hidden",
       "content",
     ]);
     const slug = sitePageForm.fields[1] as {

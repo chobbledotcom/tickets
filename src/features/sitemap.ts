@@ -77,7 +77,8 @@ const sitemapNotFound = (): Response =>
  *  active, not hidden, and bookable on its own. A child that sells only
  *  through its parent has no /ticket page. A group is not hidden and its
  *  page serves. A package keeps its bookable bundle. A regular group keeps
- *  one visible active member that is not a child. Every slug passes the
+ *  one visible active member that is not a child. A content page is not
+ *  hidden. Every slug passes the
  *  public route's own slug pattern, so a slug the router rejects — the
  *  empty slug with it — stays out. */
 const publicPaths = async (): Promise<string[]> => {
@@ -97,7 +98,7 @@ const publicPaths = async (): Promise<string[]> => {
   return [
     ...fixedPublicPaths(navFlags(), posts.length > 0),
     ...pages
-      .filter((page) => routeServesSlug(page.slug))
+      .filter((page) => !page.hidden && routeServesSlug(page.slug))
       .map((page) => `/page/${page.slug}`),
     ...posts
       .filter((post) => routeServesSlug(post.slug))

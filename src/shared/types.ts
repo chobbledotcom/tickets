@@ -615,9 +615,9 @@ export interface EncryptedContentRecord {
   slug_index: BlindIndex;
 }
 
-/** A user-created content page. Adds `sort_order`, which positions the page
- * among root-level pages. */
+/** A user-created content page, ordered by `sort_order`, hidden by `hidden`. */
 export interface SitePage extends EncryptedContentRecord {
+  hidden: boolean;
   sort_order: number;
 }
 
@@ -626,7 +626,7 @@ export interface SitePage extends EncryptedContentRecord {
  * public request (cold-start efficiency). */
 export type SitePageNavRow = Pick<
   SitePage,
-  "id" | "slug" | "name" | "sort_order"
+  "hidden" | "id" | "name" | "slug" | "sort_order"
 >;
 
 /** One ordered membership edge: `item` (of `item_type`) sits inside `page_id`

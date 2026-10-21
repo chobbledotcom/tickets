@@ -15,6 +15,7 @@ import { navKey } from "#test-utils/site-pages/nav-fixtures.ts";
 import type { SitePageItem, SitePageItemType, SitePageNavRow } from "#types";
 
 const page = (id: number, sort_order = id): SitePageNavRow => ({
+  hidden: false,
   id,
   name: `page-${id}`,
   slug: `page-${id}`,

@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   APP_SCHEMA,
   SCHEMA,
-  SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
 } from "#db/migrations/schema/index.ts";
 import { paymentTables } from "#db/migrations/schema/payments/index.ts";
@@ -41,12 +40,5 @@ describe("db > migrations > schema assembly", () => {
     expect(APP_SCHEMA).toEqual(
       SCHEMA.filter(([name]) => name !== SCHEMA_MIGRATIONS_TABLE),
     );
-  });
-
-  test("stamps the schema with the hash a site is checked against", () => {
-    // A site whose stored hash differs from this one gets migrated, so the
-    // value is pinned. The schema change guard pins the same value beside the
-    // migration list; this one keeps the stamp tied to the schema it is of.
-    expect(SCHEMA_HASH).toBe("1qv5isp");
   });
 });

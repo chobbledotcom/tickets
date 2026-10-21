@@ -193,6 +193,7 @@ export const contentTables: [name: string, table: Table][] = [
         ["meta_description", "TEXT NOT NULL DEFAULT ''"],
         ["content", "TEXT NOT NULL DEFAULT ''"],
         sortOrderColumn,
+        ["hidden", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {

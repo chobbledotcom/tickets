@@ -71,12 +71,15 @@ import { sitePageEntityPage } from "./site-pages-page.ts";
 
 // ─── Field validation ───────────────────────────────────────────
 
-/** The encrypted content columns shared by create and update. */
+/** The encrypted content columns shared by create and update, plus the
+ * Hidden box. The form sends "1" when the box is ticked and nothing when it
+ * is not. */
 const contentFields = (
-  values: Parameters<typeof seoContentInput>[0],
+  values: Parameters<typeof seoContentInput>[0] & { hidden: string },
   slug: string,
 ): SitePageWriteInput => ({
   ...seoContentInput(values),
+  hidden: values.hidden === "1",
   slug,
 });
 

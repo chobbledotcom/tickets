@@ -22,6 +22,7 @@ import type { ResponseHandler } from "#shared/response-steps.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { sitePagePage } from "#templates/public/site-page.tsx";
 import { publicNavProps } from "./site-nav.ts";
+import { applyNoindex } from "./types.ts";
 
 /** How a resolved content item is turned into its page markup. */
 type ContentPageRender<T> = (
@@ -35,20 +36,26 @@ type ContentPageRender<T> = (
  * 404 when the item was not found; otherwise load its images and the public nav
  * together and render the page with the site title. Shared by the single
  * content page and the single news post, which differ only in the image kind,
- * the nav anchor, and the template.
+ * the nav anchor, and the template. `noindexWhen` marks the rendered response
+ * with the shared noindex header, the mechanism hidden listings use. The news
+ * post passes none.
  */
 export const renderContentPage = async <T extends { id: number }>(
   item: T | null,
   imageKind: Parameters<typeof getImagesForItem>[0],
   navTargetFor: (item: T) => Parameters<typeof publicNavProps>[0],
   render: ContentPageRender<T>,
+  noindexWhen?: (item: T) => boolean,
 ): Promise<Response> => {
   if (!item) return notFoundResponse();
   const [images, nav] = await Promise.all([
     getImagesForItem(imageKind, item.id),
     publicNavProps(navTargetFor(item)),
   ]);
-  return htmlResponse(render(item, images, nav, settings.websiteTitle));
+  const response = htmlResponse(
+    render(item, images, nav, settings.websiteTitle),
+  );
+  return noindexWhen?.(item) ? applyNoindex(response) : response;
 };
 
 /** A public GET route for a slugged content page: the public-site gate runs
@@ -70,6 +77,9 @@ const handleSitePage = async (slug: string): Promise<Response> => {
     (found) =>
       sitePageItemTargets.key(sitePageItemTargets.of("page")(found.id)),
     sitePagePage,
+    // A hidden page still serves by its direct link, but it stays out of
+    // the menus and the sitemap. Robots get the shared noindex tag too.
+    (found) => found.hidden,
   );
 };
 

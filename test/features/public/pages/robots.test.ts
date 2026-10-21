@@ -177,6 +177,22 @@ describeWithEnv(
       }
     });
 
+    test("a hidden public page keeps noindex while the site feature is on", async () => {
+      await createTestSitePage("unlisted-page", { hidden: true });
+      await enablePublicSite();
+      try {
+        // The page still serves by its direct link, but it is out of the
+        // menus and the sitemap, so robots are told to leave it alone.
+        const response = await handleRequest(
+          mockRequest("/page/unlisted-page"),
+        );
+        expect(response.status).toBe(200);
+        expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+      } finally {
+        await disablePublicSite();
+      }
+    });
+
     test("an unknown public slug stays noindex while the site feature is on", async () => {
       await enablePublicSite();
       try {

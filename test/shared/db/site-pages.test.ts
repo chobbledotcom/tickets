@@ -128,6 +128,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       });
       const updated = await updateSitePage(created.id, {
         content: "new",
+        hidden: false,
         metaDescription: "new",
         metaTitle: "new",
         name: "New",
@@ -149,6 +150,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       expect(
         await updateSitePage(99_999, {
           content: "",
+          hidden: false,
           metaDescription: "",
           metaTitle: "",
           name: "Ghost",

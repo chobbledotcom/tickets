@@ -4,11 +4,15 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
+  menusOfferPage,
   ownerMovesPageUp,
+  ownerSetsPageHidden,
   ownerTakesPageDown,
   ownerTriesToTakePageDown,
   ownerWritesPage,
   ownerWritesPages,
+  pageAddress,
+  pageEditorShowsHidden,
   pageIsOfferedAMoveUp,
   pagesInOrder,
   visitorReading,
@@ -165,5 +169,56 @@ Then(
     // No arrow at all is how the site says "no further" — there is no request
     // that could wrap the page round to the bottom.
     expect(await pageIsOfferedAMoveUp(this, name)).toBe(false);
+  },
+);
+
+When(
+  "the owner keeps {word} off the menus",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    await ownerSetsPageHidden(this, name, true);
+  },
+);
+
+When(
+  "the owner puts {word} back on the menus",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    await ownerSetsPageHidden(this, name, false);
+  },
+);
+
+Given(
+  "the owner has kept {word} off the menus",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    await ownerSetsPageHidden(this, name, true);
+    // The set-up has to have worked, or the scenario it feeds proves nothing.
+    expect(whatOwnerWasTold(this)).toContain(t("site.pages.updated"));
+  },
+);
+
+Then(
+  "the editor for {word} opens with the Hidden box ticked",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    await pageEditorShowsHidden(this, name, true);
+  },
+);
+
+Then(
+  "the editor for {word} opens with the Hidden box clear",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    await pageEditorShowsHidden(this, name, false);
+  },
+);
+
+Then(
+  "no menu offers {word}",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    expect(await menusOfferPage(await pageAddress(name))).toBe(false);
+  },
+);
+
+Then(
+  "a menu offers {word}",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    expect(await menusOfferPage(await pageAddress(name))).toBe(true);
   },
 );

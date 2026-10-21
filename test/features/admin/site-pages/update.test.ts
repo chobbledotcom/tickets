@@ -118,12 +118,44 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expectFlash(response, "Page updated", true);
       expect((await getSitePageById(page.id))?.name).toBe("Renamed");
       expect(await wasLogged("Page 'Renamed' updated")).toBe(true);
-      // The blind index is recomputed, so the new slug is findable and the old
-      // one is freed (both key off slug_index).
+      // The blind index is recomputed, so the new slug is findable and the
+      // old one is freed (both key off slug_index).
       const byNew = await getSitePageBySlugIndex(await hmacHash("renamed"));
       expect(byNew?.id).toBe(page.id);
       const byOld = await getSitePageBySlugIndex(await hmacHash("orig"));
       expect(byOld).toBeNull();
+    });
+
+    test("a new page is visible, and the Hidden box marks and unmarks it", async () => {
+      // The create form leaves the box unticked: a page exists to be seen
+      // until the operator says otherwise.
+      await create("visibility");
+      const page = await findPage("visibility");
+      expect(page.hidden).toBe(false);
+
+      // Ticking the box persists across a reload of the editor, which shows
+      // the saved state pre-ticked.
+      const { response: hidden } = await adminFormPost(
+        `${BASE}/${page.id}/edit`,
+        { hidden: "1", name: page.name, slug: page.slug },
+      );
+      expectRedirect(hidden);
+      const stored = await getSitePageById(page.id);
+      expect(stored?.hidden).toBe(true);
+      const editorHtml = await expectHtmlResponse(
+        await adminGet(`${BASE}/${page.id}/edit`),
+        200,
+      );
+      expect(editorHtml).toContain('name="hidden"');
+      expect(editorHtml).toContain('value="1" checked');
+
+      // Unticking puts the page back in the menus and the sitemap.
+      const { response: shown } = await adminFormPost(
+        `${BASE}/${page.id}/edit`,
+        { name: page.name, slug: page.slug },
+      );
+      expectRedirect(shown);
+      expect((await getSitePageById(page.id))?.hidden).toBe(false);
     });
 
     test("update rejects a slug taken by another page", async () => {
