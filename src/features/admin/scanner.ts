@@ -2,18 +2,13 @@ import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAllGroupNames, getGroupById } from "#db/groups.ts";
-import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { getListingPickerNames } from "#db/listings/catalog.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { filter, groupToMap, sumOf } from "#fp";
 import { sortedByString } from "#fp-strings";
 import { pageGuardFor, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
-import {
-  htmlResponse,
-  jsonResponse,
-  notFoundResponse,
-} from "#routes/response.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { adminDestination } from "#shared/admin-surface.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
@@ -26,7 +21,17 @@ import {
   type TicketOption,
 } from "#templates/admin/scanner.tsx";
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
-import { groupScope, listingScope, processScan } from "./scan-answer.ts";
+import {
+  doorAttendees,
+  groupScope,
+  listingScope,
+  processScan,
+  scanNotFoundResponse,
+} from "./scan-answer.ts";
+import {
+  handleGroupScanTokensGet,
+  handleListingScanTokensGet,
+} from "./scan-tokens.ts";
 
 /** The door-safe facts that tell two people with the same name apart. They
  * name the listing when a door spans several, and the day each place is
@@ -99,10 +104,7 @@ const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(
 )(pageGuardFor(adminDestination("groupScanner")))(async (group, session) => {
   const privateKey = await requireRequestPrivateKey();
   const scope = await groupScope(group);
-  const attendees = await decryptAttendees(
-    await getAttendeesByListingIds([...scope.listingIds]),
-    privateKey,
-  );
+  const attendees = await doorAttendees([...scope.listingIds], privateKey);
   // A door that spans several listings names the listing each place is for.
   // A one-listing door's own page title already says it.
   const listingNames =
@@ -181,13 +183,15 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
 const handleGroupScanPost: IdRouteHandler = (request, { id }) =>
   withAuth(request, SCANNER_JSON, async (_session, body) => {
     const group = await getGroupById(id);
-    if (!group) return jsonResponse({ status: "not_found" }, 404);
+    if (!group) return scanNotFoundResponse();
     return processScan(await groupScope(group), body);
   });
 
 /** Scanner routes */
 export const adminHandlers = defineRoutes({
+  "GET /admin/groups/:id/scan-tokens": handleGroupScanTokensGet,
   "GET /admin/groups/:id/scanner": handleGroupScannerGet,
+  "GET /admin/listing/:id/scan-tokens": handleListingScanTokensGet,
   "GET /admin/listing/:id/scanner": handleScannerGet,
   "GET /admin/scanner": handleDoorsGet,
   "POST /admin/groups/:id/scan": handleGroupScanPost,
