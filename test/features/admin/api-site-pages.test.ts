@@ -156,7 +156,6 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
         },
       );
     });
-
   });
 
   describe("PUT /api/admin/site-pages/:pageId", () => {
