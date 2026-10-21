@@ -114,6 +114,9 @@ Then(
   "the door page offers an offline mode switch",
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
+    // This harness serves the page and never runs its script, so the step
+    // reads the served surface: the switch itself, under the label the
+    // door sees.
     expect(page).toContain('id="scanner-offline-toggle"');
     expect(page).toContain(t("admin.scanner.offline_mode"));
   },
@@ -123,6 +126,12 @@ Then(
   "the door page says the scan is kept and checks the person in when the connection returns",
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
+    // The banner and the queue panel are the surfaces the client fills
+    // with these words once it runs; the served page carries the words to
+    // it. The bundle tests assert them as visible text where the client
+    // actually runs.
+    expect(page).toContain('id="scanner-offline-banner"');
+    expect(page).toContain('id="scanner-queue-summary"');
     expect(page).toContain(t("admin.scanner.offline_banner_auto"));
     expect(page).toContain(t("admin.scanner.offline_queued"));
   },

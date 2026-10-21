@@ -128,6 +128,7 @@ const offlineMessageAttrs = (): Record<string, string> => ({
   ),
   "data-message-offline-invalid": t("admin.scanner.offline_invalid"),
   "data-message-offline-queued": t("admin.scanner.offline_queued"),
+  "data-message-offline-save-failed": t("admin.scanner.offline_save_failed"),
   "data-message-queue-count-one": t("admin.scanner.queue_count_one", {
     count: "{count}",
   }),
@@ -146,8 +147,11 @@ const offlineMessageAttrs = (): Record<string, string> => ({
   "data-message-queue-item-still-queued": t(
     "admin.scanner.queue_item_still_queued",
   ),
+  "data-message-queue-save-failed": t("admin.scanner.queue_save_failed"),
   "data-message-sync-done": t("admin.scanner.sync_done"),
+  "data-message-sync-holds": t("admin.scanner.sync_holds"),
   "data-message-sync-running": t("admin.scanner.sync_running"),
+  "data-message-sync-still-queued": t("admin.scanner.sync_still_queued"),
 });
 
 /** One centered overlay above the camera: backdrop, box, and the page's own
@@ -251,7 +255,7 @@ export const adminScannerPage = (
           ></video>
           <div class="hidden" id="scanner-status"></div>
           <div class="hidden" id="scanner-queue">
-            <p id="scanner-queue-summary"></p>
+            <p aria-live="polite" id="scanner-queue-summary"></p>
             <ul id="scanner-queue-items"></ul>
           </div>
           {ScannerOverlay({
