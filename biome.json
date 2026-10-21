@@ -19,10 +19,10 @@
       "!src/static",
       "!src/ui/static",
       "!src/ui/client/scanner.js",
-      "!**/.pi-worktrees/**",
-      "!**/.security-worktrees/**",
-      "!**/.mutation-runs/**",
-      "!**/.scratch/**"
+      "!**/.pi-worktrees",
+      "!**/.security-worktrees",
+      "!**/.mutation-runs",
+      "!**/.scratch"
     ]
   },
   "formatter": {

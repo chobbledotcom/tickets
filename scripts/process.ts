@@ -60,7 +60,13 @@ const beforeTimeout = async (
     timeout = setTimeout(() => resolve(false), timeoutMs);
   });
   try {
-    return await Promise.race([status.then(() => true), delayed]);
+    return await Promise.race([
+      status.then(
+        () => true,
+        () => true,
+      ),
+      delayed,
+    ]);
   } finally {
     clearTimeout(timeout);
   }
@@ -89,9 +95,13 @@ export const stopProcess = async (
     }
     if (!(await beforeTimeout(status, timeoutMs))) {
       stopProcessNow(process);
-      await status.catch(() => {
-        // The kill left this rejected; we only wait for the process to go.
-      });
+      // A child that survives SIGKILL wedges the machine. Fail loudly rather
+      // than wait on its exit forever (issue #2225).
+      if (!(await beforeTimeout(status, timeoutMs))) {
+        throw new Error(
+          `child process did not exit after SIGKILL within ${timeoutMs}ms`,
+        );
+      }
     }
   } finally {
     await afterStop();

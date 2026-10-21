@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read=src,test,scripts,cli,e2e-payments,.opencode/plugins --allow-write=scripts/check-file-lengths/over-limit.json
+#!/usr/bin/env -S deno run --allow-read=src,test,scripts,cli,e2e-payments --allow-write=scripts/check-file-lengths/over-limit.json
 
 /**
  * Check the source trees for files over the 500-line limit (see "Keep code

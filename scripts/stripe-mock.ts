@@ -10,6 +10,7 @@
 import { join } from "node:path";
 import { errorMessage } from "#shared/error-message.ts";
 import { delay } from "#shared/now.ts";
+import { streamChunks } from "#shared/stream-chunks.ts";
 import { stripeMock } from "#shared/stripe/mock.ts";
 import { withFileLock } from "./lock-file.ts";
 import { stopProcess, stopProcessNow } from "./process.ts";
@@ -236,8 +237,35 @@ const captureStreamText = (
   stream: ReadableStream<Uint8Array>,
 ): CapturedStreamText => ({
   close: () => stream.cancel(),
-  read: async () => (await new Response(stream).text()).trim(),
+  read: async () => {
+    const decoder = new TextDecoder();
+    let text = "";
+    for await (const chunk of streamChunks(stream)) {
+      text += decoder.decode(chunk, { stream: true });
+    }
+    return (text + decoder.decode()).trim();
+  },
 });
+
+/** Read a stopped mock's stderr with a bound. A process the kill never
+ * reached can hold the stderr pipe open, so the retry gives up on the text
+ * instead of waiting on that pipe forever (issue #2225). */
+const stoppedMockStderr = async (
+  spawned: SpawnedStripeMock,
+  timeoutMs: number,
+): Promise<string> => {
+  const read = spawned.stderr();
+  let timer = 0;
+  const giveUp = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), timeoutMs);
+  });
+  const text = await Promise.race([read, giveUp]);
+  clearTimeout(timer);
+  if (text !== null) return text;
+  // The pipe closes when the process holding it dies; forcing it closed is
+  // not possible while the given-up read still holds the stream.
+  return `stripe-mock stderr read timed out after ${timeoutMs}ms`;
+};
 
 const stripeMockStartLockPath = (paths: StripeMockPaths): string =>
   join(paths.binDir, START_LOCK_NAME);
@@ -328,7 +356,10 @@ const attemptStartStripeMock = async (
   }
 
   await stopProcess(spawned.process, stopTimeoutMs);
-  return { error: await spawned.stderr(), kind: "retry" };
+  return {
+    error: await stoppedMockStderr(spawned, stopTimeoutMs),
+    kind: "retry",
+  };
 };
 
 const startStripeMockProcess = async (

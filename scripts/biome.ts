@@ -7,8 +7,8 @@
  * package so hosted CI can run without a separate Biome install step.
  *
  * Strict mode is opt-in via `--error-on-warnings`: the read-only CI posture
- * (`lint:ci`, precommit, and the opencode edit-check pipeline) passes that
- * flag, and only there are info-level diagnostics treated as failures. A
+ * (`lint:ci` and precommit) passes that flag, and only there are info-level
+ * diagnostics treated as failures. A
  * rule that reports at `info` severity (Biome's default for low-impact
  * suggestions) still points at an issue we want caught rather than slipping
  * past. Biome's own `--error-on-warnings` only elevates `warn`; an `info`

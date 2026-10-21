@@ -12,6 +12,7 @@ import {
   withFakeCurl,
   withTempStripeMockPaths,
   writeFailingMock,
+  writeStandInMock,
 } from "#test-utils/stripe-mock/helpers.ts";
 import {
   expectPortAvailable,
@@ -307,6 +308,39 @@ describe("starting stripe-mock", () => {
 
         // Left running, it would still be sitting on the port it did open.
         expectPortAvailable(decoyPort);
+      });
+    });
+  });
+
+  test("gives up on a killed mock's stderr when another process holds it", async () => {
+    await withTempStripeMockPaths(async (paths) => {
+      const holderPidPath = join(paths.binDir, "stderr-holder.pid");
+      await writeStandInMock(paths, "hold-stderr", holderPidPath);
+
+      // The runner's own mock answers on STRIPE_MOCK_PORT, so this start
+      // pins a fresh port or it would adopt that mock and spawn nothing.
+      await withUnusedPort(async (port) => {
+        try {
+          const message = await startFailureMessage({
+            budgetMs: 1_000,
+            delayMs: 10,
+            paths,
+            port,
+            stopTimeoutMs: 300,
+          });
+
+          // The holder child keeps the pipe open past the kill: the starter
+          // must name the wait it gave up rather than hang the run on it
+          // (issue #2225).
+          expect(message).toContain("stripe-mock stderr read timed out");
+        } finally {
+          Deno.kill(Number(await Deno.readTextFile(holderPidPath)), "SIGKILL");
+          // One turn lets the pipe the holder kept open finish closing, so
+          // the given-up read settles before the test ends.
+          const { promise, resolve } = Promise.withResolvers<void>();
+          setTimeout(resolve, 0);
+          await promise;
+        }
       });
     });
   });

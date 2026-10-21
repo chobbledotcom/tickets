@@ -12,16 +12,15 @@
  * Usage: deno task find-unused-src
  */
 
-import * as fs from "node:fs";
-import * as path from "node:path";
+import { dirname, relative, resolve } from "@std/path";
 import { flatMap } from "#fp";
-import { endsWithAny } from "#fp-strings";
+import { collectSourceFiles } from "./walk-files.ts";
 
-const ROOT = path.resolve(import.meta.dirname!, "..");
+const ROOT = resolve(import.meta.dirname!, "..");
 
 // Read and parse deno.json import map
 const denoConfig = JSON.parse(
-  fs.readFileSync(path.resolve(ROOT, "deno.json"), "utf-8"),
+  await Deno.readTextFile(resolve(ROOT, "deno.json")),
 );
 const importMapRaw: Record<string, string> = denoConfig.imports ?? {};
 
@@ -52,19 +51,17 @@ function resolveImport(specifier: string, fromFile: string): string | null {
   if (aliased) return aliased;
 
   if (specifier.startsWith("./") || specifier.startsWith("../")) {
-    const fromDir = path.dirname(fromFile);
-    const resolved = path.resolve(ROOT, fromDir, specifier);
-    return path.relative(ROOT, resolved);
+    const fromDir = dirname(fromFile);
+    const resolved = resolve(ROOT, fromDir, specifier);
+    return relative(ROOT, resolved);
   }
 
   return null;
 }
 
-const isTypeScriptFile = endsWithAny([".ts", ".tsx"]);
-
 /** Read a project-relative source file as UTF-8 text. */
-const readSource = (filePath: string): string =>
-  fs.readFileSync(path.resolve(ROOT, filePath), "utf-8");
+const readSource = async (filePath: string): Promise<string> =>
+  Deno.readTextFile(resolve(ROOT, filePath));
 
 /** Split a comma-separated `a, b as c` list into bare names, dropping aliases. */
 const splitAliasedNames = (raw: string): string[] =>
@@ -78,34 +75,11 @@ const splitAliasedNames = (raw: string): string[] =>
     )
     .filter(Boolean);
 
-/** List direct entries in a directory, classifying as files or subdirs */
-function listEntries(d: string): { dirs: string[]; files: string[] } {
-  const dirs: string[] = [];
-  const files: string[] = [];
-  for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
-    const full = path.join(d, entry.name);
-    if (entry.isDirectory()) dirs.push(full);
-    else if (isTypeScriptFile(entry.name)) {
-      files.push(path.relative(ROOT, full));
-    }
-  }
-  return { dirs, files };
-}
-
-/** Collect all .ts/.tsx files in a directory recursively */
-function collectFiles(dir: string): string[] {
-  const fullDir = path.resolve(ROOT, dir);
-  if (!fs.existsSync(fullDir)) return [];
-
-  const result: string[] = [];
-  const pending = [fullDir];
-  while (pending.length > 0) {
-    const { dirs, files } = listEntries(pending.pop()!);
-    result.push(...files);
-    pending.push(...dirs);
-  }
-  return result.sort();
-}
+/** Collect every project-relative .ts/.tsx file beneath `dir`, sorted. */
+const collectTreeFiles = async (dir: string): Promise<string[]> =>
+  (await collectSourceFiles(resolve(ROOT, dir))).map((file) =>
+    relative(ROOT, file),
+  );
 
 /** Collect one `{ names, specifier }` entry per match of an import regex;
  * `read` says which capture groups carry the named imports and the specifier. */
@@ -140,10 +114,10 @@ const dynamicRegex =
   /(?:const\s+\{([^}]*)\}\s*=\s*(?:await\s+)?)?import\(\s*["']([^"']+)["']\s*\)/g;
 
 /** Extract both static and dynamic import specifiers from a file */
-function extractImports(
+async function extractImports(
   filePath: string,
-): { specifier: string; names: string[] }[] {
-  const content = readSource(filePath);
+): Promise<{ specifier: string; names: string[] }[]> {
+  const content = await readSource(filePath);
   return [
     ...importsFromMatches(content, staticRegex, (match) => ({
       namedImports: (match[1] || "") + (match[3] || ""),
@@ -172,8 +146,8 @@ const extractBraceExports = (content: string): string[] =>
   ]);
 
 /** Extract exported names from a file */
-function extractExports(filePath: string): string[] {
-  const content = readSource(filePath);
+async function extractExports(filePath: string): Promise<string[]> {
+  const content = await readSource(filePath);
   const exports: string[] = [];
 
   for (const pattern of EXPORT_PATTERNS) {
@@ -191,13 +165,13 @@ function extractExports(filePath: string): string[] {
 
 console.log("Scanning codebase...\n");
 
-const srcFiles = collectFiles("src").filter(
+const srcFiles = (await collectTreeFiles("src")).filter(
   (f) => !f.startsWith("src/ui/static/") && !f.endsWith(".d.ts"),
 );
 // Test utilities now live under test/ (test/test-utils/), so they are part of
 // the test file set rather than a separate src group.
-const testFiles = collectFiles("test");
-const scriptFiles = collectFiles("scripts");
+const testFiles = await collectTreeFiles("test");
+const scriptFiles = await collectTreeFiles("scripts");
 const allFiles = [...srcFiles, ...testFiles, ...scriptFiles];
 
 // Known entry points that are used outside the import graph
@@ -239,7 +213,7 @@ const isNeverImported = (srcFile: string): boolean => {
 };
 
 for (const file of allFiles) {
-  const imports = extractImports(file);
+  const imports = await extractImports(file);
   for (const { specifier, names } of imports) {
     const resolved = resolveImport(specifier, file);
     if (!resolved?.startsWith("src/")) continue;
@@ -312,7 +286,7 @@ for (const srcFile of srcFiles) {
   if (srcImporters.length === 0) continue;
   if (testImporters.length === 0) continue;
 
-  const fileExports = extractExports(srcFile);
+  const fileExports = await extractExports(srcFile);
   if (fileExports.length === 0) continue;
 
   const namesUsedBySrc = new Set(srcImporters.flatMap((i) => i.names));

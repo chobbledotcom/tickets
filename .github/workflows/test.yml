@@ -114,6 +114,10 @@ jobs:
 
   test:
     runs-on: ubicloud-standard-8
+    # A healthy full suite with coverage finishes in about seven minutes. A
+    # wedged test can hold a runner for hours with no failure text (issue
+    # #2225), so the job gives up loudly instead.
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository

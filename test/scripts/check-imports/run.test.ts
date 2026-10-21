@@ -131,7 +131,7 @@ describe("the checked trees", () => {
     expect(CONFIG_PATH).toBe("deno.json");
   });
 
-  test("cover every tree that resolves through that table, minus the plugin", () => {
+  test("cover every tree that resolves through that table", () => {
     expect(SOURCE_DIRS).toEqual([
       "src",
       "test",

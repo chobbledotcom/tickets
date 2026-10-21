@@ -38,10 +38,27 @@ const waitThenHold = async (ms: number, port: number): Promise<never> => {
   return await holdPort(port);
 };
 
+/** Spawn a child that inherits stderr and outlives this process, so a mock
+ * the starter kills leaves its stderr pipe held open. The child's pid goes
+ * to the given path, so the test can clean it up. */
+const holdStderr = async (pidPath: string): Promise<never> => {
+  const child = new Deno.Command("sleep", {
+    args: ["60"],
+    // The dev shell carries LD_LIBRARY_PATH, which Deno refuses to hand to a
+    // spawned binary; sleep needs no environment of its own.
+    clearEnv: true,
+    stderr: "inherit",
+  }).spawn();
+  await Deno.writeTextFile(pidPath, String(child.pid));
+  await child.status;
+  Deno.exit(0);
+};
+
 export type StandInMode =
   | "exit"
   | "hold-after"
   | "hold-port"
+  | "hold-stderr"
   | "exit-then-hold";
 
 const requiredArgument = (
@@ -65,6 +82,8 @@ const MODES: Record<
     waitThenHold(Number(requiredArgument("hold-after", argument)), port),
   "hold-port": (argument) =>
     holdPort(Number(requiredArgument("hold-port", argument))),
+  "hold-stderr": (argument) =>
+    holdStderr(String(requiredArgument("hold-stderr", argument))),
 };
 
 const portFromArgs = (args: readonly string[]): number => {
