@@ -290,7 +290,9 @@ describe("the scanner service worker's fetch boundaries", () => {
     const answered = await fireRequest("/admin/scanner", { mode: "navigate" });
 
     expect(answered?.status).toBe(200);
-    expect(await answered?.text()).toContain("You are offline");
+    expect(await answered?.text()).toContain(
+      "You are offline. Reopen the scanner when you are back online.",
+    );
     expect(answered?.headers.get("content-type")).toContain("text/html");
   });
 
