@@ -3,26 +3,63 @@
  * checked a ticket in while offline sends the delivery again until it
  * reads an answer. One lost answer must never admit a second ticket.
  *
- * The delivery names itself with an operation id the device made up. The
- * admission claims that id inside its own transaction. A repeated delivery
- * finds its id stored and lands nowhere. The row holds the id alone: no
- * ticket token, no digest, no guest detail.
+ * The delivery names itself with an operation id the device made up, and
+ * travels with the token digest the device stored. The row's unique key is
+ * that pair. The same id and digest retrying is one delivery landing
+ * nowhere. The same id beside another ticket's digest is another delivery,
+ * and it claims its own row. A reused id then never silently suppresses a
+ * different ticket's admission. The row also keeps the listings the
+ * delivery admitted, so a retry answers the tier the first send put in.
+ * No ticket token and no guest detail rests here. The digest is the row's
+ * only trace of the ticket, and the delivery's own identity needs it. The
+ * prune task removes rows past the retention window.
  */
 
-import { insert, orIgnore, type TxScope } from "#db/client.ts";
+import { insert, orIgnore, queryOne, type TxScope } from "#db/client.ts";
+import { nowIso } from "#shared/now.ts";
 
-/** Reserve a queued delivery's operation id inside the caller's
- * transaction. The answer says whether this delivery claimed the id. True
- * means the caller admits and answers the admission. False means the id is
+/** What one claimed delivery keeps: the operation id and the token digest
+ * that name it, and the listings its admission moved tickets on. */
+export type ScanDelivery = {
+  listingIds: readonly number[];
+  operationId: string;
+  tokenHash: string;
+};
+
+/** Reserve a queued delivery inside the caller's transaction. The answer
+ * says whether this delivery claimed its id-and-digest pair. True means
+ * the caller admits and answers the admission. False means the pair is
  * already stored: the delivery is a retry of one that landed. The caller
- * then admits nothing and answers the ticket's current state. */
+ * then admits nothing and answers the stored admission. */
 export const claimScanOperation =
-  (operationId: string): ((tx: TxScope) => Promise<boolean>) =>
+  (delivery: ScanDelivery): ((tx: TxScope) => Promise<boolean>) =>
   async (tx) => {
     const result = await tx.execute(
       orIgnore(
-        insert("processed_scan_operations", { operation_id: operationId }),
+        insert("processed_scan_operations", {
+          created: nowIso(),
+          listing_ids: JSON.stringify([...delivery.listingIds]),
+          operation_id: delivery.operationId,
+          token_hash: delivery.tokenHash,
+        }),
       ),
     );
     return result.rowsAffected > 0;
   };
+
+/** The listings one delivery already admitted, or null when the ledger
+ * holds no such delivery. A retry answers these, so its answer names the
+ * tier the first send put in. It never names the tier a fresh decision
+ * picks now. */
+export const deliveredScanOperation = async (
+  operationId: string,
+  tokenHash: string,
+): Promise<readonly number[] | null> => {
+  const row = await queryOne<{ listing_ids: string }>(
+    `SELECT listing_ids FROM processed_scan_operations
+       WHERE operation_id = ? AND token_hash = ?`,
+    [operationId, tokenHash],
+  );
+  if (!row) return null;
+  return JSON.parse(row.listing_ids) as number[];
+};

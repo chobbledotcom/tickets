@@ -10,8 +10,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import * as v from "valibot";
-import { sha256Hex } from "#crypto/sha256.ts";
+import { deriveDoorCacheKey } from "#crypto/hashing.ts";
+import { hmacHex } from "#crypto/sha256.ts";
 import { handleRequest } from "#routes";
+import { doorCacheName } from "#routes/admin/scan-tokens.ts";
 import { expectAccepted, openAdminPage } from "#test/specs/support/browser.ts";
 import {
   attendeeOf,
@@ -25,7 +27,11 @@ import {
   readDoorAnswer,
   ticketOf,
 } from "#test/specs/support/door.ts";
-import { groupDoorPaths } from "#test/specs/support/group-door.ts";
+import {
+  groupCacheName,
+  groupDoorPaths,
+} from "#test/specs/support/group-door.ts";
+import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
   type TicketsWorld,
   whatWasKeptFor,
@@ -38,14 +44,29 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 /** One door's saved list, read back by the name the story calls the door. */
 const savedCodesAt = whatWasKeptFor("saved_codes");
 
+/** The cache name one of the story's doors digests under, found by the
+ * name the story calls the door. */
+type CacheNameOfDoor = (world: TicketsWorld, doorName: string) => string;
+
 /** The body a door's save answers: the sorted one-way codes, and nothing
  * else — no ticket in full, and no guest detail. */
 const savedListBody = v.object({ hashes: v.array(v.string()) });
 
-/** The one-way code of one person's ticket — the only form of the ticket a
- * door's saved list holds. */
-const codeFor = (world: TicketsWorld, who: string): Promise<string> =>
-  sha256Hex(ticketOf(world, who));
+/** The cache name one listing door in the story digests under. */
+export const listingCacheName = (
+  world: TicketsWorld,
+  listing: string,
+): string => doorCacheName("listing", listingIdNamed(world, listing));
+
+/** The one-way code of one person's ticket under one door's cache key —
+ * the only form of the ticket a door's saved list holds, and the only form
+ * the door's own scan answers for. */
+const codeFor = (
+  world: TicketsWorld,
+  cacheName: string,
+  who: string,
+): Promise<string> =>
+  hmacHex(deriveDoorCacheKey(cacheName), ticketOf(world, who));
 
 /** One GET of a door's saved list with one browser's cookies. The read
  * changes nothing, so it carries no one-use code. */
@@ -155,15 +176,17 @@ const deliverAndRemember = async (
   world.things.remember("saved_delivery", "last", delivery);
   return postSavedDelivery(world, paths, delivery);
 };
-
-/** The code one door saved for one person, checked against that door's own
- * saved list. A code no door saved fails here rather than testing nothing. */
+/** The code one door saved for one person, checked against that door's
+ * own saved list and digested under that door's cache key the way the
+ * device digests it. A code no door saved fails here rather than testing
+ * nothing. */
 const savedCodeFor = async (
   world: TicketsWorld,
   listDoorName: string,
+  cacheName: string,
   who: string,
 ): Promise<string> => {
-  const code = await codeFor(world, who);
+  const code = await codeFor(world, cacheName, who);
   if (!savedCodesAt(world, listDoorName).hashes.includes(code)) {
     throw new Error(
       `${listDoorName} saved no one-way code for ${who}'s ticket`,
@@ -175,7 +198,7 @@ const savedCodeFor = async (
 /** Deliver one person's saved check-in at one door the story names: the
  * delivery must be on that same door's saved list. */
 const deliverAt =
-  (pathsOf: PathsOfDoor) =>
+  (pathsOf: PathsOfDoor, cacheNameOf: CacheNameOfDoor) =>
   async (
     world: TicketsWorld,
     doorName: string,
@@ -185,15 +208,18 @@ const deliverAt =
     deliverAndRemember(
       world,
       pathsOf(world, doorName),
-      await savedCodeFor(world, doorName, who),
+      await savedCodeFor(world, doorName, cacheNameOf(world, doorName), who),
       places,
     );
 
 /** Deliver one person's saved check-in at the listing door. */
-export const deliverAtListingDoor = deliverAt(listingDoorPaths);
+export const deliverAtListingDoor = deliverAt(
+  listingDoorPaths,
+  listingCacheName,
+);
 
 /** Deliver one person's saved check-in at the group door. */
-export const deliverAtGroupDoor = deliverAt(groupDoorPaths);
+export const deliverAtGroupDoor = deliverAt(groupDoorPaths, groupCacheName);
 
 /** Deliver one check-in by its one-way code at the listing door, and keep
  * it as the delivery a retry sends once more. */
@@ -205,17 +231,23 @@ const deliverSavedCheckIn = (
   deliverAndRemember(world, listingDoorPaths(world, listing), code);
 
 /** Deliver the saved check-in one named door stored for one person, at the
- * listing door: the check-in another door's device queued. */
+ * listing door: the check-in another door's device queued, digested under
+ * the door that saved it. */
 export const deliverSavedFromAnotherDoor = async (
   world: TicketsWorld,
   listing: string,
   savedAt: string,
   who: string,
 ): Promise<DoorAnswer> =>
-  deliverSavedCheckIn(world, listing, await savedCodeFor(world, savedAt, who));
+  deliverSavedCheckIn(
+    world,
+    listing,
+    await savedCodeFor(world, savedAt, listingCacheName(world, savedAt), who),
+  );
 
-/** Deliver a saved check-in whose code no door saved: a queued check-in the
- * site cannot match to anybody. */
+/** Deliver a saved check-in whose code no door saved: a queued check-in
+ * the site cannot match to anybody, digested the way the delivering
+ * door's own device would digest it. */
 export const deliverUnknownCode = async (
   world: TicketsWorld,
   listing: string,
@@ -223,7 +255,10 @@ export const deliverUnknownCode = async (
   deliverSavedCheckIn(
     world,
     listing,
-    await sha256Hex("a one-way code no ticket holds"),
+    await hmacHex(
+      deriveDoorCacheKey(listingCacheName(world, listing)),
+      "a one-way code no ticket holds",
+    ),
   );
 
 /** Send the last saved delivery once more, at one door the story names: the
@@ -260,13 +295,17 @@ export const expectSavedList = (
 
 /** The saved list holds exactly the one-way codes of the tickets the story
  * names — no more, no fewer. No names at all means the door saved an empty
- * list. */
+ * list. The codes are the door's own keyed digests, so the list can only
+ * match the door that saved it. */
 export const expectSavedCodesFor = async (
   world: TicketsWorld,
   door: string,
+  cacheNameOf: CacheNameOfDoor,
   ...who: string[]
 ): Promise<void> => {
-  const codes = await Promise.all(who.map((name) => codeFor(world, name)));
+  const codes = await Promise.all(
+    who.map((name) => codeFor(world, cacheNameOf(world, door), name)),
+  );
   expectSavedList(world, door, (saved) =>
     expect(saved.hashes).toEqual(codes.sort()),
   );
@@ -276,4 +315,5 @@ export const expectSavedCodesFor = async (
 export const expectSavedListEmpty = (
   world: TicketsWorld,
   door: string,
-): Promise<void> => expectSavedCodesFor(world, door);
+  cacheNameOf: CacheNameOfDoor,
+): Promise<void> => expectSavedCodesFor(world, door, cacheNameOf);

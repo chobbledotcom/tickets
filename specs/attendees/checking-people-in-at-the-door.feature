@@ -248,3 +248,20 @@ Feature: An organiser checks people in at the door
       And the organiser delivers the same saved check-in again at the Ceilidh door
       Then the door says Cara is already in
       And the Ceilidh door has let 1 of Cara's tickets in
+
+    @case:door.a-saved-delivery-for-a-ticket-refunded-after-the-save-says-so
+    Scenario: The organiser delivers a saved check-in for a ticket refunded after the save
+      Given Alice has a ticket for the Ceilidh
+      And the Ceilidh door saves its tickets for offline reading
+      And Alice's Ceilidh ticket has been refunded
+      When the organiser delivers Alice's saved check-in at the Ceilidh door
+      Then the door says Alice was refunded
+      And nobody has let Alice in at the Ceilidh door
+
+    @case:door.a-saved-delivery-for-an-id-ticket-holds-for-id
+    Scenario: The organiser delivers a saved check-in for a ticket that needs ID
+      Given Alice has a ticket for the Ceilidh, which needs ID checked
+      And the Ceilidh door saves its tickets for offline reading
+      When the organiser delivers Alice's saved check-in at the Ceilidh door
+      Then the door asks the organiser to check Alice's ID
+      And nobody has let Alice in at the Ceilidh door

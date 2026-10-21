@@ -29,8 +29,10 @@ import {
   scanNotFoundResponse,
 } from "./scan-answer.ts";
 import {
+  doorCacheName,
   handleGroupScanTokensGet,
   handleListingScanTokensGet,
+  pageDoorCacheKey,
 } from "./scan-tokens.ts";
 
 /** The door-safe facts that tell two people with the same name apart. They
@@ -93,6 +95,8 @@ const handleScannerGet: IdRouteHandler = createIdEntityHandler<
         `/admin/listing/${listing.id}/scan`,
         session,
         manualCheckinOptions(attendees, null),
+        false,
+        pageDoorCacheKey(doorCacheName("listing", listing.id)),
       ),
     );
   },
@@ -124,6 +128,7 @@ const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(
       // One scan at this door spans listings only from a multi-listing
       // group whose stored rule says to check in every listing.
       scope.listingIds.size > 1 && scope.checkInEveryListing,
+      pageDoorCacheKey(doorCacheName("group", group.id)),
     ),
   );
 });
@@ -174,7 +179,7 @@ const handleDoorsGet: RequestRoute = (request) =>
  */
 const handleScanPost: IdRouteHandler = (request, { id }) =>
   withAuth(request, SCANNER_JSON, (_session, body) =>
-    processScan(listingScope(id), body),
+    processScan(listingScope(id), body, doorCacheName("listing", id)),
   );
 
 /** Handle POST /admin/groups/:id/scan — the same API over the group's whole
@@ -184,7 +189,11 @@ const handleGroupScanPost: IdRouteHandler = (request, { id }) =>
   withAuth(request, SCANNER_JSON, async (_session, body) => {
     const group = await getGroupById(id);
     if (!group) return scanNotFoundResponse();
-    return processScan(await groupScope(group), body);
+    return processScan(
+      await groupScope(group),
+      body,
+      doorCacheName("group", id),
+    );
   });
 
 /** Scanner routes */

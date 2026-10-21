@@ -1,14 +1,16 @@
-/**
- * The scanner's offline ticket list: the ticket tokens of one door's scope,
- * answered as SHA-256 digests for the scanner page to save on load. The
- * device caches digests only. It never caches the token itself or a guest
- * detail. A read of the device's storage hands over nothing that opens a
- * door. The list travels under the scan API's own auth. The same door roles
- * guard it, and it serves only the door the session works.
- */
+/** The scanner's offline ticket list: the ticket tokens of one door's
+ * scope, answered as keyed digests for the scanner page to save on load.
+ * Each digest is HMAC-SHA256 under a key derived from the site key and the
+ * door's own name. The key travels only on the door's scanner page, so a
+ * copied list digests nothing by itself. The device caches digests only.
+ * It never caches the token itself or a guest detail. The list travels
+ * under the scan API's own auth. The same door roles guard it, and it
+ * serves only the door the session works. */
 
 // jscpd:ignore-start -- imports
-import { sha256Hex } from "#crypto/sha256.ts";
+import { deriveDoorCacheKey } from "#crypto/hashing.ts";
+import { hmacHex, importHmacKey } from "#crypto/sha256.ts";
+import { toBase64Url } from "#crypto/utils.ts";
 import type { DecryptedAttendeeRow } from "#db/attendees/pii.ts";
 import { getGroupById } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -26,12 +28,25 @@ import {
 
 // jscpd:ignore-end
 
+/** The name a door's cache key derives from: the door's kind and id. The
+ * token list and the scan answer derive the same key from the same name.
+ * The scanner page carries the key, so a saved list matches only the door
+ * that saved it. */
+export const doorCacheName = (kind: "group" | "listing", id: number): string =>
+  `${kind}:${id}`;
+
+/** The door's cache key as the scanner page carries it: base64url bytes the
+ * device decodes before it digests a scan. The page is the only response
+ * that holds a door's key, so a copied list alone digests nothing. */
+export const pageDoorCacheKey = (door: string): string =>
+  toBase64Url(deriveDoorCacheKey(door));
+
 /** The lines a saved list can stand for: a line the door's own scan admits
  * or counts as used. A refunded order and a no-quantity line both turn a
  * scan away online. A digest that stands for only those tells the offline
  * door a refused ticket looks legitimate. A line still owing nothing stays
- * in the list. The door's own scan answers "already checked in" for it,
- * and that is the answer a replayed delivery must fetch home. */
+ * in the list. The door's own scan answers "already checked in" for it.
+ * That answer is what a replayed delivery must fetch home. */
 const cacheWorthyTokens = (
   attendees: readonly DecryptedAttendeeRow<Attendee>[],
 ): string[] =>
@@ -42,30 +57,39 @@ const cacheWorthyTokens = (
   );
 
 /** Answer the door's token list: every eligible attendee of the scope's
- * listings, decrypted, each token answered only as its SHA-256 digest. The
- * list is sorted, so the same door always answers the same list. */
+ * listings, decrypted, each token answered only as its keyed digest. One
+ * key import serves every digest. The list is sorted, so the same door
+ * always answers the same list. */
 const tokenListResponse = async (
+  door: string,
   listingIds: readonly number[],
 ): Promise<Response> => {
   const privateKey = await scannerPrivateKey();
   if (privateKey instanceof Response) return privateKey;
   const attendees = await doorAttendees(listingIds, privateKey);
-  const hashes = await Promise.all(cacheWorthyTokens(attendees).map(sha256Hex));
+  const key = await importHmacKey(deriveDoorCacheKey(door));
+  const hashes = await Promise.all(
+    cacheWorthyTokens(attendees).map((token) => hmacHex(key, token)),
+  );
   return jsonResponse({ hashes: hashes.sort() });
 };
 
 /** One authed GET of a door's token list: the scan API's guard runs, then
  * the door resolves its scope, or the scan API's not-found answers. */
 const scanTokensGet =
-  (findListingIds: (id: number) => Promise<number[] | null>): IdRouteHandler =>
+  (
+    door: (id: number) => string,
+    findListingIds: (id: number) => Promise<number[] | null>,
+  ): IdRouteHandler =>
   (request, { id }) =>
     withAuth(request, SCANNER_JSON, async () => {
       const listingIds = await findListingIds(id);
       if (listingIds === null) return scanNotFoundResponse();
-      return tokenListResponse(listingIds);
+      return tokenListResponse(door(id), listingIds);
     });
 
 export const handleListingScanTokensGet: IdRouteHandler = scanTokensGet(
+  (id) => doorCacheName("listing", id),
   async (id) => {
     const listing = await getListingWithCount(id);
     // A "No check-in" listing has no door: its tokens do not travel either.
@@ -74,6 +98,7 @@ export const handleListingScanTokensGet: IdRouteHandler = scanTokensGet(
 );
 
 export const handleGroupScanTokensGet: IdRouteHandler = scanTokensGet(
+  (id) => doorCacheName("group", id),
   async (id) => {
     const group: Group | null = await getGroupById(id);
     return group ? [...(await groupScope(group)).listingIds] : null;

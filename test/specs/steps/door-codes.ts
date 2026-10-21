@@ -13,6 +13,7 @@ import {
   expectSavedCodesFor,
   expectSavedList,
   expectSavedListEmpty,
+  listingCacheName,
   placesAdmittedFor,
   redeliverAtGroupDoor,
   redeliverAtListingDoor,
@@ -21,6 +22,7 @@ import {
   trySavingListingDoorCodes,
 } from "#test/specs/support/door-codes.ts";
 import { editorBrowser } from "#test/specs/support/editors.ts";
+import { groupCacheName } from "#test/specs/support/group-door.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -114,7 +116,7 @@ Then(
     first: string,
     second: string,
   ): Promise<void> {
-    return expectSavedCodesFor(this, door, first, second);
+    return expectSavedCodesFor(this, door, listingCacheName, first, second);
   },
 );
 
@@ -126,7 +128,7 @@ Then(
     first: string,
     second: string,
   ): Promise<void> {
-    return expectSavedCodesFor(this, door, first, second);
+    return expectSavedCodesFor(this, door, groupCacheName, first, second);
   },
 );
 
@@ -161,7 +163,7 @@ Then(
 Then(
   "the {word} door's saved list is empty",
   async function (this: TicketsWorld, door: string): Promise<void> {
-    await expectSavedListEmpty(this, door);
+    await expectSavedListEmpty(this, door, listingCacheName);
   },
 );
 

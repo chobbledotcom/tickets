@@ -1,21 +1,19 @@
 /** One scan's whole answer: the door's scope, the person the request names,
  * the decision, and the JSON the door reads. The routes in
- * `src/features/admin/scanner.ts` hand these their request bodies. */
+ * `src/features/admin/scanner.ts` hand these their request bodies. A queued
+ * delivery's identity, digest match, and ledger row live in
+ * `scan-delivery.ts`. */
 
 /* jscpd:ignore-start -- imports */
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { type TicketMoveAnswer, ticketCount } from "#booking/ticket-moves.ts";
-import { sha256Hex } from "#crypto/sha256.ts";
 import type { AttendeeWithBookings } from "#db/attendee-types.ts";
 import { moveTicketsAndLog, ticketsWord } from "#db/attendees/door-moves.ts";
 import {
   type DecryptedAttendeeRow,
   decryptAttendees,
 } from "#db/attendees/pii.ts";
-import {
-  getAttendeesByIdsWithBookings,
-  getAttendeesByTokens,
-} from "#db/attendees/tokens.ts";
+import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { getListingsByGroupId } from "#db/groups.ts";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { claimScanOperation } from "#db/processed-scan-operations.ts";
@@ -36,6 +34,16 @@ import {
   type ScanDecision,
   type ScanUnit,
 } from "./scan-decision.ts";
+import {
+  attendeeById,
+  attendeeByTokenHash,
+  deliveredListingIds,
+  foundDelivery,
+  type PersonLoader,
+  type QueuedDelivery,
+  queuedDelivery,
+} from "./scan-delivery.ts";
+
 /* jscpd:ignore-end */
 
 /** What one door's scan resolves against: the listings it admits, and its
@@ -167,6 +175,20 @@ const alreadyCheckedIn = (
     scanBody(rows, attendeeName, "already_checked_in", lineTickets([...rows])),
   );
 
+/** Answer a delivery the ledger already took. The rows are the ones the
+ * delivery admitted. The door reads the tier the first send put in. It
+ * never reads the tier a fresh decision picks now, and it never asks a
+ * prompt the first send passed. */
+const acknowledgedAnswer = (
+  allEntries: readonly TokenEntry[],
+  attendeeName: string,
+  listingIds: readonly number[],
+): Response =>
+  alreadyCheckedIn(
+    allEntries.filter((entry) => listingIds.includes(entry.listing.id)),
+    attendeeName,
+  );
+
 /** Perform one scan's whole admission as one transaction: every unit's
  * admit, and one activity row per listing that really admitted tickets.
  * Each activity row carries that listing's own name and count. The write
@@ -176,11 +198,12 @@ const alreadyCheckedIn = (
  * the tickets the lines really took (less than planned when another door
  * admitted some first). It also answers what the booking still owes after
  * the write. The response then never reports a door race as tickets left.
- * `operationId`, when the delivery names one, is claimed inside the same
- * transaction, so a replay of the same queued delivery moves nothing. */
+ * `delivery`, when the request names one, is claimed inside the same
+ * transaction. The claim keys the id and the token digest together. A
+ * replay of the same queued delivery then moves nothing. */
 const performCheckIns = async (
   decision: Extract<ScanDecision, { kind: "admit" }>,
-  operationId?: string,
+  delivery?: QueuedDelivery,
 ): Promise<{ admitted: number; remaining: number }> => {
   const attendeeId = decision.rows[0]!.attendee.id;
   const listingOf = (unit: ScanUnit) => unit.rows[0]!.listing;
@@ -200,7 +223,12 @@ const performCheckIns = async (
         move.listingId,
         `Listing ${move.listingId} is no unit of this scan`,
       )}'`,
-    operationId === undefined ? undefined : claimScanOperation(operationId),
+    delivery &&
+      claimScanOperation({
+        listingIds: unique(decision.units.map((unit) => listingOf(unit).id)),
+        operationId: delivery.operationId,
+        tokenHash: delivery.tokenHash,
+      }),
   );
   // What the write left: the touched pairs' post-write owed, plus the owed
   // of rows the scan did not admit. The transaction saw every ticket a
@@ -237,16 +265,26 @@ type ScanControls = {
  * door business reading. */
 const scanBy = async (
   scope: ScanScope,
-  load: () => Promise<AttendeeWithBookings | null>,
+  load: PersonLoader,
   controls: ScanControls,
   privateKey: CryptoKey,
   refuseWrongListing: boolean,
-  operationId?: string,
+  delivery?: QueuedDelivery,
 ): Promise<Response> => {
   const awb = await load();
   if (!awb) return jsonResponse({ status: "not_found" }, 404);
   const allEntries = await resolveTokenEntries(awb, privateKey);
   const attendeeName = await resolveAttendeeName(allEntries, awb, privateKey);
+  // A delivery the ledger already took is a retry of one that landed. It
+  // answers that landing here, before any fresh decision runs. A fresh
+  // decision picks the next tier, or asks again for an ID check the first
+  // send already passed.
+  if (delivery) {
+    const landed = await foundDelivery(delivery);
+    if (landed) {
+      return acknowledgedAnswer(allEntries, attendeeName, landed);
+    }
+  }
   const decision = decideScan(
     { entries: allEntries, force: controls.force, scope: scope.listingIds },
     scope.checkInEveryListing,
@@ -256,17 +294,18 @@ const scanBy = async (
   if (refuseWrongListing && decision.kind === "wrong_listing") {
     return jsonResponse({ status: "not_found" }, 404);
   }
-  return scanDecisionResponse(decision, allEntries, attendeeName, operationId);
+  return scanDecisionResponse(decision, allEntries, attendeeName, delivery);
 };
 
 /** Answer one scan's decision: the shared responses a camera read and a
- * manual pick both reach. A queued delivery's operation id rides along and
- * guards its admission against a replay. */
+ * manual pick both reach. A queued delivery rides along: the ledger has
+ * already answered its retry before this point, and the admission claims
+ * its id-and-digest pair inside the write. */
 const scanDecisionResponse = async (
   decision: ScanDecision,
   allEntries: TokenEntry[],
   attendeeName: string,
-  operationId?: string,
+  delivery?: QueuedDelivery,
 ): Promise<Response> => {
   switch (decision.kind) {
     case "not_found":
@@ -294,13 +333,19 @@ const scanDecisionResponse = async (
         status: "select_quantity",
       });
     case "admit": {
-      const { admitted, remaining } = await performCheckIns(
-        decision,
-        operationId,
-      );
-      // Another door took every ticket this scan planned to admit — and a
-      // replayed queued delivery claims nothing, so it lands here too.
-      if (admitted === 0) return alreadyCheckedIn(decision.rows, attendeeName);
+      const { admitted, remaining } = await performCheckIns(decision, delivery);
+      // Another door took every ticket this scan planned to admit. A
+      // queued delivery's pair is stored either way, so it answers what
+      // that delivery admits — its own claim, or the winner's.
+      if (admitted === 0) {
+        return delivery
+          ? acknowledgedAnswer(
+              allEntries,
+              attendeeName,
+              await deliveredListingIds(delivery),
+            )
+          : alreadyCheckedIn(decision.rows, attendeeName);
+      }
       return jsonResponse({
         ...scanBody(decision.rows, attendeeName, "checked_in", admitted),
         remaining,
@@ -315,48 +360,55 @@ const scanDecisionResponse = async (
 const isAdmitCount = (value: unknown): value is number =>
   typeof value === "number" && isPositiveSafeInteger(value);
 
-/** The longest operation id a queued delivery can name. A device makes its
- * own id up, so the cap only bounds the column a hostile caller fills. */
-const OPERATION_ID_MAX = 100;
-
-/** Read a queued delivery's operation id from the request body. The id is
- * the replay guard's whole key, so it must be a real one. A missing id
- * means no guard. Anything that is not a plain short string claims
- * nothing. An id beside a raw token or a picked attendee id names no
- * delivery the API defines, so the request is refused, not ignored. */
-const queuedOperationId = (
+/** The three ways a request names its person. A camera read carries the
+ * ticket token it decoded. A queued check-in replaying after an outage
+ * carries only the token's keyed digest — the device never held the token.
+ * A manual pick carries the attendee id its roster option holds. A request
+ * that names none of the three names nobody. */
+const personLoader = (
+  scope: ScanScope,
   body: Record<string, unknown>,
-): string | Response | undefined => {
-  const given = body.operation_id;
-  if (given === undefined) return;
-  const shaped =
-    typeof given === "string" &&
-    given !== "" &&
-    given.length <= OPERATION_ID_MAX;
-  if (
-    !shaped ||
-    typeof body.token === "string" ||
-    typeof body.attendee_id === "number"
-  ) {
-    return apiErrorResponse("Invalid operation");
+  privateKey: CryptoKey,
+  door: string,
+): PersonLoader | null => {
+  const token = typeof body.token === "string" ? body.token : undefined;
+  const tokenHash =
+    typeof body.token_hash === "string" ? body.token_hash : undefined;
+  const attendeeId =
+    typeof body.attendee_id === "number" ? body.attendee_id : undefined;
+  if (token !== undefined) {
+    return async (): Promise<AttendeeWithBookings | null> =>
+      (await getAttendeesByTokens([token]))[0] ?? null;
   }
-  return given;
+  if (tokenHash !== undefined) {
+    return async (): Promise<AttendeeWithBookings | null> =>
+      attendeeByTokenHash(
+        tokenHash,
+        await doorAttendees([...scope.listingIds], privateKey),
+        door,
+      );
+  }
+  if (attendeeId !== undefined) {
+    return async (): Promise<AttendeeWithBookings | null> =>
+      (await attendeeById(attendeeId)) ?? null;
+  }
+  return null;
 };
 
 /** Validate scan controls and load the request's decryption key. */
 export const processScan = async (
   scope: ScanScope,
   body: Record<string, unknown>,
+  door: string,
 ): Promise<Response> => {
   if (body.quantity !== undefined && !isAdmitCount(body.quantity)) {
     return apiErrorResponse("Invalid quantity");
   }
-  const operationId = queuedOperationId(body);
-  if (operationId instanceof Response) return operationId;
+  const delivery = queuedDelivery(body);
+  if (delivery instanceof Response) return delivery;
   const privateKey = await scannerPrivateKey();
   if (privateKey instanceof Response) return privateKey;
-  const cameraRead = typeof body.token === "string";
-  const load = attendeeLoader(scope, body, privateKey);
+  const load = personLoader(scope, body, privateKey, door);
   if (!load) return apiErrorResponse("Missing token");
   // A camera token is the credential the guest presented. The answer can
   // name a wrong door, and the credential is what force overrides. A
@@ -369,63 +421,11 @@ export const processScan = async (
     load,
     {
       count: isAdmitCount(body.quantity) ? body.quantity : undefined,
-      force: body.force === true && cameraRead,
+      force: body.force === true && typeof body.token === "string",
       idVerified: body.id_verified === true,
     },
     privateKey,
-    !cameraRead,
-    operationId,
+    typeof body.token !== "string",
+    delivery,
   );
 };
-
-/** How a scan request names its attendee. A camera read carries the ticket
- * token it decoded. A queued check-in replaying after an outage carries
- * only the token's digest — the device never held the token. A manual pick
- * carries the attendee id its roster option holds. A request that names
- * none of the three returns no loader. */
-const attendeeLoader = (
-  scope: ScanScope,
-  body: Record<string, unknown>,
-  privateKey: CryptoKey,
-): (() => Promise<AttendeeWithBookings | null>) | null => {
-  if (typeof body.token === "string") {
-    return async (): Promise<AttendeeWithBookings | null> =>
-      (await getAttendeesByTokens([body.token as string]))[0] ?? null;
-  }
-  if (typeof body.token_hash === "string") {
-    return loadByTokenHash(body.token_hash as string, scope, privateKey);
-  }
-  if (typeof body.attendee_id === "number") {
-    return async (): Promise<AttendeeWithBookings | null> =>
-      (await getAttendeesByIdsWithBookings([body.attendee_id as number])).get(
-        body.attendee_id as number,
-      ) ?? null;
-  }
-  return null;
-};
-
-/** Resolve a queued check-in's token digest against the door's own tickets.
- * The digest the device stored names nobody on its own. It must match one
- * token of this door's listings. A digest from another door answers
- * not_found, never a roster. */
-const loadByTokenHash =
-  (
-    tokenHash: string,
-    scope: ScanScope,
-    privateKey: CryptoKey,
-  ): (() => Promise<AttendeeWithBookings | null>) =>
-  async () => {
-    const candidates = await doorAttendees([...scope.listingIds], privateKey);
-    for (const candidate of candidates) {
-      if ((await sha256Hex(candidate.ticket_token)) === tokenHash) {
-        // The line came from the door's own read moments ago, so the
-        // attendee read cannot miss. A miss is a broken invariant.
-        return requiredMapValue(
-          await getAttendeesByIdsWithBookings([candidate.id]),
-          candidate.id,
-          "Missing attendee for a matched ticket digest",
-        );
-      }
-    }
-    return null;
-  };

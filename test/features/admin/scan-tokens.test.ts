@@ -5,8 +5,10 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { sha256Hex } from "#crypto/sha256.ts";
+import { deriveDoorCacheKey } from "#crypto/hashing.ts";
+import { hmacHex, sha256Hex } from "#crypto/sha256.ts";
 import { handleRequest } from "#routes";
+import { doorCacheName } from "#routes/admin/scan-tokens.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookTestAttendee,
@@ -27,7 +29,7 @@ import {
   refundedOrderWithALiveOrder,
   scanAtDoor,
   withoutWrappedPrivateKey,
-} from "./support.ts";
+} from "./scanner/support.ts";
 
 /** The door's token list, fetched the way the scanner page fetches it. */
 const tokensAsScanner = async (
@@ -56,6 +58,27 @@ const savedGroupHashes = async (
   return json;
 };
 
+/** The digest one door's saved list holds for one token: HMAC-SHA256 under
+ * that door's derived cache key, the same construction the device runs. */
+const doorDigest = async (
+  kind: "group" | "listing",
+  id: number,
+  token: string,
+): Promise<string> =>
+  hmacHex(deriveDoorCacheKey(doorCacheName(kind, id)), token);
+
+/** The group door saved exactly one code: the keyed digest of one person's
+ * ticket, and nothing else. */
+const expectSavedGroupHashes = async (
+  door: Awaited<ReturnType<typeof groupDoor>>,
+  attendee: { ticket_token: string },
+): Promise<void> => {
+  const json = await savedGroupHashes(door.group.id);
+  expect(json).toEqual({
+    hashes: [await doorDigest("group", door.group.id, attendee.ticket_token)],
+  });
+};
+
 describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
   test("a listing door's list answers its tickets only as digests", async () => {
     const first = await createTestAttendeeWithToken("Pia", "pia@example.com", {
@@ -74,12 +97,41 @@ describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
     );
     expect(status).toBe(200);
     const digests = await Promise.all(
-      [first.token, second.token].map(sha256Hex),
+      [first.token, second.token].map((token) =>
+        doorDigest("listing", first.listing.id, token),
+      ),
     );
     expect(json).toEqual({ hashes: digests.sort() });
     // The credential itself never leaves the server.
     expect(JSON.stringify(json)).not.toContain(first.token);
     expect(JSON.stringify(json)).not.toContain(second.token);
+  });
+
+  test("a list digest is keyed, not the token's plain SHA-256", async () => {
+    // The list's whole defence rests on the door's key: a copied list must
+    // digest nothing by itself, so its entries cannot be the plain digests
+    // a stolen list could brute-force, and the same ticket reads as a
+    // different code at every door.
+    const first = await createTestAttendeeWithToken("Nia", "nia@example.com", {
+      name: "Keyed door",
+    });
+    const { cookie } = await createTestScannerSession();
+
+    const { json } = await tokensAsScanner(
+      `/admin/listing/${first.listing.id}/scan-tokens`,
+      cookie,
+    );
+    const plain = await sha256Hex(first.token);
+    expect(JSON.stringify(json)).not.toContain(plain);
+    const otherDoor = await doorDigest(
+      "listing",
+      first.listing.id + 1,
+      first.token,
+    );
+    expect(JSON.stringify(json)).not.toContain(otherDoor);
+    expect(json).toEqual({
+      hashes: [await doorDigest("listing", first.listing.id, first.token)],
+    });
   });
 
   test("a listing with no tickets answers an empty list", async () => {
@@ -156,7 +208,11 @@ describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
     expect(status).toBe(200);
     expect(quizToken).not.toBe(talkToken);
     expect(shopToken).toMatch(/^[0-9A-F]{10}$/);
-    const digests = await Promise.all([quizToken, talkToken].map(sha256Hex));
+    const digests = await Promise.all(
+      [quizToken, talkToken].map((token) =>
+        doorDigest("group", group.id, token),
+      ),
+    );
     expect(json).toEqual({ hashes: digests.sort() });
     // No member token of any kind travels, the shop's included.
     expect(JSON.stringify(json)).not.toContain(shopToken);
@@ -193,9 +249,8 @@ describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
       "Merged",
       "merged@example.com",
     );
-    const json = await savedGroupHashes(door.group.id);
     // The live order still gets in, so its one digest travels.
-    expect(json).toEqual({ hashes: [await sha256Hex(attendee.ticket_token)] });
+    await expectSavedGroupHashes(door, attendee);
   });
 
   test("a ticket the door already used stays in the list", async () => {
@@ -211,8 +266,7 @@ describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
       token: attendee.ticket_token,
     });
     expect(used.json.status).toBe("checked_in");
-    const json = await savedGroupHashes(door.group.id);
-    expect(json).toEqual({ hashes: [await sha256Hex(attendee.ticket_token)] });
+    await expectSavedGroupHashes(door, attendee);
   });
 
   test("an unknown group answers 404", async () => {

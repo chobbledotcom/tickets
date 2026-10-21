@@ -3,6 +3,7 @@
  * Used by both Stripe and Square webhook signature implementations.
  */
 
+import { importHmacKey } from "#crypto/sha256.ts";
 import { constantTimeCodesEqual } from "#crypto/utils.ts";
 
 /** Constant-time string comparison (over UTF-16 char codes) to prevent timing
@@ -15,21 +16,19 @@ export const secureCompare = (a: string, b: string): boolean =>
     (i) => b.charCodeAt(i) || 0,
   );
 
-/** Compute HMAC-SHA256 using Web Crypto API, returning raw ArrayBuffer */
+/** Compute HMAC-SHA256 using Web Crypto API, returning raw ArrayBuffer. The
+ * signing key comes from `#crypto/sha256.ts`, the one HMAC import both
+ * sides of a digest comparison run. */
 export const computeHmacSha256 = async (
   data: Uint8Array,
   secret: string,
-): Promise<ArrayBuffer> => {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { hash: "SHA-256", name: "HMAC" },
-    false,
-    ["sign"],
+): Promise<ArrayBuffer> =>
+  crypto.subtle.sign(
+    "HMAC",
+    await importHmacKey(new TextEncoder().encode(secret)),
+    // A plain ArrayBuffer-backed copy, so any caller's byte view signs.
+    new Uint8Array(data),
   );
-  return crypto.subtle.sign("HMAC", key, new Uint8Array(data));
-};
 
 /** Convert ArrayBuffer to hex string */
 export const hmacToHex = (buf: ArrayBuffer): string =>

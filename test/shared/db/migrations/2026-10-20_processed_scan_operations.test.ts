@@ -15,7 +15,7 @@ describeWithEnv(
       // partial upgrade would record itself as applied.
       expect(migration().id).toBe("2026-10-20_processed_scan_operations");
       expect(migration().requires).toEqual({
-        indexes: [],
+        indexes: ["idx_processed_scan_operations_delivery"],
         newTables: ["processed_scan_operations"],
       });
     });

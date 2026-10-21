@@ -140,15 +140,32 @@ export const hashSessionToken = async (token: string): Promise<TokenHash> => {
 };
 
 /**
+ * HMAC-SHA256 of one text under a caller-supplied key. Each purpose derives
+ * its own key. The blind index uses the site key. A door's cache key uses
+ * the site key and the door's name. No two uses share a key.
+ */
+export const hmacWithKey = (key: Uint8Array, value: string): Uint8Array => {
+  const mac = createHmac("sha256", key);
+  mac.update(new TextEncoder().encode(value));
+  return new Uint8Array(mac.digest());
+};
+
+/**
  * HMAC-SHA256 hash using DB_ENCRYPTION_KEY
  * Used for blind indexes and hashing limited keyspace values
  * Returns deterministic output for same input (unlike encrypt)
  */
-export const hmacHashSync = (value: string): BlindIndex => {
-  const mac = createHmac("sha256", getEncryptionKeyBytes());
-  mac.update(new TextEncoder().encode(value));
-  return toBase64(new Uint8Array(mac.digest())) as BlindIndex;
-};
+export const hmacHashSync = (value: string): BlindIndex =>
+  toBase64(hmacWithKey(getEncryptionKeyBytes(), value)) as BlindIndex;
 
 export const hmacHash = async (value: string): Promise<BlindIndex> =>
   hmacHashSync(value);
+
+/**
+ * The key one door's offline scan cache digests under. The HMAC runs under
+ * the site's encryption key with the door's name as the only variation. The
+ * scanner page carries the key, so the device can digest scans offline. The
+ * cache response itself never carries the key.
+ */
+export const deriveDoorCacheKey = (door: string): Uint8Array =>
+  hmacWithKey(getEncryptionKeyBytes(), `door-scan-cache v1\n${door}`);

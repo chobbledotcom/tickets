@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { runDatabasePruning } from "#db/prune.ts";
+import {
+  PRUNE_SCAN_OPERATIONS_RETENTION_MS,
+  runDatabasePruning,
+} from "#db/prune.ts";
 import { createSession, getAllSessions } from "#db/sessions.ts";
 import { settings } from "#db/settings.ts";
 import {
@@ -23,6 +26,7 @@ import {
   insertContactPreference,
   insertLoginAttempt,
   insertOrphanAttendee,
+  insertScanOperation,
   insertString,
   insertStrings,
   insertSumupCheckout,
@@ -30,6 +34,7 @@ import {
   loginAttemptExists,
   oldOrphanIso,
   paymentExists,
+  scanOperationExists,
   stringExists,
   sumupCheckoutExists,
   tokenAttemptExists,
@@ -331,6 +336,30 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       // watching. The operator's own purge page reads the same rule.
       expect(await attendeeExists(id)).toBe(true);
       expect(await paymentExists("ps-orphan-held")).toBe(true);
+    });
+  });
+
+  describe("pruneProcessedScanOperations", () => {
+    test("deletes rows past the retention window", async () => {
+      const stale = new Date(
+        nowMs() - PRUNE_SCAN_OPERATIONS_RETENTION_MS - 60_000,
+      ).toISOString();
+      await insertScanOperation("stale-delivery", stale);
+
+      await runDatabasePruning();
+
+      expect(await scanOperationExists("stale-delivery")).toBe(false);
+    });
+
+    test("keeps a delivery whose retry window is still open", async () => {
+      await insertScanOperation(
+        "fresh-delivery",
+        new Date(nowMs()).toISOString(),
+      );
+
+      await runDatabasePruning();
+
+      expect(await scanOperationExists("fresh-delivery")).toBe(true);
     });
   });
 });

@@ -11,6 +11,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { t } from "#i18n";
+import { doorCacheName } from "#routes/admin/scan-tokens.ts";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import {
   type DoorPaths,
@@ -40,6 +41,12 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** The world's group doors, keyed by the name the story calls the group. */
 const doorIdNamed = whatWasKeptFor("group_door");
+
+/** The cache name a group door in the story digests under. */
+export const groupCacheName = (
+  world: TicketsWorld,
+  groupName: string,
+): string => doorCacheName("group", doorIdNamed(world, groupName));
 
 /** One group door's own pages: its scanner, and the door it answers. */
 export const groupDoorPaths = (

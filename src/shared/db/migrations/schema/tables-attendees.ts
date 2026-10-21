@@ -2,6 +2,7 @@
 
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { statefulColumns } from "./columns.ts";
+import { createdColumn } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 
 export const attendeeTables: [name: string, table: Table][] = [
@@ -252,14 +253,29 @@ export const attendeeTables: [name: string, table: Table][] = [
   ],
 
   // The door's replay ledger for queued offline check-ins: one row per
-  // operation id a hash admission claimed, so a retried delivery can
-  // never admit a second ticket. Holds the id alone — no ticket token,
-  // digest, or guest detail.
+  // delivery a hash admission claimed, keyed by the operation id and the
+  // token digest together. The same pair that retries is one retry. The
+  // same id beside another ticket's digest is another delivery, and it
+  // claims its own row. A row keeps the listings its delivery admitted, so
+  // a retry answers the tier the first send put in. No ticket token and no
+  // guest detail rests here. The digest is the delivery's own identity,
+  // and the retention window bounds its stay.
   [
     "processed_scan_operations",
     {
-      columns: [["operation_id", "TEXT PRIMARY KEY"]],
-      indexes: [],
+      columns: [
+        ["operation_id", "TEXT NOT NULL"],
+        ["token_hash", "TEXT NOT NULL"],
+        ["listing_ids", "TEXT NOT NULL"],
+        createdColumn,
+      ],
+      indexes: [
+        {
+          columns: ["operation_id", "token_hash"],
+          name: "idx_processed_scan_operations_delivery",
+          unique: true,
+        },
+      ],
     },
   ],
 
