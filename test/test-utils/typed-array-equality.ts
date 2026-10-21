@@ -10,13 +10,23 @@ import { expect } from "@std/expect";
  * string key per index, so comparing 64KB of bytes costs ~566ms. This answers
  * for pairs of typed arrays instead, leaving every other pair untouched.
  *
- * Known difference: extra properties hung off a typed array are ignored, since
- * spotting them needs the `Object.keys` call that makes the built-in slow.
+ * The built-in also walks every own property beyond the indices, string or
+ * symbol. A pair where either side carries such properties goes back to it,
+ * so the fast path never calls a pair equal when the built-in would not.
  */
 
 /** A DataView has no elements to walk, so leave it to the built-in. */
 const isTypedArray = (value: unknown): value is Uint8Array =>
   ArrayBuffer.isView(value) && !(value instanceof DataView);
+
+/**
+ * Tells whether the array carries own enumerable properties beyond its
+ * indices. The key count spots the string extras; symbols never sit on a
+ * typed array unless someone adds one.
+ */
+const hasExtraOwnProperties = (value: Uint8Array): boolean =>
+  Object.keys(value).length !== value.length ||
+  Object.getOwnPropertySymbols(value).length > 0;
 
 /**
  * Compares numbers the way the built-in does: two NaNs are equal and `0`
@@ -37,6 +47,7 @@ expect.addEqualityTesters([
     // Uint8Array and a subclass against its base.
     if (a.constructor !== b.constructor) return false;
     if (a.length !== b.length) return false;
+    if (hasExtraOwnProperties(a) || hasExtraOwnProperties(b)) return;
     return sameElements(a, b);
   },
 ]);
