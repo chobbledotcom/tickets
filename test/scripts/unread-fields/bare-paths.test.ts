@@ -107,6 +107,22 @@ const vendorGraph = (vendorLocal: string | null): InfoJson => ({
   ],
 });
 
+/** The graph for an entry that imports an extensionless subpath of a
+ * package that names no export map: the compiler enters the folder the
+ * subpath names on its own. */
+const valibotSubpathGraph: InfoJson = {
+  ...valibotGraph,
+  modules: [
+    {
+      local: null,
+      npmPackage: "valibot@1.4.1",
+      specifier: "npm:/valibot@1.4.1/lib",
+    },
+    entryImportingValibotByCode,
+  ],
+  redirects: { "npm:valibot@^1.4.1": "npm:/valibot@1.4.1/lib" },
+};
+
 describe("paths from deno info", () => {
   test("maps a bare npm specifier to its cached package folder", () => {
     expect(
@@ -377,6 +393,38 @@ describe("paths from deno info", () => {
     ).toThrow(
       "The graph resolves npm:/valibot@1.4.1 to " +
         "/home/me/.cache/deno/npm/registry.npmjs.org/valibot/1.4.1, and the cache holds no such folder",
+    );
+  });
+
+  test("accepts a directory subpath of a package that names no export map", () => {
+    expect(
+      pathsFromInfo(
+        valibotSubpathGraph,
+        "/home/me/.cache/deno/npm",
+        noExportMaps,
+        undefined,
+        (path) => path.endsWith("/lib"),
+      ),
+    ).toEqual({
+      valibot: [
+        "/home/me/.cache/deno/npm/registry.npmjs.org/valibot/1.4.1/lib",
+      ],
+    });
+  });
+
+  test("says so when an unmapped subpath names no file and no folder", () => {
+    expect(() =>
+      pathsFromInfo(
+        valibotSubpathGraph,
+        "/home/me/.cache/deno/npm",
+        noExportMaps,
+        undefined,
+        holdsNoFolder,
+      ),
+    ).toThrow(
+      "The cached package at " +
+        "/home/me/.cache/deno/npm/registry.npmjs.org/valibot/1.4.1 resolves its /lib to " +
+        "/home/me/.cache/deno/npm/registry.npmjs.org/valibot/1.4.1/lib, and the cache holds no such file or folder",
     );
   });
 });

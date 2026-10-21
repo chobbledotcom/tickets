@@ -228,23 +228,28 @@ const exportsTargetOf = (
 
 /** The cached file one subpath of a package sits at: the file the package's
  * own export map names, or the subpath's plain file when the package names
- * no map. The file the answer names has to sit in the cache, because a map
- * that names an absent file would leave the compiler to resolve nothing, and
- * the scan would shrink in silence. */
+ * no map. The file a map names has to sit in the cache, because a map that
+ * names an absent file would leave the compiler to resolve nothing, and the
+ * scan would shrink in silence. A package that names no map can leave an
+ * extensionless or directory subpath to the compiler's own resolution. The
+ * cache only needs to hold the folder for such a target. */
 const subpathTargetOf = (
   folder: string,
   subpath: string,
   sources: Sources,
 ): string => {
-  const target =
-    exportsTargetOf(sources.exportsOf(folder), subpath, folder) ??
-    `${folder}${subpath}`;
-  if (!sources.holds(target)) {
+  const mapped = exportsTargetOf(sources.exportsOf(folder), subpath, folder);
+  const target = mapped ?? `${folder}${subpath}`;
+  if (sources.holds(target)) return target;
+  if (mapped === undefined && sources.holdsFolder(target)) return target;
+  if (mapped === undefined) {
     throw new Error(
-      `The cached package at ${folder} maps its ${subpath} to ${target}, and the cache holds no such file`,
+      `The cached package at ${folder} resolves its ${subpath} to ${target}, and the cache holds no such file or folder`,
     );
   }
-  return target;
+  throw new Error(
+    `The cached package at ${folder} maps its ${subpath} to ${target}, and the cache holds no such file`,
+  );
 };
 
 /** The cached path one npm module sits at, or nothing when the graph names no
