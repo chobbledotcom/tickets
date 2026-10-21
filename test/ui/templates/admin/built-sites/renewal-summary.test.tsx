@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
@@ -35,15 +36,18 @@ describe("RenewalTierSummary", () => {
       />,
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<th>Tier</th><th class="col-quantity">Months per unit</th><th class="col-amount">Unit price</th><th class="col-quantity">Units sold</th>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<tr><td><a href="/admin/listing/41">Starter &lt;Tier&gt;</a></td><td class="col-quantity">3</td><td class="col-amount">${formatCurrency(1250)}</td><td class="col-quantity">7</td></tr>`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<tr><td><a href="/admin/listing/42">Free tier</a></td><td class="col-quantity">12</td><td class="col-amount">${formatCurrency(0)}</td><td class="col-quantity">0</td></tr>`,
     );
-    expect(html).not.toContain("No renewal tier listing is configured.");
+    assert(!html.includes("No renewal tier listing is configured."));
   });
 });

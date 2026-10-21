@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
@@ -24,12 +24,12 @@ describe("built site maintenance panel", () => {
       }),
     );
 
-    expect(html).toContain("/admin/built-sites/42/provision-scheduler");
-    expect(html).toContain("Set up scheduled maintenance");
-    expect(html).toContain("on the builder");
-    expect(html).toContain('<div class="prose">');
-    expect(html).not.toContain("stage-scheduler");
-    expect(html).not.toContain("Site key");
+    assertStringIncludes(html, "/admin/built-sites/42/provision-scheduler");
+    assertStringIncludes(html, "Set up scheduled maintenance");
+    assertStringIncludes(html, "on the builder");
+    assertStringIncludes(html, '<div class="prose">');
+    assert(!html.includes("stage-scheduler"));
+    assert(!html.includes("Site key"));
   });
 
   test("shows the site key with a resend action", () => {
@@ -43,16 +43,17 @@ describe("built site maintenance panel", () => {
       }),
     );
 
-    expect(html).toContain(`<code>${TEST_SCHEDULED_KEY}</code>`);
-    expect(html).toContain(
+    assertStringIncludes(html, `<code>${TEST_SCHEDULED_KEY}</code>`);
+    assertStringIncludes(
+      html,
       `<strong>Site key</strong> <code>${TEST_SCHEDULED_KEY}</code>`,
     );
-    expect(html).toContain("/admin/built-sites/42/provision-scheduler");
-    expect(html).toContain("Send key to site again");
-    expect(html).not.toContain("stage-scheduler");
-    expect(html).not.toContain("promote-scheduler");
-    expect(html).toContain("No Uptime Kuma monitor exists for this site");
-    expect(html).toContain("/admin/built-sites/42/add-uptime-monitor");
+    assertStringIncludes(html, "/admin/built-sites/42/provision-scheduler");
+    assertStringIncludes(html, "Send key to site again");
+    assert(!html.includes("stage-scheduler"));
+    assert(!html.includes("promote-scheduler"));
+    assertStringIncludes(html, "No Uptime Kuma monitor exists for this site");
+    assertStringIncludes(html, "/admin/built-sites/42/add-uptime-monitor");
   });
 
   test("shows monitor details without exposing its request headers", () => {
@@ -74,13 +75,13 @@ describe("built site maintenance panel", () => {
       }),
     );
 
-    expect(html).toContain("A child");
-    expect(html).toContain("Chobble Tickets");
-    expect(html).toContain("Every 15 minutes");
-    expect(html).toContain("POST");
-    expect(html).toContain("Active");
-    expect(html).not.toContain("Authorization");
-    expect(html).not.toContain("add-uptime-monitor");
+    assertStringIncludes(html, "A child");
+    assertStringIncludes(html, "Chobble Tickets");
+    assertStringIncludes(html, "Every 15 minutes");
+    assertStringIncludes(html, "POST");
+    assertStringIncludes(html, "Active");
+    assert(!html.includes("Authorization"));
+    assert(!html.includes("add-uptime-monitor"));
   });
 
   test("shows Kuma connection errors", () => {
@@ -91,9 +92,9 @@ describe("built site maintenance panel", () => {
       }),
     );
 
-    expect(html).toContain("Uptime Kuma could not be checked");
-    expect(html).toContain("connection refused");
-    expect(html).not.toContain("add-uptime-monitor");
+    assertStringIncludes(html, "Uptime Kuma could not be checked");
+    assertStringIncludes(html, "connection refused");
+    assert(!html.includes("add-uptime-monitor"));
   });
 
   test("asks for the site key before offering a missing monitor", () => {
@@ -104,10 +105,11 @@ describe("built site maintenance panel", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "Set up scheduled maintenance before you add the monitor",
     );
-    expect(html).not.toContain("add-uptime-monitor");
+    assert(!html.includes("add-uptime-monitor"));
   });
 
   test("shows paused monitors with a seconds interval", () => {
@@ -129,8 +131,8 @@ describe("built site maintenance panel", () => {
       }),
     );
 
-    expect(html).toContain("Paused");
-    expect(html).toContain("Every 45 seconds");
+    assertStringIncludes(html, "Paused");
+    assertStringIncludes(html, "Every 45 seconds");
   });
 });
 
@@ -150,14 +152,14 @@ describe("secrets panel", () => {
         },
       }),
     );
-    expect(html).toContain("/admin/built-sites/9/add-secrets");
-    expect(html).toContain("<code>NTFY_URL</code>");
-    expect(html).toContain("<code>STORAGE_ZONE_KEY</code>");
-    expect(html).toContain("Set 2 missing secret(s)");
-    expect(html).toContain("host-level infrastructure credentials");
-    expect(html).toContain("Secrets currently on this site");
-    expect(html).toContain("<code>DB_ENCRYPTION_KEY</code>");
-    expect(html).toContain('<div class="prose">');
+    assertStringIncludes(html, "/admin/built-sites/9/add-secrets");
+    assertStringIncludes(html, "<code>NTFY_URL</code>");
+    assertStringIncludes(html, "<code>STORAGE_ZONE_KEY</code>");
+    assertStringIncludes(html, "Set 2 missing secret(s)");
+    assertStringIncludes(html, "host-level infrastructure credentials");
+    assertStringIncludes(html, "Secrets currently on this site");
+    assertStringIncludes(html, "<code>DB_ENCRYPTION_KEY</code>");
+    assertStringIncludes(html, '<div class="prose">');
   });
 
   test("omits empty present and infrastructure sections", () => {
@@ -173,8 +175,8 @@ describe("secrets panel", () => {
         },
       }),
     );
-    expect(html).not.toContain("Secrets currently on this site");
-    expect(html).not.toContain("host-level infrastructure credentials");
+    assert(!html.includes("Secrets currently on this site"));
+    assert(!html.includes("host-level infrastructure credentials"));
   });
 
   test("confirms when every expected secret is present", () => {
@@ -190,10 +192,11 @@ describe("secrets panel", () => {
         },
       }),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<output class="success">All expected secrets are present',
     );
-    expect(html).not.toContain("add-secrets");
+    assert(!html.includes("add-secrets"));
   });
 
   test("shows provider errors", () => {
@@ -203,13 +206,14 @@ describe("secrets panel", () => {
         view: { error: "provider failed", ok: false },
       }),
     );
-    expect(html).toContain("provider failed");
-    expect(html).toContain('<div class="prose">');
-    expect(html).not.toContain("add-secrets");
+    assertStringIncludes(html, "provider failed");
+    assertStringIncludes(html, '<div class="prose">');
+    assert(!html.includes("add-secrets"));
   });
 
   test("shows when secret status is unavailable", () => {
-    expect(String(SecretsPanel({ site }))).toContain(
+    assertStringIncludes(
+      String(SecretsPanel({ site })),
       '<p class="prose">Secrets status is unavailable',
     );
   });
@@ -227,10 +231,10 @@ describe("secrets panel", () => {
         },
       }),
     );
-    expect(html).toContain("Pair warning");
-    expect(html).toContain("rejects every contact form submission");
-    expect(html).toContain('name="confirm_pair_secrets"');
-    expect(html).toContain("required");
+    assertStringIncludes(html, "Pair warning");
+    assertStringIncludes(html, "rejects every contact form submission");
+    assertStringIncludes(html, 'name="confirm_pair_secrets"');
+    assertStringIncludes(html, "required");
   });
 
   test("separates multiple missing infrastructure secrets", () => {
@@ -247,8 +251,8 @@ describe("secrets panel", () => {
       }),
     );
 
-    expect(html).toContain("Heads up:</strong> some of these");
-    expect(html).toContain("STORAGE_ZONE_NAME, STORAGE_ZONE_KEY");
+    assertStringIncludes(html, "Heads up:</strong> some of these");
+    assertStringIncludes(html, "STORAGE_ZONE_NAME, STORAGE_ZONE_KEY");
   });
 
   test("shows a single present secret", () => {
@@ -265,8 +269,8 @@ describe("secrets panel", () => {
       }),
     );
 
-    expect(html).toContain("Secrets currently on this site");
-    expect(html).toContain("<code>DB_URL</code>");
+    assertStringIncludes(html, "Secrets currently on this site");
+    assertStringIncludes(html, "<code>DB_URL</code>");
   });
 });
 
@@ -287,17 +291,19 @@ describe("update panel", () => {
 
   test("shows the versions and update action when behind", () => {
     const html = render();
-    expect(html).toContain("Thu, 01 Jan 2026 00:00:00 UTC");
-    expect(html).toContain("2099-01-01 - Big Update (v2099-01-01-120000)");
-    expect(html).toContain(
+    assertStringIncludes(html, "Thu, 01 Jan 2026 00:00:00 UTC");
+    assertStringIncludes(html, "2099-01-01 - Big Update (v2099-01-01-120000)");
+    assertStringIncludes(
+      html,
       "<strong>Latest known release:</strong> 2099-01-01 - Big Update",
     );
-    expect(html).toContain("An update is available");
-    expect(html).toContain("/admin/built-sites/42/update");
+    assertStringIncludes(html, "An update is available");
+    assertStringIncludes(html, "/admin/built-sites/42/update");
   });
 
   test("shows up-to-date state", () => {
-    expect(render({ updateAvailable: false, upToDate: true })).toContain(
+    assertStringIncludes(
+      render({ updateAvailable: false, upToDate: true }),
       '<output class="success">This site is on the latest known release',
     );
   });
@@ -309,28 +315,31 @@ describe("update panel", () => {
       updateAvailable: false,
     });
 
-    expect(html).toContain("<strong>Site version:</strong> </p>");
-    expect(html).not.toContain("must not replace the stored label");
+    assertStringIncludes(html, "<strong>Site version:</strong> </p>");
+    assert(!html.includes("must not replace the stored label"));
   });
 
   test("shows unknown when no database keys are stored", () => {
-    expect(
+    assertStringIncludes(
       render({ siteVersionLabel: null, updateAvailable: false }),
-    ).toContain("no read-only database credentials");
+      "no read-only database credentials",
+    );
   });
 
   test("shows the site version read error", () => {
-    expect(
+    assertStringIncludes(
       render({
         siteVersionError: "connection refused",
         siteVersionLabel: null,
         updateAvailable: false,
       }),
-    ).toContain("connection refused");
+      "connection refused",
+    );
   });
 
   test("shows when no release has been checked", () => {
-    expect(render({ latestVersion: "", updateAvailable: false })).toContain(
+    assertStringIncludes(
+      render({ latestVersion: "", updateAvailable: false }),
       "None checked yet",
     );
   });
@@ -341,7 +350,7 @@ describe("update panel", () => {
       updateAvailable: false,
       upToDate: false,
     });
-    expect(html).toContain("Automatic update needs the provider API key");
-    expect(html).not.toContain("Update this site");
+    assertStringIncludes(html, "Automatic update needs the provider API key");
+    assert(!html.includes("Update this site"));
   });
 });
