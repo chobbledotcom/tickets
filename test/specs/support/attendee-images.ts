@@ -8,13 +8,8 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { hashEmail, saveContactRecord } from "#db/contact-preferences.ts";
 import { getNoteRows } from "#db/notes/queries.ts";
-import { t } from "#i18n";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { openRecord, recordFor } from "#test/specs/support/contact-records.ts";
 import {
-  type NoteAPictureAboutOnePerson,
   type NoteImage,
   requiredWorldValue,
   type TicketsWorld,
@@ -23,7 +18,6 @@ import { makeImage } from "#test-utils/admin-images.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
-import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -91,13 +85,6 @@ export const regionShowsPicture = (
   expect(region).not.toContain("img#");
 };
 
-/** Hold the page as a whole to the picture: it shows at its own address, and
- * no reference stays anywhere on the page. */
-export const pageShowsPicture = (html: string, world: TicketsWorld): void => {
-  expect(html).toContain(pictureTag(world));
-  expect(html).not.toContain("img#");
-};
-
 /** The picture the story named, uploaded now. The world keeps it as the
  * picture the story's reference points at; the caller writes the words that
  * name it. */
@@ -159,63 +146,6 @@ export const notedAboutWithPicture = async (
   const [row] = await getNoteRows("attendee", [attendeeId]);
   world.noteImage = { ...picture, noteId: row!.id, noteText: typed };
 };
-
-/** The site keeps a private note about someone, with a picture named in it,
- * and that someone is booked with the email the record is filed under. */
-export const recordNoteWithPicture: NoteAPictureAboutOnePerson = async (
-  world,
-  who,
-  name,
-) => {
-  const { picture, typed } = await typedNoteWithPicture(
-    world,
-    who,
-    name,
-    "Called first.",
-  );
-  await saveContactRecord(await hashEmail(emailFor(who)), {
-    adminBookingCount: 0,
-    adminNotes: typed,
-    contactCount: 0,
-    lastContact: "",
-    lastSubject: "",
-    publicBookingCount: 0,
-    visits: 0,
-  });
-  world.noteImage = { ...picture, noteText: typed };
-};
-
-/** Someone's record, opened through the same one-way code the record page
- * files them under. */
-export const openRecordFor = (
-  world: TicketsWorld,
-  who: string,
-): Promise<TestBrowser> => openRecord(world, emailFor(who));
-
-/** The organiser saves someone's record with a note past the length limit,
- * with the picture named in it. The site re-renders the editor in place, so
- * the page they are left reading carries the refusal and the note they sent. */
-export const saveRecordWithOverLongNote = async (
-  world: TicketsWorld,
-  who: string,
-): Promise<TestBrowser> => {
-  const image = noteImage(world);
-  const overLong = `Still here. ![${image.alt}](img#${image.id}) ${"x".repeat(MAX_TEXTAREA_LENGTH)}`;
-  const browser = await openRecordFor(world, who);
-  await browser.submitForm(
-    { admin_notes: overLong, public_booking_count: "0" },
-    "Save record",
-  );
-  return browser;
-};
-
-/** The words the site shows when a note arrives past the length limit. */
-export const noteTooLongMessage = (): string =>
-  t("contact_history.note_too_long", { max: MAX_TEXTAREA_LENGTH });
-
-/** The note the site kept about them, read back for the unchanged check. */
-export const noteKeptAbout = async (who: string): Promise<string> =>
-  (await recordFor(emailFor(who))).adminNotes;
 
 /** The note page's own address for the note a story wrote. */
 export const noteDeletePath = (world: TicketsWorld): string => {

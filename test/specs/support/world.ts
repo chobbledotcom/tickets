@@ -46,15 +46,6 @@ export type ActOnOnePerson = (
   world: TicketsWorld,
   who: string,
 ) => Promise<void>;
-
-/** A fixture the story runs about one person and the picture's name: it sets
- * the world up so a note or a question names that picture. */
-export type NoteAPictureAboutOnePerson = (
-  world: TicketsWorld,
-  who: string,
-  name: string,
-) => Promise<void>;
-
 export type ActOnSomeMoney = (
   world: TicketsWorld,
   amount: string,
