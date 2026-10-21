@@ -86,7 +86,8 @@ Feature: An owner writes the front pages of the site
       Given the public site is on
       And the owner has uploaded a picture called "Rules"
       When the owner writes the terms with the picture in it
-      Then a visitor on the terms page sees the picture
+      Then the owner is told the terms saved
+      And a visitor on the terms page sees the picture
 
     @case:front-pages.unknown-picture-keeps-its-describing-words
     Scenario: The homepage names a picture that is not there

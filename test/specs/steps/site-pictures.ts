@@ -2,7 +2,6 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import {
   newcomerReading,
@@ -35,6 +34,7 @@ import {
 } from "#test/specs/support/site-pictures.ts";
 import { openTicket } from "#test/specs/support/tickets.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -55,13 +55,14 @@ const expectFooterPicture = (world: TicketsWorld, html: string): void => {
   expect(html).not.toContain("img#");
 };
 
-/** The story's picture shows inside the site footer on the page at one
- * address. */
-const footerShowsPicture = async (
+/** The page somebody opened shows the story's picture in its site footer,
+ * and the site answered it with the status the story expects. */
+const footerShowsPicture = (
   world: TicketsWorld,
-  path: string,
-): Promise<void> => {
-  const browser = await openAsNewcomer(path);
+  answered: number,
+  browser: TestBrowser,
+): void => {
+  expect(browser.answered).toBe(answered);
   expectFooterPicture(world, browser.currentHtml);
 };
 
@@ -134,17 +135,24 @@ Given(
   },
 );
 
+/** The owner saves the terms through the settings form that renders the
+ * field, so a broken form fails the story rather than a direct write. */
+const ownerWritesTerms = (world: TicketsWorld, words: string): Promise<void> =>
+  organiserPressesOnPage(world, "/admin/settings", "Save Terms", {
+    terms_and_conditions: words,
+  });
+
 When(
   "the owner writes the terms saying {string}",
   function (this: TicketsWorld, words: string): Promise<void> {
-    return settings.update.terms(words);
+    return ownerWritesTerms(this, words);
   },
 );
 
 When(
   "the owner writes the terms with the picture in it",
   function (this: TicketsWorld): Promise<void> {
-    return settings.update.terms(textWithSitePicture(this));
+    return ownerWritesTerms(this, textWithSitePicture(this));
   },
 );
 
@@ -208,15 +216,15 @@ Then(
 
 Then(
   "a visitor on the front page sees the picture in the footer",
-  function (this: TicketsWorld): Promise<void> {
-    return footerShowsPicture(this, "/");
+  async function (this: TicketsWorld): Promise<void> {
+    footerShowsPicture(this, 200, await openAsNewcomer("/"));
   },
 );
 
 Then(
   "a visitor asking for a page nobody wrote still sees the picture in the footer",
-  function (this: TicketsWorld): Promise<void> {
-    return footerShowsPicture(this, "/page/no-such-page");
+  async function (this: TicketsWorld): Promise<void> {
+    footerShowsPicture(this, 404, await openAsNewcomer("/page/no-such-page"));
   },
 );
 
@@ -231,75 +239,79 @@ Then(
 
 Then(
   "a visitor on the list sees the picture in the footer",
-  function (this: TicketsWorld): Promise<void> {
-    return footerShowsPicture(this, "/listings");
+  async function (this: TicketsWorld): Promise<void> {
+    footerShowsPicture(this, 200, await openAsNewcomer("/listings"));
   },
 );
 
 Then(
   "a visitor on the contact page sees the picture in the footer",
-  function (this: TicketsWorld): Promise<void> {
-    return footerShowsPicture(this, "/contact");
+  async function (this: TicketsWorld): Promise<void> {
+    footerShowsPicture(this, 200, await openAsNewcomer("/contact"));
   },
 );
 
 Then(
   "a visitor on the terms page sees the picture in the footer",
-  function (this: TicketsWorld): Promise<void> {
-    return footerShowsPicture(this, "/terms");
+  async function (this: TicketsWorld): Promise<void> {
+    footerShowsPicture(this, 200, await openAsNewcomer("/terms"));
   },
 );
 
 Then(
   "a visitor on the order page sees the picture in the footer",
-  function (this: TicketsWorld): Promise<void> {
-    return footerShowsPicture(this, "/order");
+  async function (this: TicketsWorld): Promise<void> {
+    footerShowsPicture(this, 200, await openAsNewcomer("/order"));
   },
 );
 
 Then(
   "a visitor on the news page sees the picture in the footer",
-  function (this: TicketsWorld): Promise<void> {
-    return footerShowsPicture(this, "/news");
+  async function (this: TicketsWorld): Promise<void> {
+    footerShowsPicture(this, 200, await openAsNewcomer("/news"));
   },
 );
 
 Then(
   "a visitor following the {string} post from the news page sees the picture in the footer",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    const browser = await openAsNewcomer(await newsLinkTo(name));
-    expectFooterPicture(this, browser.currentHtml);
+    footerShowsPicture(this, 200, await openAsNewcomer(await newsLinkTo(name)));
   },
 );
 
 Then(
   "a visitor reading {string} sees the picture in the footer",
-  function (this: TicketsWorld, address: string): Promise<void> {
-    return footerShowsPicture(this, `/page/${address}`);
+  async function (this: TicketsWorld, address: string): Promise<void> {
+    footerShowsPicture(this, 200, await openAsNewcomer(`/page/${address}`));
   },
 );
 
 Then(
   "a visitor on the {word}'s booking page sees the picture in the footer",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    const browser = await openBookingPage(listingNamed(this, name));
-    expectFooterPicture(this, browser.currentHtml);
+    footerShowsPicture(
+      this,
+      200,
+      await openBookingPage(listingNamed(this, name)),
+    );
   },
 );
 
 Then(
   "a visitor opening the ticket they were given sees the picture in the footer",
   async function (this: TicketsWorld): Promise<void> {
-    const browser = await openTicket(this);
-    expectFooterPicture(this, browser.currentHtml);
+    footerShowsPicture(this, 200, await openTicket(this));
   },
 );
 
 Then(
   "a visitor opening the {word}'s booking page inside another website sees no site footer",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    const { slug } = listingNamed(this, name);
-    const browser = await openAsNewcomer(`/ticket/${slug}?iframe=true`);
+    const listing = listingNamed(this, name);
+    const browser = await openAsNewcomer(`/ticket/${listing.slug}?iframe=true`);
+    expect(browser.answered).toBe(200);
+    expect(browser.currentHtml).toContain(listing.name);
+    expect(browser.currentHtml).toContain("Continue");
     expect(browser.currentHtml).not.toContain('<footer class="site-footer">');
     expect(browser.currentHtml).not.toContain(sitePictureTag(this));
   },
