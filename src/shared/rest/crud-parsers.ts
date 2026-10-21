@@ -262,7 +262,9 @@ export type EntityHandler<Row> = (
  * Calls withAuth, fetches the entity by ID, and passes it to the callback.
  * Returns 404 automatically if the entity doesn't exist. The policy is
  * required: every route declares the audience its matching admin page grants,
- * so no extra route can fall back to an undeclared one.
+ * so no extra route can fall back to an undeclared one. A resource whose write
+ * path answers the same not-found passes its builder, so one function owns the
+ * message shape.
  */
 export const withApiEntity = <Row>(
   request: Request,
@@ -271,10 +273,12 @@ export const withApiEntity = <Row>(
   notFoundLabel: string,
   handler: EntityHandler<Row>,
   policy: AuthPolicy<"json">,
+  notFound: () => Response = () =>
+    apiErrorResponse(`${notFoundLabel} not found`, 404),
 ): Promise<Response> =>
   withAuth(request, policy, async (session, body) => {
     const row = await lookup(id);
-    if (!row) return apiErrorResponse(`${notFoundLabel} not found`, 404);
+    if (!row) return notFound();
     return handler(row, session, body);
   });
 
@@ -301,6 +305,7 @@ export const apiEntityGate =
     lookup: (id: number) => Promise<Row | null>,
     notFoundLabel: string,
     policy: AuthPolicy<"json">,
+    notFound?: () => Response,
   ) =>
   (
     request: Request,
@@ -314,4 +319,5 @@ export const apiEntityGate =
       notFoundLabel,
       withSession(handler),
       policy,
+      notFound,
     );

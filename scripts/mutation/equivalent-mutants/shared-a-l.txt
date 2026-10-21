@@ -326,7 +326,7 @@ src/shared/bulk-email-targets/registry.ts::firstTarget~0ltwke4  ?? → || audite
 
 # The optional parameters are Record<string, unknown> | undefined: undefined
 # is the only absent value, so ?? and || read identically over the type.
-src/shared/admin-api-example.ts::crudDocs.created~0epxqlj  ?? → || audited:0h2dj0b # newRecordDefaults is undefined or a truthy record object
-src/shared/admin-api-example.ts::crudDocs.created~0lfuyxn  ?? → || audited:0h2dj0b # freshRecord is undefined or a truthy record object
+src/shared/admin-api-example/endpoint-doc.ts::crudDocs.created~0epxqlj  ?? → || audited:1nwgp80 # newRecordDefaults is undefined or a truthy record object
+src/shared/admin-api-example/endpoint-doc.ts::crudDocs.created~0lfuyxn  ?? → || audited:1nwgp80 # freshRecord is undefined or a truthy record object
 src/shared/entity-pages/core.ts::resolveTabSlug~14y75uy  ?? → || audited:13evilg # the named branch only runs for a non-empty requested slug, and the found tab carries that same slug; only undefined reaches the null fallback
 src/shared/admin-pages.ts::adminLandingPath~17bpn1g  ?? → || audited:14t8438 # landingFor[adminLevel] answers undefined or a declared route id, and every route id is a non-empty literal

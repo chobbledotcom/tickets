@@ -42,6 +42,7 @@ import {
   parseAndValidate,
   type RowBodyHandler,
 } from "#shared/rest/crud-parsers.ts";
+import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import type { Result } from "#shared/result.ts";
 import { SITE_ADMIN_LEVELS, type SitePage, type SitePageItem } from "#types";
 import { planParentChange, toPageWrite } from "./api-site-pages-input.ts";
@@ -104,8 +105,14 @@ const toRow = (
 const pageNotFound = (): Response =>
   apiErrorResponse(`${ENTRY.label} not found`, 404);
 
-/** The gate every id-addressed route loads its page through. */
-const pageGate = apiEntityGate(getSitePageById, ENTRY.label, SITE_API);
+/** The gate every id-addressed route loads its page through. Its not-found is
+ *  the same answer the write path gives a page that vanished mid-update. */
+const pageGate = apiEntityGate(
+  getSitePageById,
+  ENTRY.label,
+  SITE_API,
+  pageNotFound,
+);
 
 /** Serve `handler` with the page the route's id param names. */
 const withPage =
@@ -151,6 +158,13 @@ const handleCreate: RouteHandlerFn = (request) =>
     }),
   );
 
+/** What each failed update answers: the write's own not-found, or the form's
+ *  taken-slug refusal. */
+const updateRefusal: Record<"notFound" | "slugTaken", () => Response> = {
+  notFound: pageNotFound,
+  slugTaken: () => apiErrorResponse(t("site.pages.error.slug_taken")),
+};
+
 /** The update's transactional half: the row write and the parent edge commit
  *  together. The update's own refusals (a taken slug, a row that vanished)
  *  write nothing, so they return cleanly. Only a lost eligibility race
@@ -167,22 +181,14 @@ const writeUpdate = async (
       throw new TransactionValidationError(t("site.pages.error.ineligible"));
     }
     return { row: result.value };
-  }).catch((error: unknown) => {
-    if (error instanceof TransactionValidationError) {
-      return { conflict: t("site.pages.error.ineligible") } as const;
-    }
-    throw error;
-  });
+  }).catch((error: unknown) => ({
+    conflict: transactionValidationMessageOrRethrow(error),
+  }));
   if ("conflict" in outcome) {
     return { refusal: apiErrorResponse(outcome.conflict) };
   }
   if ("error" in outcome) {
-    return {
-      refusal:
-        outcome.error === "slugTaken"
-          ? apiErrorResponse(t("site.pages.error.slug_taken"))
-          : pageNotFound(),
-    };
+    return { refusal: updateRefusal[outcome.error]() };
   }
   return outcome;
 };

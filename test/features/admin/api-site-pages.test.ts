@@ -1,6 +1,7 @@
 // Contract tests for the site-pages admin JSON API: the content-page CRUD
 // (site_pages rows, addressed by id), the fixed pages (home, contact, terms,
-// addressed by name), and the refusals both carry. Technical surface — direct
+// addressed by name), and the refusals both carry. The input mapping's field
+// refusals live in api-site-pages-input.test.ts. Technical surface — direct
 // Deno tests (E2E_TESTS.md); the form-side parity pins live in
 // test/features/admin/parity/site-pages.test.ts.
 import { expect } from "@std/expect";
@@ -156,80 +157,6 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       );
     });
 
-    test("refuses a non-string name with the field message", async () => {
-      await assertJson(
-        apiRequest("/api/admin/site-pages", {
-          body: { name: 42, slug: "named-42" },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("name must be a string");
-        },
-      );
-    });
-
-    test("refuses a non-boolean hidden flag with the field message", async () => {
-      await assertJson(
-        apiRequest("/api/admin/site-pages", {
-          body: { hidden: "yes", name: "Boxy", slug: "boxy" },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("hidden must be a boolean");
-        },
-      );
-    });
-
-    test("refuses a reserved slug with the form's message", async () => {
-      await assertJson(
-        apiRequest("/api/admin/site-pages", {
-          body: { name: "Home page", slug: "home" },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "That slug is reserved — please choose another.",
-          );
-        },
-      );
-    });
-
-    test("refuses a slug a listing owns with the form's message", async () => {
-      const listing = await createTestListing({ name: "Kayak" });
-      await assertJson(
-        apiRequest("/api/admin/site-pages", {
-          body: { name: "Kayak page", slug: listing.slug },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "That slug is already in use by a listing, group, or page.",
-          );
-        },
-      );
-    });
-
-    test("refuses a name past the form's length cap with its message", async () => {
-      await assertJson(
-        apiRequest("/api/admin/site-pages", {
-          body: { name: "x".repeat(251), slug: "long-name" },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            t("fields.validation.max_length", {
-              label: t("site.pages.field.name"),
-              max: 250,
-            }),
-          );
-        },
-      );
-    });
   });
 
   describe("PUT /api/admin/site-pages/:pageId", () => {
@@ -354,6 +281,37 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       );
     });
 
+    test("refuses a slug a listing owns with the form's message", async () => {
+      const page = await createTestSitePage("visit", { name: "Visit" });
+      const listing = await createTestListing({ name: "Kayak" });
+
+      await assertJson(
+        apiRequest(`/api/admin/site-pages/${page.id}`, {
+          body: { slug: listing.slug },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(t("site.pages.error.slug_taken"));
+        },
+      );
+    });
+
+    test("refuses a parent that names no page with the form's message", async () => {
+      const page = await createTestSitePage("visit", { name: "Visit" });
+
+      await assertJson(
+        apiRequest(`/api/admin/site-pages/${page.id}`, {
+          body: { parent: 99999999 },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(t("site.pages.error.ineligible"));
+        },
+      );
+    });
+
     test("logs the update the way the form's save does", async () => {
       const page = await createTestSitePage("visit", { name: "Visit" });
       await apiRequest(`/api/admin/site-pages/${page.id}`, {
@@ -374,6 +332,25 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       const orphan = await getSitePageById(child.id);
       expect(orphan).not.toBeNull();
       expect(await wasActivityLogged("Page 'Visit' deleted")).toBe(true);
+    });
+
+    test("refuses a delete whose name confirmation does not match", async () => {
+      const page = await createTestSitePage("visit", { name: "Visit" });
+
+      await assertJson(
+        apiRequest(`/api/admin/site-pages/${page.id}`, {
+          body: { confirm_identifier: "Wrong" },
+          method: "DELETE",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "Page name does not match. Please provide the exact page name in confirm_identifier.",
+          );
+        },
+      );
+      // The page survives the refused delete.
+      expect(await getSitePageById(page.id)).not.toBeNull();
     });
   });
 });
