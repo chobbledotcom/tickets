@@ -199,13 +199,20 @@ export const setRequestEffectiveDomain = (domain: string): void => {
 };
 
 /** The shared empty table reads get before a loader writes. */
-const noPageImageUrls: ReadonlyMap<number, string> = new Map();
+const noImageUrls: ReadonlyMap<number, string> = new Map();
 
 /** The live request's page-image table, or an empty one before any loader
  * writes. Outside a request there is nothing to read, so a render resolves
  * no img#N reference. */
 export const getPageImageUrls = (): ReadonlyMap<number, string> =>
-  currentRequestStore()?.pageImageUrls ?? noPageImageUrls;
+  currentRequestStore()?.pageImageUrls ?? noImageUrls;
+
+/** The live request's footer-image table, or an empty one before any loader
+ * writes. The footer render passes this table explicitly: renderMarkdown's
+ * default reads the page's table, and a footer image must not depend on the
+ * page body's references. */
+export const getFooterImageUrls = (): ReadonlyMap<number, string> =>
+  currentRequestStore()?.footerImageUrls ?? noImageUrls;
 
 /** Detect iframe mode from a request URL and store it for the current request.
  * A no-op outside a request, so a direct render cannot set the ambient mode. */
