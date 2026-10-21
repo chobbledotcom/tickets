@@ -30,6 +30,7 @@ import {
   setText,
 } from "./cart-dom.ts";
 import { forEachMatch } from "./dom.ts";
+import { storedArray } from "./stored-array.ts";
 
 // Injected by the server immediately above this module body.
 declare const CATALOG: Catalog;
@@ -188,10 +189,9 @@ class CartController {
     }
     if (!raw) return [];
     try {
-      const parsed = JSON.parse(raw);
       // Untrusted host-page state, not app data: keep only well-formed entries
       // so a corrupt value like `[null]` cannot throw in reconcile().
-      return Array.isArray(parsed) ? parsed.filter(isCartLine) : [];
+      return storedArray(raw, isCartLine);
     } catch {
       // Bad JSON from the host page — discard it but keep using storage.
       debugLog("discarding corrupt stored cart");

@@ -24,6 +24,11 @@ export const LIBRARY_PATHS = [
   "shared/site-pages/core.ts",
   "shared/db/site-pages.ts",
   "shared/db/site-page-items.ts",
+  // The offline scanner split is foundation-first: the digest store landed
+  // before the offline-mode layer that consumes it (scanner-offline.ts and
+  // the scanner page), so its exports have no production caller in this
+  // layer. The mode layer deletes this entry when its wiring lands.
+  "ui/client/scanner-door-store.ts",
 ];
 
 /** Index modules that only re-export from sub-modules */

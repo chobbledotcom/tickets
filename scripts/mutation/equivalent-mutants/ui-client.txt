@@ -181,3 +181,7 @@ src/ui/client/scanner.js::init~12c1xgq messageScanning→"" audited:09espsq # th
 src/ui/client/scanner.js::init~12c1xgq Scanning...→"" audited:09espsq # the camera page always renders data-message-scanning, so the fallback copy never shows
 src/ui/client/scanner.js::init.csrfToken~0ke2mq5 →"mutated" audited:09espsq # the scanner page's headExtra always renders the csrf meta, so the empty fallback never fires
 
+# The scanner door's offline store (scanner-door-store.ts): the entry validator
+# runs only inside parseQueuedCheckIn's try, whose catch removes the entry.
+src/ui/client/scanner-door-store.ts::isQueuedCheckIn~0iwnv64  || → && audited:1f85sjt # the guard's only caller wraps it in a catch that removes the entry; the one divergent input is a stored null, which throws into that same catch and lands on the same removal
+
