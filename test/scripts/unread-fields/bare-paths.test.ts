@@ -130,9 +130,7 @@ describe("paths from deno info", () => {
         },
       ],
     };
-    expect(
-      pathsFromAFilledCache(graph, "/home/me/.cache/deno/npm"),
-    ).toEqual({
+    expect(pathsFromAFilledCache(graph, "/home/me/.cache/deno/npm")).toEqual({
       valibot: ["/home/me/.cache/deno/npm/registry.npmjs.org/valibot/1.4.1"],
     });
   });
@@ -329,9 +327,7 @@ describe("paths from deno info", () => {
         },
       },
     };
-    expect(
-      pathsFromAFilledCache(graph, "/home/me/.cache/deno/npm"),
-    ).toEqual({
+    expect(pathsFromAFilledCache(graph, "/home/me/.cache/deno/npm")).toEqual({
       valibot: ["/home/me/.cache/deno/npm/registry.npmjs.org/valibot/1.4.1"],
     });
   });
