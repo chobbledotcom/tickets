@@ -380,7 +380,7 @@ export interface Attendee extends ContactInfo {
   status_id: number | null;
   ticket_token: string;
   ticket_token_index: BlindIndex;
-  /** Registration webhooks still owed (0 = sent, 1 = owed). */
+  /** Registration webhooks still owed: 0 none, 1 booked online, 2 added by an admin. */
   webhooks_pending: number;
 }
 
