@@ -40,14 +40,27 @@ self.addEventListener("activate", (event) => {
 
 const staleWhileRevalidate = async (request) => {
   const cache = await caches.open(CACHE);
-  const cached = await cache.match(request);
+  // The precache and the refreshes sit under the bare pathname. A
+  // cache-busted request then reads the stored entry and replaces it, and
+  // no variant piles up per build.
+  const key = new URL(request.url).pathname;
+  const cached = await cache.match(key);
   const refresh = fetch(request)
     .then((response) => {
-      cache.put(request, response.clone());
+      // A deploy's 404 or 500 must not become the stored copy the door then
+      // serves offline.
+      if (response.ok) cache.put(key, response.clone());
       return response;
     })
-    .catch(() => undefined);
-  return cached ?? (await refresh);
+    .catch(() => {
+      // A failed refresh keeps the stored copy. A miss with no connection
+      // answers the 503 below.
+    });
+  return (
+    cached ??
+    (await refresh) ??
+    new Response("", { status: 503, statusText: "Offline" })
+  );
 };
 
 self.addEventListener("fetch", (event) => {
