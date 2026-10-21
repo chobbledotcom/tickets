@@ -110,6 +110,24 @@ Then(
 );
 
 Then(
+  "the door page offers an offline mode switch",
+  function (this: TicketsWorld): void {
+    const page = scannerBrowser(this).currentHtml;
+    expect(page).toContain('id="scanner-offline-toggle"');
+    expect(page).toContain(t("admin.scanner.offline_mode"));
+  },
+);
+
+Then(
+  "the door page says the scan is kept and checks the person in when the connection returns",
+  function (this: TicketsWorld): void {
+    const page = scannerBrowser(this).currentHtml;
+    expect(page).toContain(t("admin.scanner.offline_banner_auto"));
+    expect(page).toContain(t("admin.scanner.offline_queued"));
+  },
+);
+
+Then(
   "the ticket page offers to check them out",
   function (this: TicketsWorld): void {
     expect(scannerBrowser(this).currentHtml).toContain(
