@@ -9,7 +9,11 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { getNoteRows } from "#db/notes/queries.ts";
-import type { NoteImage, TicketsWorld } from "#test/specs/support/world.ts";
+import {
+  type NoteImage,
+  requiredWorldValue,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -27,10 +31,8 @@ export const NOTE_LISTING = "Fayre";
 /** The picture a story named, or a loud failure when none was seeded. */
 const noteImage = (
   world: TicketsWorld,
-): { alt: string; filename: string; id: number; noteText: string } => {
-  expect(world.noteImage).toBeDefined();
-  return world.noteImage!;
-};
+): { alt: string; filename: string; id: number; noteText: string } =>
+  requiredWorldValue(world.noteImage, "the picture a story named");
 
 /** The picture, exactly as the site writes it: its own address in place of
  * the reference. */
