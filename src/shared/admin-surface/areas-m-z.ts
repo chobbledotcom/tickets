@@ -74,7 +74,9 @@ export const AREAS_M_Z = {
     audience: DOOR_ADMIN_LEVELS,
     view: {
       doors: "/admin/scanner",
+      groupScanCache: "/admin/groups/:id/scan-cache",
       groupScanner: "/admin/groups/:id/scanner",
+      listingScanCache: "/admin/listing/:id/scan-cache",
       listingScanner: "/admin/listing/:id/scanner",
     },
   },
