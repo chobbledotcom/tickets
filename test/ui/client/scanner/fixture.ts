@@ -134,6 +134,7 @@ export const SCANNER_PAGE = `
     data-message-offline-cache-missing="No offline ticket list yet. Go online and reload this page first."
     data-message-offline-invalid="This ticket cannot be checked in offline. Scan it again when you are back online to see why."
     data-message-offline-queued="Ticket looks valid. It will be checked in when you are back online."
+    data-message-offline-save-failed="This scan was not saved. Free up space on this device, then scan it again."
     data-message-queue-count-one="{count} queued check-in"
     data-message-queue-count-other="{count} queued check-ins"
     data-message-queue-item-already="Was already checked in"
@@ -142,12 +143,15 @@ export const SCANNER_PAGE = `
     data-message-queue-item-queued="Waiting — will be checked in when online"
     data-message-queue-item-refunded="Refunded — not checked in"
     data-message-queue-item-still-queued="Not sent yet — still queued"
+    data-message-queue-save-failed="This device could not save the queued check-ins. Free up space, then reload this page."
     data-message-refunded="{name} has been refunded"
     data-message-scanning="Scanning..."
     data-message-select-quantity="How many tickets for {name}?"
     data-message-skipped="Skipped {name}"
     data-message-sync-done="Queued tickets are done."
+    data-message-sync-holds="Checking in queued tickets. Scan again when done."
     data-message-sync-running="Checking in queued tickets..."
+    data-message-sync-still-queued="Some tickets are still queued. The page will try to check them in again."
     data-message-ticket-count-one="{count} ticket"
     data-message-ticket-count-other="{count} tickets"
     data-message-verify-id-confirm="Does their ID match &quot;{name}&quot;?"
@@ -160,7 +164,7 @@ export const SCANNER_PAGE = `
     <video class="hidden" data-scan-path="/admin/groups/5/scan" id="scanner-video" muted playsinline></video>
     <div class="hidden" id="scanner-status"></div>
     <div class="hidden" id="scanner-queue">
-      <p id="scanner-queue-summary"></p>
+      <p aria-live="polite" id="scanner-queue-summary"></p>
       <ul id="scanner-queue-items"></ul>
     </div>
     <div class="hidden" id="scanner-quantity">
