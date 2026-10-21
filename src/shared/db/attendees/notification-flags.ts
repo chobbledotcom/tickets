@@ -136,8 +136,8 @@ export const restoreClaimedNotificationFlags = (
  * about that booking's listing alone. An attendee-wide read omits it, so
  * the badge asks about every positive booking the person holds. Writes
  * store the contact fields as the parser's own trimmed tokens. The read
- * wraps the stored value in commas and folds one space or non-breaking
- * space at a token edge. A padded value still reads as its tokens. A
+ * splits the stored value on commas and trims each token of spaces and
+ * non-breaking spaces. A padded value still reads as its tokens. A
  * token with an inner space never matches. Ghost lines (quantity 0) are
  * not bookings. */
 export const emailOwedSql = (
@@ -152,8 +152,17 @@ export const emailOwedSql = (
         ? ""
         : `\n    AND owed_line.listing_id = ${listingRef}`
     }
-    AND instr(REPLACE(REPLACE(REPLACE(REPLACE(',' || owed_listing.fields || ',',
-        ', ', ','), ' ,', ','), CHAR(160) || ',', ','), ',' || CHAR(160), ','), ',email,') > 0
+    AND EXISTS (
+      WITH RECURSIVE owed_field(rest, field) AS (
+        SELECT owed_listing.fields || ',', ''
+        UNION ALL
+        SELECT substr(rest, instr(rest, ',') + 1),
+               trim(substr(rest, 1, instr(rest, ',') - 1), ' ' || CHAR(160))
+        FROM owed_field
+        WHERE instr(rest, ',') > 0
+      )
+      SELECT 1 FROM owed_field WHERE field = 'email'
+    )
 )`;
 
 /** An owed-email projection for one alias: the attendee columns read through
@@ -175,7 +184,7 @@ export const emailOwedColumn: EmailOwedProjection = (attendeeRef, listingRef) =>
  * badge whose row the shared attendee read did not produce. A token entry
  * builds its view from the booking and the listing the entry names. Writes
  * and the fields trim migration store the fields as the parser's own
- * tokens, so the parser reads the same tokens the SQL folds match. */
+ * tokens, so the parser reads the same tokens the SQL splits out. */
 export const listingCollectsEmail = (listing: { fields: string }): boolean =>
   parseListingFields(listing.fields).includes("email");
 

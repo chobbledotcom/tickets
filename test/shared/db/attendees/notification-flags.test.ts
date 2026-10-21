@@ -103,7 +103,7 @@ describeWithEnv(
     /** Book one attendee owing only the email, store the given padded
      * fields value on its listing, and pin the owed read and the count. A
      * direct edit or a restored backup can leave pad characters at a token
-     * edge. The read folds one pad character there, so the stored token
+     * edge. The read trims the pad characters there, so the stored token
      * still reads. */
     const paddedStoredFieldsStayOwed = async (
       name: string,
@@ -131,6 +131,17 @@ describeWithEnv(
       );
     });
 
+    test("reads the owed email through a repeatedly space-padded stored fields value", async () => {
+      await paddedStoredFieldsStayOwed("Wide Padded Buyer", "   email   ");
+    });
+
+    test("reads the owed email through mixed space and non-breaking-space padding", async () => {
+      await paddedStoredFieldsStayOwed(
+        "Mixed Padded Buyer",
+        " \u00a0 \u00a0email \u00a0 ",
+      );
+    });
+
     test("reads no owed email when the stored fields only name a lookalike field", async () => {
       const { attendee, listing } = await bookTestAttendeeWithFlags(
         "Lookalike Fields Buyer",
@@ -143,6 +154,15 @@ describeWithEnv(
 
       const read = await readAttendeeBack(attendee.id);
       expect(read.email_owed).toBe(0);
+      expect(await countAttendeesWithPendingFlags()).toBe(0);
+
+      // The split keeps token edges, so a space inside a token cannot glue
+      // a lookalike into "email".
+      await execute("UPDATE listings SET fields = 'e mail' WHERE id = ?", [
+        listing.id,
+      ]);
+      const readAfterLookalike = await readAttendeeBack(attendee.id);
+      expect(readAfterLookalike.email_owed).toBe(0);
       expect(await countAttendeesWithPendingFlags()).toBe(0);
     });
 
