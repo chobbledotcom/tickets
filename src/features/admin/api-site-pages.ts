@@ -1,15 +1,14 @@
 /**
  * Admin JSON API routes for the site pages resource: the content pages
- * (site_pages rows, addressed by id). Accessible via API key or cookie+CSRF.
- * Site → Pages admits owners and editors, so the JSON API matches. The fixed
- * pages (home, contact and terms) land with their own layer.
+ * (site_pages rows, addressed by id). Site → Pages admits owners and
+ * editors, so the JSON API matches. The fixed pages (home, contact and
+ * terms) land with their own layer.
  *
- * The writes do not go through the generic CRUD writer (defineCrudApi). A
- * page create carries its root order inside the INSERT. The slug index moves
- * with the slug. Create and update go through the same DB wrappers the form
- * uses (createSitePage, updateSitePage). A delete clears the page's tree
- * edges with the row (deleteSitePageWithEdges). The parsers and the auth
- * shape are the shared ones (crud-parsers).
+ * The writes skip the generic CRUD writer (defineCrudApi): a create carries
+ * its root order inside the INSERT, and the slug index moves with the slug.
+ * Create and update go through the form's own DB wrappers (createSitePage,
+ * updateSitePage); a delete clears the tree edges with the row
+ * (deleteSitePageWithEdges). Parsers and auth are the shared ones.
  */
 
 /* jscpd:ignore-start */
