@@ -89,7 +89,7 @@ const renderQueuePanel = (panel, messages) => {
     row.textContent = getMessage(
       messages,
       "messageQueueItemQueued",
-      "Queued — will check in when online",
+      "Waiting — will be checked in when online",
     );
     panel.list.appendChild(row);
     panel.rows.push({ item, row });
@@ -177,6 +177,25 @@ export const offlineScan = async (
     );
     return;
   }
+  // The door's own last-token guard expires after the status fades, so the
+  // same ticket can reach this line twice. A second item sends the
+  // check-in twice, and the door reads that as two admissions.
+  if (
+    readQueue().some(
+      (item) => item.scanPath === scanPath && item.token === token,
+    )
+  ) {
+    showStatus(
+      statusEl,
+      getMessage(
+        messages,
+        "messageOfflineAlreadyQueued",
+        "This ticket is already queued. Do not let them in again.",
+      ),
+      "error",
+    );
+    return;
+  }
   queueCheckIn(scanPath, token);
   renderQueuePanel(panel, messages);
   showStatus(
@@ -184,7 +203,7 @@ export const offlineScan = async (
     getMessage(
       messages,
       "messageOfflineQueued",
-      "Ticket looks valid. It will check in when you are back online.",
+      "Ticket looks valid. It will be checked in when you are back online.",
     ),
     "success",
   );
@@ -281,6 +300,11 @@ export const initOfflineScanner = ({
     // Arming the mode wants a fresh list while there is still a connection.
     // Offline, the refresh fails and any stored set stands.
     if (readManualMode() && navigator.onLine) refreshQuietly();
+    // Disarming settles what the door queued while the switch held the
+    // scans, the same way a reload or a returning connection does.
+    if (!readManualMode()) {
+      syncQueue(csrfToken, statusEl, messages, panel, settleScan);
+    }
   });
 
   // Connectivity coming back settles whatever the door queued, and both

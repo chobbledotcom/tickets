@@ -10,6 +10,7 @@
  * settling the queue once the connection is back.
  */
 
+import { setTimeout as realTimeout } from "node:timers";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { sha256Hex } from "#shared/sha256.ts";
@@ -42,13 +43,9 @@ const freshCache = async (...tokens: string[]) =>
 const storedQueue = (h: ScannerHarness): { token: string }[] =>
   JSON.parse(h.window.localStorage.getItem(QUEUE_KEY) ?? "[]");
 
-/** Real timer captured before the camera fakes replace the global one: an
- * offline scan hashes with WebCrypto, whose promise settles on the event
- * loop rather than on microtasks alone. */
-const realTimeout = setTimeout;
-
 /** Drain the promise hops an offline scan needs, pumping real ticks so the
- * hash digests land. */
+ * hash digests land. The node:timers import keeps the pump on the real
+ * timer, the one the camera fakes do not replace. */
 const settleOffline = async (): Promise<void> => {
   for (let hop = 0; hop < 100; hop++) {
     await Promise.resolve();
@@ -119,6 +116,52 @@ describe("scanner offline mode", {
     await run(h, fakes);
   };
 
+  /** One booted door, online, with the switch armed and the ticket's hash
+   * on file: the shape both manual-mode tests scan against. */
+  const withManualDoor = async (
+    run: (h: ScannerHarness, fakes: CameraFakes) => Promise<void>,
+  ): Promise<void> =>
+    withOfflineDoor(
+      {
+        onLine: true,
+        seedMore: (store) => store.setItem(MODE_KEY, "1"),
+        tokens: ["tok12345"],
+      },
+      run,
+    );
+
+  /** The checked-in answer a two-ticket booking gets from the door. */
+  const checkedInTwo = (): Response =>
+    Response.json({
+      listingName: "Standard",
+      name: "Ada",
+      quantity: 2,
+      remaining: 0,
+      status: "checked_in",
+      total: 2,
+    });
+
+  /** One booted online door with the given store seed: the camera opens,
+   * the scan posts through the stubbed network, and the door answers the
+   * two-ticket check-in. The run asserts what the seed changes. */
+  const withOnlineScan = async (
+    seed: (store: Storage) => void,
+    run: (h: ScannerHarness) => Promise<void> | void,
+  ): Promise<void> => {
+    const h = fresh({ onLine: true, seed });
+    using fakes = cameraFakes(h);
+    fakes.ready(4);
+    using _fetch = stubFetch(checkedInTwo());
+
+    await start(h);
+    await scanFirst(fakes, "tok12345");
+
+    expect(h.statusEl.textContent).toBe(
+      "Ada checked in for Standard (2 tickets)",
+    );
+    await run(h);
+  };
+
   test("stores the door's ticket hashes when the page loads", async () => {
     using _fetch = stubFetch(
       Response.json({
@@ -140,7 +183,7 @@ describe("scanner offline mode", {
       await scanOffline(fakes, "tok12345");
 
       expect(h.statusEl.textContent).toBe(
-        "Ticket looks valid. It will check in when you are back online.",
+        "Ticket looks valid. It will be checked in when you are back online.",
       );
       expect(storedQueue(h)).toEqual([
         {
@@ -149,7 +192,9 @@ describe("scanner offline mode", {
           token: "tok12345",
         },
       ]);
-      expect(queueRows(h)).toEqual(["Queued — will check in when online"]);
+      expect(queueRows(h)).toEqual([
+        "Waiting — will be checked in when online",
+      ]);
       expect(queueSummary(h)).toBe("1 queued check-in");
       // No connection: the banner says why the door scans offline.
       expect(bannerText(h)).toBe(
@@ -256,7 +301,7 @@ describe("scanner offline mode", {
         tokens: ["tok12345", "tok67890"],
       },
       async (h, fakes) => {
-        await scanOffline(fakes, "tok12345");
+        await scanOffline(fakes, "tok67890", 2000);
         expect(storedQueue(h)).toHaveLength(1);
 
         // The sync's answer never arrives, so the hold stays on.
@@ -269,7 +314,9 @@ describe("scanner offline mode", {
         // A ticket scanned while the queue settles is held, not queued.
         await scanOffline(fakes, "tok67890", 2000);
         expect(storedQueue(h)).toHaveLength(1);
-        expect(queueRows(h)).toEqual(["Queued — will check in when online"]);
+        expect(queueRows(h)).toEqual([
+          "Waiting — will be checked in when online",
+        ]);
         _fetch.restore();
       },
     );
@@ -295,23 +342,101 @@ describe("scanner offline mode", {
   });
 
   test("queues a scan while the manual mode is on, even online", async () => {
-    await withOfflineDoor(
-      {
-        onLine: true,
-        seedMore: (store) => store.setItem(MODE_KEY, "1"),
-        tokens: ["tok12345"],
-      },
-      async (h, fakes) => {
-        await scanOffline(fakes, "tok12345");
+    await withManualDoor(async (h, fakes) => {
+      await scanOffline(fakes, "tok12345");
 
-        // No stub carries the answer: the scan never reached the network.
-        expect(h.statusEl.textContent).toBe(
-          "Ticket looks valid. It will check in when you are back online.",
-        );
-        expect(storedQueue(h)).toHaveLength(1);
-        expect(bannerText(h)).toBe(
-          "Offline mode is on. Scans are queued and checked in when you are back online.",
-        );
+      // No stub carries the answer: the scan never reached the network.
+      expect(h.statusEl.textContent).toBe(
+        "Ticket looks valid. It will be checked in when you are back online.",
+      );
+      expect(storedQueue(h)).toHaveLength(1);
+      expect(bannerText(h)).toBe(
+        "Offline mode is on. Scans are queued and checked in when you are back online.",
+      );
+    });
+  });
+
+  test("sends the queue when the switch turns offline mode off", async () => {
+    await withManualDoor(async (h, fakes) => {
+      await scanOffline(fakes, "tok12345");
+      expect(storedQueue(h)).toHaveLength(1);
+
+      using _fetch = stubFetch(
+        Response.json({
+          listingName: "Standard",
+          name: "Ada",
+          quantity: 1,
+          status: "checked_in",
+          total: 1,
+        }),
+      );
+      el(h.document, "scanner-offline-toggle").click();
+      await settleOffline();
+
+      expect(_fetch.calls.length).toBe(1);
+      expect(storedQueue(h)).toEqual([]);
+      expect(queueRows(h)).toEqual(["Checked in"]);
+    });
+  });
+
+  test("queues a re-scanned ticket once and says so at the door", async () => {
+    await withOfflineDoor({ tokens: ["tok12345"] }, async (h, fakes) => {
+      await scanOffline(fakes, "tok12345");
+      expect(storedQueue(h)).toHaveLength(1);
+
+      // The status line fades after five seconds, so the same ticket can
+      // reach the lens again. The loop's suppressed ticks reschedule past
+      // the clock advance's snapshot, so one more tick brings the re-scan
+      // to the lens.
+      await scanOffline(fakes, "tok12345", 7_000);
+      fakes.advance(200);
+      await settleOffline();
+
+      expect(h.statusEl.textContent).toBe(
+        "This ticket is already queued. Do not let them in again.",
+      );
+      expect(storedQueue(h)).toHaveLength(1);
+      expect(queueRows(h)).toEqual([
+        "Waiting — will be checked in when online",
+      ]);
+    });
+  });
+
+  test("keeps the door scanning when the stored queue is unreadable", async () => {
+    // A queue an older or newer build left in another shape, and a value
+    // that is no JSON at all, both read as no queue: the door boots, the
+    // online scan posts, and the unreadable value stays stored.
+    for (const broken of ['[{"scanPath": 5}]', "{oops"]) {
+      await withOnlineScan(
+        (store) => store.setItem(QUEUE_KEY, broken),
+        (h) => {
+          // The unreadable value stands: nothing deleted it on its own.
+          expect(h.window.localStorage.getItem(QUEUE_KEY)).toBe(broken);
+        },
+      );
+    }
+  });
+
+  test("keeps the door scanning when the browser blocks site data", async () => {
+    // happy-dom's store is a proxy that silently drops plain assignment to
+    // its methods, so the read is blocked with a property definition: every
+    // getItem on this store now answers a SecurityError, as a browser with
+    // site data blocked does.
+    await withOnlineScan(
+      (store) => {
+        Object.defineProperty(store, "getItem", {
+          configurable: true,
+          value: () => {
+            throw new DOMException("blocked", "SecurityError");
+          },
+          writable: true,
+        });
+      },
+      (h) => {
+        // The switch reads its blocked store as off.
+        expect(
+          el(h.document, "scanner-offline-toggle").getAttribute("aria-pressed"),
+        ).toBe("false");
       },
     );
   });

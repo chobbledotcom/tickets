@@ -113,6 +113,9 @@ const scannerMessages = (): ScannerMessages => ({
  * banner, and the queue panel, as `data-message-*` attributes. The camera
  * page is the only surface the offline scanner serves. */
 const offlineMessageAttrs = (): Record<string, string> => ({
+  "data-message-offline-already-queued": t(
+    "admin.scanner.offline_already_queued",
+  ),
   "data-message-offline-banner-auto": t("admin.scanner.offline_banner_auto"),
   "data-message-offline-banner-manual": t(
     "admin.scanner.offline_banner_manual",

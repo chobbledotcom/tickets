@@ -77,8 +77,16 @@ export const registerScannerWorker = () => {
   });
 };
 
-/** The door switch's stored position. */
-export const readManualMode = () => localStorage.getItem(MODE_KEY) === "1";
+/** The door switch's stored position. A store this page cannot read reads
+ * as off, so the page boots and scans instead of stopping. */
+export const readManualMode = () => {
+  try {
+    return localStorage.getItem(MODE_KEY) === "1";
+  } catch {
+    // Site data is blocked for this page, so nothing is read or stored.
+    return false;
+  }
+};
 
 export const writeManualMode = (on) => {
   if (on) localStorage.setItem(MODE_KEY, "1");
@@ -90,23 +98,38 @@ export const writeManualMode = (on) => {
  * can be validated at all. */
 export const offlineModeActive = () => readManualMode() || !navigator.onLine;
 
-/** The queued check-ins, oldest first. */
+/** Whether a value is the stored queue: a list where every item names its
+ * door, its token, and the moment it was queued. */
+const isStoredQueue = (value) =>
+  Array.isArray(value) &&
+  value.every(
+    (item) =>
+      typeof item.scanPath === "string" &&
+      typeof item.token === "string" &&
+      typeof item.queuedAt === "number",
+  );
+
+/** The queued check-ins, oldest first. A store the page cannot open reads
+ * as no queue. So does a queue an older or newer build left in another
+ * shape. The door keeps scanning. The raw value stays stored: the next
+ * successful write replaces it, and nothing deletes queued check-ins on
+ * its own. */
 export const readQueue = () => {
-  const raw = localStorage.getItem(QUEUE_KEY);
-  if (raw === null) return [];
-  const queue = JSON.parse(raw);
-  if (
-    !Array.isArray(queue) ||
-    !queue.every(
-      (item) =>
-        typeof item.scanPath === "string" &&
-        typeof item.token === "string" &&
-        typeof item.queuedAt === "number",
-    )
-  ) {
-    throw new Error("The stored scan queue has a bad shape");
+  let raw;
+  try {
+    raw = localStorage.getItem(QUEUE_KEY);
+  } catch {
+    // Site data is blocked for this page, so nothing is read or stored.
+    return [];
   }
-  return queue;
+  if (raw === null) return [];
+  try {
+    const queue = JSON.parse(raw);
+    if (isStoredQueue(queue)) return queue;
+  } catch {
+    // The unreadable value stands in the store until a write replaces it.
+  }
+  return [];
 };
 
 export const writeQueue = (queue) =>
