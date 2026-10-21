@@ -298,6 +298,8 @@ const MODE_PERMISSIONS: Record<StandInMode, (binDir: string) => string> = {
     )}`,
   "hold-after": () => "--allow-net",
   "hold-port": () => "--allow-net",
+  "hold-stderr": (binDir) =>
+    `--allow-run=sleep --allow-write=${shellQuote(binDir)}`,
 };
 
 /**

@@ -43,6 +43,7 @@ export const withUploadServer = async (
   run: (dbUrl: string, fetcher: typeof fetch) => Promise<void>,
 ): Promise<void> => {
   const handlerErrors: unknown[] = [];
+  const forceClose = new AbortController();
   const server = Deno.serve(
     {
       hostname: "127.0.0.1",
@@ -51,14 +52,19 @@ export const withUploadServer = async (
         return new Response(null, { status: 500 });
       },
       onListen: () => {},
-      port: 0,
+      signal: forceClose.signal,
     },
     handler,
   );
   await withCleanup(
     () => run(`https://127.0.0.1:${server.addr.port}`, localUploadFetch),
     [
-      () => withinDeadline(server.shutdown(), "Upload server shutdown"),
+      async () => {
+        // A request the client walked away from can hold the graceful
+        // shutdown open forever, so the abort closes whatever is left.
+        forceClose.abort();
+        await withinDeadline(server.shutdown(), "Upload server shutdown");
+      },
       () => throwCollectedErrors(handlerErrors),
     ],
   );

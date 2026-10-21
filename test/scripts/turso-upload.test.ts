@@ -104,6 +104,19 @@ describe("Turso upload lifecycle", () => {
     ).rejects.toBe(failure);
   });
 
+  test("closes the server when a handler outlives its client", async () => {
+    const never = Promise.withResolvers<Response>();
+    await withUploadServer(
+      () => never.promise,
+      async (dbUrl, fetcher) => {
+        // Start a request and walk away from it, as an aborted upload does.
+        void fetcher(dbUrl).catch(() => {
+          // The client walked away; the answer's failure is not this test's.
+        });
+      },
+    );
+  });
+
   test("rejects an early answer without a timeout or stray rejection", () =>
     withUploadFile(async (path) => {
       let received = 0;

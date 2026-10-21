@@ -150,4 +150,13 @@ describe("script process helpers", () => {
 
     expect(() => stopProcessNow(child)).not.toThrow();
   });
+
+  test("fails loudly when a killed child never exits", async () => {
+    const process = fakeChild((_signal, _finish) => {});
+
+    await expect(stopProcess(process.child, 1)).rejects.toThrow(
+      "child process did not exit after SIGKILL within 1ms",
+    );
+    expect(process.calls).toEqual([undefined, "SIGKILL"]);
+  });
 });
