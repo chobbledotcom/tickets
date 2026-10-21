@@ -99,6 +99,23 @@ Feature: An owner gives a door worker the scanner, and nothing else
       When Sam opens the Ceilidh door
       Then the door page says the scan is kept and checks the person in when the connection returns
 
+    @case:scanners.the-door-page-says-what-happens-from-a-kept-scan
+    Scenario: The door page says what happens from a kept scan to a checked-in person
+      Given Alice has a ticket for the Ceilidh
+      And Sam is signed in as a scanner
+      When Sam opens the Ceilidh door
+      Then the door page says the scan is kept and checks the person in when the connection returns
+      And the door page says a kept scan waits to be checked in when online
+      And the door page says the queued tickets are checked in when the connection returns
+
+    @case:scanners.the-door-page-says-what-the-offline-mode-switch-does
+    Scenario: The door page says what the offline mode switch does
+      Given Alice has a ticket for the Ceilidh
+      And Sam is signed in as a scanner
+      When Sam opens the Ceilidh door
+      Then the door page offers an offline mode switch
+      And the door page says what scanning is like with offline mode on
+
   @rule:access.a-scanner-reaches-nothing-else
   Rule: A scanner reaches nothing else
     The rest of the admin is not merely unlinked: asking for it outright is

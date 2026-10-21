@@ -137,6 +137,33 @@ Then(
 );
 
 Then(
+  "the door page says a kept scan waits to be checked in when online",
+  function (this: TicketsWorld): void {
+    expect(scannerBrowser(this).currentHtml).toContain(
+      t("admin.scanner.queue_item_queued"),
+    );
+  },
+);
+
+Then(
+  "the door page says the queued tickets are checked in when the connection returns",
+  function (this: TicketsWorld): void {
+    const page = scannerBrowser(this).currentHtml;
+    expect(page).toContain(t("admin.scanner.sync_running"));
+    expect(page).toContain(t("admin.scanner.sync_done"));
+  },
+);
+
+Then(
+  "the door page says what scanning is like with offline mode on",
+  function (this: TicketsWorld): void {
+    expect(scannerBrowser(this).currentHtml).toContain(
+      t("admin.scanner.offline_banner_manual"),
+    );
+  },
+);
+
+Then(
   "the ticket page offers to check them out",
   function (this: TicketsWorld): void {
     expect(scannerBrowser(this).currentHtml).toContain(
