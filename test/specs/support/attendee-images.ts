@@ -51,8 +51,10 @@ const regionFrom = (html: string, openMarker: string, tag: string): string => {
   const openTag = `<${tag}`;
   let start = html.lastIndexOf(openTag, markerAt);
   // A match can sit inside a longer tag's name. Hold out for a real boundary.
+  // A negative fromIndex finds the tag at 0 again, so stop at the string's
+  // start.
   while (start >= 0 && !/[\s>]/.test(html[start + openTag.length] ?? "")) {
-    start = html.lastIndexOf(openTag, start - 1);
+    start = start > 0 ? html.lastIndexOf(openTag, start - 1) : -1;
   }
   if (start < 0) return "";
   const tokens = new RegExp(`<(/?)${tag}[\\s>]`, "g");
