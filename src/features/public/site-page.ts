@@ -11,11 +11,8 @@
 
 import { hmacHash } from "#crypto/hashing.ts";
 /* jscpd:ignore-start -- imports */
-import {
-  addFooterImageUrls,
-  addPageImageUrls,
-  getImagesForItem,
-} from "#db/images.ts";
+import { addFooterImageUrls, addPageImageUrls } from "#db/image-urls.ts";
+import { getImagesForItem } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { getSitePageBySlugIndex } from "#db/site-pages.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";

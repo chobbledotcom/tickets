@@ -8,7 +8,7 @@ import {
   addPageImageUrls,
   addTicketPageImageUrls,
   imageUrlsFor,
-} from "#db/images.ts";
+} from "#db/image-urls.ts";
 import { settings } from "#db/settings.ts";
 import {
   currentRequestStore,

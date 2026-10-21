@@ -11,7 +11,7 @@ import { defineRoutes } from "#routes/router.ts";
  * the supplied content — no stored data — so widening the role leaks nothing.
  */
 
-import { addPageImageUrls } from "#db/images.ts";
+import { addPageImageUrls } from "#db/image-urls.ts";
 import { CONTENT_FORM, withAuth } from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";

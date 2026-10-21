@@ -1,6 +1,6 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { mergePageImageUrls } from "#db/images.ts";
+import { mergePageImageUrls } from "#db/image-urls.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";

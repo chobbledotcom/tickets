@@ -10,7 +10,7 @@
 
 /* jscpd:ignore-start -- imports */
 import { hmacHash } from "#crypto/hashing.ts";
-import { addFooterImageUrls } from "#db/images.ts";
+import { addFooterImageUrls } from "#db/image-urls.ts";
 import { getNewsPostBySlugIndex, getNewsPostCards } from "#db/news-posts.ts";
 import { settings } from "#db/settings.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
