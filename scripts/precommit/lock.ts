@@ -17,15 +17,15 @@ const currentUserId = (): number => {
   return uid;
 };
 
-const PRECOMMIT_LOCK_PATH = precommitLockPath(
-  Deno.env.get("TMPDIR") ?? "/tmp",
-  currentUserId(),
-);
-
 export const precommitLockAt =
   (path: string): (<T>(task: () => Promise<T>) => Promise<T>) =>
   <T>(task: () => Promise<T>): Promise<T> =>
     withFileLock(path, task);
 
 /** Prevent this user from running either precommit gate concurrently. */
-export const withPrecommitLock = precommitLockAt(PRECOMMIT_LOCK_PATH);
+export const withPrecommitLock = async <T>(
+  task: () => Promise<T>,
+): Promise<T> =>
+  await precommitLockAt(
+    precommitLockPath(Deno.env.get("TMPDIR") ?? "/tmp", currentUserId()),
+  )(task);

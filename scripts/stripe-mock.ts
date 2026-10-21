@@ -254,10 +254,7 @@ const stoppedMockStderr = async (
   spawned: SpawnedStripeMock,
   timeoutMs: number,
 ): Promise<string> => {
-  const read = spawned.stderr().then(
-    (text) => text,
-    () => "",
-  );
+  const read = spawned.stderr();
   let timer = 0;
   const giveUp = new Promise<null>((resolve) => {
     timer = setTimeout(() => resolve(null), timeoutMs);
