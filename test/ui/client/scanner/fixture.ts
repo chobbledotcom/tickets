@@ -26,7 +26,7 @@ import { afterEach } from "@std/testing/bdd";
 import type { Stub } from "@std/testing/mock";
 import { Window } from "happy-dom";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { createGlobalStash } from "#test-utils/happy-dom.ts";
+import { createGlobalStash, type GlobalStash } from "#test-utils/happy-dom.ts";
 import { rebrandedPage } from "#test-utils/rebrand-page.ts";
 
 const MODULE_MARKER = "__scannerModule";
@@ -66,9 +66,20 @@ export interface ScannerHarness {
   messages: Record<string, string>;
   module: ScannerModule;
   restore: () => void;
+  /** The overwritten global scope, so a test can re-set the connection or
+   * the local store before running the bundle again. */
+  stash: GlobalStash;
   statusEl: HTMLElement;
   video: HTMLVideoElement;
   window: Window;
+}
+
+/** The connection state a harness installs before the bundle runs. */
+export interface ScannerGlobals {
+  onLine?: boolean;
+  /** Seed the page's local store before the bundle runs — a stored ticket
+   * cache, a queued check-in, or a manual mode a reload would restore. */
+  seed?: (store: Storage) => void;
 }
 
 /** The built bundle's export tail, rewritten as a global stash: esbuild emits
@@ -95,13 +106,16 @@ const runBundleOnce = (): void => {
 };
 
 /** The scanner page's own markup, as the template renders it: the messages
- * the container carries, the camera, the status line, and the start button. */
+ * the container carries, the door's cache key, the camera, the status line,
+ * the offline banner, the queue panel, the manual toggle, and the start
+ * button. */
 const SCANNER_PAGE = `
   <meta name="csrf-token" content="csrf-page-token" />
   <div
     data-message-already-checked-in="{name} already checked in for {listingName} ({tickets})"
     data-message-checked-in="{name} checked in for {listingName} ({tickets})"
     data-message-checked-in-partial="{name} checked in for {listingName} ({tickets} of {total} tickets)"
+    data-door-cache-key="dGVzdC1kb296LWNhY2hlLWtleQ"
     data-message-camera-denied="Camera access denied"
     data-message-error="Error"
     data-message-id-mismatch="ID does not match {name}"
@@ -109,18 +123,42 @@ const SCANNER_PAGE = `
     data-message-network-error="Network error"
     data-message-no-door="This ticket has no door to check in at."
     data-message-not-found="Ticket not found"
+    data-message-offline-already-queued="This ticket is already queued. Do not let them in again."
+    data-message-offline-banner-auto="No connection. Scans are queued and checked in when you are back online."
+    data-message-offline-banner-manual="Offline mode is on. Scans are queued and checked in when you are back online."
+    data-message-offline-cache-expired="The offline ticket list has expired. Go online and reload this page."
+    data-message-offline-cache-missing="No offline ticket list yet. Go online and reload this page first."
+    data-message-offline-invalid="This ticket cannot be checked in offline. Scan it again when you are back online to see why."
+    data-message-offline-queued="Ticket looks valid. It will be checked in when you are back online."
+    data-message-queue-count-one="{count} queued check-in"
+    data-message-queue-count-other="{count} queued check-ins"
+    data-message-queue-item-already="Was already checked in"
+    data-message-queue-item-checked-in="Checked in"
+    data-message-queue-item-not-checked-in="Not checked in"
+    data-message-queue-item-queued="Waiting — will be checked in when online"
+    data-message-queue-item-refunded="Refunded — not checked in"
+    data-message-queue-item-still-queued="Not sent yet — still queued"
     data-message-refunded="{name} has been refunded"
     data-message-scanning="Scanning..."
     data-message-select-quantity="How many tickets for {name}?"
     data-message-skipped="Skipped {name}"
+    data-message-sync-done="Queued tickets are done."
+    data-message-sync-running="Checking in queued tickets..."
     data-message-ticket-count-one="{count} ticket"
     data-message-ticket-count-other="{count} tickets"
     data-message-verify-id-confirm="Does their ID match &quot;{name}&quot;?"
     data-message-wrong-listing-confirm="{name} is registered for &quot;{listingName}&quot;, not this listing. Check in anyway?"
     id="scanner-container"
   >
+    <aside class="hidden" id="scanner-offline-banner" role="status">
+      <p id="scanner-offline-banner-text"></p>
+    </aside>
     <video class="hidden" data-scan-path="/admin/groups/5/scan" id="scanner-video" muted playsinline></video>
     <div class="hidden" id="scanner-status"></div>
+    <div class="hidden" id="scanner-queue">
+      <p id="scanner-queue-summary"></p>
+      <ul id="scanner-queue-items"></ul>
+    </div>
     <div class="hidden" id="scanner-quantity">
       <p id="scanner-quantity-message"></p>
       <select id="scanner-quantity-select"></select>
@@ -135,6 +173,7 @@ const SCANNER_PAGE = `
     </div>
   </div>
   <button id="scanner-start" type="button">Start Camera</button>
+  <button aria-pressed="false" class="link-button muted" id="scanner-offline-toggle" type="button">Offline mode</button>
 `;
 
 /** The camera page as the operator's ticket-to-booking rebrand renders it:
@@ -174,12 +213,23 @@ export const el = (document: Window["document"], id: string): HTMLElement => {
  * the scanner. */
 export const evaluateBundle = (): void => runBundleOnce();
 
-export const useScanner = (page: string = SCANNER_PAGE): ScannerHarness => {
+export const useScanner = (
+  page: string = SCANNER_PAGE,
+  globals: ScannerGlobals = {},
+): ScannerHarness => {
   const window = new Window({ url: "http://localhost/" });
   const document = window.document;
   document.body.innerHTML = page;
   const stash = createGlobalStash();
   stash.set("document", document);
+  // The offline scanner reads the connection, the local store, and the
+  // worker registry off the window's globals; the stashes give the bundle
+  // the page's own pieces. Tests that need a dead connection or a queued
+  // check-in replace the navigator or seed the store before they scan.
+  stash.set("window", window);
+  stash.set("localStorage", window.localStorage);
+  stash.set("navigator", { onLine: globals.onLine ?? true });
+  globals.seed?.(window.localStorage);
 
   runBundleOnce();
 
@@ -207,6 +257,7 @@ export const useScanner = (page: string = SCANNER_PAGE): ScannerHarness => {
       stash.restore();
       delete (globalThis as Record<string, unknown>)[MODULE_MARKER];
     },
+    stash,
     statusEl: el(document, "scanner-status"),
     video: el(document, "scanner-video") as unknown as HTMLVideoElement,
     window,
@@ -217,10 +268,10 @@ export const useScanner = (page: string = SCANNER_PAGE): ScannerHarness => {
  * page torn down after it. Call inside a describe body. */
 export const useScannerSuite = (
   page: string = SCANNER_PAGE,
-): (() => ScannerHarness) => {
+): ((globals?: ScannerGlobals) => ScannerHarness) => {
   const harnesses: ScannerHarness[] = [];
-  const fresh = (): ScannerHarness => {
-    const h = useScanner(page);
+  const fresh = (globals?: ScannerGlobals): ScannerHarness => {
+    const h = useScanner(page, globals);
     harnesses.push(h);
     return h;
   };
