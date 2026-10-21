@@ -240,7 +240,7 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages, pa
         "warning",
       );
       settle = Promise.resolve();
-    } else if (offlineModeActive()) {
+    } else if (panel && offlineModeActive()) {
       settle = offlineScan(scanPath, token, statusEl, messages, panel);
     } else {
       settle = admitScan(scanPath, token, csrfToken, statusEl, messages);
@@ -275,14 +275,23 @@ const init = () => {
   const csrfToken = csrfMeta ? csrfMeta.content : "";
 
   // The offline side owns its own elements: the banner, the queue panel, and
-  // the door switch. It throws naming any one the page fails to render.
-  const panel = initOfflineScanner({
-    csrfToken,
-    messages,
-    scanPath,
-    settleScan: admitScan,
-    statusEl,
-  });
+  // the door switch. It throws naming any one the page fails to render, and
+  // its door key needs an engine with Uint8Array.fromBase64. Either failure
+  // must not take the online scanner down with it: the offline side is
+  // optional furniture, so the page degrades to the online-only scanner.
+  let panel = null;
+  try {
+    panel = initOfflineScanner({
+      csrfToken,
+      messages,
+      scanPath,
+      settleScan: admitScan,
+      statusEl,
+    });
+  } catch {
+    // The documented degrade: this page scans online only, as before the
+    // offline side existed.
+  }
 
   /** Stop all camera tracks to release the hardware */
   const stopCamera = () => {
