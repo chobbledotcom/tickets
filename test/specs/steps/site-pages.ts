@@ -251,7 +251,7 @@ Then(
 );
 
 Then(
-  "the editor offers the images {word} and {word}, in that order",
+  "the library offers the images {word} and {word}, in that order",
   async function (
     this: TicketsWorld,
     first: string,
@@ -269,7 +269,7 @@ Then(
 );
 
 Then(
-  "the editor offers no images",
+  "the library offers no images",
   async function (this: TicketsWorld): Promise<void> {
     expect(await imageChoicesOffered(this)).toEqual([]);
   },

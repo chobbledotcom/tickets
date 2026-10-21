@@ -58,7 +58,7 @@ export const imageIdNamed = async (name: string): Promise<number> => {
   return requiredWorldValue(found?.id, `the image called "${name}"`);
 };
 
-/** The image names the editor is offered, in the order the site serves them.
+/** The image names the library offers, in the order the site serves them.
  * Read through the owner's session, so a story cannot see choices a different
  * role could not load. Each field is asserted where the story reads it, so a
  * broken list fails the story loudly instead of reading as "no images
