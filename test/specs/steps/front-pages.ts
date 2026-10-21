@@ -42,6 +42,10 @@ Then(
   },
 );
 
+Then("the owner is told the terms saved", function (this: TicketsWorld): void {
+  expect(ownerLastTold(this)).toContain("Terms and conditions updated");
+});
+
 Given("the public site is on", function (this: TicketsWorld): Promise<void> {
   return enablePublicSite();
 });

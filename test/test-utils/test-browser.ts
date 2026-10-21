@@ -73,6 +73,9 @@ export class TestBrowser {
   currentUrl = "";
   /** Current page HTML content */
   currentHtml = "";
+  /** How the site answered the request that produced the page shown: the
+   * status of the page landed on, redirects followed. */
+  answered = 0;
   /** The last redirect target exactly as the server sent it, origin and all.
    * `currentUrl` keeps only the path, so this is what tells an off-site
    * destination (a payment provider) from a same-path local one. Empty when the
@@ -147,6 +150,7 @@ export class TestBrowser {
       this.currentUrl = toPath(finalLocation).split("?")[0]!;
     }
     this.currentHtml = await response.text();
+    this.answered = response.status;
     return response;
   }
 
