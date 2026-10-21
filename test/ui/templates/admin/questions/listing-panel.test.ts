@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   ListingOverviewPanel,
@@ -28,7 +28,8 @@ describe("adminListingQuestionsPage", () => {
       }),
     );
     // The empty-state prompt keeps a space before the create link.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'No questions created yet. <a href="/admin/questions">Create questions</a> first.',
     );
   });
@@ -49,12 +50,13 @@ describe("adminListingQuestionsPage", () => {
         listing,
       }),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="question_ids" type="checkbox" value="1">',
     );
     // A single space sits before the "(1 option…)" summary inside the label.
-    expect(html).toContain("<small> (1 option: Yes)</small>");
-    expect(html).not.toContain("1 options");
+    assertStringIncludes(html, "<small> (1 option: Yes)</small>");
+    assert(!html.includes("1 options"));
   });
 
   test("shows Manage questions link below form", () => {
@@ -76,8 +78,8 @@ describe("adminListingQuestionsPage", () => {
         listing,
       }),
     );
-    expect(html).toContain('href="/admin/questions"');
-    expect(html).toContain("Manage questions");
+    assertStringIncludes(html, 'href="/admin/questions"');
+    assertStringIncludes(html, "Manage questions");
   });
 
   test("lists option names in parentheses", () => {
@@ -100,7 +102,7 @@ describe("adminListingQuestionsPage", () => {
         listing,
       }),
     );
-    expect(html).toContain("3 options: S, M, L)");
+    assertStringIncludes(html, "3 options: S, M, L)");
   });
 });
 
@@ -121,7 +123,7 @@ describe("adminListingPage with questionData", () => {
         stats: overviewStatsFromAttendees(listing, []),
       }),
     );
-    expect(html).toContain("<th>Size?</th>");
-    expect(html).toContain("S (0)");
+    assertStringIncludes(html, "<th>Size?</th>");
+    assertStringIncludes(html, "S (0)");
   });
 });

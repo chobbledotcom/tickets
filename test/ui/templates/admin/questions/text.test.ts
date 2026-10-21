@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { questionTextFlat } from "#templates/admin/questions.tsx";
@@ -28,7 +29,7 @@ describe("questionTextFlat", () => {
 
   test("flattens multi-line markdown to a single line", () => {
     const result = questionTextFlat("# Heading\n\nSome **bold** text");
-    expect(result).not.toContain("\n");
+    assert(!result.includes("\n"));
     expect(result).toBe("# Heading /  / Some **bold** text");
   });
 });
