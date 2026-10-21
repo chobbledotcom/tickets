@@ -371,6 +371,16 @@ describe("the reads the scan counts", () => {
 });
 
 describe("the shapes a bare specifier holds", () => {
+  /** The source both valibot fixtures scan: a shape the package's own types
+   * decide, written against a bare import. */
+  const intentSource = [
+    'import { type InferOutput, number, object, string } from "valibot";',
+    "",
+    "const IntentSchema = object({ name: string(), count: number() });",
+    "",
+    "export type Intent = InferOutput<typeof IntentSchema>;",
+  ];
+
   /** The fields the scan reports for a repository whose import map carries
    * one specifier of the root import map, and whose entry holds the source.
    * The package warms the cache first, so the child `deno info` resolves the
@@ -381,6 +391,10 @@ describe("the shapes a bare specifier holds", () => {
   const fieldsOfFixture = async (
     name: string,
     source: readonly string[],
+    entry: { exports: unknown; file: string } = {
+      exports: "./src/index.ts",
+      file: "src/index.ts",
+    },
   ): Promise<string[]> => {
     await import(name);
     const repoRoot = fromFileUrl(new URL("../../../", import.meta.url)).replace(
@@ -400,12 +414,12 @@ describe("the shapes a bare specifier holds", () => {
       await Deno.writeTextFile(
         `${root}/deno.json`,
         JSON.stringify({
-          exports: "./src/index.ts",
+          exports: entry.exports,
           imports: { [name]: specifier },
         }),
       );
       await Deno.writeTextFile(
-        `${root}/src/index.ts`,
+        `${root}/${entry.file}`,
         [...source, ""].join("\n"),
       );
       const found = await scanUnreadFields(root);
@@ -419,14 +433,22 @@ describe("the shapes a bare specifier holds", () => {
     // Issue #2214: a bare import such as valibot resolved to `any`, so a
     // shape written with `InferOutput` reported zero fields. The mapping from
     // `deno info` gives the compiler the package's real types.
+    expect(await fieldsOfFixture("valibot", intentSource)).toEqual([
+      "Intent.count",
+      "Intent.name",
+    ]);
+  });
+
+  test("reports the fields when the entry is the root entry of a map", async () => {
+    // Deno accepts the entry as a map, `{ ".": "./src/main.ts" }`, as well
+    // as a string. An entry lookup that reads only the string falls back to
+    // the usual file, the bare imports stay unmapped, and the shapes they
+    // hold drop out of the report in silence.
     expect(
-      await fieldsOfFixture("valibot", [
-        'import { type InferOutput, number, object, string } from "valibot";',
-        "",
-        "const IntentSchema = object({ name: string(), count: number() });",
-        "",
-        "export type Intent = InferOutput<typeof IntentSchema>;",
-      ]),
+      await fieldsOfFixture("valibot", intentSource, {
+        exports: { ".": "./src/main.ts" },
+        file: "src/main.ts",
+      }),
     ).toEqual(["Intent.count", "Intent.name"]);
   });
 

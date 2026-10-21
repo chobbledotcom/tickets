@@ -30,11 +30,17 @@ const ALSO_READ = ["test", "scripts", "cli", "e2e-payments/src"];
 const isDirectory = pathIs("isDirectory");
 
 /** The module whose graph says where the bare packages sit: the repository's
- * own `exports` when it declares one, the usual entry otherwise. */
-const entryOf = (config: { exports?: unknown }): string =>
-  typeof config.exports === "string" && config.exports.length > 0
-    ? config.exports
-    : "./src/index.ts";
+ * own `exports` when it declares one, the root entry of a map included, and
+ * the usual entry otherwise. */
+const entryOf = (config: { exports?: unknown }): string => {
+  const exports = config.exports;
+  if (typeof exports === "string" && exports.length > 0) return exports;
+  if (typeof exports === "object" && exports !== null && "." in exports) {
+    const declared = exports["."];
+    if (typeof declared === "string" && declared.length > 0) return declared;
+  }
+  return "./src/index.ts";
+};
 
 const sourceFilesIn = async (root: string): Promise<string[]> => {
   if (!isDirectory(`${root}/${REPORTED}`)) {
