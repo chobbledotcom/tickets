@@ -37,7 +37,10 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-import { decodeEntities, findAllNavLinks } from "#test-utils/test-browser/parsing.ts";
+import {
+  decodeEntities,
+  findAllNavLinks,
+} from "#test-utils/test-browser/parsing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
