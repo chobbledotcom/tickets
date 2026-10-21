@@ -10,6 +10,11 @@
 
 import { answered, pathIs } from "./host.ts";
 
+/** The export map one cached npm package declares, read from the
+ * `package.json` its cache folder holds. `undefined` when the package names
+ * no map, so its subpaths are plain files of the package folder. */
+export type ExportsOf = (folder: string) => unknown;
+
 /** One dependency of a graph module, with the fields the mapping reads. */
 export interface InfoDependency {
   code?: { specifier?: string };
@@ -56,6 +61,25 @@ const isBareSpecifier = (specifier: string): boolean => {
   );
 };
 
+/** What the mapping reads the graph and the cache through: the graph itself,
+ * the cache folder it names, the export maps its packages declare, and the
+ * check that says the cache keeps a file. */
+interface Sources {
+  exportsOf: ExportsOf;
+  holds: (path: string) => boolean;
+  info: InfoJson;
+  npmCache: string;
+}
+
+/** One export map entry the mapping resolves: the cached folder that holds
+ * the package, the key the subpath matched, and the part of a pattern key
+ * the `*` stood for. */
+interface Entry {
+  folder: string;
+  key: string;
+  matched?: string;
+}
+
 /** The bare dependency one module dependency answers: the specifier as the
  * repository writes it, with the cached path that resolves it, or nothing for
  * a dependency the graph leaves unmapped. The constraint names the concrete
@@ -64,28 +88,160 @@ const resolveDependency = (
   dependency: InfoDependency,
   moduleBySpecifier: Record<string, InfoModule>,
   redirects: Record<string, string>,
-  info: InfoJson,
-  npmCache: string,
+  sources: Sources,
 ): readonly [specifier: string, target: string] | undefined => {
   const written = dependency.specifier ?? "";
   if (!isBareSpecifier(written)) return;
   const constraint =
     dependency.code?.specifier ?? dependency.type?.specifier ?? "";
   const resolved = moduleBySpecifier[redirects[constraint] ?? constraint];
-  const target = resolved && cachedPathOf(resolved, info, npmCache);
+  const target = resolved && cachedPathOf(resolved, sources);
   return target === undefined ? undefined : [written, target];
 };
 
-/** The cached folder one npm module sits in, with the module's subpath after
- * it, or nothing when the graph names no package entry. Raises when the graph
- * module does not sit under its package. */
+/** The package.json key one subpath answers: the root key for the package
+ * itself, the subpath's own key otherwise. */
+const exportKeyOf = (subpath: string): string =>
+  subpath === "" ? "." : `.${subpath}`;
+
+/** The part of a subpath a pattern key's `*` stands for, or nothing when the
+ * key is not a pattern or does not cover the subpath. */
+const patternMatch = (key: string, subpath: string): string | undefined => {
+  const star = key.indexOf("*");
+  if (star === -1) return;
+  const prefix = key.slice(0, star);
+  const suffix = key.slice(star + 1);
+  return subpath.startsWith(prefix) && subpath.endsWith(suffix)
+    ? subpath.slice(prefix.length, subpath.length - suffix.length)
+    : undefined;
+};
+
+/** The conditions the mapping reads, in the order that finds the file the
+ * compiler reads: declarations first, then the import conditions, then the
+ * conditions a package answers with when it names no narrower one. */
+const CONDITIONS = ["types", "import", "node", "default"] as const;
+
+/** The cached file one export value names, with a pattern key's `*` filled
+ * in. An export path is package-relative and always starts with `./`. */
+const exportFileOf = (value: string, entry: Entry): string => {
+  const written =
+    entry.matched === undefined ? value : value.replace("*", entry.matched);
+  if (!written.startsWith("./")) {
+    throw new Error(
+      `The package at ${entry.folder} exports ${entry.key} as ${written}, which is not a package path`,
+    );
+  }
+  return `${entry.folder}/${written.slice(2)}`;
+};
+
+/** The cached file one export value resolves to. A path answers directly; a
+ * condition map answers with the first condition it names of the ones the
+ * mapping reads. A value the mapping cannot read is one the runtime resolved
+ * some other way, so the mapping says so instead of pointing the compiler
+ * at a guess. */
+const conditionTargetOf = (value: unknown, entry: Entry): string => {
+  if (typeof value === "string") {
+    return exportFileOf(value, entry);
+  }
+  if (value === null || Array.isArray(value) || typeof value !== "object") {
+    throw new Error(
+      `The package at ${entry.folder} exports ${entry.key} through a value the mapping cannot read`,
+    );
+  }
+  const conditions = Object.entries(value);
+  for (const condition of CONDITIONS) {
+    const picked = conditions.find(([name]) => name === condition)?.[1];
+    if (picked !== undefined && picked !== null) {
+      return conditionTargetOf(picked, entry);
+    }
+  }
+  throw new Error(
+    `The package at ${entry.folder} exports ${entry.key} through conditions the mapping cannot read`,
+  );
+};
+
+/** The cached file one subpath of a package with an export map resolves to.
+ * The exact key answers first; otherwise the pattern key whose prefix before
+ * its `*` is the longest stands for the subpath. A map that answers nothing
+ * keeps the subpath out: the runtime could not have resolved it either. */
+const exportsTargetOf = (
+  exports: unknown,
+  subpath: string,
+  folder: string,
+): string | undefined => {
+  if (exports === undefined) return;
+  const key = exportKeyOf(subpath);
+  if (typeof exports === "string") {
+    throw new Error(
+      `The package at ${folder} exports only its root, not ${key}`,
+    );
+  }
+  if (
+    exports === null ||
+    Array.isArray(exports) ||
+    typeof exports !== "object"
+  ) {
+    throw new Error(
+      `The package at ${folder} declares an export map the mapping cannot read`,
+    );
+  }
+  const entries = Object.entries(exports);
+  const exact = entries.find(([entry]) => entry === key);
+  if (exact !== undefined) {
+    return conditionTargetOf(exact[1], { folder, key });
+  }
+  const patterns = entries
+    .flatMap(([entry, value]) => {
+      const matched = patternMatch(entry, key);
+      return matched === undefined ? [] : [{ entry, matched, value }];
+    })
+    .sort(
+      (one, other) =>
+        other.entry.indexOf("*") - one.entry.indexOf("*") ||
+        other.entry.length - one.entry.length,
+    );
+  if (patterns[0] === undefined) {
+    throw new Error(`The package at ${folder} exports no ${key}`);
+  }
+  return conditionTargetOf(patterns[0].value, {
+    folder,
+    key,
+    matched: patterns[0].matched,
+  });
+};
+
+/** The cached file one subpath of a package sits at: the file the package's
+ * own export map names, or the subpath's plain file when the package names
+ * no map. The file the answer names has to sit in the cache, because a map
+ * that names an absent file would leave the compiler to resolve nothing, and
+ * the scan would shrink in silence. */
+const subpathTargetOf = (
+  folder: string,
+  subpath: string,
+  sources: Sources,
+): string => {
+  const target =
+    exportsTargetOf(sources.exportsOf(folder), subpath, folder) ??
+    `${folder}${subpath}`;
+  if (!sources.holds(target)) {
+    throw new Error(
+      `The cached package at ${folder} maps its ${subpath} to ${target}, and the cache holds no such file`,
+    );
+  }
+  return target;
+};
+
+/** The cached path one npm module sits at, or nothing when the graph names no
+ * package entry. A module at the package root sits in the package folder,
+ * which the compiler reads with the package's own resolution; a subpath sits
+ * at the file the package's export map names. Raises when the graph module
+ * does not sit under its package. */
 const npmPathOf = (
   npmPackage: string,
   specifier: string,
-  info: InfoJson,
-  npmCache: string,
+  sources: Sources,
 ): string | null => {
-  const npm = info.npmPackages?.[npmPackage];
+  const npm = sources.info.npmPackages?.[npmPackage];
   if (npm === undefined) return null;
   // The graph names a module `npm:/<name>@<version>` plus its subpath, so the
   // path after the package is the subpath the compiler resolves.
@@ -95,7 +251,9 @@ const npmPathOf = (
       `The graph module ${specifier} does not sit under ${packagePrefix}`,
     );
   }
-  return `${npmFolder(npmCache, npm)}${specifier.slice(packagePrefix.length)}`;
+  const folder = npmFolder(sources.npmCache, npm);
+  const subpath = specifier.slice(packagePrefix.length);
+  return subpath === "" ? folder : subpathTargetOf(folder, subpath, sources);
 };
 
 /** The cached path one resolved module sits at, or nothing when the mapping
@@ -107,8 +265,7 @@ const npmPathOf = (
  * specifier that resolves to one unmapped. */
 const cachedPathOf = (
   resolved: InfoModule,
-  info: InfoJson,
-  npmCache: string,
+  sources: Sources,
 ): string | undefined => {
   if (resolved.npmPackage === undefined) {
     // Only a repository module's `local` names a usable file.
@@ -117,18 +274,22 @@ const cachedPathOf = (
       : undefined;
   }
   return (
-    npmPathOf(resolved.npmPackage, resolved.specifier, info, npmCache) ??
-    undefined
+    npmPathOf(resolved.npmPackage, resolved.specifier, sources) ?? undefined
   );
 };
 
 /** Each bare specifier of the graph, with the cached path that resolves it.
  * The first answer wins, because one specifier resolves one way for the whole
- * graph. */
+ * graph. An npm subpath resolves through the export map the package's cache
+ * folder declares, which `exportsOf` reads, and `holds` says whether the
+ * cache keeps the file the answer names. */
 export const pathsFromInfo = (
   info: InfoJson,
   npmCache: string,
+  exportsOf: ExportsOf,
+  holds: (path: string) => boolean = pathIs("isFile"),
 ): Record<string, string[]> => {
+  const sources = { exportsOf, holds, info, npmCache };
   const moduleBySpecifier: Record<string, InfoModule> = Object.fromEntries(
     info.modules?.map((module) => [module.specifier, module]) ?? [],
   );
@@ -140,8 +301,7 @@ export const pathsFromInfo = (
         dependency,
         moduleBySpecifier,
         redirects,
-        info,
-        npmCache,
+        sources,
       );
       if (answer === undefined) continue;
       const [written, target] = answer;
@@ -181,6 +341,16 @@ const settledValue = <T>(settled: PromiseSettledResult<T>): T => {
   return settled.value;
 };
 
+/** The export map one cached package declares, from the `package.json` its
+ * cache folder holds. A package the graph resolved carries the file, so a
+ * missing or broken one is a broken cache, and the error says where. A
+ * package that names no map answers nothing, and its subpaths are plain
+ * files of the package folder. */
+const exportsOf = (folder: string): unknown => {
+  const manifest = JSON.parse(Deno.readTextFileSync(`${folder}/package.json`));
+  return "exports" in manifest ? manifest.exports : undefined;
+};
+
 /** The bare-specifier paths for the scan's compiler, from the module graph of
  * the repository's entry. A repository without its entry file has no graph to
  * ask, and its bare specifiers stay unmapped, as they were before this
@@ -200,5 +370,6 @@ export const barePaths = async (
   return pathsFromInfo(
     settledValue(graphed),
     answered(settledValue(bare).npmCache, "npm cache folder"),
+    exportsOf,
   );
 };

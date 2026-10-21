@@ -257,7 +257,8 @@ take the two calls a reader makes of them, as `Held["keys()"]` and
 Each is a false positive, and a reader has to judge them. That is why the scan
 reports rather than fails: the list is a place to start, not a verdict. A field
 the scan misses is rarer. It needs a read the compiler cannot see, such as one
-through `Object.keys` or an unresolved dynamic computed name. The scan resolves
-the bare specifiers the repository imports, so a valibot shape's fields reach
-the report, and the policy holds the unread entries of the shapes that no code
-reads.
+through `Object.keys` or an unresolved dynamic computed name. The scan
+resolves the bare specifiers it can map to a file: a cached npm package, a
+repository file, or a subpath the package's export map names. A jsr or https
+specifier stays unmapped. A valibot shape's fields reach the report, and the
+policy holds the unread entries of the shapes that no code reads.
