@@ -87,7 +87,7 @@ export const attendeeRowOnList = (
  * count so the story follows what the page really offers. */
 export const countLinkOnDashboard = (html: string): string => {
   const href = html.match(
-    /<a href="([^"]+)">[^<]*unsent notifications<\/a>/,
+    /<a href="([^"]+)">[^<]*emails or webhooks that were not sent<\/a>/,
   )?.[1];
   if (!href) {
     throw new Error("The dashboard count carries no link to the attendee list");

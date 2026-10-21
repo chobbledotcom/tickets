@@ -19,7 +19,7 @@ describeWithEnv(
 
       await expectHtml(await adminGet("/admin"), {
         contains: [
-          "2 attendees have unsent notifications",
+          "2 attendees have emails or webhooks that were not sent",
           'href="/admin/attendees"',
         ],
       });
@@ -29,7 +29,7 @@ describeWithEnv(
       await bookTestAttendeeWithFlags("Only Clean Buyer", 0, 0);
 
       await expectHtml(await adminGet("/admin"), {
-        notContains: ["unsent notifications"],
+        notContains: ["emails or webhooks that were not sent"],
       });
     });
 
@@ -44,7 +44,7 @@ describeWithEnv(
       ]);
 
       await expectHtml(await adminGet("/admin"), {
-        notContains: ["unsent notifications"],
+        notContains: ["emails or webhooks that were not sent"],
       });
     });
 
@@ -59,7 +59,7 @@ describeWithEnv(
       ]);
 
       await expectHtml(await adminGet("/admin"), {
-        contains: ["1 attendee has unsent notifications"],
+        contains: ["1 attendee has emails or webhooks that were not sent"],
       });
     });
   },
