@@ -10,6 +10,7 @@
  * hides. The confirm and answer flows live in `scanner/answers.test.ts`.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -72,12 +73,12 @@ describe("scanner camera", {
     ]);
     expect(h.video.srcObject).toBeTruthy();
     expect(fakes.played).toBe(1);
-    expect(el(h.document, "scanner-start").className).toContain("hidden");
-    expect(h.video.className).not.toContain("hidden");
+    assertStringIncludes(el(h.document, "scanner-start").className, "hidden");
+    assert(!h.video.className.includes("hidden"));
     expect(h.statusEl.textContent).toBe("Scanning...");
     expect(h.statusEl.classList.contains("scanner-status")).toBe(true);
-    expect(h.statusEl.className).toContain("scanner-status-success");
-    expect(h.statusEl.className).not.toContain("hidden");
+    assertStringIncludes(h.statusEl.className, "scanner-status-success");
+    assert(!h.statusEl.className.includes("hidden"));
 
     // The first frame draws but decodes nothing: the clock starts inside
     // the cooldown, so the loop only draws and reschedules at 150 ms.
@@ -150,11 +151,11 @@ describe("scanner camera", {
     // The settled scan's own line fades only after its full delay: the
     // scanning line's earlier fade was cancelled, so nothing fades at 6000.
     fakes.advance(3_999);
-    expect(h.statusEl.className).not.toContain("scanner-status-fade-out");
+    assert(!h.statusEl.className.includes("scanner-status-fade-out"));
     fakes.advance(1);
-    expect(h.statusEl.className).not.toContain("scanner-status-fade-out");
+    assert(!h.statusEl.className.includes("scanner-status-fade-out"));
     fakes.advance(1_000);
-    expect(h.statusEl.className).toContain("scanner-status-fade-out");
+    assertStringIncludes(h.statusEl.className, "scanner-status-fade-out");
 
     // A fresh ticket on a later frame admits too: the scan settled, so the
     // loop went back to work.
@@ -192,7 +193,7 @@ describe("scanner camera", {
 
     // The waiting status still fades on its own while the scan waits.
     await idle(fakes, 4_850);
-    expect(h.statusEl.className).toContain("scanner-status-fade-out");
+    assertStringIncludes(h.statusEl.className, "scanner-status-fade-out");
   });
 
   test("says so when a code carries no ticket token", async () => {
@@ -210,7 +211,7 @@ describe("scanner camera", {
     await scanFirst(fakes, "not-a-token!");
 
     expect(h.statusEl.textContent).toBe("Invalid QR code");
-    expect(h.statusEl.className).toContain("scanner-status-error");
+    assertStringIncludes(h.statusEl.className, "scanner-status-error");
     expect(bodies).toEqual([]);
     // The unreadable code spent its cooldown, and the loop moved on.
     await idle(fakes, 2000);
@@ -293,7 +294,7 @@ describe("scanner camera", {
     await scanFirst(fakes, "tok12345");
 
     expect(h.statusEl.textContent).toBe("Network error");
-    expect(h.statusEl.className).toContain("scanner-status-error");
+    assertStringIncludes(h.statusEl.className, "scanner-status-error");
     // The failed scan settled too, and its cooldown spent, so the loop went
     // back to reading frames.
     await idle(fakes, 2_000);
@@ -314,7 +315,7 @@ describe("scanner camera", {
     // A fourth status arrives on a tick the same clock step reaches as the
     // third fade it replaces: that fade must not fire either.
     await scanNext(fakes, "fourth000", 5_150);
-    expect(h.statusEl.className).not.toContain("scanner-status-fade-out");
+    assert(!h.statusEl.className.includes("scanner-status-fade-out"));
   });
 
   test("fades a warning status out after its delay", async () => {
@@ -340,11 +341,11 @@ describe("scanner camera", {
     el(h.document, "scanner-confirm-no").click();
     await idle(fakes, 1_000);
     expect(h.statusEl.textContent).toBe("Skipped Ada");
-    expect(h.statusEl.className).toContain("scanner-status-warning");
+    assertStringIncludes(h.statusEl.className, "scanner-status-warning");
 
     // The warning fades on its own after the delay, like a success does.
     await idle(fakes, 5_000);
-    expect(h.statusEl.className).toContain("scanner-status-fade-out");
+    assertStringIncludes(h.statusEl.className, "scanner-status-fade-out");
     expect(posts).toBe(1);
 
     // A later admit replaces the warning: its class must go with it.

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_SEED_LISTINGS, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
@@ -26,12 +27,12 @@ describe("seeds form", () => {
     expect(attendees!.id).toBe("attendees_per_listing");
     const html = seedsForm.render();
     const listingBox = inputNamed(html, "listing_count");
-    expect(listingBox).toContain('min="1"');
-    expect(listingBox).toContain(`max="${MAX_SEED_LISTINGS}"`);
-    expect(listingBox).toContain("required");
+    assertStringIncludes(listingBox, 'min="1"');
+    assertStringIncludes(listingBox, `max="${MAX_SEED_LISTINGS}"`);
+    assertStringIncludes(listingBox, "required");
     const attendeeBox = inputNamed(html, "attendees_per_listing");
-    expect(attendeeBox).toContain('min="0"');
-    expect(attendeeBox).toContain(`max="${SEED_MAX_ATTENDEES}"`);
-    expect(attendeeBox).toContain("required");
+    assertStringIncludes(attendeeBox, 'min="0"');
+    assertStringIncludes(attendeeBox, `max="${SEED_MAX_ATTENDEES}"`);
+    assertStringIncludes(attendeeBox, "required");
   });
 });

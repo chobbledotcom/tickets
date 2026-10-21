@@ -1,5 +1,6 @@
 // test-groups: run-alone
 
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -101,7 +102,10 @@ describe("order widget storage and lifecycle", {
     mountOpenListing(h, true);
 
     expect(logHas(h, "discarding corrupt stored cart")).toBe(true);
-    expect(removeSpy.calls.map((c) => c.args[0])).toContain(key);
+    assertArrayIncludes(
+      removeSpy.calls.map((c) => c.args[0]),
+      [key],
+    );
     expect(JSON.parse(h.window.sessionStorage.getItem(key)!)).toEqual([]);
 
     clickAnchor(h, "open");
