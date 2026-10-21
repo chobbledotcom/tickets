@@ -3,6 +3,7 @@
 import type { ResultSet } from "@libsql/client";
 import {
   ATTENDEE_FIELDS,
+  type AttendeeWhere,
   attendeeBatchStatement,
   getAttendees,
 } from "#db/attendees/select.ts";
@@ -46,6 +47,7 @@ export const getListingWithAttendeesRaw = async (
     attendeeBatchStatement({
       fields: ATTENDEE_FIELDS,
       order: "created_desc",
+      owedScope: "booking",
       where: { listingIds: [id] },
     }),
   ]);
@@ -73,20 +75,26 @@ export const getDailyListingAttendeeDates = async (): Promise<string[]> => {
   return sortStrings(unique(dates));
 };
 
+/** Booking rows in the roster's order, each row's badge scoped to its own
+ * booking. The daily-range and the listing-filtered reads share the shape. */
+const bookingScopedAttendeeRows = (where: AttendeeWhere): Promise<Attendee[]> =>
+  getAttendees({
+    fields: ATTENDEE_FIELDS,
+    order: "created_desc",
+    owedScope: "booking",
+    where,
+  });
+
 /** Read daily-listing attendees whose booking overlaps one date. */
 export const getDailyListingAttendeesByDate = (
   date: string,
 ): Promise<Attendee[]> => {
   const { startAt, endAt } = dateToRange(date);
-  return getAttendees({
-    fields: ATTENDEE_FIELDS,
-    order: "created_desc",
-    // Servicing holds occupy dates too; realLinesOnly drops no-quantity rows.
-    where: {
-      dailyRange: { after: startAt, before: endAt },
-      kind: "attendee-or-servicing",
-      realLinesOnly: true,
-    },
+  // Servicing holds occupy dates too; realLinesOnly drops no-quantity rows.
+  return bookingScopedAttendeeRows({
+    dailyRange: { after: startAt, before: endAt },
+    kind: "attendee-or-servicing",
+    realLinesOnly: true,
   });
 };
 
@@ -121,14 +129,10 @@ export const getAttendeesByListingIds = (
 ): Promise<Attendee[]> => {
   if (listingIds.length === 0) return Promise.resolve([]);
   const { activeOnly, kindScope } = listingAttendeeFilter(filter);
-  return getAttendees({
-    fields: ATTENDEE_FIELDS,
-    order: "created_desc",
-    where: {
-      kind: attendeeKindFilter(kindScope),
-      listingIds,
-      realLinesOnly: activeOnly,
-    },
+  return bookingScopedAttendeeRows({
+    kind: attendeeKindFilter(kindScope),
+    listingIds,
+    realLinesOnly: activeOnly,
   });
 };
 
@@ -154,6 +158,7 @@ export const getListingWithAttendeeRaw = async (
     attendeeBatchStatement({
       fields: ATTENDEE_FIELDS,
       join: "left",
+      owedScope: "booking",
       where: { attendeeIds: [attendeeId], listingIds: [listingId] },
     }),
   ]);

@@ -6,6 +6,7 @@ import type {
   AttendeeWithBookings,
   ListingAttendeeRow,
 } from "#db/attendee-types.ts";
+import { listingCollectsEmail } from "#db/attendees/notification-flags.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { packageDisplaysForRows } from "#db/groups.ts";
@@ -127,10 +128,14 @@ export const extractTokenSegment = (
 export const parseTokens = (tokensStr: string): string[] =>
   unique(tokensStr.split("+").filter((s) => s.length > 0));
 
-/** Build an Attendee object from base attendee data + one booking's per-listing data */
+/** Build an Attendee object from base attendee data + one booking's per-listing data.
+ * The email badge asks about THIS booking's listing alone. The entry's row
+ * stands for one booking, so a listing that stopped collecting an email
+ * never borrows the notice from another of the person's bookings. */
 const buildAttendeeView = (
   base: AttendeeWithBookings,
   booking: ListingAttendeeRow,
+  listing: ListingWithCount,
 ): Attendee => ({
   address: "",
   attachment_downloads: booking.attachment_downloads,
@@ -138,7 +143,7 @@ const buildAttendeeView = (
   created: base.created,
   date: booking.start_at ? booking.start_at.slice(0, 10) : null,
   email: "",
-  email_owed: base.email_owed,
+  email_owed: base.email_pending > 0 && listingCollectsEmail(listing) ? 1 : 0,
   email_pending: base.email_pending,
   end_date: booking.end_at ? booking.end_at.slice(0, 10) : null,
   id: base.id,
@@ -193,7 +198,7 @@ export const resolveEntries = async (
       const listing = listings.get(booking.listing_id);
       if (listing && hasTicketQuantity(booking)) {
         entries.push({
-          attendee: buildAttendeeView(awb, booking),
+          attendee: buildAttendeeView(awb, booking, listing),
           listing,
           parentListingId: booking.parent_listing_id,
         });

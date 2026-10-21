@@ -18,9 +18,14 @@ import {
   personWithTicketOwing,
 } from "#test/specs/support/notifications.ts";
 import {
+  attendeeListHtml,
+  personWithTicketsForTwoListings,
+} from "#test/specs/support/roster.ts";
+import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { setPendingNotificationFlags } from "#test-utils/db-helpers/attendees.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -83,6 +88,38 @@ Given(
 Given(
   "{word} has a ticket for the {word} whose sends all went out",
   ticketOwing(0, 0),
+);
+
+/** The listing's own attendee list, read whole and carried for the steps
+ * that read it. A booking's notice is decided on the booking's listing, so
+ * the story opens each listing's list in turn. */
+const readsRosterPage = async function (
+  this: TicketsWorld,
+  listing: string,
+): Promise<void> {
+  this.notificationsPage = await attendeeListHtml(this, listing);
+};
+
+When("the organiser opens the {word}'s attendee list", readsRosterPage);
+
+Given(
+  "{word} has tickets for the {word} and the {word} whose email never went out",
+  async function (
+    this: TicketsWorld,
+    who: string,
+    first: string,
+    second: string,
+  ): Promise<void> {
+    // The flags sit on the person, so both bookings start owing the email,
+    // and only each row's own listing can drop its notice.
+    const attendee = await personWithTicketsForTwoListings(
+      this,
+      who,
+      first,
+      second,
+    );
+    await setPendingNotificationFlags(attendee.id, 1, 0);
+  },
 );
 
 Given(

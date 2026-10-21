@@ -60,7 +60,7 @@ export const committedEntries = async (
                    attendee.ticket_token_index,
                    attendee.email_pending,
                    attendee.webhooks_pending,
-                   ${emailOwedColumn("attendee")}
+                   ${emailOwedColumn("attendee", "listingAttendee.listing_id")}
             FROM attendees AS attendee
             JOIN listing_attendees AS listingAttendee
               ON listingAttendee.attendee_id = attendee.id

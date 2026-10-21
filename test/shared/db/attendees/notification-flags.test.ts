@@ -9,13 +9,23 @@ import {
   clearPendingFlagStatement,
   countAttendeesWithPendingFlags,
   emailBadgeOwed,
+  listingCollectsEmail,
+  pendingFlagsCountStatement,
 } from "#db/attendees/notification-flags.ts";
-import { getAttendeeOrNull } from "#db/attendees/queries.ts";
-import { execute, executeBatch } from "#db/client.ts";
+import {
+  getAttendeeBookingRowsRaw,
+  getAttendeeOrNull,
+} from "#db/attendees/queries.ts";
+import { execute, executeBatch, queryAll } from "#db/client.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookTestAttendeeWithFlags } from "#test-utils/db-helpers/attendees.ts";
+import {
+  bookTestAttendeeWithFlags,
+  createMultiBookingAttendee,
+  setPendingNotificationFlags,
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** The attendee a test booked, read back the way the admin surfaces read
  * their rows: through the shared attendee read that resolves `email_owed`. */
@@ -141,6 +151,60 @@ describeWithEnv(
       expect(emailBadgeOwed({ email_owed: 1, email_pending: 2 })).toBe(true);
       expect(emailBadgeOwed({ email_owed: 1, email_pending: 0 })).toBe(false);
       expect(emailBadgeOwed({ email_owed: 0, email_pending: 1 })).toBe(false);
+    });
+
+    test("one listing of a person keeps the badge, the other drops it", async () => {
+      // One person, two bookings. The Ceilidh collects an email, the Quiz
+      // stopped. The same flag sits on the person, so only each row's own
+      // listing can decide its badge.
+      const collecting = await createTestListing({
+        maxAttendees: 10,
+        name: "Scoped Ceilidh",
+      });
+      const stopped = await createTestListing({
+        maxAttendees: 10,
+        name: "Scoped Quiz",
+      });
+      await execute("UPDATE listings SET fields = 'phone' WHERE id = ?", [
+        stopped.id,
+      ]);
+      const attendee = await createMultiBookingAttendee(
+        "Scoped Buyer",
+        "scoped-buyer@example.com",
+        [{ listingId: collecting.id }, { listingId: stopped.id }],
+      );
+      await setPendingNotificationFlags(attendee.id, 1, 0);
+
+      const rows = await getAttendeeBookingRowsRaw(attendee.id);
+      const owedByListing = new Map(
+        rows.map((row) => [row.listing_id, row.email_owed]),
+      );
+      expect(owedByListing.get(collecting.id)).toBe(1);
+      expect(owedByListing.get(stopped.id)).toBe(0);
+
+      // The attendee-wide read and the count still follow every booking, so
+      // the person keeps the notice on their own page and in the count.
+      const read = await readAttendeeBack(attendee.id);
+      expect(read.email_owed).toBe(1);
+      expect(await countAttendeesWithPendingFlags()).toBe(1);
+    });
+
+    test("the count plans through the partial pending-flags index", async () => {
+      const plan = await queryAll<{ detail: string }>(
+        `EXPLAIN QUERY PLAN ${pendingFlagsCountStatement().sql}`,
+      );
+      const details = plan.map((row) => row.detail).join("\n");
+
+      expect(details).toContain("idx_attendees_pending_flags");
+      expect(details).not.toContain("SCAN attendees");
+    });
+
+    test("a listing collects an email when its stored fields name one", () => {
+      expect(listingCollectsEmail({ fields: "email,phone" })).toBe(true);
+      expect(listingCollectsEmail({ fields: "phone" })).toBe(false);
+      expect(listingCollectsEmail({ fields: " email , phone" })).toBe(true);
+      expect(listingCollectsEmail({ fields: "emailx" })).toBe(false);
+      expect(listingCollectsEmail({ fields: "" })).toBe(false);
     });
   },
 );

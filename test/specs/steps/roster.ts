@@ -22,13 +22,13 @@ import {
 
 Given(
   "{word} has a ticket for the {word} and for the {word}",
-  function (
+  async function (
     this: TicketsWorld,
     who: string,
     first: string,
     second: string,
   ): Promise<void> {
-    return personWithTicketsForTwoListings(this, who, first, second);
+    await personWithTicketsForTwoListings(this, who, first, second);
   },
 );
 

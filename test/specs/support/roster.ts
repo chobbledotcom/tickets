@@ -20,6 +20,7 @@ import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+import type { Attendee } from "#types";
 /* jscpd:ignore-end */
 
 /** The organiser presses one of the list's Check in / Check out controls, and
@@ -41,13 +42,14 @@ export const attendeeListHtml = (
 /** Somebody booked on one listing and then on a second one, in that order —
  * the second booking is never the first line their record carries. The
  * listings are created one after the other, so the first booking's listing
- * also carries the lower id. */
+ * also carries the lower id. Returns the person, so a story can set the
+ * facts that sit on them. */
 export const personWithTicketsForTwoListings = async (
   world: TicketsWorld,
   who: string,
   first: string,
   second: string,
-): Promise<void> => {
+): Promise<Attendee> => {
   const homeListing = await createTestListing({
     maxAttendees: 10,
     name: first,
@@ -58,7 +60,7 @@ export const personWithTicketsForTwoListings = async (
   });
   rememberListing(world, first, homeListing);
   rememberListing(world, second, otherListing);
-  await createMultiBookingAttendee(who, emailFor(who), [
+  return await createMultiBookingAttendee(who, emailFor(who), [
     { listingId: homeListing.id },
     { listingId: otherListing.id },
   ]);

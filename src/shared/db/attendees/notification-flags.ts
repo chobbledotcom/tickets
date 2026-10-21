@@ -20,6 +20,7 @@ import {
   type SqlStatement,
   withTransaction,
 } from "#db/client.ts";
+import { parseListingFields } from "#shared/listing-fields.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { Attendee } from "#types";
 
@@ -130,26 +131,54 @@ export const restoreClaimedNotificationFlags = (
 /** SQL for "a listing this attendee booked currently collects an email".
  * The attendee row reads and the dashboard count share it, so the badge and
  * the count cannot disagree. `attendeeRef` names the alias the attendee
- * columns read through at the call site. Writes store the contact fields as
- * the parser's own trimmed tokens (`storedListingFields`). The read wraps
- * the stored value in commas first. It then folds one space or non-breaking
- * space at a token edge into that boundary. A padded value still reads as
- * its tokens. A longer pad never matches, and a token with an inner
- * space never matches.
+ * columns read through at the call site. `listingRef` optionally names the
+ * row's own booking listing. A read whose row stands for one booking passes
+ * it, so the badge asks about that booking's listing alone. An
+ * attendee-wide read omits it, so the badge asks about every positive
+ * booking the person holds. Writes store the contact fields as the parser's
+ * own trimmed tokens (`storedListingFields`). The read wraps the stored
+ * value in commas first. It then folds one space or non-breaking space at a
+ * token edge into that boundary. A padded value still reads as its tokens. A
+ * longer pad never matches, and a token with an inner space never matches.
  * Ghost lines (quantity 0) are not bookings. */
-export const emailOwedSql = (attendeeRef: string): string => `EXISTS (
+export const emailOwedSql = (
+  attendeeRef: string,
+  listingRef?: string,
+): string => `EXISTS (
   SELECT 1 FROM listing_attendees AS owed_line
   JOIN listings AS owed_listing ON owed_listing.id = owed_line.listing_id
   WHERE owed_line.attendee_id = ${attendeeRef}.id
-    AND owed_line.quantity > 0
+    AND owed_line.quantity > 0${
+      listingRef === undefined
+        ? ""
+        : `\n    AND owed_line.listing_id = ${listingRef}`
+    }
     AND instr(REPLACE(REPLACE(REPLACE(REPLACE(',' || owed_listing.fields || ',',
         ', ', ','), ' ,', ','), CHAR(160) || ',', ','), ',' || CHAR(160), ','), ',email,') > 0
 )`;
 
+/** An owed-email projection for one alias: the attendee columns read through
+ *  `attendeeRef`, optionally constrained to the row's own `listingRef`. */
+export type EmailOwedProjection = (
+  attendeeRef: string,
+  listingRef?: string,
+) => string;
+
 /** The `email_owed` column every attendee read projects beside the stored
- *  flag. All readers share it, so the badges cannot disagree across reads. */
-export const emailOwedColumn = (attendeeRef: string): string =>
-  `(CASE WHEN ${attendeeRef}.email_pending > 0 THEN ${emailOwedSql(attendeeRef)} ELSE 0 END) as email_owed`;
+ *  flag. All readers share it, so the badges cannot disagree across reads.
+ *  `listingRef` scopes the rule to the row's own booking, exactly as
+ *  {@link emailOwedSql} scopes it. */
+export const emailOwedColumn: EmailOwedProjection = (attendeeRef, listingRef) =>
+  `(CASE WHEN ${attendeeRef}.email_pending > 0 THEN ${emailOwedSql(attendeeRef, listingRef)} ELSE 0 END) as email_owed`;
+
+/** Whether one listing's stored contact fields collect an email. The rule is
+ * the read-time rule `emailOwedSql` resolves in SQL. This copy serves a
+ * badge whose row the shared attendee read did not produce. A token entry
+ * builds its view from the booking and the listing the entry names. Writes
+ * and the fields trim migration store the fields as the parser's own
+ * tokens, so the parser reads the same tokens the SQL folds match. */
+export const listingCollectsEmail = (listing: { fields: string }): boolean =>
+  parseListingFields(listing.fields).includes("email");
 
 /** Whether the email badge shows for one attendee row: the stored flag is up
  * and a booked listing still collects an email. The read that produced the
@@ -158,17 +187,28 @@ export const emailBadgeOwed = (
   attendee: Pick<Attendee, "email_owed" | "email_pending">,
 ): boolean => attendee.email_pending > 0 && attendee.email_owed === 1;
 
+/** The count statement, separate from the count so the plan test can pin the
+ * index the planner picks. */
+export const pendingFlagsCountStatement = (): SqlStatement => ({
+  args: [],
+  // The plain OR term repeats the partial index's own predicate. Without it
+  // the planner cannot prove the count's WHERE implies the index's WHERE,
+  // and it falls back to the kind index over every attendee row. With it the
+  // plan seeks idx_attendees_pending_flags, and the second conjunct keeps
+  // the email rule. EXPLAIN QUERY PLAN pins this.
+  sql: `SELECT COUNT(*) AS n FROM attendees
+     WHERE kind = '${ATTENDEE_KIND}'
+       AND (email_pending > 0 OR webhooks_pending > 0)
+       AND ((email_pending > 0 AND ${emailOwedSql("attendees")})
+            OR webhooks_pending > 0)`,
+});
+
 /** How many attendees still owe a notification send. The dashboard shows this
  * count when it is above zero. Only customer attendee rows count, the rows
  * the attendee list and the badges can show. An email flag counts only while
  * a booked listing still collects an email, the same rule the badge applies. */
 export const countAttendeesWithPendingFlags = async (): Promise<number> => {
-  const row = await queryOne<{ n: number }>(
-    `SELECT COUNT(*) AS n FROM attendees
-     WHERE kind = '${ATTENDEE_KIND}'
-       AND ((email_pending > 0 AND ${emailOwedSql("attendees")})
-            OR webhooks_pending > 0)`,
-  );
+  const row = await queryOne<{ n: number }>(pendingFlagsCountStatement().sql);
   // A COUNT always yields one row. A missing row means the query broke.
   return Number(
     requireValue(row, "The pending-notification count returned no row").n,

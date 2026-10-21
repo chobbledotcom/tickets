@@ -74,6 +74,19 @@ Feature: The organiser sees which bookings still owe a notification
       Then the list says Ada's webhooks never went out
       And the list says nothing about Ada's email
 
+    @case:unsent.a-notice-belongs-to-its-own-listing
+    Scenario: A booking shows the email notice only for its own listing
+      Given Ada has tickets for the Ceilidh and the Quiz whose email never went out
+      When the organiser opens the attendee list
+      Then the list says Ada's email never went out
+      When the organiser opens the Ceilidh's attendee list
+      Then the list says Ada's email never went out
+      When the Ceilidh stops collecting an email
+      And the organiser opens the Ceilidh's attendee list
+      Then the list says nothing about Ada's email
+      And the organiser opens the Quiz's attendee list
+      Then the list says Ada's email never went out
+
     @case:unsent.the-notice-keeps-its-own-words-apart-from-the-name
     Scenario: The notice reads as its own words beside the name
       Given Ada has a ticket for the Ceilidh whose email never went out

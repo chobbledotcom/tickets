@@ -81,6 +81,7 @@ export const loadAttendeeRows = (
 export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
   loadAttendeeRows({
     order: "created_desc",
+    owedScope: "booking",
     where: { listingIds: [listingId] },
   });
 
@@ -97,6 +98,7 @@ export const getAttendeeBookingRowsRaw = (
     // No kind filter: the attendee id already pins one attendee, and its rows
     // are returned whatever their kind.
     order: "listing_asc",
+    owedScope: "booking",
     where: {
       attendeeIds: [attendeeId],
       kind: "attendee-or-servicing",
@@ -306,8 +308,12 @@ export const hasPaidLine = rowExistsForIdList(
  * Returns the attendee with encrypted fields (id, listing_id, quantity are plaintext)
  */
 export const getAttendeeRaw = async (id: number): Promise<Attendee | null> =>
-  (await loadAttendeeRows({ join: "left", where: { attendeeIds: [id] } }))[0] ??
-  null;
+  (
+    await loadAttendeeRows({
+      join: "left",
+      where: { attendeeIds: [id] },
+    })
+  )[0] ?? null;
 
 /**
  * Get attendees by ID without decrypting PII, one row per (attendee, booking).
@@ -318,7 +324,11 @@ export const getAttendeeRaw = async (id: number): Promise<Attendee | null> =>
 export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> =>
   ids.length === 0
     ? Promise.resolve([])
-    : loadAttendeeRows({ join: "left", where: { attendeeIds: ids } });
+    : loadAttendeeRows({
+        join: "left",
+        owedScope: "booking",
+        where: { attendeeIds: ids },
+      });
 
 /**
  * Bounded id → name lookup for the given attendees, decrypting only the name
