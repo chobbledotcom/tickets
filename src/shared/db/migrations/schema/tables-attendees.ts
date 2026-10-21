@@ -2,6 +2,7 @@
 
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { statefulColumns } from "./columns.ts";
+import { createdColumn } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 
 export const attendeeTables: [name: string, table: Table][] = [
@@ -51,9 +52,10 @@ export const attendeeTables: [name: string, table: Table][] = [
         // admin sees it.
         ["email_pending", "INTEGER NOT NULL DEFAULT 0"],
         ["webhooks_pending", "INTEGER NOT NULL DEFAULT 0"],
-        // HMAC blind-index of the attendee's phone, populated lazily the first
-        // time an admin texts them, so inbound SMS replies can be matched back
-        // to the attendee without storing the number in the clear.
+        // HMAC blind-index of the attendee's phone. The index is filled
+        // lazily the first time an admin texts them, so inbound SMS replies
+        // can be matched back to the attendee. The number is never stored
+        // in the clear.
         ["phone_index", "TEXT NOT NULL DEFAULT ''"],
       ],
       indexes: [
@@ -247,6 +249,33 @@ export const attendeeTables: [name: string, table: Table][] = [
       // recreation migrations (PRAGMA foreign_keys is connection-scoped and
       // doesn't persist into batch operations on remote databases).
       // Referential integrity is enforced by application logic.
+    },
+  ],
+
+  // The door's replay ledger for queued offline check-ins: one row per
+  // delivery a hash admission claimed, keyed by the operation id and the
+  // token digest together. The same pair that retries is one retry. The
+  // same id beside another ticket's digest is another delivery, and it
+  // claims its own row. A row keeps the listings its delivery admitted, so
+  // a retry answers the tier the first send put in. No ticket token and no
+  // guest detail rests here. The digest is the delivery's own identity,
+  // and the retention window bounds its stay.
+  [
+    "processed_scan_operations",
+    {
+      columns: [
+        ["operation_id", "TEXT NOT NULL"],
+        ["token_hash", "TEXT NOT NULL"],
+        ["listing_ids", "TEXT NOT NULL"],
+        createdColumn,
+      ],
+      indexes: [
+        {
+          columns: ["operation_id", "token_hash"],
+          name: "idx_processed_scan_operations_delivery",
+          unique: true,
+        },
+      ],
     },
   ],
 
