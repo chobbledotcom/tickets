@@ -128,10 +128,13 @@ Then(
     const page = scannerBrowser(this).currentHtml;
     // The banner and the queue panel are the surfaces the client fills
     // with these words once it runs; the served page carries the words to
-    // it. The bundle tests assert them as visible text where the client
+    // it, and the two elements the client looks up by id when it does.
+    // The bundle tests assert them as visible text where the client
     // actually runs.
     expect(page).toContain('id="scanner-offline-banner"');
+    expect(page).toContain('id="scanner-offline-banner-text"');
     expect(page).toContain('id="scanner-queue-summary"');
+    expect(page).toContain('id="scanner-queue-items"');
     expect(page).toContain(t("admin.scanner.offline_banner_auto"));
     expect(page).toContain(t("admin.scanner.offline_queued"));
   },
