@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { SystemNote } from "#db/notes/types.ts";
@@ -90,25 +91,25 @@ describe("adminAttendeesListPage", () => {
 
   test("renders the page title, nav, and heading", () => {
     const html = adminAttendeesListPage(buildProps());
-    expect(html).toContain("<title>Attendees</title>");
-    expect(html).toContain('href="/admin/attendees"');
+    assertStringIncludes(html, "<title>Attendees</title>");
+    assertStringIncludes(html, 'href="/admin/attendees"');
     // The create link lives in the section sub-nav as a concise "Add".
-    expect(html).toContain('href="/admin/attendees/new">Add<');
-    expect(html).not.toContain("<h1>Attendees</h1>");
+    assertStringIncludes(html, 'href="/admin/attendees/new">Add<');
+    assert(!html.includes("<h1>Attendees</h1>"));
   });
 
   test("renders the listing filter as a GET form when several listings exist", () => {
     const html = adminAttendeesListPage(
       buildProps({ listings: twoListings() }),
     );
-    expect(html).toContain('action="/admin/attendees"');
-    expect(html).toContain('method="get"');
-    expect(html).toContain('name="listing"');
+    assertStringIncludes(html, 'action="/admin/attendees"');
+    assertStringIncludes(html, 'method="get"');
+    assertStringIncludes(html, 'name="listing"');
   });
 
   test("hides the listing filter when only one listing exists", () => {
     const html = adminAttendeesListPage(buildProps());
-    expect(html).not.toContain('name="listing"');
+    assert(!html.includes('name="listing"'));
   });
 
   test("the listing form carries the other active choices as hidden inputs", () => {
@@ -118,8 +119,8 @@ describe("adminAttendeesListPage", () => {
         state: buildState({ sort: "oldest", type: "daily" }),
       }),
     );
-    expect(html).toContain('name="type" type="hidden" value="daily"');
-    expect(html).toContain('name="sort" type="hidden" value="oldest"');
+    assertStringIncludes(html, 'name="type" type="hidden" value="daily"');
+    assertStringIncludes(html, 'name="sort" type="hidden" value="oldest"');
   });
 
   test("lists attendee rows with their listing name", () => {
@@ -132,15 +133,15 @@ describe("adminAttendeesListPage", () => {
         rows: [row(1, "Alice", 2, "Booked Listing")],
       }),
     );
-    expect(html).toContain("Alice");
-    expect(html).toContain("Booked Listing");
+    assertStringIncludes(html, "Alice");
+    assertStringIncludes(html, "Booked Listing");
     // The row rendered, so the empty-state message must not appear.
-    expect(html).not.toContain("No attendees yet");
+    assert(!html.includes("No attendees yet"));
   });
 
   test("shows the empty message when there are no rows", () => {
     const html = adminAttendeesListPage(buildProps({ rows: [] }));
-    expect(html).toContain("No attendees yet");
+    assertStringIncludes(html, "No attendees yet");
   });
 
   test("surfaces a red notes summary for attendees that have notes", () => {
@@ -159,15 +160,15 @@ describe("adminAttendeesListPage", () => {
         systemNotes: [noteRow],
       }),
     );
-    expect(html).toContain("1 attendee has notes");
-    expect(html).toContain("needs a follow-up call");
+    assertStringIncludes(html, "1 attendee has notes");
+    assertStringIncludes(html, "needs a follow-up call");
   });
 
   test("offers no check-in control — the browser table is read-only", () => {
     const html = adminAttendeesListPage(
       buildProps({ rows: [row(1, "Alice", 2, "Booked Listing")] }),
     );
-    expect(html).not.toContain(">Check in<");
+    assert(!html.includes(">Check in<"));
   });
 
   test("keeps the rows in the order the query chose", () => {
@@ -190,26 +191,26 @@ describe("adminAttendeesListPage", () => {
     const html = adminAttendeesListPage(
       buildProps({ rows: [row(1, "Alice", 2, "Booked Listing")] }),
     );
-    expect(html).not.toContain(">Date<");
+    assert(!html.includes(">Date<"));
   });
 
   test("links the attendees section of the guide", () => {
     const html = adminAttendeesListPage(buildProps());
-    expect(html).toContain('href="/admin/guide#attendees"');
+    assertStringIncludes(html, 'href="/admin/guide#attendees"');
   });
 
   test("renders no notes summary when no listed attendee has notes", () => {
     const html = adminAttendeesListPage(
       buildProps({ rows: [row(1, "Alice", 2, "Booked Listing")] }),
     );
-    expect(html).not.toContain("have notes");
+    assert(!html.includes("have notes"));
   });
 
   test("renders a plain CSV export link when no filters are active", () => {
     const html = adminAttendeesListPage(buildProps());
-    expect(html).toContain('class="table-actions"');
-    expect(html).toContain('href="/admin/attendees/csv"');
-    expect(html).toContain("Export CSV");
+    assertStringIncludes(html, 'class="table-actions"');
+    assertStringIncludes(html, 'href="/admin/attendees/csv"');
+    assertStringIncludes(html, "Export CSV");
   });
 
   test("the CSV export link carries the active listing and type filters", () => {
@@ -219,7 +220,8 @@ describe("adminAttendeesListPage", () => {
         state: buildState({ listingId: 7, type: "daily" }),
       }),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'href="/admin/attendees/csv?listing=7&amp;type=daily"',
     );
   });
@@ -228,9 +230,9 @@ describe("adminAttendeesListPage", () => {
     const html = adminAttendeesListPage(
       buildProps({ listings: twoListings() }),
     );
-    expect(html).toContain("All listings");
-    expect(html).toContain("Gala Night");
-    expect(html).toContain("Quiz Evening");
+    assertStringIncludes(html, "All listings");
+    assertStringIncludes(html, "Gala Night");
+    assertStringIncludes(html, "Quiz Evening");
   });
 
   test("flags deactivated listings in the filter", () => {
@@ -242,15 +244,15 @@ describe("adminAttendeesListPage", () => {
         ],
       }),
     );
-    expect(html).toContain("Old Show (deactivated)");
-    expect(html).not.toContain("Live Show (deactivated)");
+    assertStringIncludes(html, "Old Show (deactivated)");
+    assert(!html.includes("Live Show (deactivated)"));
   });
 
   test("selects the All option when no listing filter is active", () => {
     const html = adminAttendeesListPage(
       buildProps({ listings: twoListings() }),
     );
-    expect(html).toContain('selected value="">');
+    assertStringIncludes(html, 'selected value="">');
   });
 
   test("selects the active listing option when filtered", () => {
@@ -260,20 +262,23 @@ describe("adminAttendeesListPage", () => {
         state: buildState({ listingId: 2 }),
       }),
     );
-    expect(html).toContain('selected value="2"');
+    assertStringIncludes(html, 'selected value="2"');
   });
 
   describe("the sort bar", () => {
     test("marks the active sort and links the other", () => {
       const newest = adminAttendeesListPage(buildProps());
-      expect(newest).toContain("Sort: <strong><u>Newest first</u></strong>");
-      expect(newest).toContain('href="/admin/attendees?sort=oldest"');
+      assertStringIncludes(
+        newest,
+        "Sort: <strong><u>Newest first</u></strong>",
+      );
+      assertStringIncludes(newest, 'href="/admin/attendees?sort=oldest"');
       const oldest = adminAttendeesListPage(
         buildProps({ state: buildState({ sort: "oldest" }) }),
       );
-      expect(oldest).toContain("<strong><u>Oldest first</u></strong>");
+      assertStringIncludes(oldest, "<strong><u>Oldest first</u></strong>");
       // Back to the default order is the bare path.
-      expect(oldest).toContain('href="/admin/attendees">Newest first</a>');
+      assertStringIncludes(oldest, 'href="/admin/attendees">Newest first</a>');
     });
 
     test("sort links keep the listing filter and reset the page", () => {
@@ -284,7 +289,10 @@ describe("adminAttendeesListPage", () => {
           state: buildState({ listingId: 7, page: 2 }),
         }),
       );
-      expect(html).toContain('href="/admin/attendees?listing=7&sort=oldest"');
+      assertStringIncludes(
+        html,
+        'href="/admin/attendees?listing=7&sort=oldest"',
+      );
     });
   });
 
@@ -292,28 +300,28 @@ describe("adminAttendeesListPage", () => {
     const html = adminAttendeesListPage(
       buildProps({ hasNext: false, state: buildState({ page: 0 }) }),
     );
-    expect(html).not.toContain('class="pagination"');
+    assert(!html.includes('class="pagination"'));
   });
 
   test("shows a Next link (only) on the first of several pages", () => {
     const html = adminAttendeesListPage(buildProps({ hasNext: true }));
-    expect(html).toContain('class="pagination"');
-    expect(html).toContain("Next");
+    assertStringIncludes(html, 'class="pagination"');
+    assertStringIncludes(html, "Next");
     // rel="next" pins the assertion to the Next link itself.
-    expect(html).toContain('href="/admin/attendees?page=1" rel="next"');
-    expect(html).not.toContain("Previous");
+    assertStringIncludes(html, 'href="/admin/attendees?page=1" rel="next"');
+    assert(!html.includes("Previous"));
   });
 
   test("shows a Previous link (only) on the last page", () => {
     const html = adminAttendeesListPage(
       buildProps({ hasNext: false, state: buildState({ page: 1 }) }),
     );
-    expect(html).toContain("Previous");
+    assertStringIncludes(html, "Previous");
     // From page 1 back to page 0 with no filter/sort drops the query entirely.
     // rel="prev" pins this to the Previous link — the bare /admin/attendees
     // path also appears in the nav.
-    expect(html).toContain('href="/admin/attendees" rel="prev"');
-    expect(html).not.toContain("Next");
+    assertStringIncludes(html, 'href="/admin/attendees" rel="prev"');
+    assert(!html.includes("Next"));
   });
 
   test("preserves the listing filter and sort order in paging links", () => {
@@ -326,21 +334,23 @@ describe("adminAttendeesListPage", () => {
     );
     // Next → page 3, Previous → page 1, both carrying listing + sort.
     // Ampersands are HTML-escaped in the rendered href attributes.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'href="/admin/attendees?listing=7&amp;sort=oldest&amp;page=3"',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'href="/admin/attendees?listing=7&amp;sort=oldest&amp;page=1"',
     );
   });
 
   test("numbers the current page (1-based) in the pagination", () => {
     const first = adminAttendeesListPage(buildProps({ hasNext: true }));
-    expect(first).toContain("<span>Page 1</span>");
+    assertStringIncludes(first, "<span>Page 1</span>");
     const third = adminAttendeesListPage(
       buildProps({ hasNext: true, state: buildState({ page: 2 }) }),
     );
-    expect(third).toContain("<span>Page 3</span>");
+    assertStringIncludes(third, "<span>Page 3</span>");
   });
 
   // The type-filter bar only renders when the listings span more than one
@@ -362,15 +372,15 @@ describe("adminAttendeesListPage", () => {
           state: buildState({ type: "daily" }),
         }),
       );
-      expect(html).toContain('class="table-actions"');
-      expect(html).toContain("<strong><u>Daily</u></strong>");
-      expect(html).toContain(">Standard</a>");
-      expect(html).toContain(">All</a>");
+      assertStringIncludes(html, 'class="table-actions"');
+      assertStringIncludes(html, "<strong><u>Daily</u></strong>");
+      assertStringIncludes(html, ">Standard</a>");
+      assertStringIncludes(html, ">All</a>");
     });
 
     test("omits the bar entirely when only one category is present", () => {
       const html = adminAttendeesListPage(buildProps());
-      expect(html).not.toContain("Showing:");
+      assert(!html.includes("Showing:"));
     });
 
     test("type links reset the listing and page filters but keep the sort", () => {
@@ -385,9 +395,12 @@ describe("adminAttendeesListPage", () => {
       const bar =
         html.match(/<div class="table-actions">Showing.*?<\/div>/s)?.[0] ?? "";
       // The bar is injected via <Raw>, so its ampersands stay unescaped.
-      expect(bar).toContain('href="/admin/attendees?type=daily&sort=oldest"');
-      expect(bar).not.toContain("listing=7"); // specific-listing filter dropped
-      expect(bar).not.toContain("page="); // page reset to the first page
+      assertStringIncludes(
+        bar,
+        'href="/admin/attendees?type=daily&sort=oldest"',
+      );
+      assert(!bar.includes("listing=7")); // specific-listing filter dropped
+      assert(!bar.includes("page=")); // page reset to the first page
     });
   });
 
@@ -405,8 +418,8 @@ describe("adminAttendeesListPage", () => {
           state: buildState({ type: "daily" }),
         }),
       );
-      expect(html).toContain("Showing 3 attendees for");
-      expect(html).toContain("<strong>Daily</strong>");
+      assertStringIncludes(html, "Showing 3 attendees for");
+      assertStringIncludes(html, "<strong>Daily</strong>");
     });
 
     test("pluralises a single filtered result", () => {
@@ -416,7 +429,7 @@ describe("adminAttendeesListPage", () => {
           state: buildState({ type: "daily" }),
         }),
       );
-      expect(html).toContain("Showing 1 attendee for");
+      assertStringIncludes(html, "Showing 1 attendee for");
     });
 
     test("shows no result-count line when no type filter is active", () => {
@@ -424,7 +437,7 @@ describe("adminAttendeesListPage", () => {
       const html = adminAttendeesListPage(
         buildProps({ rows: rowsOfThree(), state: buildState({ type: "all" }) }),
       );
-      expect(html).not.toContain("attendees for");
+      assert(!html.includes("attendees for"));
     });
   });
 });
