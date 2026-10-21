@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { settings } from "#db/settings.ts";
@@ -42,55 +42,60 @@ describe("admin news templates", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = adminNewsListPage([], OWNER_SESSION, "News post removed.");
 
-    expect(html).toContain('href="/admin/site/news/new"');
-    expect(html).toContain("Add News Post");
-    expect(html).toContain(
+    assertStringIncludes(html, 'href="/admin/site/news/new"');
+    assertStringIncludes(html, "Add News Post");
+    assertStringIncludes(
+      html,
       '<div class="success" role="alert">News post removed.</div>',
     );
-    expect(html).toContain("<em>No news posts yet.</em>");
-    expect(html).not.toContain("<table");
+    assertStringIncludes(html, "<em>No news posts yet.</em>");
+    assert(!html.includes("<table"));
   });
 
   test("renders populated news rows with edit, date, and delete links", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = adminNewsListPage([summary], OWNER_SESSION);
 
-    expect(html).toContain("<th>Name</th><th>Published</th><th></th>");
-    expect(html).toContain(
+    assertStringIncludes(html, "<th>Name</th><th>Published</th><th></th>");
+    assertStringIncludes(
+      html,
       '<a href="/admin/site/news/17/edit">Launch &amp; Learn</a>',
     );
-    expect(html).toContain("<td>2026-01-02 03:04</td>");
-    expect(html).toContain('<a href="/admin/site/news/17/delete">Delete</a>');
-    expect(html).not.toContain("No news posts yet.");
+    assertStringIncludes(html, "<td>2026-01-02 03:04</td>");
+    assertStringIncludes(
+      html,
+      '<a href="/admin/site/news/17/delete">Delete</a>',
+    );
+    assert(!html.includes("No news posts yet."));
   });
 
   test("renders every create field without an editable slug", () => {
     const html = adminNewsNewPage(OWNER_SESSION, "Name is required.");
 
-    expect(html).toContain('action="/admin/site/news"');
-    expect(html).toContain("Name is required.");
-    expect(html).toContain('name="name"');
-    expect(html).toContain('name="meta_title"');
-    expect(html).toContain('name="meta_description"');
-    expect(html).toContain('name="snippet"');
-    expect(html).toContain('name="content"');
-    expect(html).not.toContain('name="slug"');
-    expect(html).toContain("Create News Post");
-    expect(html).toContain("/icons.svg#plus");
+    assertStringIncludes(html, 'action="/admin/site/news"');
+    assertStringIncludes(html, "Name is required.");
+    assertStringIncludes(html, 'name="name"');
+    assertStringIncludes(html, 'name="meta_title"');
+    assertStringIncludes(html, 'name="meta_description"');
+    assertStringIncludes(html, 'name="snippet"');
+    assertStringIncludes(html, 'name="content"');
+    assert(!html.includes('name="slug"'));
+    assertStringIncludes(html, "Create News Post");
+    assertStringIncludes(html, "/icons.svg#plus");
   });
 
   test("renders the edit form with all saved values and its public link", () => {
     const html = String(newsEditPanel(post));
 
-    expect(html).toContain('action="/admin/site/news/17/edit"');
-    expect(html).toContain('value="Launch &amp; Learn"');
-    expect(html).toContain('value="launch-learn"');
-    expect(html).toContain('href="/news/launch-learn"');
-    expect(html).toContain('value="Launch &lt;News&gt;"');
-    expect(html).toContain("Launch details &amp; dates");
-    expect(html).toContain("A short update.");
-    expect(html).toContain("Full **launch** details &amp; more.");
-    expect(html).toContain("Save Changes");
+    assertStringIncludes(html, 'action="/admin/site/news/17/edit"');
+    assertStringIncludes(html, 'value="Launch &amp; Learn"');
+    assertStringIncludes(html, 'value="launch-learn"');
+    assertStringIncludes(html, 'href="/news/launch-learn"');
+    assertStringIncludes(html, 'value="Launch &lt;News&gt;"');
+    assertStringIncludes(html, "Launch details &amp; dates");
+    assertStringIncludes(html, "A short update.");
+    assertStringIncludes(html, "Full **launch** details &amp; more.");
+    assertStringIncludes(html, "Save Changes");
   });
 
   test("renders the delete form with the post name and rejected-submit error", () => {
@@ -100,14 +105,16 @@ describe("admin news templates", () => {
       "Name did not match.",
     );
 
-    expect(html).toContain('action="/admin/site/news/17/delete"');
-    expect(html).toContain("Name did not match.");
-    expect(html).toContain(
+    assertStringIncludes(html, 'action="/admin/site/news/17/delete"');
+    assertStringIncludes(html, "Name did not match.");
+    assertStringIncludes(
+      html,
       "Type the post name &quot;Launch &amp; Learn&quot; to confirm deletion.",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'name="confirm_identifier" placeholder="Launch &amp; Learn" required',
     );
-    expect(html).toContain("Delete News Post");
+    assertStringIncludes(html, "Delete News Post");
   });
 });
