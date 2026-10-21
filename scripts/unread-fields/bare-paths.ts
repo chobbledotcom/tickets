@@ -2,8 +2,10 @@
  * Where the graph's bare specifiers sit on disk.
  *
  * The scan's compiler resolves modules through `paths` alone, and the import
- * map does not name the npm and jsr packages the repository imports. `deno
- * info` has already resolved them, so the scan copies its answers in.
+ * map does not name the npm packages the repository imports. `deno info` has
+ * already resolved them, so the scan copies the answers it can use in: npm
+ * packages and repository files. A remote jsr or https module cannot be
+ * mapped usefully, and `cachedPathOf` says why.
  */
 
 import { answered, pathIs } from "./host.ts";
@@ -96,19 +98,28 @@ const npmPathOf = (
   return `${npmFolder(npmCache, npm)}${specifier.slice(packagePrefix.length)}`;
 };
 
-/** The cached path one resolved module sits at, or nothing when the graph
- * names no place for it. An npm package sits in its registry's folder under
- * its subpath; a jsr or https module carries its own file. */
+/** The cached path one resolved module sits at, or nothing when the mapping
+ * cannot use it. An npm package sits in its registry's folder under its
+ * subpath, and a repository module carries its own file. A remote jsr or
+ * https module answers nothing: Deno keeps those modules in its cache under
+ * hashed, extensionless names beside unrelated modules, so TypeScript cannot
+ * resolve a mapping to one or beside one, and the scan leaves a bare
+ * specifier that resolves to one unmapped. */
 const cachedPathOf = (
   resolved: InfoModule,
   info: InfoJson,
   npmCache: string,
 ): string | undefined => {
-  const target =
-    resolved.npmPackage === undefined
-      ? resolved.local
-      : npmPathOf(resolved.npmPackage, resolved.specifier, info, npmCache);
-  return target ?? undefined;
+  if (resolved.npmPackage === undefined) {
+    // Only a repository module's `local` names a usable file.
+    return resolved.specifier.startsWith("file:")
+      ? (resolved.local ?? undefined)
+      : undefined;
+  }
+  return (
+    npmPathOf(resolved.npmPackage, resolved.specifier, info, npmCache) ??
+    undefined
+  );
 };
 
 /** Each bare specifier of the graph, with the cached path that resolves it.

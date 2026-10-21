@@ -35,26 +35,39 @@ const valibotGraph: InfoJson = {
   redirects: { "npm:valibot@^1.4.1": "npm:/valibot@1.4.1" },
 };
 
-/** The entry module of the graph for an entry whose only bare import is a
- * jsr package. */
+/** The entry module of the graph for an entry whose only bare imports are
+ * jsr packages. */
 const stdPathEntry = {
   dependencies: [
+    { code: { specifier: "jsr:@std/assert@^1" }, specifier: "@std/assert" },
     { code: { specifier: "jsr:@std/path@^1" }, specifier: "@std/path" },
   ],
   local: "/repo/src/index.ts",
   specifier: "./src/index.ts",
 };
 
-/** The graph for an entry whose only bare import is a jsr package. */
+/** The graph for an entry whose only bare imports are jsr packages, as
+ * `deno info` prints it: a package's modules sit under `https://jsr.io`, and
+ * one module can still carry a `jsr:` specifier. Each cache file has a
+ * hashed, extensionless name. */
 const stdPathGraph: InfoJson = {
   modules: [
     stdPathEntry,
     {
-      local: "/home/me/.cache/deno/remote/http+jsr.io/@std/path/1.1.0/mod.ts",
+      local:
+        "/home/me/.cache/deno/remote/registry.jsr.io/0f41a4f68c5d54f3d1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708",
       specifier: "jsr:/@std/path@1.1.0",
     },
+    {
+      local:
+        "/home/me/.cache/deno/remote/https/jsr.io/7f8bdf473357ce1073604294edb7c766453362241a4c62d236b3fb7f58e6e81c",
+      specifier: "https://jsr.io/@std/assert/1.0.19/mod.ts",
+    },
   ],
-  redirects: { "jsr:@std/path@^1": "jsr:/@std/path@1.1.0" },
+  redirects: {
+    "jsr:@std/assert@^1": "https://jsr.io/@std/assert/1.0.19/mod.ts",
+    "jsr:@std/path@^1": "jsr:/@std/path@1.1.0",
+  },
 };
 
 describe("paths from deno info", () => {
@@ -83,20 +96,24 @@ describe("paths from deno info", () => {
     });
   });
 
-  test("maps a bare jsr specifier to its cached file", () => {
-    expect(pathsFromInfo(stdPathGraph, "/home/me/.cache/deno/npm")).toEqual({
-      "@std/path": [
-        "/home/me/.cache/deno/remote/http+jsr.io/@std/path/1.1.0/mod.ts",
-      ],
-    });
+  test("leaves a bare jsr specifier unmapped", () => {
+    expect(pathsFromInfo(stdPathGraph, "/home/me/.cache/deno/npm")).toEqual({});
   });
 
   test("answers nothing when the graph names no file for the module", () => {
     const graph: InfoJson = {
-      ...stdPathGraph,
       modules: [
-        stdPathEntry,
-        { local: null, specifier: "jsr:/@std/path@1.1.0" },
+        {
+          dependencies: [
+            {
+              code: { specifier: "file:///repo/src/vendor.ts" },
+              specifier: "vendor",
+            },
+          ],
+          local: "/repo/src/index.ts",
+          specifier: "./src/index.ts",
+        },
+        { local: null, specifier: "file:///repo/src/vendor.ts" },
       ],
     };
     expect(pathsFromInfo(graph, "/home/me/.cache/deno/npm")).toEqual({});
