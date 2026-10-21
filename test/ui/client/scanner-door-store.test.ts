@@ -175,16 +175,18 @@ describe("the scanner door's offline store", () => {
     expect(queuedHashes(store, LISTING)).toEqual(["aa"]);
   });
 
-  test("queues one check-in per digest, oldest first", () => {
+  test("queues every scan, oldest first, one delivery id each", () => {
     const store = storeOver();
-    expect(queueCheckIn(store, LISTING, "aa", 1_000)).toBe(true);
-    expect(queueCheckIn(store, LISTING, "bb", 2_000)).toBe(true);
-    expect(queueCheckIn(store, LISTING, "aa", 3_000)).toBe(false);
-    expect(queuedHashes(store, LISTING)).toEqual(["aa", "bb"]);
+    queueCheckIn(store, LISTING, "aa", 1_000);
+    queueCheckIn(store, LISTING, "bb", 2_000);
+    // A repeat scan of one ticket queues again: the party's next arrival is
+    // a new delivery, and the server admits the next place.
+    queueCheckIn(store, LISTING, "aa", 3_000);
+    expect(queuedHashes(store, LISTING)).toEqual(["aa", "bb", "aa"]);
     const ids = queuedCheckIns(store, LISTING).map(
       (checkIn) => checkIn.operationId,
     );
-    expect(new Set(ids).size).toBe(2);
+    expect(new Set(ids).size).toBe(3);
   });
 
   test("the queue answers oldest first whatever order the scans queued", () => {
@@ -194,15 +196,21 @@ describe("the scanner door's offline store", () => {
     expect(queuedHashes(store, LISTING)).toEqual(["aa", "bb"]);
   });
 
-  test("a digest already queued keeps its first delivery id", () => {
+  test("a repeat scan queues its own delivery beside the first", () => {
     const store = storeOver();
     queueCheckIn(store, LISTING, "aa", 1_000);
     const firstRead = queuedCheckIns(store, LISTING);
-    expect(firstRead).toEqual([
-      { operationId: expect.any(String), queuedAt: 1_000, tokenHash: "aa" },
-    ]);
-    expect(queueCheckIn(store, LISTING, "aa", 2_000)).toBe(false);
-    expect(queuedCheckIns(store, LISTING)).toEqual(firstRead);
+    queueCheckIn(store, LISTING, "aa", 2_000);
+    const [first, second] = queuedCheckIns(store, LISTING);
+    expect(second).toEqual({
+      operationId: expect.any(String),
+      queuedAt: 2_000,
+      tokenHash: "aa",
+    });
+    expect(second!.operationId).not.toBe(first!.operationId);
+    // The second queueing wrote its own key and left the first delivery's
+    // slot byte for byte as it was.
+    expect(first).toEqual(firstRead[0]);
   });
 
   test("a queued check-in carries a delivery id the server accepts", () => {
@@ -215,21 +223,25 @@ describe("the scanner door's offline store", () => {
     expect(ids).toEqual([expect.stringMatching(/^.{1,100}$/)]);
   });
 
-  test("drops exactly the delivered digest", () => {
+  test("drops only the delivered check-in, by its delivery id", () => {
     const store = storeOver();
     queueCheckIn(store, LISTING, "aa", 1_000);
     queueCheckIn(store, LISTING, "bb", 2_000);
-    dropQueuedCheckIn(store, LISTING, "aa");
-    expect(queuedHashes(store, LISTING)).toEqual(["bb"]);
+    queueCheckIn(store, LISTING, "aa", 3_000);
+    const [firstDelivery] = queuedCheckIns(store, LISTING);
+    dropQueuedCheckIn(store, LISTING, firstDelivery!.operationId);
+    // The second queued check-in of the same digest waits for its own
+    // delivery, and the other digest's check-in waits too.
+    expect(queuedHashes(store, LISTING)).toEqual(["bb", "aa"]);
   });
 
   test("two page visits queue over one storage without losing a check-in", () => {
     const backing: Record<string, string> = {};
     const firstVisit = storeOver(backing);
     const secondVisit = storeOver(backing);
-    expect(queueCheckIn(firstVisit, LISTING, "aa", 1_000)).toBe(true);
+    expect(queueCheckIn(firstVisit, LISTING, "aa", 1_000)).toBeUndefined();
     const valuesAfterFirstVisit = Object.values(backing);
-    expect(queueCheckIn(secondVisit, LISTING, "bb", 2_000)).toBe(true);
+    expect(queueCheckIn(secondVisit, LISTING, "bb", 2_000)).toBeUndefined();
     // The second visit added its own slot and left the first visit's slot
     // byte for byte as it was.
     expect(Object.keys(backing)).toHaveLength(valuesAfterFirstVisit.length + 1);
@@ -240,15 +252,18 @@ describe("the scanner door's offline store", () => {
     expect(queuedHashes(firstVisit, LISTING)).toEqual(["aa", "bb"]);
   });
 
-  test("dropping one check-in leaves another visit's check-in queued", () => {
+  test("dropping one visit's delivery leaves the other visit's check-in queued", () => {
     const backing: Record<string, string> = {};
     const firstVisit = storeOver(backing);
     const secondVisit = storeOver(backing);
+    // Two visits queue one ticket while offline. The first visit's replay
+    // delivers, and the second visit's check-in waits for its own answer.
     queueCheckIn(firstVisit, LISTING, "aa", 1_000);
-    queueCheckIn(secondVisit, LISTING, "bb", 2_000);
+    queueCheckIn(secondVisit, LISTING, "aa", 2_000);
     const valuesBeforeDrop = Object.values(backing);
-    dropQueuedCheckIn(secondVisit, LISTING, "aa");
-    expect(queuedHashes(secondVisit, LISTING)).toEqual(["bb"]);
+    const [firstDelivery] = queuedCheckIns(firstVisit, LISTING);
+    dropQueuedCheckIn(secondVisit, LISTING, firstDelivery!.operationId);
+    expect(queuedHashes(secondVisit, LISTING)).toEqual(["aa"]);
     // The drop removed the delivered check-in's own key and touched no
     // other slot, so the surviving entry keeps its stored bytes.
     expect(Object.keys(backing)).toHaveLength(valuesBeforeDrop.length - 1);

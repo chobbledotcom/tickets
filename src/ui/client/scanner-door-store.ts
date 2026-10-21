@@ -74,8 +74,8 @@ export const saveHashList = (
 
 /** The door's saved digests, for a scan to check against. The answer is null
  * when the door has no list, or when the list is past its 12 hours. An
- * expired list deletes itself, so the device keeps no digests past their
- * use. */
+ * expired list deletes itself at this read. A page that never reads again
+ * keeps the stored digests. */
 export const savedHashList = (
   store: KeyValueStore,
   scope: DoorScope,
@@ -172,45 +172,36 @@ export const queuedCheckIns = (
   )(doorKeys).sort((first, second) => first.queuedAt - second.queuedAt);
 };
 
-/** Add a check-in to the queue with a fresh delivery id. A digest already
- * queued keeps its id and stays single, so a double scan offline cannot
- * send one ticket twice. Answers false then. The new check-in writes its
- * own key, so it never rewrites another page visit's queued check-in. */
+/** Add a check-in to the queue with a fresh delivery id. Every queueing is
+ * one delivery: a party's next arrival of one ticket queues again, and the
+ * server answers one delivery once. A double scan of one code is the
+ * scanner's own cooldown, as it is online. The new check-in writes its own
+ * key, so it never rewrites another page visit's queued check-in. */
 export const queueCheckIn = (
   store: KeyValueStore,
   scope: DoorScope,
   tokenHash: string,
   now: number,
-): boolean => {
-  if (
-    queuedCheckIns(store, scope).some(
-      (checkIn) => checkIn.tokenHash === tokenHash,
-    )
-  ) {
-    return false;
-  }
+): void => {
   const operationId = crypto.randomUUID();
   store.setItem(
     `${storageKeys(scope).queuePrefix}${operationId}`,
     JSON.stringify({ operationId, queuedAt: now, tokenHash }),
   );
-  return true;
 };
 
-/** Take one check-in out of the queue. The door calls this only after the
- * server answered the scan for good. An unconfirmed request stays queued,
- * so a lost page or a failed send cannot drop a check-in. A drop removes
- * only the check-ins' own keys, so it never rewrites another page visit's
- * queue. */
+/** Take one check-in out of the queue, by the delivery id the device minted
+ * for it. The door calls this only after the server answered that check-in
+ * for good. An unconfirmed request stays queued, so a lost page or a failed
+ * send cannot drop a check-in. A drop removes only that check-in's own key,
+ * so a second queued check-in of the same digest stays queued for its own
+ * answer. */
 export const dropQueuedCheckIn = (
   store: KeyValueStore,
   scope: DoorScope,
-  tokenHash: string,
+  operationId: string,
 ): void => {
-  for (const checkIn of queuedCheckIns(store, scope)) {
-    if (checkIn.tokenHash !== tokenHash) continue;
-    store.removeItem(`${storageKeys(scope).queuePrefix}${checkIn.operationId}`);
-  }
+  store.removeItem(`${storageKeys(scope).queuePrefix}${operationId}`);
 };
 
 /** The manual switch's stored state. Absent means off. */

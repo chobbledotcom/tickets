@@ -31,9 +31,12 @@ The store holds three things for one door:
   them. `saveHashList` writes it. `savedHashList` reads it back.
 - The **queue**: the check-ins that wait to send, oldest first. Each queued
   check-in holds its digest, its delivery id, and the moment the device
-  queued it, under its own storage key. `queueCheckIn` adds a check-in once
-  and mints its delivery id, so a double scan cannot queue one ticket twice.
-  `dropQueuedCheckIn` removes one digest.
+  queued it, under its own storage key. `queueCheckIn` mints a fresh
+  delivery id and queues the scan as its own check-in. A repeat scan of one
+  ticket queues again: a party's next arrival is a new delivery with an id
+  of its own. A double scan of one code is the scanner's own cooldown, as
+  it is online. `dropQueuedCheckIn` removes one check-in, by its delivery
+  id.
 - The **switch**: the stored state of the manual offline switch.
   `setOfflineMode` stores it. An absent value means off.
 
@@ -51,9 +54,10 @@ Each queued check-in lives under its own storage key, named after its
 delivery id. A queue write touches only its own key. Two page visits on one
 device therefore never overwrite each other's queued check-in.
 
-Two visits can still queue one ticket when both scans land inside the same
-moment. The server admits nobody twice: the second delivery answers
-`already_checked_in`, and L3 shows that answer to the user, per queued
+One ticket can be queued twice: a party's next arrival, or two page visits.
+Each queueing sends a delivery id of its own. The server guards one
+delivery, not the ticket: a replayed delivery answers `already_checked_in`
+and admits nobody twice, and L3 shows that answer to the user, per queued
 check-in.
 
 Each queued check-in carries the delivery id the device minted at queue time.
@@ -63,10 +67,11 @@ stores the id, so one lost answer admits nothing twice.
 ## The 12-hour limit
 
 A saved list answers scans for 12 hours from the moment the door saved it.
-`savedHashList` deletes a list past its 12 hours, so the device keeps no
-digests past their use. The next online load replaces the list whole. The
-expiry touches the saved list only. A queued check-in waits until its replay,
-however old the saved list is.
+`savedHashList` deletes a list at the first read after its 12 hours. A
+browser that never reads the list again can keep the stored digests
+longer. The next online load replaces the list whole. The expiry touches
+the saved list only. A queued check-in waits until its replay, however old
+the saved list is.
 
 ## Privacy and security risks
 
@@ -84,10 +89,12 @@ The risks that remain:
   ticket.
 - Any script on the site's origin can read the site's storage on the device.
   This is true of every browser store, and it holds the digests here.
-- The saved list sits on the device for up to 12 hours. The expiry deletes
-  it. The door also replaces it on the next online load. The queue and the
-  switch stay until the door sends the queue or the user clears the site's
-  storage in the browser.
+- The saved list answers scans for up to 12 hours. The store deletes it at
+  the next read after that. A browser that never reads the list again can
+  keep the stored digests past their 12 hours. The door also replaces the
+  list on the next online load. The queue and the switch stay until the
+  door sends the queue or the user clears the site's storage in the
+  browser.
 - Two offline doors can accept one ticket before either door syncs. The
   server cannot stop that. It admits nobody twice: the second check-in
   answers `already_checked_in` without a second admission. L3 must show that
