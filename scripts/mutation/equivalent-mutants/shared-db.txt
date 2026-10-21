@@ -38,9 +38,9 @@ src/shared/db/attendees/update.ts::loadsAtBoundaries.deltas~1kwldm9  ?? → || a
 # attendees/tokens.ts — `?? → ||` sites where the operand is a Map#get() whose
 # value is always a truthy object or array (never a falsy-but-non-null value),
 # so ?? and || agree for every possible value.
-src/shared/db/attendees/tokens.ts::resultsInTokenOrder.tokenToResult~17m7xgj  ?? → || audited:0kqqtc0 # resultsInTokenOrder: byTokenIndex.get() is Result|undefined; Result is AttendeeWithBookings or AttendeeBookingRows (always a truthy object), so ?? and || agree
-src/shared/db/attendees/tokens.ts::resultsInTokenOrder~0uhrwgz  ?? → || audited:0kqqtc0 # resultsInTokenOrder: tokenToResult.get() is Result|undefined; Result is always a truthy object (see 159), so ?? and || agree
-src/shared/db/attendees/tokens.ts::resultsByRowKey~1c5bf54  ?? → || audited:0kqqtc0 # resultsByRowKey: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree
+src/shared/db/attendees/tokens.ts::resultsInTokenOrder.tokenToResult~17m7xgj  ?? → || audited:1blv7jv # resultsInTokenOrder: byTokenIndex.get() is Result|undefined; Result is AttendeeWithBookings or AttendeeBookingRows (always a truthy object), so ?? and || agree
+src/shared/db/attendees/tokens.ts::resultsInTokenOrder~0uhrwgz  ?? → || audited:1blv7jv # resultsInTokenOrder: tokenToResult.get() is Result|undefined; Result is always a truthy object (see 159), so ?? and || agree
+src/shared/db/attendees/tokens.ts::resultsByRowKey~1c5bf54  ?? → || audited:1blv7jv # resultsByRowKey: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree
 
 # db/capacity.ts — duration defaults that clampDurationDays clamps: a
 # `durationDays` of 0 (the mutant) and 1 (the default) both normalize to a
@@ -70,24 +70,24 @@ src/shared/db/attendees/atomic-update.ts::applyAttendeeAtomicEdit.args~16je2gx  
 
 # Attendee creation receives validated non-empty discriminators, dates, tokens,
 # and finite money values. Empty optional contact fields use empty fallbacks.
-src/shared/db/attendees/create.ts::buildAttendeeInsert.kind~0e4oagg  ?? → || audited:167w6u1 # kind is undefined or a non-empty AttendeeKind value
-src/shared/db/attendees/create.ts::contactInfoFromInput.address~12sc2vz  ?? → || audited:167w6u1 # address is a string or undefined, and the empty string equals the fallback
-src/shared/db/attendees/create.ts::contactInfoFromInput.phone~1nutvzz  ?? → || audited:167w6u1 # phone has the same string-or-undefined domain and empty fallback
-src/shared/db/attendees/create.ts::contactInfoFromInput.special_instructions~1butkj0  ?? → || audited:167w6u1 # special instructions have the same string-or-undefined domain and empty fallback
-src/shared/db/attendees/create.ts::buildAttendeeResult.end_date~1ugulhp  ?? → || audited:167w6u1 # durationDays is a finite integer or undefined; zero and the fallback both clamp to one day
-src/shared/db/attendees/create.ts::buildAttendeeResult.end_date~1ugulhp  1 → 0 audited:167w6u1 # clampDurationDays changes both defaults to one day
-src/shared/db/attendees/create.ts::prepareAttendeeWrite~0lw38vw  ?? → || audited:167w6u1 # the negative-quantity guard gives zero and its one fallback the same false result
-src/shared/db/attendees/create.ts::prepareAttendeeWrite~0lw38vw  1 → 0 audited:167w6u1 # neither fallback is below zero
-src/shared/db/attendees/create.ts::prepareAttendeeWrite.enc~0sjep7t  ?? → || audited:167w6u1 # a supplied ticket token is non-empty, and the generated fallback is also non-empty
-src/shared/db/attendees/create.ts::prepareAttendeeWrite.activityStatements~15xmc4z  ?? → || audited:167w6u1 # source is undefined or a non-empty BookingSource value
-src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.date~1ifkn3h  ?? → || audited:167w6u1 # a booking date is nullish or a non-empty validated date
-src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.kind~1udll18  ?? → || audited:167w6u1 # kind is undefined or a non-empty AttendeeKind value
-src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.packageGroupId~134nzna  ?? → || audited:167w6u1 # packageGroupId is a finite id or undefined; zero equals the fallback
-src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.paymentId~12rd4hg  ?? → || audited:167w6u1 # paymentId is a string or undefined, and the empty string equals the fallback
-src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.pricePaid~1f0nm0t  ?? → || audited:167w6u1 # pricePaid is finite; zero equals the fallback
-src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.remainingBalance~1wsu743  ?? → || audited:167w6u1 # remainingBalance is finite; zero equals the fallback
-src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.statusId~0l3a3of  ?? → || audited:167w6u1 # statusId is nullish or a positive stored id, never zero
-src/shared/db/attendees/create.ts::provenPiiPaymentSession~12rd4hg  ?? → || audited:167w6u1 # paymentId is a string or undefined, and the empty string equals the fallback
+src/shared/db/attendees/create.ts::buildAttendeeInsert.kind~0e4oagg  ?? → || audited:17a3m7b # kind is undefined or a non-empty AttendeeKind value
+src/shared/db/attendees/create.ts::contactInfoFromInput.address~12sc2vz  ?? → || audited:17a3m7b # address is a string or undefined, and the empty string equals the fallback
+src/shared/db/attendees/create.ts::contactInfoFromInput.phone~1nutvzz  ?? → || audited:17a3m7b # phone has the same string-or-undefined domain and empty fallback
+src/shared/db/attendees/create.ts::contactInfoFromInput.special_instructions~1butkj0  ?? → || audited:17a3m7b # special instructions have the same string-or-undefined domain and empty fallback
+src/shared/db/attendees/create.ts::buildAttendeeResult.end_date~1ugulhp  ?? → || audited:17a3m7b # durationDays is a finite integer or undefined; zero and the fallback both clamp to one day
+src/shared/db/attendees/create.ts::buildAttendeeResult.end_date~1ugulhp  1 → 0 audited:17a3m7b # clampDurationDays changes both defaults to one day
+src/shared/db/attendees/create.ts::prepareAttendeeWrite~0lw38vw  ?? → || audited:17a3m7b # the negative-quantity guard gives zero and its one fallback the same false result
+src/shared/db/attendees/create.ts::prepareAttendeeWrite~0lw38vw  1 → 0 audited:17a3m7b # neither fallback is below zero
+src/shared/db/attendees/create.ts::prepareAttendeeWrite.enc~0sjep7t  ?? → || audited:17a3m7b # a supplied ticket token is non-empty, and the generated fallback is also non-empty
+src/shared/db/attendees/create.ts::prepareAttendeeWrite.activityStatements~15xmc4z  ?? → || audited:17a3m7b # source is undefined or a non-empty BookingSource value
+src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.date~1ifkn3h  ?? → || audited:17a3m7b # a booking date is nullish or a non-empty validated date
+src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.kind~1udll18  ?? → || audited:17a3m7b # kind is undefined or a non-empty AttendeeKind value
+src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.packageGroupId~134nzna  ?? → || audited:17a3m7b # packageGroupId is a finite id or undefined; zero equals the fallback
+src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.paymentId~12rd4hg  ?? → || audited:17a3m7b # paymentId is a string or undefined, and the empty string equals the fallback
+src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.pricePaid~1f0nm0t  ?? → || audited:17a3m7b # pricePaid is finite; zero equals the fallback
+src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.remainingBalance~1wsu743  ?? → || audited:17a3m7b # remainingBalance is finite; zero equals the fallback
+src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.statusId~0l3a3of  ?? → || audited:17a3m7b # statusId is nullish or a positive stored id, never zero
+src/shared/db/attendees/create.ts::provenPiiPaymentSession~12rd4hg  ?? → || audited:17a3m7b # paymentId is a string or undefined, and the empty string equals the fallback
 
 # IncompleteBooking never leaves writeWithCreationWork. Its catch uses the
 # class identity and returns null, so no caller can read the error name.
@@ -124,9 +124,15 @@ src/shared/db/attendees/pii.ts::decryptPiiBlob.lat~0pjzbz9  ?? → || audited:0n
 src/shared/db/attendees/pii.ts::decryptPiiBlob.lng~1d5jjcf  ?? → || audited:0n37kv2 # decryptPiiBlob's `blob.lo` has the same string|undefined domain and "" fallback as latitude, so `??` and `||` agree on every input
 
 # getAttendees filter/query builder (src/shared/db/attendees/select.ts) — the
-# defaulted `kind`/`join` operands are string unions that never include "".
-src/shared/db/attendees/select.ts::whereClauses.parts.clause~0zb4tlc  ?? → || audited:08n1uf8 # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
-src/shared/db/attendees/select.ts::attendees.join~02qy6z7  ?? → || audited:08n1uf8 # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
+# defaulted `kind`/`join`/`owedScope` operands are string unions that never
+# include "".
+src/shared/db/attendees/select.ts::whereClauses.parts.clause~0zb4tlc  ?? → || audited:0g48txk # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
+src/shared/db/attendees/select.ts::attendees.join~02qy6z7  ?? → || audited:0g48txk # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
+src/shared/db/attendees/select.ts::attendees.columns~16aknr8  ?? → || audited:0g48txk # query.owedScope: AttendeeOwedScope|undefined — "attendee" and "booking" are both truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
+
+# notification-flags.ts — the email badge's stored-flag fallback. The flag
+# column stores 0 (none), 1 (online booking), or 2 (admin add).
+src/shared/db/attendees/notification-flags.ts::emailBadgePendingOrNull.pending~0k4aii0  ?? → || audited:04kq784 # attendee.email_pending is number | undefined and PENDING_NOTIFICATION.none is 0, so for every domain value (undefined, 0, 1, 2) `?? 0` and `|| 0` return the same number — no input distinguishes the mutant
 
 # The news card query names a single table, so its columns need no alias to
 # resolve.
@@ -217,9 +223,9 @@ src/shared/db/attendees/capacity/refusal-diagnosis.ts::firstUnfitLineIndex.fitti
 # date is a validated YYYY-MM-DD string, null, or undefined — never "" — and
 # a duration only reaches expandDailyRange, whose clampDurationDays turns
 # both 0 and 1 into one day.
-src/shared/db/attendees/create.ts::capacityFailure.listingIds.date~1ifkn3h ??→|| audited:167w6u1 # date is a validated string, null, or undefined; never ""
-src/shared/db/attendees/create.ts::capacityFailure.listingIds.durationDays~04izj82 ??→|| audited:167w6u1 # a 0 duration clamps to 1 day, the same as the default
-src/shared/db/attendees/create.ts::capacityFailure.listingIds.durationDays~04izj82 1→0 audited:167w6u1 # a 0 default clamps to 1 day inside expandDailyRange
+src/shared/db/attendees/create.ts::capacityFailure.listingIds.date~1ifkn3h ??→|| audited:17a3m7b # date is a validated string, null, or undefined; never ""
+src/shared/db/attendees/create.ts::capacityFailure.listingIds.durationDays~04izj82 ??→|| audited:17a3m7b # a 0 duration clamps to 1 day, the same as the default
+src/shared/db/attendees/create.ts::capacityFailure.listingIds.durationDays~04izj82 1→0 audited:17a3m7b # a 0 default clamps to 1 day inside expandDailyRange
 
 # sumup-recovery.ts: libsql's batch returns exactly one ResultSet per
 # statement, and COUNT(*) always returns one row, so these requireValue
