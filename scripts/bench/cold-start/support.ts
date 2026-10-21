@@ -172,9 +172,9 @@ export const seedBenchmarkCatalogue =
 /** Seed the site-page tree the booking-nav scenario reads: a root page
  * carrying two benchmark listings, and a page nested under it carrying one
  * group. The group sits off the active chain a listing's booking page
- * highlights, so the nav's unscoped leaf resolution pays for a page the
- * model never shows. Dynamic imports: nothing may read the environment
- * before main sets it. */
+ * highlights, so the benchmark confirms that the chain-scoped leaf
+ * resolution skips a page the model never shows. Dynamic imports: nothing
+ * may read the environment before main sets it. */
 export const seedBenchmarkNavTree = async (
   ids: BenchmarkCatalogueIds,
 ): Promise<void> => {

@@ -46,7 +46,8 @@ const log = console.log.bind(console);
 
 /** The measured scenarios: the listings page the catalogue serves, and a
  * booking page whose nav tree carries leaves (one off the active chain, so
- * the nav's leaf resolution has work the model never shows). */
+ * the benchmark confirms that the chain-scoped resolution skips a leaf the
+ * model never shows). */
 type BenchScenario = {
   path: string;
   prepare?: (ids: BenchmarkCatalogueIds) => Promise<void>;
