@@ -6,6 +6,7 @@ import {
   useTransaction,
   writeRowInTransaction,
 } from "#db/client.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 
 type Columns = string | readonly [string, ...string[]];
 type ColumnValues<Names extends Columns> = Names extends string
@@ -94,6 +95,14 @@ const columnValues = <Names extends Columns>(
 const matches = (columns: readonly string[]): string =>
   columns.map((column) => `${column} = ?`).join(" AND ");
 
+/** The columns' equality tests against their bound tokens, for a statement
+ * the numbered binder built. */
+const equalityOf = (
+  columns: readonly string[],
+  tokens: readonly string[],
+): string =>
+  columns.map((column, index) => `${column} = ${tokens[index]}`).join(" AND ");
+
 export const defineOrderedCollection = <
   Key extends Columns,
   Scope extends Columns | undefined = undefined,
@@ -107,7 +116,6 @@ export const defineOrderedCollection = <
   const keyColumns = columnNames(key);
   const scopeClause =
     scope === undefined ? "1 = 1" : matches(columnNames(scope));
-  const scopeWhere = `${scopeClause} AND `;
   const scopeArgs = (operation: ScopeValues<Scope>): readonly InValue[] =>
     scope === undefined
       ? []
@@ -143,18 +151,29 @@ export const defineOrderedCollection = <
   const append: OrderedCollection<Key, Scope>["append"] = async (operation) => {
     const scoped = scopeArgs(operation);
     const keyed = columnValues(key, operation.key);
-    const statement = {
-      args: [...scoped, ...keyed, ...scoped, ...keyed],
-      sql: `UPDATE ${table}
+    const statement = numberedStatement((bind) => {
+      const scopeTokens = scoped.map((value) => bind(value));
+      const keys = keyed.map((value) => bind(value));
+      // The same bound values serve the subquery and the outer where: the
+      // binder hands every repeat of one value the same token.
+      const scopeText =
+        scope === undefined
+          ? "1 = 1"
+          : equalityOf(columnNames(scope), scopeTokens);
+      const scopeWhereText = `${scopeText} AND `;
+      return `UPDATE ${table}
                SET ${order} = COALESCE((
                  SELECT MAX(orderedSibling.${order}) + 1
                    FROM ${table} AS orderedSibling
-                   WHERE ${scopeWhere}(${keyColumns
-                     .map((column) => `orderedSibling.${column} != ?`)
+                   WHERE ${scopeWhereText}(${keyColumns
+                     .map(
+                       (column, index) =>
+                         `orderedSibling.${column} != ${keys[index]}`,
+                     )
                      .join(" OR ")})
                ), ${start})
-             WHERE ${scopeWhere}${matches(keyColumns)}`,
-    };
+             WHERE ${scopeWhereText}${equalityOf(keyColumns, keys)}`;
+    });
     await (operation.transaction
       ? operation.transaction.execute(statement)
       : execute(statement.sql, statement.args));
@@ -164,23 +183,27 @@ export const defineOrderedCollection = <
     inTransaction(operation, async (transaction) => {
       const first = columnValues(key, operation.first);
       const second = columnValues(key, operation.second);
-      const pair = `(${matches(keyColumns)} OR ${matches(keyColumns)})`;
       const differentKey = keyColumns
         .map((column) => `swapping.${column} != orderedItem.${column}`)
         .join(" OR ");
-      await transaction.execute({
-        args: [
-          scopeArgs(operation),
-          first,
-          second,
-          scopeArgs(operation),
-          first,
-          second,
-        ].flat(),
-        sql: `WITH swapping AS MATERIALIZED (
+      await transaction.execute(
+        numberedStatement((bind) => {
+          const scopeTokens = scopeArgs(operation).map((value) => bind(value));
+          const firstTokens = first.map((value) => bind(value));
+          const secondTokens = second.map((value) => bind(value));
+          // The CTE and the outer where read the same rows, so one bound
+          // value serves both: the pair is one text, used twice.
+          const scopeWhereText =
+            scope === undefined
+              ? "1 = 1 AND "
+              : `${equalityOf(columnNames(scope), scopeTokens)} AND `;
+          const firstText = equalityOf(keyColumns, firstTokens);
+          const secondText = equalityOf(keyColumns, secondTokens);
+          const pair = `(${firstText} OR ${secondText})`;
+          return `WITH swapping AS MATERIALIZED (
                 SELECT ${[...keyColumns, order].join(", ")}
                   FROM ${table}
-                 WHERE ${scopeWhere}${pair}
+                 WHERE ${scopeWhereText}${pair}
               )
               UPDATE ${table} AS orderedItem
                  SET ${order} = (
@@ -188,9 +211,10 @@ export const defineOrderedCollection = <
                      FROM swapping
                     WHERE ${differentKey}
                  )
-               WHERE ${scopeWhere}${pair}
-                 AND (SELECT COUNT(*) FROM swapping) = 2`,
-      });
+               WHERE ${scopeWhereText}${pair}
+                 AND (SELECT COUNT(*) FROM swapping) = 2`;
+        }),
+      );
     });
 
   return { append, next, nextMany, swap };

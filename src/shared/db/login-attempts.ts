@@ -15,28 +15,38 @@ import {
   isIpLockedOut,
   makeAttemptRecorder,
 } from "#db/attempt-lockout.ts";
+import type { SqlParameter } from "#db/numbered-statement.ts";
 import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 
 /** One statement counts the attempt and applies the lockout: the VALUES arm
  * covers an IP's first attempt, the conflict arm every later one, and both
  * decide the lockout inside the database — concurrent attempts each land as
- * their own increment instead of overwriting a shared read.
- * Numbered parameters: ?1 hashed IP · ?2 the attempt limit · ?3 the lockout
- * deadline · ?4 now. */
-const RECORD_ATTEMPT_SQL = `
+ * their own increment instead of overwriting a shared read. */
+const recordAttemptStatement = (
+  bind: SqlParameter,
+  values: LoginAttemptValues,
+): string => `
   INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt)
-  VALUES (?1, 1, CASE WHEN 1 >= ?2 THEN ?3 ELSE NULL END, ?4)
+  VALUES (${bind(values.hashedIp)}, 1, CASE WHEN 1 >= ${bind(values.maxAttempts)} THEN ${bind(values.lockDeadline)} ELSE NULL END, ${bind(values.now)})
   ON CONFLICT (ip) DO UPDATE SET
     attempts = login_attempts.attempts + 1,
     locked_until = CASE
-      WHEN login_attempts.attempts + 1 >= ?2 THEN ?3
+      WHEN login_attempts.attempts + 1 >= ${bind(values.maxAttempts)} THEN ${bind(values.lockDeadline)}
       ELSE NULL
     END,
-    last_attempt = ?4
+    last_attempt = ${bind(values.now)}
   RETURNING locked_until`;
 
-const recordAttempt = makeAttemptRecorder(RECORD_ATTEMPT_SQL);
+/** The values one recorded attempt carries. */
+interface LoginAttemptValues {
+  hashedIp: string;
+  lockDeadline: number;
+  maxAttempts: number;
+  now: number;
+}
+
+const recordAttempt = makeAttemptRecorder(recordAttemptStatement);
 
 /**
  * Check whether an IP (namespaced by `prefix`) is currently locked out.
@@ -56,8 +66,12 @@ const recordIpAttempt = async (
 ): Promise<boolean> => {
   const hashedIp = await hmacHash(`${prefix}${ip}`);
   const current = nowMs();
-  // One value per numbered parameter, in ?1..?4 order.
-  return recordAttempt([hashedIp, maxAttempts, current + lockoutMs, current]);
+  return recordAttempt({
+    hashedIp,
+    lockDeadline: current + lockoutMs,
+    maxAttempts,
+    now: current,
+  });
 };
 
 /**

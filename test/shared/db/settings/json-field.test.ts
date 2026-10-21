@@ -26,7 +26,7 @@ const writeFeatureBoolean = (
     initialValue,
     path,
     value,
-  ).write(whenSql, parseEnabledFeatures);
+  ).write(() => whenSql, parseEnabledFeatures);
 
 const settingsVersion = async (): Promise<number> => {
   const row = await queryOnePrimary<{ value: string }>(

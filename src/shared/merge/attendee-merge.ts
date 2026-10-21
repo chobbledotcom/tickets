@@ -18,6 +18,7 @@ import {
   repointAttendeeDependents,
 } from "#db/attendees/delete.ts";
 import { insert, type SqlStatement, withTransaction } from "#db/client.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import { assertRowsFreeToMove } from "#db/payment-admit-move.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import {
@@ -655,20 +656,16 @@ const applyBookingDecisions = (
       // Replace the target booking with the source booking — only the one
       // slot the decision names: a listing booked through several paths keeps
       // its other package/standalone rows.
-      deleteTargetBookingStatements.push({
-        args: [
-          targetId,
-          item.listingId,
-          item.startAt,
-          item.parentListingId,
-          item.packageGroupId,
-        ],
-        sql: `DELETE FROM listing_attendees
-              WHERE attendee_id = ?1 AND listing_id = ?2
-              AND (start_at IS ?3 OR start_at = ?3)
-              AND parent_listing_id = ?4
-              AND package_group_id = ?5`,
-      });
+      deleteTargetBookingStatements.push(
+        numberedStatement((bind) => {
+          const startAt = bind(item.startAt);
+          return `DELETE FROM listing_attendees
+              WHERE attendee_id = ${bind(targetId)} AND listing_id = ${bind(item.listingId)}
+              AND (start_at IS ${startAt} OR start_at = ${startAt})
+              AND parent_listing_id = ${bind(item.parentListingId)}
+              AND package_group_id = ${bind(item.packageGroupId)}`;
+        }) as BatchStatement,
+      );
       insertStatements.push(
         bookingInsertStatement(targetId, item.sourceBooking),
       );

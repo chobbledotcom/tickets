@@ -9,6 +9,10 @@ import {
   queryAll,
   type SqlStatement,
 } from "#db/client.ts";
+import {
+  numberedStatement,
+  type SqlParameter,
+} from "#db/numbered-statement.ts";
 import { orphanIdsBatch } from "#db/orphan-attendees.ts";
 import { settings } from "#db/settings.ts";
 import {
@@ -43,16 +47,16 @@ export interface DatabasePruningResult {
 
 const boundedDelete = (
   table: string,
-  where: string,
-  args: (number | string)[],
-): PruneStatement => ({
-  args: [...args, MAINTENANCE_PRUNE_BATCH],
-  sql: `DELETE FROM ${table}
+  buildWhere: (bind: SqlParameter) => string,
+): PruneStatement =>
+  numberedStatement((bind) => {
+    const batch = bind(MAINTENANCE_PRUNE_BATCH);
+    return `DELETE FROM ${table}
          WHERE rowid IN (
-           SELECT rowid FROM ${table} WHERE ${where}
-           ORDER BY rowid LIMIT ?
-         )`,
-});
+           SELECT rowid FROM ${table} WHERE ${buildWhere(bind)}
+           ORDER BY rowid LIMIT ${batch}
+         )`;
+  });
 
 const paymentStatement = (): PruneStatement => ({
   args: [isoBefore(PRUNE_PAYMENTS_RETENTION_MS), MAINTENANCE_PRUNE_BATCH],
@@ -118,10 +122,8 @@ const pruneStatements = (): PruneStatement[] => [
   // is the exact harm the recovery task exists to prevent.
   boundedDelete(
     "sumup_checkouts",
-    `created_at < ? AND recovery_state IN (${inPlaceholders(
-      RECOVERY_PRUNABLE_NODES,
-    )})`,
-    [isoBefore(PRUNE_SUMUP_RETENTION_MS), ...RECOVERY_PRUNABLE_NODES],
+    (bind) =>
+      `created_at < ${bind(isoBefore(PRUNE_SUMUP_RETENTION_MS))} AND recovery_state IN (${RECOVERY_PRUNABLE_NODES.map((node) => bind(node)).join(", ")})`,
   ),
   // The payments cutoff keeps answers past the short SumUp staging window. A
   // Square row also waits for its link to end, and only an observed end
@@ -130,55 +132,59 @@ const pruneStatements = (): PruneStatement[] => [
   // window, the link cannot take payment, so the answers go even though the
   // handle row remains. A payment made just before the end can still arrive
   // through webhook retries.
-  boundedDelete(
-    "checkout_pending_answers",
-    `created_at < ?1
+  boundedDelete("checkout_pending_answers", (bind) => {
+    const paymentsCutoff = bind(isoBefore(PRUNE_PAYMENTS_RETENTION_MS));
+    const squareCutoff = bind(
+      isoBefore(SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS),
+    );
+    const webhookCutoff = bind(isoBefore(WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS));
+    return `created_at < ${paymentsCutoff}
        AND (
          link_ends_at IS NULL
-         OR created_at < ?2
+         OR created_at < ${squareCutoff}
          OR (
-           link_ends_at < ?3
+           link_ends_at < ${webhookCutoff}
            AND NOT EXISTS (
              SELECT 1 FROM square_link_ends AS handle
               WHERE handle.session_index = checkout_pending_answers.session_index
            )
          )
-       )`,
-    [
-      isoBefore(PRUNE_PAYMENTS_RETENTION_MS),
-      isoBefore(SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS),
-      isoBefore(WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS),
-    ],
-  ),
+       )`;
+  }),
   // A Square link stops taking payment at Square's native lifetime (180 days)
   // at the latest, whatever the expiry task did, so a handle row older than
   // that bound plus the webhook window can hold nothing worth ending. Younger
   // rows keep their place until the task observes their end.
-  boundedDelete("square_link_ends", "created_at < ?", [
-    isoBefore(SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS),
-  ]),
-  boundedDelete("strings", "used_count = 0 AND created < ?", [
-    isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS),
-  ]),
-  addressCachePruneStatement(),
-  boundedDelete("sessions", "expires < ?", [
-    nowMs() - PRUNE_SESSIONS_RETENTION_MS,
-  ]),
-  // Both arms compare against the same cutoff, bound once as ?1; the builder's
-  // unnumbered LIMIT ? continues after the highest number, so it reads ?2.
   boundedDelete(
-    "login_attempts",
-    `(locked_until IS NOT NULL AND locked_until < ?1)
-        OR (locked_until IS NULL AND last_attempt < ?1)`,
-    [nowMs() - PRUNE_LOGINS_RETENTION_MS],
+    "square_link_ends",
+    (bind) =>
+      `created_at < ${bind(isoBefore(SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS))}`,
   ),
-  boundedDelete("token_attempts", "last_attempt < ?", [
-    nowMs() - PRUNE_TOKENS_RETENTION_MS,
-  ]),
+  boundedDelete(
+    "strings",
+    (bind) =>
+      `used_count = 0 AND created < ${bind(isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS))}`,
+  ),
+  addressCachePruneStatement(),
+  boundedDelete(
+    "sessions",
+    (bind) => `expires < ${bind(nowMs() - PRUNE_SESSIONS_RETENTION_MS)}`,
+  ),
+  // Both arms compare against the same cutoff, so one bound value reads the
+  // same token twice.
+  boundedDelete("login_attempts", (bind) => {
+    const cutoff = bind(nowMs() - PRUNE_LOGINS_RETENTION_MS);
+    return `(locked_until IS NOT NULL AND locked_until < ${cutoff})
+        OR (locked_until IS NULL AND last_attempt < ${cutoff})`;
+  }),
+  boundedDelete(
+    "token_attempts",
+    (bind) => `last_attempt < ${bind(nowMs() - PRUNE_TOKENS_RETENTION_MS)}`,
+  ),
   boundedDelete(
     "contact_preferences",
-    "unsubscribed = 0 AND last_activity < ?",
-    [nowMs() - PRUNE_CONTACTS_RETENTION_MS],
+    (bind) =>
+      `unsubscribed = 0 AND last_activity < ${bind(nowMs() - PRUNE_CONTACTS_RETENTION_MS)}`,
   ),
 ];
 
@@ -217,18 +223,19 @@ const checkpointId = (checkpoint: string | null): number | null => {
 const expiredInvitePage = async (
   checkpoint: string | null,
 ): Promise<InvitePage> => {
-  // Both arms compare against the same saved position, bound once as ?1; the
-  // unnumbered LIMIT ? continues after the highest number, so it reads ?2.
-  const rows = await queryAll<InviteCandidate>(
-    `SELECT id, invite_expiry FROM users
+  const { sql, args } = numberedStatement((bind) => {
+    const position = bind(checkpointId(checkpoint));
+    return `SELECT id, invite_expiry FROM users
       WHERE wrapped_data_key IS NULL
         AND password_hash = ''
         AND invite_expiry IS NOT NULL
-        AND (?1 IS NULL OR id > ?1)
+        AND (${position} IS NULL OR id > ${position})
       ORDER BY id
-      LIMIT ?`,
-    [checkpointId(checkpoint), MAINTENANCE_PRUNE_BATCH + 1],
-  );
+      LIMIT ${bind(MAINTENANCE_PRUNE_BATCH + 1)}`;
+  });
+  // Both arms compare against the same saved position, so one bound value
+  // reads the same token twice.
+  const rows = await queryAll<InviteCandidate>(sql, args);
   const candidates = rows.slice(0, MAINTENANCE_PRUNE_BATCH);
   const cutoff = now().getTime();
   const inviteStates = await Promise.all(

@@ -6,8 +6,9 @@
  * here too; display order always comes from the question's own sort_order.
  */
 
-import { inPlaceholders, queryAll, type SqlStatement } from "#db/client.ts";
+import { queryAll, type SqlStatement } from "#db/client.ts";
 import { linkTableSide } from "#db/link-table.ts";
+import { numberedListStatement } from "#db/numbered-statement.ts";
 import type { Answer, QuestionWithAnswers } from "#db/question-types.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { readRows } from "#db/read.ts";
@@ -185,9 +186,10 @@ export const getQuestionsWithListingIds = async (
 }> => {
   if (listingIds.length === 0) return emptyQuestionsWithListingIds();
 
-  const ph = inPlaceholders(listingIds);
-  const rows = await queryAll<JoinedRowWithListings>(
-    `SELECT ${QA_COLS},
+  const statement = numberedListStatement(
+    listingIds,
+    (ph) =>
+      `SELECT ${QA_COLS},
             CASE WHEN question.assign_all = 1 THEN NULL ELSE
               (SELECT GROUP_CONCAT(listingQuestion.listing_id) FROM listing_questions AS listingQuestion
                WHERE listingQuestion.question_id = question.id AND listingQuestion.listing_id IN (${ph}))
@@ -195,7 +197,10 @@ export const getQuestionsWithListingIds = async (
      FROM ${QA_JOIN}
      WHERE question.assign_all = 1 OR question.id IN (SELECT question_id FROM listing_questions WHERE listing_id IN (${ph}))
      ORDER BY question.sort_order, question.id, answer.sort_order`,
-    [...listingIds, ...listingIds],
+  );
+  const rows = await queryAll<JoinedRowWithListings>(
+    statement.sql,
+    statement.args,
   );
 
   if (rows.length === 0) return emptyQuestionsWithListingIds();

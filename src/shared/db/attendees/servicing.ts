@@ -26,14 +26,9 @@ import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import { decryptAttendeeFields } from "#db/attendees/pii.ts";
 import { loadAttendeeRows } from "#db/attendees/queries.ts";
 import { type AttendeeRowFor, getAttendees } from "#db/attendees/select.ts";
-import {
-  inPlaceholders,
-  queryAll,
-  queryOne,
-  requireOne,
-  withTransaction,
-} from "#db/client.ts";
+import { queryAll, queryOne, requireOne, withTransaction } from "#db/client.ts";
 import { listingNames } from "#db/listings/records.ts";
+import { numberedListStatement } from "#db/numbered-statement.ts";
 import {
   type AttendeeAnswersBatch,
   getAttendeeAnswersBatch,
@@ -830,14 +825,16 @@ const loadServiceCostLegs = async (
   // records.length; editServiceCost passes the cost's single listing), so no
   // empty-set guard — an empty `IN ()` would be a caller bug, not a silent [].
   const ids = listingIds.map(String);
-  const legs = await queryAll<CostRow>(
-    `SELECT ${COST_ROW_SELECT}, memo FROM transfers
+  const statement = numberedListStatement(
+    ids,
+    (inIds) =>
+      `SELECT ${COST_ROW_SELECT}, memo FROM transfers
       WHERE kind = '${KIND.serviceCost}'
-        AND ((source_type = 'cost' AND source_id IN (${inPlaceholders(ids)}))
-          OR (dest_type = 'cost' AND dest_id IN (${inPlaceholders(ids)})))
+        AND ((source_type = 'cost' AND source_id IN (${inIds}))
+          OR (dest_type = 'cost' AND dest_id IN (${inIds})))
       ORDER BY id`,
-    [...ids, ...ids],
   );
+  const legs = await queryAll<CostRow>(statement.sql, statement.args);
   return Promise.all(
     legs.map(async (leg): Promise<DecodedCostLeg> => {
       const match = (await decrypt(leg.memo!)).match(EDIT_COST_MEMO);

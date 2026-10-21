@@ -15,6 +15,8 @@ import {
   mapBookingRows,
 } from "#db/logistics.ts";
 import {
+  boundSlots,
+  numberedListStatement,
   numberedStatement,
   type SqlParameter,
 } from "#db/numbered-statement.ts";
@@ -94,8 +96,8 @@ const queryRunSheetLegs = async <Row>(
   const { sql, args } = numberedStatement((bind) =>
     write(
       {
-        agentSlots: agentIds.map(bind).join(", "),
-        dateSlots: dates.map(bind).join(", "),
+        agentSlots: boundSlots(bind, agentIds),
+        dateSlots: boundSlots(bind, dates),
       },
       bind,
     ),
@@ -284,18 +286,19 @@ export const getAgentRunSheetDates = async (
 ): Promise<string[]> => {
   if (agentIds.length === 0) return [];
   // Both UNION arms read the same agents, so the list is bound once.
-  const { sql, args } = numberedStatement((bind) => {
-    const agentSlots = agentIds.map(bind).join(", ");
+  const { sql, args } = numberedListStatement(
+    agentIds,
     // quantity > 0 mirrors the run-sheet query: a no-quantity sentinel line is
     // never an operational delivery, so it must not offer a date to open.
-    return `SELECT DATE(start_at) AS date FROM listing_attendees
+    (agentSlots) =>
+      `SELECT DATE(start_at) AS date FROM listing_attendees
         WHERE start_agent_id IN (${agentSlots})
           AND start_at IS NOT NULL AND quantity > 0
       UNION
       SELECT DATE(end_at, '-1 day') AS date FROM listing_attendees
         WHERE end_agent_id IN (${agentSlots})
-          AND end_at IS NOT NULL AND quantity > 0`;
-  });
+          AND end_at IS NOT NULL AND quantity > 0`,
+  );
   const rows = await queryAll<{ date: string }>(sql, args);
   return rows.map((row) => row.date).sort((a, b) => a.localeCompare(b));
 };

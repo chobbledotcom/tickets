@@ -1,7 +1,9 @@
-/* jscpd:ignore-start -- imports */
-import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import { resultRows, type SqlStatement, withTransaction } from "#db/client.ts";
+import {
+  numberedStatement,
+  type SqlParameter,
+} from "#db/numbered-statement.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import { syncStoredSetting } from "#db/settings/raw-writes.ts";
 import {
@@ -16,10 +18,15 @@ const StoredJsonSchema = v.object({ value: v.string() });
 const parseStoredJson = (row: unknown): string =>
   v.parse(StoredJsonSchema, row).value;
 
+/** The condition a feature write keeps true on both passes. The builder binds
+ * the clause's own values, and both passes read the same tokens, so a value
+ * the clause needs twice is bound once. */
+export type WhenClause = (bind: SqlParameter) => string;
+
 export interface BooleanJsonField {
-  statement: (whenSql: string, whenArgs?: readonly InValue[]) => SqlStatement;
+  statement: (when: WhenClause) => SqlStatement;
   write: (
-    whenSql: string,
+    when: WhenClause,
     validate: (stored: string) => void,
   ) => Promise<string | null>;
 }
@@ -33,36 +40,25 @@ export const booleanJsonField = (
   value: boolean,
 ): BooleanJsonField => {
   const jsonType = value ? "true" : "false";
-  const statement = (
-    whenSql: string,
-    whenArgs: readonly InValue[] = [],
-  ): SqlStatement => ({
-    args: [
-      key,
-      initialValue,
-      ...whenArgs,
-      path,
-      jsonType,
-      ...whenArgs,
-      path,
-      jsonType,
-    ],
-    sql: `INSERT INTO settings (key, value)
-        SELECT ?, ?
-        WHERE ${whenSql}
+  const statement = (when: WhenClause): SqlStatement =>
+    numberedStatement((bind) => {
+      const clause = when(bind);
+      return `INSERT INTO settings (key, value)
+        SELECT ${bind(key)}, ${bind(initialValue)}
+        WHERE ${clause}
         ON CONFLICT(key) DO UPDATE SET
-          value = json_set(settings.value, ?, json(?))
-        WHERE (${whenSql})
-          AND json_type(settings.value, ?) IS NOT ?
-        RETURNING value`,
-  });
+          value = json_set(settings.value, ${bind(path)}, json(${bind(jsonType)}))
+        WHERE (${clause})
+          AND json_type(settings.value, ${bind(path)}) IS NOT ${bind(jsonType)}
+        RETURNING value`;
+    });
 
   const write = async (
-    whenSql: string,
+    when: WhenClause,
     validate: (stored: string) => void,
   ): Promise<string | null> => {
     const stored = await withTransaction(async (tx) => {
-      const result = await tx.execute(statement(whenSql));
+      const result = await tx.execute(statement(when));
       const [returned] = resultRows<unknown>(result);
       if (returned === undefined) {
         const currentResult = await tx.execute({

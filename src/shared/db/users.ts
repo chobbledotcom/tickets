@@ -28,6 +28,7 @@ import {
   registerCache,
   registerTableInvalidation,
 } from "#db/common-schema.ts";
+import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#types";
@@ -347,6 +348,12 @@ const executeChangedRow = async (
   return result.rowsAffected > 0;
 };
 
+/** Run one changed-row write from its deferred numbered form. */
+const executeNumberedChangedRow = (buildSql: NumberedSql): Promise<boolean> => {
+  const { sql, args } = numberedStatement(buildSql);
+  return executeChangedRow(sql, args);
+};
+
 export const acceptInvite = async (
   userId: number,
   inviteWrappedDataKey: WrappedKey,
@@ -361,9 +368,9 @@ export const acceptInvite = async (
     password,
     passwordHash,
   );
-  return executeChangedRow(
-    "UPDATE users SET password_hash = ?1, wrapped_data_key = ?2, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ?3, invite_expiry = ?3 WHERE id = ?4 AND invite_wrapped_data_key IS NOT NULL",
-    [encryptedHash, wrappedDataKey, encryptedEmpty, userId],
+  return executeNumberedChangedRow(
+    (bind) =>
+      `UPDATE users SET password_hash = ${bind(encryptedHash)}, wrapped_data_key = ${bind(wrappedDataKey)}, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ${bind(encryptedEmpty)}, invite_expiry = ${bind(encryptedEmpty)} WHERE id = ${bind(userId)} AND invite_wrapped_data_key IS NOT NULL`,
   );
 };
 
@@ -382,9 +389,9 @@ export const activateKeylessUser = async (
 ): Promise<boolean> => {
   const { encryptedHash, encryptedEmpty } =
     await buildActivationSecrets(password);
-  return executeChangedRow(
-    "UPDATE users SET password_hash = ?1, kek_version = 2, invite_code_hash = ?2, invite_expiry = ?2 WHERE id = ?3 AND password_hash = ''",
-    [encryptedHash, encryptedEmpty, userId],
+  return executeNumberedChangedRow(
+    (bind) =>
+      `UPDATE users SET password_hash = ${bind(encryptedHash)}, kek_version = 2, invite_code_hash = ${bind(encryptedEmpty)}, invite_expiry = ${bind(encryptedEmpty)} WHERE id = ${bind(userId)} AND password_hash = ''`,
   );
 };
 
