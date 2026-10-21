@@ -125,7 +125,7 @@ export type QueuedCheckIn = {
 
 const isQueuedCheckIn = (entry: unknown): entry is QueuedCheckIn => {
   if (typeof entry !== "object" || entry === null) return false;
-  const record = entry as Record<string, unknown>;
+  const record = entry as Partial<QueuedCheckIn>;
   return (
     typeof record.tokenHash === "string" &&
     typeof record.operationId === "string" &&
