@@ -140,14 +140,10 @@ src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.count~0irieiu H
 # The scanner bundle's wording helpers (src/ui/client/scanner-messages.js):
 # the template renders every data-message attribute the helpers read, and the
 # en copy of each surviving lookup key equals the module's fallback word for
-# word — so a missed lookup lands on the same words. The JSON scan API answers
-# every interpolated hole with a non-empty string or a count of at least one,
-# so the interpolate and ticket-count fallbacks never fire either.
-src/ui/client/scanner-messages.js::interpolate~1j841kk ??→|| audited:12hqrw5 # every interpolated hole arrives as a non-empty string or a count of at least one, so no falsy value reaches the fallback
-src/ui/client/scanner-messages.js::interpolate~1j841kk →"mutated" audited:12hqrw5 # every call passes a value for each hole the template names, so the empty fallback never fires
+# word — so a missed lookup lands on the same words.
 src/ui/client/scanner-messages.js::getMessage~0dasa24 ??→|| audited:12hqrw5 # a stored attribute value is a rendered non-empty copy or the key is absent; "" is never stored, so ?? and || agree
-src/ui/client/scanner-messages.js::formatTicketCount.safeCount~1eg2obm 1→0 audited:12hqrw5 # both callers pass a finite count — the scan API's JSON answer and the picker's whole-number pick — so the non-finite fallback never fires
-src/ui/client/scanner-messages.js::formatTicketCount~1vjt9r9 {count} ticket→"" audited:12hqrw5 # the page always renders both ticket-count attributes, so the fallback copy never shows
+src/ui/client/scanner-messages.js::formatTicketCount.key~1ndam2w messageTicketCountOne→"" audited:01d6b7q # the lookup misses into the fallback copy, whose words are the rendered attribute's own
+src/ui/client/scanner-messages.js::fadeTimer~0y2nn6v 0→1 audited:01d6b7q # clearTimeout ignores an id no timer owns, so the initial 0 and the mutated 1 clear nothing either way
 
 # The camera scanner bundle (src/ui/client/scanner.js): the template renders
 # every data-message attribute the bundle reads (sharedScanMessageAttrs on
