@@ -41,34 +41,28 @@ export const pictureTag = (world: TicketsWorld): string => {
   return `<img src="/image/${encodeURI(image.filename)}" alt="${image.alt}">`;
 };
 
-/** The page region one opening marker opens. Counts nested tags of the same
- * kind, so a region that holds children does not end at a child's close. */
-export const regionFrom = (
-  html: string,
-  openMarker: string,
-  tag: string,
-): string => {
-  const start = html.indexOf(openMarker);
-  if (start < 0) return "";
-  const open = new RegExp(`<${tag}[\\s>]`, "g");
-  const close = new RegExp(`</${tag}>`, "g");
-  open.lastIndex = start;
-  close.lastIndex = start;
-  open.exec(html);
-  let depth = 1;
-  for (;;) {
-    const nextOpen = open.exec(html);
-    const nextClose = close.exec(html);
-    if (nextClose === null) return "";
-    if (nextOpen !== null && nextOpen.index < nextClose.index) {
-      depth += 1;
-      continue;
-    }
-    depth -= 1;
-    if (depth === 0) {
-      return html.slice(start, nextClose.index + nextClose[0].length);
-    }
+/** The page region one opening marker opens. The marker can sit inside the
+ * opening tag's attributes, so the scan starts at the `<tag` that holds it.
+ * One pass over that tag's open and close tokens counts the nesting, so a
+ * region that holds children does not end at a child's close. */
+const regionFrom = (html: string, openMarker: string, tag: string): string => {
+  const markerAt = html.indexOf(openMarker);
+  if (markerAt < 0) return "";
+  const openTag = `<${tag}`;
+  let start = html.lastIndexOf(openTag, markerAt);
+  // A match can sit inside a longer tag's name. Hold out for a real boundary.
+  while (start >= 0 && !/[\s>]/.test(html[start + openTag.length] ?? "")) {
+    start = html.lastIndexOf(openTag, start - 1);
   }
+  if (start < 0) return "";
+  const tokens = new RegExp(`<(/?)${tag}[\\s>]`, "g");
+  tokens.lastIndex = start;
+  let depth = 0;
+  for (let m = tokens.exec(html); m !== null; m = tokens.exec(html)) {
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) return html.slice(start, m.index + m[0].length);
+  }
+  return "";
 };
 
 /** Hold one page region to its own copy of the picture. A match anywhere else

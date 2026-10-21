@@ -300,3 +300,8 @@ export const requiredWorldValue = <Value>(
   }
   return value;
 };
+
+/** Just enough of a World for a unit test to read: the test names only the
+ * fields its helper reads. */
+export const worldWith = (fields: Partial<TicketsWorld>): TicketsWorld =>
+  fields as TicketsWorld;
