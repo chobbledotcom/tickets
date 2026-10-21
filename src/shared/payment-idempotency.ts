@@ -1,5 +1,6 @@
 import { toBase64Url } from "#crypto/utils.ts";
 import { requireRefundGeneration } from "#payment/refund-generation.ts";
+import { sha256Digest } from "#shared/sha256.ts";
 import type { PaymentProviderType } from "#types";
 
 /**
@@ -18,11 +19,8 @@ export const refundIdempotencyKey = async (
   requireRefundGeneration(generation);
   // Generation one's established key space must remain stable across deploys.
   const generationSuffix = generation === 1 ? "" : `:${generation}`;
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(
-      `${provider}-refund:${paymentReference}${generationSuffix}`,
-    ),
+  const digest = await sha256Digest(
+    `${provider}-refund:${paymentReference}${generationSuffix}`,
   );
   return toBase64Url(new Uint8Array(digest));
 };

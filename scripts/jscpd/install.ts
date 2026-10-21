@@ -11,9 +11,9 @@
 import { join } from "node:path";
 import { UntarStream } from "@std/tar";
 import { ensureInstalled, isFileAt, withTempDir } from "#scripts/bin-tools.ts";
-import { sha256Hex } from "#scripts/checksum.ts";
 import { withFileLock } from "#scripts/lock-file.ts";
 import { projectRoot } from "#scripts/project-root.ts";
+import { sha256Hex } from "#shared/sha256.ts";
 import { streamChunks } from "#shared/stream-chunks.ts";
 
 export const JSCPD_VERSION = "5.2.0";

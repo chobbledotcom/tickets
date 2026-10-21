@@ -7,11 +7,11 @@ import {
 import { join } from "@std/path";
 import sharp from "sharp";
 import * as v from "valibot";
-import { sha256Hex } from "#scripts/checksum.ts";
 import { removeIfPresent } from "#scripts/cleanup.ts";
 import { SCREENSHOT_PROFILES } from "#scripts/screenshots/profile.ts";
 import type { SpecCatalog } from "#scripts/specs/types.ts";
 import { requireValue } from "#shared/required-value.ts";
+import { sha256Hex } from "#shared/sha256.ts";
 import { resolveEvidenceScenario } from "./resolve.ts";
 import {
   EVIDENCE_REPOSITORY,

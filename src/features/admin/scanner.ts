@@ -2,7 +2,6 @@ import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAllGroupNames, getGroupById } from "#db/groups.ts";
-import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { getListingPickerNames } from "#db/listings/catalog.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { filter, groupToMap, sumOf } from "#fp";
@@ -26,7 +25,16 @@ import {
   type TicketOption,
 } from "#templates/admin/scanner.tsx";
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
-import { groupScope, listingScope, processScan } from "./scan-answer.ts";
+import {
+  groupScope,
+  listingScope,
+  processScan,
+  scopeAttendees,
+} from "./scan-answer.ts";
+import {
+  handleGroupScanCacheGet,
+  handleListingScanCacheGet,
+} from "./scan-cache.ts";
 
 /** The door-safe facts that tell two people with the same name apart. They
  * name the listing when a door spans several, and the day each place is
@@ -97,12 +105,8 @@ const handleScannerGet: IdRouteHandler = createIdEntityHandler<
 const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(
   getGroupById,
 )(pageGuardFor(adminDestination("groupScanner")))(async (group, session) => {
-  const privateKey = await requireRequestPrivateKey();
   const scope = await groupScope(group);
-  const attendees = await decryptAttendees(
-    await getAttendeesByListingIds([...scope.listingIds]),
-    privateKey,
-  );
+  const attendees = await scopeAttendees(scope);
   // A door that spans several listings names the listing each place is for.
   // A one-listing door's own page title already says it.
   const listingNames =
@@ -187,7 +191,9 @@ const handleGroupScanPost: IdRouteHandler = (request, { id }) =>
 
 /** Scanner routes */
 export const adminHandlers = defineRoutes({
+  "GET /admin/groups/:id/scan-cache": handleGroupScanCacheGet,
   "GET /admin/groups/:id/scanner": handleGroupScannerGet,
+  "GET /admin/listing/:id/scan-cache": handleListingScanCacheGet,
   "GET /admin/listing/:id/scanner": handleScannerGet,
   "GET /admin/scanner": handleDoorsGet,
   "POST /admin/groups/:id/scan": handleGroupScanPost,
