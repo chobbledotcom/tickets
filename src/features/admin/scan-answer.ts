@@ -418,10 +418,12 @@ const loadByTokenHash =
     const candidates = await doorAttendees([...scope.listingIds], privateKey);
     for (const candidate of candidates) {
       if ((await sha256Hex(candidate.ticket_token)) === tokenHash) {
-        return (
-          (await getAttendeesByIdsWithBookings([candidate.id])).get(
-            candidate.id,
-          ) ?? null
+        // The line came from the door's own read moments ago, so the
+        // attendee read cannot miss. A miss is a broken invariant.
+        return requiredMapValue(
+          await getAttendeesByIdsWithBookings([candidate.id]),
+          candidate.id,
+          "Missing attendee for a matched ticket digest",
         );
       }
     }

@@ -4,7 +4,7 @@
  * up, and a "No check-in" listing hands out nothing. */
 
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { sha256Hex } from "#crypto/sha256.ts";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -14,6 +14,7 @@ import {
   createTestAttendeeWithToken,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { refundThroughLedger } from "#test-utils/ledger.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
@@ -25,6 +26,7 @@ import {
   groupDoor,
   refundedOrderWithALiveOrder,
   scanAtDoor,
+  withoutWrappedPrivateKey,
 } from "./support.ts";
 
 /** The door's token list, fetched the way the scanner page fetches it. */
@@ -233,5 +235,30 @@ describeWithEnv("the scanner's offline ticket list", { db: true }, () => {
       cookie,
     );
     expect(status).toBe(403);
+  });
+
+  describe("the site's private key cannot be unwrapped", () => {
+    const errorLog = setupErrorSpy();
+
+    test("both doors' lists answer 500 instead of a list", async () => {
+      const door = await groupDoor(1);
+      const { cookie } = await createTestScannerSession();
+
+      await withoutWrappedPrivateKey(async () => {
+        // Both list routes read through the one private-key step, so the
+        // key's absence answers the same failure on each.
+        for (const path of [
+          `/admin/listing/${door.members[0]!.id}/scan-tokens`,
+          `/admin/groups/${door.group.id}/scan-tokens`,
+        ]) {
+          const { json, status } = await tokensAsScanner(path, cookie);
+          expect(status).toBe(500);
+          expect(json.error).toBe("Decryption unavailable");
+        }
+        expect(errorLog.contains("Scanner: private key unavailable")).toBe(
+          true,
+        );
+      });
+    });
   });
 });

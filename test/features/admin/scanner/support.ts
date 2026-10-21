@@ -60,6 +60,34 @@ export const refundedOrderWithALiveOrder = async (
   return { attendee, door };
 };
 
+/** Run one request while the site's wrapped private key is gone, so the
+ * session cannot unwrap it. The key goes back whatever happens: later
+ * suites in this isolate share the settings cache. */
+export const withoutWrappedPrivateKey = async (
+  run: () => Promise<void>,
+): Promise<void> => {
+  const { getDb } = await import("#db/client.ts");
+  const stored = await getDb().execute(
+    "SELECT value FROM settings WHERE key = 'wrapped_private_key'",
+  );
+  const savedKey = stored.rows[0]?.value;
+  await getDb().execute(
+    "DELETE FROM settings WHERE key = 'wrapped_private_key'",
+  );
+  settings.invalidateCache();
+  try {
+    await run();
+  } finally {
+    if (savedKey !== undefined) {
+      await getDb().execute({
+        args: [savedKey as string],
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('wrapped_private_key', ?)",
+      });
+    }
+    settings.invalidateCache();
+  }
+};
+
 /** A group-door scan as the page's own script would send it. The JSON body
  * is returned unasserted: guards like the missing-group 404 also answer
  * JSON, and each test names the status it expects. */

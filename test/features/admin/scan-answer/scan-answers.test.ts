@@ -14,6 +14,7 @@ import {
   groupDoor,
   refundedOrderWithALiveOrder,
   scanAtDoor,
+  withoutWrappedPrivateKey,
 } from "#test/features/admin/scanner/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { orphanAttendeeBooking } from "#test-utils/db-fault.ts";
@@ -250,20 +251,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
         [{ listingId: door.members[0]!.id, quantity: 1 }],
       );
 
-      // Stash the wrapped private key away so the request's session cannot
-      // unwrap it, and put it back whatever the scan answers: later suites
-      // in this isolate share the settings cache.
-      const { getDb } = await import("#db/client.ts");
-      const { settings } = await import("#db/settings.ts");
-      const stored = await getDb().execute(
-        "SELECT value FROM settings WHERE key = 'wrapped_private_key'",
-      );
-      const savedKey = stored.rows[0]?.value;
-      await getDb().execute(
-        "DELETE FROM settings WHERE key = 'wrapped_private_key'",
-      );
-      settings.invalidateCache();
-      try {
+      await withoutWrappedPrivateKey(async () => {
         const answer = await scanAtDoor(door.group.id, {
           token: ticket.ticket_token,
         });
@@ -272,15 +260,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
         expect(errorLog.contains("Scanner: private key unavailable")).toBe(
           true,
         );
-      } finally {
-        if (savedKey !== undefined) {
-          await getDb().execute({
-            args: [savedKey as string],
-            sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('wrapped_private_key', ?)",
-          });
-        }
-        settings.invalidateCache();
-      }
+      });
     });
   });
 });
