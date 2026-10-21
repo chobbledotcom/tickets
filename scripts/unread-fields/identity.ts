@@ -75,3 +75,21 @@ export const identitiesAt =
     owners.flatMap(([exportedFrom, path]) =>
       fields.map((field) => ({ exportedFrom, field, path: [...path] })),
     );
+
+/** The owner of unread fields in one exported file: the shape it exports,
+ * then the steps a reader takes to reach them. A bare word is a member's
+ * name; a `way()` call is the reach through a member with no name. */
+export const ownerAt =
+  (exportedFrom: string) =>
+  (
+    shape: string,
+    ...through: readonly (Step | string)[]
+  ): readonly [string, readonly Step[]] => [
+    exportedFrom,
+    [
+      { name: shape },
+      ...through.map((step) =>
+        typeof step === "string" ? { name: step } : step,
+      ),
+    ],
+  ];

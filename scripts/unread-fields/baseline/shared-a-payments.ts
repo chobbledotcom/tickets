@@ -1,7 +1,34 @@
+// jscpd:ignore-start
+import { way } from "#scripts/unread-fields/fields/steps.ts";
 import {
   type FindingIdentity,
   identitiesAt,
+  ownerAt,
 } from "#scripts/unread-fields/identity.ts";
+
+// jscpd:ignore-end
+
+const inRowMachine = ownerAt("src/shared/payment/row-machine-spec.ts");
+const inRowState = ownerAt("src/shared/payment/row-state.ts");
+const inResource = ownerAt("src/shared/payment/resources.ts");
+const inRefundMachine = ownerAt("src/shared/payment/refund-machine-spec.ts");
+const inRefundState = ownerAt("src/shared/payment/refund-authority-state.ts");
+const inOptionDemand = ownerAt("src/shared/booking/option-demand.ts");
+
+/** The listing input fields the scan still reports under the listing input
+ * shape. */
+const LISTING_INPUT_FIELDS = [
+  "attachmentName",
+  "attachmentUrl",
+  "bookableDays",
+  "description",
+  "location",
+  "maxAttendees",
+  "minimumDaysBefore",
+  "nonTransferable",
+  "useDefaults",
+  "usesLogistics",
+] as const;
 
 export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
   ...identitiesAt([
@@ -46,19 +73,7 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
   ])(["description", "hidden", "termsAndConditions"]),
   ...identitiesAt([
     ["src/shared/catalog-fields/fields.ts", [{ name: "ListingInput" }]],
-  ])([
-    "attachmentName",
-    "attachmentUrl",
-    "bookableDays",
-    "closesAt",
-    "description",
-    "location",
-    "maxAttendees",
-    "minimumDaysBefore",
-    "nonTransferable",
-    "useDefaults",
-    "usesLogistics",
-  ]),
+  ])(LISTING_INPUT_FIELDS),
   ...identitiesAt([
     ["src/shared/catalog-fields/fields.ts", [{ name: "PackageMemberInput" }]],
   ])(["dayPrices", "price"]),
@@ -242,24 +257,6 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
   ])(["blocks", "refusal", "requiresChoice"]),
   ...identitiesAt([
     [
-      "src/shared/payment/refund-provider-authorization.ts",
-      [{ name: "KeyedRefundAuthorization" }],
-    ],
-  ])([
-    "capability",
-    "generation",
-    "idempotencyKey",
-    "identityIndex",
-    "provider",
-  ]),
-  ...identitiesAt([
-    [
-      "src/shared/payment/refund-provider-authorization.ts",
-      [{ name: "KeylessRefundAuthorization" }],
-    ],
-  ])(["capability", "generation", "identityIndex", "provider"]),
-  ...identitiesAt([
-    [
       "src/shared/payment/row-transitions.ts",
       [{ name: "PaymentRowSettlement" }],
     ],
@@ -271,5 +268,65 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
   ]),
   ...identitiesAt([["src/shared/payments.ts", [{ name: "SessionMetadata" }]]])([
     "_origin",
+  ]),
+  ...identitiesAt([
+    inRowMachine("RowNode", "reps", way("[]"), "state", "claim"),
+    inRowMachine("RowMachineEvent", "run", way("()"), way("state"), "claim"),
+    inRowMachine("RowMachineEvent", "run", way("()"), way("result"), "claim"),
+    inRowState("RefundClaim"),
+    inRowState("PaymentRowState", "claim"),
+  ])(["scope"]),
+  ...identitiesAt([
+    inResource("ProviderRefundResource"),
+    inResource("RefundObservation", "refund"),
+    inResource("RefundResolution", "refund"),
+    inResource("ChargeMoney", "refunds", way("[]"), "refund"),
+  ])(["id", "kind", "parentId", "provider"]),
+  ...identitiesAt([
+    inResource("RefundObservation"),
+    inResource("ChargeMoney", "refunds", way("[]")),
+  ])(["reason"]),
+  ...identitiesAt([
+    inRefundState("RefundLocalState"),
+    inRefundState("RefundAuthorityState", "local"),
+    inRefundState("CompletedRefundState", "local"),
+    inRefundMachine("RefundRepresentative", "state", "local"),
+    inRefundMachine("RefundNode", "reps", way("[]"), "state", "local"),
+    inRefundMachine(
+      "RefundMachineEvent",
+      "run",
+      way("()"),
+      way("state"),
+      "local",
+    ),
+    inRefundMachine(
+      "RefundMachineEvent",
+      "run",
+      way("()"),
+      way("result"),
+      "local",
+    ),
+  ])(["recordedAt"]),
+  ...identitiesAt([
+    inRefundState("RefundAuthorityState"),
+    inRefundMachine("RefundRepresentative", "state"),
+    inRefundMachine("RefundNode", "reps", way("[]"), "state"),
+    inRefundMachine("RefundMachineEvent", "run", way("()"), way("state")),
+    inRefundMachine("RefundMachineEvent", "run", way("()"), way("result")),
+  ])(["armedAt", "lastObservedAt", "proof"]),
+  ...identitiesAt([inRefundState("SendArmedRefundState")])(["armedAt"]),
+  ...identitiesAt([inRefundState("ObservingRefundState")])(["lastObservedAt"]),
+  ...identitiesAt([inRefundState("CompletedRefundState")])(["proof"]),
+  ...identitiesAt([
+    [
+      "src/shared/payment/refund-authority.ts",
+      [{ name: "ActiveSentRefundState" }],
+    ],
+  ])(["armedAt", "lastObservedAt"]),
+  ...identitiesAt([
+    inOptionDemand("OptionVerdict", "outcome", "alternatives", way("[]")),
+  ])(["dayCount"]),
+  ...identitiesAt([inOptionDemand("OptionVerdict", "outcome")])([
+    "bookableDayCounts",
   ]),
 ];

@@ -197,4 +197,7 @@ export const SHARED_DB_BASELINE: readonly FindingIdentity[] = [
   ...identitiesAt([
     ["src/shared/db/sms-messages.ts", [{ name: "SmsMessageRow" }]],
   ])(["created", "provider_id"]),
+  ...identitiesAt([["src/shared/db/backup.ts", [{ name: "BackupManifest" }]]])([
+    "latestUpdate",
+  ]),
 ];

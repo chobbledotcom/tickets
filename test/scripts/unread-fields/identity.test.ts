@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { way } from "#scripts/unread-fields/fields/steps.ts";
 import {
   compareFindingIdentities,
   type FindingIdentity,
@@ -7,6 +8,7 @@ import {
   findingIdentityText,
   findingPath,
   identitiesAt,
+  ownerAt,
   ownerPath,
 } from "#scripts/unread-fields/identity.ts";
 
@@ -15,6 +17,15 @@ const identity = (
   field = "total",
   exportedFrom = "src/sum.ts",
 ): FindingIdentity => ({ exportedFrom, field, path });
+
+describe("the owner factory", () => {
+  test("turns a bare word into a named step and keeps a way a way", () => {
+    expect(ownerAt("src/intent.ts")("Intent", "outcome", way("[]"))).toEqual([
+      "src/intent.ts",
+      [{ name: "Intent" }, { name: "outcome" }, { way: "[]" }],
+    ]);
+  });
+});
 
 describe("unread-field identities", () => {
   test("keeps a named field separate from an unnamed route with the same text", () => {
