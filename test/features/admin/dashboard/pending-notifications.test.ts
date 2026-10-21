@@ -3,6 +3,7 @@
 
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
+import { deleteListing } from "#db/listings/delete.ts";
 import { expectHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendeeWithFlags } from "#test-utils/db-helpers/attendees.ts";
@@ -42,6 +43,23 @@ describeWithEnv(
       await execute("UPDATE listings SET fields = 'phone' WHERE id = ?", [
         listing.id,
       ]);
+
+      await expectHtml(await adminGet("/admin"), {
+        notContains: ["emails or webhooks that were not sent"],
+      });
+    });
+
+    test("drops the count when an attendee's last listing is deleted", async () => {
+      const { listing } = await bookTestAttendeeWithFlags(
+        "Deleted Show Buyer",
+        0,
+        1,
+      );
+      await expectHtml(await adminGet("/admin"), {
+        contains: ["1 attendee has emails or webhooks that were not sent"],
+      });
+
+      await deleteListing(listing.id);
 
       await expectHtml(await adminGet("/admin"), {
         notContains: ["emails or webhooks that were not sent"],

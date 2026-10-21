@@ -100,7 +100,9 @@ Feature: The organiser sees which bookings still owe a notification
     many of their sends are owed. An attendee whose sends all went out adds
     nothing. When an attendee's listing stops collecting an email, the owed
     email no longer counts. An owed webhook still counts, and the attendee
-    stays in the count. With nothing owed the dashboard shows no count at all.
+    stays in the count. An attendee whose last listing is deleted is not on
+    the list any more, so their owed sends add nothing. With nothing owed the
+    dashboard shows no count at all.
 
     @case:unsent.dashboard-counts-each-owed-booking-once
     Scenario: The dashboard counts each owed attendee once
@@ -132,6 +134,13 @@ Feature: The organiser sees which bookings still owe a notification
       And the Ceilidh has stopped collecting an email
       When the organiser opens the dashboard
       Then the dashboard counts 1 attendee with unsent notifications
+
+    @case:unsent.a-deleted-listing-drops-the-count
+    Scenario: The count drops when the booking's listing is deleted
+      Given Ada has a ticket for the Ceilidh whose webhooks never went out
+      And the Ceilidh is deleted
+      When the organiser opens the dashboard
+      Then the dashboard says nothing about unsent notifications
 
     @case:unsent.nothing-owed-hides-the-count
     Scenario: A site with nothing owed shows no count

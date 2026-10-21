@@ -15,14 +15,17 @@ import {
 import {
   getAttendeeBookingRowsRaw,
   getAttendeeOrNull,
+  getAttendeesPage,
 } from "#db/attendees/queries.ts";
 import { execute, executeBatch, queryAll } from "#db/client.ts";
+import { deleteListing } from "#db/listings/delete.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookTestAttendeeWithFlags,
   createMultiBookingAttendee,
+  readPendingNotificationFlags,
   setPendingNotificationFlags,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -97,6 +100,47 @@ describeWithEnv(
       const read = await readAttendeeBack(attendee.id);
       expect(read.email_pending).toBe(1);
       expect(read.email_owed).toBe(0);
+      expect(await countAttendeesWithPendingFlags()).toBe(1);
+    });
+
+    test("drops an attendee whose last listing is deleted, and keeps their flags", async () => {
+      const { attendee, listing } = await bookTestAttendeeWithFlags(
+        "Deleted Listing Buyer",
+        0,
+        1,
+      );
+      expect(await countAttendeesWithPendingFlags()).toBe(1);
+
+      await deleteListing(listing.id);
+
+      // deleteListing keeps the attendee and the flag no send can settle
+      // now. The count still asks for a booking, so it cannot advertise an
+      // attendee the list cannot show.
+      expect(await readPendingNotificationFlags(attendee.id)).toEqual({
+        email: 0,
+        webhooks: 1,
+      });
+      expect(await countAttendeesWithPendingFlags()).toBe(0);
+      const page = await getAttendeesPage({
+        listingIds: null,
+        page: 0,
+        sort: "newest",
+      });
+      expect(page.rows.map((row) => row.id)).not.toContain(attendee.id);
+    });
+
+    test("keeps counting the owed webhooks while another booking survives", async () => {
+      const doomed = await createTestListing({ name: "Doomed Webhook Show" });
+      const kept = await createTestListing({ name: "Kept Webhook Show" });
+      const attendee = await createMultiBookingAttendee(
+        "Surviving Buyer",
+        "surviving-buyer@example.com",
+        [{ listingId: doomed.id }, { listingId: kept.id }],
+      );
+      await setPendingNotificationFlags(attendee.id, 0, 1);
+
+      await deleteListing(doomed.id);
+
       expect(await countAttendeesWithPendingFlags()).toBe(1);
     });
 

@@ -17,6 +17,7 @@ import {
   pairOwesDifferentSends,
   personWithTicketOwing,
 } from "#test/specs/support/notifications.ts";
+import { organiserDeletesListing } from "#test/specs/support/privacy.ts";
 import {
   attendeeListHtml,
   personWithTicketsForTwoListings,
@@ -170,6 +171,13 @@ When(
   "the {word} stops collecting an email",
   function (this: TicketsWorld, listing: string): Promise<void> {
     return listingStopsCollectingAnEmail(this, listing);
+  },
+);
+
+Given(
+  "the {word} is deleted",
+  function (this: TicketsWorld, listing: string): Promise<void> {
+    return organiserDeletesListing(this, listing);
   },
 );
 
