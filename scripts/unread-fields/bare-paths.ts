@@ -99,11 +99,6 @@ const resolveDependency = (
   return target === undefined ? undefined : [written, target];
 };
 
-/** The package.json key one subpath answers: the root key for the package
- * itself, the subpath's own key otherwise. */
-const exportKeyOf = (subpath: string): string =>
-  subpath === "" ? "." : `.${subpath}`;
-
 /** The part of a subpath a pattern key's `*` stands for, or nothing when the
  * key is not a pattern or does not cover the subpath. */
 const patternMatch = (key: string, subpath: string): string | undefined => {
@@ -111,9 +106,8 @@ const patternMatch = (key: string, subpath: string): string | undefined => {
   if (star === -1) return;
   const prefix = key.slice(0, star);
   const suffix = key.slice(star + 1);
-  return subpath.startsWith(prefix) && subpath.endsWith(suffix)
-    ? subpath.slice(prefix.length, subpath.length - suffix.length)
-    : undefined;
+  if (!subpath.startsWith(prefix) || !subpath.endsWith(suffix)) return;
+  return subpath.slice(prefix.length, subpath.length - suffix.length);
 };
 
 /** The conditions the mapping reads, in the order that finds the file the
@@ -160,6 +154,34 @@ const conditionTargetOf = (value: unknown, entry: Entry): string => {
   );
 };
 
+/** One pattern key a subpath's key covers, with the part of the key its `*`
+ * stood for and the value the map pairs with the key. */
+interface Pattern {
+  entry: string;
+  matched: string;
+  value: unknown;
+}
+
+/** The pattern entries one subpath's key covers, with the part of the key
+ * each `*` stood for. */
+const coveredPatterns = (
+  entries: readonly [string, unknown][],
+  key: string,
+): Pattern[] =>
+  entries.flatMap(([entry, value]) => {
+    const matched = patternMatch(entry, key);
+    if (matched === undefined) return [];
+    return [{ entry, matched, value }];
+  });
+
+/** The pattern whose star sits deepest stands for the subpath first; two
+ * stars at the same depth go by the longer key. */
+const byDeepestStar = (one: Pattern, other: Pattern): number => {
+  const byStar = other.entry.indexOf("*") - one.entry.indexOf("*");
+  if (byStar !== 0) return byStar;
+  return other.entry.length - one.entry.length;
+};
+
 /** The cached file one subpath of a package with an export map resolves to.
  * The exact key answers first; otherwise the pattern key whose prefix before
  * its `*` is the longest stands for the subpath. A map that answers nothing
@@ -170,7 +192,9 @@ const exportsTargetOf = (
   folder: string,
 ): string | undefined => {
   if (exports === undefined) return;
-  const key = exportKeyOf(subpath);
+  // The package.json key the subpath answers: the subpath in the map's own
+  // form, one dot ahead of the package root.
+  const key = `.${subpath}`;
   if (typeof exports === "string") {
     throw new Error(
       `The package at ${folder} exports only its root, not ${key}`,
@@ -190,16 +214,7 @@ const exportsTargetOf = (
   if (exact !== undefined) {
     return conditionTargetOf(exact[1], { folder, key });
   }
-  const patterns = entries
-    .flatMap(([entry, value]) => {
-      const matched = patternMatch(entry, key);
-      return matched === undefined ? [] : [{ entry, matched, value }];
-    })
-    .sort(
-      (one, other) =>
-        other.entry.indexOf("*") - one.entry.indexOf("*") ||
-        other.entry.length - one.entry.length,
-    );
+  const patterns = coveredPatterns(entries, key).sort(byDeepestStar);
   if (patterns[0] === undefined) {
     throw new Error(`The package at ${folder} exports no ${key}`);
   }
@@ -348,7 +363,7 @@ const settledValue = <T>(settled: PromiseSettledResult<T>): T => {
  * files of the package folder. */
 const exportsOf = (folder: string): unknown => {
   const manifest = JSON.parse(Deno.readTextFileSync(`${folder}/package.json`));
-  return "exports" in manifest ? manifest.exports : undefined;
+  return manifest.exports;
 };
 
 /** The bare-specifier paths for the scan's compiler, from the module graph of

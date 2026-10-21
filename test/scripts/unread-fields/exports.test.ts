@@ -166,6 +166,31 @@ describe("the paths an npm subpath takes", () => {
     });
   });
 
+  test("prefers the pattern whose star sits deepest", () => {
+    // The sort compares the pattern keys with each other, so one key alone
+    // never reaches the sort. The keys cover the rule: the deepest star
+    // stands for the subpath first, the longer key breaks a tie, and a
+    // pattern whose prefix misses the subpath drops out.
+    const map = exportsMaps({
+      [libsqlFolder]: {
+        "./*": "./lib-esm/all/*.d.ts",
+        "./*fig": "./lib-esm/fig/*.d.ts",
+        "./con*": "./lib-esm/con/*.d.ts",
+        "./x/*": "./lib-esm/x/*.d.ts",
+      },
+    });
+    expect(
+      pathsFromInfo(
+        libsqlGraph,
+        "/home/me/.cache/deno/npm",
+        map,
+        holdsEveryFile,
+      ),
+    ).toEqual({
+      "@libsql/core/config": [`${libsqlFolder}/lib-esm/con/fig.d.ts`],
+    });
+  });
+
   test("says so when the export map answers no subpath", () => {
     // A package with an export map keeps every unlisted file out, so the
     // runtime could not have resolved the subpath the graph names either.
@@ -195,6 +220,20 @@ describe("the paths an npm subpath takes", () => {
       ),
     ).toThrow(
       `The package at ${libsqlFolder} exports ./config through conditions the mapping cannot read`,
+    );
+  });
+
+  test("says so when an export value is neither a path nor a condition map", () => {
+    const map = exportsMaps({ [libsqlFolder]: { "./config": null } });
+    expect(() =>
+      pathsFromInfo(
+        libsqlGraph,
+        "/home/me/.cache/deno/npm",
+        map,
+        holdsEveryFile,
+      ),
+    ).toThrow(
+      `The package at ${libsqlFolder} exports ./config through a value the mapping cannot read`,
     );
   });
 
