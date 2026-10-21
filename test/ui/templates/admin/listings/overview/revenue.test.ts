@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   detailHtml,
@@ -19,8 +19,8 @@ describe("adminListingPage total revenue", () => {
         ],
       },
     );
-    expect(html).toContain("Total Revenue");
-    expect(html).toContain("£30");
+    assertStringIncludes(html, "Total Revenue");
+    assertStringIncludes(html, "£30");
   });
 
   test("does not show total revenue for free listings", () => {
@@ -28,14 +28,14 @@ describe("adminListingPage total revenue", () => {
       testListingWithCount({ attendee_count: 1, unit_price: 0 }),
       { attendees: [testAttendee()] },
     );
-    expect(html).not.toContain("Total Revenue");
+    assert(!html.includes("Total Revenue"));
   });
 
   test("shows zero revenue for paid listing with no attendees", () => {
     const html = detailHtml(
       testListingWithCount({ attendee_count: 0, unit_price: 1000 }),
     );
-    expect(html).toContain("Total Revenue");
-    expect(html).toContain("£0");
+    assertStringIncludes(html, "Total Revenue");
+    assertStringIncludes(html, "£0");
   });
 });
