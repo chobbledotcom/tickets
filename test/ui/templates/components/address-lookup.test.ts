@@ -5,6 +5,7 @@
  * textarea always stays editable.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -35,48 +36,48 @@ describe("renderAddressLookupPanel", () => {
   test("renders a hidden panel with the provider's search copy", () => {
     enableProviderForTest();
     const html = renderAddressLookupPanel();
-    expect(html).toContain("data-address-lookup");
-    expect(html).toContain("hidden");
-    expect(html).toContain(">Postcode<");
+    assertStringIncludes(html, "data-address-lookup");
+    assertStringIncludes(html, "hidden");
+    assertStringIncludes(html, ">Postcode<");
     // The search input carries no placeholder (the `data-placeholder` results
     // attribute is a different thing — hence the leading-space match).
-    expect(html).not.toContain(" placeholder=");
-    expect(html).toContain(">Find address<");
-    expect(html).toContain("data-address-search");
-    expect(html).toContain("data-address-results");
-    expect(html).toContain("data-address-status");
-    expect(html).toContain('data-searching="Searching…"');
-    expect(html).toContain("data-no-results=");
-    expect(html).toContain("data-error=");
-    expect(html).toContain("data-placeholder=");
+    assert(!html.includes(" placeholder="));
+    assertStringIncludes(html, ">Find address<");
+    assertStringIncludes(html, "data-address-search");
+    assertStringIncludes(html, "data-address-results");
+    assertStringIncludes(html, "data-address-status");
+    assertStringIncludes(html, 'data-searching="Searching…"');
+    assertStringIncludes(html, "data-no-results=");
+    assertStringIncludes(html, "data-error=");
+    assertStringIncludes(html, "data-placeholder=");
   });
 
   test("never renders an Edit button — the textarea stays editable", () => {
     enableProviderForTest();
-    expect(renderAddressLookupPanel()).not.toContain("data-address-edit");
+    assert(!renderAddressLookupPanel().includes("data-address-edit"));
   });
 
   test("pre-fills the search box from an address ending in a postcode", () => {
     enableProviderForTest();
     const html = renderAddressLookupPanel("1 High Street, London, SW1A 1AA");
-    expect(html).toContain('value="SW1A 1AA"');
+    assertStringIncludes(html, 'value="SW1A 1AA"');
   });
 
   test("normalises the trailing postcode before pre-filling", () => {
     enableProviderForTest();
     const html = renderAddressLookupPanel("1 High Street, London, sw1a1aa");
-    expect(html).toContain('value="SW1A 1AA"');
+    assertStringIncludes(html, 'value="SW1A 1AA"');
   });
 
   test("leaves the search box empty when the address has no trailing postcode", () => {
     enableProviderForTest();
     const html = renderAddressLookupPanel("1 High Street, London");
-    expect(html).not.toContain("value=");
+    assert(!html.includes("value="));
   });
 
   test("leaves the search box empty with no address given", () => {
     enableProviderForTest();
-    expect(renderAddressLookupPanel()).not.toContain("value=");
+    assert(!renderAddressLookupPanel().includes("value="));
   });
 });
 
@@ -87,13 +88,13 @@ describe("address field panel threading", () => {
   test("public ticket fields attach the panel to the address field", () => {
     enableProviderForTest();
     const field = addressField(getTicketFields("address", false));
-    expect(field.beforeHtml).toContain("data-address-lookup");
+    assertStringIncludes(field.beforeHtml ?? "", "data-address-lookup");
   });
 
   test("admin add-attendee fields attach the panel to the address field", () => {
     enableProviderForTest();
     const field = addressField(getAddAttendeeFields("address", false));
-    expect(field.beforeHtml).toContain("data-address-lookup");
+    assertStringIncludes(field.beforeHtml ?? "", "data-address-lookup");
   });
 
   test("no provider means the plain field, with no panel attached", () => {
