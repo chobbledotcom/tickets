@@ -66,6 +66,14 @@ Feature: The organiser sees which bookings still owe a notification
       And the organiser opens the attendee list
       Then the list says nothing about Ada's sends
 
+    @case:unsent.stopped-email-keeps-the-webhook-notice
+    Scenario: The webhook notice stays when the listing stops collecting an email
+      Given Ada has a ticket for the Ceilidh whose email and webhooks never went out
+      And the Ceilidh has stopped collecting an email
+      When the organiser opens the attendee list
+      Then the list says Ada's webhooks never went out
+      And the list says nothing about Ada's email
+
     @case:unsent.the-notice-keeps-its-own-words-apart-from-the-name
     Scenario: The notice reads as its own words beside the name
       Given Ada has a ticket for the Ceilidh whose email never went out
@@ -89,9 +97,12 @@ Feature: The organiser sees which bookings still owe a notification
       And Dan has a ticket for the Feast whose sends all went out
       When the organiser opens the dashboard
       Then the dashboard counts 3 attendees with unsent notifications
+
+    @case:unsent.the-count-leads-to-the-attendee-list
+    Scenario: The count leads to the attendee list
+      Given Ada has a ticket for the Ceilidh whose email never went out
       When the organiser follows the count to the attendee list
       Then the list says Ada's email never went out
-      And the list says nothing about Dan's sends
 
     @case:unsent.settled-bookings-do-not-count
     Scenario: A settled attendee and a lost email listing add nothing to the count
@@ -103,14 +114,9 @@ Feature: The organiser sees which bookings still owe a notification
       Then the dashboard counts 1 attendee with unsent notifications
 
     @case:unsent.stopped-email-keeps-the-webhook-count
-    Scenario: The webhook notice and the count stay when the listing stops collecting an email
+    Scenario: The webhook keeps the count when the listing stops collecting an email
       Given Ada has a ticket for the Ceilidh whose email and webhooks never went out
-      When the organiser opens the dashboard
-      Then the dashboard counts 1 attendee with unsent notifications
-      When the Ceilidh stops collecting an email
-      And the organiser opens the attendee list
-      Then the list says Ada's webhooks never went out
-      And the list says nothing about Ada's email
+      And the Ceilidh has stopped collecting an email
       When the organiser opens the dashboard
       Then the dashboard counts 1 attendee with unsent notifications
 

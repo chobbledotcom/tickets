@@ -114,9 +114,18 @@ When(
 When(
   "the organiser follows the count to the attendee list",
   async function (this: TicketsWorld): Promise<void> {
-    const page = await adminGet(countLinkOnDashboard(pageSeen(this)));
+    const dashboard = await adminGet("/admin");
+    expect(dashboard.status).toBe(200);
+    const page = await adminGet(countLinkOnDashboard(await dashboard.text()));
     expect(page.status).toBe(200);
     this.notificationsPage = await page.text();
+  },
+);
+
+Given(
+  "the {word} has stopped collecting an email",
+  function (this: TicketsWorld, listing: string): Promise<void> {
+    return listingStopsCollectingAnEmail(this, listing);
   },
 );
 
