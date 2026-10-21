@@ -202,9 +202,7 @@ Then(
 Then(
   "a visitor following {string} from the news page sees the picture",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    const browser = await openAsNewcomer(await newsLinkTo(name));
-    expect(browser.currentHtml).toContain(sitePictureTag(this));
-    expect(browser.currentHtml).not.toContain("img#");
+    await visitorSeesPictureAt(this, await newsLinkTo(name));
   },
 );
 
@@ -303,6 +301,7 @@ Then(
     const { slug } = listingNamed(this, name);
     const browser = await openAsNewcomer(`/ticket/${slug}?iframe=true`);
     expect(browser.currentHtml).not.toContain('<footer class="site-footer">');
+    expect(browser.currentHtml).not.toContain(sitePictureTag(this));
   },
 );
 
