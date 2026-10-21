@@ -6,8 +6,8 @@
  * shows — the dropdown on the admin form, the choice stored through the real
  * form submit, and the preview's rendered image.
  *
- * Runs through the harness with the static assets built:
- * `deno task test:files test/ui/client/admin/markdown-editor-images-browser.contract.ts`.
+ * Runs under `deno task test:screenshot-contract`. The harness builds the
+ * static assets before the served page loads them.
  * Like every `*-browser.contract.ts` file it never runs in the main suite
  * (it needs Chromium and the built bundles).
  */
