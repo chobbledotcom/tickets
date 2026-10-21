@@ -10,14 +10,13 @@ import {
   countAttendeesWithPendingFlags,
   emailBadgeOwed,
   listingCollectsEmail,
-  pendingFlagsCountStatement,
 } from "#db/attendees/notification-flags.ts";
 import {
   getAttendeeBookingRowsRaw,
   getAttendeeOrNull,
   getAttendeesPage,
 } from "#db/attendees/queries.ts";
-import { execute, executeBatch, queryAll } from "#db/client.ts";
+import { execute, executeBatch } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -251,16 +250,6 @@ describeWithEnv(
       const read = await readAttendeeBack(attendee.id);
       expect(read.email_owed).toBe(1);
       expect(await countAttendeesWithPendingFlags()).toBe(1);
-    });
-
-    test("the count plans through the partial pending-flags index", async () => {
-      const plan = await queryAll<{ detail: string }>(
-        `EXPLAIN QUERY PLAN ${pendingFlagsCountStatement().sql}`,
-      );
-      const details = plan.map((row) => row.detail).join("\n");
-
-      expect(details).toContain("idx_attendees_pending_flags");
-      expect(details).not.toContain("SCAN attendees");
     });
 
     test("a listing collects an email when its stored fields name one", () => {

@@ -190,10 +190,13 @@ export const listingCollectsEmail = (listing: { fields: string }): boolean =>
 
 /** Whether the email badge shows for one attendee row: the stored flag is up
  * and a booked listing still collects an email. The read that produced the
- * row resolved that rule into `email_owed`. */
+ * row resolved that rule into `email_owed`. A read that did not apply the
+ * rule leaves the fields absent, and absence never shows a badge. */
 export const emailBadgeOwed = (
   attendee: Pick<Attendee, "email_owed" | "email_pending">,
-): boolean => attendee.email_pending > 0 && attendee.email_owed === 1;
+): boolean =>
+  (attendee.email_pending ?? PENDING_NOTIFICATION.none) > 0 &&
+  attendee.email_owed === 1;
 
 /** SQL for "a booking still points at the attendee". `deleteListing` removes
  *  the bookings but keeps the attendee. The attendee browser reads its rows
@@ -205,29 +208,16 @@ const bookedLineSql = (attendeeRef: string): string => `EXISTS (
   WHERE booked_line.attendee_id = ${attendeeRef}.id
 )`;
 
-/** The count statement, separate from the count so the plan test can pin the
- * index the planner picks. */
-export const pendingFlagsCountStatement = (): SqlStatement => ({
-  args: [],
-  // The plain OR term repeats the partial index's own predicate. Without it
-  // the planner cannot prove the count's WHERE implies the index's WHERE,
-  // and it falls back to the kind index over every attendee row. With it the
-  // plan seeks idx_attendees_pending_flags, and the third conjunct keeps
-  // the email and booking rules. EXPLAIN QUERY PLAN pins this.
-  sql: `SELECT COUNT(*) AS n FROM attendees
-     WHERE kind = '${ATTENDEE_KIND}'
-       AND (email_pending > 0 OR webhooks_pending > 0)
-       AND ((email_pending > 0 AND ${emailOwedSql("attendees")})
-            OR (webhooks_pending > 0 AND ${bookedLineSql("attendees")}))`,
-});
-
 /** How many attendees still owe a notification send. The dashboard shows this
  * count when it is above zero. Only customer attendee rows count, the rows
  * the attendee list and the badges can show. An email flag counts only while
  * a booked listing still collects an email, the same rule the badge applies.
  * A webhook flag counts only while a booking still points at the attendee. */
 export const countAttendeesWithPendingFlags = async (): Promise<number> => {
-  const row = await queryOne<{ n: number }>(pendingFlagsCountStatement().sql);
+  const row = await queryOne<{ n: number }>(`SELECT COUNT(*) AS n FROM attendees
+     WHERE kind = '${ATTENDEE_KIND}'
+       AND ((email_pending > 0 AND ${emailOwedSql("attendees")})
+            OR (webhooks_pending > 0 AND ${bookedLineSql("attendees")}))`);
   // A COUNT always yields one row. A missing row means the query broke.
   return Number(
     requireValue(row, "The pending-notification count returned no row").n,

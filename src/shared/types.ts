@@ -353,8 +353,8 @@ export interface Attendee extends ContactInfo {
   checked_in: number;
   created: string;
   date: string | null;
-  email_owed: number;
-  email_pending: number;
+  email_owed?: number;
+  email_pending?: number;
   /** Exclusive end of the booked range (YYYY-MM-DD). Null for date-less bookings. */
   end_date: string | null;
   id: number;

@@ -357,9 +357,6 @@ instead.
 - **Active voice, addressed to "you".** "You must accept the terms to continue."
 - **No implementation jargon.** Name a thing by what it does ("a one-way code"),
   not by how it is built.
-- **A term the user configured is their own word.** If the person reading set
-  the term up themselves (a "webhook", a "listing"), use that word. A vaguer
-  paraphrase of their own setting reads worse than the word they chose.
 - **Concise, not lossy.** Cut filler, never facts.
 - **Errors** state the problem and the fix, as a full sentence. A
   confirm-by-typing error is always

@@ -47,7 +47,7 @@ export const pendingNotificationBadges = (
   [
     emailBadgeOwed(attendee)
       ? pendingBadge(
-          attendee.email_pending,
+          attendee.email_pending ?? PENDING_NOTIFICATION.none,
           t("attendees.badge.email_not_sent"),
         )
       : null,

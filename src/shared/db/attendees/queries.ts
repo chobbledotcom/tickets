@@ -313,12 +313,8 @@ export const hasPaidLine = rowExistsForIdList(
  * getAttendeesByIds opt in with `booking` for one row per booking.
  */
 export const getAttendeeRaw = async (id: number): Promise<Attendee | null> =>
-  (
-    await loadAttendeeRows({
-      join: "left",
-      where: { attendeeIds: [id] },
-    })
-  )[0] ?? null;
+  (await loadAttendeeRows({ join: "left", where: { attendeeIds: [id] } }))[0] ??
+  null;
 
 /**
  * Get attendees by ID without decrypting PII, one row per (attendee, booking).

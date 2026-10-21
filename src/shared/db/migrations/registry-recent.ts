@@ -92,11 +92,5 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-10-19_site_page_hidden",
     () => import("./2026-10-19_site_page_hidden.ts"),
   ),
-  // The partial index the dashboard count seeks, so the count reads the few
-  // flagged attendees instead of every attendee row.
-  entry(
-    "2026-10-21_attendees_pending_flags_index",
-    () => import("./2026-10-21_attendees_pending_flags_index.ts"),
-  ),
 ];
 /* jscpd:ignore-end */

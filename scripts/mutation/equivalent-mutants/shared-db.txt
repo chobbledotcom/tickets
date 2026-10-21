@@ -241,8 +241,8 @@ src/shared/db/link-table.ts::rowsToIdsByKeys~0a4lik4 Unexpected link key→"" au
 src/shared/db/listings/catalog.ts::getListingOfferFlags.row.alias~1hl3tuf  listing → "" audited:143g2p7 # the reader consumes the alias only through truthiness, so the empty string behaves exactly like an absent alias
 src/shared/db/listings/catalog.ts::getListingOfferFlags~1u79xgr  ?? → || audited:143g2p7 # read.one answers the row object or null, and every row object is truthy
 
-src/shared/db/attendees/queries.ts::getAttendeeRaw~1s83lhq  ?? → || audited:0ja7e2e # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
-src/shared/db/attendees/queries.ts::getAttendeeNamesByIds~0i1nd31  false → true audited:0ja7e2e # the paid flag gates payment_id inside decryptPiiBlob, and this reader returns only the name field
+src/shared/db/attendees/queries.ts::getAttendeeRaw~10a7m9s  ?? → || audited:1g0izqw # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
+src/shared/db/attendees/queries.ts::getAttendeeNamesByIds~0i1nd31  false → true audited:1g0izqw # the paid flag gates payment_id inside decryptPiiBlob, and this reader returns only the name field
 
 # A booking event posts its legs once, together: the store rejects adding a
 # leg to an already-posted group (replay conflict), and mapBooking always

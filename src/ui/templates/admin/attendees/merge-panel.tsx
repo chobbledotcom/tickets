@@ -17,8 +17,8 @@ type MergeSourceInfo = {
   special_instructions: string;
   ticket_token: string;
   bookings: ListingAttendeeRow[];
-  email_owed: number;
-  email_pending: number;
+  email_owed?: number;
+  email_pending?: number;
   webhooks_pending: number;
 };
 
