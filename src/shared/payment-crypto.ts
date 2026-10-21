@@ -4,6 +4,7 @@
  */
 
 import { constantTimeCodesEqual } from "#crypto/utils.ts";
+import { hmacDigest } from "#shared/sha256.ts";
 
 /** Constant-time string comparison (over UTF-16 char codes) to prevent timing
  * attacks. Shares the one constant-time loop in `constantTimeCodesEqual`. */
@@ -15,21 +16,13 @@ export const secureCompare = (a: string, b: string): boolean =>
     (i) => b.charCodeAt(i) || 0,
   );
 
-/** Compute HMAC-SHA256 using Web Crypto API, returning raw ArrayBuffer */
-export const computeHmacSha256 = async (
+/** Compute HMAC-SHA256 using Web Crypto API, returning raw ArrayBuffer. The
+ * keyed digest lives in `#shared/sha256.ts`, the one HMAC both sides of a
+ * digest comparison run. */
+export const computeHmacSha256 = (
   data: Uint8Array,
   secret: string,
-): Promise<ArrayBuffer> => {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { hash: "SHA-256", name: "HMAC" },
-    false,
-    ["sign"],
-  );
-  return crypto.subtle.sign("HMAC", key, new Uint8Array(data));
-};
+): Promise<ArrayBuffer> => hmacDigest(secret, new Uint8Array(data));
 
 /** Convert ArrayBuffer to hex string */
 export const hmacToHex = (buf: ArrayBuffer): string =>

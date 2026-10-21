@@ -32,8 +32,10 @@ import {
   scopeAttendees,
 } from "./scan-answer.ts";
 import {
+  doorCacheName,
   handleGroupScanCacheGet,
   handleListingScanCacheGet,
+  pageDoorCacheKey,
 } from "./scan-cache.ts";
 
 /** The door-safe facts that tell two people with the same name apart. They
@@ -96,6 +98,8 @@ const handleScannerGet: IdRouteHandler = createIdEntityHandler<
         `/admin/listing/${listing.id}/scan`,
         session,
         manualCheckinOptions(attendees, null),
+        false,
+        pageDoorCacheKey(doorCacheName("listing", listing.id)),
       ),
     );
   },
@@ -126,6 +130,7 @@ const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(
       // One scan at this door spans listings only from a multi-listing
       // group whose stored rule says to check in every listing.
       scope.listingIds.size > 1 && scope.checkInEveryListing,
+      pageDoorCacheKey(doorCacheName("group", group.id)),
     ),
   );
 });

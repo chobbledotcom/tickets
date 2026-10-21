@@ -1,11 +1,15 @@
-/** The offline scan cache one door serves: SHA-256 hashes of the ticket
- * tokens its door can currently admit. The scanner page stores the set on
- * load, so a scan with no connection answers from the hashes alone. The
- * device never holds the tokens of tickets it has not scanned, and never
- * holds any guest detail from this endpoint. */
+/** The offline scan cache one door serves: keyed digests of the ticket
+ * tokens its door can currently admit. Each digest is HMAC-SHA256 under a
+ * key only the door's scanner page carries, so a copied cache response
+ * alone digests nothing. The scanner page stores the set on load, so a scan
+ * with no connection answers from the digests alone. The device never holds
+ * the tokens of tickets it has not scanned, and never holds any guest
+ * detail from this endpoint. */
 
 /* jscpd:ignore-start -- imports */
 import { remainingTickets } from "#booking/remaining-tickets.ts";
+import { deriveDoorCacheKey } from "#crypto/hashing.ts";
+import { toBase64Url } from "#crypto/utils.ts";
 import type { DecryptedAttendeeRow } from "#db/attendees/pii.ts";
 import { getGroupById } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -13,7 +17,7 @@ import { groupToMap } from "#fp";
 import { SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import { jsonResponse, notFoundResponse } from "#routes/response.ts";
-import { sha256Hex } from "#shared/sha256.ts";
+import { hmacHex } from "#shared/sha256.ts";
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
 import {
   groupScope,
@@ -23,14 +27,29 @@ import {
 } from "./scan-answer.ts";
 /* jscpd:ignore-end */
 
-/** The hashes of one door's admittable ticket tokens. A token belongs in the
- * set when its attendee holds at least one line on the door's listings that
- * still owes a ticket. That line must not be refunded, must carry ticket
- * quantity, and is what a scan admits. Every token the loaded lines carry
- * joins the set. One token resolves the attendee's whole booking. So any of
- * the person's tickets admits them at this door the same way. */
+/** The name a door's cache key derives from: the door's kind and id. The
+ * cache endpoint and the scanner page derive the same key from the same
+ * name. */
+export const doorCacheName = (kind: "group" | "listing", id: number): string =>
+  `${kind}:${id}`;
+
+/** The door's cache key as the scanner page carries it: base64url bytes the
+ * device decodes before it digests a scan. The page is the only response
+ * that holds a door's key, so a copied cache response alone digests
+ * nothing. */
+export const pageDoorCacheKey = (door: string): string =>
+  toBase64Url(deriveDoorCacheKey(door));
+
+/** The keyed digests of one door's admittable ticket tokens. A token belongs
+ * in the set when its attendee holds at least one line on the door's
+ * listings that still owes a ticket. That line must not be refunded, must
+ * carry ticket quantity, and is what a scan admits. Every token the loaded
+ * lines carry joins the set. One token resolves the attendee's whole
+ * booking. So any of the person's tickets admits them at this door the same
+ * way. */
 export const ticketHashesForScope = async (
   scope: ScanScope,
+  doorKey: Uint8Array,
 ): Promise<string[]> => {
   const rows = await scopeAttendees(scope);
   const rowsByAttendee = groupToMap(
@@ -46,36 +65,45 @@ export const ticketHashesForScope = async (
         remainingTickets(row) > 0 && !row.refunded && hasTicketQuantity(row),
     );
     if (!owes) continue;
-    for (const row of lines) hashes.push(await sha256Hex(row.ticket_token));
+    for (const row of lines) {
+      hashes.push(await hmacHex(doorKey, row.ticket_token));
+    }
   }
   return [...new Set(hashes)].sort();
 };
 
-/** The cache response behind one door: the door's hash set, or the not-found
- * answer for a door that does not exist. */
+/** The cache response behind one door: the door's digest set, or the
+ * not-found answer for a door that does not exist. */
 const handleScanCacheGet =
-  (load: (id: number) => Promise<ScanScope | null>): IdRouteHandler =>
+  (
+    load: (id: number) => Promise<{ door: string; scope: ScanScope } | null>,
+  ): IdRouteHandler =>
   (request, { id }) =>
     withAuth(request, SCANNER_JSON, async () => {
-      const scope = await load(id);
-      if (!scope) return notFoundResponse();
+      const loaded = await load(id);
+      if (!loaded) return notFoundResponse();
+      const doorKey = deriveDoorCacheKey(loaded.door);
       return jsonResponse({
-        hashes: await ticketHashesForScope(scope),
+        hashes: await ticketHashesForScope(loaded.scope, doorKey),
       });
     });
 
-/** Handle GET /admin/listing/:id/scan-cache — the listing door's hash set. A
- * "No check-in" listing has no door, so a guessed URL meets the same answer
- * as an unknown listing. */
+/** Handle GET /admin/listing/:id/scan-cache — the listing door's digest set.
+ * A "No check-in" listing has no door, so a guessed URL meets the same
+ * answer as an unknown listing. */
 export const handleListingScanCacheGet = handleScanCacheGet(async (id) => {
   const listing = await getListingWithCount(id);
-  return !listing || listing.purchase_only ? null : listingScope(id);
+  return !listing || listing.purchase_only
+    ? null
+    : { door: doorCacheName("listing", id), scope: listingScope(id) };
 });
 
-/** Handle GET /admin/groups/:id/scan-cache — the group door's hash set. A
+/** Handle GET /admin/groups/:id/scan-cache — the group door's digest set. A
  * missing group answers 404 rather than an empty set, so a broken link
  * cannot pass every ticket off as absent. */
 export const handleGroupScanCacheGet = handleScanCacheGet(async (id) => {
   const group: Group | null = await getGroupById(id);
-  return group ? await groupScope(group) : null;
+  return group
+    ? { door: doorCacheName("group", id), scope: await groupScope(group) }
+    : null;
 });

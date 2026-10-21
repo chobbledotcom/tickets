@@ -9,8 +9,10 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { deriveDoorCacheKey } from "#crypto/hashing.ts";
 import { handleRequest } from "#routes";
-import { sha256Hex } from "#shared/sha256.ts";
+import { doorCacheName, pageDoorCacheKey } from "#routes/admin/scan-cache.ts";
+import { hmacHex } from "#shared/sha256.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -29,6 +31,11 @@ import {
 const authedGet = async (path: string): Promise<Response> =>
   awaitTestRequest(path, { cookie: await testCookie() });
 
+/** The digest one door's cache holds for one token: HMAC-SHA256 under the
+ * door's derived key, the same construction the device runs. */
+const doorDigest = (door: string, token: string): Promise<string> =>
+  hmacHex(deriveDoorCacheKey(door), token);
+
 describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
   test("serves the hashes of every ticket the listing door can admit", async () => {
     const { listing, token: kept } = await createTestAttendeeWithToken(
@@ -44,8 +51,11 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       authedGet(`/admin/listing/${listing.id}/scan-cache`),
       200,
     );
+    const door = doorCacheName("listing", listing.id);
     expect(body).toEqual({
-      hashes: (await Promise.all([sha256Hex(kept), sha256Hex(other)])).sort(),
+      hashes: (
+        await Promise.all([doorDigest(door, kept), doorDigest(door, other)])
+      ).sort(),
     });
   });
 
@@ -76,7 +86,9 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       authedGet(`/admin/listing/${listing.id}/scan-cache`),
       200,
     );
-    expect(body.hashes).toEqual([await sha256Hex(waiting)]);
+    expect(body.hashes).toEqual([
+      await doorDigest(doorCacheName("listing", listing.id), waiting),
+    ]);
   });
 
   test("serves a group door's tokens across its member listings", async () => {
@@ -97,8 +109,40 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       authedGet(`/admin/groups/${group.id}/scan-cache`),
       200,
     );
+    const door = doorCacheName("group", group.id);
     expect(body.hashes).toEqual(
-      (await Promise.all([sha256Hex(first), sha256Hex(second)])).sort(),
+      (
+        await Promise.all([doorDigest(door, first), doorDigest(door, second)])
+      ).sort(),
+    );
+  });
+
+  test("never carries the door's cache key in the response", async () => {
+    const { listing } = await createTestAttendeeWithToken(
+      "Ada Host",
+      "ada@example.com",
+    );
+    const response = await authedGet(`/admin/listing/${listing.id}/scan-cache`);
+    const text = await response.text();
+    // The page alone carries the key, so a copied cache response digests
+    // nothing by itself.
+    expect(text).not.toContain(
+      pageDoorCacheKey(doorCacheName("listing", listing.id)),
+    );
+  });
+
+  test("carries the listing door's cache key on its scanner page", async () => {
+    const { listing } = await createTestAttendeeWithToken(
+      "Ada Host",
+      "ada@example.com",
+    );
+    const response = await authedGet(`/admin/listing/${listing.id}/scanner`);
+    // The page is the only response that carries the key, so the device can
+    // digest a scan offline under the same key the cache digested with.
+    expect(await response.text()).toContain(
+      `data-door-cache-key="${pageDoorCacheKey(
+        doorCacheName("listing", listing.id),
+      )}"`,
     );
   });
 
