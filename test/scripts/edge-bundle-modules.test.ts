@@ -182,6 +182,7 @@ describe("buildAssetsModule", () => {
         `const v0 = "<svg/>";`,
         `const v1 = "console.log(1)";`,
         `const CACHE_HEADERS = { "cache-control": "public, max-age=31536000, immutable" };`,
+        `const FRESH_HEADERS = { "cache-control": "no-cache" };`,
         `export const handleFavicon = () => new Response(v0, { headers: { "content-type": "image/svg+xml", ...CACHE_HEADERS } });`,
         `export const handleAdminJs = () => new Response(v1, { headers: { "content-type": "application/javascript", ...CACHE_HEADERS } });`,
         `const orderJsBody = "widget-source";`,

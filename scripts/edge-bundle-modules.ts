@@ -93,7 +93,7 @@ export const buildAssetsModule = (
   // Mirror assets.ts's orderWidgetBody export with the inlined widget source.
   const orderWidget = [
     `const orderJsBody = ${JSON.stringify(staticAssets["order.js"])};`,
-    "export const orderWidgetBody = () => orderWidgetBody;",
+    "export const orderWidgetBody = () => orderJsBody;",
   ].join("\n");
 
   return [
