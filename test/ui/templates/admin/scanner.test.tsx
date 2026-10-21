@@ -173,6 +173,23 @@ describe("the admin scanner page template", () => {
     expect(times(html, "data-door-cache-key=")).toBe(1);
   });
 
+  test("hands the queue count to a polite live region", () => {
+    const html = adminScannerPage(
+      { name: "Doors" },
+      "/admin/groups/5/scan",
+      OWNER_SESSION,
+      [],
+      false,
+      DOOR_CACHE_KEY,
+    );
+
+    // The sync rewrites the count in place; the live region is the only
+    // announcement a screen reader gets, and it reads the count, not the
+    // whole panel.
+    expect(html).toContain('aria-live="polite"');
+    expect(times(html, "aria-live=")).toBe(1);
+  });
+
   test("one person still to arrive is named as one ticket, not none", () => {
     const html = adminScannerPage(
       { name: "Doors" },
