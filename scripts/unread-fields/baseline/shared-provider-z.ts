@@ -10,11 +10,6 @@ const KEYED_SETTINGS_CONFIG_FIELDS = [
   ...SETTINGS_CONFIG_FIELDS,
   "key",
 ] as const;
-const CONTENT_META_FIELDS = [
-  "meta_description",
-  "meta_title",
-  "slug_index",
-] as const;
 
 export const SHARED_PROVIDER_Z_BASELINE: readonly FindingIdentity[] = [
   ...identitiesAt([
@@ -123,9 +118,6 @@ export const SHARED_PROVIDER_Z_BASELINE: readonly FindingIdentity[] = [
   ...identitiesAt([["src/shared/types.ts", [{ name: "Attendee" }]]])([
     "webhooks_pending",
   ]),
-  ...identitiesAt([
-    ["src/shared/types.ts", [{ name: "EncryptedContentRecord" }]],
-  ])(CONTENT_META_FIELDS),
   ...identitiesAt([["src/shared/types.ts", [{ name: "ImageUse" }]]])([
     "image_id",
     "sort_order",

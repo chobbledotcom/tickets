@@ -17,6 +17,7 @@ import {
   type RecordTargets,
 } from "#db/record-target.ts";
 import { type ColumnDef, col } from "#db/table.ts";
+import { readById } from "#db/table-reader.ts";
 import { equals, inList } from "#db/where-clauses.ts";
 import { mapById } from "#fp";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
@@ -149,8 +150,7 @@ export const addPageImageUrls = async (texts: ImageUrlTexts): Promise<void> => {
 export const getAllImages = (): Promise<Image[]> =>
   imageColumns.many({}, { order: "id DESC" });
 
-export const getImageById = (id: number): Promise<Image | null> =>
-  imagesTable.read.one({ id });
+export const getImageById = readById(imagesTable);
 
 export const imageFilenameSubquery = (
   itemType: ImageUseItemType,

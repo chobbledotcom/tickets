@@ -305,6 +305,18 @@ const bodyFieldExemptions: readonly [
     ["attribute_option_ids"],
     "withParsedJoinIds",
   ],
+  [
+    "src/features/admin/api-site-pages-input.ts",
+    [{ name: "CreateSitePageBody" }],
+    ["content", "hidden", "meta_description", "meta_title", "name", "slug"],
+    "toPageWrite on a create body",
+  ],
+  [
+    "src/features/admin/api-site-pages-input.ts",
+    [{ name: "UpdateSitePageBody" }],
+    ["parent"],
+    "handleUpdate's parent plan on an update body",
+  ],
 ];
 
 const bodyExemptions = exactFieldExemptions(

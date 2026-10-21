@@ -35,6 +35,7 @@ describe("CLI describe", () => {
       "groups",
       "holidays",
       "listings",
+      "site-pages",
     ]);
     const attributes = doc.resources.attributes!;
     expect(attributes.label).toBe("Attribute");

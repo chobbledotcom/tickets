@@ -11,7 +11,6 @@
 
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
-import type { BlindIndex } from "#crypto/sealed.ts";
 import type { StoredRowOf } from "#db/chosen-columns.ts";
 import { resultRows, type SqlStatement, type TxScope } from "#db/client.ts";
 import { idAndEncryptedSlugSchema } from "#db/common-schema.ts";
@@ -26,6 +25,7 @@ import {
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
 import { cachedTable, col } from "#db/table.ts";
+import { readById, readBySlugIndex } from "#db/table-reader.ts";
 import type { Result } from "#shared/result.ts";
 import type { SitePage, SitePageNavRow } from "#types";
 /* jscpd:ignore-end */
@@ -39,26 +39,27 @@ export type SitePageInput = SluggedContentInput &
     sortOrder?: number;
   };
 
-/** Raw table with CRUD — all free text encrypted, `slug_index` is the HMAC. */
-const rawSitePagesTable = defineIdTable<SitePage, SitePageInput>("site_pages", {
-  ...encryptedNameAndSeoSchema(encrypt, decrypt),
-  ...idAndEncryptedSlugSchema(encrypt, decrypt),
-  hidden: col.boolean(false),
-  sort_order: col.simple<number>(),
-});
+/** The site_pages table with CRUD: all free text is encrypted, and
+ *  `slug_index` is the HMAC. The admin JSON API reads it directly for the
+ *  list and the read-back after a write. Writes go through the wrappers
+ *  below, which own the slug index and the root-order append. */
+export const sitePagesTable = defineIdTable<SitePage, SitePageInput>(
+  "site_pages",
+  {
+    ...encryptedNameAndSeoSchema(encrypt, decrypt),
+    ...idAndEncryptedSlugSchema(encrypt, decrypt),
+    hidden: col.boolean(false),
+    sort_order: col.simple<number>(),
+  },
+);
 
-const sitePageNavColumns = rawSitePagesTable.read.pick([
+const sitePageNavColumns = sitePagesTable.read.pick([
   "hidden",
   "id",
   "name",
   "slug",
   "sort_order",
 ]);
-
-/** The raw site_pages table, for the admin JSON API's reads (list, and the
- * primary-pinned read-back after a write). Writes go through the wrappers
- * below, which own the slug index and the root-order append. */
-export const sitePagesTable = rawSitePagesTable;
 
 /** Load id, slug, name, sort_order, and hidden. Decrypt only slug and name.
  * Order by sort_order, then id. */
@@ -73,7 +74,7 @@ const fetchNavRows = (): Promise<SitePageNavRow[]> =>
 export const sitePages = cachedTable({
   fetchAll: fetchNavRows,
   name: "site_pages_nav",
-  table: rawSitePagesTable,
+  table: sitePagesTable,
 });
 
 /** The nav rows as a read the nav can batch with its other small ones. The
@@ -96,7 +97,7 @@ export const sitePageOrder = defineOrderedCollection({
   table: "site_pages",
 });
 
-const sitePageIdColumn = rawSitePagesTable.read.pick(["id"]);
+const sitePageIdColumn = sitePagesTable.read.pick(["id"]);
 
 /** Which of `ids` name a page that is really there — as a statement, so a
  * caller can ask inside its own write transaction and have the answer hold
@@ -106,14 +107,10 @@ export const existingSitePageIdsStatement = (
 ): SqlStatement => sitePageIdColumn.statement({ id: ids });
 
 /** One full page by blind-index slug lookup (the `/page/:slug` read). */
-export const getSitePageBySlugIndex = (
-  slugIndex: BlindIndex,
-): Promise<SitePage | null> =>
-  rawSitePagesTable.read.one({ slug_index: slugIndex });
+export const getSitePageBySlugIndex = readBySlugIndex(sitePagesTable.read);
 
 /** One full page by id (the admin edit read). */
-export const getSitePageById = (id: number): Promise<SitePage | null> =>
-  rawSitePagesTable.read.one({ id });
+export const getSitePageById = readById(sitePagesTable);
 
 /** A create/update provides every editable column; the blind index is computed
  * HERE from the slug (never caller-supplied), so `slug` and `slug_index` move
@@ -139,10 +136,7 @@ const unclaimedPageSlug: UnclaimedSlugCondition = (slugIndex, id) =>
     id === undefined ? undefined : { id, table: "site_pages" },
   );
 
-const sitePageWrites = freshSlugIndexWrites(
-  rawSitePagesTable,
-  unclaimedPageSlug,
-);
+const sitePageWrites = freshSlugIndexWrites(sitePagesTable, unclaimedPageSlug);
 
 export const createSitePage = (
   input: SitePageWriteInput,

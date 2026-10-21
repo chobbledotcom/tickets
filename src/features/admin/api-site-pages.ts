@@ -7,7 +7,7 @@
  * The writes skip the generic CRUD writer (defineCrudApi): a create carries
  * its root order inside the INSERT, and the slug index moves with the slug.
  * Create and update go through the form's own DB wrappers (createSitePage,
- * updateSitePage); a delete clears the tree edges with the row
+ * updateSitePage). A delete clears the tree edges with the row
  * (deleteSitePageWithEdges). Parsers and auth are the shared ones.
  */
 
@@ -87,8 +87,8 @@ const pageParents = (
     )(items),
   );
 
-const parentsNow = (): Promise<ReadonlyMap<number, number>> =>
-  getAllPageItems().then(pageParents);
+const parentsNow = async (): Promise<ReadonlyMap<number, number>> =>
+  pageParents(await getAllPageItems());
 
 /** The API row for one stored page: the stored record without its slug HMAC,
  *  plus the page it nests under (null at the top level). */
