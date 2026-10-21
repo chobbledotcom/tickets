@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 // jscpd:ignore-end
 import { moveTickets } from "#db/attendees/update.ts";
+import { hashEmail, saveContactRecord } from "#db/contact-preferences.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
 import { createSystemNote } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
@@ -79,6 +80,30 @@ describeWithEnv(
         ).text();
         expect(html).toContain(
           `<img src="/image/${image.filename}" alt="BannerPoster">`,
+        );
+        expect(html).not.toContain("img#");
+      });
+
+      test("resolves the contact record's note images in the outreach panel", async () => {
+        const { attendee } = await setupListingAndAttendee();
+        const image = await makeImage("RecordPoster");
+        // The booking's email is the panel's lookup key. The raw attendee row
+        // carries it only inside its encrypted PII blob.
+        await saveContactRecord(await hashEmail("john@example.com"), {
+          adminBookingCount: 0,
+          adminNotes: `Call first. ![RecordPoster](img#${image.id})`,
+          contactCount: 0,
+          lastContact: "",
+          lastSubject: "",
+          publicBookingCount: 0,
+          visits: 0,
+        });
+
+        const html = await (
+          await adminGet(`/admin/attendees/${attendee.id}`)
+        ).text();
+        expect(html).toContain(
+          `<img src="/image/${image.filename}" alt="RecordPoster">`,
         );
         expect(html).not.toContain("img#");
       });
