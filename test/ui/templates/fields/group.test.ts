@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -85,7 +86,8 @@ describe("group fields", () => {
       .validate;
     expect(validate("fine")).toBeNull();
     expect(validate("a".repeat(MAX_TEXTAREA_LENGTH))).toBeNull();
-    expect(validate("a".repeat(MAX_TEXTAREA_LENGTH + 1))).toContain(
+    assertStringIncludes(
+      validate("a".repeat(MAX_TEXTAREA_LENGTH + 1)) ?? "",
       String(MAX_TEXTAREA_LENGTH),
     );
   });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { useManualCheckinPage, waitUntilSettled } from "./fixture.ts";
@@ -66,7 +67,7 @@ describe("manual check-in scan answers", () => {
     expect(page.status.textContent).toBe(
       "Ada checked in for Tour (2 of 3 tickets)",
     );
-    expect(page.status.className).toContain("checkin-status-success");
+    assertStringIncludes(page.status.className, "checkin-status-success");
   });
 
   test("a full answer keeps the plain ticket count", async () => {
@@ -99,6 +100,6 @@ describe("manual check-in scan answers", () => {
     // No second POST landed, and the door said the person was skipped.
     expect(sent).toHaveLength(1);
     expect(page.status.textContent).toBe("Skipped Ada");
-    expect(page.status.className).toContain("checkin-status-warning");
+    assertStringIncludes(page.status.className, "checkin-status-warning");
   });
 });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups } from "#i18n";
@@ -158,7 +159,10 @@ describe("fields validators", () => {
   describe("stored option validators", () => {
     test("accepts known contact fields and rejects unknown ones", () => {
       accepts(validateListingFields, "email, phone, address");
-      expect(validateListingFields("email, unknown")).toContain("unknown");
+      assertStringIncludes(
+        validateListingFields("email, unknown") ?? "",
+        "unknown",
+      );
     });
 
     test("accepts exact update tiers only", () => {
@@ -186,7 +190,10 @@ describe("fields validators", () => {
     test("names the valid days, comma-and-space separated", () => {
       // The join separator of the valid-day list itself must survive the
       // copy: a message that runs the names together is not readable.
-      expect(validateBookableDays("Funday")).toContain("Use: Monday, Tuesday");
+      assertStringIncludes(
+        validateBookableDays("Funday") ?? "",
+        "Use: Monday, Tuesday",
+      );
     });
     test("VALID_DAY_NAMES lists all seven days, Monday first", () => {
       expect(VALID_DAY_NAMES).toHaveLength(7);
@@ -240,11 +247,13 @@ describe("fields validators", () => {
       // A swapped hint or label would still make the two kinds distinct,
       // so the exact copy of each is pinned here on its own.
       expect(buildHiddenField("Listing").label).toBe("Hidden listing");
-      expect(buildHiddenField("Listing").hint).toContain(
+      assertStringIncludes(
+        buildHiddenField("Listing").hint ?? "",
         "The listing is still bookable",
       );
       expect(buildHiddenField("Group").label).toBe("Hidden Group");
-      expect(buildHiddenField("Group").hint).toContain(
+      assertStringIncludes(
+        buildHiddenField("Group").hint ?? "",
         "The group is still bookable",
       );
     });

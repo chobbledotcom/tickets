@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
 import { ticketViewPage } from "#templates/tickets.tsx";
@@ -33,7 +33,7 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    expect(html).toContain("Monday 15 June 2026 at 15:00 GMT+1");
+    assertStringIncludes(html, "Monday 15 June 2026 at 15:00 GMT+1");
   });
 
   test("does not show listing date when listing has empty date", () => {
@@ -44,7 +44,7 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    expect(html).not.toContain("ticket-card-date");
+    assert(!html.includes("ticket-card-date"));
   });
 
   test("shows a single booking date for a one-day daily booking", () => {
@@ -62,8 +62,8 @@ describe("ticketViewPage ticket cards", () => {
     ];
     const html = ticketViewPage(cards);
     // Duration 1 → a single day, not a range.
-    expect(html).toContain("Booking Date: Monday 15 June 2026");
-    expect(html).not.toContain("15–");
+    assertStringIncludes(html, "Booking Date: Monday 15 June 2026");
+    assert(!html.includes("15–"));
   });
 
   test("shows location when entry has non-empty location", () => {
@@ -74,7 +74,7 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    expect(html).toContain("Village Hall");
+    assertStringIncludes(html, "Village Hall");
   });
 
   test("does not show location when listing has empty location", () => {
@@ -85,7 +85,7 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    expect(html).not.toContain("ticket-card-location");
+    assert(!html.includes("ticket-card-location"));
   });
 
   test("shows both listing date and location when both are present", () => {
@@ -101,8 +101,8 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    expect(html).toContain("Monday 15 June 2026 at 15:00 GMT+1");
-    expect(html).toContain("Town Centre");
+    assertStringIncludes(html, "Monday 15 June 2026 at 15:00 GMT+1");
+    assertStringIncludes(html, "Town Centre");
   });
 
   test("shows each ticket as separate card with SVG endpoint reference", () => {
@@ -126,16 +126,16 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    expect(html).toContain("/t/AABB0011CCDDEEF1/svg");
-    expect(html).toContain("/t/AABB0011CCDDEEF2/svg");
-    expect(html).toContain("2 Tickets");
+    assertStringIncludes(html, "/t/AABB0011CCDDEEF1/svg");
+    assertStringIncludes(html, "/t/AABB0011CCDDEEF2/svg");
+    assertStringIncludes(html, "2 Tickets");
   });
 
   test("hides QR code and token for purchase_only listings", () => {
     const html = purchaseOnlyViewHtml();
-    expect(html).not.toContain("ticket-card-qr");
-    expect(html).not.toContain("ticket-card-token");
-    expect(html).not.toContain("/svg");
+    assert(!html.includes("ticket-card-qr"));
+    assert(!html.includes("ticket-card-token"));
+    assert(!html.includes("/svg"));
   });
 
   test("hides wallet links for purchase_only listings", () => {
@@ -146,9 +146,9 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards, true, true);
-    expect(html).not.toContain("wallet-link");
-    expect(html).not.toContain("Apple Wallet");
-    expect(html).not.toContain("Google Wallet");
+    assert(!html.includes("wallet-link"));
+    assert(!html.includes("Apple Wallet"));
+    assert(!html.includes("Google Wallet"));
   });
 
   test("hides non-transferable notice for purchase_only listings", () => {
@@ -164,13 +164,13 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    expect(html).not.toContain("Non-transferable");
+    assert(!html.includes("Non-transferable"));
   });
 
   test("shows Your Purchase heading for purchase_only listings", () => {
     const html = purchaseOnlyViewHtml();
-    expect(html).toContain("Your Purchase");
-    expect(html).not.toContain("Ticket");
+    assertStringIncludes(html, "Your Purchase");
+    assert(!html.includes("Ticket"));
   });
 
   test("shows ticket count heading for mixed listings", () => {
@@ -191,8 +191,8 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    expect(html).toContain("2 Tickets");
-    expect(html).not.toContain("Your Purchase");
+    assertStringIncludes(html, "2 Tickets");
+    assert(!html.includes("Your Purchase"));
   });
 
   /** The page for one ordinary ticket, built from whatever this test puts on
@@ -205,25 +205,29 @@ describe("ticketViewPage ticket cards", () => {
 
   test("shows the organiser's description of the thing booked", () => {
     const html = oneCardPage({ listing: { description: "A night of song" } });
-    expect(html).toContain("ticket-card-description");
-    expect(html).toContain("A night of song");
+    assertStringIncludes(html, "ticket-card-description");
+    assertStringIncludes(html, "A night of song");
   });
 
   test("leaves the description out when the organiser wrote none", () => {
-    expect(oneCardPage({ listing: { description: "" } })).not.toContain(
-      "ticket-card-description",
+    assert(
+      !oneCardPage({ listing: { description: "" } }).includes(
+        "ticket-card-description",
+      ),
     );
   });
 
   test("shows what was paid for a booking that cost money", () => {
     const html = oneCardPage({ attendee: { price_paid: "1500" } });
-    expect(html).toContain("ticket-card-price");
-    expect(html).toContain(`Price: ${formatCurrency(1500)}`);
+    assertStringIncludes(html, "ticket-card-price");
+    assertStringIncludes(html, `Price: ${formatCurrency(1500)}`);
   });
 
   test("says nothing about price for a free booking", () => {
-    expect(oneCardPage({ attendee: { price_paid: "0" } })).not.toContain(
-      "ticket-card-price",
+    assert(
+      !oneCardPage({ attendee: { price_paid: "0" } }).includes(
+        "ticket-card-price",
+      ),
     );
   });
 
@@ -231,8 +235,8 @@ describe("ticketViewPage ticket cards", () => {
     const html = oneCardPage({
       listing: { non_transferable: true, purchase_only: false },
     });
-    expect(html).toContain("ticket-card-notice");
-    expect(html).toContain("Non-transferable — ID required at entry");
+    assertStringIncludes(html, "ticket-card-notice");
+    assertStringIncludes(html, "Non-transferable — ID required at entry");
   });
 
   test("offers the file the organiser attached, behind its signed link", () => {
@@ -240,13 +244,15 @@ describe("ticketViewPage ticket cards", () => {
       { listing: { attachment_name: "Guide.pdf" } },
       { attachmentUrl: "/attachment/42?a=7&exp=1&sig=x" },
     );
-    expect(html).toContain('href="/attachment/42?a=7&amp;exp=1&amp;sig=x"');
-    expect(html).toContain("Download: Guide.pdf");
+    assertStringIncludes(html, 'href="/attachment/42?a=7&amp;exp=1&amp;sig=x"');
+    assertStringIncludes(html, "Download: Guide.pdf");
   });
 
   test("leaves out the download when the thing hands out no file", () => {
-    expect(oneCardPage({ listing: { attachment_name: "" } })).not.toContain(
-      "attachment-link",
+    assert(
+      !oneCardPage({ listing: { attachment_name: "" } }).includes(
+        "attachment-link",
+      ),
     );
   });
 
@@ -268,10 +274,10 @@ describe("ticketViewPage ticket cards", () => {
       false,
       new Map([[7, { hideListings: false, name: "Welcome Pack" }]]),
     );
-    expect(html).toContain("Welcome Pack");
-    expect(html).toContain("Handbook");
-    expect(html).toContain('href="/attachment/9?a=3&amp;exp=1&amp;sig=y"');
-    expect(html).toContain("Download: Handbook.pdf");
+    assertStringIncludes(html, "Welcome Pack");
+    assertStringIncludes(html, "Handbook");
+    assertStringIncludes(html, 'href="/attachment/9?a=3&amp;exp=1&amp;sig=y"');
+    assertStringIncludes(html, "Download: Handbook.pdf");
   });
 
   test("renders multi-day booking range when daily listing has duration > 1", () => {
@@ -289,6 +295,6 @@ describe("ticketViewPage ticket cards", () => {
     ];
     const html = ticketViewPage(cards);
     // duration=3 starting 2026-06-12 → covers 12, 13, 14 inclusive.
-    expect(html).toContain("12–14 June 2026");
+    assertStringIncludes(html, "12–14 June 2026");
   });
 });
