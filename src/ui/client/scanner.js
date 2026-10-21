@@ -226,12 +226,25 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages, pa
     }, FADE_DELAY_MS);
 
     // A running sync holds the scans, so one overlay asks one question at a
-    // time. The door rescans when the queue is done.
-    const settle = isSyncing()
-      ? Promise.resolve()
-      : offlineModeActive()
-      ? offlineScan(scanPath, token, statusEl, messages, panel)
-      : admitScan(scanPath, token, csrfToken, statusEl, messages);
+    // time. The ignored scan gets words, or the silence reads as an
+    // admission. The door rescans when the queue is done.
+    let settle;
+    if (isSyncing()) {
+      showStatus(
+        statusEl,
+        getMessage(
+          messages,
+          "messageSyncHolds",
+          "Checking in queued tickets. Scan again when done.",
+        ),
+        "warning",
+      );
+      settle = Promise.resolve();
+    } else if (offlineModeActive()) {
+      settle = offlineScan(scanPath, token, statusEl, messages, panel);
+    } else {
+      settle = admitScan(scanPath, token, csrfToken, statusEl, messages);
+    }
     settle
       .catch(() => {
         showStatus(statusEl, getMessage(messages, "messageNetworkError", "Network error"), "error");
