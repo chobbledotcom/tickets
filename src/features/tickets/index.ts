@@ -7,7 +7,7 @@
 import { hmacHash } from "#crypto/hashing.ts";
 /* jscpd:ignore-start -- imports */
 import { packageDisplaysForRows } from "#db/groups.ts";
-import { addFooterImageUrls, addPageImageUrls } from "#db/images.ts";
+import { addFooterImageUrls, addPageImageUrls } from "#db/image-urls.ts";
 import { settings } from "#db/settings.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import {

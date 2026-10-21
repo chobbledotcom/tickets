@@ -3,7 +3,7 @@
  */
 
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
-import { addFooterImageUrls, addPageImageUrls } from "#db/images.ts";
+import { addFooterImageUrls, addPageImageUrls } from "#db/image-urls.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 /* jscpd:ignore-start */

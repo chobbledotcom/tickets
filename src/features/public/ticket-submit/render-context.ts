@@ -10,11 +10,8 @@ import {
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
-import {
-  addFooterImageUrls,
-  addTicketPageImageUrls,
-  getImagesForItem,
-} from "#db/images.ts";
+import { addFooterImageUrls, addTicketPageImageUrls } from "#db/image-urls.ts";
+import { getImagesForItem } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { allChildListings } from "#routes/public/child-listings.ts";
 import { childCapacityInfo } from "#routes/public/discovery/combined-capacity.ts";

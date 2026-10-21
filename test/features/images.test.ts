@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptBytes } from "#crypto/encryption.ts";
-import { addPageImageUrls, imageUrlsFor } from "#db/images.ts";
+import { addPageImageUrls, imageUrlsFor } from "#db/image-urls.ts";
 import { handleRequest } from "#routes";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { renderMarkdown } from "#shared/markdown.ts";

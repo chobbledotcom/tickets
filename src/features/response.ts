@@ -2,7 +2,7 @@
  * Response builder utilities for route handlers
  */
 
-import { addFooterImageUrls } from "#db/images.ts";
+import { addFooterImageUrls } from "#db/image-urls.ts";
 import { buildFlashCookie, type FlashLevel } from "#shared/cookies.ts";
 import { stashForm } from "#shared/form-stash.ts";
 import { getSavedFormData } from "#shared/forms/saved-data.ts";

@@ -66,11 +66,11 @@ export type RequestStore = {
    * reads fall back instead of carrying another request's domain. */
   effectiveDomain?: string;
   /** The page content's id→image-URL table, merged in by the page's markdown
-   * loaders (src/shared/db/images.ts) and read by renderMarkdown's default.
+   * loaders (src/shared/db/image-urls.ts) and read by renderMarkdown's default.
    * Unset until one writes it, so reads resolve no img#N reference. */
   pageImageUrls?: Map<number, string>;
   /** The site footer's id→uid-URL table, resolved by the page render paths
-   * that show the footer (src/shared/db/images.ts) for the Layout's
+   * that show the footer (src/shared/db/image-urls.ts) for the Layout's
    * synchronous footer render. Unset until one writes it, so reads render no
    * image source. */
   footerImageUrls?: ReadonlyMap<number, string>;
