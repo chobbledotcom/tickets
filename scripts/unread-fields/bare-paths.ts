@@ -340,15 +340,14 @@ export const pathsFromInfo = (
   return paths;
 };
 
-/** Ask `deno info` through the name the task permission grants. The name
- * matches the `--allow-run=deno` entry as written. `Deno.execPath()` holds
- * the real executable, and a version-manager shim is a separate script, so
- * that absolute path can fail the permission check. */
+/** Ask `deno info` with the runtime that runs the scan. `Deno.execPath()`
+ * names the parent runtime, so the graph never comes from a different
+ * `deno` than the one the scan runs in. */
 const runInfo = async (
   root: string,
   args: readonly string[],
 ): Promise<InfoJson> => {
-  const output = await new Deno.Command("deno", {
+  const output = await new Deno.Command(Deno.execPath(), {
     args: ["info", "--json", ...args],
     cwd: root,
     stderr: "piped",
