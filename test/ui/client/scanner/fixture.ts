@@ -108,8 +108,9 @@ const runBundleOnce = (): void => {
 /** The scanner page's own markup, as the template renders it: the messages
  * the container carries, the door's cache key, the camera, the status line,
  * the offline banner, the queue panel, the manual toggle, and the start
- * button. */
-const SCANNER_PAGE = `
+ * button. Suites that need a page the template did not render whole derive
+ * their variant from this. */
+export const SCANNER_PAGE = `
   <meta name="csrf-token" content="csrf-page-token" />
   <div
     data-message-already-checked-in="{name} already checked in for {listingName} ({tickets})"
@@ -129,6 +130,7 @@ const SCANNER_PAGE = `
     data-message-offline-cache-expired="The offline ticket list has expired. Go online and reload this page."
     data-message-offline-cache-missing="No offline ticket list yet. Go online and reload this page first."
     data-message-offline-invalid="This ticket cannot be checked in offline. Scan it again when you are back online to see why."
+    data-message-offline-mode-save-failed="Your change was not saved. Free up space on this device, then try again."
     data-message-offline-queued="Ticket looks valid. It will be checked in when you are back online."
     data-message-offline-save-failed="This scan was not saved. Free up space on this device, then scan it again."
     data-message-queue-count-one="{count} queued check-in"

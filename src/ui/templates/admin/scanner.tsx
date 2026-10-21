@@ -127,6 +127,9 @@ const offlineMessageAttrs = (): Record<string, string> => ({
     "admin.scanner.offline_cache_missing",
   ),
   "data-message-offline-invalid": t("admin.scanner.offline_invalid"),
+  "data-message-offline-mode-save-failed": t(
+    "admin.scanner.offline_mode_save_failed",
+  ),
   "data-message-offline-queued": t("admin.scanner.offline_queued"),
   "data-message-offline-save-failed": t("admin.scanner.offline_save_failed"),
   "data-message-queue-count-one": t("admin.scanner.queue_count_one", {
