@@ -85,6 +85,11 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
     { format: "esm" },
   ),
   browserBundle(
+    "Scanner service worker",
+    "./src/ui/client/scanner-sw.js",
+    STATIC_ASSET_OUTFILES.scannerSw,
+  ),
+  browserBundle(
     "Admin",
     "./src/ui/client/admin.ts",
     STATIC_ASSET_OUTFILES.admin,

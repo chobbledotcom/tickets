@@ -3,12 +3,10 @@ import { it as test } from "@std/testing/bdd";
 import { ASSET_DEFS, buildCdnAssets } from "#scripts/edge-cdn-assets.ts";
 
 const CDN_STATIC_FILENAMES = [
-  "style.css",
   "admin.js",
   "markdown-editor.js",
   "logistics-map.js",
   "logistics-map.css",
-  "scanner.js",
   "iframe-resizer-child.js",
   "contact.js",
 ] as const;
@@ -66,18 +64,19 @@ test("ASSET_DEFS describes every embedded and published browser asset", () => {
       "",
       true,
     ],
+    "scanner-sw.js": [
+      "handleScannerSwJs",
+      "application/javascript; charset=utf-8",
+      "",
+      false,
+      true,
+    ],
     "scanner.js": [
       "handleScannerJs",
       "application/javascript; charset=utf-8",
       "SCANNER_JS_PATH",
-      true,
     ],
-    "style.css": [
-      "handleStyleCss",
-      "text/css; charset=utf-8",
-      "CSS_PATH",
-      true,
-    ],
+    "style.css": ["handleStyleCss", "text/css; charset=utf-8", "CSS_PATH"],
   });
 });
 
@@ -113,6 +112,6 @@ test("buildCdnAssets publishes the complete site-independent release", () => {
 
 test("buildCdnAssets fails when a publishable browser asset is missing", () => {
   expect(() => buildCdnAssets({})).toThrow(
-    "Missing built static asset style.css",
+    "Missing built static asset admin.js",
   );
 });
