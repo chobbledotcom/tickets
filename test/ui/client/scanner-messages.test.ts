@@ -72,11 +72,16 @@ describe("scanner wording helpers", () => {
       expect(status.className).toBe("scanner-status scanner-status-error");
 
       showStatus(status, "Skipped Ada", "warning");
+      expect(status.textContent).toBe("Skipped Ada");
       expect(status.className).toBe("scanner-status scanner-status-warning");
 
-      // The success call strips the warning the warning call left on.
+      // Each later status strips the colour the last one left on.
       showStatus(status, "Checked in", "success");
+      expect(status.textContent).toBe("Checked in");
       expect(status.className).toBe("scanner-status scanner-status-success");
+
+      showStatus(status, "Ticket not found", "error");
+      expect(status.className).toBe("scanner-status scanner-status-error");
     });
 
     test("fades a settled status out after its delay", () => {
