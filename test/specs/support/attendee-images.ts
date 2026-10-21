@@ -103,7 +103,7 @@ export const uploadsAPicture = async (
  * picture uploaded and the note typed around the picture's reference. The
  * world remembers the person and the picture; the caller writes the note
  * where their story does. */
-const typedNoteWithPicture = async (
+export const typedNoteWithPicture = async (
   world: TicketsWorld,
   who: string,
   name: string,

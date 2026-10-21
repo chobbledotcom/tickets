@@ -10,10 +10,15 @@ import { t } from "#i18n";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import {
+  regionShowsPicture,
+  uploadsAPicture,
+} from "#test/specs/support/attendee-images.ts";
+import {
   adminBrowser,
   ORGANISER,
   openAdminPage,
   rememberBrowser,
+  scenarioBrowser,
 } from "#test/specs/support/browser.ts";
 import {
   HOST_ADDRESS,
@@ -97,6 +102,17 @@ Given(
   "the host has written {string} on the Support page",
   function (this: TicketsWorld, markdown: string): void {
     hostWritesOnTheSupportPage(this, markdown);
+  },
+);
+
+Given(
+  "the host has written an introduction with a picture called {string} on the Support page",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    const picture = await uploadsAPicture(this, name);
+    hostWritesOnTheSupportPage(
+      this,
+      `# Help Center\n\nReach out anytime. ![${name}](img#${picture.id})`,
+    );
   },
 );
 
@@ -196,6 +212,18 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openAdminPage(this, SUPPORT_PAGE);
     expect(browser.pageText).not.toContain(t("support.missing_text"));
+  },
+);
+
+Then(
+  "the introduction shows the {string} picture",
+  function (this: TicketsWorld, _name: string): void {
+    regionShowsPicture(
+      scenarioBrowser(this).currentHtml,
+      'class="prose"',
+      "div",
+      this,
+    );
   },
 );
 
