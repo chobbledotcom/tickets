@@ -210,6 +210,15 @@ describe("scanner offline door", {
       expect(JSON.parse(String(storedQueue(h)))).toEqual([
         { queuedAt: expect.any(Number), scanPath: SCAN_PATH, token: TOKEN },
       ]);
+      // The words the door reads: the banner is up with the page's
+      // statement, and the queue panel shows the kept scan.
+      expect(el(h.document, "scanner-offline-banner").className).not.toContain(
+        "hidden",
+      );
+      expect(el(h.document, "scanner-offline-banner-text").textContent).toBe(
+        "No connection. Scans are queued and checked in when you are back online.",
+      );
+      expect(el(h.document, "scanner-queue").className).not.toContain("hidden");
       // The door read the page's own words off the queue panel.
       expect(el(h.document, "scanner-queue-summary").textContent).toBe(
         "1 queued check-in",
