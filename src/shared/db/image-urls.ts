@@ -8,6 +8,7 @@ import { settings } from "#db/settings.ts";
 import { inList } from "#db/where-clauses.ts";
 import { mapById } from "#fp";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
+import { logDbError } from "#shared/logger.ts";
 import {
   currentRequestStore,
   getIframeMode,
@@ -73,9 +74,10 @@ export const addPageImageUrls = async (texts: ImageUrlTexts): Promise<void> => {
  * renders no footer, so it runs no lookup either. */
 export const addFooterImageUrls = async (): Promise<void> => {
   if (!currentRequestStore() || getIframeMode()) return;
-  const table = await imageUrlsFor([settings.siteFooter]).catch(
-    () => new Map<number, string>(),
-  );
+  const table = await imageUrlsFor([settings.siteFooter]).catch((error) => {
+    logDbError("Site footer image lookup failed", error);
+    return new Map<number, string>();
+  });
   withRequestStore((store) => {
     store.footerImageUrls = table;
   });
