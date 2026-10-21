@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read=src,test,scripts,cli,e2e-payments,.opencode/plugins --allow-env --allow-sys --allow-ffi
+#!/usr/bin/env -S deno run --allow-read=src,test,scripts,cli,e2e-payments --allow-env --allow-sys --allow-ffi
 
 /**
  * Check the source trees for an empty catch (see "No empty catch" in
