@@ -8,6 +8,9 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { queryAll } from "#db/client.ts";
+import { setListingGroups } from "#db/groups.ts";
 import { handleRequest } from "#routes";
 import {
   requiredWorldValue,
@@ -16,7 +19,11 @@ import {
 import { parseFlashCookie } from "#test-utils/assertions.ts";
 import { extractInputValue } from "#test-utils/csrf.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createDailyTestListing,
+  createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
@@ -24,9 +31,9 @@ import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 // jscpd:ignore-end
 
 /** What the merge page shows before anything is merged: the page itself, the
- * version it was built from, and the booking field it offers a choice about. */
+ * version it was built from, and every booking field it offers a choice about. */
 interface MergePreview {
-  bookingField: string;
+  bookingFields: string[];
   html: string;
   version: string;
 }
@@ -50,9 +57,16 @@ const mergePreview = async (
   const html = await page.text();
   const version = extractInputValue(html, "merge_version");
   expect(version).not.toBeNull();
-  const bookingField = html.match(/name="(booking_[^"]+)"/)?.[1];
-  expect(bookingField).toBeDefined();
-  return { bookingField: bookingField!, html, version: version! };
+  // One booking slot renders as a radio group whose inputs repeat the field
+  // name once per choice; the story reads slots, not choices, so keep one
+  // name per slot in the order the page offers them.
+  const bookingFields = [
+    ...new Set(
+      [...html.matchAll(/name="(booking_[^"]+)"/g)].map((match) => match[1]!),
+    ),
+  ];
+  expect(bookingFields.length).toBeGreaterThan(0);
+  return { bookingFields, html, version: version! };
 };
 
 /** POST the merge apply form on the SAME stable owner cookie as
@@ -178,13 +192,46 @@ export const mergeDuplicates = async (
   world: TicketsWorld,
   money?: "credit" | "writeoff",
 ): Promise<MergeOutcome> => {
-  const { bookingField, version } = await mergeChoices(world);
-  const response = await mergePost(survivorId(world), {
-    [bookingField]: "keep_target",
-    ...(money === undefined ? {} : { [moneyFieldFor(bookingField)]: money }),
+  const [bookingField] = (await mergeChoices(world)).bookingFields;
+  return mergeDeciding(world, [
+    {
+      choice: "keep_target",
+      field: bookingField!,
+      ...(money === undefined ? {} : { money }),
+    },
+  ]);
+};
+
+/** One booking decision: which slot, which side wins, and what happens to the
+ * discarded money when that booking was paid for. */
+export type MergeBookingDecision = {
+  choice: "keep_target" | "take_source" | "skip_source";
+  field: string;
+  money?: "credit" | "writeoff";
+};
+
+/** Merge the duplicate into the booking being kept, deciding every conflicting
+ * booking the page offers through the real merge form. */
+export const mergeDeciding = async (
+  world: TicketsWorld,
+  decisions: MergeBookingDecision[],
+): Promise<MergeOutcome> => {
+  const { version } = await mergeChoices(world);
+  const fields: Record<string, string> = {
     merge_version: version,
     source_token: requiredWorldValue(world.duplicateToken, "duplicate token"),
-  });
+  };
+  for (const decision of decisions) {
+    fields[decision.field] = decision.choice;
+    if (decision.money !== undefined) {
+      fields[moneyFieldFor(decision.field)] = decision.money;
+    }
+  }
+  return mergeOutcomeOf(await mergePost(survivorId(world), fields));
+};
+
+/** What the site told the organiser the merge did. */
+const mergeOutcomeOf = async (response: Response): Promise<MergeOutcome> => {
   // Either way the organiser is sent to a page and told what happened, so a
   // reply that did neither is a broken merge, not an outcome to report.
   expect(response.status).toBe(302);
@@ -197,3 +244,145 @@ export const mergeDuplicates = async (
   // success instead.
   return { applied: !flash.error, message };
 };
+
+/** The booking field booked through a bundle: the one offered slot that is
+ * not the plain on-its-own booking. A slot key ends `parent:package`, so a
+ * plain booking ends `:0:0`; the key's middle carries the booking's
+ * timestamp, which can hold colons of its own, so the shape is read from the
+ * end. */
+export const bundleBookingField = (fields: readonly string[]): string => {
+  const bundled = fields.filter((field) => !field.endsWith(":0:0"));
+  if (bundled.length !== 1) {
+    throw new Error(
+      `Expected one bundle part among ${fields.length} offered bookings, found ${bundled.length}`,
+    );
+  }
+  return bundled[0]!;
+};
+
+/** The booking field booked on its own: the one offered slot whose key ends
+ * `:0:0` — no parent, no bundle. */
+export const plainBookingField = (fields: readonly string[]): string => {
+  const plain = fields.filter((field) => field.endsWith(":0:0"));
+  if (plain.length !== 1) {
+    throw new Error(
+      `Expected one on-its-own booking among ${fields.length} offered bookings, found ${plain.length}`,
+    );
+  }
+  return plain[0]!;
+};
+
+/** One booking slot a duplicate pair holds: how many places, whether the slot
+ * rides a bundle, and over which days. */
+export type PairSlot = {
+  bundle?: boolean;
+  date?: string;
+  durationDays?: number;
+  quantity: number;
+};
+
+/** Two bookings for the same person on one listing, each holding the slots
+ * their side names. A bundle slot rides a real package group, so its rows
+ * match what a true bundle checkout stores, and each side is paid for what it
+ * holds when the pair is paid. */
+export const duplicatePairOnSlots = async (
+  world: TicketsWorld,
+  name: string,
+  slots: { source: PairSlot[]; target: PairSlot[] },
+  options: { daily?: boolean; paid?: boolean } = {},
+): Promise<void> => {
+  const paid = options.paid ?? false;
+  const unitPrice = paid ? 5000 : 0;
+  const listing =
+    options.daily === true
+      ? await createDailyTestListing({
+          durationDays: 2,
+          maxAttendees: 10,
+          name,
+          thankYouUrl: "",
+          unitPrice,
+        })
+      : await createTestListing({ maxAttendees: 10, name, unitPrice });
+  const bundlesSlots = [...slots.source, ...slots.target];
+  let packageGroupId = 0;
+  if (bundlesSlots.some((slot) => slot.bundle === true)) {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: `${name} Bundle`,
+    });
+    await setListingGroups(listing.id, [group.id]);
+    packageGroupId = group.id;
+  }
+  const bookingsFor = async (
+    who: string,
+    email: string,
+    pairSlots: PairSlot[],
+  ) => {
+    const result = await attendeesApi.createAttendeeAtomic({
+      address: "",
+      bookings: pairSlots.map((slot) => ({
+        listingId: listing.id,
+        packageGroupId: slot.bundle === true ? packageGroupId : undefined,
+        quantity: slot.quantity,
+        ...(slot.date === undefined
+          ? {}
+          : { date: slot.date, durationDays: slot.durationDays ?? 1 }),
+      })),
+      email,
+      name: `${name} ${who}`,
+      phone: "",
+      special_instructions: "",
+    });
+    if (!result.success) {
+      throw new Error(
+        `Failed to book the ${who.toLowerCase()} duplicate on the ${name}: ${result.reason}`,
+      );
+    }
+    return result.attendees[0]!;
+  };
+  const target = await bookingsFor(
+    "Target",
+    `target-${name}@example.com`,
+    slots.target,
+  );
+  const source = await bookingsFor(
+    "Source",
+    `source-${name}@example.com`,
+    slots.source,
+  );
+  if (paid) {
+    for (const [attendee, pairSlots] of [
+      [target, slots.target],
+      [source, slots.source],
+    ] as const) {
+      const places = pairSlots.reduce((sum, slot) => sum + slot.quantity, 0);
+      await postListingSale({
+        attendeeId: attendee.id,
+        gross: unitPrice * places,
+        listingId: listing.id,
+      });
+    }
+  }
+  world.listingId = listing.id;
+  world.attendeeId = target.id;
+  world.duplicateId = source.id;
+  world.duplicateToken = source.ticket_token;
+};
+
+/** The booking rows the kept booking holds on the merged listing: what it
+ * counts, which path each row rode, and the days it covers. */
+export const keptBookingRows = async (
+  world: TicketsWorld,
+): Promise<
+  {
+    end_at: string | null;
+    package_group_id: number;
+    quantity: number;
+    start_at: string | null;
+  }[]
+> =>
+  queryAll(
+    `SELECT package_group_id, quantity, start_at, end_at FROM listing_attendees
+      WHERE attendee_id = ? AND listing_id = ?`,
+    [survivorId(world), mergedListingId(world)],
+  );
