@@ -92,8 +92,7 @@ describe("finding a row's own arrow", () => {
     mover: TicketsWorld,
   ): Promise<void> => {
     const { browser, sent } = recordingBrowser();
-    const row =
-      `<td>Confirmed</td><td><form action="${postsTo}" method="POST"><button>➤</button></form></td>`;
+    const row = `<td>Confirmed</td><td><form action="${postsTo}" method="POST"><button>➤</button></form></td>`;
     browser.currentHtml = `<table><tr>${row}</table>`;
     const arrows = movingRowsOn(
       listPath,

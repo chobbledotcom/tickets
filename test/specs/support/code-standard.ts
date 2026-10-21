@@ -9,6 +9,7 @@
 import { ALLOWED_REPEATED_BINDS } from "#test/integration/code-quality/allowlists.ts";
 import {
   findHandNumberedSql,
+  findNumberedBindViolations,
   findRepeatedBinds,
 } from "#test/scripts/code-quality/numbered-binds.ts";
 import {
@@ -100,16 +101,13 @@ export const readsEverySourceFile = async (
   world: TicketsWorld,
 ): Promise<void> => {
   const { srcFiles, srcContents } = await ensureLoaded();
-  report(world, [
-    ...srcFiles.flatMap((file) =>
-      findRepeatedBinds(
-        getRelativePath(file),
-        srcContents.get(file)!,
-        ALLOWED_REPEATED_BINDS,
-      ),
+  report(
+    world,
+    findNumberedBindViolations(
+      srcFiles,
+      srcContents,
+      getRelativePath,
+      ALLOWED_REPEATED_BINDS,
     ),
-    ...srcFiles.flatMap((file) =>
-      findHandNumberedSql(getRelativePath(file), srcContents.get(file)!),
-    ),
-  ]);
+  );
 };

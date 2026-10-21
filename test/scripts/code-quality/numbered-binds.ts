@@ -6,7 +6,13 @@
  * `./numbered-binds.test.ts`.
  */
 
-import { blankSpans, lexicalSpans } from "#scripts/typescript-lex.ts";
+import { requiredMapValue } from "#fp";
+import {
+  blankSpans,
+  interpolationEnd,
+  lexicalSpans,
+} from "#scripts/typescript-lex.ts";
+import { matchingBracket } from "#test/scripts/code-quality/brackets.ts";
 import { argumentUses } from "#test/scripts/code-quality/helper-binds.ts";
 
 /** The one file whose own job is to emit `?N` tokens. */
@@ -77,21 +83,6 @@ const withoutInterpolations = (spanText: string): string => {
     out += character;
   }
   return out;
-};
-
-/** The bracket that closes the `[` at `open`, or -1. Brackets inside strings
- * and comments cannot mislead the walk: the text arrives pre-blanked. */
-export const matchingBracket = (blanked: string, open: number): number => {
-  let depth = 0;
-  for (let at = open; at < blanked.length; at++) {
-    const character = blanked[at] as string;
-    if ("([{".includes(character)) depth += 1;
-    if (")]}".includes(character)) {
-      depth -= 1;
-      if (depth === 0) return at;
-    }
-  }
-  return -1;
 };
 
 /** The top-level element texts of one array literal, taken from the real
@@ -204,12 +195,18 @@ const declarationSpan = (blanked: string, name: string): [number, number] => {
 };
 
 /** The local array literals of one file, by name: the values a statement can
- * receive through one of the argument uses below. */
+ * receive through one of the argument uses below. The declaration's type
+ * annotation, when it carries one, sits between the name and the `=`; it
+ * never holds `=`, `;`, `{`, or `}`, so the match cannot cross into another
+ * statement. Production writes bind lists this way (a `const args: number[]`
+ * member-quantity list), so an annotated list hides a repeat as well as a
+ * bare one. */
+const LOCAL_ARRAY_LITERAL =
+  /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;{}]*?)?=\s*\[/g;
+
 const localArrayLiterals = (blanked: string): Map<string, LocalArray[]> => {
   const literals = new Map<string, LocalArray[]>();
-  for (const match of [
-    ...blanked.matchAll(/\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*\[/g),
-  ]) {
+  for (const match of [...blanked.matchAll(LOCAL_ARRAY_LITERAL)]) {
     const open = match.index + match[0].length - 1;
     const close = matchingBracket(blanked, open);
     if (close < 0) continue;
@@ -344,23 +341,83 @@ export const findRepeatedBinds = (
   return violations;
 };
 
+/** The string spans one template's interpolations hold, in absolute
+ * positions: a quoted fragment or a nested template an interpolation
+ * carries, however deeply the templates nest. The interpolation's code is
+ * never SQL text itself, so only its string spans count. */
+const interpolationStringSpans = (
+  content: string,
+  start: number,
+  end: number,
+): { end: number; start: number }[] => {
+  const spans: { end: number; start: number }[] = [];
+  let at = start;
+  while (at < end) {
+    if (content[at] === "$" && content[at + 1] === "{") {
+      const close = interpolationEnd(content, at + 2);
+      const region = content.slice(at + 2, close);
+      for (const span of lexicalSpans(region)) {
+        if (span.kind !== "string") continue;
+        spans.push({ end: at + 2 + span.end, start: at + 2 + span.start });
+      }
+      at = close + 1;
+      continue;
+    }
+    at += 1;
+  }
+  return spans;
+};
+
 /** The hand-numbered `?N` tokens of one source file. The numbered binder is
  * the only writer of `?N` tokens, so SQL text never spells one itself; the
  * prose comments that kept such numbering honest are comments, which the
- * string-span walk never reads. */
+ * string-span walk never reads. A template's SQL text is checked with its
+ * interpolations blanked, and each interpolation's own string spans — the
+ * conditional fragments an assembly writes — are checked in their place. */
 export const findHandNumberedSql = (
   relativePath: string,
   content: string,
 ): string[] => {
   if (relativePath === NUMBERED_STATEMENT_PATH) return [];
   const violations: string[] = [];
+  const check = (start: number, end: number): void => {
+    const text = content.slice(start, end);
+    if (HAND_NUMBERED_TOKEN.test(withoutInterpolations(text))) {
+      violations.push(
+        `${relativePath}:${lineAt(content, start)}: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead`,
+      );
+    }
+    if (content[start] !== "`") return;
+    for (const span of interpolationStringSpans(content, start, end)) {
+      check(span.start, span.end);
+    }
+  };
   for (const span of lexicalSpans(content)) {
-    if (span.kind !== "string") continue;
-    const text = withoutInterpolations(content.slice(span.start, span.end));
-    if (!HAND_NUMBERED_TOKEN.test(text)) continue;
-    violations.push(
-      `${relativePath}:${lineAt(content, span.start)}: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead`,
-    );
+    if (span.kind === "string") check(span.start, span.end);
   }
   return violations;
 };
+
+/** The violations the two numbered-parameter rules report over one loaded
+ * source tree: each detector over every file, the repeated-bind allowances
+ * applied. `toRelative` names each file the way a finding reports it. */
+export const findNumberedBindViolations = (
+  files: readonly string[],
+  contents: ReadonlyMap<string, string>,
+  toRelative: (file: string) => string,
+  allowed: readonly string[],
+): string[] => [
+  ...files.flatMap((file) =>
+    findRepeatedBinds(
+      toRelative(file),
+      requiredMapValue(contents, file, `Missing source text for ${file}`),
+      allowed,
+    ),
+  ),
+  ...files.flatMap((file) =>
+    findHandNumberedSql(
+      toRelative(file),
+      requiredMapValue(contents, file, `Missing source text for ${file}`),
+    ),
+  ),
+];

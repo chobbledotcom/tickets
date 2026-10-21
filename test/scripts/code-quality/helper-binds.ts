@@ -5,7 +5,10 @@
  * beside the `args` object forms.
  */
 
-import { matchingBracket } from "#test/scripts/code-quality/numbered-binds.ts";
+import {
+  firstArgumentComma,
+  matchingBracket,
+} from "#test/scripts/code-quality/brackets.ts";
 
 /** The SQL query and write helpers whose second call argument carries a
  * statement's bind list. `execute` also matches member calls (`tx.execute`);
@@ -28,22 +31,6 @@ const SQL_HELPERS = new Set([
 type SecondBind =
   | { array: { close: number; open: number }; kind: "array" }
   | { kind: "name"; name: string };
-
-/** Where a call's first top-level argument ends: the comma that follows it,
- * or -1 when the call passes one argument or never closes. */
-const firstArgumentComma = (blanked: string, open: number): number => {
-  let depth = 0;
-  for (let at = open + 1; at < blanked.length; at++) {
-    const character = blanked[at] as string;
-    if ("([{".includes(character)) depth += 1;
-    if (")]}".includes(character)) {
-      if (depth === 0) return -1;
-      depth -= 1;
-    }
-    if (character === "," && depth === 0) return at;
-  }
-  return -1;
-};
 
 const secondCallArgument = (
   blanked: string,

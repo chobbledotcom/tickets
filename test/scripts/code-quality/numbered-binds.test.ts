@@ -164,6 +164,18 @@ const transfersFor = { args: [id, id], sql: transferSql };`,
     ]);
   });
 
+  test("fires on a typed local array an execute call carries into a statement", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "const args: number[] = [listingId, listingId];\nawait execute(writeSql, args);",
+        [],
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: binds listingId more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
+
   test("skips a local array that never closes", () => {
     expect(
       findRepeatedBinds(
@@ -424,6 +436,28 @@ describe("hand-numbered tokens", () => {
       findHandNumberedSql(
         "shared/db/synthetic.ts",
         'const sql = `SELECT ?1 FROM t WHERE x = ${ { ok: true }.ok ? "a" : "b" }`;',
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
+  test("fires on a hand-numbered fragment a template interpolation carries", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        'const sql = `DELETE FROM t WHERE ${byParent ? "parent_id = ?1" : "id = ?"}`;',
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
+  test("fires on a hand-numbered fragment a nested template carries", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        'const sql = `DELETE FROM t WHERE ${byParent ? `child_id = ?1` : ""}`;',
       ),
     ).toEqual([
       "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",

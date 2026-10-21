@@ -21,10 +21,7 @@ import {
   type NamedTypeShape,
   type Site,
 } from "#test/scripts/code-quality/detectors.ts";
-import {
-  findHandNumberedSql,
-  findRepeatedBinds,
-} from "#test/scripts/code-quality/numbered-binds.ts";
+import { findNumberedBindViolations } from "#test/scripts/code-quality/numbered-binds.ts";
 import { detectRelativeImport } from "#test/scripts/code-quality/relative-import.ts";
 import {
   ensureLoaded,
@@ -120,35 +117,15 @@ describe("code quality", () => {
     });
   });
 
-  describe("sql statements bind each value once", () => {
-    test("no source statement binds one value more than once", async () => {
+  describe("numbered parameters", () => {
+    test("the site's own source passes the job", async () => {
       const { srcFiles, srcContents } = await ensureLoaded();
-      const violations: string[] = [];
-
-      for (const file of srcFiles) {
-        violations.push(
-          ...findRepeatedBinds(
-            getRelativePath(file),
-            srcContents.get(file)!,
-            ALLOWED_REPEATED_BINDS,
-          ),
-        );
-      }
-
-      expect(violations).toEqual([]);
-    });
-  });
-
-  describe("sql text carries no hand-numbered tokens", () => {
-    test("no source string spells a ?N parameter itself", async () => {
-      const { srcFiles, srcContents } = await ensureLoaded();
-      const violations: string[] = [];
-
-      for (const file of srcFiles) {
-        violations.push(
-          ...findHandNumberedSql(getRelativePath(file), srcContents.get(file)!),
-        );
-      }
+      const violations = findNumberedBindViolations(
+        srcFiles,
+        srcContents,
+        getRelativePath,
+        ALLOWED_REPEATED_BINDS,
+      );
 
       expect(violations).toEqual([]);
     });
