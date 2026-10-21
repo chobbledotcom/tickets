@@ -8,7 +8,7 @@ import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import {
   clearPendingFlagStatement,
   countAttendeesWithPendingFlags,
-  emailBadgeOwed,
+  emailBadgePendingOrNull,
   listingCollectsEmail,
 } from "#db/attendees/notification-flags.ts";
 import {
@@ -210,10 +210,23 @@ describeWithEnv(
     });
 
     test("the email badge needs the flag up and the listing still collecting", () => {
-      expect(emailBadgeOwed({ email_owed: 1, email_pending: 1 })).toBe(true);
-      expect(emailBadgeOwed({ email_owed: 1, email_pending: 2 })).toBe(true);
-      expect(emailBadgeOwed({ email_owed: 1, email_pending: 0 })).toBe(false);
-      expect(emailBadgeOwed({ email_owed: 0, email_pending: 1 })).toBe(false);
+      expect(emailBadgePendingOrNull({ email_owed: 1, email_pending: 1 })).toBe(
+        1,
+      );
+      expect(emailBadgePendingOrNull({ email_owed: 1, email_pending: 2 })).toBe(
+        2,
+      );
+      expect(emailBadgePendingOrNull({ email_owed: 1, email_pending: 0 })).toBe(
+        null,
+      );
+      expect(emailBadgePendingOrNull({ email_owed: 0, email_pending: 1 })).toBe(
+        null,
+      );
+    });
+
+    test("a read that leaves the flags absent never shows the email badge", () => {
+      expect(emailBadgePendingOrNull({})).toBe(null);
+      expect(emailBadgePendingOrNull({ email_owed: 1 })).toBe(null);
     });
 
     test("one listing of a person keeps the badge, the other drops it", async () => {

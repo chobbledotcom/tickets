@@ -6,7 +6,7 @@
  */
 
 import {
-  emailBadgeOwed,
+  emailBadgePendingOrNull,
   PENDING_NOTIFICATION,
 } from "#db/attendees/notification-flags.ts";
 import { t } from "#i18n";
@@ -43,16 +43,15 @@ const pendingBadge = (value: number, label: string): JSX.Element | null => {
  * any more, no email badge. */
 export const pendingNotificationBadges = (
   attendee: PendingNotificationFlags,
-): JSX.Element[] =>
-  [
-    emailBadgeOwed(attendee)
-      ? pendingBadge(
-          attendee.email_pending ?? PENDING_NOTIFICATION.none,
-          t("attendees.badge.email_not_sent"),
-        )
-      : null,
+): JSX.Element[] => {
+  const emailPending = emailBadgePendingOrNull(attendee);
+  return [
+    emailPending === null
+      ? null
+      : pendingBadge(emailPending, t("attendees.badge.email_not_sent")),
     pendingBadge(
       attendee.webhooks_pending,
       t("attendees.badge.webhooks_not_sent"),
     ),
   ].filter((badge) => badge !== null);
+};

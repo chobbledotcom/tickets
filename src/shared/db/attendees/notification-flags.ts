@@ -188,15 +188,17 @@ export const emailOwedColumn: EmailOwedProjection = (attendeeRef, listingRef) =>
 export const listingCollectsEmail = (listing: { fields: string }): boolean =>
   parseListingFields(listing.fields).includes("email");
 
-/** Whether the email badge shows for one attendee row: the stored flag is up
- * and a booked listing still collects an email. The read that produced the
- * row resolved that rule into `email_owed`. A read that did not apply the
- * rule leaves the fields absent, and absence never shows a badge. */
-export const emailBadgeOwed = (
+/** The stored flag value one attendee's email badge shows, or null when no
+ * badge shows. The badge needs the flag up and a booked listing that still
+ * collects an email. The read that produced the row resolved that rule into
+ * `email_owed`. A read that did not apply the rule leaves the fields
+ * absent, and absence never shows a badge. */
+export const emailBadgePendingOrNull = (
   attendee: Pick<Attendee, "email_owed" | "email_pending">,
-): boolean =>
-  (attendee.email_pending ?? PENDING_NOTIFICATION.none) > 0 &&
-  attendee.email_owed === 1;
+): number | null => {
+  const pending = attendee.email_pending ?? PENDING_NOTIFICATION.none;
+  return pending > 0 && attendee.email_owed === 1 ? pending : null;
+};
 
 /** SQL for "a booking still points at the attendee". `deleteListing` removes
  *  the bookings but keeps the attendee. The attendee browser reads its rows
