@@ -20,7 +20,14 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE);
-      await cache.addAll(ASSETS);
+      for (const asset of ASSETS) {
+        // The bare URLs carry year-long immutable headers, so the precache
+        // fetch must bypass the HTTP cache. Otherwise a worker update stores
+        // the stale bare-URL copy the browser already holds.
+        const response = await fetch(asset, { cache: "reload" });
+        if (!response.ok) throw new Error(`Precache failed for ${asset}`);
+        await cache.put(asset, response);
+      }
       await self.skipWaiting();
     })(),
   );
@@ -31,7 +38,11 @@ self.addEventListener("activate", (event) => {
     (async () => {
       const names = await caches.keys();
       for (const name of names) {
-        if (name !== CACHE) await caches.delete(name);
+        // A renamed scanner cache is this worker's to clear. The origin's
+        // other caches belong to other code and stay.
+        if (name !== CACHE && name.startsWith("scanner-offline")) {
+          await caches.delete(name);
+        }
       }
       await self.clients.claim();
     })(),
@@ -48,7 +59,7 @@ const networkFirst = async (request) => {
     const response = await fetch(request);
     // A deploy's 404 or 500 must not become the stored copy the door then
     // serves offline.
-    if (response.ok) cache.put(key, response.clone());
+    if (response.ok) await storeFresh(cache, key, response);
     return response;
   } catch {
     // Offline: the stored copy serves the door, and a miss answers the 503.
@@ -56,6 +67,18 @@ const networkFirst = async (request) => {
       (await cache.match(key)) ??
       new Response("", { status: 503, statusText: "Offline" })
     );
+  }
+};
+
+/** Write the fresh copy under the bare pathname before the request answers.
+ * The write waits, so it survives the fetch event. The store is best effort.
+ * A rejected write leaves the door the fresh network copy it already has. The
+ * next online visit writes the store again. */
+const storeFresh = async (cache, key, response) => {
+  try {
+    await cache.put(key, response.clone());
+  } catch {
+    // A full store is the documented fallback: the fresh answer still serves.
   }
 };
 

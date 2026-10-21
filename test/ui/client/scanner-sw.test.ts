@@ -50,6 +50,16 @@ class FakeFetchEvent extends Event {
   }
 }
 
+/** The install or activate event the page's scope dispatches, holding the
+ * promises the worker hands to waitUntil. */
+class FakeLifecycleEvent extends Event {
+  readonly waited: Promise<unknown>[] = [];
+
+  waitUntil(promise: Promise<unknown>): void {
+    this.waited.push(promise);
+  }
+}
+
 describe("the scanner service worker's stored assets", () => {
   // Deno's own `caches` global is a getter-only accessor, so the fake store
   // goes in through the stash, which records the original descriptor.
@@ -144,5 +154,175 @@ describe("the scanner service worker's stored assets", () => {
 
     expect(await answered?.text()).toBe("first-body");
     expect([...cache.entries.keys()]).toEqual(["/style.css"]);
+  });
+
+  test("keeps the fresh answer when the store rejects the write", async () => {
+    using _fetch = stubFetch(new Response("fresh"));
+
+    const answered = await fireFetch("/scanner.js", (store) => {
+      store.put = async () => {
+        throw new Error("The store is full");
+      };
+    });
+
+    // The store is best effort: the fresh copy still serves the door, and
+    // the next online visit writes it again.
+    expect(await answered?.text()).toBe("fresh");
+    expect([...cache.entries.keys()]).toEqual([]);
+  });
+});
+
+describe("the scanner service worker's lifecycle", () => {
+  // The worker reads skipWaiting and clients.claim off the global scope, so
+  // the fake ones go in through the stash like the store.
+  const stash = createGlobalStash();
+  let cache: FakeCache;
+
+  afterEach(() => {
+    stash.restore();
+  });
+
+  /** Install the worker's lifecycle globals and one store, then dispatch one
+   * lifecycle event, as the page's scope does. */
+  const fireLifecycle = (
+    type: "install" | "activate",
+    store: Record<string, unknown> = { open: () => cache },
+  ) => {
+    cache = new FakeCache();
+    stash.set("caches", store);
+    const state = { claimed: 0, skipped: 0 };
+    stash.set("skipWaiting", async () => {
+      state.skipped++;
+    });
+    stash.set("clients", {
+      claim: async () => {
+        state.claimed++;
+      },
+    });
+    const event = new FakeLifecycleEvent(type);
+    self.dispatchEvent(event);
+    return { event, state };
+  };
+
+  test("precaches both assets past the HTTP cache and skips waiting", async () => {
+    const requested: [string, string | undefined][] = [];
+    using _fetch = stubFetch((url, init) => {
+      requested.push([url, init?.cache]);
+      return new Response(`fresh for ${url}`);
+    });
+
+    const { event, state } = fireLifecycle("install");
+    await event.waited[0];
+
+    // Both bare assets arrive with the HTTP cache bypassed, so a worker
+    // update stores the deploy's copies, never the browser's year-old ones.
+    expect(requested).toEqual([
+      ["/scanner.js", "reload"],
+      ["/style.css", "reload"],
+    ]);
+    expect([...cache.entries.keys()]).toEqual(["/scanner.js", "/style.css"]);
+    expect(await cache.entries.get("/scanner.js")?.text()).toBe(
+      "fresh for /scanner.js",
+    );
+    expect(state.skipped).toBe(1);
+  });
+
+  test("fails the install when a precache fetch misses", async () => {
+    using _fetch = stubFetch(new Response("boom", { status: 500 }));
+
+    const { event } = fireLifecycle("install");
+
+    // The old worker stays until a good install: an error page never lands
+    // in the store.
+    await expect(event.waited[0]).rejects.toThrow(
+      "Precache failed for /scanner.js",
+    );
+    expect([...cache.entries.keys()]).toEqual([]);
+  });
+
+  test("clears the scanner's own old caches and claims the open pages", async () => {
+    const deleted: string[] = [];
+    const { event, state } = fireLifecycle("activate", {
+      delete: async (name: string) => {
+        deleted.push(name);
+      },
+      keys: async () => [
+        "scanner-offline-assets",
+        "scanner-offline-assets-2025",
+        "unrelated-cache",
+      ],
+      open: () => cache,
+    });
+    await event.waited[0];
+
+    // The renamed scanner caches go. The origin's other caches stay.
+    expect(deleted).toEqual(["scanner-offline-assets-2025"]);
+    expect(state.claimed).toBe(1);
+  });
+});
+
+describe("the scanner service worker's fetch boundaries", () => {
+  /** Send one request through the worker's fetch handler and return the
+   * answer the worker handed to respondWith, if any. A navigate mode goes on
+   * after construction: the Request constructor alone would drop it. */
+  const fireRequest = async (
+    path: string,
+    init?: RequestInit,
+  ): Promise<Response | undefined> => {
+    const request = new Request(`${SITE}${path}`, init);
+    if (init?.mode === "navigate") {
+      Object.defineProperty(request, "mode", { value: "navigate" });
+    }
+    let answered: Promise<Response> | undefined;
+    self.dispatchEvent(
+      new FakeFetchEvent(request, (handled) => {
+        answered = handled;
+      }),
+    );
+    const response = await answered;
+    for (let hop = 0; hop < 10; hop++) await Promise.resolve();
+    return response;
+  };
+
+  test("answers an offline scanner navigation with the offline notice", async () => {
+    using _fetch = stubFetch(new Error("offline"));
+
+    const answered = await fireRequest("/admin/scanner", { mode: "navigate" });
+
+    expect(answered?.status).toBe(200);
+    expect(await answered?.text()).toContain("You are offline");
+    expect(answered?.headers.get("content-type")).toContain("text/html");
+  });
+
+  test("passes an online scanner navigation through untouched", async () => {
+    using _fetch = stubFetch(new Response("<html>door</html>"));
+
+    const answered = await fireRequest("/admin/listing/7/scanner", {
+      mode: "navigate",
+    });
+
+    // The rendered page carries guest details, so nothing stores it.
+    expect(await answered?.text()).toBe("<html>door</html>");
+  });
+
+  test("leaves a scan post alone", async () => {
+    const answered = await fireRequest("/admin/scan", { method: "POST" });
+
+    // The scan POST carries live door state. The worker never answers it.
+    expect(answered).toBeUndefined();
+  });
+
+  test("leaves a navigation the scanner does not own alone", async () => {
+    const answered = await fireRequest("/admin/dashboard", {
+      mode: "navigate",
+    });
+
+    expect(answered).toBeUndefined();
+  });
+
+  test("leaves a GET that is not a stored asset alone", async () => {
+    const answered = await fireRequest("/admin.js");
+
+    expect(answered).toBeUndefined();
   });
 });
