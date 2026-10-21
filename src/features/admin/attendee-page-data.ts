@@ -19,6 +19,7 @@ import {
   packageMemberMaps,
   readGroupMembersWith,
 } from "#db/groups.ts";
+import { addPageImageUrls } from "#db/images.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import {
   getRefundPaymentReferencesForAttendee,
@@ -453,14 +454,19 @@ const assembleTemplateData = (
 
 /** Build the form template data: everything the editable form itself renders
  * (statuses, balance notice, warnings, logistics). It includes nothing the
- * other tabs own (log, ledger, notes, contact history). */
+ * other tabs own (log, ledger, notes, contact history). The question texts
+ * render as markdown, so their img#N references need the id→uid-URL table.
+ * Bounded by the ids the texts reference. */
 export const buildTemplateData = async (
   mode: "create" | "edit",
   parsed: ParsedAttendeeForm,
   attendee: Attendee | null,
   opts: BuildTemplateDataOpts = {},
-): Promise<AttendeeFormTemplateData> =>
-  assembleTemplateData(
+): Promise<AttendeeFormTemplateData> => {
+  const data = assembleTemplateData(
     { attendee, mode, opts, parsed },
     await loadTemplateParts(parsed, attendee),
   );
+  await addPageImageUrls(data.questions.map((q) => q.text));
+  return data;
+};

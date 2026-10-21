@@ -66,7 +66,9 @@ const Multiline = ({ text }: { text: string }): JSX.Element => (
 );
 
 /** The owner's private note for a contact, rendered from markdown. Shared by
- * the attendee page's outreach panel and the contact-history editor's preview. */
+ * the attendee page's outreach panel and the contact-history editor's preview.
+ * The render resolves the note's img#N references through the request's
+ * page-image slot. */
 export const ContactNotes = ({ notes }: { notes: string }): JSX.Element => (
   <div class="contact-notes">
     <Raw html={renderMarkdown(notes)} />

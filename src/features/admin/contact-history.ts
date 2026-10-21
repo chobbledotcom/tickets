@@ -16,6 +16,7 @@ import {
   getContactRecordOrRepair,
   saveContactRecord,
 } from "#db/contact-preferences.ts";
+import { addPageImageUrls } from "#db/images.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
@@ -64,6 +65,7 @@ export const handleContactHistoryGet: TypedRouteHandler<
       await requireRequestPrivateKey(),
     );
     const flash = applyFlash(request);
+    await addPageImageUrls([record.adminNotes]);
     return htmlResponse(
       contactHistoryPage({
         flashError: flash.error,
@@ -85,6 +87,7 @@ export const handleContactHistoryPost: TypedRouteHandler<
     const current = await loadForRepair(hash, pk);
     const updated = recordFromForm(form, current);
     if (updated.adminNotes.length > MAX_TEXTAREA_LENGTH) {
+      await addPageImageUrls([updated.adminNotes]);
       return htmlResponse(
         contactHistoryPage({
           formError: t("contact_history.note_too_long", {
