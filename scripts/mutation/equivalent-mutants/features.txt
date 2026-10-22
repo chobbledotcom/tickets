@@ -11,7 +11,7 @@ src/features/admin/api-listing-body.ts::bodyToUpdateInput.input.wouldBeGroupIds~
 src/features/admin/api-listing-joins.ts::persistListingJoins.groupIds~0ey19t2  ?? → || audited:1q4nq0k # value.groupIds is an array or undefined, and arrays are always truthy
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.baseUrl~0v3px31  ?? → || audited:1i6yq97 # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.query~1xs3bh3  ?? → || audited:1i6yq97 # opts.query is a URLSearchParams object when present, so it is always truthy
-src/features/admin/listing-page-data.ts::loadListingRosterPanel.childNames~049e0ek  ?? → || audited:0ebfnpe # listingsByKey holds only non-empty ListingWithCount[], so get() is an array or undefined and an array is always truthy
+src/features/admin/listing-page-data.ts::loadListingRosterPanel.childNames~049e0ek  ?? → || audited:0phww1l # listingsByKey holds only non-empty ListingWithCount[], so get() is an array or undefined and an array is always truthy
 src/features/admin/site-content-page.ts::defineSiteContentPage.tabs~0786g3u  ?? → || audited:1d0ow5b # extraTabs is an array when present, and arrays are always truthy
 src/ui/templates/admin/holidays.tsx::HolidayEditPanel.html~1nrsidb  ?? → || audited:0bymeb7 # values is a render-values object when present, so it is always truthy
 src/ui/client/admin/manual-checkin.ts::initManualCheckin.filterOptions.text~0hoqwoy  ?? → || audited:1jdc1my # textContent is string|null; its only falsy string is the empty fallback itself
@@ -56,7 +56,7 @@ src/features/public/ticket-form.ts::listingsWithQuantity.withQty.qty~0q3jgeq  ??
 
 # attendee entity page: `?? → ||` where the operand's only falsy-non-null
 # value equals the "" fallback.
-src/features/admin/attendee-page.ts::attendeePage.tabs.sections.load~1e06wxq  ?? → || audited:0wkmuqf # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
+src/features/admin/attendee-page.ts::attendeePage.tabs.sections.load~1e06wxq  ?? → || audited:0vp311s # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
 src/shared/db/name-registry.ts::matchName.ids~140086l  ?? → || audited:1xvsf3q # matchName index.get(): number[]|undefined — an array is always truthy
 src/shared/db/name-registry.ts::isNameTakenAnywhere.ownedByOther~1x88e07  ?? → || audited:1xvsf3q # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/import.ts::importGroup.specs~0u7qcwn  ?? → || audited:19wxq88 # isPackage is boolean|undefined, and false equals the false fallback
@@ -205,7 +205,7 @@ src/features/auth.ts::parseCsrfBody.err~0mxpuuo   → "mutated" audited:1bovven 
 src/features/auth.ts::parseCsrfBody~1gwik7o  ?? → || audited:1bovven # err is a Response object or null, and objects are always truthy
 src/features/admin/users.ts::toDisplayUser.inviteExpired~1fwmcbe  false → true audited:08ev9ii # the flag has one reader, userStatus, which answers "Active" from the activated flag before it looks at this one, so the value it takes for an activated user is never read
 src/features/admin/entity-write-tab.ts::defineEditEntityPage.extraTabs~1333wen  ?? → || audited:1gtnu6j # configuredExtraTabs is an array of tab definitions or undefined, and an array is always truthy, so || keeps exactly what ?? keeps
-src/features/admin/attendee-page.ts::loadEditPanel.data.returnUrl~0i4v0pb  ?? → || audited:0wkmuqf # URLSearchParams.get gives back a string or null, and the only falsy string is the empty fallback itself
+src/features/admin/attendee-page.ts::loadEditPanel.data.returnUrl~0i4v0pb  ?? → || audited:0vp311s # URLSearchParams.get gives back a string or null, and the only falsy string is the empty fallback itself
 src/features/admin/route-tables.ts::idParamOf.name~0rg3o3r   → "mutated" audited:1xymyec # the stand-in name for a path with no "/:" is only ever fed to the guard below, which throws for every name that is not "id" and does not end with "Id", and the message it throws names the pattern rather than the name
 
 # Route ordering (router.ts) — two array fallbacks, and a replacement string
