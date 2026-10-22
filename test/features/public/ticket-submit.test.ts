@@ -1,10 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ChildAllocation } from "#db/attendee-types.ts";
-import {
-  parseQuantityPrefill,
-  withPaidBookingMetadata,
-} from "#routes/public/ticket-submit.ts";
+import { withPaidBookingMetadata } from "#routes/public/ticket-submit/submit.ts";
+import { parseQuantityPrefill } from "#routes/public/ticket-submit.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { resolved } from "#test-utils/booking-model-fixtures.ts";
 

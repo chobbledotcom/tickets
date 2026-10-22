@@ -261,12 +261,11 @@
     "banned-modal": 2
   },
   "src/features/public/ticket-submit.ts": {
-    "contraction": 5,
-    "long-sentence": 16,
-    "semicolon": 5,
-    "banned-modal": 7,
-    "present-perfect": 2,
-    "wordy": 2
+    "long-sentence": 6,
+    "banned-modal": 5,
+    "contraction": 2,
+    "semicolon": 4,
+    "wordy": 1
   },
   "src/features/public/ticket-submit/parse.ts": {
     "long-sentence": 2,
@@ -2850,8 +2849,8 @@
   },
   "src/ui/templates/components/question-controls.tsx": {
     "long-sentence": 1,
-    "semicolon": 1,
-    "banned-modal": 1
+    "banned-modal": 1,
+    "semicolon": 1
   },
   "src/ui/templates/components/question-text.tsx": {
     "long-sentence": 3,
