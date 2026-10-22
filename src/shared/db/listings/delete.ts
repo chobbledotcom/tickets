@@ -2,6 +2,7 @@
 
 import { executeBatch, type SqlStatement, type TxScope } from "#db/client.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import { clearItemEdgesStatement } from "#db/site-page-items.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 
@@ -25,10 +26,10 @@ export const deleteListing = async (
       args: [listingId],
       sql: "DELETE FROM listing_attribute_options WHERE listing_id = ?",
     },
-    {
-      args: [listingId],
-      sql: "DELETE FROM listing_parents WHERE parent_listing_id = ?1 OR child_listing_id = ?1",
-    },
+    numberedStatement(
+      (bind) =>
+        `DELETE FROM listing_parents WHERE parent_listing_id = ${bind(listingId)} OR child_listing_id = ${bind(listingId)}`,
+    ),
     {
       args: [listingId],
       sql: "DELETE FROM group_listings WHERE listing_id = ?",

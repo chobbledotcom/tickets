@@ -2,6 +2,7 @@ import { inPlaceholders, resultRows, type TxScope } from "#db/client.ts";
 import type { DayPriceRow } from "#db/listing-prices.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
 import { modifiersTable } from "#db/modifiers.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
 import { unique } from "#fp";
 import {
@@ -124,9 +125,9 @@ const relationshipErrorTx = async (
              WHERE listingPrice.listing_id IN (${placeholders})
                AND listingPrice.price_type = 'day_count'`,
     },
-    {
-      args: [...listingIds, ...listingIds],
-      sql: `WITH optionalModifier AS (
+    numberedStatement((bind) => {
+      const scopeIds = listingIds.map((id) => bind(id));
+      return `WITH optionalModifier AS (
               SELECT modifier.id, modifier.name, modifier.scope
                 FROM modifiers AS modifier
                WHERE modifier.active = 1 AND modifier.trigger = 'optional'
@@ -137,7 +138,7 @@ const relationshipErrorTx = async (
               JOIN modifier_listings AS modifierListing
                 ON modifierListing.modifier_id = modifier.id
              WHERE modifier.scope = 'listings'
-               AND modifierListing.listing_id IN (${placeholders})
+               AND modifierListing.listing_id IN (${scopeIds.join(", ")})
             UNION
             SELECT modifier.id AS modifier_id, modifier.name,
                    groupListing.listing_id
@@ -147,8 +148,8 @@ const relationshipErrorTx = async (
               JOIN group_listings AS groupListing
                 ON groupListing.group_id = modifierGroup.group_id
              WHERE modifier.scope = 'groups'
-               AND groupListing.listing_id IN (${placeholders})`,
-    },
+               AND groupListing.listing_id IN (${scopeIds.join(", ")})`;
+    }),
   ]);
   const listings = await listingById(
     resultRows<EdgeListingRow>(listingResult!),

@@ -6,7 +6,6 @@
  * its own counting rules inside its own single-statement upsert.
  */
 
-import type { InValue } from "@libsql/client";
 import { hmacHash } from "#crypto/hashing.ts";
 import {
   deleteByField,
@@ -14,19 +13,33 @@ import {
   executeReturningRow,
   queryOne,
 } from "#db/client.ts";
+import {
+  numberedStatement,
+  type SqlParameter,
+} from "#db/numbered-statement.ts";
 import { nowMs } from "#shared/now.ts";
 
 type StoredLockout = { locked_until: number | null };
 
-/** Build a limiter's attempt recorder from its single-statement upsert. The
- * statement must count the attempt AND decide the lockout inside the database
- * (`INSERT … ON CONFLICT … RETURNING locked_until`), so two attempts arriving
- * at once can never lose a count the way a read-then-write sequence could.
- * The recorder returns true when the IP is now locked out. */
+/** Build a limiter's attempt recorder from its single-statement upsert,
+ * written in the deferred numbered form: the builder binds each value once
+ * and the binder hands every repeat of that value the same token, so the
+ * numbering carries no prose map. The statement must count the attempt AND
+ * decide the lockout inside the database (`INSERT … ON CONFLICT … RETURNING
+ * locked_until`). Two attempts arriving at once can then never lose a count
+ * the way a read-then-write sequence could. The recorder returns true when
+ * the IP is now locked out. */
 export const makeAttemptRecorder =
-  (sql: string): ((args: InValue[]) => Promise<boolean>) =>
-  async (args: InValue[]): Promise<boolean> =>
-    (await executeReturningRow<StoredLockout>(sql, args)).locked_until !== null;
+  <T>(
+    buildSql: (bind: SqlParameter, values: T) => string,
+  ): ((values: T) => Promise<boolean>) =>
+  async (values: T): Promise<boolean> => {
+    const { sql, args } = numberedStatement((bind) => buildSql(bind, values));
+    return (
+      (await executeReturningRow<StoredLockout>(sql, args)).locked_until !==
+      null
+    );
+  };
 
 /** Whether the IP's row in an attempts table holds an active lockout. Reads
  * only the lockout column; a missing row (no attempts yet) reads as not

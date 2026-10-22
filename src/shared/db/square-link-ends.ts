@@ -14,6 +14,7 @@
 import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { execute, inPlaceholders, queryAll } from "#db/client.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import {
   LINK_END_CHECKABLE_NODES,
   parseSquareLinkEndState,
@@ -81,20 +82,17 @@ export const stageSquareLinkEnd = async (
   linkId: string,
   linkEndsAt: string,
 ): Promise<void> => {
-  await execute(
-    `INSERT INTO square_link_ends
+  const sessionIndex = await hmacHash(sessionId);
+  const sealedHandle = await encrypt(linkId);
+  const state = squareLinkEndMoveTo("unwritten", "checkout_created");
+  const statement = numberedStatement((bind) => {
+    const endsAt = bind(linkEndsAt);
+    return `INSERT INTO square_link_ends
                (session_index, state, sealed_handle, link_ends_at,
                 next_attempt_at, created_at)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-    [
-      await hmacHash(sessionId),
-      squareLinkEndMoveTo("unwritten", "checkout_created"),
-      await encrypt(linkId),
-      linkEndsAt,
-      linkEndsAt,
-      nowIso(),
-    ],
-  );
+             VALUES (${bind(sessionIndex)}, ${bind(state)}, ${bind(sealedHandle)}, ${endsAt}, ${endsAt}, ${bind(nowIso())})`;
+  });
+  await execute(statement.sql, statement.args);
 };
 
 /**

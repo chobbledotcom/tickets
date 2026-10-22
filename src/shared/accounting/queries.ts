@@ -40,6 +40,10 @@ import {
   rowExists,
   type TxScope,
 } from "#db/client.ts";
+import {
+  numberedStatement,
+  type SqlParameter,
+} from "#db/numbered-statement.ts";
 import { clauseArgs, type WhereClause, whereSql } from "#db/where-clauses.ts";
 import { requiredMapValue, uniqueBy } from "#fp";
 import { accountKey } from "#shared/ledger/account.ts";
@@ -48,11 +52,16 @@ import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 /** Newest first by business time, ties broken by id so the order is stable. */
 const NEWEST_FIRST = "occurred_at DESC, id DESC";
 
-/** A parameterised "this leg's <role> side IS the account" match — two bound `?`
- *  for (type, id). Built from the shared transfers column names, so every
- *  balance read filters accounts identically. */
-const legMatchesAccount = (role: "source" | "dest"): string =>
-  `${LEG_COLUMNS[role].type} = ? AND ${LEG_COLUMNS[role].id} = ?`;
+/** A parameterised "this leg's <role> side IS the account" match — the pair
+ *  bound through the binder, so every arm that repeats it reuses the token.
+ *  Built from the shared transfers column names, so every balance read
+ *  filters accounts identically. */
+const legMatchesAccount = (
+  role: "source" | "dest",
+  acct: AccountRef,
+  bind: SqlParameter,
+): string =>
+  `${LEG_COLUMNS[role].type} = ${bind(acct.type)} AND ${LEG_COLUMNS[role].id} = ${bind(acct.id)}`;
 
 const accountsScope = (accounts: readonly AccountRef[]): WhereClause => {
   const parts = [...Map.groupBy(accounts, ({ type }) => type)].map(
@@ -338,15 +347,19 @@ export const accountBalancesForIds = async (
  *  direct scalar read rather than the grouped many-account query, so it shares
  *  the same `legMatchesAccount` filter the rest of this module uses. */
 export const accountBalance = async (acct: AccountRef): Promise<number> => {
-  const asDest = legMatchesAccount("dest");
-  const asSource = legMatchesAccount("source");
-  // Each predicate binds (type, id) and appears four times — both CASE arms and
-  // both WHERE arms — so the account's pair repeats in that order.
-  const pair: InValue[] = [acct.type, acct.id];
+  // Both CASE arms and both WHERE arms repeat the account's (type, id) pair.
+  // The binder binds each value once and reuses its token in every arm.
+  const statement = numberedStatement((bind) => {
+    const asDest = legMatchesAccount("dest", acct, bind);
+    const asSource = legMatchesAccount("source", acct, bind);
+    return (
+      `SELECT ${signedSumCase(asDest, asSource)} AS balance` +
+      ` FROM transfers WHERE ${asDest} OR ${asSource}`
+    );
+  });
   const row = await requireOne<{ balance: number | bigint }>(
-    `SELECT ${signedSumCase(asDest, asSource)} AS balance` +
-      ` FROM transfers WHERE ${asDest} OR ${asSource}`,
-    [...pair, ...pair, ...pair, ...pair],
+    statement.sql,
+    statement.args,
   );
   return Number(row.balance);
 };
