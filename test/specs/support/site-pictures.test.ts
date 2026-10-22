@@ -4,10 +4,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   expectFooterPicture,
   footerHtml,
+  footerShowsPicture,
   sitePictureTag,
   textWithSitePicture,
 } from "#test/specs/support/site-pictures.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -71,5 +73,54 @@ describe("the site picture helpers", () => {
           "<p>Still shows img#3.</p>",
       ),
     ).toThrow();
+  });
+
+  /** A browser that opened a page the site answered with this status, whose
+   * page shows this HTML. */
+  const answeredBrowser = (answered: number, html: string): TestBrowser => {
+    const browser = new TestBrowser();
+    browser.answered = answered;
+    browser.currentHtml = html;
+    return browser;
+  };
+
+  /** The read refuses a page that does not show the story's picture the way
+   * the story expects: the same refusal the stories see. */
+  const expectReadToThrow = (browser: TestBrowser): void => {
+    expect(() =>
+      footerShowsPicture(worldWithPicture(), 200, browser),
+    ).toThrow();
+  };
+
+  test("passes for a page the site answered with the status the story expects", () => {
+    expect(() =>
+      footerShowsPicture(
+        worldWithPicture(),
+        200,
+        answeredBrowser(
+          200,
+          '<main>words</main><footer class="site-footer">' +
+            '<img src="/image/field.png" alt="A sunny field"></footer>',
+        ),
+      ),
+    ).not.toThrow();
+  });
+
+  test("says so when the site answered with another status", () => {
+    expectReadToThrow(
+      answeredBrowser(
+        500,
+        '<footer class="site-footer"><img src="/image/field.png" alt="A sunny field"></footer>',
+      ),
+    );
+  });
+
+  test("says so when the answered page's footer shows no picture", () => {
+    expectReadToThrow(
+      answeredBrowser(
+        200,
+        '<footer class="site-footer"><p>Come along.</p></footer>',
+      ),
+    );
   });
 });
