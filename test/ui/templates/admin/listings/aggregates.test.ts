@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -28,17 +29,17 @@ describe("adminListingRecalculatePage", () => {
       },
       OWNER_SESSION,
     );
-    expect(html).toContain("Recalculate: Workshop");
-    expect(html).toContain("Current");
-    expect(html).toContain("From attendee data");
-    expect(html).toContain("Compare the stored listing totals");
-    expect(html).toContain('class="table-scroll"');
-    expect(html).toContain('name="recalculate_fields"');
-    expect(html).toContain('value="booked_quantity"');
-    expect(html).toContain(">9<");
-    expect(html).toContain(">4<");
+    assertStringIncludes(html, "Recalculate: Workshop");
+    assertStringIncludes(html, "Current");
+    assertStringIncludes(html, "From attendee data");
+    assertStringIncludes(html, "Compare the stored listing totals");
+    assertStringIncludes(html, 'class="table-scroll"');
+    assertStringIncludes(html, 'name="recalculate_fields"');
+    assertStringIncludes(html, 'value="booked_quantity"');
+    assertStringIncludes(html, ">9<");
+    assertStringIncludes(html, ">4<");
     // The recalculate page marks the Home nav entry (/admin/) active.
-    expect(html).toContain('<a class="active" href="/admin/">');
+    assertStringIncludes(html, '<a class="active" href="/admin/">');
   });
 });
 
@@ -51,18 +52,21 @@ describe("ListingAggregateMismatchNotice", () => {
       aggregateRecalculation: oneMismatch,
     })!.toString();
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "Listing running totals do not match attendee rows.",
     );
-    expect(html).toContain("Expected values come from attendee rows.");
-    expect(html).toContain(
+    assertStringIncludes(html, "Expected values come from attendee rows.");
+    assertStringIncludes(
+      html,
       '<a href="/admin/listings/recalculate/1">Review and recalculate totals</a>',
     );
     // booked_quantity drifted (expected 4, got 9); tickets_count matched.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<strong>Total attendees ever</strong>: expected <strong>4</strong>, got <strong>9</strong>",
     );
-    expect(html).not.toContain("Total ticket records");
+    assert(!html.includes("Total ticket records"));
   });
 
   test("renders no notice when there is no recalculation", () => {
@@ -72,7 +76,7 @@ describe("ListingAggregateMismatchNotice", () => {
         aggregateRecalculation: undefined,
       }),
     );
-    expect(html).not.toContain("Listing running totals do not match");
+    assert(!html.includes("Listing running totals do not match"));
   });
 
   test("renders no notice when every stored total already matches", () => {
@@ -85,7 +89,7 @@ describe("ListingAggregateMismatchNotice", () => {
         },
       }),
     );
-    expect(html).not.toContain("Listing running totals do not match");
+    assert(!html.includes("Listing running totals do not match"));
   });
 });
 
@@ -100,13 +104,15 @@ describe("ListingAggregateMismatchRow", () => {
       listing,
     })!.toString();
 
-    expect(html).toContain("<th>Running total check</th>");
-    expect(html).toContain(
+    assertStringIncludes(html, "<th>Running total check</th>");
+    assertStringIncludes(
+      html,
       "Listing running totals do not match attendee rows.",
     );
-    expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
-    expect(html).toContain("Review and recalculate totals");
-    expect(html).toContain(
+    assertStringIncludes(html, `/admin/listings/recalculate/${listing.id}`);
+    assertStringIncludes(html, "Review and recalculate totals");
+    assertStringIncludes(
+      html,
       "<strong>Total attendees ever</strong>: expected <strong>4</strong>, got <strong>9</strong>",
     );
   });

@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   registerListingTemplateHooks,
@@ -34,8 +34,8 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("Booking duration");
-    expect(html).toContain("3 day(s)");
+    assertStringIncludes(html, "Booking duration");
+    assertStringIncludes(html, "3 day(s)");
   });
 
   test("omits booking duration row for standard listings", () => {
@@ -49,7 +49,7 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    expect(html.toLowerCase()).not.toContain("booking duration");
+    assert(!html.toLowerCase().includes("booking duration"));
   });
 
   test("shows the customisable-days prices on a customisable listing", () => {
@@ -64,9 +64,9 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("Customisable days");
-    expect(html).toContain("1 day:");
-    expect(html).toContain("2 days:");
+    assertStringIncludes(html, "Customisable days");
+    assertStringIncludes(html, "1 day:");
+    assertStringIncludes(html, "2 days:");
   });
 
   test("offers a day-count selector when adding to a customisable daily listing", () => {
@@ -82,8 +82,8 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain('name="day_count"');
-    expect(html).toContain("Number of days");
+    assertStringIncludes(html, 'name="day_count"');
+    assertStringIncludes(html, "Number of days");
   });
 
   test("notes when a customisable listing has no day prices set", () => {
@@ -98,7 +98,7 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("No day prices set");
+    assertStringIncludes(html, "No day prices set");
   });
 
   test("omits the customisable-days row for a fixed-duration listing", () => {
@@ -111,7 +111,7 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    expect(html.toLowerCase()).not.toContain("customisable days");
+    assert(!html.toLowerCase().includes("customisable days"));
   });
 });
 
@@ -136,7 +136,7 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("Test Listing");
+    assertStringIncludes(html, "Test Listing");
   });
 
   test("shows the listing ticket price in the details table", () => {
@@ -146,8 +146,8 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing: paidListing,
     });
-    expect(html).toContain("Ticket Price");
-    expect(html).toContain("£12.50");
+    assertStringIncludes(html, "Ticket Price");
+    assertStringIncludes(html, "£12.50");
   });
 
   test("shows pay-more price bounds in the details table", () => {
@@ -161,9 +161,9 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing: payMoreListing,
     });
-    expect(html).toContain("Ticket Price");
-    expect(html).toContain("£10");
-    expect(html).toContain("pay more: £10–£25");
+    assertStringIncludes(html, "Ticket Price");
+    assertStringIncludes(html, "£10");
+    assertStringIncludes(html, "pay more: £10–£25");
   });
 
   test("shows pay-more enabled when no higher maximum is configured", () => {
@@ -177,9 +177,9 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing: payMoreListing,
     });
-    expect(html).toContain("Ticket Price");
-    expect(html).toContain("Free");
-    expect(html).toContain("pay more enabled");
+    assertStringIncludes(html, "Ticket Price");
+    assertStringIncludes(html, "Free");
+    assertStringIncludes(html, "pay more enabled");
   });
 
   test("shows free when the listing has no ticket price", () => {
@@ -189,8 +189,8 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing: freeListing,
     });
-    expect(html).toContain("Ticket Price");
-    expect(html).toContain("Free");
+    assertStringIncludes(html, "Ticket Price");
+    assertStringIncludes(html, "Free");
   });
 
   test("shows attendees row with count and remaining", () => {
@@ -199,25 +199,25 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("Listing Attendees");
-    expect(html).toContain("2 / 100");
-    expect(html).toContain("98 remain");
+    assertStringIncludes(html, "Listing Attendees");
+    assertStringIncludes(html, "2 / 100");
+    assertStringIncludes(html, "98 remain");
   });
 
   test("shows a running-total mismatch in the details table", () => {
     const html = renderMismatch();
-    expect(html).toContain("Running total check");
-    expect(html).toContain("expected <strong>1</strong>, got");
-    expect(html).toContain("Mismatch");
-    expect(html).not.toContain("Click for info");
-    expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
+    assertStringIncludes(html, "Running total check");
+    assertStringIncludes(html, "expected <strong>1</strong>, got");
+    assertStringIncludes(html, "Mismatch");
+    assert(!html.includes("Click for info"));
+    assertStringIncludes(html, `/admin/listings/recalculate/${listing.id}`);
   });
 
   test("shows a running-total mismatch without its repair link in read-only mode", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = renderMismatch();
-    expect(html).toContain("Running total check");
-    expect(html).not.toContain(`/admin/listings/recalculate/${listing.id}`);
+    assertStringIncludes(html, "Running total check");
+    assert(!html.includes(`/admin/listings/recalculate/${listing.id}`));
   });
 
   test("renders no Group Attendees row when groupContext is omitted", () => {
@@ -226,7 +226,7 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing,
     });
-    expect(html).not.toContain("Group Attendees");
+    assert(!html.includes("Group Attendees"));
   });
 
   test("shows Group Attendees row with count, cap, remaining, and link", () => {
@@ -241,12 +241,12 @@ describe("adminListingPage details table", () => {
       groupContext: { attendeeCount: 30, group },
       listing,
     });
-    expect(html).toContain("Group Attendees");
-    expect(html).toContain("30 / 50");
-    expect(html).toContain("20 remain");
-    expect(html).toContain('href="/admin/groups/7"');
-    expect(html).toContain("Summer Festival");
-    expect(html).toContain("across all listings");
+    assertStringIncludes(html, "Group Attendees");
+    assertStringIncludes(html, "30 / 50");
+    assertStringIncludes(html, "20 remain");
+    assertStringIncludes(html, 'href="/admin/groups/7"');
+    assertStringIncludes(html, "Summer Festival");
+    assertStringIncludes(html, "across all listings");
   });
 
   test("Group Attendees row gets danger-text when at or near cap", () => {
@@ -257,9 +257,9 @@ describe("adminListingPage details table", () => {
       groupContext: { attendeeCount: 10, group },
       listing,
     });
-    expect(html).toContain("danger-text");
-    expect(html).toContain("10 / 10");
-    expect(html).toContain("0 remain");
+    assertStringIncludes(html, "danger-text");
+    assertStringIncludes(html, "10 / 10");
+    assertStringIncludes(html, "0 remain");
   });
 
   test("shows checked in row with 0 of 0 when no attendees", () => {
@@ -268,9 +268,9 @@ describe("adminListingPage details table", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("Checked In");
-    expect(html).toContain("0 / 0");
-    expect(html).toContain("0 remain");
+    assertStringIncludes(html, "Checked In");
+    assertStringIncludes(html, "0 / 0");
+    assertStringIncludes(html, "0 remain");
   });
 
   test("shows checked in count and remaining", () => {
@@ -284,9 +284,9 @@ describe("adminListingPage details table", () => {
       attendees,
       listing,
     });
-    expect(html).toContain("Checked In");
-    expect(html).toContain("1 / 3");
-    expect(html).toContain("2 remain");
+    assertStringIncludes(html, "Checked In");
+    assertStringIncludes(html, "1 / 3");
+    assertStringIncludes(html, "2 remain");
   });
 
   test("roster keeps one row per booking line, with no Listings column", () => {
@@ -298,8 +298,11 @@ describe("adminListingPage details table", () => {
     });
     // The roster is scoped to one listing, so the Listings column stays off
     // and each line keeps its own per-listing check-in action.
-    expect(html).not.toContain("<th>Listings</th>");
-    expect(html).toContain(`/admin/listing/${listing.id}/attendee/8/checkin`);
+    assert(!html.includes("<th>Listings</th>"));
+    assertStringIncludes(
+      html,
+      `/admin/listing/${listing.id}/attendee/8/checkin`,
+    );
   });
 
   test("shows dual checked-in rows when attendees have multi-quantity", () => {
@@ -309,13 +312,13 @@ describe("adminListingPage details table", () => {
       listing,
     });
     // Tickets Checked In: 1 row / 2 rows, 1 remain
-    expect(html).toContain("Tickets Checked In");
-    expect(html).toContain("1 / 2");
-    expect(html).toContain("1 remain");
+    assertStringIncludes(html, "Tickets Checked In");
+    assertStringIncludes(html, "1 / 2");
+    assertStringIncludes(html, "1 remain");
     // Attendees Checked In: 2 qty / 5 total qty, 3 remain
-    expect(html).toContain("Attendees Checked In");
-    expect(html).toContain("2 / 5");
-    expect(html).toContain("3 remain");
+    assertStringIncludes(html, "Attendees Checked In");
+    assertStringIncludes(html, "2 / 5");
+    assertStringIncludes(html, "3 remain");
   });
 
   test("dual checked-in rows show daily suffix when daily listing with dateFilter", () => {
@@ -325,8 +328,8 @@ describe("adminListingPage details table", () => {
       dateFilter: "2026-03-15",
       listing: dailyListingFive(),
     });
-    expect(html).toContain("Attendees Checked In (Sunday 15 March 2026)");
-    expect(html).toContain("Tickets Checked In (Sunday 15 March 2026)");
+    assertStringIncludes(html, "Attendees Checked In (Sunday 15 March 2026)");
+    assertStringIncludes(html, "Tickets Checked In (Sunday 15 March 2026)");
   });
 
   test("dual checked-in rows show total suffix when daily listing without dateFilter", () => {
@@ -335,7 +338,7 @@ describe("adminListingPage details table", () => {
       attendees: multiQtyPair(),
       listing: dailyListingFive(),
     });
-    expect(html).toContain("Attendees Checked In (total)");
-    expect(html).toContain("Tickets Checked In (total)");
+    assertStringIncludes(html, "Attendees Checked In (total)");
+    assertStringIncludes(html, "Tickets Checked In (total)");
   });
 });
