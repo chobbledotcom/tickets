@@ -21,6 +21,7 @@ import {
   fullStore,
   queuedItem,
   SCAN_PATH,
+  type ScannerGlobals,
   type ScannerHarness,
   storedQueue,
   TOKEN,
@@ -47,6 +48,25 @@ describe("scanner offline sync", {
     [...el(h.document, "scanner-queue-items").children].map(
       (row) => row.textContent,
     );
+
+  /** The page globals one queued check-in seeds, for the tests that replay
+   * the queue. */
+  const queueSeeded = (): ScannerGlobals => ({
+    seed: (store) =>
+      store.setItem("scanner-queue", JSON.stringify([queuedItem])),
+  });
+
+  /** What one unsettled replay leaves: the still-queued warning, the row's
+   * words, and the check-in back in the store. */
+  const expectStillQueued = async (h: ScannerHarness): Promise<void> => {
+    await whenTextShows(
+      h.statusEl,
+      "Some tickets are still queued. The page will try to check them in again.",
+    );
+    expect(h.statusEl.className).toContain("scanner-status-warning");
+    expect(firstRow(h).textContent).toBe("Not sent yet — still queued");
+    expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
+  };
 
   /** The queued check-ins one reload settles, oldest first. */
   const queuedItems = (tokens: string[]): string =>
@@ -87,10 +107,7 @@ describe("scanner offline sync", {
   test("settles a queued check-in on the next page load", async () => {
     const fetchStub = stubFetch(settledCheckIn);
     try {
-      const h = fresh({
-        seed: (store) =>
-          store.setItem("scanner-queue", JSON.stringify([queuedItem])),
-      });
+      const h = fresh(queueSeeded());
       const summary = el(h.document, "scanner-queue-summary");
       await whenTextShows(summary, "0 queued check-ins");
 
@@ -135,27 +152,53 @@ describe("scanner offline sync", {
 
   test("keeps a check-in the door did not answer and says so", async () => {
     using _fetch = stubFetch(new Error("offline"));
-    const h = fresh({
-      seed: (store) =>
-        store.setItem("scanner-queue", JSON.stringify([queuedItem])),
-    });
+    const h = fresh(queueSeeded());
 
-    await whenTextShows(
-      h.statusEl,
-      "Some tickets are still queued. The page will try to check them in again.",
+    await expectStillQueued(h);
+  });
+
+  test("keeps a check-in the door refused to settle and says so", async () => {
+    using _fetch = stubFetch(() =>
+      Response.json({ error: "Not authenticated" }, { status: 401 }),
+    );
+    const h = fresh(queueSeeded());
+
+    // The refusal names no scan decision: the page keeps the check-in for
+    // the sync that runs after the door lets it in again.
+    await expectStillQueued(h);
+  });
+
+  test("keeps the settled row on the page when the switch is clicked mid-sync", async () => {
+    const { promise, resolve } = Promise.withResolvers<Response>();
+    using _fetch = stubFetch((url) => {
+      if (String(url).endsWith("-cache")) {
+        return Response.json({ hashes: [] });
+      }
+      return promise;
+    });
+    const h = fresh(queueSeeded());
+
+    // The sync is waiting on the door's answer. The switch's re-render must
+    // leave the row elements the sync writes to on the page.
+    el(h.document, "scanner-offline-toggle").click();
+    resolve(
+      Response.json({
+        listingName: "Standard",
+        name: "Ada",
+        quantity: 1,
+        status: "checked_in",
+        total: 1,
+      }),
     );
 
-    expect(h.statusEl.className).toContain("scanner-status-warning");
-    expect(firstRow(h).textContent).toBe("Not sent yet — still queued");
-    expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
+    await whenTextShows(h.statusEl, "Queued tickets are done.");
+    expect(firstRow(h).textContent).toBe("Checked in");
+    expect(storedQueue(h)).toBe("[]");
   });
 
   test("stops the sync and names the store when a settled check-in will not save", async () => {
     using _fetch = stubFetch(settledCheckIn);
-    const h = fresh({
-      seed: (store) =>
-        store.setItem("scanner-queue", JSON.stringify([queuedItem])),
-    });
+    const h = fresh(queueSeeded());
     // The sync suspends at its first send, so the swap lands before the
     // settled item's removal write runs.
     fullStore(h);
@@ -175,10 +218,7 @@ describe("scanner offline sync", {
 
   test("tells the door a scan made during a sync is ignored", async () => {
     using _fetch = stubFetch(() => new Promise(() => {}));
-    const h = fresh({
-      seed: (store) =>
-        store.setItem("scanner-queue", JSON.stringify([queuedItem])),
-    });
+    const h = fresh(queueSeeded());
     using fakes = cameraFakes(h);
     fakes.ready(4);
     await start(h);
