@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
 import { settings } from "#db/settings.ts";
@@ -36,14 +36,14 @@ describe("ticketPage listing date and location", () => {
       date: "2026-06-15T14:00:00.000Z",
     });
     const html = await renderTicket(listing);
-    expect(html).toContain("<strong>Date:</strong>");
-    expect(html).toContain("Monday 15 June 2026 at 15:00 GMT+1");
+    assertStringIncludes(html, "<strong>Date:</strong>");
+    assertStringIncludes(html, "Monday 15 June 2026 at 15:00 GMT+1");
   });
 
   test("does not show date on public ticket page when date is empty", async () => {
     const listing = testListingWithCount({ attendee_count: 0, date: "" });
     const html = await renderTicket(listing);
-    expect(html).not.toContain("<strong>Date:</strong>");
+    assert(!html.includes("<strong>Date:</strong>"));
   });
 
   test("shows location on public ticket page when listing has location", async () => {
@@ -52,14 +52,14 @@ describe("ticketPage listing date and location", () => {
       location: "Village Hall",
     });
     const html = await renderTicket(listing);
-    expect(html).toContain("<strong>Location:</strong>");
-    expect(html).toContain("Village Hall");
+    assertStringIncludes(html, "<strong>Location:</strong>");
+    assertStringIncludes(html, "Village Hall");
   });
 
   test("does not show location on public ticket page when location is empty", async () => {
     const listing = testListingWithCount({ attendee_count: 0, location: "" });
     const html = await renderTicket(listing);
-    expect(html).not.toContain("<strong>Location:</strong>");
+    assert(!html.includes("<strong>Location:</strong>"));
   });
 
   test("hides date and location in iframe mode", async () => {
@@ -69,8 +69,8 @@ describe("ticketPage listing date and location", () => {
       location: "Village Hall",
     });
     const html = await renderTicket(listing, { iframe: true });
-    expect(html).not.toContain("<strong>Date:</strong>");
-    expect(html).not.toContain("<strong>Location:</strong>");
+    assert(!html.includes("<strong>Date:</strong>"));
+    assert(!html.includes("<strong>Location:</strong>"));
   });
 
   test("shows past listing badge for listing with date in the past", async () => {
@@ -79,8 +79,8 @@ describe("ticketPage listing date and location", () => {
       date: "2020-01-15T14:00:00.000Z",
     });
     const html = await renderTicket(listing);
-    expect(html).toContain("badge-alert");
-    expect(html).toContain("ago");
+    assertStringIncludes(html, "badge-alert");
+    assertStringIncludes(html, "ago");
   });
 
   test("does not show past listing badge for future listing", async () => {
@@ -89,13 +89,13 @@ describe("ticketPage listing date and location", () => {
       date: "2099-06-15T14:00:00.000Z",
     });
     const html = await renderTicket(listing);
-    expect(html).not.toContain("badge-alert");
+    assert(!html.includes("badge-alert"));
   });
 
   test("does not show past listing badge when date is empty", async () => {
     const listing = testListingWithCount({ attendee_count: 0, date: "" });
     const html = await renderTicket(listing);
-    expect(html).not.toContain("badge-alert");
+    assert(!html.includes("badge-alert"));
   });
 
   test("past listing badge shows singular day for 1 day ago", async () => {
@@ -105,8 +105,8 @@ describe("ticketPage listing date and location", () => {
       date: `${yesterday}T12:00:00.000Z`,
     });
     const html = await renderTicket(listing);
-    expect(html).toContain("1 day ago");
-    expect(html).not.toContain("(1 day ago)");
+    assertStringIncludes(html, "1 day ago");
+    assert(!html.includes("(1 day ago)"));
   });
 
   test("past listing badge shows plural days for multiple days ago", async () => {
@@ -116,8 +116,8 @@ describe("ticketPage listing date and location", () => {
       date: `${threeDaysAgo}T12:00:00.000Z`,
     });
     const html = await renderTicket(listing);
-    expect(html).toContain("3 days ago");
-    expect(html).not.toContain("(3 days ago)");
+    assertStringIncludes(html, "3 days ago");
+    assert(!html.includes("(3 days ago)"));
   });
 });
 
@@ -153,15 +153,15 @@ describe("ticketViewPage package grouping", () => {
       false,
       new Map([[1, { hideListings: false, name: "Camp Kit" }]]),
     );
-    expect(html).toContain("Camp Kit");
-    expect(html).toContain("Tent");
-    expect(html).toContain("&times;2");
-    expect(html).toContain("Chair");
-    expect(html).toContain("&times;6");
+    assertStringIncludes(html, "Camp Kit");
+    assertStringIncludes(html, "Tent");
+    assertStringIncludes(html, "&times;2");
+    assertStringIncludes(html, "Chair");
+    assertStringIncludes(html, "&times;6");
     // One shared QR for the whole bundle.
-    expect(html).toContain(`/t/${token}/svg`);
+    assertStringIncludes(html, `/t/${token}/svg`);
     // No member is non-transferable, so no "ID required" notice.
-    expect(html).not.toContain("ID required at entry");
+    assert(!html.includes("ID required at entry"));
   });
 
   test("hides member listings for a hidden package, showing only the name", () => {
@@ -171,10 +171,10 @@ describe("ticketViewPage package grouping", () => {
       false,
       new Map([[1, { hideListings: true, name: "Secret Bundle" }]]),
     );
-    expect(html).toContain("Secret Bundle");
-    expect(html).not.toContain("<li>Tent");
-    expect(html).not.toContain("<li>Chair");
-    expect(html).toContain(`/t/${token}/svg`);
+    assertStringIncludes(html, "Secret Bundle");
+    assert(!html.includes("<li>Tent"));
+    assert(!html.includes("<li>Chair"));
+    assertStringIncludes(html, `/t/${token}/svg`);
   });
 
   test("omits wallet links on a package card even when wallets are enabled", () => {
@@ -187,7 +187,7 @@ describe("ticketViewPage package grouping", () => {
       true,
       new Map([[1, { hideListings: false, name: "Camp Kit" }]]),
     );
-    expect(html).not.toContain("wallet-link");
+    assert(!html.includes("wallet-link"));
   });
 
   test("omits wallet links on a standalone card sharing a token with a package", () => {
@@ -211,9 +211,9 @@ describe("ticketViewPage package grouping", () => {
       new Map([[1, { hideListings: false, name: "Camp Kit" }]]),
     );
     // The standalone card renders (it's not part of the package)…
-    expect(html).toContain("Standalone Add-On");
+    assertStringIncludes(html, "Standalone Add-On");
     // …but no wallet links anywhere, because the shared token's pass 404s.
-    expect(html).not.toContain("wallet-link");
+    assert(!html.includes("wallet-link"));
   });
 
   test("a purchase-only package omits the QR", () => {
@@ -227,8 +227,8 @@ describe("ticketViewPage package grouping", () => {
       },
     ];
     const html = ticketViewPage(cards, false, false, purchaseBundleGroups);
-    expect(html).toContain("Purchase Bundle");
-    expect(html).not.toContain(`/t/${token}/svg`);
+    assertStringIncludes(html, "Purchase Bundle");
+    assert(!html.includes(`/t/${token}/svg`));
   });
 
   test("shows a non-transferable notice on a package card without naming the member", () => {
@@ -252,9 +252,9 @@ describe("ticketViewPage package grouping", () => {
       false,
       new Map([[1, { hideListings: true, name: "Secret Bundle" }]]),
     );
-    expect(html).toContain("ID required at entry");
+    assertStringIncludes(html, "ID required at entry");
     // The warning is package-level: the concealed member is never named.
-    expect(html).not.toContain("Secret Pass");
+    assert(!html.includes("Secret Pass"));
   });
 
   test("omits the non-transferable notice when the non-transferable member is purchase-only", () => {
@@ -274,6 +274,6 @@ describe("ticketViewPage package grouping", () => {
       },
     ];
     const html = ticketViewPage(cards, false, false, purchaseBundleGroups);
-    expect(html).not.toContain("ID required at entry");
+    assert(!html.includes("ID required at entry"));
   });
 });

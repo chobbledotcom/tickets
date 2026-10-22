@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
 import {
@@ -52,8 +52,8 @@ describe("order summary rows", () => {
     const html = orderSummary(
       pricedOrder([planItem("(3 Months)", "plan-3m", 3, 3)]),
     );
-    expect(html).toContain("(3 Months) (9 months)");
-    expect(html).not.toContain("3× (3 Months)");
+    assertStringIncludes(html, "(3 Months) (9 months)");
+    assert(!html.includes("3× (3 Months)"));
   });
 
   test("a renewal quote states the months its tier lines buy", () => {
@@ -66,7 +66,7 @@ describe("order summary rows", () => {
       { renewal: true },
     );
     const html = orderSummary(pricedOrder([tier]));
-    expect(html).toContain("Monthly (6 months)");
+    assertStringIncludes(html, "Monthly (6 months)");
   });
 
   test("a split plan order still states one month total", () => {
@@ -88,7 +88,7 @@ describe("order summary rows", () => {
         ],
       ),
     );
-    expect(html).toContain("(1 Month) (3 months)");
+    assertStringIncludes(html, "(1 Month) (3 months)");
   });
 
   test("plain ticket lines keep the ×count", () => {
@@ -103,7 +103,7 @@ describe("order summary rows", () => {
         },
       ]),
     );
-    expect(html).toContain("2× Gala");
-    expect(html).not.toContain("× months");
+    assertStringIncludes(html, "2× Gala");
+    assert(!html.includes("× months"));
   });
 });
