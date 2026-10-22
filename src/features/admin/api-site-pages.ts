@@ -165,25 +165,55 @@ const updateRefusal: Record<"notFound" | "slugTaken", () => Response> = {
   slugTaken: () => apiErrorResponse(t("site.pages.error.slug_taken")),
 };
 
-/** The update's transactional half: the row write and the parent edge commit
- *  together. The update's own refusals (a taken slug, a row that vanished)
- *  write nothing, so they return cleanly. Only a lost eligibility race
- *  throws, and the throw rolls the whole transaction back. */
-const writeUpdate = async (
+/** The tx step a planned parent move runs inside the update's transaction:
+ *  false is the lost race a concurrent move leaves behind. */
+type ParentChange = (tx: TxScope) => Promise<boolean>;
+
+/** What one update's transaction answers: the written row, the write's own
+ *  fault, or the parent move's conflict message. */
+type UpdateTxOutcome =
+  | { conflict: string }
+  | { error: "notFound" | "slugTaken" }
+  | { row: SitePage };
+
+/** The row write and the parent edge commit in one transaction. The update's
+ *  own refusals (a taken slug, a row that vanished) write nothing, so they
+ *  return cleanly. A parent move the page is no longer eligible for throws,
+ *  and the throw rolls the whole transaction back. */
+const updateInTransaction = async (
+  tx: TxScope,
   page: SitePage,
   input: SitePageWriteInput,
-  parentChange: ((tx: TxScope) => Promise<boolean>) | null,
-): Promise<{ refusal: Response } | { row: SitePage }> => {
-  const outcome = await withTransaction(async (tx) => {
-    const result = await updateSitePage(page.id, input, tx);
-    if (!result.ok) return { error: result.error };
-    if (parentChange && !(await parentChange(tx))) {
+  parentChange: ParentChange | null,
+): Promise<UpdateTxOutcome> => {
+  const result = await updateSitePage(page.id, input, tx);
+  if (!result.ok) return { error: result.error };
+  if (parentChange !== null) {
+    if (!(await parentChange(tx))) {
+      // The step re-checks eligibility inside this transaction. A false
+      // answer is the lost race a concurrent move leaves behind.
       throw new TransactionValidationError(t("site.pages.error.ineligible"));
     }
-    return { row: result.value };
-  }).catch((error: unknown) => ({
-    conflict: transactionValidationMessageOrRethrow(error),
-  }));
+  }
+  return { row: result.value };
+};
+
+/** A refused parent move becomes the form's own message. Anything else
+ *  rethrows. */
+const conflictOrRethrow = (error: unknown): { conflict: string } => ({
+  conflict: transactionValidationMessageOrRethrow(error),
+});
+
+/** The update's transactional half: the row write and the parent edge commit
+ *  together, and the update's own refusals answer as refusals. */
+export const writeUpdate = async (
+  page: SitePage,
+  input: SitePageWriteInput,
+  parentChange: ParentChange | null,
+): Promise<{ refusal: Response } | { row: SitePage }> => {
+  const outcome = await withTransaction((tx) =>
+    updateInTransaction(tx, page, input, parentChange),
+  ).catch(conflictOrRethrow);
   if ("conflict" in outcome) {
     return { refusal: apiErrorResponse(outcome.conflict) };
   }
@@ -195,7 +225,7 @@ const writeUpdate = async (
 
 const handleUpdate: RouteHandlerFn = withPage(async (page, body) =>
   withValidated(toPageWrite(body, page), async (input) => {
-    let parentChange: ((tx: TxScope) => Promise<boolean>) | null = null;
+    let parentChange: ParentChange | null = null;
     if (body.parent !== undefined) {
       const plan = await planParentChange(page, body.parent);
       if (!plan.ok) return apiErrorResponse(plan.error);

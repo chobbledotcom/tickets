@@ -1,15 +1,15 @@
 // Contract tests for the site-pages admin JSON API: the content-page CRUD
-// (site_pages rows, addressed by id), the fixed pages (home, contact, terms,
-// addressed by name), and the refusals both carry. The input mapping's field
-// refusals live in api-site-pages-input.test.ts. Technical surface — direct
-// Deno tests (E2E_TESTS.md); the form-side parity pins live in
-// test/features/admin/parity/site-pages.test.ts.
+// (site_pages rows, addressed by id) and the refusals it carries. The input
+// mapping's field refusals live in api-site-pages-input.test.ts. Technical
+// surface — direct Deno tests (E2E_TESTS.md); the form-side parity pins live
+// in test/features/admin/parity/site-pages.test.ts.
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { addPageItem, getAllPageItems } from "#db/site-page-items.ts";
 import { getSitePageById } from "#db/site-pages.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
+import { writeUpdate } from "#routes/admin/api-site-pages.ts";
 import { publicNavModel } from "#routes/public/site-nav.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
@@ -395,6 +395,42 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
         method: "PUT",
       });
       expect(await wasActivityLogged("Page 'Visit' updated")).toBe(true);
+    });
+  });
+
+  describe("the update transaction", () => {
+    test("rolls the write back when the parent move loses its eligibility check", async () => {
+      const page = await createTestSitePage("visit", {
+        content: "Old text",
+        name: "Visit",
+      });
+
+      const outcome = await writeUpdate(
+        page,
+        {
+          content: "New text",
+          hidden: false,
+          metaDescription: "",
+          metaTitle: "",
+          name: "Renamed",
+          slug: "renamed",
+        },
+        // The boolean addPageItem returns when the single-parent re-check
+        // inside the transaction loses to a concurrent move.
+        async () => false,
+      );
+
+      if (!("refusal" in outcome)) {
+        throw new Error("the refused parent move did not refuse the update");
+      }
+      expect(outcome.refusal.status).toBe(400);
+      expect(await outcome.refusal.json()).toEqual({
+        error: t("site.pages.error.ineligible"),
+      });
+      // The refused transaction rolled the row write back with the edge.
+      const stored = await getSitePageById(page.id);
+      expect(stored?.name).toBe("Visit");
+      expect(stored?.content).toBe("Old text");
     });
   });
 
