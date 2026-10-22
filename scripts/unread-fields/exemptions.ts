@@ -263,6 +263,7 @@ const settingsSnapshotFields = exactFieldsFrom(
 const attendeeFields = exactFieldsFrom("src/shared/db/attendees/pii.ts");
 const liquidFields = exactFieldsFrom("src/shared/email-renderer.ts");
 const resourceFields = exactFieldsFrom("src/shared/rest/resource.ts");
+const adminApiRowFields = exactFieldsFrom("src/shared/admin-api-resources.ts");
 const selectFields = exactFieldsFrom("src/shared/settings/form-schema.ts");
 const stripeFields = exactFieldsFrom("src/shared/stripe/client.ts");
 
@@ -333,6 +334,23 @@ const bodyExemptions = exactFieldExemptions(
 const attendeeTypeInTypes = [{ name: "Attendee" }];
 
 const exactExemptions = exactFieldExemptions([
+  adminApiRowFields(
+    [{ name: "AdminApiSitePage" }],
+    [
+      "content",
+      "hidden",
+      "id",
+      "meta_description",
+      "meta_title",
+      "name",
+      "parent",
+      "slug",
+    ],
+    {
+      evidence: "jsonResponse serialises the complete site-page row",
+      kind: "external-output",
+    },
+  ),
   exactFieldsFrom("src/shared/types.ts")(
     attendeeTypeInTypes,
     ["attachment_downloads"],

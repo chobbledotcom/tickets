@@ -97,9 +97,6 @@ const SitePageUpdateFields = {
 export const UpdateSitePageBodySchema = v.partial(
   v.object(SitePageUpdateFields),
 );
-export type AdminApiUpdateSitePageBody = v.InferOutput<
-  typeof UpdateSitePageBodySchema
->;
 
 /** The body a site-page create accepts. A new page is always a root page, so
  *  the create body carries no parent. The server stores the form's defaults
@@ -109,9 +106,6 @@ export const CreateSitePageBodySchema = v.partial(
   v.omit(v.object(SitePageUpdateFields), ["parent"]),
   ["content", "hidden", "meta_description", "meta_title"],
 );
-export type AdminApiCreateSitePageBody = v.InferOutput<
-  typeof CreateSitePageBodySchema
->;
 
 /** One site page as the admin API answers with it. A content page answers
  *  every field. A fixed page (home, contact and terms — not site_pages rows)
