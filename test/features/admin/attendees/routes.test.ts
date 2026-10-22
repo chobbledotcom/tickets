@@ -5,6 +5,7 @@
  * naming its path would leave the page unreachable, which is what these ask.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -22,7 +23,10 @@ describeWithEnv("the attendee pages every listing shares", { db: true }, () => {
     const response = await adminGet("/admin/attendees/csv");
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("text/csv");
+    assertStringIncludes(
+      response.headers.get("content-type") ?? "",
+      "text/csv",
+    );
   });
 
   test("serves the form for adding one without a listing in hand", async () => {
@@ -37,7 +41,7 @@ describeWithEnv("the attendee pages every listing shares", { db: true }, () => {
     const { response } = await adminFormPost("/admin/attendees/new", {});
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("required");
+    assertStringIncludes(await response.text(), "required");
   });
 
   test("renders the date error when a malformed start_date rides a daily booking", async () => {
@@ -54,7 +58,8 @@ describeWithEnv("the attendee pages every listing shares", { db: true }, () => {
     });
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain(
+    assertStringIncludes(
+      await response.text(),
       "A start date is required for the booked daily listings",
     );
   });

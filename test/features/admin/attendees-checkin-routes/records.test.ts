@@ -3,6 +3,7 @@
  * sends the operator back to, and the one row it refuses.
  */
 
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { activityMessages } from "#test-utils/activity-log.ts";
@@ -25,8 +26,12 @@ describeWithEnv("what a check-in writes down", { db: true }, () => {
     await checkIn(listing.id, attendee.id, { check_in: "false" });
 
     const history = await activityMessages();
-    expect(history).toContain("Attendee checked in 1 ticket for 'Sports Day'");
-    expect(history).toContain("Attendee checked out 1 ticket for 'Sports Day'");
+    assertArrayIncludes(history, [
+      "Attendee checked in 1 ticket for 'Sports Day'",
+    ]);
+    assertArrayIncludes(history, [
+      "Attendee checked out 1 ticket for 'Sports Day'",
+    ]);
   });
 
   test("says which way round it went", async () => {
@@ -104,7 +109,8 @@ describeWithEnv("where a check-in lands", { db: true }, () => {
       return_filter: "in",
     });
 
-    expect(response.headers.get("location")).toContain(
+    assertStringIncludes(
+      response.headers.get("location") ?? "",
       `/admin/listing/${listing.id}/attendees?filter=in`,
     );
   });
@@ -119,8 +125,8 @@ describeWithEnv("where a check-in lands", { db: true }, () => {
     });
 
     const location = response.headers.get("location")!;
-    expect(location).toContain(`/admin/listing/${listing.id}/attendees`);
-    expect(location).not.toContain("filter=");
+    assertStringIncludes(location, `/admin/listing/${listing.id}/attendees`);
+    assert(!location.includes("filter="));
   });
 });
 

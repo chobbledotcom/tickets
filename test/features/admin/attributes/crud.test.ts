@@ -1,3 +1,4 @@
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
@@ -37,16 +38,20 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
     // definition fails this test instead of moving the expectation with it.
     test("serves the name box with its label and hint", () => {
       const html = attributeNameForm.render();
-      expect(html).toContain("Attribute name");
-      expect(inputNamed(html, "name")).toContain(
+      assertStringIncludes(html, "Attribute name");
+      assertStringIncludes(
+        inputNamed(html, "name"),
         'placeholder="e.g. Difficulty"',
       );
     });
 
     test("serves the option box with its label and hint", () => {
       const html = attributeOptionForm.render();
-      expect(html).toContain("Option text");
-      expect(inputNamed(html, "text")).toContain('placeholder="e.g. Beginner"');
+      assertStringIncludes(html, "Option text");
+      assertStringIncludes(
+        inputNamed(html, "text"),
+        'placeholder="e.g. Beginner"',
+      );
     });
   });
 
@@ -81,7 +86,9 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
         "No options yet.",
       );
       expect(await storedFeatureEnabled("attributes")).toBe(true);
-      expect(await activityMessages()).toContain("Attribute 'Terrain' created");
+      assertArrayIncludes(await activityMessages(), [
+        "Attribute 'Terrain' created",
+      ]);
     });
 
     test("a new attribute joins the order, so it can be moved", async () => {
@@ -158,9 +165,9 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
       expect((await getAttributeWithOptions(attribute.id))?.name).toBe(
         "New name",
       );
-      expect(await activityMessages()).toContain(
+      assertArrayIncludes(await activityMessages(), [
         "Attribute 'New name' updated",
-      );
+      ]);
     });
 
     test("an empty name is refused back to the attribute page", async () => {
@@ -252,9 +259,9 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
       )(response);
       expect(await getAttributeWithOptions(attribute.id)).toBeNull();
       expectStatus(404)(await adminGet(`/admin/attributes/${attribute.id}`));
-      expect(await activityMessages()).toContain(
+      assertArrayIncludes(await activityMessages(), [
         "Attribute 'Audience' deleted",
-      );
+      ]);
     });
   });
 });

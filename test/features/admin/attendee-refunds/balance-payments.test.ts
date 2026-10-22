@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
@@ -219,7 +220,7 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
         `/admin/attendees/${ctx.attendee.id}/actions`,
       );
       const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain(`/admin/attendees/${ctx.attendee.id}/refund`);
+      assertStringIncludes(html, `/admin/attendees/${ctx.attendee.id}/refund`);
     });
 
     test("keeps refresh reachable when a balance-only refund needs Money", async () => {
@@ -237,21 +238,20 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
         await adminGet(`/admin/attendees/${ctx.attendee.id}/actions`),
         200,
       );
-      expect(actions).not.toContain(
-        `/admin/attendees/${ctx.attendee.id}/refund`,
-      );
-      expect(actions).not.toContain(
-        `/admin/attendees/${ctx.attendee.id}/payment-review`,
+      assert(!actions.includes(`/admin/attendees/${ctx.attendee.id}/refund`));
+      assert(
+        !actions.includes(`/admin/attendees/${ctx.attendee.id}/payment-review`),
       );
 
       const overview = await expectHtmlResponse(
         await adminGet(`/admin/attendees/${ctx.attendee.id}`),
         200,
       );
-      expect(overview).toContain(
+      assertStringIncludes(
+        overview,
         `action="/admin/attendees/${ctx.attendee.id}/refresh-payment"`,
       );
-      expect(overview).toContain("Refresh payment status");
+      assertStringIncludes(overview, "Refresh payment status");
     });
   });
 });
