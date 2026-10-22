@@ -38,6 +38,7 @@ import {
   type TicketsWorld,
   whatWasKeptFor,
 } from "#test/specs/support/world.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { connectResendProvider } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -59,6 +60,17 @@ export interface MessageWritten {
   marketing?: boolean;
   subject: string;
 }
+
+/** The message the owner wrote: their words under the subject every story
+ * writes with, marked as a promotion when it is one. */
+export const writtenMessage = (
+  words: string,
+  marketing: boolean,
+): MessageWritten => ({
+  body: words,
+  marketing,
+  subject: "About your booking",
+});
 
 /** The owner's own email provider. Without one the site still composes and
  * previews, but will not send in bulk. */
@@ -114,16 +126,22 @@ export const addressesWrittenTo = (world: TicketsWorld): string[] =>
 export const whatWasSentTo = (
   world: TicketsWorld,
   email: string,
-): { html: string } => {
+): { html: string; text: string } => {
   const copy = copiesHanded(world).find((one) => {
     const to = addressesOn(one);
     return Array.isArray(to) && to.includes(email);
   });
   const html = (copy as { html?: unknown } | undefined)?.html;
-  if (typeof html !== "string" || html === "") {
+  const text = (copy as { text?: unknown } | undefined)?.text;
+  if (
+    typeof html !== "string" ||
+    html === "" ||
+    typeof text !== "string" ||
+    text === ""
+  ) {
     throw new Error(`Nothing readable was sent to ${email}`);
   }
-  return { html };
+  return { html, text };
 };
 
 /** People booked onto a listing the story names, each through the form on that
@@ -347,6 +365,17 @@ export const previewOffersADraftToSendThemselves = (
 ): boolean =>
   scenarioBrowser(world).links.some(({ href }) => href.startsWith("mailto:"));
 
+/** The message the preview's mailto draft would open with, decoded back to
+ * the words the owner wrote. A picture the owner named must be at the site's
+ * own address in it, the way a sent copy carries it. */
+export const mailtoDraftBody = (world: TicketsWorld): string => {
+  const href = scenarioBrowser(world)
+    .links.map(({ href }) => href)
+    .find((href) => href.startsWith("mailto:") && href.includes("body="));
+  if (!href) throw new Error("The preview offered no draft to send themselves");
+  return decodeURIComponent(href.split("body=")[1]!);
+};
+
 /** The owner presses Send on the preview they are looking at, and is left with
  * whatever the site told them. */
 export const sendsWhatWasPreviewed: ActOnTheStory = async (world) => {
@@ -354,3 +383,30 @@ export const sendsWhatWasPreviewed: ActOnTheStory = async (world) => {
   await browser.submitFormAt(SEND_PATH);
   keepsWhatTheOrganiserSaw(world, browser);
 };
+
+/** The site holds a picture under the story's name for it, so the message can
+ * name it and a later step can hold each page to that picture's address. */
+export const seedAPicture: ActOnOneThing = async (world, name) => {
+  const image = await makeImage(name);
+  world.things.remember("picture", name, {
+    filename: image.filename,
+    id: image.id,
+  });
+};
+
+/** The exact <img> tag the site shows for one picture address, with the
+ * message's own words for its alt text. */
+export const pictureTag = (src: string, alt: string): string =>
+  `<img src="${src}" alt="${alt}">`;
+
+/** The address the site serves the picture the story named at. On the site's
+ * own pages it starts with a slash; a sent email needs the site's own domain
+ * in front, because an email reader reads the message away from the site. */
+export const pictureUrl = (
+  world: TicketsWorld,
+  name: string,
+  origin = "",
+): string =>
+  `${origin}/image/${encodeURI(
+    world.things.require("picture", name).filename,
+  )}`;

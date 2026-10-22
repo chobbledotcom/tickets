@@ -13,7 +13,6 @@ import {
   bookedOnto,
   bookersFor,
   listingOffersEmailAction,
-  type MessageWritten,
   ownerHasAnEmailProvider,
   peopleBookOnto,
   personBooksDays,
@@ -26,6 +25,7 @@ import {
   wordsTheyWrote,
   writesToListing,
   writesToListingDay,
+  writtenMessage,
 } from "#test/specs/support/bulk-email.ts";
 import { asksNotToHearAboutPromotions } from "#test/specs/support/email-choices.ts";
 import {
@@ -117,7 +117,12 @@ When(
     day: number,
     words: string,
   ): Promise<void> {
-    return writesToListingDay(this, listingName, day, message(words, false));
+    return writesToListingDay(
+      this,
+      listingName,
+      day,
+      writtenMessage(words, false),
+    );
   },
 );
 
@@ -139,12 +144,6 @@ Given("one of them has asked not to hear about promotions", asksNotToHear);
 
 Given("they have asked not to hear about promotions", asksNotToHear);
 
-const message = (words: string, marketing: boolean): MessageWritten => ({
-  body: words,
-  marketing,
-  subject: "About your booking",
-});
-
 When(
   "the owner writes to {string} saying {string}",
   function (
@@ -152,7 +151,7 @@ When(
     listingName: string,
     words: string,
   ): Promise<void> {
-    return writesToListing(this, listingName, message(words, false));
+    return writesToListing(this, listingName, writtenMessage(words, false));
   },
 );
 
@@ -163,7 +162,7 @@ Given(
     listingName: string,
     words: string,
   ): Promise<void> {
-    return writesToListing(this, listingName, message(words, false));
+    return writesToListing(this, listingName, writtenMessage(words, false));
   },
 );
 
@@ -174,7 +173,7 @@ When(
     listingName: string,
     words: string,
   ): Promise<void> {
-    return writesToListing(this, listingName, message(words, true));
+    return writesToListing(this, listingName, writtenMessage(words, true));
   },
 );
 
@@ -185,7 +184,7 @@ Given(
     listingName: string,
     words: string,
   ): Promise<void> {
-    return writesToListing(this, listingName, message(words, true));
+    return writesToListing(this, listingName, writtenMessage(words, true));
   },
 );
 
