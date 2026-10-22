@@ -36,7 +36,7 @@ import { decryptListingWithCount } from "#db/listings/records.ts";
 import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
-import { envNameSource, rowsByIds } from "#db/query.ts";
+import { envNameSource, oneById, rowsByIds } from "#db/query.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { equals, inList } from "#db/where-clauses.ts";
@@ -122,8 +122,7 @@ export const getGroupsByIds = async (
 
 /** One stored group, through the shared many-group read. Null when no group has
  * that id. */
-export const getGroupById = async (id: number): Promise<Group | null> =>
-  (await getGroupsByIds([id])).get(id) ?? null;
+export const getGroupById = oneById(getGroupsByIds);
 
 /**
  * Get a single group by slug_index (from cache)

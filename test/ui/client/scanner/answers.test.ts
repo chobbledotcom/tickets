@@ -34,7 +34,7 @@ const forcedOverride = (
   answers: Record<string, unknown>[],
 ): {
   bodies: unknown[];
-  done: Promise<void>;
+  done: Promise<Record<string, unknown>>;
   fetchStub: ReturnType<typeof stubFetch>;
 } => {
   const bodies: unknown[] = [];

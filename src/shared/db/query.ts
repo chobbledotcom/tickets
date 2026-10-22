@@ -79,6 +79,16 @@ export const mapByIds = async <Row, Value = number>(
 ): Promise<Map<number, Value>> =>
   new Map((await rowsByIds<Row>(ids, buildSql)).map(toEntry));
 
+/** The one value an id-keyed read holds for a single id, or null when the
+ * read names none. The read answers entities, so null can only mean "no row
+ * for this id". */
+export const oneById =
+  <Value extends object>(
+    read: (ids: number[]) => Promise<Map<number, Value>>,
+  ) =>
+  async (id: number): Promise<Value | null> =>
+    (await read([id])).get(id) ?? null;
+
 type NameRow<Raw> = { id: number; name: Raw };
 type Decryptor<Raw> = (raw: Raw) => Promise<string>;
 type NameMap = Promise<Map<number, string>>;

@@ -1,4 +1,4 @@
-# The offline scanner's storage layer
+# The offline scanner's door layers
 
 The offline scanner for issue #2623 splits into four layers. Each layer is one
 pull request on top of the layer before it.
@@ -6,24 +6,72 @@ pull request on top of the layer before it.
 - **L1, `scanner-offline-api`**: the server side. The scan-token endpoints
   answer SHA-256 digests only, and the scan endpoints accept a `token_hash` in
   the door's own scope.
-- **L2, `scanner-offline-store`**: the door's device storage. This layer, and
-  the subject of this document.
+- **L2, `scanner-offline-store`**: the door's device storage.
 - **L3, `scanner-offline-mode`**: the scanner page's offline mode. It loads
   the saved list, answers scans from it, queues offline check-ins, shows the
-  offline state, and replays the queue when the connection returns.
+  offline state, and replays the queue when the connection returns. This
+  layer is the subject of this document.
 - **L4, `scanner-offline-pwa`**: the service worker. It saves the scanner page
-  and its bundle, so the page reloads with no connection.
+  and its bundle, so the page reloads with no connection. The feature is not
+  complete until it lands: L3 still needs the connection to load the page in
+  the first place, and a cold offline load is L4's claim.
 
-The feature is not complete until L3 and L4 land. The Cucumber scenarios for
-the offline door land with the page layers, because the door's journeys need
-the page.
+The Cucumber scenarios for the offline door land with the page layers,
+because the door's journeys need the page.
+
+## What the page wiring does
+
+The page wiring is `src/ui/client/scanner-offline.ts`, and the scanner bundle
+calls it from `src/ui/client/scanner.js`. On load it reads the door's scope
+from the page's token-list path and paints the stored state: the banner, the
+switch, and the waiting line. While the connection is there, it fetches the
+door's digest list and saves it whole, which restarts the 12 hours.
+
+One scan goes where the switch sends it. With the switch on, the scan never
+reaches the server: the page checks the token's digest against the saved
+list, queues a saved ticket's check-in, and refuses an unknown one. With the
+switch off, the scan settles with the server as before. A send that cannot
+land — no connection, or an answer that is not a scan answer — falls back to
+the saved list the same way, so a door that never touches the switch still
+keeps working when the venue's connection drops.
+
+The queue sends whenever the door proves the connection: a saved list that
+arrives, an online event, a scan that lands, or the switch going back off.
+One replay runs at a time. Each queued check-in sends by its digest, under
+the delivery id the device made up for it. The id rides on every send of
+that delivery. A retry after a lost answer claims nothing the server
+already took. The same delivery twice admits once. The delivery goes
+through the page's own admission flow, so the door's asks still come before
+an admit. A check-in leaves the queue only after its admission finished
+for good — a door answer, or the door's own skip at an ask. The first send
+that cannot reach the server stops the run, and the rest stay queued.
+
+## What the page shows
+
+- The banner names offline mode while the switch is on.
+- The switch sits beside the camera button, worded plainly, styled quietly,
+  and stores its state per door.
+- The waiting line counts the queued check-ins, so pending work is never
+  invisible — with the switch on or off.
+- Every queued check-in's replay answers on the status line by name. A
+  check-in the server answers with `already_checked_in` reads "{name} was
+  already checked in elsewhere.", so a second door's admission is not
+  mistaken for a fresh one.
+- The waiting line also names every person the last sync found was already
+  checked in elsewhere, as "{count} people were already checked in
+  elsewhere: {names}." It stays until the next sync replaces it whole, so
+  a later status line write cannot take the story away.
+- A ticket scanned twice on one device queues twice, once per delivery. A
+  party's next arrival is another check-in, and the scanner's own cooldown
+  takes the double press of one code. The server answers one delivery once,
+  so the ticket cannot come in twice on one delivery.
 
 ## What the storage layer holds
 
 The layer is `src/ui/client/scanner-door-store.ts` with
 `src/ui/client/stored-array.ts`. The code is a set of pure functions over a
-localStorage-shaped key-value store. No page calls it yet. L3 adds the page
-wiring.
+localStorage-shaped key-value store. The page wiring in
+`src/ui/client/scanner-offline.ts` calls it.
 
 The store holds three things for one door:
 
@@ -45,10 +93,11 @@ doors never share a saved list, a queue, or a switch.
 
 ## The queue's one rule
 
-A check-in leaves the queue only after the server answered that check-in for
-good. A page reload, a failed send, or an answer the page cannot read leaves
-the check-in queued. The queue therefore loses no pending work. The replay
-run in L3 calls `dropQueuedCheckIn`, and only on a definitive scan answer.
+A check-in leaves the queue only after its admission finished for good: a
+door answer, or the door's own skip at one of the door's asks. A page reload,
+a failed send, or an answer the page cannot read leaves the check-in queued.
+The queue therefore loses no pending work. The page's replay run calls
+`dropQueuedCheckIn`, and only on that kind of finish.
 
 Each queued check-in lives under its own storage key, named after its
 delivery id. A queue write touches only its own key. Two page visits on one
@@ -97,5 +146,6 @@ The risks that remain:
   browser.
 - Two offline doors can accept one ticket before either door syncs. The
   server cannot stop that. It admits nobody twice: the second check-in
-  answers `already_checked_in` without a second admission. L3 must show that
-  answer to the door's user, per queued check-in.
+  answers `already_checked_in` without a second admission. The page shows
+  that answer to the door's user, per queued check-in, as "{name} was already
+  checked in elsewhere."

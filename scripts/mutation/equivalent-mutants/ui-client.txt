@@ -181,7 +181,21 @@ src/ui/client/scanner.js::init~12c1xgq messageScanning→"" audited:09espsq # th
 src/ui/client/scanner.js::init~12c1xgq Scanning...→"" audited:09espsq # the camera page always renders data-message-scanning, so the fallback copy never shows
 src/ui/client/scanner.js::init.csrfToken~0ke2mq5 →"mutated" audited:09espsq # the scanner page's headExtra always renders the csrf meta, so the empty fallback never fires
 
+# The offline mode's wiring moved from scanner.js to scanner-offline.ts; the
+# proofs ride with the code they name. A person re-derived these proofs
+# against the direct wiring suite on this branch.
+src/ui/client/scanner-offline.ts::interpolate~1j841kk ??→|| audited:0cxh0ch # the door passes counts of one or more and non-empty names, and a missing hole is undefined, so ?? and || agree
+src/ui/client/scanner-offline.ts::storeWithFallback~1ijqa8e scanner:probe→"" audited:0cxh0ch # the probe writes and removes its scratch key under one name; the name is never read, so the write and its cleanup answer the same under any name
+src/ui/client/scanner-offline.ts::storeWithFallback~1ijqa8e 1→"" audited:0cxh0ch # the probe's scratch value is never read; the write and its cleanup make no observable difference
+src/ui/client/scanner-offline.ts::setupOfflineScanner.ctx.message~07qo99b ??→|| audited:0cxh0ch # a dataset attribute answers its words or undefined, and the empty word renders the same empty fallback under both operators
+src/ui/client/scanner-offline.ts::setupOfflineScanner.syncMessages.messageAlreadyCheckedIn~0dub52e →"mutated" audited:0cxh0ch # the page template renders both the sync wording and the door's own already-checked-in wording, so the chain never reaches its final fallback
+src/ui/client/scanner-offline.ts::setupOfflineScanner.refreshThenReplay~14h52nx renderOffline(ctx);→(removed) audited:0cxh0ch # renderOffline reads only the stored mode, the queue, and the last sync's names; the refresh between the paints changes none of them, so consecutive paints answer the same
+src/ui/client/scanner-offline.ts::setupOfflineScanner~14h52nx@2 renderOffline(ctx);→(removed) audited:0cxh0ch # the online event changes no painted state; the refresh and the replay behind it paint every change themselves
+src/ui/client/scanner-offline.ts::setupOfflineScanner~14h52nx@3 renderOffline(ctx);→(removed) audited:0cxh0ch # the load's own paints cover the same state: the refresh paints after it lands and every replay paints at its end
+
 # The scanner door's offline store (scanner-door-store.ts): the entry validator
 # runs only inside parseQueuedCheckIn's try, whose catch removes the entry.
-src/ui/client/scanner-door-store.ts::isQueuedCheckIn~0iwnv64  || → && audited:1f85sjt # the guard's only caller wraps it in a catch that removes the entry; the one divergent input is a stored null, which throws into that same catch and lands on the same removal
-
+src/ui/client/scanner-door-store.ts::isQueuedCheckIn~0iwnv64  || → && audited:1pb01kx # the guard's only caller wraps it in a catch that removes the entry; the one divergent input is a stored null, which throws into that same catch and lands on the same removal
+# The map-backed store holds only the JSON text the door's rules write and the
+# tests' own non-empty values; no caller ever stores the empty string.
+src/ui/client/scanner-door-store.ts::mapStoreOver.getItem~1ej7ic5 ??→|| audited:1pb01kx # the stored values are JSON text or the tests' non-empty strings, so the only falsy operand value never occurs and ?? and || agree

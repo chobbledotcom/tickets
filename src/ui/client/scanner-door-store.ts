@@ -10,6 +10,7 @@
  */
 
 import { mapNotNullish, unique } from "#fp";
+import { bindFirst } from "#shared/fp-bind.ts";
 
 /** The storage the offline rules read and write. localStorage-shaped, so a
  * test can hand the rules a Map-backed fake. */
@@ -21,6 +22,29 @@ export type KeyValueStore = {
    * names them. The queue reads its entries through this list. */
   readonly length: number;
   key: (index: number) => string | null;
+};
+
+/** The key one map holds at one position, or null past the end. */
+const keyOfMapAt = (map: Map<string, string>, index: number): string | null => {
+  const keys = Array.from(map.keys());
+  const key = keys[index];
+  if (key === undefined) return null;
+  return key;
+};
+
+/** The door's storage over one map: the page's own store when the device
+ * blocks localStorage, and the fake a test hands the rules. */
+export const mapStoreOver = (backing: Map<string, string>): KeyValueStore => {
+  const keyAt = bindFirst(keyOfMapAt)(backing);
+  return {
+    getItem: (key) => backing.get(key) ?? null,
+    key: keyAt,
+    get length(): number {
+      return backing.size;
+    },
+    removeItem: (key) => void backing.delete(key),
+    setItem: (key, value) => void backing.set(key, value),
+  };
 };
 
 /** One door a scanner page works: a single listing, or a whole group. */

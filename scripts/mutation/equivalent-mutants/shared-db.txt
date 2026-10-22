@@ -12,6 +12,7 @@ src/shared/db/table.ts::defineCachedListTable.dependsOn~1o37jut  ?? → || audit
 src/shared/db/users.ts::getUserAuthFieldsById~0q9twz3  ?? → || audited:006e9mk # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
 src/shared/db/query-log.ts::getState~0gxq35p  ?? → || audited:01yuo8o # the live store is a truthy object or undefined, so only undefined reaches the fallback state
 src/shared/db/query-log.ts::enforceN1Guard.count~1xuztjh  ?? → || audited:01yuo8o # stored read counts start at 1 and remain positive, so only undefined reaches the zero fallback
+src/shared/db/query.ts::oneById~1exg1nb  ?? → || audited:1ivwwcc # Map.get answers the read's entity object or undefined, and every object is truthy
 src/shared/update.ts::recordScriptVersion.changes~148v29c  ?? → || audited:132xt8b # the stored commit is a string or undefined and the fallback is empty, so both operators return the same string
 src/shared/update.ts::readRecordedScriptCommit~0csc5ea  ?? → || audited:132xt8b # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
 
@@ -101,16 +102,15 @@ src/shared/db/images.ts::imageUseOrder.key~0srejmf  image_id → "" audited:0isx
 
 # Group readers return truthy records and arrays. Their batch methods also make
 # an entry for each requested key before they read rows.
-src/shared/db/groups.ts::getGroupById~1ydaoy4  ?? → || audited:0n5yfdo # Map.get returns a Group object or undefined, and each Group object is truthy
-src/shared/db/groups.ts::getListingsByGroupIds~0zftiii  ?? → || audited:0n5yfdo # entriesByGroup returns an array or undefined, and every array is truthy
-src/shared/db/groups.ts::getListingsByGroupId~0qcnvni  Missing group listing membership → "" audited:0n5yfdo # getListingsByGroupIds creates an entry for every requested group id, so requiredMapValue cannot raise this message
-src/shared/db/groups.ts::packageMembersError.blocked.childIds~05z1ovp  Missing listing child edges → "" audited:0n5yfdo # getIdsByKeys creates an entry for each requested parent id before it reads rows
-src/shared/db/groups.ts::packageMembersError.blocked.parentIds~069l6kv  Missing listing parent edges → "" audited:0n5yfdo # getIdsByKeys gives the reverse side the same complete-map guarantee
-src/shared/db/groups.ts::packageMembersError~17n4dy8  ?? → || audited:0n5yfdo # blocked contains non-empty translated error strings, so both operators return the first error or null
-src/shared/db/groups.ts::getGroupPackagePrices~1w9nudp  ?? → || audited:0n5yfdo # Map.groupBy returns a GroupListing array or undefined, and every array is truthy
-src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.rows~19vergh  ?? → || audited:0n5yfdo # rowsByGroup has the same array-or-undefined domain
-src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.dayPrices~1funuvq  Missing package day prices → "" audited:0n5yfdo # getGroupDayPricesByGroupIds creates an entry for every requested group before it reads rows
-src/shared/db/groups.ts::memberQuantityStatement~0ajbifl  ?? → || audited:0n5yfdo # validated package quantities are positive integers, so zero never reaches this default
+src/shared/db/groups.ts::getListingsByGroupIds~0zftiii  ?? → || audited:1joajju # entriesByGroup returns an array or undefined, and every array is truthy
+src/shared/db/groups.ts::getListingsByGroupId~0qcnvni  Missing group listing membership → "" audited:1joajju # getListingsByGroupIds creates an entry for every requested group id, so requiredMapValue cannot raise this message
+src/shared/db/groups.ts::packageMembersError.blocked.childIds~05z1ovp  Missing listing child edges → "" audited:1joajju # getIdsByKeys creates an entry for each requested parent id before it reads rows
+src/shared/db/groups.ts::packageMembersError.blocked.parentIds~069l6kv  Missing listing parent edges → "" audited:1joajju # getIdsByKeys gives the reverse side the same complete-map guarantee
+src/shared/db/groups.ts::packageMembersError~17n4dy8  ?? → || audited:1joajju # blocked contains non-empty translated error strings, so both operators return the first error or null
+src/shared/db/groups.ts::getGroupPackagePrices~1w9nudp  ?? → || audited:1joajju # Map.groupBy returns a GroupListing array or undefined, and every array is truthy
+src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.rows~19vergh  ?? → || audited:1joajju # rowsByGroup has the same array-or-undefined domain
+src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.dayPrices~1funuvq  Missing package day prices → "" audited:1joajju # getGroupDayPricesByGroupIds creates an entry for every requested group before it reads rows
+src/shared/db/groups.ts::memberQuantityStatement~0ajbifl  ?? → || audited:1joajju # validated package quantities are positive integers, so zero never reaches this default
 src/shared/db/groups/membership/package-writes.ts::packageGroupMembersErrorTx~1ngldaa  ?? → || audited:02pv2yh # both guards return a non-empty translated error string or null, so either operator returns the first error or null
 
 # Accounting batch reads return arrays. An empty listing filter skips its SQL
