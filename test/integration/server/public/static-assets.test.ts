@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
+import { awaitTestRequest, mockRequest } from "#test-utils/mocks.ts";
 import {
   expect404ForNonGetStatic,
   expectLongCacheHeaders,
@@ -315,6 +315,19 @@ describeWithEnv(
         for (const path of ["/scanner.js", "/contact.js"]) {
           await expectStaticFile(path, "application/javascript; charset=utf-8");
         }
+      });
+    });
+
+    describe("GET /admin/scanner-sw.js", () => {
+      test("serves the scanner's service worker for fresh revalidation", async () => {
+        const response = await awaitTestRequest("/admin/scanner-sw.js");
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain(
+          "application/javascript",
+        );
+        // A year-old cached worker would keep superseded offline behavior
+        // running, so this one file revalidates instead of caching.
+        expect(response.headers.get("cache-control")).toBe("no-cache");
       });
     });
 

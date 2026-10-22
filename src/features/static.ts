@@ -15,6 +15,7 @@ import {
   handleLogisticsMapJs,
   handleMarkdownEditorJs,
   handleScannerJs,
+  handleScannerSwJs,
   handleStyleCss,
 } from "#routes/assets.ts";
 import { handleRobotsTxt } from "#routes/robots-txt.ts";
@@ -24,6 +25,7 @@ import { handleSitemapXml } from "#routes/sitemap.ts";
 /** Static routes definition */
 const staticRoutes = defineRoutes({
   "GET /admin.js": () => handleAdminJs(),
+  "GET /admin/scanner-sw.js": () => handleScannerSwJs(),
   "GET /contact.js": () => handleContactJs(),
   "GET /embed.js": () => handleEmbedJs(),
   "GET /favicon.ico": () => handleFavicon(),
