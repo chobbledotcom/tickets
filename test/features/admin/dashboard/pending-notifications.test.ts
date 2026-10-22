@@ -1,9 +1,8 @@
 /** The dashboard's count of bookings still owed a notification send: shown
- * when it is above zero, linking to the attendees browser. */
+ * when it is above zero, linking to the attendees browser. The count's rule
+ * itself is pinned in the notification-flags suite. */
 
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#db/client.ts";
-import { deleteListing } from "#db/listings/delete.ts";
 import { expectHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendeeWithFlags } from "#test-utils/db-helpers/attendees.ts";
@@ -31,53 +30,6 @@ describeWithEnv(
 
       await expectHtml(await adminGet("/admin"), {
         notContains: ["emails or webhooks that were not sent"],
-      });
-    });
-
-    test("does not count an email flag whose listing stopped collecting email", async () => {
-      const { listing } = await bookTestAttendeeWithFlags(
-        "Stale Email Count",
-        1,
-        0,
-      );
-      await execute("UPDATE listings SET fields = 'phone' WHERE id = ?", [
-        listing.id,
-      ]);
-
-      await expectHtml(await adminGet("/admin"), {
-        notContains: ["emails or webhooks that were not sent"],
-      });
-    });
-
-    test("drops the count when an attendee's last listing is deleted", async () => {
-      const { listing } = await bookTestAttendeeWithFlags(
-        "Deleted Show Buyer",
-        0,
-        1,
-      );
-      await expectHtml(await adminGet("/admin"), {
-        contains: ["1 attendee has emails or webhooks that were not sent"],
-      });
-
-      await deleteListing(listing.id);
-
-      await expectHtml(await adminGet("/admin"), {
-        notContains: ["emails or webhooks that were not sent"],
-      });
-    });
-
-    test("counts a booking whose stored fields carry padding around email", async () => {
-      const { listing } = await bookTestAttendeeWithFlags(
-        "Padded Count Buyer",
-        1,
-        0,
-      );
-      await execute("UPDATE listings SET fields = ' email ' WHERE id = ?", [
-        listing.id,
-      ]);
-
-      await expectHtml(await adminGet("/admin"), {
-        contains: ["1 attendee has emails or webhooks that were not sent"],
       });
     });
   },
