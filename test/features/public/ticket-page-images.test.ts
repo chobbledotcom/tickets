@@ -6,6 +6,7 @@ import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestGroup,
   updateTestGroup,
@@ -87,6 +88,15 @@ describeWithEnv("the ticket page's image references", { db: true }, () => {
     await settings.update.siteFooter(`![Poster](img#${poster.id})`);
     const listing = await createTestListing({ name: "Kayak Tour" });
     expectResolved(await ticketPageHtml(listing.slug), poster, "Poster");
+  });
+
+  test("resolves the site footer's image reference on the ticket the customer takes home", async () => {
+    const poster = await makeImage("Poster");
+    await settings.update.siteFooter(`![Poster](img#${poster.id})`);
+    const { token } = await createTestAttendeeWithToken("Ada", "ada@test.com");
+    const response = await handleRequest(mockRequest(`/t/${token}`));
+    expect(response.status).toBe(200);
+    expectResolved(await response.text(), poster, "Poster");
   });
 
   test("renders an image reference no image answers with an empty source", async () => {

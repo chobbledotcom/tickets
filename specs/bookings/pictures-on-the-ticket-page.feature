@@ -49,6 +49,14 @@ Feature: A customer sees the images the owner put in the ticket page
       And a Boat to book
       Then a visitor reading the Boat's ticket page is shown the image Beacon
 
+    @case:ticket-page.image-in-the-site-footer-on-the-ticket
+    Scenario: The customer sees the footer's image on their ticket
+      Given the owner has an image called Beacon in the library
+      And the site's footer carries the image Beacon
+      And a Boat to book
+      When Casey books 1 place on the Boat
+      Then their ticket shows the image Beacon
+
     @case:ticket-page.image-in-a-question
     Scenario: The owner puts an image in a question
       Given the owner has an image called Poster in the library
