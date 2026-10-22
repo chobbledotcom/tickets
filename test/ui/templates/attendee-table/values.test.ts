@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
@@ -341,16 +342,16 @@ describe("hiddenAttendeeColumnKeys", () => {
   });
 
   test("hides status only when check-in is turned off", () => {
-    expect(cols()).not.toContain("status");
-    expect(cols({ showCheckin: false })).toContain("status");
-    expect(cols({ showCheckin: true })).not.toContain("status");
+    assert(!cols().includes("status"));
+    assertArrayIncludes(cols({ showCheckin: false }), ["status"]);
+    assert(!cols({ showCheckin: true }).includes("status"));
   });
 
   test("hides the listings and date columns the caller turns off", () => {
-    expect(cols()).toContain("listings");
-    expect(cols({ showListing: true })).not.toContain("listings");
-    expect(cols()).toContain("date");
-    expect(cols({ showDate: true })).not.toContain("date");
+    assertArrayIncludes(cols(), ["listings"]);
+    assert(!cols({ showListing: true }).includes("listings"));
+    assertArrayIncludes(cols(), ["date"]);
+    assert(!cols({ showDate: true }).includes("date"));
   });
 
   test("hides the answers column until question data with questions arrives", () => {
@@ -358,10 +359,10 @@ describe("hiddenAttendeeColumnKeys", () => {
       attendeeAnswerMap: new Map<number, number[]>(),
       questions: questionList,
     });
-    expect(cols()).toContain("answers");
-    expect(cols({ questionData: withQuestions([]) })).toContain("answers");
-    expect(cols({ questionData: withQuestions(questions) })).not.toContain(
-      "answers",
+    assertArrayIncludes(cols(), ["answers"]);
+    assertArrayIncludes(cols({ questionData: withQuestions([]) }), ["answers"]);
+    assert(
+      !cols({ questionData: withQuestions(questions) }).includes("answers"),
     );
   });
 });
