@@ -4,15 +4,20 @@
 @edition:managed @edition:self-hosted
 Feature: The site's footer
   The owner can write a footer for the site, and it shows at the bottom of
-  the site's pages. Whatever the footer carries, a visitor reads it on every
-  page that shows the footer — even on the page a visitor is shown when they
-  ask for something that is not there.
+  the site's pages. Whatever the footer carries, a visitor reads it on the
+  front page, the list, the contact page, the terms page, the order page,
+  the news page, a news post, a page the owner wrote, a booking page, and
+  the ticket a customer holds. A visitor also reads it on the page the site
+  shows when they ask for something that is not there.
 
   @rule:pages.the-footer-s-pictures-show-wherever-the-footer-shows
   @surface:public
-  Rule: The footer's pictures show wherever the footer shows
-    A picture the owner put in the footer shows on the site's pages, and on
-    the page a visitor is shown when they ask for something that is not there.
+  Rule: The footer's pictures show on the site's pages
+    A picture the owner put in the footer shows on the front page, the list,
+    the contact page, the terms page, the order page, the news page, a news
+    post, a page the owner wrote, a booking page, and the ticket a customer
+    holds — and on the page a visitor is shown when they ask for something
+    that is not there.
 
     @case:site-footer.picture-on-the-front-page
     Scenario: The owner puts a picture in the footer
