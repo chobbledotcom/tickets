@@ -14,6 +14,7 @@
 
 import { EditorView } from "prosemirror-view";
 import { forEachMatch } from "#src/ui/client/dom.ts";
+import { createImageToolbarItem } from "./markdown-editor-images.ts";
 import {
   createEditorState,
   roundTripsCleanly,
@@ -51,6 +52,8 @@ export const enhanceMarkdownTextarea = (
   // is exactly what the server validates.
   const maxLength = textarea.maxLength;
 
+  // The image dropdown. Its plugin tears it down with the editor view.
+  const imageItem = createImageToolbarItem();
   const view: EditorView = new EditorView(mount, {
     dispatchTransaction: (tr) => {
       const nextMarkdown = tr.docChanged ? serializeMarkdown(tr.doc) : null;
@@ -74,11 +77,13 @@ export const enhanceMarkdownTextarea = (
       textarea.value = nextMarkdown;
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
     },
+    plugins: [imageItem.plugin],
     state: createEditorState(textarea.value),
   });
 
   const toolbar = createToolbar(view);
   mount.prepend(toolbar.dom);
+  toolbar.dom.append(imageItem.element);
   // The toolbar's initial highlight is set by the setMode(mode) call below:
   // its rich branch refreshes the toolbar, and a raw start keeps it hidden.
 

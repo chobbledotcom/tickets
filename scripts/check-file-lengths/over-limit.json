@@ -17,7 +17,7 @@
   "src/shared/payment/refund-machine-spec.ts": 534,
   "src/shared/storage.ts": 543,
   "src/shared/types.ts": 779,
-  "src/ui/static/style.scss": 3249,
+  "src/ui/static/style.scss": 3216,
   "src/ui/templates/admin/questions.tsx": 589,
   "test/features/admin/attendee-form-model.test.ts": 919,
   "test/features/admin/builder/server.test.ts": 585,

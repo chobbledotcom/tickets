@@ -59,6 +59,7 @@ describe("markdown editor toolbar", () => {
       "Bulleted list",
       "Numbered list",
       "Quote",
+      "Insert image",
     ]);
     expect(buttons.map((b) => b.textContent)).toEqual([
       "B",
@@ -68,6 +69,7 @@ describe("markdown editor toolbar", () => {
       "• List",
       "1. List",
       "Quote",
+      "Image",
     ]);
   });
 

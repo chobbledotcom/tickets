@@ -71,9 +71,13 @@ src/shared/site-pages/core.ts::buildNavModel.levelOf~0agplud  ?? → || audited:
 # coerces the truthy `false + true === 1` to the same true.
 src/ui/client/admin/markdown-editor.ts::enhanceMarkdownTextarea.mount%2eclassName~0tm52y7  = → += audited:1at0s5n # mount.className: fresh element, "" before
 src/ui/client/admin/markdown-editor.ts::enhanceMarkdownTextarea.toggle%2eclassName~0igtxeq  = → += audited:1at0s5n # toggle.className: fresh element, "" before
-src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.dom%2eclassName~0ddlu5i  = → += audited:1u2vbd4 # dom.className: fresh element, "" before
-src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.buttons.button%2etextContent~0ps90ek  = → += audited:1u2vbd4 # button.textContent: fresh element, "" before
-src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.buttons.button%2etitle~0nv7hz5  = → += audited:1u2vbd4 # button.title: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.dom%2eclassName~0ddlu5i  = → += audited:02itrbr # dom.className: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts::createToolbarButton.button%2etextContent~0m9cygf  = → += audited:02itrbr # button.textContent: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts::createToolbarButton.button%2etitle~0xsx20k  = → += audited:02itrbr # button.title: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.control%2eclassName~1i01iqz  = → += audited:1ry5h5x # control.className: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.panel%2eclassName~16g0d18  = → += audited:1ry5h5x # panel.className: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::mutedLine.line%2etextContent~123bvdh  = → += audited:1ry5h5x # line.textContent: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.renderOptions.item%2etextContent~0nhmxw5  = → += audited:1ry5h5x # item.textContent: fresh element, "" before
 # The ordered-list input rule's `match[1]` vs `match[0]`: the regex is
 # /^(\d+)\.\s$/ so match[0] is always "N. " and Number("N. ") === Number("N")
 # (Number trims whitespace and "N." is the same decimal) — no typed input can

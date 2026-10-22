@@ -4,6 +4,12 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
+  imageChoicesOffered,
+  imageIdNamed,
+  ownerHasImageInLibrary,
+  ownerHasNoImagesInLibrary,
+} from "#test/specs/support/images.ts";
+import {
   menusOfferPage,
   ownerMovesPageUp,
   ownerSetsPageHidden,
@@ -12,9 +18,11 @@ import {
   ownerWritesPage,
   ownerWritesPages,
   pageAddress,
+  pageBodyWithImage,
   pageEditorShowsHidden,
   pageIsOfferedAMoveUp,
   pagesInOrder,
+  reopenedPageContent,
   visitorReading,
   whatOwnerWasTold,
   wordsOnlyOn,
@@ -187,11 +195,51 @@ When(
 );
 
 Given(
+  "the owner has an image called {word} in the library",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    await ownerHasImageInLibrary(this, name);
+  },
+);
+
+Given(
   "the owner has kept {word} off the menus",
   async function (this: TicketsWorld, name: string): Promise<void> {
     await ownerSetsPageHidden(this, name, true);
     // The set-up has to have worked, or the scenario it feeds proves nothing.
     expect(whatOwnerWasTold(this)).toContain(t("site.pages.updated"));
+  },
+);
+
+Given(
+  "the owner has no images in the library",
+  async function (this: TicketsWorld): Promise<void> {
+    await ownerHasNoImagesInLibrary(this);
+  },
+);
+
+When(
+  "the owner starts writing a page",
+  function (this: TicketsWorld): Promise<void> {
+    return ownerWritesPages(this);
+  },
+);
+
+When(
+  "the owner writes a page called {word} at {string} with the image {word} in it",
+  async function (
+    this: TicketsWorld,
+    name: string,
+    address: string,
+    image: string,
+  ): Promise<void> {
+    const id = await imageIdNamed(image);
+    await ownerWritesPages(this);
+    await ownerWritesPage(
+      this,
+      name,
+      address,
+      pageBodyWithImage(name, image, id),
+    );
   },
 );
 
@@ -203,9 +251,27 @@ Then(
 );
 
 Then(
+  "the library offers the images {word} and {word}, in that order",
+  async function (
+    this: TicketsWorld,
+    first: string,
+    second: string,
+  ): Promise<void> {
+    expect(await imageChoicesOffered(this)).toEqual([first, second]);
+  },
+);
+
+Then(
   "the editor for {word} opens with the Hidden box clear",
   async function (this: TicketsWorld, name: string): Promise<void> {
     await pageEditorShowsHidden(this, name, false);
+  },
+);
+
+Then(
+  "the library offers no images",
+  async function (this: TicketsWorld): Promise<void> {
+    expect(await imageChoicesOffered(this)).toEqual([]);
   },
 );
 
@@ -220,5 +286,19 @@ Then(
   "a menu offers {word}",
   async function (this: TicketsWorld, name: string): Promise<void> {
     expect(await menusOfferPage(await pageAddress(name))).toBe(true);
+  },
+);
+
+Then(
+  "the reopened page called {word} still carries the image {word}",
+  async function (
+    this: TicketsWorld,
+    name: string,
+    image: string,
+  ): Promise<void> {
+    const id = await imageIdNamed(image);
+    expect(await reopenedPageContent(this, name)).toContain(
+      `![${image}](img#${id})`,
+    );
   },
 );

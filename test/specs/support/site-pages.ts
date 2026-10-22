@@ -9,6 +9,7 @@ import { t } from "#i18n";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
+  adminPageHtmlAt,
   findsTheWayInFrom,
   newcomerReading,
   openAdminPage,
@@ -30,12 +31,16 @@ import {
   type AsksAboutOneThing,
   keepsAnswerAs,
   keepWhatTheyWereTold,
+  requiredWorldValue,
   type StoryJourney,
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-import { findAllNavLinks } from "#test-utils/test-browser/parsing.ts";
+import {
+  decodeEntities,
+  findAllNavLinks,
+} from "#test-utils/test-browser/parsing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -64,17 +69,20 @@ export const ownerWritesPages = async (world: TicketsWorld): Promise<void> => {
 };
 
 /** The owner writes a page, choosing the address it lives at. Keeps what they
- * were told, because some of these are meant to be refused. */
+ * were told, because some of these are meant to be refused. The body defaults
+ * to the page's own words; a story that puts something else in the editor
+ * hands the body over. */
 export const ownerWritesPage = (
   world: TicketsWorld,
   name: string,
   address: string,
+  content: string = wordsOnlyOn(name),
 ): Promise<string> =>
   withAdminPage(world, PAGES_LIST, async (browser) => {
     await browser.clickLink(t("site.pages.add"));
     await fillInAndSend(
       browser,
-      { content: wordsOnlyOn(name), name, slug: address },
+      { content, name, slug: address },
       t("site.pages.create_submit"),
     );
     keepWhatTheyWereTold(world, OWNER, browser.pageText);
@@ -84,10 +92,37 @@ export const ownerWritesPage = (
     return browser.pageText;
   });
 
+/** The body a page carries when the owner put one library image in it: the
+ * page's own words, then the image on its own line, in the short form the
+ * editor writes when the owner chooses an image. The choosing itself is the
+ * browser contract's journey; the story carries the body the choice writes. */
+export const pageBodyWithImage = (
+  name: string,
+  image: string,
+  id: number,
+): string => `${wordsOnlyOn(name)}\n\n![${image}](img#${id})`;
+
 /** What a visitor reading one of the site's own pages is shown. Opened by
  * somebody who was never signed in, because that is who these pages are for. */
 export const visitorReading = (address: string): Promise<PageRead> =>
   newcomerReading(`/page/${address}`);
+
+/** The content box the edit form serves for one page, read off the page's own
+ * row. Reading the stored row instead would pass even if the form stopped
+ * carrying the content, which is the thing the rule is about. */
+export const reopenedPageContent = async (
+  world: TicketsWorld,
+  name: string,
+): Promise<string> => {
+  const wayIn = await linkIntoPage(world, name);
+  const html = await adminPageHtmlAt(world, wayIn);
+  const box = html.match(
+    /<textarea\b[^>]*name="content"[^>]*>([\s\S]*?)<\/textarea>/i,
+  );
+  return decodeEntities(
+    requiredWorldValue(box?.[1], `the content box on "${name}"'s edit page`),
+  );
+};
 
 /** The owner's own list, open at one page's row — the row whose name links
  * into that page. A story that names a page the list does not show fails here
