@@ -132,6 +132,13 @@ Given(
 );
 
 Given(
+  "the site's footer carries the image {word}",
+  async function (this: TicketsWorld, image: string): Promise<void> {
+    await settings.update.siteFooter(await referenceToLibraryImage(image));
+  },
+);
+
+Given(
   "the owner asks the {word}'s buyers a question with the image {word} in it",
   async function (
     this: TicketsWorld,

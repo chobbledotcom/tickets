@@ -4,8 +4,9 @@
 @edition:managed @edition:self-hosted
 Feature: A customer sees the images the owner put in the ticket page
   The owner writes the words the ticket page shows: what each thing is, the
-  words a shared page carries, what a package includes, the terms, and the
-  questions. An image from the library can sit in any of those words.
+  words a shared page carries, what a package includes, the terms, the site
+  footer, and the questions. An image from the library can sit in any of
+  those words.
 
   @rule:bookings.the-ticket-page-shows-the-image-a-reference-names
   @surface:public
@@ -40,6 +41,13 @@ Feature: A customer sees the images the owner put in the ticket page
       And the site's terms carry the image Rules
       And a Boat to book
       Then a visitor reading the Boat's ticket page is shown the image Rules
+
+    @case:ticket-page.image-in-the-site-footer
+    Scenario: The owner puts an image in the site footer
+      Given the owner has an image called Beacon in the library
+      And the site's footer carries the image Beacon
+      And a Boat to book
+      Then a visitor reading the Boat's ticket page is shown the image Beacon
 
     @case:ticket-page.image-in-a-question
     Scenario: The owner puts an image in a question
