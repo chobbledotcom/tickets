@@ -10,14 +10,18 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import * as v from "valibot";
+import { execute } from "#db/client.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { t } from "#i18n";
+import { nowMs } from "#shared/now.ts";
 import {
   newcomerReading,
+  newcomerSends,
   openAsNewcomer,
   type PageRead,
   wordsOnPageFrom,
 } from "#test/specs/support/browser.ts";
+import { copyLoaded } from "#test/specs/support/copy.ts";
 import {
   listingNamed,
   putsOnSaleByTheDay,
@@ -39,6 +43,7 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Listing } from "#types";
 // jscpd:ignore-end
@@ -203,7 +208,7 @@ export const customerPaysForOnePlace = async (
 
 /** The link somebody is holding now: one code, or several joined the way the
  * site joins them when one person holds more than one ticket. */
-const linkInTheirHand = (world: TicketsWorld): string =>
+export const linkInTheirHand = (world: TicketsWorld): string =>
   requiredWorldValue(world.ticketToken, "the link they were given");
 
 /** Point somebody's link at whatever codes this Scenario wants it to carry, for
@@ -238,6 +243,40 @@ export const A_MADE_UP_CODE = "not-a-real-ticket-code";
  * from an error page or a redirect somewhere else. */
 export const askForAMadeUpCode = (): Promise<PageRead> =>
   newcomerReading(`/t/${A_MADE_UP_CODE}`);
+
+/** What the site answers for one ticket code, whatever it is. */
+export const askForTicketCode = (code: string): Promise<PageRead> =>
+  newcomerReading(`/t/${code}`);
+
+/** A made-up code the site was never given: one of a family, so several
+ * tries are several distinct codes. */
+export const aMadeUpCode = (tryNumber: number): string =>
+  `${A_MADE_UP_CODE}-${tryNumber}`;
+
+/** The wait after a temporary refusal: the lockout window passes the way a
+ * real wait would, so the next ask starts fresh. */
+export const theWaitPasses = async (): Promise<void> => {
+  const past = nowMs() - 1;
+  for (const table of ["login_attempts", "token_attempts"]) {
+    await execute(
+      `UPDATE ${table} SET locked_until = ? WHERE locked_until IS NOT NULL`,
+      [past],
+    );
+  }
+};
+
+/** The owner's sign-in through the real login form, with the password they
+ * typed. */
+export const ownerSignsInWith = async (
+  password: string,
+): Promise<TestBrowser> => {
+  await copyLoaded("login");
+  return newcomerSends(
+    "/admin/",
+    { password, username: TEST_ADMIN_USERNAME },
+    t("login.submit"),
+  );
+};
 
 /** The heading a ticket page carries when it holds this many tickets, in the
  * site's own words rather than a copy of them. */

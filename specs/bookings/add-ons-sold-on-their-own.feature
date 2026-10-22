@@ -34,7 +34,7 @@ Feature: An add-on that can also be bought on its own
       Then the Cover is offered with a link to its own page
       And the Cover is not called an add-on there
       And the Chair is still offered too
-      And the Cover is still offered when booking the Chair
+      And the "Cover" is still offered when booking the Chair
 
   @rule:bookings.the-organiser-can-open-and-close-the-page-again
   @surface:admin
@@ -63,3 +63,39 @@ Feature: An add-on that can also be bought on its own
     Scenario: A customer opens part of a private bundle on its own
       Given a hidden Bundle whose Cushion could be bought on its own
       Then a customer can open the Cushion's own page
+
+  @rule:bookings.a-choice-that-only-reaches-the-add-on-blocks-closing-it
+  @surface:admin
+  Rule: Closing an add-on's page is refused while a choice still leads there
+    A buyer's optional choice that only the add-on's own page offers would
+    point at nothing once that page closes. The organiser is told to settle
+    the choice first: the edit changes nothing, the add-on keeps its page,
+    and the buyer's choice stays on offer. A choice that also shows on a page
+    the add-on is still booked from does not block the edit.
+
+    @case:add-ons.a-choice-on-the-add-ons-page-blocks-closing
+    Scenario: A choice assigned to the add-on's own page blocks the close
+      Given a Chair sold with a Cover that can also be bought on its own
+      And a buyer's choice called "Engraving" offered on the Cover's own page only
+      When the organiser tries to stop selling the Cover on its own
+      Then the organiser is told "Engraving" still needs the Cover's page
+      And a customer can open the Cover's own page
+      And the "Cover" is still offered when booking the Chair
+      And the "Engraving" is still offered when booking the Cover
+
+    @case:add-ons.a-choice-through-the-group-blocks-closing
+    Scenario: A choice assigned through the add-on's group blocks the close
+      Given a Chair sold with a Cushion that can also be bought on its own
+      And a buyer's choice called "Gift wrap" offered through the group the Cushion is in
+      When the organiser tries to stop selling the Cushion on its own
+      Then the organiser is told "Gift wrap" still needs the Cushion's page
+      And a customer can open the Cushion's own page
+      And the "Gift wrap" is still offered when booking the Cushion
+
+    @case:add-ons.a-choice-that-reaches-a-booking-page-does-not-block
+    Scenario: A choice that also shows where the add-on is booked does not block
+      Given a Chair sold with a Cover that can also be bought on its own
+      And a buyer's choice called "Engraving" offered on the Chair's page as well as the Cover's
+      When the organiser tries to stop selling the Cover on its own
+      Then a customer cannot open the Cover's own page
+      And the "Engraving" is still offered when booking the Chair

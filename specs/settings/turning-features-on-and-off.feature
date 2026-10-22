@@ -111,6 +111,25 @@ Feature: The owner turns features on and off
       And they are told to remove its saved items first
       And they are offered no choice
 
+  @rule:settings.a-choice-opened-before-use-is-refused-when-sent
+  @surface:admin
+  Rule: A disable choice opened before the feature was used is refused when sent
+    The owner can have a feature's form open while the site gains an item that
+    uses the feature. Sending that earlier form is still refused: the feature
+    stays enabled and the saved item keeps working, and the owner is told the
+    feature is in use.
+
+    @case:features.a-stale-form-disable-is-refused
+    Scenario: The owner sends a choice opened before the feature was used
+      When the owner opens the "Modifiers" feature, still offering the choice
+      And an item that uses "Modifiers" is saved on the site
+      And the owner sends the choice they opened, saying "Modifiers" is disabled
+      Then they are told to remove its saved items first
+      And the owner is not told "Modifiers disabled."
+      And the activity log does not say "Modifiers disabled."
+      And "Modifiers" is still enabled
+      And the saved "Modifiers" item still works
+
   @rule:settings.a-read-only-site-offers-no-choice
   @surface:admin
   Rule: A read-only site says where a feature stands but offers no choice

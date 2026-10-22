@@ -23,6 +23,26 @@ Feature: An owner decides what buyers are asked
       Then a visitor booking the Pottery is offered "Collection day?" with Saturday and Sunday
       And a visitor booking the Kiln is not asked "Collection day?"
 
+  @rule:catalogue.moving-an-answer-changes-only-that-question
+  @surface:admin
+  @surface:public
+  Rule: Moving an answer changes the order on that question alone
+    The owner adds an answer and moves it to the top of its question's page.
+    The booking page then offers the answers in that new order, the other
+    question's answers stay exactly as they were, and the answer that sits
+    first is offered no way to move further up.
+
+    @case:buyer-questions.moved-answer-reorders-one-question
+    Scenario: The owner adds an answer and moves it to the top
+      Given the site sells a Pottery
+      And the site sells a Kiln
+      And the owner asks Pottery buyers "Collection day?" offering Saturday or Sunday
+      And the owner also asks Kiln buyers "Shuttle?" offering Morning or Evening
+      When the owner adds "Friday" to "Collection day?" and moves it to the top
+      Then a visitor booking the Pottery sees "Collection day?" offering "Friday, Saturday, Sunday" in that order
+      And a visitor booking the Kiln sees "Shuttle?" offering "Morning, Evening" in that order
+      And "Friday" offers no move up on the question's page
+
   @rule:catalogue.a-buyers-own-words-reach-the-owner
   @surface:public
   Rule: A buyer's own words reach the owner

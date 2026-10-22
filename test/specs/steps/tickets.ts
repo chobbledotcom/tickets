@@ -13,23 +13,21 @@ import {
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
   A_MADE_UP_CODE,
-  askForAMadeUpCode,
   customerBooksTheirDay,
   customerOrders,
   customerPaysForOnePlace,
   everyCodeCollected,
   headingForTickets,
   openTicket,
+  ownerSignsInWith,
   sellsSomethingByTheDay,
   sellsSomethingFilledIn,
   theDayTheyPicked,
   theirLinkCarries,
   wordsOnTheirTicket,
 } from "#test/specs/support/tickets.ts";
-import {
-  requiredWorldValue,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
 
 // jscpd:ignore-end
 
@@ -198,15 +196,6 @@ When(
   "{word} asks for every ticket in one link",
   function (this: TicketsWorld, _who: string): void {
     theirLinkCarries(this, everyCodeCollected(this));
-  },
-);
-
-When(
-  "somebody opens a made-up ticket code",
-  async function (this: TicketsWorld): Promise<void> {
-    const { answered, said } = await askForAMadeUpCode();
-    this.firstStatus = answered;
-    this.firstBody = said;
   },
 );
 
@@ -385,14 +374,30 @@ Then(
   },
 );
 
+When(
+  "the owner gets their password wrong {int} time(s)",
+  async function (this: TicketsWorld, count: number): Promise<void> {
+    for (let tried = 0; tried < count; tried++) {
+      const page = await ownerSignsInWith(`wrong-password-${tried}`);
+      this.firstBody = page.pageText;
+    }
+  },
+);
+
 Then(
-  "the site tells them there is no such page",
-  function (this: TicketsWorld): void {
-    expect(requiredWorldValue(this.firstStatus, "what the site answered")).toBe(
-      404,
-    );
-    expect(requiredWorldValue(this.firstBody, "what the site said")).toContain(
-      t("public.not_found.heading"),
-    );
+  "even the right password is told to wait",
+  async function (this: TicketsWorld): Promise<void> {
+    const page = await ownerSignsInWith(TEST_ADMIN_PASSWORD);
+    expect(page.pageText).toContain(t("error.too_many_attempts"));
+  },
+);
+
+Then(
+  "the owner signs in and sees their pages",
+  async function (this: TicketsWorld): Promise<void> {
+    const page = await ownerSignsInWith(TEST_ADMIN_PASSWORD);
+    // The nav's own label is an aria-label, not text a reader sees, so the
+    // assertion reads a page name the signed-in nav actually shows.
+    expect(page.pageText).toContain(t("nav.calendar"));
   },
 );

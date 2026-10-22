@@ -54,6 +54,64 @@ Feature: The ticket a customer holds after booking
       When somebody opens a made-up ticket code
       Then the site tells them there is no such page
 
+  @rule:attendees.the-site-temporarily-refuses-repeated-guessing
+  @surface:public
+  Rule: The site temporarily refuses somebody who keeps guessing codes
+    Made-up codes tried one after another count against the asker, and at the
+    limit the site refuses them for a while — even for a code that is real,
+    until the wait is over. The same code over and over is not guessing. A
+    ticket that really opens clears the count, and a sign-in lockout never
+    blocks the ticket pages.
+
+    @case:ticket.repeated-guessing-is-temporarily-refused
+    Scenario: Repeated made-up codes are refused, and the refusal passes
+      Given the site sells a Pottery
+      And Ada books 1 place on the Pottery
+      When somebody tries 5 made-up ticket codes one after another
+      Then the site refuses them for a while
+      And even Ada's own ticket is refused for a while
+      When the wait passes
+      Then Ada is holding 1 ticket
+
+    @case:ticket.the-same-code-again-is-no-guessing
+    Scenario: The same made-up code over and over is not refused
+      Given the site sells a Pottery
+      When somebody opens the same made-up ticket code 10 times
+      Then the site still answers there is no such page
+
+    @case:ticket.a-real-ticket-clears-the-guessing
+    Scenario: Opening a real ticket clears the count of guesses
+      Given the site sells a Pottery
+      And Ada books 1 place on the Pottery
+      When somebody tries 4 made-up ticket codes one after another
+      And Ada asks for that ticket and gets in
+      And somebody tries 4 more made-up ticket codes one after another
+      Then the site still answers there is no such page
+
+    @case:ticket.a-locked-sign-in-does-not-block-tickets
+    Scenario: A sign-in lockout does not block tickets
+      Given the site sells a Pottery
+      And Ada books 1 place on the Pottery
+      When the owner gets their password wrong 5 times
+      Then even the right password is told to wait
+      When somebody opens a made-up ticket code
+      Then the site tells them there is no such page
+      And Ada is holding 1 ticket
+
+  @rule:attendees.a-locked-sign-in-recovers-after-the-wait
+  @surface:public
+  Rule: A locked sign-in opens again after the wait
+    Wrong passwords count against the asker too. At the limit the sign-in page
+    refuses even the right password until the wait is over — and then the
+    right password opens the admin pages again.
+
+    @case:ticket.repeated-failed-sign-ins-are-temporarily-refused
+    Scenario: Repeated wrong passwords are refused, and the refusal passes
+      When the owner gets their password wrong 5 times
+      Then even the right password is told to wait
+      When the wait passes
+      Then the owner signs in and sees their pages
+
   @rule:attendees.a-ticket-carries-the-details-of-what-was-booked
   @surface:public
   Rule: A ticket carries the details of what was booked

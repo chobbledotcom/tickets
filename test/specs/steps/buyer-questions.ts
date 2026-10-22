@@ -4,10 +4,15 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import {
   answerInListDownload,
+  answerOffersMoveUp,
   askedQuestion,
+  offeredAnswersInOrder,
+  ownerAddsAnswer,
+  ownerAsksAnotherChoiceQuestion,
   ownerAsksChoiceQuestion,
   ownerAsksWrittenQuestion,
   ownerLastTold,
+  ownerMovesAnswerUp,
   ownerTakesQuestionDown,
   questionFieldOn,
   questionPageOffersChoices,
@@ -126,5 +131,58 @@ Then(
   "the owner is told the question is deleted",
   function (this: TicketsWorld): void {
     expect(ownerLastTold(this)).toContain("Question deleted");
+  },
+);
+
+Given(
+  "the owner also asks {word} buyers {string} offering {word} or {word}",
+  function (
+    this: TicketsWorld,
+    listingName: string,
+    text: string,
+    first: string,
+    second: string,
+  ): Promise<void> {
+    return ownerAsksAnotherChoiceQuestion(this, listingName, text, [
+      first,
+      second,
+    ]);
+  },
+);
+
+When(
+  "the owner adds {string} to {string} and moves it to the top",
+  async function (
+    this: TicketsWorld,
+    answer: string,
+    _text: string,
+  ): Promise<void> {
+    await ownerAddsAnswer(this, answer);
+    // The answer lands last of three, so two steps take it to the top.
+    for (let moved = 0; moved < 2; moved++) {
+      await ownerMovesAnswerUp(this, answer);
+    }
+  },
+);
+
+Then(
+  "a visitor booking the {word} sees {string} offering {string} in that order",
+  async function (
+    this: TicketsWorld,
+    listingName: string,
+    text: string,
+    offered: string,
+  ): Promise<void> {
+    const expected = offered.split(", ").map((answer) => answer.trim());
+    expect(await offeredAnswersInOrder(this, listingName, text)).toEqual(
+      expected,
+    );
+  },
+);
+
+Then(
+  "{string} offers no move up on the question's page",
+  async function (this: TicketsWorld, answer: string): Promise<void> {
+    expect(await answerOffersMoveUp(this, answer)).toBe(false);
   },
 );

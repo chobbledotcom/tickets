@@ -9,6 +9,7 @@ import { parse } from "@std/csv/parse";
 import { expect } from "@std/expect";
 import {
   adminBrowser,
+  type OpensAtOneRow,
   ORGANISER,
   openAsNewcomer,
   opensAdminPageAt,
@@ -20,6 +21,7 @@ import {
   listingNamed,
   tickOnListingTab,
 } from "#test/specs/support/listings.ts";
+import { movingRowsOn } from "#test/specs/support/reordering.ts";
 import {
   type ActOnOneThing,
   type ReadAboutOneThing,
@@ -74,13 +76,22 @@ const ownerAssignsQuestionTo: ActOnOneThing = (world, listingName) =>
     "Questions updated",
   );
 
-/** A choice question with its answers, asked of one listing's buyers. */
-export const ownerAsksChoiceQuestion = async (
+/** The shape of asking a choice question: one listing, one text, its
+ * answers. */
+type AsksAChoiceQuestion = (
   world: TicketsWorld,
   listingName: string,
   text: string,
   answers: string[],
-): Promise<void> => {
+) => Promise<void>;
+
+/** A choice question with its answers, asked of one listing's buyers. */
+export const ownerAsksChoiceQuestion: AsksAChoiceQuestion = async (
+  world,
+  listingName,
+  text,
+  answers,
+) => {
   const browser = await ownerWritesQuestion(world, text, "radio");
   for (const answer of answers) {
     await fillInAndSend(browser, { text: answer }, "Add answer");
@@ -187,3 +198,106 @@ export const ownerTakesQuestionDown = takesDownFromOwnPage(
   openQuestionPage,
   "Delete question",
 );
+
+/** A second choice question with its answers, asked without disturbing the
+ * question the story is acting on. */
+export const ownerAsksAnotherChoiceQuestion: AsksAChoiceQuestion = async (
+  world,
+  listingName,
+  text,
+  answers,
+) => {
+  const asked = requiredWorldValue(
+    world.buyerQuestion,
+    "the question the story acts on",
+  );
+  await ownerAsksChoiceQuestion(world, listingName, text, answers);
+  world.otherBuyerQuestions = [
+    ...(world.otherBuyerQuestions ?? []),
+    requiredWorldValue(world.buyerQuestion, `the question "${text}"`),
+  ];
+  world.buyerQuestion = asked;
+};
+
+/** The id of the question the story named by its text. */
+const questionIdFor = (world: TicketsWorld, text: string): number => {
+  const asked = [world.buyerQuestion, ...(world.otherBuyerQuestions ?? [])]
+    .filter((question) => question !== undefined)
+    .find((question) => question.text === text);
+  return requiredWorldValue(
+    asked?.id,
+    `the question the owner asked with the text "${text}"`,
+  );
+};
+
+/** The question's page, open at one answer's row: the page somebody is
+ * looking at, the answer's id, and that row's own markup. */
+const openAtAnswer: OpensAtOneRow = async (world, name) => {
+  const browser = await openQuestionPage(world);
+  const row = browser.currentHtml
+    .split("<tr")
+    .slice(1)
+    .map((part) => part.slice(0, part.indexOf("</tr>")))
+    .find((part) => part.includes(`>${name}</`));
+  if (row === undefined) {
+    throw new Error(`The question's page shows no answer named "${name}"`);
+  }
+  const id = row.match(/\/answers\/(\d+)\//)?.[1];
+  return {
+    browser,
+    id: Number(requiredWorldValue(id, `the row for the answer "${name}"`)),
+    name,
+    row,
+    wayIn: `/admin/questions/${askedQuestion(world).id}/answers/edit`,
+  };
+};
+
+/** The arrows the question's page offers for moving one answer. */
+const answerArrows = movingRowsOn(
+  (world) => `/admin/questions/${askedQuestion(world).id}/answers`,
+  openAtAnswer,
+);
+
+/** The owner adds one answer choice on the question's own page. */
+export const ownerAddsAnswer = async (
+  world: TicketsWorld,
+  answer: string,
+): Promise<void> => {
+  await fillInAndSend(
+    await openQuestionPage(world),
+    { text: answer },
+    "Add answer",
+  );
+};
+
+/** The owner moves one answer a step up the question's page. */
+export const ownerMovesAnswerUp: ActOnOneThing = (world, name) =>
+  answerArrows.move(world, name, "up");
+
+/** Whether the question's page still offers to move an answer up. A top
+ * answer is one nobody could move further, so the page offers no arrow. */
+export const answerOffersMoveUp = async (
+  world: TicketsWorld,
+  name: string,
+): Promise<boolean> => answerArrows.canMove(world, name, "up");
+
+/** The answers one served booking page offers for a named question, in the
+ * order the page renders them. */
+export const offeredAnswersInOrder = async (
+  world: TicketsWorld,
+  listingName: string,
+  text: string,
+): Promise<string[]> => {
+  const browser = await visitorOpensBooking(world, listingName);
+  const field = `question_${questionIdFor(world, text)}`;
+  expect(browser.currentHtml).toContain(`name="${field}"`);
+  // Each answer renders as one labelled radio under the question's name, in
+  // the order the site put them in, so the labels themselves are the order a
+  // buyer reads. The input is a void element: the served markup closes it
+  // with `>`, not `/>`.
+  return [
+    ...browser.currentHtml.matchAll(
+      new RegExp(`name="${field}"[^>]*>\\s*([^<]+?)\\s*</label>`, "g"),
+    ),
+  ].map((match) => match[1]!.trim());
+};
