@@ -6,11 +6,18 @@ import { attendeeAccount, WRITEOFF } from "#accounting/accounts.ts";
 import { accountBalance } from "#accounting/queries.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { addDays } from "#shared/dates.ts";
+import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import {
+  bundleBookingField,
   duplicatePair,
+  duplicatePairOnSlots,
+  keptBookingRows,
   mergeChoices,
+  mergeDeciding,
   mergeDuplicates,
   mergedListingId,
+  plainBookingField,
   survivorId,
 } from "#test/specs/support/merging.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
@@ -21,6 +28,7 @@ import {
   owedBy,
   sumOfAllBalances,
 } from "#test/specs/support/money-reads.ts";
+import { dayFromToday } from "#test/specs/support/stays.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -163,5 +171,140 @@ Then(
     expect((await getAttendeesRaw(listingId)).length).toBe(1);
     expect(await incomeOf(listingId)).toBe(0);
     expect(await sumOfAllBalances()).toBe(0);
+  },
+);
+
+Given(
+  "the same person paid twice for a {word} place, the incoming booking holding {int} place(s) and the opened one {int}",
+  function (
+    this: TicketsWorld,
+    listing: string,
+    incoming: number,
+    opened: number,
+  ): Promise<void> {
+    return duplicatePairOnSlots(
+      this,
+      listing,
+      {
+        source: [{ quantity: incoming }],
+        target: [{ quantity: opened }],
+      },
+      { paid: true },
+    );
+  },
+);
+
+Given(
+  "the same person paid twice for a {word} stay starting {int} days from now, the incoming booking holding {int} place(s) over {int} day(s) and the opened one {int} place(s) over {int} day(s)",
+  function (
+    this: TicketsWorld,
+    listing: string,
+    startsIn: number,
+    incoming: number,
+    incomingDays: number,
+    opened: number,
+    openedDays: number,
+  ): Promise<void> {
+    const start = parseDateStringOrThrow(
+      dayFromToday(this, startsIn),
+      "the stay's first day",
+    );
+    this.stayStartsOn = start;
+    return duplicatePairOnSlots(
+      this,
+      listing,
+      {
+        source: [
+          { date: start, durationDays: incomingDays, quantity: incoming },
+        ],
+        target: [{ date: start, durationDays: openedDays, quantity: opened }],
+      },
+      { daily: true, paid: true },
+    );
+  },
+);
+
+Given(
+  "the same person booked a free {word} place twice, each booking holding a place inside a bundle and one on its own, the incoming booking holding {int} place(s) and the opened one {int}",
+  function (
+    this: TicketsWorld,
+    listing: string,
+    incoming: number,
+    opened: number,
+  ): Promise<void> {
+    return duplicatePairOnSlots(this, listing, {
+      source: [{ bundle: true, quantity: incoming }, { quantity: incoming }],
+      target: [{ bundle: true, quantity: opened }, { quantity: opened }],
+    });
+  },
+);
+
+When(
+  "the organiser merges them, keeping the incoming booking and the opened one's money as credit",
+  async function (this: TicketsWorld): Promise<void> {
+    const [bookingField] = (await mergeChoices(this)).bookingFields;
+    this.mergeOutcome = await mergeDeciding(this, [
+      { choice: "take_source", field: bookingField!, money: "credit" },
+    ]);
+  },
+);
+
+When(
+  "the organiser merges them keeping the incoming bundle part",
+  async function (this: TicketsWorld): Promise<void> {
+    const { bookingFields } = await mergeChoices(this);
+    this.mergeOutcome = await mergeDeciding(this, [
+      { choice: "take_source", field: bundleBookingField(bookingFields) },
+      { choice: "keep_target", field: plainBookingField(bookingFields) },
+    ]);
+  },
+);
+
+Then(
+  "the {word} counts one booking holding {int} place(s) and no days",
+  async function (
+    this: TicketsWorld,
+    _listing: string,
+    places: number,
+  ): Promise<void> {
+    expect(await keptBookingRows(this)).toEqual([
+      { end_at: null, package_group_id: 0, quantity: places, start_at: null },
+    ]);
+  },
+);
+
+Then(
+  "the booking they keep holds {int} place(s) over those {int} day(s)",
+  async function (
+    this: TicketsWorld,
+    places: number,
+    days: number,
+  ): Promise<void> {
+    const start = parseDateStringOrThrow(
+      requiredWorldValue(this.stayStartsOn, "the stay's first day"),
+      "the stay's first day",
+    );
+    const rows = await keptBookingRows(this);
+    expect(rows).toHaveLength(1);
+    const row = rows[0]!;
+    // The row stores the day boundaries; the story's own numbers are the days
+    // themselves: a 2-day stay starting D runs D and D+1, bounded by D+2.
+    expect(String(row.start_at).slice(0, 10)).toBe(start);
+    expect(String(row.end_at).slice(0, 10)).toBe(addDays(start, days));
+    expect(row.package_group_id).toBe(0);
+    expect(row.quantity).toBe(places);
+  },
+);
+
+Then(
+  "the bundle part is the incoming one and the on-its-own booking is the one they opened",
+  async function (this: TicketsWorld): Promise<void> {
+    const rows = await keptBookingRows(this);
+    const bundled = rows.filter((row) => row.package_group_id !== 0);
+    const plain = rows.filter((row) => row.package_group_id === 0);
+    expect(bundled).toHaveLength(1);
+    expect(bundled[0]!.quantity).toBe(2);
+    expect(plain).toHaveLength(1);
+    expect(plain[0]!.quantity).toBe(1);
   },
 );

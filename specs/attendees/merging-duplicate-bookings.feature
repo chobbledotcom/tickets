@@ -61,3 +61,29 @@ Feature: An organiser merges two bookings for the same person
       When the organiser looks at merging them
       Then they are not asked what to do with any money
       And merging leaves one booking and no money moved
+
+  @rule:attendees.the-incoming-booking-can-replace-the-opened-one
+  @surface:admin
+  Rule: The organiser can keep the incoming booking instead of the opened one
+    Choosing the incoming booking replaces what the opened one held — its
+    places and its days — and only for the booking the organiser decided
+    about. A booking the same person holds through another path, such as
+    inside a bundle, is a different booking and is left alone.
+
+    @case:merge.incoming-replaces-the-opened-booking
+    Scenario: The organiser keeps the incoming booking of two places
+      Given the same person paid twice for a Summit place, the incoming booking holding 2 places and the opened one 1
+      When the organiser merges them, keeping the incoming booking and the opened one's money as credit
+      Then the Summit counts one booking holding 2 places and no days
+
+    @case:merge.incoming-replaces-the-opened-days
+    Scenario: The organiser keeps the incoming dated booking
+      Given the same person paid twice for a Summit stay starting 14 days from now, the incoming booking holding 2 places over 3 days and the opened one 1 place over 1 day
+      When the organiser merges them, keeping the incoming booking and the opened one's money as credit
+      Then the booking they keep holds 2 places over those 3 days
+
+    @case:merge.replacing-a-bundle-part-leaves-the-rest
+    Scenario: Replacing the bundle part leaves the on-its-own booking alone
+      Given the same person booked a free Reunion place twice, each booking holding a place inside a bundle and one on its own, the incoming booking holding 2 places and the opened one 1
+      When the organiser merges them keeping the incoming bundle part
+      Then the bundle part is the incoming one and the on-its-own booking is the one they opened

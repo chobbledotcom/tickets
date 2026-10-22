@@ -42,6 +42,41 @@ Feature: The organiser keeps only the personal details the site still needs
       When the organiser saves "1 year" and turns automatic deleting off
       Then the page comes back offering "1 year" with automatic deleting off
 
+  @rule:records.maintenance-removes-finished-payment-work-only
+  @surface:public
+  Rule: Scheduled maintenance removes finished payment work and keeps work a payment can still need
+    The site's scheduled maintenance clears old finished SumUp checkouts. A
+    checkout that may still be holding money nobody has accounted for stays
+    however old it is, and the recovery pass can still ask about it. A
+    checkout finished inside its retention window stays too.
+
+    @case:records.maintenance-prunes-only-finished-checkouts
+    Scenario: Maintenance removes old finished checkouts and keeps the rest
+      Given an old finished SumUp checkout, an equally old one still waiting to hear, and a recent finished one
+      When scheduled maintenance runs
+      Then the old finished checkout is gone
+      And the waiting checkout is still there, still due for its next check
+      And the recent checkout is still there
+
+  @rule:records.staged-answers-stay-while-a-payment-can-arrive
+  @surface:public
+  Rule: Staged buyer answers stay while a payment can still arrive
+    A checkout's staged answers outlive the checkout itself, for the
+    confirmation email and a late payment callback. Maintenance keeps them
+    while the site holds the checkout's payment link, however old they are.
+    It removes them only once they are past the payments window and the site
+    no longer holds that link.
+
+    @case:records.answers-kept-while-the-link-is-held
+    Scenario: Maintenance keeps the answers a held link can still need
+      Given an old buyer's answers for a checkout whose payment link has ended but whose link the site still holds
+      And an equally old buyer's answers for a checkout whose link the site no longer holds
+      And a recent buyer's answers for a checkout still inside its window
+      When scheduled maintenance runs
+      Then the answers the site still holds a link for are kept
+      And the answers whose link is gone are removed
+      And the answers inside their window are kept
+
   @rule:records.one-person-can-be-forgotten
   @surface:admin
   Rule: One person can be forgotten without losing their bookings
