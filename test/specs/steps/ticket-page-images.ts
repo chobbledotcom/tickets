@@ -17,6 +17,7 @@ import {
   sellsReadableThing,
   visitorReadsMixedPage,
   visitorReadsSharedPage,
+  visitorReadsTwoThingsFromOnePage,
 } from "#test/specs/support/ticket-page-images.ts";
 import { openTicket } from "#test/specs/support/tickets.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
@@ -193,6 +194,23 @@ Then(
       (await visitorReadsMixedPage(this, packageName, extraName)).currentHtml,
       await imageNamed(image),
     );
+  },
+);
+
+Then(
+  "a visitor reading the page that sells the {word} and the {word} is shown the image {word} and the image {word}",
+  async function (
+    this: TicketsWorld,
+    firstThing: string,
+    secondThing: string,
+    firstImage: string,
+    secondImage: string,
+  ): Promise<void> {
+    const html = (
+      await visitorReadsTwoThingsFromOnePage(this, firstThing, secondThing)
+    ).currentHtml;
+    expectShownImage(html, await imageNamed(firstImage));
+    expectShownImage(html, await imageNamed(secondImage));
   },
 );
 

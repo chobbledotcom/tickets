@@ -21,6 +21,14 @@ Feature: A customer sees the images the owner put in the ticket page
       And the owner sells a Boat whose description carries the image Lighthouse
       Then a visitor reading the Boat's ticket page is shown the image Lighthouse
 
+    @case:ticket-page.image-in-what-each-thing-is-on-one-page
+    Scenario: The owner puts an image in what each thing is on a page that sells two things
+      Given the owner has an image called Lighthouse in the library
+      And the owner has an image called Peak in the library
+      And the owner sells a Boat whose description carries the image Lighthouse
+      And the owner sells a Cabin whose description carries the image Peak
+      Then a visitor reading the page that sells the Boat and the Cabin is shown the image Lighthouse and the image Peak
+
     @case:ticket-page.image-in-the-group-description
     Scenario: The owner puts an image in a shared page's words
       Given the owner has an image called Coast in the library

@@ -91,3 +91,16 @@ export const visitorReadsMixedPage = (
   const extra = listingNamed(world, extraName);
   return openAsNewcomer(`/ticket/${group.slug}+${extra.slug}`);
 };
+
+/** A visitor reads the plain page that sells two things together, each thing
+ * reached by its own slug. */
+export const visitorReadsTwoThingsFromOnePage = (
+  world: TicketsWorld,
+  first: string,
+  second: string,
+): Promise<TestBrowser> =>
+  openAsNewcomer(
+    `/ticket/${listingNamed(world, first).slug}+${
+      listingNamed(world, second).slug
+    }`,
+  );
