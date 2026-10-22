@@ -162,6 +162,20 @@ Then(
   },
 );
 
+Then(
+  "the owner is not told {string}",
+  function (this: TicketsWorld, message: string): void {
+    expect(whatTheyWereTold(this, ORGANISER)).not.toContain(message);
+  },
+);
+
+Then(
+  "the activity log does not say {string}",
+  async function (this: TicketsWorld, message: string): Promise<void> {
+    expect(await activityMessages()).not.toContain(message);
+  },
+);
+
 /** What the feature's own page offers when it is opened again. Reading the
  * radio the page ticked proves the choice was kept and rendered back, which a
  * stored value alone would not. */

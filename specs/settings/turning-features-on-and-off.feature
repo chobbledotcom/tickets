@@ -125,6 +125,8 @@ Feature: The owner turns features on and off
       And an item that uses "Modifiers" is saved on the site
       And the owner sends the choice they opened, saying "Modifiers" is disabled
       Then they are told to remove its saved items first
+      And the owner is not told "Modifiers disabled."
+      And the activity log does not say "Modifiers disabled."
       And "Modifiers" is still enabled
       And the saved "Modifiers" item still works
 
