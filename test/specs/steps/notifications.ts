@@ -10,9 +10,7 @@ import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
   attendeeRowOnList,
-  confirmNameLine,
   countLinkOnDashboard,
-  linkLabelled,
   listingStopsCollectingAnEmail,
   mergeSections,
   pageSeen,
@@ -152,24 +150,6 @@ When(
 );
 
 When(
-  "the organiser opens the re-send notification page from the Actions tab",
-  async function (this: TicketsWorld): Promise<void> {
-    // The own page's tab strip carries the Actions tab, and the Actions tab
-    // carries the re-send action. Following both is the path the organiser
-    // clicks.
-    const actionsTab = await adminGet(
-      linkLabelled(pageSeen(this), t("entity.tab.actions")),
-    );
-    expect(actionsTab.status).toBe(200);
-    const page = await adminGet(
-      linkLabelled(await actionsTab.text(), t("attendee_form.action_resend")),
-    );
-    expect(page.status).toBe(200);
-    this.notificationsPage = await page.text();
-  },
-);
-
-When(
   "the organiser follows the count to the attendee list",
   async function (this: TicketsWorld): Promise<void> {
     const dashboard = await adminGet("/admin");
@@ -257,32 +237,6 @@ Then(
   function (this: TicketsWorld, _who: string): void {
     expect(pageSeen(this)).not.toContain(emailNotice());
     expect(pageSeen(this)).not.toContain(webhooksNotice());
-  },
-);
-
-/** What one person's details name line says about one notice. The line is
- * already that person's, so the step only reads the notice off it. */
-const resendSays = (notice: () => string) =>
-  function (this: TicketsWorld, who: string): void {
-    expect(confirmNameLine(pageSeen(this), who)).toContain(notice());
-  };
-
-Then(
-  "the re-send page says {word}'s email never went out beside their name",
-  resendSays(emailNotice),
-);
-
-Then(
-  "the re-send page says {word}'s webhooks never went out beside their name",
-  resendSays(webhooksNotice),
-);
-
-Then(
-  "the re-send page says nothing about {word}'s sends",
-  function (this: TicketsWorld, who: string): void {
-    const line = confirmNameLine(pageSeen(this), who);
-    expect(line).not.toContain(emailNotice());
-    expect(line).not.toContain(webhooksNotice());
   },
 );
 

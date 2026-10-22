@@ -15,7 +15,6 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { setPendingNotificationFlags } from "#test-utils/db-helpers/attendees.ts";
-import { findAllLinks } from "#test-utils/test-browser/parsing.ts";
 // jscpd:ignore-end
 
 /** One person's booking on a listing, with the sends it still owes: 1 says
@@ -107,29 +106,4 @@ export const mergeSections = (
     throw new Error("The merge screen shows no merge preview");
   }
   return { duplicate: html.slice(at), kept: html.slice(0, at) };
-};
-
-/** The address of the one link on a page whose words are exactly the label,
- * read off the rendered page so a story follows what the organiser clicks. A
- * page that offers no such link is a broken story, not a dead end. */
-export const linkLabelled = (html: string, label: string): string => {
-  const link = findAllLinks(html).find(({ text }) => text.trim() === label);
-  if (!link) {
-    throw new Error(`The page offers no "${label}" link`);
-  }
-  return link.href;
-};
-
-/** The attendee details block's name line on a confirmation page, so a
- * notice reads beside the booking's own name and never beside the page's
- * title or another booking's. */
-export const confirmNameLine = (html: string, who: string): string => {
-  const label = `<p><strong>${t("admin.attendees.name")}</strong>`;
-  for (const rest of html.split(label).slice(1)) {
-    const line = rest.slice(0, rest.indexOf("</p>"));
-    if (line.includes(who)) {
-      return line;
-    }
-  }
-  throw new Error(`The details block holds no name line for "${who}"`);
 };
