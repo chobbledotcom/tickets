@@ -2,6 +2,13 @@
  * booking or price a quote. */
 
 import { withCsrfForm } from "#routes/csrf.ts";
+import {
+  extractContact,
+  ticketFormErrorResponse,
+} from "#routes/public/ticket-form.ts";
+import { ticketPageUrl } from "#routes/public/ticket-page-url.ts";
+import { checkAvailability } from "#routes/public/ticket-payment.ts";
+import type { TicketCtx } from "#routes/public/types.ts";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import {
@@ -20,10 +27,6 @@ import {
   orderSummary,
   orderSummaryMessage,
 } from "#templates/public/order-summary.tsx";
-import { extractContact, ticketFormErrorResponse } from "../ticket-form.ts";
-import { ticketPageUrl } from "../ticket-page-url.ts";
-import { checkAvailability } from "../ticket-payment.ts";
-import type { TicketCtx } from "../types.ts";
 import { validateTicketFields } from "./parse.ts";
 import {
   handleFreePath,
