@@ -129,9 +129,10 @@ const doorKeyBytes = (pageKey) => {
 };
 
 /** Validate one scan against the door's stored ticket hashes and queue the
- * check-in when the ticket looks legit. The stored set is the only evidence
- * offline, so it must be fresh. An expired set answers nothing, and a
- * refresh that cannot run keeps the stored set. */
+ * check-in when the ticket looks legit. The scan makes no network call, so
+ * the stored set is its only evidence. The page load refreshes the set
+ * while the connection holds, and so does the click that arms the switch.
+ * An expired set answers nothing until the door reloads the page. */
 export const offlineScan = async (
   scanPath,
   token,
@@ -146,11 +147,6 @@ export const offlineScan = async (
     // A dropped corrupt set reads as no set: the door sees the missing-list
     // message, and the next online load rebuilds the cache from scratch.
     cache = null;
-  }
-  if (!cache || !isCacheFresh(cache)) {
-    // Offline, the refresh fails and the stored set stands. The fallbacks
-    // below say exactly what the door then sees.
-    cache = await refreshTicketCache(scanPath).catch(() => cache);
   }
   if (!cache) {
     showStatus(
@@ -237,9 +233,10 @@ export const offlineScan = async (
 };
 
 /** Send every queued check-in and report each one's outcome on its own row.
- * An item leaves the queue only after the door answered it, so nothing is
- * lost when the connection drops mid-sync. The door answers a replayed
- * check-in with already_checked_in rather than checking anyone in twice. */
+ * An item leaves the queue only after the door answered it with a scan
+ * decision. Nothing is lost when the connection drops mid-sync or the door
+ * refuses the page's session. The door answers a replayed check-in
+ * with already_checked_in rather than checking anyone in twice. */
 const syncQueue = async (csrfToken, statusEl, messages, panel, settleScan) => {
   if (isSyncing() || !navigator.onLine || readQueue().length === 0) return;
   setSyncing(true);
@@ -263,8 +260,14 @@ const syncQueue = async (csrfToken, statusEl, messages, panel, settleScan) => {
           statusEl,
           messages,
         );
+        // An answer without a scan decision is no settlement: an expired
+        // session or a refused role leaves the check-in queued.
+        if (typeof answer?.status !== "string") {
+          throw new Error("The door sent no scan decision.");
+        }
       } catch {
-        // The door gave no answer, so the item waits for the next sync.
+        // No answer or no scan decision — a dead connection, an expired
+        // session, a refused role. The item waits for the next sync.
         row.textContent = getMessage(
           messages,
           "messageQueueItemStillQueued",
@@ -346,7 +349,9 @@ export const initOfflineScanner = ({
   const renderOfflineState = () => {
     toggle.setAttribute("aria-pressed", String(readManualMode()));
     updateOfflineBanner(banner, bannerText, messages);
-    renderQueuePanel(panel, messages);
+    // While a sync runs it owns the queue's rows: a rebuild here detaches
+    // the row elements the sync still writes its outcomes to.
+    if (!isSyncing()) renderQueuePanel(panel, messages);
   };
 
   toggle.addEventListener("click", () => {
