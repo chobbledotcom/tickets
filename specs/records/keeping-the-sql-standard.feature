@@ -3,10 +3,9 @@
 @actor:developer
 @edition:managed @edition:self-hosted
 Feature: The site's code keeps to the SQL standard
-  Every SQL statement the site runs binds each value once, through the
-  numbered builder, and no SQL text writes a numbered parameter by hand. The
-  code-quality job reads every source file and fails, naming the file and the
-  line, when one drifts from that.
+  The code-quality job reads every source file and fails, naming the file and
+  the line, when a SQL statement binds one value more than once. It fails the
+  same way when SQL text spells a numbered parameter by hand.
 
   @rule:records.a-repeated-bind-fails-with-its-location
   Rule: A statement that binds one value twice fails the job, naming the line
