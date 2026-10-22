@@ -337,5 +337,46 @@ describeWithEnv(
       }
       expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 0 }]);
     });
+
+    test("two doors delivering one ticket at the same moment admit it once", async () => {
+      // Two devices queued the same ticket while offline. Both deliveries
+      // land when the links return. The first delivery admits the place.
+      // The second delivery still claims its own pair in the ledger, and
+      // its answer says the person is already in. The door reads one true
+      // state, and the ticket admits once.
+      const door = await groupDoor(1);
+      const attendee = await bookTestAttendee(
+        [door.members[0]!.id],
+        "Ruth",
+        "ruth@example.com",
+      );
+      const tokenHash = await doorDigest(door.group.id, attendee.ticket_token);
+
+      const [first, second] = await Promise.all([
+        scanAtDoor(door.group.id, {
+          operation_id: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b08",
+          token_hash: tokenHash,
+        }),
+        scanAtDoor(door.group.id, {
+          operation_id: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b09",
+          token_hash: tokenHash,
+        }),
+      ]);
+
+      expect(first.json.status).toBe("checked_in");
+      expect(second.json.status).toBe("already_checked_in");
+      expect(second.json.name).toBe("Ruth");
+      expect(second.json.listingName).toBe("Standard");
+      expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 1 }]);
+
+      // A retry of the losing delivery reads the same answer from its own
+      // stored pair, and admits nothing further.
+      const retry = await scanAtDoor(door.group.id, {
+        operation_id: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b09",
+        token_hash: tokenHash,
+      });
+      expect(retry.json.status).toBe("already_checked_in");
+      expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 1 }]);
+    });
   },
 );

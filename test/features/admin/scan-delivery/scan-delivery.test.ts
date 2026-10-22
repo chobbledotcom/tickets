@@ -11,9 +11,11 @@ import type { AttendeeWithBookings } from "#db/attendee-types.ts";
 import { doorAttendees } from "#routes/admin/scan-answer.ts";
 import {
   attendeeByTokenHash,
+  deliveredListingIds,
   type QueuedDelivery,
   queuedDelivery,
 } from "#routes/admin/scan-delivery.ts";
+import { claimScanOperation } from "#db/processed-scan-operations.ts";
 import { getRequestPrivateKey } from "#shared/session-private-key.ts";
 import { groupDoor } from "#test/features/admin/scanner/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -134,5 +136,61 @@ describeWithEnv("the keyed digest match", { db: true }, () => {
     expect(
       await resolveFor(door, attendee.ticket_token, "group:999999"),
     ).toBeNull();
+  });
+
+  test("fails loudly when the attendee the digest matched is gone", async () => {
+    // The digest match reads the attendee the matched candidate names. The
+    // door read the candidates moments ago, so the read cannot miss. A
+    // miss is a broken invariant. The lookup fails loudly. It never
+    // answers a stranger.
+    const door = await groupDoor(1);
+    const attendee = await bookTestAttendee(
+      [door.members[0]!.id],
+      "Pia",
+      "pia@example.com",
+    );
+    const candidates = await doorAttendees(
+      [door.members[0]!.id],
+      await privateKey(),
+    );
+    const { execute } = await import("#db/client.ts");
+    await execute("DELETE FROM attendees WHERE id = ?", [attendee.id]);
+
+    await expect(
+      attendeeByTokenHash(
+        await doorDigest(`group:${door.group.id}`, attendee.ticket_token),
+        candidates,
+        `group:${door.group.id}`,
+      ),
+    ).rejects.toThrow("Missing attendee for a matched ticket digest");
+  });
+});
+
+describeWithEnv("the ledger row a landed delivery answers from", { db: true }, () => {
+  test("answers the listings the delivery's claim stored", async () => {
+    // A delivery's claim stores its pair with the listings its admission
+    // moved. The retry reads those listings back, so its answer names the
+    // tier the first send put in.
+    const { withTransaction } = await import("#db/client.ts");
+    const delivery: QueuedDelivery = {
+      operationId: "op-1",
+      tokenHash: "digest-a",
+    };
+    await withTransaction((tx) =>
+      claimScanOperation({ listingIds: [3, 5], ...delivery })(tx),
+    );
+
+    expect(await deliveredListingIds(delivery)).toEqual([3, 5]);
+  });
+
+  test("throws when the ledger holds no row for the delivery", async () => {
+    // The admission stores the row before any read of the answer. A miss
+    // here means the row vanished, and the read fails loudly. It never
+    // answers an empty tier list.
+    await expect(
+      deliveredListingIds({ operationId: "op-missing", tokenHash: "digest-b" }),
+    ).rejects.toThrow(
+      "A claimed scan delivery's ledger row went missing before its answer",
+    );
   });
 });
