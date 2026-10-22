@@ -1,7 +1,17 @@
+import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { encryptBytes } from "#crypto/encryption.ts";
-import { addPageImageUrls, imageUrlsFor } from "#db/image-urls.ts";
+import { getDb } from "#db/client.ts";
+import {
+  addPageImageUrls,
+  footerImageUrls,
+  imageUrlsFor,
+} from "#db/image-urls.ts";
+import { mustReadFromPrimary } from "#db/primary-reads.ts";
+import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
@@ -242,6 +252,217 @@ describeWithEnv(
       await addPageImageUrls([`![Poster](img#${hero.id})`]);
 
       expect(renderMarkdown(`![Poster](img#${hero.id})`)).toContain('src=""');
+    });
+  },
+);
+
+describeWithEnv(
+  "server images > footerImageUrls memo",
+  {
+    db: true,
+    env: {
+      STORAGE_ZONE_KEY: "testkey",
+      STORAGE_ZONE_NAME: "testzone",
+    },
+  },
+  () => {
+    /** The image lookups the log records since the last enableQueryLog. */
+    const imageLookups = () =>
+      getQueryLog().filter((entry) => entry.sql.includes("FROM images")).length;
+
+    /** The settings reads the log records since the last enableQueryLog. */
+    const settingsReads = () =>
+      getQueryLog().filter((entry) => entry.sql.includes("FROM settings"))
+        .length;
+
+    test("queries once cold and serves the same src warm", async () => {
+      const hero = await makeImage("Footer Cold");
+      const text = `![Foot](img#${hero.id})`;
+
+      await withRequestContext(async () => {
+        enableQueryLog();
+        const cold = await footerImageUrls(text);
+
+        expect(cold.get(hero.id)).toBe(`/image/${hero.filename}`);
+        expect(imageLookups()).toBe(1);
+
+        const warm = await footerImageUrls(text);
+
+        // The same table instance, so the rendered footer is byte-identical.
+        expect(warm).toBe(cold);
+        expect(imageLookups()).toBe(1);
+      });
+    });
+
+    test("never queries for a footer without references", async () => {
+      await withRequestContext(async () => {
+        enableQueryLog();
+        const first = await footerImageUrls("plain footer text");
+
+        expect(first.size).toBe(0);
+        expect(imageLookups()).toBe(0);
+        expect(settingsReads()).toBe(0);
+
+        const warm = await footerImageUrls("plain footer text");
+
+        expect(warm.size).toBe(0);
+        expect(imageLookups()).toBe(0);
+        expect(settingsReads()).toBe(0);
+      });
+    });
+
+    test("a settings write forces the next lookup to re-query", async () => {
+      const hero = await makeImage("Footer Settings");
+      const text = `![Foot](img#${hero.id})`;
+      const previous = settings.siteFooter;
+
+      await withRequestContext(async () => {
+        enableQueryLog();
+        await footerImageUrls(text);
+        expect(imageLookups()).toBe(1);
+
+        await settings.update.siteFooter(text);
+        await footerImageUrls(text);
+
+        expect(imageLookups()).toBe(2);
+      });
+
+      await settings.update.siteFooter(previous);
+    });
+
+    test("an images write forces the next lookup to re-query", async () => {
+      const hero = await makeImage("Footer Images");
+      const text = `![Foot](img#${hero.id})`;
+
+      await withRequestContext(async () => {
+        enableQueryLog();
+        await footerImageUrls(text);
+        expect(imageLookups()).toBe(1);
+
+        await makeImage("Footer Images Other");
+        await footerImageUrls(text);
+
+        expect(imageLookups()).toBe(2);
+      });
+    });
+
+    test("an images write during a lookup does not seed the slot", async () => {
+      const hero = await makeImage("Footer Straddle");
+      const text = `![Foot](img#${hero.id})`;
+
+      await withRequestContext(async () => {
+        enableQueryLog();
+        // Hold the footer's images SELECT open until the write commits, so the
+        // write lands while the lookup runs on every run. The match fits only
+        // the lookup's SELECT: an INSERT names INTO images, and a DELETE has
+        // no filename column.
+        const db = getDb();
+        const realExecute = db.execute.bind(db);
+        const { promise: gate, resolve: release } =
+          Promise.withResolvers<void>();
+        const { promise: reading, resolve: started } =
+          Promise.withResolvers<void>();
+        const held = stub(db, "execute", async (stmt: InStatement) => {
+          const sql = typeof stmt === "string" ? stmt : stmt.sql;
+          if (sql.includes("FROM images") && sql.includes("filename")) {
+            started();
+            await gate;
+            return realExecute(stmt);
+          }
+          return realExecute(stmt);
+        });
+        const pending = footerImageUrls(text);
+        try {
+          await reading;
+        } finally {
+          held.restore();
+        }
+        // The write runs while the SELECT sits on the gate, so the write
+        // provably lands inside the lookup on every run. makeImage writes the
+        // images table without the shared version bump, so the re-query below
+        // is the generation guard's work alone.
+        await makeImage("Footer Straddle Other");
+        release();
+        await pending;
+
+        expect(imageLookups()).toBe(1);
+
+        // The write landed while the lookup ran, so the slot stays empty and
+        // the next render re-queries instead of serving that table.
+        await footerImageUrls(text);
+
+        expect(imageLookups()).toBe(2);
+      });
+    });
+
+    test("a refill after an images write reads under the primary scope", async () => {
+      const hero = await makeImage("Footer Refill");
+      const text = `![Foot](img#${hero.id})`;
+
+      await withRequestContext(async () => {
+        // A file database answers every read from one file, so the primary
+        // path shows up as the read's scope rather than as a remote batch.
+        const db = getDb();
+        const realExecute = db.execute.bind(db);
+        const primaryScopes: boolean[] = [];
+        const executeStub = stub(db, "execute", (stmt: InStatement) => {
+          const sql = typeof stmt === "string" ? stmt : stmt.sql;
+          if (sql.includes("FROM images") && sql.includes("filename")) {
+            primaryScopes.push(mustReadFromPrimary());
+          }
+          return realExecute(stmt);
+        });
+        try {
+          await footerImageUrls(text);
+          // A committed images write arms the refill, so the next lookup's
+          // read runs under the primary scope a lagging replica cannot beat.
+          await makeImage("Footer Refill Other");
+          await footerImageUrls(text);
+        } finally {
+          executeStub.restore();
+        }
+
+        expect(primaryScopes).toHaveLength(2);
+        expect(primaryScopes.at(-1)).toBe(true);
+      });
+    });
+
+    test("cold callers that arrive together share one lookup", async () => {
+      const hero = await makeImage("Footer Together");
+      const text = `![Foot](img#${hero.id})`;
+
+      await withRequestContext(async () => {
+        enableQueryLog();
+        const [first, second] = await Promise.all([
+          footerImageUrls(text),
+          footerImageUrls(text),
+        ]);
+
+        expect(first.get(hero.id)).toBe(`/image/${hero.filename}`);
+        expect(second).toBe(first);
+        expect(imageLookups()).toBe(1);
+      });
+    });
+
+    test("a changed footer text does not reuse the old table", async () => {
+      const hero = await makeImage("Footer Old Text");
+      const next = await makeImage("Footer New Text");
+      const before = `![Foot](img#${hero.id})`;
+      const after = `![Foot](img#${next.id})`;
+
+      await withRequestContext(async () => {
+        enableQueryLog();
+        const first = await footerImageUrls(before);
+
+        expect(first.get(hero.id)).toBe(`/image/${hero.filename}`);
+        expect(first.get(next.id)).toBeUndefined();
+
+        const second = await footerImageUrls(after);
+
+        expect(second.get(next.id)).toBe(`/image/${next.filename}`);
+        expect(second.get(hero.id)).toBeUndefined();
+        expect(imageLookups()).toBe(2);
+      });
     });
   },
 );

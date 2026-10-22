@@ -939,8 +939,7 @@
   "src/shared/db/holidays.ts": {
     "semicolon": 1
   },
-  "src/shared/db/images.ts": {
-    "semicolon": 1,
+  "src/shared/db/image-urls.ts": {
     "long-sentence": 1
   },
   "src/shared/db/keyed-cache.ts": {

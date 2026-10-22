@@ -1,14 +1,17 @@
-import type { InStatement, InValue } from "@libsql/client";
+import type { InStatement, InValue, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getDb } from "#db/client.ts";
+import { deleteImageRecord } from "#db/image-records.ts";
 import {
   addFooterImageUrls,
   addPageImageUrls,
   addTicketPageImageUrls,
+  footerImageUrls,
   imageUrlsFor,
 } from "#db/image-urls.ts";
+import { mustReadFromPrimary } from "#db/primary-reads.ts";
 import { settings } from "#db/settings.ts";
 import { flushPendingWork } from "#shared/pending-work.ts";
 import {
@@ -161,6 +164,53 @@ describeWithEnv(
           expect(currentRequestStore()?.pageImageUrls?.get(image.id)).toBe(
             `/image/${image.filename}`,
           );
+        });
+      });
+
+      test("a refill after an images write does not seed the slot from a stale replica", async () => {
+        const image = await makeImage("RefillStale");
+        const text = `![Foot](img#${image.id})`;
+
+        await withRequestContext(async () => {
+          const db = getDb();
+          const realExecute = db.execute.bind(db);
+          const isImagesRead = (stmt: InStatement): boolean => {
+            const sql = typeof stmt === "string" ? stmt : stmt.sql;
+            return sql.includes("FROM images") && sql.includes("filename");
+          };
+          // The answer a lagging replica still holds: the lookup's own rows,
+          // read before the delete.
+          const { promise: replicaRows, resolve: gotRows } =
+            Promise.withResolvers<ResultSet>();
+          const capture = stub(db, "execute", async (stmt: InStatement) => {
+            const result = await realExecute(stmt);
+            if (isImagesRead(stmt)) gotRows(result);
+            return result;
+          });
+          await footerImageUrls(text);
+          capture.restore();
+
+          // The production delete commits, clears the slot here, and arms the
+          // refill. The replica has not caught up: an unscoped images read
+          // still returns the pre-deletion rows, while a primary-scoped read
+          // reaches the database the delete committed to.
+          await deleteImageRecord(image.id);
+          const laggingReplica = stub(db, "execute", (stmt: InStatement) =>
+            isImagesRead(stmt) && !mustReadFromPrimary()
+              ? replicaRows
+              : realExecute(stmt),
+          );
+          try {
+            const table = await footerImageUrls(text);
+
+            expect(table.has(image.id)).toBe(false);
+            expect(table.size).toBe(0);
+            // The slot holds the fresh table, so the dead row is not pinned:
+            // the next render re-serves it without a query.
+            expect(await footerImageUrls(text)).toBe(table);
+          } finally {
+            laggingReplica.restore();
+          }
         });
       });
     });

@@ -8,13 +8,12 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { groups } from "#db/groups.ts";
 /* jscpd:ignore-end */
+import { deleteImageRecord, updateImageRecord } from "#db/image-records.ts";
 import {
-  deleteImageRecord,
   getAllImages,
   getImageById,
   getImageUsesForImage,
   type ImageUseTarget,
-  imagesTable,
   imageUseTargets,
   setItemsForImage,
 } from "#db/images.ts";
@@ -227,7 +226,7 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
     if (!metadata.ok) {
       return redirect(imagePath(image.id), metadata.error, false);
     }
-    await imagesTable.update(image.id, metadata.value);
+    await updateImageRecord(image.id, metadata.value);
     await setItemsForImage(
       image.id,
       allowedImageTargets(adminLevel, parseImageTargets(form)),

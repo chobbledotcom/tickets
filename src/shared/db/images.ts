@@ -55,10 +55,11 @@ export const imageUseTargets: RecordTargets<ImageUseItemType> =
 
 export type OrderedImage = Image & { sort_order: number };
 
-/** Encrypted filename column: sealed on write; on read, a value that will not
- * decrypt to a real filename becomes the broken-image marker (reported, never
- * thrown — one broken record must not take down every page that lists images).
- * The `as` cast is the same sanctioned read boundary as col.encrypted. */
+/** Encrypted filename column. Sealed on write. On read, a value that will
+ * not decrypt to a real filename becomes the broken-image marker. The marker
+ * is reported, never thrown, so one broken record cannot take down every
+ * page that lists images. The `as` cast is the same sanctioned read boundary
+ * as col.encrypted. */
 const encryptedFilenameText = (label: string): ColumnDef<NonEmptyString> =>
   ({
     read: (raw: string, rowId?: unknown) =>
@@ -291,11 +292,4 @@ export const setItemsForImage = (
       ),
     ]);
   });
-};
-
-export const deleteImageRecord = async (imageId: number): Promise<void> => {
-  await executeBatch([
-    { args: [imageId], sql: "DELETE FROM image_uses WHERE image_id = ?" },
-    { args: [imageId], sql: "DELETE FROM images WHERE id = ?" },
-  ]);
 };

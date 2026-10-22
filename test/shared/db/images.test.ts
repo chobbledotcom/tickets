@@ -2,9 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { executeBatch, queryAll } from "#db/client.ts";
 import {
+  deleteImageRecord,
+  insertImageRecord,
+  updateImageRecord,
+} from "#db/image-records.ts";
+import {
   appendImageToItem,
   clearImageUsesForItemStatement,
-  deleteImageRecord,
   getAllImages,
   getImageById,
   getImageFilenamesForItem,
@@ -17,6 +21,7 @@ import {
 } from "#db/images.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
+import { getCurrentSettingsVersion } from "#db/settings.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
@@ -334,6 +339,37 @@ describeWithEnv("db > images", { db: true }, () => {
 
       expect(await linkedImageIds("listing", listing.id)).toEqual([]);
       expect(await linkedImageIds("group", group.id)).toEqual([]);
+    });
+  });
+
+  describe("the image record writes", () => {
+    test("advance the shared version when an insert, an update, and a delete land", async () => {
+      // The shared version is the counter other isolates read, so every
+      // record write must move it in the same transaction as the row change.
+      const before = await getCurrentSettingsVersion();
+
+      const image = await insertImageRecord({
+        altText: "Bump alt",
+        filename: nonEmptyString("bump.webp"),
+        filenameThumb: nonEmptyString("bump-thumb.webp"),
+        name: "Bump",
+      });
+      const afterInsert = await getCurrentSettingsVersion();
+
+      expect(image.name).toBe("Bump");
+      expect(afterInsert).toBeGreaterThan(before);
+
+      const updated = await updateImageRecord(image.id, { name: "Bump two" });
+      const afterUpdate = await getCurrentSettingsVersion();
+
+      expect(updated?.name).toBe("Bump two");
+      expect(afterUpdate).toBeGreaterThan(afterInsert);
+
+      await deleteImageRecord(image.id);
+      const afterDelete = await getCurrentSettingsVersion();
+
+      expect(await getImageById(image.id)).toBeNull();
+      expect(afterDelete).toBeGreaterThan(afterUpdate);
     });
   });
 });

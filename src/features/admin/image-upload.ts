@@ -2,7 +2,7 @@
  * Shared first-class image form handling.
  */
 
-import { imagesTable } from "#db/images.ts";
+import { insertImageRecord } from "#db/image-records.ts";
 import { t } from "#i18n";
 import { formDataToParams } from "#routes/csrf.ts";
 import { redirect } from "#routes/response.ts";
@@ -109,7 +109,7 @@ export const createImageFromUpload = async (
   const filenames = await uploadedFilenames(file.value);
   if (!filenames.ok) return filenames;
   try {
-    const image = await imagesTable.insert({
+    const image = await insertImageRecord({
       ...metadata.value,
       ...filenames.value,
     });
