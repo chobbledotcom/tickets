@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttributeWithOptions } from "#db/attributes.ts";
+import { addTicketPageImageUrls } from "#db/images.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
@@ -15,8 +16,10 @@ import {
   registerPublicTemplateHooks,
   ticketListing,
 } from "#test/ui/templates/helpers.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 const attributeWithOptions = (
@@ -33,6 +36,21 @@ const attributeWithOptions = (
 describe("ticketPage — packages", () => {
   beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
+
+  /** The two-member kit every package-section test here shares. */
+  const tentAndChairListings = () => [
+    ticketListing({
+      id: 1,
+      name: "Tent",
+      slug: "tent1",
+    }),
+    ticketListing({
+      id: 2,
+      max_quantity: 10,
+      name: "Chair",
+      slug: "chr12",
+    }),
+  ];
 
   test("uses group header details before the single listing details", () => {
     const html = ticketPage({
@@ -154,19 +172,7 @@ describe("ticketPage — packages", () => {
   });
 
   test("renders a package quantity selector and member rows with fixed quantities", () => {
-    const listings = [
-      ticketListing({
-        id: 1,
-        name: "Tent",
-        slug: "tent1",
-      }),
-      ticketListing({
-        id: 2,
-        max_quantity: 10,
-        name: "Chair",
-        slug: "chr12",
-      }),
-    ];
+    const listings = tentAndChairListings();
     const html = ticketPage({
       groupName: "Camp Kit",
       listings,
@@ -181,6 +187,40 @@ describe("ticketPage — packages", () => {
     assertStringIncludes(html, "&times;4");
     assert(!html.includes('name="quantity_1"'));
   });
+
+  describeWithEnv(
+    "ticketPage — a package description's image reference",
+    { db: true },
+    () => {
+      test("resolves a package description's img#id reference to the image's uid URL", async () => {
+        const kit = await makeImage("Kit");
+        const kits = (description: string) => [
+          pagePackage(5, [1, 2], {
+            description,
+            quantities: new Map([[2, 4]]),
+          }),
+          pagePackage(7, [1], { name: "Tent Bundle" }),
+        ];
+        await withRequestContext(async () => {
+          await addTicketPageImageUrls({
+            listings: [],
+            packages: kits(`![Kit](img#${kit.id})`),
+            questions: [],
+            terms: null,
+          });
+          const html = ticketPage({
+            listings: tentAndChairListings(),
+            packages: kits(`![Kit](img#${kit.id})`),
+            slugs: [PKG_SLUG],
+          });
+          expect(html).toContain(
+            `<img src="/image/${kit.filename}" alt="Kit">`,
+          );
+          expect(html).not.toContain(`img#${kit.id}`);
+        });
+      });
+    },
+  );
 
   test("limits package day counts to the days its required child supports", () => {
     const parentA = ticketListing({

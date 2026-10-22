@@ -4,9 +4,9 @@
 
 import type { AttributeWithOptions } from "#db/attributes.ts";
 import type { AddOnOption } from "#db/modifier-resolve.ts";
+/* jscpd:ignore-start */
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";

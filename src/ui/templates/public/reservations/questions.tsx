@@ -2,9 +2,9 @@
  * for each answerable question, with the buyer's submitted value restored on a
  * validation re-render. */
 
+/* jscpd:ignore-start */
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { savedFormValue } from "#shared/forms/saved-data.ts";
 import { questionControl } from "#templates/components/question-controls.tsx";

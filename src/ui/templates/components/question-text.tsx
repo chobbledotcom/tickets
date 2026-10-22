@@ -20,7 +20,9 @@ const questionProseId = (q: QuestionWithAnswers): string =>
   `question-${q.id}-prose`;
 
 /** The prose-HTML for a complex question text, wrapped in a styling div that
- * carries the id its control references via `aria-labelledby`. */
+ * carries the id its control references via `aria-labelledby`. The render
+ * resolves the question text's img#N references through the request's
+ * page-image slot. */
 const questionProse = (q: QuestionWithAnswers): string =>
   `<div class="prose" id="${questionProseId(q)}">${renderMarkdown(q.text)}</div>`;
 
@@ -38,8 +40,14 @@ export const hasSimpleQuestionText = (q: QuestionWithAnswers): boolean =>
 export const questionTextContent = (q: QuestionWithAnswers): Child =>
   hasSimpleQuestionText(q) ? q.text : <Raw html={questionProse(q)} />;
 
+/** What both question wrappers receive: the question and its listing scope. */
+type QuestionWrapArgs = {
+  listingIds?: string | undefined;
+  q: QuestionWithAnswers;
+};
+
 /**
- * Build a single-control question (free-text input or select). The control is a
+ * Wrap a single-control question (free-text input or select). The control is a
  * factory so the wrapper can name it correctly in both layouts: when the text
  * is simple markdown the control sits inside a `<label>` (clicking it focuses
  * the control, and the label names it implicitly, so no extra prop is passed);
@@ -50,8 +58,7 @@ export const questionTextContent = (q: QuestionWithAnswers): Child =>
  * show/hide them.
  */
 export const questionWrapper = (
-  q: QuestionWithAnswers,
-  listingIds: string | undefined,
+  { listingIds, q }: QuestionWrapArgs,
   control: (labelledBy?: string) => JSX.Element,
 ): JSX.Element =>
   hasSimpleQuestionText(q) ? (
@@ -73,8 +80,7 @@ export const questionWrapper = (
  * radio group stays labelled even without a `<legend>`.
  */
 export const questionFieldset = (
-  q: QuestionWithAnswers,
-  listingIds: string | undefined,
+  { listingIds, q }: QuestionWrapArgs,
   controls: JSX.Element[],
 ): JSX.Element =>
   hasSimpleQuestionText(q) ? (

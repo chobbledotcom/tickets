@@ -95,9 +95,9 @@ src/shared/db/attendees/create-batch.ts::IncompleteBooking~03v6osk  IncompleteBo
 
 # The image-use collection calls only next and nextMany. These operations read
 # the table and scope fields, but they do not read the key field.
-src/shared/db/images.ts::getImageFilenamesForItem.stored~0ejzw5s  image → "" audited:0isxtpb # this query reads one image table, so each selected image column stays unambiguous without its qualifier
-src/shared/db/images.ts::getImagesForItem.rows~03xuvta  image → "" audited:0isxtpb # image_uses has none of the selected image column names, so each unqualified name resolves to images
-src/shared/db/images.ts::imageUseOrder.key~0srejmf  image_id → "" audited:0isxtpb # no production caller uses append, swap, or another ordered-collection operation that reads key
+src/shared/db/images.ts::getImageFilenamesForItem.stored~0ejzw5s  image → "" audited:0plk1xj # this query reads one image table, so each selected image column stays unambiguous without its qualifier
+src/shared/db/images.ts::getImagesForItem.rows~03xuvta  image → "" audited:0plk1xj # image_uses has none of the selected image column names, so each unqualified name resolves to images
+src/shared/db/images.ts::imageUseOrder.key~0srejmf  image_id → "" audited:0plk1xj # no production caller uses append, swap, or another ordered-collection operation that reads key
 
 # Group readers return truthy records and arrays. Their batch methods also make
 # an entry for each requested key before they read rows.

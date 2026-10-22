@@ -106,7 +106,8 @@ export const LoginFooter = (): JSX.Element => (
 );
 
 /** Operator-authored markdown rendered into the shared `.prose` block —
- * nothing at all when the markdown is empty. */
+ * nothing at all when the markdown is empty. The render resolves the page's
+ * img#N references through the request's page-image slot. */
 export const MarkdownProse = ({
   markdown,
 }: {
