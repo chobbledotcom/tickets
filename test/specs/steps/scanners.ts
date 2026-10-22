@@ -114,10 +114,13 @@ Then(
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
     // This harness serves the page and never runs its script, so the step
-    // reads the served surface: the switch itself, under the label the
-    // door sees.
-    expect(page).toContain('id="scanner-offline-toggle"');
-    expect(page).toContain(t("admin.scanner.offline_mode"));
+    // reads the served surface. The words for offline mode also stand in
+    // the manual banner message on the same page, so the step takes the
+    // label from the switch element itself.
+    const toggle = page.match(
+      /<button[^>]*\sid="scanner-offline-toggle"[^>]*>([^<]*)<\/button>/,
+    );
+    expect(toggle?.[1]?.trim()).toBe(t("admin.scanner.offline_mode"));
   },
 );
 
@@ -126,14 +129,19 @@ Then(
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
     // This harness serves the page and never runs its script, so the step
-    // reads the served surface: the banner and the queue panel, under the
-    // ids the client looks the elements up by. The words the door reads on
-    // the live page are the offline-door browser contract's own assertions.
-    expect(page).toContain('id="scanner-offline-banner"');
-    expect(page).toContain('id="scanner-offline-banner-text"');
-    expect(page).toContain('id="scanner-queue"');
-    expect(page).toContain('id="scanner-queue-summary"');
-    expect(page).toContain('id="scanner-queue-items"');
+    // reads the words the template serves for the client to show: the
+    // banner words in both modes, and the queue panel's words for a queued
+    // check-in and its count. The count words are served with the {count}
+    // placeholder the client fills in.
+    expect(page).toContain(t("admin.scanner.offline_banner_auto"));
+    expect(page).toContain(t("admin.scanner.offline_banner_manual"));
+    expect(page).toContain(t("admin.scanner.queue_item_queued"));
+    expect(page).toContain(
+      t("admin.scanner.queue_count_one", { count: "{count}" }),
+    );
+    expect(page).toContain(
+      t("admin.scanner.queue_count_other", { count: "{count}" }),
+    );
   },
 );
 
