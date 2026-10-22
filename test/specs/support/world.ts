@@ -128,9 +128,6 @@ export interface TicketsWorld extends World, EvidencePages {
   cleanup: PutsThingsBack;
   closedDayOn?: string;
   codeLedTo?: WhereTheCodeLed;
-  /** What the code-standard job last reported, ready for the Then that
-   * reads it. */
-  codeStandardFindings?: string[];
   confirmName?: string;
   daysOfferedLastLook?: string;
   doorAnswer?: DoorAnswer;

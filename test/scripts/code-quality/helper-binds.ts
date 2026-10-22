@@ -16,8 +16,10 @@ import {
  * argument list. */
 const SQL_HELPERS = new Set([
   "execute",
+  "executeReturningRow",
   "executeWithoutCacheInvalidation",
   "queryAll",
+  "queryIdColumn",
   "queryOne",
   "queryOnePrimary",
   "requireOne",

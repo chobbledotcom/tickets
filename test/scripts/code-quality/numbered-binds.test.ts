@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  findHandNumberedSql,
-  findRepeatedBinds,
-} from "#test/scripts/code-quality/numbered-binds.ts";
+import { findRepeatedBinds } from "#test/scripts/code-quality/numbered-binds.ts";
 
 describe("repeated binds", () => {
   test("fires on a statement that binds one value twice", () => {
@@ -315,6 +312,30 @@ await execute(row.sql);`,
     ]);
   });
 
+  test("fires on an inline array an executeReturningRow call carries", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "const row = await executeReturningRow<Lockout>(writeSql, [id, id]);",
+        [],
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: binds id more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
+
+  test("fires on an inline array a queryIdColumn call carries", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/db/synthetic.ts",
+        "const ids = await queryIdColumn(readSql, [ownerId, ownerId]);",
+        [],
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: binds ownerId more than once; numberedStatement binds it once and reuses the token",
+    ]);
+  });
+
   test("skips a helper call whose inline array never closes", () => {
     expect(
       findRepeatedBinds(
@@ -405,89 +426,5 @@ await execute(row.sql);`,
     ).toEqual([
       "shared/db/synthetic.ts:2: binds ownerId more than once; numberedStatement binds it once and reuses the token",
     ]);
-  });
-});
-
-describe("hand-numbered tokens", () => {
-  test("fires on SQL text that spells a ?N parameter", () => {
-    expect(
-      findHandNumberedSql(
-        "shared/db/synthetic.ts",
-        'const statement = { args: [id], sql: "DELETE FROM t WHERE parent_id = ?1 OR child_id = ?1" };',
-      ),
-    ).toEqual([
-      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
-    ]);
-  });
-
-  test("fires inside a template but never inside its interpolation", () => {
-    expect(
-      findHandNumberedSql(
-        "shared/db/synthetic.ts",
-        'const sql = `SELECT ?1 FROM t WHERE x = ${cond ?1 ? "a" : "b"}`;',
-      ),
-    ).toEqual([
-      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
-    ]);
-  });
-
-  test("walks a nested brace inside an interpolation", () => {
-    expect(
-      findHandNumberedSql(
-        "shared/db/synthetic.ts",
-        'const sql = `SELECT ?1 FROM t WHERE x = ${ { ok: true }.ok ? "a" : "b" }`;',
-      ),
-    ).toEqual([
-      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
-    ]);
-  });
-
-  test("fires on a hand-numbered fragment a template interpolation carries", () => {
-    expect(
-      findHandNumberedSql(
-        "shared/db/synthetic.ts",
-        'const sql = `DELETE FROM t WHERE ${byParent ? "parent_id = ?1" : "id = ?"}`;',
-      ),
-    ).toEqual([
-      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
-    ]);
-  });
-
-  test("fires on a hand-numbered fragment a nested template carries", () => {
-    expect(
-      findHandNumberedSql(
-        "shared/db/synthetic.ts",
-        'const sql = `DELETE FROM t WHERE ${byParent ? `child_id = ?1` : ""}`;',
-      ),
-    ).toEqual([
-      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
-    ]);
-  });
-
-  test("never reads a comment", () => {
-    expect(
-      findHandNumberedSql(
-        "shared/db/synthetic.ts",
-        "// Both arms compare against the same cutoff, bound once as ?1.\nconst cutoff = 1;",
-      ),
-    ).toEqual([]);
-  });
-
-  test("stays quiet on the binder that owns the tokens", () => {
-    expect(
-      findHandNumberedSql(
-        "shared/db/numbered-statement.ts",
-        "const token = `?${next}`;",
-      ),
-    ).toEqual([]);
-  });
-
-  test("stays quiet on unnumbered placeholders", () => {
-    expect(
-      findHandNumberedSql(
-        "shared/db/synthetic.ts",
-        'const statement = { args: [id], sql: "DELETE FROM t WHERE id = ?" };',
-      ),
-    ).toEqual([]);
   });
 });
