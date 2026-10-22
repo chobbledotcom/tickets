@@ -178,4 +178,8 @@ export const ALLOWED_TEST_HOOKS: string[] = [
   // dynamically imports the pages module and picks the handler off the
   // namespace object, which the named-clause scanner cannot see.
   "features/public/pages.ts:handlePublicContactSubmit",
+  // The offline engine's page entry point. The scanner page script is its
+  // production caller. This branch carries the engine before that wiring,
+  // and the wiring branch removes this entry with the page script.
+  "ui/client/scanner-offline.ts:setupOfflineScanner",
 ];
