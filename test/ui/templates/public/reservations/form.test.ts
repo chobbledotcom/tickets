@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
@@ -82,14 +83,17 @@ describe("ticketPage — fields & form", () => {
         location: "Main hall",
       }),
     });
-    expect(html).toContain('class="listing-image"');
-    expect(html).toContain('alt="People at the listing"');
-    expect(html).toContain('<div class="prose"><h1>Listing header</h1>');
-    expect(html).toContain('<div class="description"><p>First paragraph</p>');
-    expect(html).toContain("<p>Second paragraph</p>");
-    expect(html).toContain("<strong>Date:</strong> ");
-    expect(html).toContain('class="badge-alert"> 2 days ago');
-    expect(html).toContain("<strong>Location:</strong> Main hall");
+    assertStringIncludes(html, 'class="listing-image"');
+    assertStringIncludes(html, 'alt="People at the listing"');
+    assertStringIncludes(html, '<div class="prose"><h1>Listing header</h1>');
+    assertStringIncludes(
+      html,
+      '<div class="description"><p>First paragraph</p>',
+    );
+    assertStringIncludes(html, "<p>Second paragraph</p>");
+    assertStringIncludes(html, "<strong>Date:</strong> ");
+    assertStringIncludes(html, 'class="badge-alert"> 2 days ago');
+    assertStringIncludes(html, "<strong>Location:</strong> Main hall");
   });
 
   test("uses gallery images instead of the fallback header image", () => {
@@ -109,11 +113,12 @@ describe("ticketPage — fields & form", () => {
         image_url: "fallback.webp",
       },
     });
-    expect(html).toContain('<fieldset class="news-gallery">');
-    expect(html).toContain(
+    assertStringIncludes(html, '<fieldset class="news-gallery">');
+    assertStringIncludes(
+      html,
       'class="news-gallery-full" src="/image/gallery.webp"',
     );
-    expect(html).not.toContain("fallback.webp");
+    assert(!html.includes("fallback.webp"));
   });
 
   test("renders markdown paragraphs in terms and conditions", () => {
@@ -130,9 +135,9 @@ describe("ticketPage — fields & form", () => {
       slugs: ["ab12c"],
       terms: "Rule one\n\nRule two",
     });
-    expect(html).toContain("<p>Rule one</p>");
-    expect(html).toContain("<p>Rule two</p>");
-    expect(html).toContain('name="agree_terms"');
+    assertStringIncludes(html, "<p>Rule one</p>");
+    assertStringIncludes(html, "<p>Rule two</p>");
+    assertStringIncludes(html, 'name="agree_terms"');
   });
 
   test("renders custom questions with listing IDs", () => {
@@ -167,9 +172,9 @@ describe("ticketPage — fields & form", () => {
       questions,
       slugs: ["ab12c"],
     });
-    expect(html).toContain("Size?");
-    expect(html).toContain('name="question_5"');
-    expect(html).toContain('data-listing-ids="1"');
+    assertStringIncludes(html, "Size?");
+    assertStringIncludes(html, 'name="question_5"');
+    assertStringIncludes(html, 'data-listing-ids="1"');
   });
 
   test("renders an opt-in add-on selector with its price label", async () => {
@@ -196,12 +201,13 @@ describe("ticketPage — fields & form", () => {
         listings,
         slugs: ["ab12c"],
       });
-      expect(html).toContain('<fieldset class="ticket-addons">');
-      expect(html).toContain('<label class="addon-row">');
-      expect(html).toContain('<span class="addon-name">T-shirt ');
-      expect(html).toContain('<span class="addon-price">(+£5)</span>');
-      expect(html).toContain('aria-label="T-shirt — Quantity"');
-      expect(html).toContain(
+      assertStringIncludes(html, '<fieldset class="ticket-addons">');
+      assertStringIncludes(html, '<label class="addon-row">');
+      assertStringIncludes(html, '<span class="addon-name">T-shirt ');
+      assertStringIncludes(html, '<span class="addon-price">(+£5)</span>');
+      assertStringIncludes(html, 'aria-label="T-shirt — Quantity"');
+      assertStringIncludes(
+        html,
         'max="5" min="0" name="addon_7" placeholder="0" type="number" value="2"',
       );
     });
@@ -217,7 +223,8 @@ describe("ticketPage — fields & form", () => {
       },
     });
     expect(hasInputWithValue(html, "name", "Ada Lovelace")).toBe(true);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'name="qr_token" type="hidden" value="signed-token"',
     );
   });
@@ -232,16 +239,19 @@ describe("ticketPage — fields & form", () => {
         hasDaily: true,
         prefill: { date: "2026-08-01", listings: new Map() },
       });
-      expect(html).toContain('<option value="2026-08-02" selected>');
-      expect(html).not.toContain('<option value="2026-08-01" selected>');
-      expect(html).toContain('name="day_count"');
+      assertStringIncludes(html, '<option value="2026-08-02" selected>');
+      assert(!html.includes('<option value="2026-08-01" selected>'));
+      assertStringIncludes(html, 'name="day_count"');
       clearSavedFormData();
       const prefilledHtml = renderForm({
         dates: ["2026-08-01"],
         hasDaily: true,
         prefill: { date: "2026-08-01", listings: new Map() },
       });
-      expect(prefilledHtml).toContain('<option value="2026-08-01" selected>');
+      assertStringIncludes(
+        prefilledHtml,
+        '<option value="2026-08-01" selected>',
+      );
     });
   });
 
@@ -249,8 +259,8 @@ describe("ticketPage — fields & form", () => {
     await withRequestContext(() => {
       detectIframeMode(new URL("https://example.com/?iframe=true"));
       const html = singleListingPageHtml();
-      expect(html).toContain('action="/ticket/ab12c?iframe=true"');
-      expect(html).toContain('class="iframe"');
+      assertStringIncludes(html, 'action="/ticket/ab12c?iframe=true"');
+      assertStringIncludes(html, 'class="iframe"');
     });
   });
 
@@ -258,37 +268,41 @@ describe("ticketPage — fields & form", () => {
     await withRequestContext(() => {
       detectIframeMode(new URL("https://example.com/?iframe=true"));
       const html = singleListingPageHtml();
-      expect(html).toContain("iframe-resizer-child.js");
+      assertStringIncludes(html, "iframe-resizer-child.js");
     });
   });
 
   test("excludes iframe-resizer child script without iframe mode", () => {
     const html = singleListingPageHtml();
-    expect(html).not.toContain("iframe-resizer-child.js");
+    assert(!html.includes("iframe-resizer-child.js"));
   });
 
   test("does not append ?iframe=true without iframe mode", () => {
     const html = singleListingPageHtml();
-    expect(html).toContain('action="/ticket/ab12c"');
-    expect(html).not.toContain("?iframe=true");
-    expect(html).not.toContain('class="iframe"');
-    expect(html).toContain('<div class="running-total">');
-    expect(html).toContain('data-running-total formaction="/calculate/ab12c"');
-    expect(html).toContain("formnovalidate");
-    expect(html).toContain('formtarget="_blank"');
-    expect(html).toContain(
+    assertStringIncludes(html, 'action="/ticket/ab12c"');
+    assert(!html.includes("?iframe=true"));
+    assert(!html.includes('class="iframe"'));
+    assertStringIncludes(html, '<div class="running-total">');
+    assertStringIncludes(
+      html,
+      'data-running-total formaction="/calculate/ab12c"',
+    );
+    assertStringIncludes(html, "formnovalidate");
+    assertStringIncludes(html, 'formtarget="_blank"');
+    assertStringIncludes(
+      html,
       '<output class="order-summary-output" data-running-total-output></output>',
     );
   });
 
   test("uses an explicit empty action for the current page", () => {
-    expect(renderForm({ actionUrl: "" })).toContain('action=""');
+    assertStringIncludes(renderForm({ actionUrl: "" }), 'action=""');
   });
 
   test("omits the running total for a custom action", () => {
     const html = renderForm({ actionUrl: "/renew/signed-token" });
-    expect(html).toContain('action="/renew/signed-token"');
-    expect(html).not.toContain("data-running-total");
+    assertStringIncludes(html, 'action="/renew/signed-token"');
+    assert(!html.includes("data-running-total"));
   });
 
   test("hides quantity selector for single listing with max quantity 1", () => {
@@ -303,8 +317,8 @@ describe("ticketPage — fields & form", () => {
     ];
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expect(hasInputWithValue(html, "quantity_1", "1")).toBe(true);
-    expect(html).not.toContain("<select");
-    expect(html).not.toContain("Select Tickets");
+    assert(!html.includes("<select"));
+    assert(!html.includes("Select Tickets"));
   });
 
   test("shows quantity selector for single listing with max quantity above 1", () => {
@@ -318,11 +332,11 @@ describe("ticketPage — fields & form", () => {
       }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c"] });
-    expect(html).toContain("<select");
-    expect(html).toContain('name="quantity_1"');
-    expect(html).toContain("Number of Tickets");
+    assertStringIncludes(html, "<select");
+    assertStringIncludes(html, 'name="quantity_1"');
+    assertStringIncludes(html, "Number of Tickets");
     expect(hasInputWithValue(html, "quantity_1", "1")).toBe(false);
-    expect(html).not.toContain("ticket-listings");
+    assert(!html.includes("ticket-listings"));
   });
 
   test("shows quantity selector for multiple listings even with max quantity 1", () => {
@@ -343,14 +357,16 @@ describe("ticketPage — fields & form", () => {
       }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c", "cd34e"] });
-    expect(html).toContain("<select");
-    expect(html).toContain(
+    assertStringIncludes(html, "<select");
+    assertStringIncludes(
+      html,
       '<form action="/ticket/ab12c+cd34e" autocomplete="off" method="POST">',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<fieldset class="ticket-listings"><legend>Select Tickets</legend>',
     );
-    expect(html).toContain('formaction="/calculate/ab12c+cd34e"');
+    assertStringIncludes(html, 'formaction="/calculate/ab12c+cd34e"');
   });
 
   test("hides quantity selector when one listing available and one sold out", () => {
@@ -366,12 +382,12 @@ describe("ticketPage — fields & form", () => {
     ];
     const html = ticketPage({ listings, slugs: ["ab12c", "cd34e"] });
     expect(hasInputWithValue(html, "quantity_1", "1")).toBe(true);
-    expect(html).not.toContain("Select Tickets");
+    assert(!html.includes("Select Tickets"));
   });
 
   test("does not group package rows as independent listings", () => {
     const html = renderForm({ isPackage: true });
-    expect(html).toContain('data-listing-row="true"');
-    expect(html).not.toContain("ticket-listings");
+    assertStringIncludes(html, 'data-listing-row="true"');
+    assert(!html.includes("ticket-listings"));
   });
 });

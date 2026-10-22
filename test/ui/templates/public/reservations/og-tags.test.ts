@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildOgTags } from "#templates/public/reservations/og-tags.ts";
 
@@ -19,9 +19,13 @@ describe("buildOgTags", () => {
       },
       "https://example.com",
     );
-    expect(html).toContain('<meta property="og:title" content="My Listing">');
-    expect(html).toContain('<meta property="og:type" content="website">');
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
+      '<meta property="og:title" content="My Listing">',
+    );
+    assertStringIncludes(html, '<meta property="og:type" content="website">');
+    assertStringIncludes(
+      html,
       '<meta property="og:url" content="https://example.com/ticket/my-listing">',
     );
   });
@@ -36,7 +40,8 @@ describe("buildOgTags", () => {
       },
       "https://example.com",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<meta property="og:description" content="Come join us">',
     );
   });
@@ -51,7 +56,7 @@ describe("buildOgTags", () => {
       },
       "https://example.com",
     );
-    expect(html).not.toContain("og:description");
+    assert(!html.includes("og:description"));
   });
 
   test("includes image when present", () => {
@@ -64,7 +69,8 @@ describe("buildOgTags", () => {
       },
       "https://example.com",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<meta property="og:image" content="https://example.com/image/photo.jpg">',
     );
   });
@@ -79,7 +85,7 @@ describe("buildOgTags", () => {
       },
       "https://example.com",
     );
-    expect(html).not.toContain("og:image");
+    assert(!html.includes("og:image"));
   });
 
   test("escapes HTML in listing name", () => {
@@ -92,7 +98,7 @@ describe("buildOgTags", () => {
       },
       "https://example.com",
     );
-    expect(html).toContain("Listing &quot;with quotes&quot;");
-    expect(html).not.toContain('content="Listing "with quotes""');
+    assertStringIncludes(html, "Listing &quot;with quotes&quot;");
+    assert(!html.includes('content="Listing "with quotes""'));
   });
 });
