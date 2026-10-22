@@ -36,13 +36,24 @@ export interface MovesNamedRows {
   move(world: TicketsWorld, name: string, direction: Direction): Promise<void>;
 }
 
+/** The address one world sees the list at. The caller names the list
+ * directly, or hands a function when the address carries the world's state.
+ * This function stays flat at module level with a block body, because the
+ * coverage merge mis-sums a nested arrow's body lines across isolates. */
+const listPathOn = (
+  listPath: string | ((world: TicketsWorld) => string),
+  world: TicketsWorld,
+): string => {
+  if (typeof listPath === "function") {
+    return listPath(world);
+  }
+  return listPath;
+};
+
 export const movingRowsOn = (
   listPath: string | ((world: TicketsWorld) => string),
   openAt: OpensAtOneRow,
 ): MovesNamedRows => {
-  const pathOn = (world: TicketsWorld): string =>
-    typeof listPath === "function" ? listPath(world) : listPath;
-
   /** The list in front of somebody, and where this row's arrow for going that
    * way posts — or nothing when the row offers them no such arrow. Read off
    * the named row's own markup, so an arrow rendered beside somebody else's
@@ -53,7 +64,7 @@ export const movingRowsOn = (
     direction: Direction,
   ): Promise<{ browser: TestBrowser; posts: string | null }> => {
     const { browser, id, row } = await openAt(world, name);
-    const posts = `${pathOn(world)}/${id}/move-${direction}`;
+    const posts = `${listPathOn(listPath, world)}/${id}/move-${direction}`;
     return {
       browser,
       posts: row.includes(posts) ? posts : null,
