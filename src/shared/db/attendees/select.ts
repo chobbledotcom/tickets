@@ -182,9 +182,8 @@ const listingIntColumn = (join: AttendeeJoin, name: string): string =>
 
 /** Whose booking a read's `email_owed` asks about. `booking` scopes the rule
  * to the row's own listing: the row is one booking, so the badge shows only
- * what that booking owes. `attendee` keeps the rule attendee-wide: the read
- * returns one row per person, so the badge says what any of the person's
- * bookings owes. */
+ * what that booking owes. `attendee` keeps the rule attendee-wide: the badge
+ * says what any of the person's bookings owes. */
 export type AttendeeOwedScope = "attendee" | "booking";
 
 /** Identity columns plus the cheap per-listing columns every caller reads. */
@@ -337,9 +336,9 @@ export type GetAttendeesQuery<F extends AttendeeField> = {
   where: AttendeeWhere;
   /** Whose booking the read's `email_owed` asks about. It defaults to the
    *  attendee-wide rule, the reach the read always had. A read whose rows
-   *  stand for one booking — a roster row, a browser row, a dashboard row —
-   *  must opt in with `booking`. That row's badge then asks about its own
-   *  booking's listing alone. */
+   *  stand for one booking — a roster row — must opt in with `booking`.
+   *  That row's badge then asks about its own booking's listing alone.
+   *  The grouped person rows keep the default. */
   owedScope?: AttendeeOwedScope;
   /** Omit only for a single-row read; a list read always passes one, so its
    *  rows come back the same way every time. */
