@@ -29,6 +29,30 @@ Feature: The site's footer
       When the owner saves a site footer with the picture in it
       Then a visitor on the front page sees the picture in the footer
 
+    @case:site-footer.picture-on-the-list
+    Scenario: The footer's picture shows on the list
+      Given the public site is on
+      And the site sells a Pottery
+      And the owner has uploaded a picture called "FooterPoster"
+      When the owner saves a site footer with the picture in it
+      Then a visitor on the list sees the Pottery and the picture in the footer
+
+    @case:site-footer.picture-on-the-news-page
+    Scenario: The footer's picture shows on the news page
+      Given the public site is on
+      And the owner has posted news called "Kiln opening"
+      And the owner has uploaded a picture called "FooterPoster"
+      When the owner saves a site footer with the picture in it
+      Then a visitor on the news page reads "Kiln opening" and sees the picture in the footer
+
+    @case:site-footer.picture-on-a-news-post
+    Scenario: The footer's picture shows on a news post
+      Given the public site is on
+      And the owner has uploaded a picture called "FooterPoster"
+      When the owner posts news called "Kiln opening" saying "Doors open Friday."
+      And the owner saves a site footer with the picture in it
+      Then a visitor following "Kiln opening" from the news page reads "Doors open Friday." and sees the picture in the footer
+
     @case:site-footer.picture-on-the-ticket-a-customer-holds
     Scenario: The footer's picture shows on the ticket a customer holds
       Given the public site is on
@@ -37,6 +61,14 @@ Feature: The site's footer
       When the owner saves a site footer with the picture in it
       And Ada books 1 place on the Pottery
       Then a visitor opening the ticket they were given sees the picture in the footer
+
+    @case:site-footer.picture-on-a-booking-page
+    Scenario: The footer's picture shows on a booking page
+      Given the public site is on
+      And the site sells a Pottery
+      And the owner has uploaded a picture called "FooterPoster"
+      When the owner saves a site footer with the picture in it
+      Then a visitor on the Pottery's booking page sees the picture in the footer
 
     @case:site-footer.picture-when-a-page-is-not-there
     Scenario: A visitor asks for a page that is not there
@@ -59,6 +91,44 @@ Feature: The site's footer
         | site-footer.picture-on-terms          | terms page           |
         | site-footer.picture-on-order          | order page           |
         | site-footer.picture-on-a-written-page | page the owner wrote |
+
+    @case:site-footer.picture-after-a-customer-pays
+    Scenario: The footer's picture shows on the page a customer sees after they pay
+      Given the public site is on
+      And the site sells a Concert
+      And the owner has uploaded a picture called "FooterPoster"
+      When the owner saves a site footer with the picture in it
+      And Ada pays 15.00 for a place on the Concert
+      Then the page they are shown after they pay says their order went through and shows the picture in the footer
+
+    @case:site-footer.picture-after-a-free-booking
+    Scenario: The footer's picture shows on the page a customer sees after they book a free place
+      Given the public site is on
+      And the owner has uploaded a picture called "FooterPoster"
+      When the owner saves a site footer with the picture in it
+      And a customer books a free Free Meetup place
+      Then the page their booking landed on shows the picture in the footer
+
+    @case:site-footer.picture-on-the-payment-link
+    Scenario: The footer's picture shows on a customer's payment link
+      Given the public site is on
+      And a customer owes 80.00 for a Retreat place
+      And the owner has uploaded a picture called "FooterPoster"
+      When the owner saves a site footer with the picture in it
+      And they pay a deposit of 30.00
+      Then their payment link offers to take the 50.00 that is left
+      And their payment link shows the picture in the footer
+
+    @case:site-footer.picture-on-the-choices-page
+    Scenario: The footer's picture shows on a customer's choices page
+      Given the public site is on
+      And the owner has an email provider of their own
+      And 2 people have booked onto "the Gig"
+      And the owner has uploaded a picture called "FooterPoster"
+      When the owner saves a site footer with the picture in it
+      And the owner has sent a promotion to "the Gig" saying "Half price Friday."
+      And one of them follows the choices link in their copy
+      Then their choices page shows the picture in the footer
 
     @case:site-footer.picture-when-the-checkout-has-ended
     Scenario: The footer's picture shows when a customer's checkout has ended

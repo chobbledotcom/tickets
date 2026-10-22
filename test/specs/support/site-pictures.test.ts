@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  expectFooterPicture,
   footerHtml,
   sitePictureTag,
   textWithSitePicture,
@@ -41,5 +42,34 @@ describe("the site picture helpers", () => {
     expect(() => footerHtml("<main>words</main>")).toThrow(
       "the page renders no site footer",
     );
+  });
+
+  test("reads the story's picture inside the page's footer region", () => {
+    expect(() =>
+      expectFooterPicture(
+        worldWithPicture(),
+        '<main>words</main><footer class="site-footer">' +
+          '<p>Come along.</p><img src="/image/field.png" alt="A sunny field"></footer>',
+      ),
+    ).not.toThrow();
+  });
+
+  test("says so when the footer shows no picture", () => {
+    expect(() =>
+      expectFooterPicture(
+        worldWithPicture(),
+        '<footer class="site-footer"><p>Come along.</p></footer>',
+      ),
+    ).toThrow();
+  });
+
+  test("says so when a reference is left unresolved anywhere on the page", () => {
+    expect(() =>
+      expectFooterPicture(
+        worldWithPicture(),
+        '<footer class="site-footer"><img src="/image/field.png" alt="A sunny field"></footer>' +
+          "<p>Still shows img#3.</p>",
+      ),
+    ).toThrow();
   });
 });

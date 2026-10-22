@@ -4,10 +4,16 @@
  * the one picture a story talks about and read it back off the rendered pages.
  */
 
+// jscpd:ignore-start
+
+import { expect } from "@std/expect";
 import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
+
+// jscpd:ignore-end
 
 /** The picture the story put in the site's words. A story that never uploaded
  * one has nothing to look for, so it says so rather than hunting for a row
@@ -35,4 +41,25 @@ export const footerHtml = (html: string): string => {
   if (start === -1) throw new Error("the page renders no site footer");
   const end = html.indexOf("</footer>", start);
   return html.slice(start, end);
+};
+
+/** The story's picture shows inside this page's site footer, and no
+ * unresolved reference shows anywhere on the page. */
+export const expectFooterPicture = (
+  world: TicketsWorld,
+  html: string,
+): void => {
+  expect(footerHtml(html)).toContain(sitePictureTag(world));
+  expect(html).not.toContain("img#");
+};
+
+/** The page somebody opened shows the story's picture in its site footer,
+ * and the site answered it with the status the story expects. */
+export const footerShowsPicture = (
+  world: TicketsWorld,
+  answered: number,
+  browser: TestBrowser,
+): void => {
+  expect(browser.answered).toBe(answered);
+  expectFooterPicture(world, browser.currentHtml);
 };

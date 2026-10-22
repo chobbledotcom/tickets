@@ -28,7 +28,8 @@ import {
   wordsOnlyOn,
 } from "#test/specs/support/site-pages.ts";
 import {
-  footerHtml,
+  expectFooterPicture,
+  footerShowsPicture,
   sitePictureTag,
   textWithSitePicture,
 } from "#test/specs/support/site-pictures.ts";
@@ -37,7 +38,6 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -49,24 +49,6 @@ const visitorSeesPictureAt = async (
   const browser = await openAsNewcomer(path);
   expect(browser.currentHtml).toContain(sitePictureTag(world));
   expect(browser.currentHtml).not.toContain("img#");
-};
-
-/** The story's picture shows inside this page's site footer, and no
- * unresolved reference shows anywhere on the page. */
-const expectFooterPicture = (world: TicketsWorld, html: string): void => {
-  expect(footerHtml(html)).toContain(sitePictureTag(world));
-  expect(html).not.toContain("img#");
-};
-
-/** The page somebody opened shows the story's picture in its site footer,
- * and the site answered it with the status the story expects. */
-const footerShowsPicture = (
-  world: TicketsWorld,
-  answered: number,
-  browser: TestBrowser,
-): void => {
-  expect(browser.answered).toBe(answered);
-  expectFooterPicture(world, browser.currentHtml);
 };
 
 /** A page the footer story reads beside its own words: where it lives, the
