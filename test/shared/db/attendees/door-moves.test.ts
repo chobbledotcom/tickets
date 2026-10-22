@@ -61,4 +61,27 @@ describeWithEnv("moveTicketsAndLog", { db: true }, () => {
     expect(moved[0]!.count).toBe(0);
     expect((await activityMessages()).length).toBe(before);
   });
+
+  test("a refused claim moves nothing and logs nothing", async () => {
+    // The ledger already holds this delivery's pair, so the claim answers
+    // false: the replayed delivery admits nothing a second time.
+    const { attendee, listing } = await createTestAttendeeWithToken(
+      "Rex",
+      "rex@x.com",
+      { name: "Doors" },
+      2,
+    );
+    const before = (await activityMessages()).length;
+
+    const moved = await moveTicketsAndLog(
+      "admit",
+      [{ attendeeId: attendee.id, count: 1, listingId: listing.id }],
+      () => "should not be written",
+      async () => false,
+    );
+
+    expect(moved).toEqual([]);
+    expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 0 }]);
+    expect((await activityMessages()).length).toBe(before);
+  });
 });

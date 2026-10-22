@@ -8,9 +8,12 @@
  * walk, the stored every-listing rule, and the guards.
  */
 
+import type { InStatement, TransactionMode } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { proxyMembers } from "#shared/proxy-members.ts";
 import {
   editorScan,
   groupDoor,
@@ -23,6 +26,7 @@ import {
   createMultiBookingAttendee,
   createTestAttendeeWithToken,
 } from "#test-utils/db-helpers/attendees.ts";
+import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import {
   createTestGroup,
   updateTestGroup,
@@ -34,6 +38,60 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+
+/** Run one request while another door's full check-in of one attendee
+ * lands the moment the write reads the ticket lines: the door race the
+ * write's own read arbitrates. The stubbed read checks the person in
+ * first, so the move takes nothing. */
+const withOtherDoorAdmittedFirst = async <T>(
+  attendeeId: number,
+  run: () => Promise<T>,
+): Promise<T> => {
+  // The db client opens its connection on load, so the request's own
+  // module reads keep it lazy the way the rest of this file does.
+  const { getDb } = await import("#db/client.ts");
+  const realTransaction = getDb().transaction.bind(getDb());
+  const transactionStub = stub(
+    getDb(),
+    "transaction",
+    async (mode?: TransactionMode) => {
+      const tx = await realTransaction(mode);
+      const read = tx.execute.bind(tx);
+      return proxyMembers(tx, {
+        execute: (stmt: InStatement) => {
+          const sql = typeof stmt === "string" ? stmt : stmt.sql;
+          if (!sql.includes("FROM listing_attendees AS listingAttendee")) {
+            return read(stmt);
+          }
+          return (async () => {
+            await read({
+              args: [attendeeId],
+              sql: "UPDATE listing_attendees SET checked_in = quantity WHERE attendee_id = ?",
+            });
+            return read(stmt);
+          })();
+        },
+      });
+    },
+  );
+  try {
+    return await run();
+  } finally {
+    transactionStub.restore();
+  }
+};
+
+/** A person holding one place on each of the door's two listings, with the
+ * door set to check every listing in at once. */
+const twoPlaceTicket = async (who: string, email: string) => {
+  const { group, members } = await groupDoor(2);
+  const ticket = await createMultiBookingAttendee(who, email, [
+    { listingId: members[0]!.id, quantity: 1 },
+    { listingId: members[1]!.id, quantity: 1 },
+  ]);
+  await updateTestGroup(group.id, { scanChecksInAllListings: true });
+  return { group, ticket };
+};
 
 describeWithEnv("group scanner scans", { db: true }, () => {
   test("an outside-group ticket is queried, and force lets it in", async () => {
@@ -124,12 +182,7 @@ describeWithEnv("group scanner scans", { db: true }, () => {
   });
 
   test("two concurrent group scans of one ticket leave one true state", async () => {
-    const { group, members } = await groupDoor(2);
-    const ticket = await createMultiBookingAttendee("Ivy", "ivy@example.com", [
-      { listingId: members[0]!.id, quantity: 1 },
-      { listingId: members[1]!.id, quantity: 1 },
-    ]);
-    await updateTestGroup(group.id, { scanChecksInAllListings: true });
+    const { group, ticket } = await twoPlaceTicket("Ivy", "ivy@example.com");
 
     const [first, second] = await Promise.all([
       scanAtDoor(group.id, { token: ticket.ticket_token }),
@@ -149,6 +202,26 @@ describeWithEnv("group scanner scans", { db: true }, () => {
     });
     expect(after.json.status).toBe("already_checked_in");
     expect(after.json.listingName).toBe("Standard, Society");
+  });
+
+  test("a scan whose ticket another door admitted first answers already-in", async () => {
+    // The other door's check-in lands between this scan's decision and its
+    // write: the ticket-lines read inside the write sees their check-in,
+    // so the move takes nothing and the door reads the already-in answer.
+    const { group, ticket } = await twoPlaceTicket("Kit", "kit@example.com");
+
+    const answer = await withOtherDoorAdmittedFirst(ticket.id, () =>
+      scanAtDoor(group.id, { token: ticket.ticket_token }),
+    );
+
+    expect(answer.json.status).toBe("already_checked_in");
+    expect(answer.json.name).toBe("Kit");
+    expect(answer.json.listingName).toBe("Standard, Society");
+    expect(
+      (await storedCheckinRows(ticket.id)).sort(
+        (a, b) => b.checked_in - a.checked_in,
+      ),
+    ).toEqual([{ checked_in: 1 }, { checked_in: 1 }]);
   });
 
   test("a listing door never widens a forced scan into other listings", async () => {

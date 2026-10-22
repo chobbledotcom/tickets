@@ -10,6 +10,7 @@ import { hmacHex } from "#crypto/sha256.ts";
 import { doorCacheName } from "#routes/admin/scan-tokens.ts";
 import { groupDoor, scanAtDoor } from "#test/features/admin/scanner/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withDbFault } from "#test-utils/db-fault.ts";
 import {
   bookTestAttendee,
   createMultiBookingAttendee,
@@ -41,6 +42,21 @@ const sendTwice = async (groupId: number, body: Record<string, unknown>) => {
   const first = await scanAtDoor(groupId, body);
   const retry = await scanAtDoor(groupId, body);
   return { first, retry };
+};
+
+/** The same delivery sent again: the retry answers already-in and the
+ * stored check-ins still hold `checkedIn` places. */
+const retryAnswersAlreadyIn = async (
+  groupId: number,
+  body: Record<string, unknown>,
+  attendeeId: number,
+  checkedIn: number,
+) => {
+  const retry = await scanAtDoor(groupId, body);
+  expect(retry.json.status).toBe("already_checked_in");
+  expect(await storedCheckinRows(attendeeId)).toEqual([
+    { checked_in: checkedIn },
+  ]);
 };
 
 /** A two-tier door and a person holding one place on the first tier and
@@ -220,9 +236,7 @@ describeWithEnv(
       expect(first.json.quantity).toBe(1);
       expect(first.json.remaining).toBe(2);
 
-      const retry = await scanAtDoor(door.group.id, body);
-      expect(retry.json.status).toBe("already_checked_in");
-      expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 1 }]);
+      await retryAnswersAlreadyIn(door.group.id, body, attendee.id, 1);
     });
 
     test("a lost answer's retry of a two-tier ticket admits no second tier", async () => {
@@ -377,6 +391,41 @@ describeWithEnv(
       });
       expect(retry.json.status).toBe("already_checked_in");
       expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 1 }]);
+    });
+
+    test("a delivery whose ticket another door admitted first answers already-in from the ledger", async () => {
+      // Two doors held the same queued ticket, and the other door checked
+      // the person in while this delivery was queued. This send still
+      // claims its pair, its admission moves nothing, and the answer reads
+      // the tier the delivery planned back from the ledger — never a tier
+      // a fresh decision picks now. The trigger stands in for the other
+      // door's write: it fires on the claim, inside this write.
+      const { door, attendee } = await partyOfThree();
+      const body = await queuedBody(
+        door.group.id,
+        attendee.ticket_token,
+        "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b0c",
+        1,
+      );
+
+      const answer = await withDbFault(
+        `CREATE TRIGGER test_other_door_admitted_first
+          BEFORE INSERT ON processed_scan_operations
+        BEGIN
+          UPDATE listing_attendees SET checked_in = quantity
+          WHERE attendee_id = ${attendee.id};
+        END`,
+        "test_other_door_admitted_first",
+        () => scanAtDoor(door.group.id, body),
+      );
+
+      expect(answer.json.status).toBe("already_checked_in");
+      expect(answer.json.name).toBe("Cara");
+      expect(answer.json.listingName).toBe("Standard");
+      // The delivery moved nothing; the other door's check-in stands.
+      expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 3 }]);
+      // The pair is stored either way, so a retry reads the same answer.
+      await retryAnswersAlreadyIn(door.group.id, body, attendee.id, 3);
     });
   },
 );

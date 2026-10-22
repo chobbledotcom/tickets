@@ -8,6 +8,7 @@ import { it as test } from "@std/testing/bdd";
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
 import { hmacHex } from "#crypto/sha256.ts";
 import type { AttendeeWithBookings } from "#db/attendee-types.ts";
+import { claimScanOperation } from "#db/processed-scan-operations.ts";
 import { doorAttendees } from "#routes/admin/scan-answer.ts";
 import {
   attendeeByTokenHash,
@@ -15,7 +16,6 @@ import {
   type QueuedDelivery,
   queuedDelivery,
 } from "#routes/admin/scan-delivery.ts";
-import { claimScanOperation } from "#db/processed-scan-operations.ts";
 import { getRequestPrivateKey } from "#shared/session-private-key.ts";
 import { groupDoor } from "#test/features/admin/scanner/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -166,31 +166,38 @@ describeWithEnv("the keyed digest match", { db: true }, () => {
   });
 });
 
-describeWithEnv("the ledger row a landed delivery answers from", { db: true }, () => {
-  test("answers the listings the delivery's claim stored", async () => {
-    // A delivery's claim stores its pair with the listings its admission
-    // moved. The retry reads those listings back, so its answer names the
-    // tier the first send put in.
-    const { withTransaction } = await import("#db/client.ts");
-    const delivery: QueuedDelivery = {
-      operationId: "op-1",
-      tokenHash: "digest-a",
-    };
-    await withTransaction((tx) =>
-      claimScanOperation({ listingIds: [3, 5], ...delivery })(tx),
-    );
+describeWithEnv(
+  "the ledger row a landed delivery answers from",
+  { db: true },
+  () => {
+    test("answers the listings the delivery's claim stored", async () => {
+      // A delivery's claim stores its pair with the listings its admission
+      // moved. The retry reads those listings back, so its answer names the
+      // tier the first send put in.
+      const { withTransaction } = await import("#db/client.ts");
+      const delivery: QueuedDelivery = {
+        operationId: "op-1",
+        tokenHash: "digest-a",
+      };
+      await withTransaction((tx) =>
+        claimScanOperation({ listingIds: [3, 5], ...delivery })(tx),
+      );
 
-    expect(await deliveredListingIds(delivery)).toEqual([3, 5]);
-  });
+      expect(await deliveredListingIds(delivery)).toEqual([3, 5]);
+    });
 
-  test("throws when the ledger holds no row for the delivery", async () => {
-    // The admission stores the row before any read of the answer. A miss
-    // here means the row vanished, and the read fails loudly. It never
-    // answers an empty tier list.
-    await expect(
-      deliveredListingIds({ operationId: "op-missing", tokenHash: "digest-b" }),
-    ).rejects.toThrow(
-      "A claimed scan delivery's ledger row went missing before its answer",
-    );
-  });
-});
+    test("throws when the ledger holds no row for the delivery", async () => {
+      // The admission stores the row before any read of the answer. A miss
+      // here means the row vanished, and the read fails loudly. It never
+      // answers an empty tier list.
+      await expect(
+        deliveredListingIds({
+          operationId: "op-missing",
+          tokenHash: "digest-b",
+        }),
+      ).rejects.toThrow(
+        "A claimed scan delivery's ledger row went missing before its answer",
+      );
+    });
+  },
+);
