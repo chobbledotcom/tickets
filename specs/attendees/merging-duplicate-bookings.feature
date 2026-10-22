@@ -84,6 +84,6 @@ Feature: An organiser merges two bookings for the same person
 
     @case:merge.replacing-a-bundle-part-leaves-the-rest
     Scenario: Replacing the bundle part leaves the on-its-own booking alone
-      Given the same person booked a free Reunion place twice — inside a bundle and on its own
+      Given the same person booked a free Reunion place twice, each booking holding a place inside a bundle and one on its own, the incoming booking holding 2 places and the opened one 1
       When the organiser merges them keeping the incoming bundle part
       Then the bundle part is the incoming one and the on-its-own booking is the one they opened

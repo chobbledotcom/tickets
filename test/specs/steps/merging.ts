@@ -222,11 +222,16 @@ Given(
 );
 
 Given(
-  "the same person booked a free {word} place twice — inside a bundle and on its own",
-  function (this: TicketsWorld, listing: string): Promise<void> {
+  "the same person booked a free {word} place twice, each booking holding a place inside a bundle and one on its own, the incoming booking holding {int} place(s) and the opened one {int}",
+  function (
+    this: TicketsWorld,
+    listing: string,
+    incoming: number,
+    opened: number,
+  ): Promise<void> {
     return duplicatePairOnSlots(this, listing, {
-      source: [{ bundle: true, quantity: 2 }, { quantity: 1 }],
-      target: [{ bundle: true, quantity: 1 }, { quantity: 1 }],
+      source: [{ bundle: true, quantity: incoming }, { quantity: incoming }],
+      target: [{ bundle: true, quantity: opened }, { quantity: opened }],
     });
   },
 );

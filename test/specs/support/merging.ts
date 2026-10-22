@@ -31,8 +31,10 @@ import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 // jscpd:ignore-end
 
 /** What the merge page shows before anything is merged: the page itself, the
- * version it was built from, and every booking field it offers a choice about. */
+ *  version it was built from, every booking field it offers a choice about,
+ *  and the choices it offers for each of them. */
 interface MergePreview {
+  bookingChoices: Record<string, string[]>;
   bookingFields: string[];
   html: string;
   version: string;
@@ -58,15 +60,21 @@ const mergePreview = async (
   const version = extractInputValue(html, "merge_version");
   expect(version).not.toBeNull();
   // One booking slot renders as a radio group whose inputs repeat the field
-  // name once per choice; the story reads slots, not choices, so keep one
-  // name per slot in the order the page offers them.
-  const bookingFields = [
-    ...new Set(
-      [...html.matchAll(/name="(booking_[^"]+)"/g)].map((match) => match[1]!),
-    ),
-  ];
+  // name once per choice: keep one name per slot in the order the page offers
+  // them, and beside it the choice values the page offers for that slot.
+  const bookingFields: string[] = [];
+  const bookingChoices: Record<string, string[]> = {};
+  for (const input of html.matchAll(/<input\b[^>]*>/g)) {
+    const field = /name="(booking_[^"]+)"/.exec(input[0]!)?.[1];
+    const choice = /value="([^"]+)"/.exec(input[0]!)?.[1];
+    if (field === undefined || choice === undefined) continue;
+    const offered = bookingChoices[field] ?? [];
+    if (offered.length === 0) bookingFields.push(field);
+    if (!offered.includes(choice)) offered.push(choice);
+    bookingChoices[field] = offered;
+  }
   expect(bookingFields.length).toBeGreaterThan(0);
-  return { bookingFields, html, version: version! };
+  return { bookingChoices, bookingFields, html, version: version! };
 };
 
 /** POST the merge apply form on the SAME stable owner cookie as
@@ -211,17 +219,25 @@ export type MergeBookingDecision = {
 };
 
 /** Merge the duplicate into the booking being kept, deciding every conflicting
- * booking the page offers through the real merge form. */
+ * booking through the real merge form. Each choice must be one the page
+ * offered: the organiser can pick only there, so a page that drops the choice
+ * fails the story before anything is posted. */
 export const mergeDeciding = async (
   world: TicketsWorld,
   decisions: MergeBookingDecision[],
 ): Promise<MergeOutcome> => {
-  const { version } = await mergeChoices(world);
+  const { bookingChoices, version } = await mergeChoices(world);
   const fields: Record<string, string> = {
     merge_version: version,
     source_token: requiredWorldValue(world.duplicateToken, "duplicate token"),
   };
   for (const decision of decisions) {
+    const offered = bookingChoices[decision.field] ?? [];
+    if (!offered.includes(decision.choice)) {
+      throw new Error(
+        `The merge page offered ${JSON.stringify(offered)} for ${decision.field}, not the ${decision.choice} the story chose`,
+      );
+    }
     fields[decision.field] = decision.choice;
     if (decision.money !== undefined) {
       fields[moneyFieldFor(decision.field)] = decision.money;

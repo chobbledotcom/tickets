@@ -62,9 +62,10 @@ Feature: The organiser keeps only the personal details the site still needs
   @surface:public
   Rule: Staged buyer answers stay while a payment can still arrive
     A checkout's staged answers outlive the checkout itself, for the
-    confirmation email and a late payment callback. Maintenance removes them
-    once the site no longer holds the checkout's payment link, and keeps them
-    while it does, however old they are.
+    confirmation email and a late payment callback. Maintenance keeps them
+    while the site holds the checkout's payment link, however old they are.
+    It removes them only once they are past the payments window and the site
+    no longer holds that link.
 
     @case:records.answers-kept-while-the-link-is-held
     Scenario: Maintenance keeps the answers a held link can still need
