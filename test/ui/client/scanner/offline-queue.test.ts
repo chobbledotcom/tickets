@@ -6,9 +6,10 @@
 // sanitizer. Solo, it dies with the isolate — the proven-safe historical mode.
 
 /**
- * The offline door: the switch the page restores from its store, the scans a
- * dead connection queues, and the sync that settles them. Every test drives
- * the real built bundle, so the words asserted are the words the door reads.
+ * The offline door: the switch the page restores from its store, and the
+ * scans a dead connection queues or refuses. The replay that settles the
+ * queue is offline-sync.test.ts. Every test drives the real built bundle, so
+ * the words asserted are the words the door reads.
  */
 
 import { expect } from "@std/expect";
@@ -20,9 +21,13 @@ import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { cameraFakes, scanFirst, start } from "./camera-fakes.ts";
 import {
   el,
+  fullStore,
+  queuedItem,
+  SCAN_PATH,
   type ScannerHarness,
+  storedQueue,
+  TOKEN,
   useScannerSuite,
-  whenTextShows,
 } from "./fixture.ts";
 
 describe("scanner offline door", {
@@ -31,39 +36,8 @@ describe("scanner offline door", {
 }, () => {
   const fresh = useScannerSuite();
 
-  const SCAN_PATH = "/admin/groups/5/scan";
-  const TOKEN = "tok12345";
   /** The page's own door key, as the fixture renders it. */
   const doorKey = fromBase64Url("dGVzdC1kb296LWNhY2hlLWtleQ");
-
-  /** The queued check-in one reload would restore. */
-  const queuedItem = {
-    queuedAt: 1,
-    scanPath: SCAN_PATH,
-    token: TOKEN,
-  };
-
-  const storedQueue = (h: ScannerHarness): string | null =>
-    h.window.localStorage.getItem("scanner-queue");
-
-  /** The queue panel's first row, which every sync test's page carries. */
-  const firstRow = (h: ScannerHarness): Element => {
-    const row = el(h.document, "scanner-queue-items").children[0];
-    if (!row) throw new Error("The queue panel carries no first row");
-    return row;
-  };
-
-  /** The door's answer one settled queue replay gets. A fresh response per
-   * call: the page load's cache refresh consumes the first one's body, and a
-   * reused body would fail the replay's read. */
-  const settledCheckIn = (): Response =>
-    Response.json({
-      listingName: "Standard",
-      name: "Ada",
-      quantity: 1,
-      status: "checked_in",
-      total: 1,
-    });
 
   /** The door's ticket cache, stamped by the clock the scan will read. The
    * camera fakes own the clock, so the seed lands after they do. */
@@ -75,25 +49,6 @@ describe("scanner offline door", {
     h.window.localStorage.setItem(
       `scanner-tickets-${SCAN_PATH}`,
       JSON.stringify({ hashes: [await hmacHex(doorKey, token)], storedAt }),
-    );
-  };
-
-  /** The store of a full or blocked device: every write to it fails. */
-  const fullStore = (h: ScannerHarness): void => {
-    h.stash.set(
-      "localStorage",
-      Object.create(h.window.localStorage, {
-        removeItem: {
-          value: () => {
-            throw new Error("The store is full");
-          },
-        },
-        setItem: {
-          value: () => {
-            throw new Error("The store is full");
-          },
-        },
-      }),
     );
   };
 
@@ -123,19 +78,22 @@ describe("scanner offline door", {
   };
 
   /** One offline scan: the camera opens with the door's cache holding the
-   * given tickets' digests, and the first decode reaches the page. */
+   * given tickets' digests — or, when the store holds no cache, with nothing
+   * seeded — and the first decode reaches the page. */
   const scanOffline = async (
     h: ScannerHarness,
     scanned: string,
-    cache: { token?: string; storedAt?: number } = {},
+    cache: { token?: string; storedAt?: number } | null = {},
   ): Promise<void> => {
     using fakes = cameraFakes(h);
     fakes.ready(4);
-    await seedTicketCache(
-      h,
-      cache.token ?? scanned,
-      cache.storedAt ?? Date.now(),
-    );
+    if (cache !== null) {
+      await seedTicketCache(
+        h,
+        cache.token ?? scanned,
+        cache.storedAt ?? Date.now(),
+      );
+    }
     await start(h);
     await scanFirst(fakes, scanned);
   };
@@ -289,6 +247,20 @@ describe("scanner offline door", {
     expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe(null);
   });
 
+  test("says the offline ticket list is missing when the store holds none", async () => {
+    using _fetch = stubFetch(new Error("offline"));
+    const h = fresh({ onLine: false });
+    // The store holds no ticket list, and the refresh that would fetch one
+    // cannot run offline: the door learns why the scan is refused.
+    await scanOffline(h, TOKEN, null);
+    await whenStatusShows(
+      h,
+      "No offline ticket list yet. Go online and reload this page first.",
+    );
+    expect(h.statusEl.className).toContain("scanner-status-error");
+    expect(storedQueue(h)).toBe(null);
+  });
+
   test("treats a cache stamped in the future as expired", async () => {
     using _fetch = stubFetch(new Error("offline"));
     const h = fresh({ onLine: false });
@@ -298,111 +270,5 @@ describe("scanner offline door", {
       "The offline ticket list has expired. Go online and reload this page.",
     );
     expect(storedQueue(h)).toBe(null);
-  });
-
-  test("settles a queued check-in on the next page load", async () => {
-    const fetchStub = stubFetch(settledCheckIn);
-    try {
-      const h = fresh({
-        seed: (store) =>
-          store.setItem("scanner-queue", JSON.stringify([queuedItem])),
-      });
-      const summary = el(h.document, "scanner-queue-summary");
-      await whenTextShows(summary, "0 queued check-ins");
-
-      // The replay carried the queued ticket to the door it was scanned at.
-      const scanCall = fetchStub.calls.find(
-        (call) => String(call.args[0]) === SCAN_PATH,
-      );
-      expect(scanCall).toBeDefined();
-      expect(JSON.parse(String(scanCall?.args[1]?.body))).toEqual({
-        token: TOKEN,
-      });
-      expect(storedQueue(h)).toBe("[]");
-      expect(firstRow(h).textContent).toBe("Checked in");
-    } finally {
-      fetchStub.restore();
-    }
-  });
-
-  test("settles the queue when the door turns offline mode off", async () => {
-    using _fetch = stubFetch(settledCheckIn);
-    const h = fresh({
-      seed: (store) => store.setItem("scanner-offline-mode", "1"),
-    });
-    // The scan queued while the switch was on; the page load's sync ran
-    // against an empty queue, so the switch's own disarm does the settling.
-    h.window.localStorage.setItem(
-      "scanner-queue",
-      JSON.stringify([queuedItem]),
-    );
-
-    el(h.document, "scanner-offline-toggle").click();
-
-    await whenTextShows(h.statusEl, "Queued tickets are done.");
-    expect(storedQueue(h)).toBe("[]");
-    expect(firstRow(h).textContent).toBe("Checked in");
-    // The switch disarmed: the store holds no mode and the banner is gone.
-    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe(null);
-    expect(el(h.document, "scanner-offline-banner").className).toContain(
-      "hidden",
-    );
-  });
-
-  test("keeps a check-in the door did not answer and says so", async () => {
-    using _fetch = stubFetch(new Error("offline"));
-    const h = fresh({
-      seed: (store) =>
-        store.setItem("scanner-queue", JSON.stringify([queuedItem])),
-    });
-
-    await whenTextShows(
-      h.statusEl,
-      "Some tickets are still queued. The page will try to check them in again.",
-    );
-
-    expect(h.statusEl.className).toContain("scanner-status-warning");
-    expect(firstRow(h).textContent).toBe("Not sent yet — still queued");
-    expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
-  });
-
-  test("stops the sync and names the store when a settled check-in will not save", async () => {
-    using _fetch = stubFetch(settledCheckIn);
-    const h = fresh({
-      seed: (store) =>
-        store.setItem("scanner-queue", JSON.stringify([queuedItem])),
-    });
-    // The sync suspends at its first send, so the swap lands before the
-    // settled item's removal write runs.
-    fullStore(h);
-
-    await whenTextShows(
-      h.statusEl,
-      "This device could not save the queued check-ins. Free up space, then reload this page.",
-    );
-
-    // The door answered, so the item stays for a replay that reads as
-    // already checked in, and its row keeps the queued words.
-    expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
-    expect(firstRow(h).textContent).toBe(
-      "Waiting — will be checked in when online",
-    );
-  });
-
-  test("tells the door a scan made during a sync is ignored", async () => {
-    using _fetch = stubFetch(() => new Promise(() => {}));
-    const h = fresh({
-      seed: (store) =>
-        store.setItem("scanner-queue", JSON.stringify([queuedItem])),
-    });
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
-    await start(h);
-    await scanFirst(fakes, TOKEN);
-
-    expect(h.statusEl.textContent).toBe(
-      "Checking in queued tickets. Scan again when done.",
-    );
-    expect(h.statusEl.className).toContain("scanner-status-warning");
   });
 });
