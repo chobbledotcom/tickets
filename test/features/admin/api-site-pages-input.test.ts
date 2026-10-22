@@ -4,6 +4,7 @@
 // api-site-pages.test.ts.
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { sitePages } from "#db/site-pages.ts";
 import { t } from "#i18n";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -23,6 +24,39 @@ describeWithEnv("Admin API - Site page input refusals", { db: true }, () => {
         expect(body.error).toBe("name must be a string");
       },
     );
+  });
+
+  test("refuses a missing name with the field message", async () => {
+    await assertJson(
+      apiRequest("/api/admin/site-pages", {
+        body: { slug: "no-name" },
+        method: "POST",
+      }),
+      400,
+      (body) => {
+        expect(body.error).toBe("name is required");
+      },
+    );
+    const all = await sitePages.getAll();
+    expect(all.find((page) => page.slug === "no-name")).toBeUndefined();
+  });
+
+  test("refuses a missing slug with the slug rule's message", async () => {
+    await assertJson(
+      apiRequest("/api/admin/site-pages", {
+        body: { name: "No slug" },
+        method: "POST",
+      }),
+      400,
+      (body) => {
+        expect(body.error).toBe("Slug is required");
+      },
+    );
+    const all = await sitePages.getAll();
+    expect(all.find((page) => page.name === "No slug")).toBeUndefined();
+    // The create's silent-slug fallback runs the empty stored slug through
+    // the same rule, so nothing may store under the empty slug either.
+    expect(all.find((page) => page.slug === "")).toBeUndefined();
   });
 
   test("refuses a non-boolean hidden flag with the field message", async () => {
