@@ -159,6 +159,9 @@ const scannerShell = (
  * and `scanPath` is the JSON API its two check-in paths post to. A group
  * whose stored door rule checks in every listing passes
  * `checksInEveryListing`, so door staff are warned what one scan will do.
+ * `doorCacheKey` is the door's offline cache key, base64url: the device
+ * digests a scanned token under it. The cache response itself never
+ * carries the key.
  */
 export const adminScannerPage = (
   subject: { name: string },
@@ -166,6 +169,7 @@ export const adminScannerPage = (
   session: AdminSession,
   uncheckedIn: TicketOption[] = [],
   checksInEveryListing = false,
+  doorCacheKey: string,
 ): string => {
   const messageTemplates = scannerMessages();
 
@@ -181,6 +185,7 @@ export const adminScannerPage = (
       <article>
         <div
           {...sharedScanMessageAttrs(messageTemplates)}
+          data-door-cache-key={doorCacheKey}
           data-message-camera-denied={t("admin.scanner.camera_denied")}
           data-message-id-mismatch={messageTemplates.idMismatch}
           data-message-invalid-qr={t("admin.scanner.invalid_qr")}

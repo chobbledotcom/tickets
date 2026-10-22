@@ -7,12 +7,16 @@ import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { type TicketMoveAnswer, ticketCount } from "#booking/ticket-moves.ts";
 import type { AttendeeWithBookings } from "#db/attendee-types.ts";
 import { moveTicketsAndLog, ticketsWord } from "#db/attendees/door-moves.ts";
-import { decryptAttendees } from "#db/attendees/pii.ts";
+import {
+  type DecryptedAttendeeRow,
+  decryptAttendees,
+} from "#db/attendees/pii.ts";
 import {
   getAttendeesByIdsWithBookings,
   getAttendeesByTokens,
 } from "#db/attendees/tokens.ts";
 import { getListingsByGroupId } from "#db/groups.ts";
+import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { requiredMapValue, sumOf, unique } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
@@ -22,7 +26,10 @@ import {
   type TokenEntry,
 } from "#routes/tickets/token-utils.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { getRequestPrivateKey } from "#shared/session-private-key.ts";
+import {
+  getRequestPrivateKey,
+  requireRequestPrivateKey,
+} from "#shared/session-private-key.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 import type { Attendee, Group } from "#types";
 import {
@@ -44,6 +51,17 @@ export const listingScope = (listingId: number): ScanScope => ({
   checkInEveryListing: false,
   listingIds: new Set([listingId]),
 });
+
+/** The door scope's decrypted attendee lines, in one read. The scanner page
+ * and the offline ticket cache both need every line the door's listings
+ * hold. */
+export const scopeAttendees = async (
+  scope: ScanScope,
+): Promise<DecryptedAttendeeRow<Attendee>[]> =>
+  decryptAttendees(
+    await getAttendeesByListingIds([...scope.listingIds]),
+    await requireRequestPrivateKey(),
+  );
 
 /** Load the scope one group's door admits: every member listing, minus the
  * members marked "No check-in" — they sell something that has no door.

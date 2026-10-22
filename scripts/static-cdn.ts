@@ -1,4 +1,4 @@
-import { sha256Hex } from "#scripts/checksum.ts";
+import { sha256Hex } from "#shared/sha256.ts";
 
 export interface StaticCdnConfig {
   accountKey: string;

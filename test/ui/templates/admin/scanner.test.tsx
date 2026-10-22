@@ -22,6 +22,9 @@ const holes = (...names: string[]): Record<string, string> =>
 const times = (html: string, fragment: string): number =>
   html.split(fragment).length - 1;
 
+/** The door cache key one test page carries, as the handler would pass it. */
+const DOOR_CACHE_KEY = "test-door-cache-key";
+
 describe("the admin scanner page template", () => {
   beforeAll(setupAdminPageTest);
 
@@ -30,6 +33,9 @@ describe("the admin scanner page template", () => {
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
+      [],
+      false,
+      DOOR_CACHE_KEY,
     );
 
     expect(html).toContain("<title>Scanner: Doors</title>");
@@ -47,6 +53,8 @@ describe("the admin scanner page template", () => {
         { attendeeId: 41, details: [], name: "Ada", quantity: 2 },
         { attendeeId: 42, details: [], name: "Sam", quantity: 1 },
       ],
+      false,
+      DOOR_CACHE_KEY,
     );
 
     expect(html).toContain("2 tickets available");
@@ -75,6 +83,8 @@ describe("the admin scanner page template", () => {
           quantity: 2,
         },
       ],
+      false,
+      DOOR_CACHE_KEY,
     );
 
     // Same name and the same number of places: only the day, and on a
@@ -102,6 +112,8 @@ describe("the admin scanner page template", () => {
           quantity: 2,
         },
       ],
+      false,
+      DOOR_CACHE_KEY,
     );
 
     expect(html).toContain('data-detail="Camping, 12 Jun"');
@@ -120,6 +132,8 @@ describe("the admin scanner page template", () => {
           quantity: 1,
         },
       ],
+      false,
+      DOOR_CACHE_KEY,
     );
 
     expect(html).toContain('data-name="Ada &amp; Bo"');
@@ -136,9 +150,27 @@ describe("the admin scanner page template", () => {
       "/admin/groups/5/scan",
       OWNER_SESSION,
       [],
+      false,
+      DOOR_CACHE_KEY,
     );
 
     expect(html).toContain("No tickets to check in");
+  });
+
+  test("carries the door's cache key for the device, once", () => {
+    const html = adminScannerPage(
+      { name: "Doors" },
+      "/admin/groups/5/scan",
+      OWNER_SESSION,
+      [],
+      false,
+      DOOR_CACHE_KEY,
+    );
+
+    // The device digests a scan under this key. The page is the only
+    // response that carries it, and it carries it once.
+    expect(html).toContain('data-door-cache-key="test-door-cache-key"');
+    expect(times(html, "data-door-cache-key=")).toBe(1);
   });
 
   test("one person still to arrive is named as one ticket, not none", () => {
@@ -147,6 +179,8 @@ describe("the admin scanner page template", () => {
       "/admin/groups/5/scan",
       OWNER_SESSION,
       [{ attendeeId: 41, details: [], name: "Ada", quantity: 1 }],
+      false,
+      DOOR_CACHE_KEY,
     );
 
     expect(html).toContain("1 ticket available");
@@ -161,6 +195,7 @@ describe("the admin scanner page template", () => {
       OWNER_SESSION,
       [],
       true,
+      DOOR_CACHE_KEY,
     );
     expect(warned).toContain('role="alert"');
     expect(warned).toContain(
@@ -174,6 +209,9 @@ describe("the admin scanner page template", () => {
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
+      [],
+      false,
+      DOOR_CACHE_KEY,
     );
     expect(quiet).not.toContain("Scanning a ticket in this group");
   });
@@ -184,6 +222,8 @@ describe("the admin scanner page template", () => {
       "/admin/groups/5/scan",
       OWNER_SESSION,
       [],
+      false,
+      DOOR_CACHE_KEY,
     );
 
     /** One message the scanner script reads, with the exact holes the page
@@ -278,6 +318,8 @@ describe("the admin scanner page template", () => {
       "/admin/groups/5/scan",
       OWNER_SESSION,
       [],
+      false,
+      DOOR_CACHE_KEY,
     );
     // The two asks the door puts before it admits: a forced or ID-checked
     // check-in, and how many tickets a multi-place booking admits.

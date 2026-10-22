@@ -362,7 +362,7 @@ const exactExemptions = exactFieldExemptions([
   ),
   attendeeFields(
     [{ name: "DecryptedAttendeeRow" }],
-    ["price_paid", "refunded"],
+    ["price_paid"],
     schemaReason("the conditional type preserves each selected money column"),
   ),
   liquidFields(
