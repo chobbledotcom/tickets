@@ -299,4 +299,27 @@ describe("scanner offline door", {
     );
     expect(storedQueue(h)).toBe(null);
   });
+
+  test("makes no fetch for a stale list at scan time while the switch is on", async () => {
+    const fetchStub = stubFetch(() => Response.json({}, { status: 500 }));
+    try {
+      // The connection holds, but the switch keeps the door offline: the
+      // scan reads the stored list alone, however stale it has grown.
+      const h = fresh({
+        seed: (store) => store.setItem("scanner-offline-mode", "1"),
+      });
+      await scanOffline(h, TOKEN, {
+        storedAt: Date.now() - 13 * 60 * 60 * 1000,
+      });
+      await whenStatusShows(
+        h,
+        "The offline ticket list has expired. Go online and reload this page.",
+      );
+      // Only the page load's refresh ran; the scan itself asked for nothing.
+      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
+      expect(storedQueue(h)).toBe(null);
+    } finally {
+      fetchStub.restore();
+    }
+  });
 });
