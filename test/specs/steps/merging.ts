@@ -195,14 +195,15 @@ Given(
 );
 
 Given(
-  "the same person paid twice for a {word} stay of {int} day(s) starting {int} days from now, the incoming booking holding {int} place(s) and the opened one {int}",
+  "the same person paid twice for a {word} stay starting {int} days from now, the incoming booking holding {int} place(s) over {int} day(s) and the opened one {int} place(s) over {int} day(s)",
   function (
     this: TicketsWorld,
     listing: string,
-    days: number,
     startsIn: number,
     incoming: number,
+    incomingDays: number,
     opened: number,
+    openedDays: number,
   ): Promise<void> {
     const start = parseDateStringOrThrow(
       dayFromToday(this, startsIn),
@@ -213,8 +214,10 @@ Given(
       this,
       listing,
       {
-        source: [{ date: start, durationDays: days, quantity: incoming }],
-        target: [{ date: start, durationDays: days, quantity: opened }],
+        source: [
+          { date: start, durationDays: incomingDays, quantity: incoming },
+        ],
+        target: [{ date: start, durationDays: openedDays, quantity: opened }],
       },
       { daily: true, paid: true },
     );

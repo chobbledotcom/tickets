@@ -78,9 +78,9 @@ Feature: An organiser merges two bookings for the same person
 
     @case:merge.incoming-replaces-the-opened-days
     Scenario: The organiser keeps the incoming dated booking
-      Given the same person paid twice for a Summit stay of 2 days starting 14 days from now, the incoming booking holding 2 places and the opened one 1
+      Given the same person paid twice for a Summit stay starting 14 days from now, the incoming booking holding 2 places over 3 days and the opened one 1 place over 1 day
       When the organiser merges them, keeping the incoming booking and the opened one's money as credit
-      Then the booking they keep holds 2 places over those 2 days
+      Then the booking they keep holds 2 places over those 3 days
 
     @case:merge.replacing-a-bundle-part-leaves-the-rest
     Scenario: Replacing the bundle part leaves the on-its-own booking alone
