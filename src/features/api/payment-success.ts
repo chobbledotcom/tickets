@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import { bookedPathGroupIds } from "#booking/signed-metadata.ts";
 import { getPackageDisplaysByIds } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -12,7 +13,7 @@ import { failureDetail } from "#routes/api/payment-processing/refunds.ts";
 import { staffPaymentDiagnostics } from "#routes/api/payment-processing/staff-diagnostics.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
-import { htmlResponse, redirectResponse } from "#routes/response.ts";
+import { publicPageResponse, redirectResponse } from "#routes/response.ts";
 import {
   parseTokens,
   verifyTokensWithRealLine,
@@ -21,6 +22,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { hasNamedBookingPath } from "#shared/package-privacy.ts";
 import { successPage } from "#templates/payment.tsx";
+/* jscpd:ignore-end */
 
 /** The `session_id` query param of a payment callback, or "" when absent. */
 export const paymentSessionId = (request: Request): string =>
@@ -38,7 +40,7 @@ const renderPaidSuccessPage = async (
   ticketUrl: string,
 ): Promise<Response> => {
   const fromEmail = await getFromEmailIfConfigured();
-  return htmlResponse(
+  return publicPageResponse(() =>
     successPage({ fromEmail, paid: true, thankYouUrl, ticketUrl }),
   );
 };
@@ -144,7 +146,7 @@ const processSessionAndRedirect = async (
     unique(intent.items.map((item) => item.e)).length === 1
       ? await singleListingThankYou(result.listingId, bookingGroupIds)
       : "");
-  return htmlResponse(
+  return publicPageResponse(() =>
     successPage({ paid: true, thankYouUrl, ticketUrl: null }),
   );
 };

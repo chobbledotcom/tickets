@@ -11,7 +11,12 @@ import {
   isInviteValid,
 } from "#db/users.ts";
 import { t } from "#i18n";
-import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import {
+  errorRedirect,
+  htmlResponse,
+  publicPageResponse,
+  redirect,
+} from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { createFormRoute, publicFormPage } from "#shared/app-forms.ts";
 import { defineForm } from "#shared/forms/definition.ts";
@@ -45,18 +50,25 @@ export const joinForm = defineForm({
   ] as const,
 });
 
+/** The page an invite that names nobody usable answers with. */
+const invalidInviteResponse = (): Promise<Response> =>
+  publicPageResponse(() => joinErrorPage(t("error.invite_invalid")), 404);
+
 /** Validate invite code and return user, or an error response */
 const validateInvite = async (
   code: string,
 ): Promise<{ user: User; username: string } | Response> => {
   const user = await getUserByInviteCode(code);
   if (!user) {
-    return htmlResponse(joinErrorPage(t("error.invite_invalid")), 404);
+    return invalidInviteResponse();
   }
 
   const valid = await isInviteValid(user);
   if (!valid) {
-    return htmlResponse(joinErrorPage(t("error.invite_expired")), 410);
+    return publicPageResponse(
+      () => joinErrorPage(t("error.invite_expired")),
+      410,
+    );
   }
 
   // Editors hold no DATA_KEY, so their invite deliberately carries no handoff —
@@ -66,7 +78,7 @@ const validateInvite = async (
   // the owner re-invites (such invites expire within a week anyway).
   const adminLevel = await decryptAdminLevel(user);
   if (adminLevel !== "editor" && !user.invite_wrapped_data_key) {
-    return htmlResponse(joinErrorPage(t("error.invite_invalid")), 404);
+    return invalidInviteResponse();
   }
 
   return { user, username: await decryptUsername(user) };

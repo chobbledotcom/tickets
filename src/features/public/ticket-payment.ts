@@ -74,7 +74,7 @@ export const tryCheckoutRedirect = <T>(
 
 /** Get active payment provider or return an error response */
 export const withPaymentProvider = async (
-  onMissing: () => Response,
+  onMissing: () => Response | Promise<Response>,
   fn: (
     provider: Awaited<ReturnType<typeof getActivePaymentProvider>> & object,
   ) => Promise<Response>,
@@ -89,7 +89,7 @@ export const runCheckoutFlow = (
   label: string,
   request: Request,
   intent: CheckoutIntent,
-  onError: (msg: string, status: number) => Response,
+  onError: (msg: string, status: number) => Response | Promise<Response>,
 ): Promise<Response> => {
   logDebug("Payment", `Starting ${label} checkout`);
   return withPaymentProvider(

@@ -52,3 +52,46 @@ Feature: An owner writes the front pages of the site
       When the owner turns the order page on, introducing it with "Pick what you fancy."
       Then a visitor on the order page reads "Pick what you fancy."
       And a visitor on the order page reads "Pottery"
+
+  @rule:pages.pictures-in-the-front-pages-show-as-pictures
+  @surface:public
+  Rule: Pictures in the front pages show as pictures
+    The owner can place a picture they uploaded in the homepage text, the
+    contact page, the terms, or the order page's introduction. A visitor sees
+    the picture itself, and never sees the reference that names it.
+
+    @case:front-pages.homepage-picture
+    Scenario: The owner puts a picture in the homepage
+      Given the owner has uploaded a picture called "Riverbank"
+      When the owner writes a homepage called "Riverbank Pottery" with the picture in it
+      Then the owner is told the homepage saved
+      And a visitor on the front page sees the picture
+
+    @case:front-pages.contact-picture
+    Scenario: The owner puts a picture in the contact page
+      Given the owner has uploaded a picture called "StudioDoor"
+      When the owner writes a contact page with the picture in it
+      Then the owner is told the contact page saved
+      And a visitor on the contact page sees the picture
+
+    @case:front-pages.order-intro-picture
+    Scenario: The owner puts a picture in the order page's introduction
+      Given the site sells a Pottery
+      And the owner has uploaded a picture called "PickPoster"
+      When the owner turns the order page on, introducing it with the picture in it
+      Then a visitor on the order page sees the picture
+
+    @case:front-pages.terms-picture
+    Scenario: The owner puts a picture in the terms
+      Given the public site is on
+      And the owner has uploaded a picture called "Rules"
+      When the owner writes the terms with the picture in it
+      Then the owner is told the terms saved
+      And a visitor on the terms page sees the picture
+
+    @case:front-pages.unknown-picture-keeps-its-describing-words
+    Scenario: The homepage names a picture that is not there
+      When the owner writes a homepage naming a picture that was never uploaded
+      Then a visitor on the front page reads "Have a look."
+      And the front page keeps the picture's describing words
+      And the front page shows no picture at all

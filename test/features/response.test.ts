@@ -244,12 +244,16 @@ describeWithEnv("route responses", { db: true }, () => {
 
   describe("system responses", () => {
     test("returns the not-found page with status 404", async () => {
-      await expectHtmlResponse(notFoundResponse(), 404, "<h1>Not Found</h1>");
+      await expectHtmlResponse(
+        await notFoundResponse(),
+        404,
+        "<h1>Not Found</h1>",
+      );
     });
 
     test("returns the rate-limit page with status 429", async () => {
       await expectHtmlResponse(
-        rateLimitedResponse(),
+        await rateLimitedResponse(),
         429,
         "<h1>Too Many Requests</h1>",
       );
@@ -328,8 +332,9 @@ describeWithEnv("route responses", { db: true }, () => {
       expect(siteNotActivatedResponse().headers.get("retry-after")).toBeNull();
     });
 
-    test("sends no Retry-After on the token rate-limit page", () => {
-      expect(rateLimitedResponse().headers.get("retry-after")).toBeNull();
+    test("sends no Retry-After on the token rate-limit page", async () => {
+      const response = await rateLimitedResponse();
+      expect(response.headers.get("retry-after")).toBeNull();
     });
   });
 });

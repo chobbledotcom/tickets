@@ -4,10 +4,11 @@
  * is ours before anything downstream processes or refunds it.
  */
 
+/* jscpd:ignore-start -- import block */
+import { addPageImageUrls } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { isSessionRejection } from "#payment/validated-session.ts";
-/* jscpd:ignore-start -- import block */
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import { answerRejectedSession } from "#routes/api/payment-processing/rejected-target.ts";
@@ -55,7 +56,7 @@ const refusalPage = async (
   status = 400,
 ): Promise<SessionValidation> => ({
   ok: false,
-  response: paymentErrorResponse(
+  response: await paymentErrorResponse(
     message,
     status,
     await staffPaymentDiagnostics(request, facts),
@@ -213,6 +214,7 @@ export const validatePaidSession = async (
       "Payment",
       `Payment not confirmed yet (session=${sessionId}, status=${session.paymentStatus})`,
     );
+    await addPageImageUrls([settings.siteFooter]);
     return {
       ok: false,
       response: htmlResponse(

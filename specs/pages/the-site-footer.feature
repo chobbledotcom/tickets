@@ -1,0 +1,62 @@
+@story:pages.the-site-footer
+@owner:pages @risk:low
+@actor:organiser @actor:customer
+@edition:managed @edition:self-hosted
+Feature: The site's footer
+  The owner can write a footer for the site, and it shows at the bottom of
+  the site's pages. Whatever the footer carries, a visitor reads it on the
+  front page, the list, the contact page, the terms page, the order page,
+  the news page, a news post, a page the owner wrote, a booking page, and
+  the ticket a customer holds. A visitor also reads it on the page the site
+  shows when they ask for something that is not there.
+
+  @rule:pages.the-footer-s-pictures-show-wherever-the-footer-shows
+  @surface:public
+  Rule: The footer's pictures show on the site's pages
+    A picture the owner put in the footer shows on the front page, the list,
+    the contact page, the terms page, the order page, the news page, a news
+    post, a page the owner wrote, a booking page, and the ticket a customer
+    holds — and on the page a visitor is shown when they ask for something
+    that is not there. It also shows on the page a customer sees after they
+    pay, the page they see after they book a free place, their payment link,
+    their choices page, and the page they are shown when their checkout has
+    ended or is still waiting.
+
+    @case:site-footer.picture-on-the-front-page
+    Scenario: The owner puts a picture in the footer
+      Given the public site is on
+      And the owner has uploaded a picture called "FooterPoster"
+      When the owner saves a site footer with the picture in it
+      Then a visitor on the front page sees the picture in the footer
+
+    @case:site-footer.picture-on-the-ticket-a-customer-holds
+    Scenario: The footer's picture shows on the ticket a customer holds
+      Given the public site is on
+      And the site sells a Pottery
+      And the owner has uploaded a picture called "FooterPoster"
+      When the owner saves a site footer with the picture in it
+      And Ada books 1 place on the Pottery
+      Then a visitor opening the ticket they were given sees the picture in the footer
+
+    @case:site-footer.picture-when-a-page-is-not-there
+    Scenario: A visitor asks for a page that is not there
+      Given the public site is on
+      And the owner has uploaded a picture called "FooterPoster"
+      When the owner saves a site footer with the picture in it
+      Then a visitor asking for a page nobody wrote is told the page does not exist
+      And a visitor asking for a page nobody wrote still sees the picture in the footer
+
+  @rule:pages.an-embedded-page-shows-no-footer
+  @surface:public
+  Rule: An embedded page shows no footer
+    The organiser can put a booking page inside another website's page. The
+    site keeps its footer out of that embedded page, because the website
+    around it already carries its own words.
+
+    @case:site-footer.no-footer-on-an-embedded-page
+    Scenario: A visitor opens a booking page inside another website
+      Given the public site is on
+      And the site sells a Concert
+      And the owner has uploaded a picture called "FooterPoster"
+      When the owner saves a site footer with the picture in it
+      Then a visitor opening the Concert's booking page inside another website sees no site footer

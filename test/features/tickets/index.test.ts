@@ -3,11 +3,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
+import { handleRequest } from "#routes";
 import { routeTicketView } from "#routes/tickets/index.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 describe("routeTicketView", () => {
   test("claims no route for a method other than GET", async () => {
@@ -26,6 +30,21 @@ describe("routeTicketView", () => {
 });
 
 describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
+  test("the site footer's image reference renders the image's uid URL", async () => {
+    const image = await makeImage("FooterPoster");
+    await settings.update.siteFooter(
+      `Thanks for coming.![FooterPoster](img#${image.id})`,
+    );
+    const { token } = await createTestAttendeeWithToken("Ada", "ada@test.com");
+    const response = await handleRequest(mockRequest(`/t/${token}`));
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain(
+      `<img src="/image/${image.filename}" alt="FooterPoster">`,
+    );
+    expect(html).not.toContain("img#");
+  });
+
   test("shows the holder their ticket and its attachment link", async () => {
     const { listing, token } = await createTestAttendeeWithToken(
       "Ada",

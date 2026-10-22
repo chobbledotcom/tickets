@@ -6,6 +6,7 @@
  * friendly page rather than a "contact support" error.
  */
 
+/* jscpd:ignore-start -- imports */
 import { bookedPathGroupIds, lineGroupIds } from "#booking/signed-metadata.ts";
 import { getGroupById, getPackageDisplaysByIds } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -17,11 +18,13 @@ import {
   groupBookable,
 } from "#routes/public/group-liveness.ts";
 import { lacksStandalonePublicPage } from "#routes/public/page-listings.ts";
-import { htmlResponse } from "#routes/response.ts";
+import { publicPageResponse } from "#routes/response.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { hasNamedBookingPath } from "#shared/package-privacy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { paymentCancelPage } from "#templates/payment.tsx";
+
+/* jscpd:ignore-end */
 
 /** The retry link for a cancelled checkout. Returns null whenever the target
  * page no longer serves, so a "Try again" link never dead-ends. A listing can
@@ -83,5 +86,5 @@ export const cancelPageResponse = async (
   // A null intent reads listing id 0, which never resolves — so reaching here
   // proves the intent parsed.
   const retryHref = await retryHrefFor(intent!, listing);
-  return htmlResponse(paymentCancelPage(listing, retryHref));
+  return publicPageResponse(() => paymentCancelPage(listing, retryHref));
 };
