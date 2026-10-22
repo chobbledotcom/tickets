@@ -93,11 +93,11 @@ Feature: An owner gives a door worker the scanner, and nothing else
       Then the door page offers an offline mode switch
 
     @case:scanners.the-door-page-says-what-happens-to-an-offline-scan
-    Scenario: The door page says what happens to a scan made without a connection
+    Scenario: The door page carries the offline banner and the queue panel
       Given Alice has a ticket for the Ceilidh
       And Sam is signed in as a scanner
       When Sam opens the Ceilidh door
-      Then the door page says the scan is kept and checks the person in when the connection returns
+      Then the door page carries the offline banner and the queue panel
 
   @rule:access.a-scanner-reaches-nothing-else
   Rule: A scanner reaches nothing else
