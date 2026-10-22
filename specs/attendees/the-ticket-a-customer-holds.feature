@@ -93,7 +93,8 @@ Feature: The ticket a customer holds after booking
       Given the site sells a Pottery
       And Ada books 1 place on the Pottery
       When the owner gets their password wrong 5 times
-      And somebody opens a made-up ticket code
+      Then even the right password is told to wait
+      When somebody opens a made-up ticket code
       Then the site tells them there is no such page
       And Ada is holding 1 ticket
 
