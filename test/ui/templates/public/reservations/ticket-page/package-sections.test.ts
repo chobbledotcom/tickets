@@ -4,7 +4,7 @@
  * coverage never depends on the server-test harness.
  */
 
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
@@ -37,13 +37,13 @@ describe("ticketPage — package sections beside standalone rows", () => {
 
   test("renders the bundle as a titled section and keeps the listing's own row", () => {
     const html = mixedPage();
-    expect(html).toContain('data-package-section="7"');
-    expect(html).toContain("Party Bundle");
-    expect(html).toContain('name="package_quantity_7"');
+    assertStringIncludes(html, 'data-package-section="7"');
+    assertStringIncludes(html, "Party Bundle");
+    assertStringIncludes(html, 'name="package_quantity_7"');
     // The standalone listing keeps its own quantity selector; the member has
     // none of its own (it books through the bundle's count).
-    expect(html).toContain('name="quantity_2"');
-    expect(html).not.toContain('name="quantity_1"');
+    assertStringIncludes(html, 'name="quantity_2"');
+    assert(!html.includes('name="quantity_1"'));
   });
 
   test("a sold-out bundle dims to a label while the rest of the page books", () => {
@@ -56,11 +56,11 @@ describe("ticketPage — package sections beside standalone rows", () => {
       }),
     );
     // The section stays (sold-out stub), its selector goes, the solo row lives.
-    expect(html).toContain('class="ticket-package sold-out"');
-    expect(html).toContain("Sold Out");
-    expect(html).not.toContain('name="package_quantity_7"');
-    expect(html).toContain('name="quantity_2"');
-    expect(html).not.toContain("Sorry, all listings are sold out.");
+    assertStringIncludes(html, 'class="ticket-package sold-out"');
+    assertStringIncludes(html, "Sold Out");
+    assert(!html.includes('name="package_quantity_7"'));
+    assertStringIncludes(html, 'name="quantity_2"');
+    assert(!html.includes("Sorry, all listings are sold out."));
   });
 
   test("a fresh page selects the bundle minimum when it sits above one", () => {
@@ -86,8 +86,8 @@ describe("ticketPage — package sections beside standalone rows", () => {
       ],
       slugs: ["pkg7s", "lant1"],
     });
-    expect(html).toContain('<option value="3" selected>');
-    expect(html).toContain('name="package_quantity_7"');
+    assertStringIncludes(html, '<option value="3" selected>');
+    assertStringIncludes(html, 'name="package_quantity_7"');
   });
 
   test("a bundle whose floor exceeds its cap dims to a label while the rest books", () => {
@@ -113,10 +113,10 @@ describe("ticketPage — package sections beside standalone rows", () => {
       ],
       slugs: ["pkg7s", "lant1"],
     });
-    expect(html).toContain('class="ticket-package sold-out"');
-    expect(html).toContain("Sold Out");
-    expect(html).not.toContain('name="package_quantity_7"');
-    expect(html).toContain('name="quantity_2"');
+    assertStringIncludes(html, 'class="ticket-package sold-out"');
+    assertStringIncludes(html, "Sold Out");
+    assert(!html.includes('name="package_quantity_7"'));
+    assertStringIncludes(html, 'name="quantity_2"');
   });
 
   test("a member also added by its own slug gets a standalone row beside its section", () => {
@@ -126,8 +126,8 @@ describe("ticketPage — package sections beside standalone rows", () => {
       slugs: ["pkg7s", "tent1", "lant1"],
     });
     // Both paths at once: the bundle's count selector AND the member's own row.
-    expect(html).toContain('name="package_quantity_7"');
-    expect(html).toContain('name="quantity_1"');
+    assertStringIncludes(html, 'name="package_quantity_7"');
+    assertStringIncludes(html, 'name="quantity_1"');
   });
 
   test("a one-listing mixed page still NAMES the standalone row under the section", () => {
@@ -140,11 +140,11 @@ describe("ticketPage — package sections beside standalone rows", () => {
       packages: [pagePackage(7, [1], { name: "Party Bundle" })],
       slugs: ["pkg7s", "tent1"],
     });
-    expect(html).toContain('name="package_quantity_7"');
+    assertStringIncludes(html, 'name="package_quantity_7"');
     // The standalone row carries the listing's name label (the row renderer's
     // ticket-row), beside — not merged into — the bundle's member row.
-    expect(html).toContain('name="quantity_1"');
-    expect(html).toContain('<div class="ticket-row">');
+    assertStringIncludes(html, 'name="quantity_1"');
+    assertStringIncludes(html, '<div class="ticket-row">');
   });
 
   test("a single-package page keeps the classic layout (no section fieldset)", () => {
@@ -153,7 +153,7 @@ describe("ticketPage — package sections beside standalone rows", () => {
       packages: [pagePackage(7, [1], { name: "Party Bundle" })],
       slugs: ["pkg7s"],
     });
-    expect(html).toContain('name="package_quantity_7"');
-    expect(html).not.toContain("data-package-section");
+    assertStringIncludes(html, 'name="package_quantity_7"');
+    assert(!html.includes("data-package-section"));
   });
 });

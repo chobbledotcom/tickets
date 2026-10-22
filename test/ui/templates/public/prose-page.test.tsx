@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { prosePage, simplePublicPage } from "#templates/public/prose-page.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
@@ -14,7 +14,8 @@ describe("public prose pages", () => {
       <form>Action</form>,
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div class="prose"><h1>Main heading</h1><p>Introduction</p></div><form>Action</form>',
     );
   });
@@ -25,7 +26,8 @@ describe("public prose pages", () => {
       "Main heading",
     )(<p>Whole body</p>);
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div class="prose"><h1>Main heading</h1><p>Whole body</p></div>',
     );
   });
