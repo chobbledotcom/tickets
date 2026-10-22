@@ -9,7 +9,7 @@ src/shared/builder-dry-run.ts::CANNED_BODIES.replica_regions.id~10dvhh2  eu-west
 
 src/shared/form-data.ts::FormParams.getString~0hhlva7  ?? → || audited:18ccc1f # trim returns a string, and its only falsy value is the empty string supplied by the fallback
 src/shared/forms/validation.ts::validateSingleField.trimmed~0vrlsmq  = → += audited:03nm4ht # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
-src/features/admin/dashboard.ts::handleAdminLog.entries~1bmdvzm  1 → 2 audited:1yx1o3h # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows
+src/features/admin/dashboard.ts::handleAdminLog.entries~1bmdvzm  1 → 2 audited:18dzm9u # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows
 src/shared/bearer.ts::bearerTokenOrNull~0zm5hxk  ?? → || audited:110btoy # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
 src/shared/uptime-kuma/socket.ts::KumaSocket.%23changeListeners~0x9mfb4  0 → -1 audited:0r62zcl # the private map's missing set and retained empty set behave identically: once adds to either, while off and emit are no-ops for both
 src/shared/uptime-kuma/matching.ts::SCHEDULED_MONITOR_RULES.holds~14f0p4m  1000 → 1001 audited:1hworfp # timeout is a positive whole number of seconds and the 25,000ms deadline lies between the same integer seconds under either multiplier
@@ -244,8 +244,8 @@ src/shared/admin-surface.ts::adminRecordPath~11evcma  ?? → || audited:1b16u45 
 
 # db/listings/attendees.ts — fallbacks whose left side can never be a
 # falsy-but-present value that differs from the fallback itself.
-src/shared/db/listings/attendees.ts::listingAttendeeFilter.activeOnly~1bv0ikc  ?? → || audited:1qea6ft # activeOnly is boolean|undefined and the fallback is false, so false ?? false === false || false
-src/shared/db/listings/attendees.ts::listingAttendeeFilter.kindScope~0taxexu  ?? → || audited:1qea6ft # kindScope is one of two non-empty words or undefined, so it is never falsy-but-present
+src/shared/db/listings/attendees.ts::listingAttendeeFilter.activeOnly~1bv0ikc  ?? → || audited:0wqao29 # activeOnly is boolean|undefined and the fallback is false, so false ?? false === false || false
+src/shared/db/listings/attendees.ts::listingAttendeeFilter.kindScope~0taxexu  ?? → || audited:0wqao29 # kindScope is one of two non-empty words or undefined, so it is never falsy-but-present
 
 # db/client.ts — fallbacks whose left side can never be a falsy-but-present
 # value, and a label no code ever reads.

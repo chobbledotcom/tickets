@@ -15,6 +15,7 @@
   "admin.dashboard.upcoming_service_events": "Upcoming service events",
   "admin.dashboard.service_event_listing_count": "{count, plural, one {1 listing} other {{count} listings}}",
   "admin.dashboard.deactivated": "Deactivated",
+  "admin.dashboard.pending_notifications": "{count, plural, one {1 attendee has} other {{count} attendees have}} emails or webhooks that were not sent",
   "admin.dashboard.welcome.heading": "Welcome to your new Chobble Tickets site",
   "admin.dashboard.welcome.intro": "Here are the first things to do on your new site.",
   "admin.dashboard.welcome.step_add_listing": "Add a listing",

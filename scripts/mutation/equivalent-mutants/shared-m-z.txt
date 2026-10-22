@@ -285,7 +285,7 @@ src/shared/payment/row-state.ts::SortedAttendeeIdsSchema~1d17kt9  Refund claim a
 # parseDayPrices, and the fail-closed admin API parser), so no reachable
 # input carries a day count below 1. The schema's own minimum check agrees
 # with the regex on every string that reaches it.
-src/shared/types.ts::DayPriceKeySchema~0yvxbbw 1 → 0 audited:16rly70 # the regex already admits only keys >= 1, so >= 1 and >= 0 agree on every string that reaches the check
+src/shared/types.ts::DayPriceKeySchema~0yvxbbw 1 → 0 audited:0gn8brs # the regex already admits only keys >= 1, so >= 1 and >= 0 agree on every string that reaches the check
 
 # seeds.ts — two thresholds no seeded value can fall between.
 src/shared/seeds.ts::prepareAttendee.paymentId~01ncynu  0 → 1 audited:0oov4uv # a seeded listing's unit price is 0 or one of the demo prices (500 and up), so no listing sits between the two thresholds

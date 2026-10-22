@@ -13,6 +13,7 @@ import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { atBookingHints } from "#templates/admin/answer-rows.ts";
+import { pendingNotificationBadges } from "#templates/admin/attendee-notification-badges.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import {
@@ -64,7 +65,15 @@ const AttendeeDetails = ({
     <ProseSection title={t("admin.attendees.details")}>
       <LabelledParas
         items={compact([
-          { label: t("admin.attendees.name"), value: attendee.name },
+          {
+            label: t("admin.attendees.name"),
+            value: (
+              <span>
+                {attendee.name}
+                {pendingNotificationBadges(attendee)}
+              </span>
+            ),
+          },
           { label: t("admin.attendees.email"), value: attendee.email },
           { label: t("admin.attendees.quantity"), value: attendee.quantity },
           amountPaidLine,

@@ -11,6 +11,7 @@ import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { handleRequest } from "#routes";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
+import { personBookedOnListing } from "#test/specs/support/booked-person.ts";
 import { expectAccepted, openAdminPage } from "#test/specs/support/browser.ts";
 import {
   listingIdNamed,
@@ -29,7 +30,6 @@ import {
   type TicketsWorld,
   whatWasKeptFor,
 } from "#test/specs/support/world.ts";
-import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund } from "#test-utils/ledger.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -78,13 +78,10 @@ export const personWithTicket = async (
   listing: string,
   options: { needsIdChecked?: boolean; places?: number } = {},
 ): Promise<void> => {
-  const { listing: created, token } = await createTestAttendeeWithToken(
-    who,
-    `${who.toLowerCase()}@example.com`,
-    { name: listing, nonTransferable: options.needsIdChecked ?? false },
-    options.places ?? 1,
-  );
-  rememberListing(world, listing, created);
+  const { token } = await personBookedOnListing(world, who, listing, {
+    nonTransferable: options.needsIdChecked ?? false,
+    places: options.places ?? 1,
+  });
   // The door this person belongs to, so a screenshot capture can open it.
   leaveEvidencePage(
     world,

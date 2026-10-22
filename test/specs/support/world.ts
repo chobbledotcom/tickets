@@ -165,6 +165,9 @@ export interface TicketsWorld extends World, EvidencePages {
   modifierId?: number;
   moneyFault?: RefundLedgerFault;
   newStayLength?: number;
+  /** The admin page a notification story last opened, carried between the
+   * opening step and the steps that read it. */
+  notificationsPage?: string;
   orderCatalogSpec?: JourneyCatalogSpec;
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;

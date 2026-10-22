@@ -80,6 +80,11 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   checked_in: 0,
   created: input.created,
   date: input.date,
+  // The flag went up at creation only when a booked listing collected an
+  // email — the same condition the database read resolves into email_owed.
+  // The result reaches the notification step before any re-read.
+  email_owed: (input.emailPending ?? PENDING_NOTIFICATION.none) > 0 ? 1 : 0,
+  email_pending: input.emailPending ?? PENDING_NOTIFICATION.none,
   end_date: input.date
     ? addDays(
         parseDateStringOrThrow(input.date, "a stored booking date"),
@@ -202,6 +207,7 @@ const finishAttendeeWrite = (
         ...(booking.durationDays !== undefined
           ? { durationDays: booking.durationDays }
           : {}),
+        emailPending: input.emailPending,
         kind: input.kind ?? ATTENDEE_KIND,
         packageGroupId: booking.packageGroupId ?? 0,
         paymentId: input.paymentId ?? "",

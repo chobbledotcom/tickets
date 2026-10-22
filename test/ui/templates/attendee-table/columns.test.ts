@@ -34,6 +34,27 @@ attendeeTableSuite(() => {
       assertStringIncludes(html, '<a href="/admin/attendees/7">Jane</a>');
     });
 
+    test("shows owed-send badges only where admin links show", () => {
+      const flagged = testAttendee({
+        email_owed: 1,
+        email_pending: 1,
+        webhooks_pending: 1,
+      });
+      const staff = render(
+        makeOpts({ rows: [makeRow({ attendee: flagged })] }),
+      );
+      expect(staff).toContain("Email not sent");
+      expect(staff).toContain("Webhooks not sent");
+      const scanner = render(
+        makeOpts({
+          adminLinks: false,
+          rows: [makeRow({ attendee: flagged })],
+        }),
+      );
+      expect(scanner).not.toContain("Email not sent");
+      expect(scanner).not.toContain("Webhooks not sent");
+    });
+
     test("renders Qty column", () => {
       assertStringIncludes(
         render(makeOpts()),

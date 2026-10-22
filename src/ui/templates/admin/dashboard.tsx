@@ -208,6 +208,18 @@ const upcomingHolidaysSection = (holidays: Holiday[]): string =>
     />,
   );
 
+/** The attendees still owed a notification send, shown when the count is above
+ * zero. Links to the attendees browser, where each attendee's badges name what
+ * never went out. */
+const pendingNotificationsSection = (count: number): string =>
+  String(
+    <p class="prose">
+      <a href="/admin/attendees">
+        {t("admin.dashboard.pending_notifications", { count })}
+      </a>
+    </p>,
+  );
+
 /**
  * Admin dashboard page
  */
@@ -224,6 +236,7 @@ export const adminDashboardPage = (
   upcomingServicingEvents: ServicingEventSummary[] = [],
   attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
   showWelcome = false,
+  pendingNotifications = 0,
 ): string => {
   const { columnKeys, filters } =
     listingColumnLayout ?? listingTable.layout.defaultLayout;
@@ -276,6 +289,10 @@ export const adminDashboardPage = (
         />
 
         {stats && <Raw html={activeListingStatsSection(stats)} />}
+
+        {pendingNotifications > 0 && (
+          <Raw html={pendingNotificationsSection(pendingNotifications)} />
+        )}
 
         {upcomingHolidays.length > 0 && (
           <Raw html={upcomingHolidaysSection(upcomingHolidays)} />

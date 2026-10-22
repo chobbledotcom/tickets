@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
+import { PENDING_NOTIFICATION } from "#db/attendees/notification-flags.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { queryOne } from "#db/client.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -64,6 +65,25 @@ describeWithEnv("db > attendees > create result", { db: true }, () => {
     expect(
       await getAttendeeOrNull(attendee.id, await getTestPrivateKey()),
     ).toMatchObject({ payment_id: "", price_paid: "0" });
+  });
+
+  test("resolves the create result's owed-email flag like the database read", async () => {
+    // The listing collects an email, so the paid path writes the flag up and
+    // owes the send: the result must say email_owed before any re-read,
+    // because the notification step reads the result, not the row.
+    const listing = await createTestListing({ maxAttendees: 10 });
+
+    const attendee = requireAttendee(
+      await createAttendeeAtomic({
+        bookings: [{ listingId: listing.id }],
+        email: "owed-email@example.com",
+        emailPending: PENDING_NOTIFICATION.online,
+        name: "Owed Email",
+        ticketToken: "owed-email-result-token",
+      }),
+    );
+    expect(attendee.email_pending).toBe(PENDING_NOTIFICATION.online);
+    expect(attendee.email_owed).toBe(1);
   });
 
   test("returns custom booking and contact values", async () => {

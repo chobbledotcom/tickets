@@ -13,6 +13,7 @@ import {
   saleLegPredicate,
 } from "#accounting/projection-sql.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
+import { emailOwedColumn } from "#db/attendees/notification-flags.ts";
 import type { SqlStatement } from "#db/client.ts";
 import { defineReader } from "#db/read.ts";
 import { inList, inSubquery, type WhereClause } from "#db/where-clauses.ts";
@@ -179,8 +180,17 @@ const listingIntColumn = (join: AttendeeJoin, name: string): string =>
     ? `COALESCE(listingAttendee.${name}, 0) as ${name}`
     : `listingAttendee.${name}`;
 
+/** Whose booking a read's `email_owed` asks about. `booking` scopes the rule
+ * to the row's own listing: the row is one booking, so the badge shows only
+ * what that booking owes. `attendee` keeps the rule attendee-wide: the badge
+ * says what any of the person's bookings owes. */
+export type AttendeeOwedScope = "attendee" | "booking";
+
 /** Identity columns plus the cheap per-listing columns every caller reads. */
-const coreColumns = (join: AttendeeJoin): string =>
+const coreColumns = (
+  join: AttendeeJoin,
+  owedScope: AttendeeOwedScope,
+): string =>
   [
     "attendee.id",
     "attendee.created",
@@ -189,7 +199,12 @@ const coreColumns = (join: AttendeeJoin): string =>
     "attendee.pii_blob",
     "attendee.status_id",
     "attendee.split_logistics_agents",
+    "attendee.email_pending",
     "attendee.webhooks_pending",
+    emailOwedColumn(
+      "attendee",
+      owedScope === "booking" ? "listingAttendee.listing_id" : undefined,
+    ),
     listingIntColumn(join, "listing_id"),
     "SUBSTR(listingAttendee.start_at, 1, 10) as date",
     listingIntColumn(join, "quantity"),
@@ -220,10 +235,12 @@ const FIELD_SQL: Record<AttendeeField, (join: AttendeeJoin) => string> = {
 export const attendeeColumns = (
   join: AttendeeJoin,
   fields: readonly AttendeeField[],
+  owedScope: AttendeeOwedScope,
 ): string =>
-  [coreColumns(join), ...fields.map((field) => FIELD_SQL[field](join))].join(
-    ", ",
-  );
+  [
+    coreColumns(join, owedScope),
+    ...fields.map((field) => FIELD_SQL[field](join)),
+  ].join(", ");
 
 /** Which kinds a read includes. Always a trusted constant, so it is inlined
  *  into the SQL rather than bound as an argument. */
@@ -317,6 +334,12 @@ const attendeeFrom = (join: AttendeeJoin, where: AttendeeWhere): string =>
 export type GetAttendeesQuery<F extends AttendeeField> = {
   fields: readonly F[];
   where: AttendeeWhere;
+  /** Whose booking the read's `email_owed` asks about. It defaults to the
+   *  attendee-wide rule, the reach the read always had. A read whose rows
+   *  stand for one booking — a roster row — must opt in with `booking`.
+   *  That row's badge then asks about its own booking's listing alone.
+   *  The grouped person rows keep the default. */
+  owedScope?: AttendeeOwedScope;
   /** Omit only for a single-row read; a list read always passes one, so its
    *  rows come back the same way every time. */
   order?: AttendeeOrder;
@@ -329,7 +352,11 @@ const attendees = defineReader<AttendeeOrder, GetAttendeesQuery<AttendeeField>>(
   (query) => {
     const join = query.join ?? "inner";
     return {
-      columns: attendeeColumns(join, query.fields),
+      columns: attendeeColumns(
+        join,
+        query.fields,
+        query.owedScope ?? "attendee",
+      ),
       from: attendeeFrom(join, query.where),
       where: whereClauses(query.where),
     };

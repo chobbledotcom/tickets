@@ -2,6 +2,7 @@ import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import { t } from "#i18n";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { AttendeeMergeDiff } from "#shared/merge/attendee-merge-types.ts";
+import { pendingNotificationBadges } from "#templates/admin/attendee-notification-badges.tsx";
 import { MergeDecisionTables } from "#templates/admin/attendees/merge-tables.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
@@ -16,6 +17,9 @@ type MergeSourceInfo = {
   special_instructions: string;
   ticket_token: string;
   bookings: ListingAttendeeRow[];
+  email_owed?: number;
+  email_pending?: number;
+  webhooks_pending: number;
 };
 
 /** Search for and merge a source attendee into the current attendee. */
@@ -29,7 +33,12 @@ export const AttendeeMergePanel = (
   <article>
     <Flash error={error} />
 
-    <h3>{t("admin.attendees.merge_attendee")}</h3>
+    <h3>
+      {t("admin.attendees.merge_attendee")}
+      {/* The badges belong to the attendee the merge keeps, so the operator
+          sees an owed send before they merge anything into it. */}
+      {pendingNotificationBadges(target)}
+    </h3>
     <h4>{t("admin.attendees.search_by_token")}</h4>
     <form
       action={`/admin/attendees/${target.id}/actions`}
@@ -56,7 +65,12 @@ export const AttendeeMergePanel = (
     {source && mergeDiff && (
       <div>
         <div class="prose">
-          <h3>{t("admin.attendees.merge_preview")}</h3>
+          <h3>
+            {t("admin.attendees.merge_preview")}
+            {/* The merge deletes the source attendee, so its owed sends show
+                beside the preview the same way the target's do. */}
+            {pendingNotificationBadges(source)}
+          </h3>
           <p>{t("admin.attendees.merge_intro")}</p>
         </div>
 

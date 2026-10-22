@@ -44,7 +44,7 @@ src/features/admin/attendee-page-data.ts::computeWarnings.warns~1e9bm1v  ?? → 
 src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0axstbd  ?? → || audited:17hf8t3 # remaining_balance is an integer; its only falsy value is 0, which equals the fallback
 src/features/admin/attendee-page-data.ts::assembleTemplateData.hasMixedTimings~1hmlq9c  ?? → || audited:17hf8t3 # hasMixedTimings is boolean|undefined, and false equals the fallback
 src/features/admin/attendee-page-data.ts::assembleTemplateData.selectedAnswerIds~1og9d80  ?? → || audited:17hf8t3 # selectedAnswerIds is an array when present, and arrays are always truthy
-src/features/tickets/token-utils.ts::verifyTokensWithRealLine.verified.realBookings~1jqkiac  ?? → || audited:0edwymw # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
+src/features/tickets/token-utils.ts::verifyTokensWithRealLine.verified.realBookings~1jqkiac  ?? → || audited:0v15h5h # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
 
 # Ticket form parsing (ticket-form.ts): `?? → ||` where the operand is an array,
 # an object, a Map.get number (only falsy-non-null is 0, 0??0===0||0), or a
@@ -76,7 +76,7 @@ src/features/admin/group-page-data.ts::loadGroupEditPanel.members.dayPrices~1i7v
 
 # Admin attendee-merge routes (src/features/admin/attendees-merge.ts) — mutants
 # with no observable effect through any reachable caller or input.
-src/features/admin/attendees-merge.ts::updateTargetPiiFromDecision.keptIsPinned~18lqcgb  && → || audited:1srfp5y # keptIsPinned = Boolean(kept.lat && kept.lng): lat/lng are always both non-empty or both "" (parseCoordinatePair requires both-or-neither, and every write path — the logistics route, the attendee-form addressUnchanged branch, and the merge's own addressFrom — preserves that pair), so `&&` and `||` agree on every reachable value
+src/features/admin/attendees-merge.ts::updateTargetPiiFromDecision.keptIsPinned~18lqcgb  && → || audited:0za963m # keptIsPinned = Boolean(kept.lat && kept.lng): lat/lng are always both non-empty or both "" (parseCoordinatePair requires both-or-neither, and every write path — the logistics route, the attendee-form addressUnchanged branch, and the merge's own addressFrom — preserves that pair), so `&&` and `||` agree on every reachable value
 # contact-tokens.ts — `?? → ||` sites whose operand can never be a
 # falsy-but-non-null value.
 src/shared/db/contact-tokens.ts::loadTokenBlob~0hgbweg  ?? → || audited:0sppv7e # loadTokenBlob's `row?.attendee_tokens_blob ?? null`: attendee_tokens_blob is string|undefined; the only falsy-non-null is "" and tokenLinesFrom("") === tokenLinesFrom(null) === [], so ?? and || agree

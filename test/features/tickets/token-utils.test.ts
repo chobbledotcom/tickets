@@ -16,7 +16,11 @@ import { MAX_TOKEN_404S } from "#shared/limits.ts";
 import { flushPendingWork } from "#shared/pending-work.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createMultiBookingAttendee,
+  createTestAttendeeDirect,
+  setPendingNotificationFlags,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -87,6 +91,38 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     ]) {
       expect(blank).toBe("");
     }
+  });
+
+  test("resolves each token entry's email badge from its own listing", async () => {
+    // One person, two bookings, one flag on the person. The Ceilidh collects
+    // an email, the Quiz stopped. The entry that stands for the Quiz's
+    // booking shows no notice, and the Ceilidh's entry keeps it.
+    const collecting = await createTestListing({
+      maxAttendees: 10,
+      name: "Entry Ceilidh",
+    });
+    const stopped = await createTestListing({
+      maxAttendees: 10,
+      name: "Entry Quiz",
+    });
+    await getDb().execute({
+      args: ["phone", stopped.id],
+      sql: "UPDATE listings SET fields = ? WHERE id = ?",
+    });
+    const attendee = await createMultiBookingAttendee(
+      "Entry Buyer",
+      "entry-buyer@example.com",
+      [{ listingId: collecting.id }, { listingId: stopped.id }],
+    );
+    await setPendingNotificationFlags(attendee.id, 1, 0);
+
+    const entries = await entriesForToken(attendee.ticket_token);
+    expect(entries).toHaveLength(2);
+    const owedByListing = new Map(
+      entries.map((entry) => [entry.listing.id, entry.attendee.email_owed]),
+    );
+    expect(owedByListing.get(collecting.id)).toBe(1);
+    expect(owedByListing.get(stopped.id)).toBe(0);
   });
 
   test("resolveEntries keeps the null date when a booking has no start/end", async () => {

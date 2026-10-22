@@ -115,9 +115,6 @@ export const SHARED_PROVIDER_Z_BASELINE: readonly FindingIdentity[] = [
     "last_used",
     "name",
   ]),
-  ...identitiesAt([["src/shared/types.ts", [{ name: "Attendee" }]]])([
-    "webhooks_pending",
-  ]),
   ...identitiesAt([["src/shared/types.ts", [{ name: "ImageUse" }]]])([
     "image_id",
     "sort_order",

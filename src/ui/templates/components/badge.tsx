@@ -12,7 +12,13 @@
 import type { Child } from "#jsx/jsx-runtime.ts";
 
 /** The badge styles in use; each maps to the exact class string emitted. */
-export type BadgeVariant = "default" | "ok" | "missing" | "alert" | "danger";
+export type BadgeVariant =
+  | "default"
+  | "ok"
+  | "missing"
+  | "alert"
+  | "danger"
+  | "warning";
 
 const BADGE_CLASS: Record<BadgeVariant, string> = {
   alert: "badge-alert",
@@ -20,6 +26,7 @@ const BADGE_CLASS: Record<BadgeVariant, string> = {
   default: "badge",
   missing: "badge-missing",
   ok: "badge-ok",
+  warning: "badge-warning",
 };
 
 export const Badge = ({

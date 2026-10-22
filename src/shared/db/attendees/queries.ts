@@ -81,6 +81,7 @@ export const loadAttendeeRows = (
 export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
   loadAttendeeRows({
     order: "created_desc",
+    owedScope: "booking",
     where: { listingIds: [listingId] },
   });
 
@@ -97,6 +98,7 @@ export const getAttendeeBookingRowsRaw = (
     // No kind filter: the attendee id already pins one attendee, and its rows
     // are returned whatever their kind.
     order: "listing_asc",
+    owedScope: "booking",
     where: {
       attendeeIds: [attendeeId],
       kind: "attendee-or-servicing",
@@ -304,6 +306,11 @@ export const hasPaidLine = rowExistsForIdList(
  * Get an attendee by ID without decrypting PII
  * Used for payment callbacks and webhooks where decryption is not needed
  * Returns the attendee with encrypted fields (id, listing_id, quantity are plaintext)
+ *
+ * The read omits owedScope, so it keeps the default attendee-wide rule:
+ * email_owed asks about every booking the attendee holds. That matches the
+ * merge target and the attendee page. getAttendeeBookingRowsRaw and
+ * getAttendeesByIds opt in with `booking` for one row per booking.
  */
 export const getAttendeeRaw = async (id: number): Promise<Attendee | null> =>
   (await loadAttendeeRows({ join: "left", where: { attendeeIds: [id] } }))[0] ??
@@ -318,7 +325,11 @@ export const getAttendeeRaw = async (id: number): Promise<Attendee | null> =>
 export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> =>
   ids.length === 0
     ? Promise.resolve([])
-    : loadAttendeeRows({ join: "left", where: { attendeeIds: ids } });
+    : loadAttendeeRows({
+        join: "left",
+        owedScope: "booking",
+        where: { attendeeIds: ids },
+      });
 
 /**
  * Bounded id → name lookup for the given attendees, decrypting only the name

@@ -34,6 +34,7 @@ const attendeeFromWhere = (
   const { sql, args } = attendeeBatchStatement({
     fields: [],
     join,
+    owedScope: "attendee",
     where,
     ...(order === undefined ? {} : { order }),
   });
@@ -64,13 +65,13 @@ const FIELD_MARKER: Record<AttendeeField, string> = {
 describe("attendeeColumns", () => {
   test("always emits every core column, for either join", () => {
     for (const join of ["inner", "left"] as const) {
-      const cols = attendeeColumns(join, []);
+      const cols = attendeeColumns(join, [], "attendee");
       for (const alias of CORE_ALIASES) expect(cols).toContain(alias);
     }
   });
 
   test("an empty field set projects no opt-in field", () => {
-    const cols = attendeeColumns("inner", []);
+    const cols = attendeeColumns("inner", [], "attendee");
     for (const marker of Object.values(FIELD_MARKER)) {
       expect(cols).not.toContain(marker);
     }
@@ -78,22 +79,22 @@ describe("attendeeColumns", () => {
 
   test("each field is projected only when requested", () => {
     for (const field of ATTENDEE_FIELDS) {
-      const withField = attendeeColumns("inner", [field]);
-      const without = attendeeColumns("inner", []);
+      const withField = attendeeColumns("inner", [field], "attendee");
+      const without = attendeeColumns("inner", [], "attendee");
       expect(withField).toContain(FIELD_MARKER[field]);
       expect(without).not.toContain(FIELD_MARKER[field]);
     }
   });
 
   test("the full field set projects all six opt-in fields", () => {
-    const cols = attendeeColumns("inner", ATTENDEE_FIELDS);
+    const cols = attendeeColumns("inner", ATTENDEE_FIELDS, "attendee");
     for (const marker of Object.values(FIELD_MARKER)) {
       expect(cols).toContain(marker);
     }
   });
 
   test("a LEFT join COALESCEs the cheap per-listing columns; an INNER join does not", () => {
-    const left = attendeeColumns("left", ["attachment_downloads"]);
+    const left = attendeeColumns("left", ["attachment_downloads"], "attendee");
     expect(left).toContain(
       "COALESCE(listingAttendee.listing_id, 0) as listing_id",
     );
@@ -105,15 +106,19 @@ describe("attendeeColumns", () => {
       "COALESCE(listingAttendee.attachment_downloads, 0) as attachment_downloads",
     );
 
-    const inner = attendeeColumns("inner", ["attachment_downloads"]);
+    const inner = attendeeColumns(
+      "inner",
+      ["attachment_downloads"],
+      "attendee",
+    );
     expect(inner).not.toContain("COALESCE(listingAttendee.listing_id");
     expect(inner).toContain("listingAttendee.listing_id");
     expect(inner).toContain("listingAttendee.attachment_downloads");
   });
 
   test("omitting the money fields makes the column list strictly shorter", () => {
-    expect(attendeeColumns("inner", []).length).toBeLessThan(
-      attendeeColumns("inner", ATTENDEE_FIELDS).length,
+    expect(attendeeColumns("inner", [], "attendee").length).toBeLessThan(
+      attendeeColumns("inner", ATTENDEE_FIELDS, "attendee").length,
     );
   });
 
@@ -122,7 +127,8 @@ describe("attendeeColumns", () => {
   // way. Pinning them keeps the count in the module header true.
   test("each ledger field emits a fixed number of subqueries", () => {
     const subqueries = (field: AttendeeField): number =>
-      (attendeeColumns("inner", [field]).match(/\(SELECT/g) ?? []).length;
+      (attendeeColumns("inner", [field], "attendee").match(/\(SELECT/g) ?? [])
+        .length;
     expect(subqueries("price_paid")).toBe(6);
     expect(subqueries("refunded")).toBe(7);
     expect(subqueries("remaining_balance")).toBe(1);
@@ -134,7 +140,9 @@ describe("attendeeColumns", () => {
       "attachment_downloads",
       "package_group_id",
     ] as const) {
-      expect(attendeeColumns("inner", [field])).not.toContain("(SELECT");
+      expect(attendeeColumns("inner", [field], "attendee")).not.toContain(
+        "(SELECT",
+      );
     }
   });
 });
@@ -289,19 +297,18 @@ describe("attendee SELECT — exact generated SQL", () => {
   // dropped separator or an inserted token.
 
   test("the full field set produces the exact column list (all three ledger subqueries inline)", () => {
-    expect(attendeeColumns("inner", ATTENDEE_FIELDS)).toBe(
-      "attendee.id, attendee.created, attendee.kind, attendee.ticket_token_index, attendee.pii_blob, attendee.status_id, attendee.split_logistics_agents, attendee.webhooks_pending, " +
+    expect(attendeeColumns("inner", ATTENDEE_FIELDS, "attendee")).toBe(
+      "attendee.id, attendee.created, attendee.kind, attendee.ticket_token_index, attendee.pii_blob, attendee.status_id, attendee.split_logistics_agents, attendee.email_pending, attendee.webhooks_pending, (CASE WHEN attendee.email_pending > 0 THEN EXISTS (\n  SELECT 1 FROM listing_attendees AS owed_line\n  JOIN listings AS owed_listing ON owed_listing.id = owed_line.listing_id\n  WHERE owed_line.attendee_id = attendee.id\n    AND owed_line.quantity > 0\n    AND EXISTS (\n      WITH RECURSIVE owed_field(rest, field) AS (\n        SELECT owed_listing.fields || ',', ''\n        UNION ALL\n        SELECT substr(rest, instr(rest, ',') + 1),\n               trim(substr(rest, 1, instr(rest, ',') - 1), ' ' || CHAR(160))\n        FROM owed_field\n        WHERE instr(rest, ',') > 0\n      )\n      SELECT 1 FROM owed_field WHERE field = 'email'\n    )\n) ELSE 0 END) as email_owed, " +
         "listingAttendee.listing_id, SUBSTR(listingAttendee.start_at, 1, 10) as date, listingAttendee.quantity, listingAttendee.checked_in, -(SELECT COALESCE(SUM(CASE WHEN dest_type = 'attendee' AND dest_id = CAST(attendee.id AS TEXT) THEN amount WHEN source_type = 'attendee' AND source_id = CAST(attendee.id AS TEXT) THEN -amount ELSE 0 END), 0) FROM transfers WHERE dest_type = 'attendee' AND dest_id = CAST(attendee.id AS TEXT) OR source_type = 'attendee' AND source_id = CAST(attendee.id AS TEXT)) AS remaining_balance, (SELECT CASE WHEN EXISTS(SELECT 1 FROM transfers WHERE kind = 'sale' AND source_type = 'attendee' AND source_id = CAST(listingAttendee.attendee_id AS TEXT) AND dest_type = 'revenue' AND dest_id = CAST(listingAttendee.listing_id AS TEXT) AND event_group = listingAttendee.ledger_event_group) THEN EXISTS(SELECT 1 FROM transfers WHERE kind = 'refund_sale' AND source_type = 'revenue' AND source_id = CAST(listingAttendee.listing_id AS TEXT) AND dest_type = 'attendee' AND dest_id = CAST(listingAttendee.attendee_id AS TEXT) AND reverses_group = listingAttendee.ledger_event_group) WHEN listingAttendee.quantity = 0 THEN EXISTS(SELECT 1 FROM transfers WHERE kind = 'refund_cash' AND source_type = 'attendee' AND source_id = CAST(listingAttendee.attendee_id AS TEXT)) WHEN listingAttendee.ledger_event_group = '' THEN 0 ELSE EXISTS(SELECT 1 FROM transfers WHERE kind GLOB 'refund_*' AND reverses_group = listingAttendee.ledger_event_group) AND NOT EXISTS(SELECT 1 FROM transfers AS unreturned WHERE kind = 'sale' AND source_type = 'attendee' AND source_id = CAST(listingAttendee.attendee_id AS TEXT) AND unreturned.dest_type = 'revenue' AND unreturned.event_group = listingAttendee.ledger_event_group AND NOT EXISTS(SELECT 1 FROM transfers AS returned WHERE returned.kind = 'refund_sale' AND source_type = 'revenue' AND source_id = CAST(unreturned.dest_id AS TEXT) AND dest_type = 'attendee' AND dest_id = CAST(listingAttendee.attendee_id AS TEXT) AND returned.reverses_group = listingAttendee.ledger_event_group)) END) AS refunded, COALESCE(CAST((SELECT COALESCE(SUM(amount), 0) FROM transfers WHERE kind = 'sale' AND source_type = 'attendee' AND source_id = CAST(listingAttendee.attendee_id AS TEXT) AND dest_type = 'revenue' AND dest_id = CAST(listingAttendee.listing_id AS TEXT) AND event_group = listingAttendee.ledger_event_group) * (SELECT COALESCE(SUM(sibling.quantity), 0) FROM listing_attendees AS sibling WHERE sibling.attendee_id = listingAttendee.attendee_id AND sibling.listing_id = listingAttendee.listing_id AND sibling.ledger_event_group = listingAttendee.ledger_event_group AND sibling.id <= listingAttendee.id) / NULLIF((SELECT COALESCE(SUM(sibling.quantity), 0) FROM listing_attendees AS sibling WHERE sibling.attendee_id = listingAttendee.attendee_id AND sibling.listing_id = listingAttendee.listing_id AND sibling.ledger_event_group = listingAttendee.ledger_event_group), 0) AS INTEGER) - CAST((SELECT COALESCE(SUM(amount), 0) FROM transfers WHERE kind = 'sale' AND source_type = 'attendee' AND source_id = CAST(listingAttendee.attendee_id AS TEXT) AND dest_type = 'revenue' AND dest_id = CAST(listingAttendee.listing_id AS TEXT) AND event_group = listingAttendee.ledger_event_group) * (SELECT COALESCE(SUM(sibling.quantity), 0) FROM listing_attendees AS sibling WHERE sibling.attendee_id = listingAttendee.attendee_id AND sibling.listing_id = listingAttendee.listing_id AND sibling.ledger_event_group = listingAttendee.ledger_event_group AND sibling.id < listingAttendee.id) / NULLIF((SELECT COALESCE(SUM(sibling.quantity), 0) FROM listing_attendees AS sibling WHERE sibling.attendee_id = listingAttendee.attendee_id AND sibling.listing_id = listingAttendee.listing_id AND sibling.ledger_event_group = listingAttendee.ledger_event_group), 0) AS INTEGER), 0) AS price_paid, SUBSTR(listingAttendee.end_at, 1, 10) as end_date, listingAttendee.attachment_downloads, listingAttendee.package_group_id",
     );
   });
 
   test("an empty field set under a LEFT join produces the exact core columns", () => {
-    expect(attendeeColumns("left", [])).toBe(
-      "attendee.id, attendee.created, attendee.kind, attendee.ticket_token_index, attendee.pii_blob, attendee.status_id, attendee.split_logistics_agents, attendee.webhooks_pending, " +
+    expect(attendeeColumns("left", [], "attendee")).toBe(
+      "attendee.id, attendee.created, attendee.kind, attendee.ticket_token_index, attendee.pii_blob, attendee.status_id, attendee.split_logistics_agents, attendee.email_pending, attendee.webhooks_pending, (CASE WHEN attendee.email_pending > 0 THEN EXISTS (\n  SELECT 1 FROM listing_attendees AS owed_line\n  JOIN listings AS owed_listing ON owed_listing.id = owed_line.listing_id\n  WHERE owed_line.attendee_id = attendee.id\n    AND owed_line.quantity > 0\n    AND EXISTS (\n      WITH RECURSIVE owed_field(rest, field) AS (\n        SELECT owed_listing.fields || ',', ''\n        UNION ALL\n        SELECT substr(rest, instr(rest, ',') + 1),\n               trim(substr(rest, 1, instr(rest, ',') - 1), ' ' || CHAR(160))\n        FROM owed_field\n        WHERE instr(rest, ',') > 0\n      )\n      SELECT 1 FROM owed_field WHERE field = 'email'\n    )\n) ELSE 0 END) as email_owed, " +
         "COALESCE(listingAttendee.listing_id, 0) as listing_id, SUBSTR(listingAttendee.start_at, 1, 10) as date, COALESCE(listingAttendee.quantity, 0) as quantity, COALESCE(listingAttendee.checked_in, 0) as checked_in",
     );
   });
-
   test("a multi-filter read builds the exact FROM/WHERE/ORDER, AND-joined", () => {
     expect(
       attendeeFromWhere(
@@ -333,6 +340,25 @@ describe("attendee SELECT — exact generated SQL", () => {
       ).from,
     ).toBe(
       "FROM attendees AS attendee JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id JOIN listings AS listing ON listingAttendee.listing_id = listing.id WHERE attendee.kind IN ('attendee', 'servicing') AND listingAttendee.quantity > 0 AND listing.listing_type = 'daily' AND listingAttendee.start_at < ? AND listingAttendee.end_at > ? ORDER BY COALESCE(listingAttendee.start_at, attendee.created), attendee.id",
+    );
+  });
+});
+
+describe("attendeeColumns owed scope", () => {
+  // A booking-scoped read constrains the owed-email rule to the row's own
+  // booking listing, after the ghost-line filter and before the fields
+  // match. An attendee-wide read carries no listing constraint.
+  test("a booking scope asks about the row's own listing", () => {
+    expect(attendeeColumns("inner", [], "booking")).toContain(
+      "AND owed_line.quantity > 0\n" +
+        "    AND owed_line.listing_id = listingAttendee.listing_id\n" +
+        "    AND EXISTS (\n      WITH RECURSIVE owed_field(rest, field) AS (",
+    );
+  });
+
+  test("an attendee scope carries no listing constraint", () => {
+    expect(attendeeColumns("inner", [], "attendee")).not.toContain(
+      "owed_line.listing_id =",
     );
   });
 });

@@ -214,7 +214,7 @@ export const servicingRowsForListing = (
   listingId: number,
 ): Promise<Attendee[]> =>
   queryAll<Attendee>(
-    `SELECT ${attendeeColumns("inner", ATTENDEE_FIELDS)}
+    `SELECT ${attendeeColumns("inner", ATTENDEE_FIELDS, "attendee")}
        FROM attendees AS attendee
        JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
       WHERE listingAttendee.listing_id = ?
