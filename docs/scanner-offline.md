@@ -59,8 +59,9 @@ that cannot reach the server stops the run, and the rest stay queued.
   mistaken for a fresh one.
 - The waiting line also names every person the last sync found was already
   checked in elsewhere, as "{count} people were already checked in
-  elsewhere: {names}." It stays until the next sync replaces it whole, so
-  a later status line write cannot take the story away.
+  elsewhere: {names}." It stays until a sync that delivers check-ins
+  replaces it whole. An empty sync and a later status line write cannot
+  take the story away.
 - A ticket scanned twice on one device queues twice, once per delivery. A
   party's next arrival is another check-in, and the scanner's own cooldown
   takes the double press of one code. The server answers one delivery once,

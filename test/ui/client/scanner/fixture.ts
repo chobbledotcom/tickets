@@ -31,7 +31,7 @@ import {
   type KeyValueStore,
   mapStoreOver,
 } from "#src/ui/client/scanner-door-store.ts";
-import type { OfflineScanner } from "#src/ui/client/scanner-offline.ts";
+import type { setupOfflineScanner } from "#src/ui/client/scanner-offline.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { createGlobalStash } from "#test-utils/happy-dom.ts";
 import { rebrandedPage } from "#test-utils/rebrand-page.ts";
@@ -43,6 +43,10 @@ const MODULE_MARKER = "__scannerModule";
  * (doorCacheName("group", 5)). The digest helpers in `offline-fixture.ts`
  * hash under the same key. */
 export const DOOR_CACHE_KEY = toBase64Url(deriveDoorCacheKey("group:5"));
+
+/** The engine's page handle, derived while the engine keeps the type
+ * unexported. */
+type OfflineScanner = ReturnType<typeof setupOfflineScanner>;
 
 export interface ScannerModule {
   admitScan: (

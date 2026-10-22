@@ -234,8 +234,8 @@ type OfflineUi = {
 /** Everything one page's offline mode reads and drives, resolved once. */
 type OfflineContext = {
   /** The names of the queued check-ins the last sync found were already
-   * checked in elsewhere. Empty until a sync says so, and the next sync
-   * replaces the story whole. */
+   * checked in elsewhere. Empty until a sync says so, and a sync that
+   * delivers check-ins replaces the story whole. */
   duplicates: string[];
   /** The door's cache key bytes, decoded once at wire-up. Every scan
    * digests under it, so its digests match the saved list's. */
@@ -341,8 +341,9 @@ export type OfflineScannerSetup = {
   tokensPath: string;
 };
 
-/** What the scanner's scan loop reads to decide where a scan goes. */
-export type OfflineScanner = {
+/** What the scanner's scan loop reads to decide where a scan goes. The
+ * wiring branch exports the type with the page that reads it. */
+type OfflineScanner = {
   /** Send the waiting check-ins now. A replay that is already running
    * stands down, and an empty queue sends nothing. */
   replay: () => Promise<void>;
@@ -402,9 +403,9 @@ export const setupOfflineScanner = (
       scope: ctx.scope,
       store: ctx.store,
     });
-    if (result) {
-      // This sync's story replaces the last one whole: which queued
-      // check-ins the door had already taken elsewhere.
+    if (result && result.sent > 0) {
+      // A sync that delivers check-ins replaces the last story whole. An
+      // empty run sends nothing, so the last story stands.
       ctx.duplicates = result.duplicates;
     }
     if (result && result.sent === 0 && result.waiting > 0) {

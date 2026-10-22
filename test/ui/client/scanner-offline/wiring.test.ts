@@ -226,7 +226,7 @@ describe("the offline page's wiring", () => {
 
   test("a sync names every person another door already took", async () => {
     const h = await doorWithSaved(
-      [takenElsewhere("Ada"), takenElsewhere("Bo"), checkedIn()],
+      [takenElsewhere("Ada"), takenElsewhere("Bo"), checkedIn(), checkedIn()],
       ["AAAA", "BBBB"],
       ["AAAA", "BBBB"],
     );
@@ -237,8 +237,21 @@ describe("the offline page's wiring", () => {
       "2 people were already checked in elsewhere: Ada, Bo.",
     );
 
-    // The next sync replaces the story whole: nobody new was taken, so
-    // the line carries no stale names.
+    // An empty sync sends nothing and cannot take the story away: the
+    // line keeps its names.
+    h.toggle.click();
+    h.toggle.click();
+    await settle();
+    expect(h.queueLine.textContent).toBe(
+      "2 people were already checked in elsewhere: Ada, Bo.",
+    );
+    expect(h.queueLine.classList.contains("hidden")).toBe(false);
+
+    // The next sync that delivers check-ins replaces the story whole.
+    await h.offline.scan("AAAA");
+    expect(h.queueLine.textContent).toBe(
+      "1 check-in waiting to send. 2 people were already checked in elsewhere: Ada, Bo.",
+    );
     h.toggle.click();
     h.toggle.click();
     await settle();
