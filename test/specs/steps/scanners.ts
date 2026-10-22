@@ -125,11 +125,18 @@ Then(
   "the door page says the scan is kept and checks the person in when the connection returns",
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
-    // This harness serves the page and never runs its script, so the step
-    // reads the copy the page carries for its client: the dead
-    // connection's banner and the queued scan's answer, as the client's
-    // own message attributes. The bundle tests see the client show those
-    // words.
+    // This harness serves the page and never runs its script, so the
+    // banner text is still empty here. The step reads the served surface:
+    // the banner and the queue panel, under the ids the client looks the
+    // elements up by.
+    expect(page).toContain('id="scanner-offline-banner"');
+    expect(page).toContain('id="scanner-offline-banner-text"');
+    expect(page).toContain('id="scanner-queue"');
+    expect(page).toContain('id="scanner-queue-summary"');
+    expect(page).toContain('id="scanner-queue-items"');
+    // The page carries the dead connection's banner words and the queued
+    // scan's answer for its client, as the client's own message
+    // attributes. The bundle tests see the client show those words.
     expect(page).toContain(
       `data-message-offline-banner-auto="${t(
         "admin.scanner.offline_banner_auto",
