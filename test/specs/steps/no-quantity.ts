@@ -2,11 +2,11 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { emailFor } from "#test/specs/support/emails.ts";
 import {
   listingIdNamed,
   rememberListing,
 } from "#test/specs/support/listings.ts";
-import { emailFor } from "#test/specs/support/tickets.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,

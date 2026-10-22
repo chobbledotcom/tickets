@@ -9,7 +9,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { getNoteRows } from "#db/notes/queries.ts";
-import { emailFor } from "#test/specs/support/tickets.ts";
+import { emailFor } from "#test/specs/support/emails.ts";
 import {
   type NoteImage,
   requiredWorldValue,

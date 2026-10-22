@@ -13,9 +13,9 @@ import {
   withAdminPage,
 } from "#test/specs/support/browser.ts";
 import { rosterPath } from "#test/specs/support/by-hand.ts";
+import { emailFor } from "#test/specs/support/emails.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { rememberListing } from "#test/specs/support/listings.ts";
-import { emailFor } from "#test/specs/support/tickets.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

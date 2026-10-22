@@ -10,6 +10,7 @@ import { WORLD } from "#accounting/accounts.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
 import { correctOnPage } from "#test/specs/support/corrections.ts";
+import { emailFor } from "#test/specs/support/emails.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import {
   completePaidOrder,
@@ -21,7 +22,6 @@ import {
   soleBookingOn,
   visitorBooks,
 } from "#test/specs/support/public-booking.ts";
-import { emailFor } from "#test/specs/support/tickets.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,

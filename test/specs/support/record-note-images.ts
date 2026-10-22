@@ -9,7 +9,7 @@ import { t } from "#i18n";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { typedNoteWithPicture } from "#test/specs/support/attendee-images.ts";
 import { openRecord, recordFor } from "#test/specs/support/contact-records.ts";
-import { emailFor } from "#test/specs/support/tickets.ts";
+import { emailFor } from "#test/specs/support/emails.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
