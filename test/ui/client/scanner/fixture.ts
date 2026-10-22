@@ -309,6 +309,42 @@ export const whenMessageShows = (
   text: string,
 ): Promise<void> => whenTextShows(h.confirm.message, text);
 
+/** The scan path the fixture page's camera posts to. */
+export const SCAN_PATH = "/admin/groups/5/scan";
+
+/** The ticket token one scan carries. */
+export const TOKEN = "tok12345";
+
+/** The queued check-in one reload would restore. */
+export const queuedItem = {
+  queuedAt: 1,
+  scanPath: SCAN_PATH,
+  token: TOKEN,
+};
+
+/** The store's queue, as the page wrote it. */
+export const storedQueue = (h: ScannerHarness): string | null =>
+  h.window.localStorage.getItem("scanner-queue");
+
+/** The store of a full or blocked device: every write to it fails. */
+export const fullStore = (h: ScannerHarness): void => {
+  h.stash.set(
+    "localStorage",
+    Object.create(h.window.localStorage, {
+      removeItem: {
+        value: () => {
+          throw new Error("The store is full");
+        },
+      },
+      setItem: {
+        value: () => {
+          throw new Error("The store is full");
+        },
+      },
+    }),
+  );
+};
+
 const wrongDoor = (): Response =>
   Response.json({
     listingName: "Standard",
