@@ -56,6 +56,27 @@ describe("scanner offline door", {
   const askedUrls = (fetchStub: Stub): string[] =>
     fetchStub.calls.map((call) => String(call.args[0]));
 
+  /** What the page shows and keeps when the store refuses a switch
+   * change: the refusal words, and every surface as it was. */
+  const refusedChangeLeaves = (
+    h: ScannerHarness,
+    left: { bannerHidden: boolean; mode: string | null; pressed: string },
+  ): void => {
+    expect(h.statusEl.textContent).toBe(
+      "Your change was not saved. Free up space on this device, then try again.",
+    );
+    expect(h.statusEl.className).toContain("scanner-status-error");
+    expect(
+      el(h.document, "scanner-offline-toggle").getAttribute("aria-pressed"),
+    ).toBe(left.pressed);
+    expect(
+      el(h.document, "scanner-offline-banner").className.includes("hidden"),
+    ).toBe(left.bannerHidden);
+    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe(
+      left.mode,
+    );
+  };
+
   /** The real timer the camera fakes replace, captured at module load. */
   const realSetTimeout = globalThis.setTimeout;
 
@@ -232,19 +253,26 @@ describe("scanner offline door", {
 
     el(h.document, "scanner-offline-toggle").click();
 
-    expect(h.statusEl.textContent).toBe(
-      "Your change was not saved. Free up space on this device, then try again.",
-    );
-    expect(h.statusEl.className).toContain("scanner-status-error");
-    // The refused arm left the switch, the banner, and the store as they
-    // were.
-    expect(
-      el(h.document, "scanner-offline-toggle").getAttribute("aria-pressed"),
-    ).toBe("false");
-    expect(el(h.document, "scanner-offline-banner").className).toContain(
-      "hidden",
-    );
-    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe(null);
+    refusedChangeLeaves(h, {
+      bannerHidden: true,
+      mode: null,
+      pressed: "false",
+    });
+  });
+
+  test("keeps the switch on and says so when the store refuses the change", () => {
+    using _fetch = stubFetch(new Error("offline"));
+    const h = fresh({ onLine: false });
+    el(h.document, "scanner-offline-toggle").click();
+    fullStore(h);
+
+    el(h.document, "scanner-offline-toggle").click();
+
+    refusedChangeLeaves(h, {
+      bannerHidden: false,
+      mode: "1",
+      pressed: "true",
+    });
   });
 
   test("says the offline ticket list is missing when the store holds none", async () => {
