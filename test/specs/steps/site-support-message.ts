@@ -2,7 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { regionShowsPicture } from "#test/specs/support/attendee-images.ts";
+import { pageShowsPicture } from "#test/specs/support/attendee-images.ts";
 import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
 import { keepSiteForReadingOnly } from "#test/specs/support/features.ts";
 import {
@@ -35,12 +35,7 @@ When(
 Then(
   "the message panel shows the {string} picture",
   function (this: TicketsWorld, _name: string): void {
-    regionShowsPicture(
-      scenarioBrowser(this).currentHtml,
-      'class="prose"',
-      "div",
-      this,
-    );
+    pageShowsPicture(scenarioBrowser(this).currentHtml, this);
   },
 );
 

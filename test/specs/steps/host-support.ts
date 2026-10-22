@@ -10,7 +10,7 @@ import { t } from "#i18n";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import {
-  regionShowsPicture,
+  pageShowsPicture,
   uploadsAPicture,
 } from "#test/specs/support/attendee-images.ts";
 import {
@@ -218,12 +218,7 @@ Then(
 Then(
   "the introduction shows the {string} picture",
   function (this: TicketsWorld, _name: string): void {
-    regionShowsPicture(
-      scenarioBrowser(this).currentHtml,
-      'class="prose"',
-      "div",
-      this,
-    );
+    pageShowsPicture(scenarioBrowser(this).currentHtml, this);
   },
 );
 

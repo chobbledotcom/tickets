@@ -79,6 +79,13 @@ export const regionShowsPicture = (
   expect(region).not.toContain("img#");
 };
 
+/** Hold the page as a whole to the picture: it shows at its own address, and
+ * no reference stays anywhere on the page. */
+export const pageShowsPicture = (html: string, world: TicketsWorld): void => {
+  expect(html).toContain(pictureTag(world));
+  expect(html).not.toContain("img#");
+};
+
 /** The picture the story named, uploaded now. The world keeps it as the
  * picture the story's reference points at; the caller writes the words that
  * name it. */
