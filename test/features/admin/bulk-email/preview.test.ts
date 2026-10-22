@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import {
   seedDraft,
   seedListingWithAttendees,
@@ -8,6 +9,7 @@ import {
   seedSingleAttendeeListing,
   useResend,
 } from "#test/integration/server/bulk-email/helpers.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -155,6 +157,45 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       expect(html).toContain("mailto:alice%40example.com?");
       expect(html).not.toContain("Open a BCC draft");
       expect(html).not.toContain("everyone in BCC");
+    });
+
+    test("resolves the picture reference in the mailto draft", async () => {
+      useResend();
+      const image = await makeImage("Poster [blue]");
+      const listing = await seedSingleAttendeeListing();
+      const html = await postPreviewHtml({
+        body: `![Poster \\[blue\\]](img#${image.id})`,
+        listing_id: String(listing.id),
+        subject: "Big news",
+      });
+      // The mailto draft reaches the owner's email app as text, so it names
+      // the picture at its address on the site instead of its reference.
+      expect(html).toContain(
+        encodeURIComponent(
+          `![Poster \\[blue\\]](https://${getEffectiveDomain()}/image/${image.filename})`,
+        ),
+      );
+    });
+
+    test("keeps a reference inside code as code in the mailto draft", async () => {
+      useResend();
+      const image = await makeImage("Poster");
+      const listing = await seedSingleAttendeeListing();
+      const html = await postPreviewHtml({
+        body: `Write \`![Poster](img#${image.id})\` by hand: ![Poster](img#${image.id})`,
+        listing_id: String(listing.id),
+        subject: "Big news",
+      });
+      // The code span is text the owner wrote as code, so the draft keeps it
+      // written. The real reference still names the picture's address.
+      expect(html).toContain(
+        encodeURIComponent(`Write \`![Poster](img#${image.id})\` by hand:`),
+      );
+      expect(html).toContain(
+        encodeURIComponent(
+          `![Poster](https://${getEffectiveDomain()}/image/${image.filename})`,
+        ),
+      );
     });
 
     test("omits the address list when there are no recipients", async () => {

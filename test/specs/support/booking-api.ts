@@ -10,10 +10,10 @@ import { expect } from "@std/expect";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { listingNamed } from "#test/specs/support/listings.ts";
-import { emailFor } from "#test/specs/support/tickets.ts";
-import type {
-  ReadAboutOneThing,
-  TicketsWorld,
+import {
+  emailFor,
+  type ReadAboutOneThing,
+  type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end

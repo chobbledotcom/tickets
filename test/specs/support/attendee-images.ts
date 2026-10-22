@@ -13,10 +13,11 @@ import { getNoteRows } from "#db/notes/queries.ts";
 import { t } from "#i18n";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { openRecord, recordFor } from "#test/specs/support/contact-records.ts";
-import type {
-  NoteAPictureAboutOnePerson,
-  NoteImage,
-  TicketsWorld,
+import {
+  emailFor,
+  type NoteAPictureAboutOnePerson,
+  type NoteImage,
+  type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -25,9 +26,6 @@ import { adminFormPost } from "#test-utils/session.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
-
-/** Everyone a story talks about has an email the site files them under. */
-const emailFor = (who: string): string => `${who.toLowerCase()}@example.com`;
 
 /** The listing every note story books its person onto, so one note shows on
  * the person's page, the attendees list, and the listing's own panels. */

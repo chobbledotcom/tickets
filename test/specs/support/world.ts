@@ -317,3 +317,7 @@ export const requiredWorldValue = <Value>(
   }
   return value;
 };
+
+/** Everyone a story talks about has an email the site files them under. */
+export const emailFor = (who: string): string =>
+  `${who.toLowerCase().replaceAll(" ", ".")}@example.com`;

@@ -15,8 +15,7 @@ import {
 import { rosterPath } from "#test/specs/support/by-hand.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { rememberListing } from "#test/specs/support/listings.ts";
-import { emailFor } from "#test/specs/support/tickets.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { emailFor, type TicketsWorld } from "#test/specs/support/world.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";

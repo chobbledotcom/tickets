@@ -12,6 +12,7 @@ import { getEnv } from "#shared/env.ts";
 import { namedThings, putsThingsBack } from "#test/specs/support/memory.ts";
 import {
   asksIfThereIs,
+  emailFor,
   keepsAnswerAs,
   keepWhatTheyWereTold,
   scenarioEnv,
@@ -45,6 +46,11 @@ describe("the story's shared lookups", () => {
 
   test("gives back the booking the story is working on", () => {
     expect(theBooking(worldWith({ attendeeId: 12 }))).toBe(12);
+  });
+
+  test("files a person under the email their name spells", () => {
+    expect(emailFor("Grace Hopper")).toBe("grace.hopper@example.com");
+    expect(emailFor("Ada")).toBe("ada@example.com");
   });
 
   test("fails loudly when no booking was set up", () => {
