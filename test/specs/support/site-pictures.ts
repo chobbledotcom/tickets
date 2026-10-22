@@ -28,30 +28,90 @@ export const sitePictureTag = (world: TicketsWorld): string => {
   return `<img src="/image/${image.filename}" alt="${image.alt}">`;
 };
 
-/** The words the owner types to place the story's picture in a piece of text,
- * with a sentence around it. */
-export const textWithSitePicture = (world: TicketsWorld): string => {
+/** The reference the owner's text carries for the story's picture, in the
+ * short form the editor writes when the owner chooses an image. */
+export const sitePictureReference = (world: TicketsWorld): string => {
   const { alt, id } = siteImage(world);
-  return `Have a look. ![${alt}](img#${id})`;
+  return `![${alt}](img#${id})`;
 };
 
-/** The page's site footer region, where the footer's own words show. */
-export const footerHtml = (html: string): string => {
-  const start = html.indexOf('<footer class="site-footer">');
-  if (start === -1) throw new Error("the page renders no site footer");
-  const end = html.indexOf("</footer>", start);
+/** The words the owner types to place the story's picture in a piece of text,
+ * with a sentence around it. */
+export const textWithSitePicture = (world: TicketsWorld): string =>
+  `Have a look. ${sitePictureReference(world)}`;
+
+/** The owner's words with the story's picture placed after them, on its own
+ * line, the way the editor writes a page when the owner chooses an image. */
+export const wordsWithSitePicture = (
+  world: TicketsWorld,
+  words: string,
+): string => `${words}\n\n${sitePictureReference(world)}`;
+
+/** A page region a story reads: from one opening tag to where the region
+ * closes. */
+type PageRegion = (html: string) => string;
+
+/** The page region that starts at one opening tag and runs to its closing
+ * tag. A region the page does not render is a loud failure. A story that
+ * reads a missing region proves nothing. */
+const regionHtml = (
+  html: string,
+  openTag: string,
+  closeTag: string,
+  region: string,
+): string => {
+  const start = html.indexOf(openTag);
+  if (start === -1) throw new Error(`the page renders no ${region}`);
+  const end = html.indexOf(closeTag, start);
   return html.slice(start, end);
 };
 
-/** The story's picture shows inside this page's site footer, and no
- * unresolved reference shows anywhere on the page. */
-export const expectFooterPicture = (
-  world: TicketsWorld,
-  html: string,
-): void => {
-  expect(footerHtml(html)).toContain(sitePictureTag(world));
-  expect(html).not.toContain("img#");
-};
+/** The page's site footer region, where the footer's own words show. */
+export const footerHtml = (html: string): string =>
+  regionHtml(html, '<footer class="site-footer">', "</footer>", "site footer");
+
+/** The page's own-words region, where the owner's words render. The region
+ * runs to the end of the page's <main>, because the site footer renders after
+ * it and must never count as the page's own words. */
+export const proseHtml = (html: string): string =>
+  regionHtml(html, '<div class="prose">', "</main>", "words of its own");
+
+/** The story's picture shows in one region of the page, and no unresolved
+ * reference shows anywhere on the page. */
+const expectPictureIn =
+  (region: PageRegion) =>
+  (world: TicketsWorld, html: string): void => {
+    expect(region(html)).toContain(sitePictureTag(world));
+    expect(html).not.toContain("img#");
+  };
+
+/** The page's site footer shows the story's picture, and no unresolved
+ * reference shows anywhere on the page. */
+export const expectFooterPicture = expectPictureIn(footerHtml);
+
+/** The page's own words show the story's picture, and no unresolved
+ * reference shows anywhere on the page. */
+export const expectProsePicture = expectPictureIn(proseHtml);
+
+/** The page a visitor opened answers 200, says the words the story names, and
+ * shows the story's picture in the region the story names — so an error page
+ * cannot pass for the page named. */
+const readShowsPictureIn =
+  (pictureShows: (world: TicketsWorld, html: string) => void) =>
+  (world: TicketsWorld, browser: TestBrowser, words: string): void => {
+    expect(browser.answered).toBe(200);
+    expect(browser.pageText).toContain(words);
+    pictureShows(world, browser.currentHtml);
+  };
+
+/** The page a visitor opened says its own words and shows the story's picture
+ * in its site footer, so an error page cannot pass for the page named. */
+export const readShowsFooterPicture = readShowsPictureIn(expectFooterPicture);
+
+/** The page a visitor opened says the words the story names and shows the
+ * story's picture in the page's own words, so an error page cannot pass for
+ * the page named. */
+export const readShowsProsePicture = readShowsPictureIn(expectProsePicture);
 
 /** The page somebody opened shows the story's picture in its site footer,
  * and the site answered it with the status the story expects. */

@@ -58,8 +58,8 @@ Feature: An owner writes the front pages of the site
   Rule: Pictures in the front pages show as pictures
     The owner can place a picture they uploaded in the homepage text, the
     contact page, the terms, the order page's introduction, a group's words,
-    or an item's description on the list. A visitor sees the picture itself,
-    and never sees the reference that names it.
+    an item's description on the list, or a page the owner wrote. A visitor
+    sees the picture itself, and never sees the reference that names it.
 
     @case:front-pages.homepage-picture
     Scenario: The owner puts a picture in the homepage
@@ -106,6 +106,14 @@ Feature: An owner writes the front pages of the site
       Then the list offers the Festival
       And the list says the Festival is "Have a look."
       And a visitor on the list reads the Festival and sees the picture
+
+    @case:front-pages.owner-page-picture
+    Scenario: The owner puts a picture in a page they wrote
+      Given the public site is on
+      And the owner has uploaded a picture called "TrailMap"
+      When the owner writes a page called Directions at "how-to-find-us" with the picture in it
+      Then the owner is told it saved
+      And a visitor reading "how-to-find-us" is shown Directions and sees the picture
 
     @case:front-pages.unknown-picture-keeps-its-describing-words
     Scenario: The homepage names a picture that is not there

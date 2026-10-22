@@ -21,6 +21,10 @@ import {
   listingNamed,
   putsPlainThingOnSale,
 } from "#test/specs/support/listings.ts";
+import {
+  ownerPostsNews,
+  visitorFollowsNewsLink,
+} from "#test/specs/support/news.ts";
 import { groupHolding } from "#test/specs/support/public-list.ts";
 import {
   ownerWritesPage,
@@ -31,8 +35,10 @@ import {
 import {
   expectFooterPicture,
   footerShowsPicture,
+  readShowsProsePicture,
   sitePictureTag,
   textWithSitePicture,
+  wordsWithSitePicture,
 } from "#test/specs/support/site-pictures.ts";
 import { openTicket } from "#test/specs/support/tickets.ts";
 import {
@@ -153,6 +159,23 @@ When(
   },
 );
 
+When(
+  "the owner writes a page called {word} at {string} with the picture in it",
+  async function (
+    this: TicketsWorld,
+    name: string,
+    address: string,
+  ): Promise<void> {
+    await ownerWritesPages(this);
+    await ownerWritesPage(
+      this,
+      name,
+      address,
+      wordsWithSitePicture(this, wordsOnlyOn(name)),
+    );
+  },
+);
+
 Given(
   "the owner has written the {string} with their own words",
   async function (this: TicketsWorld, page: string): Promise<void> {
@@ -167,6 +190,13 @@ When(
     return organiserPressesOnPage(this, "/admin/settings", "Save site footer", {
       site_footer: textWithSitePicture(this),
     });
+  },
+);
+
+When(
+  "the owner posts news called {string} saying {string} with the picture in its words",
+  function (this: TicketsWorld, name: string, words: string): Promise<void> {
+    return ownerPostsNews(this, name, wordsWithSitePicture(this, words));
   },
 );
 
@@ -195,6 +225,32 @@ Then(
   "a visitor on the terms page sees the picture",
   function (this: TicketsWorld): Promise<void> {
     return visitorSeesPictureAt(this, "/terms");
+  },
+);
+
+Then(
+  "a visitor reading {string} is shown {word} and sees the picture",
+  async function (
+    this: TicketsWorld,
+    address: string,
+    name: string,
+  ): Promise<void> {
+    readShowsProsePicture(
+      this,
+      await openAsNewcomer(`/page/${address}`),
+      wordsOnlyOn(name),
+    );
+  },
+);
+
+Then(
+  "a visitor following {string} from the news page reads {string} and sees the picture",
+  async function (
+    this: TicketsWorld,
+    name: string,
+    words: string,
+  ): Promise<void> {
+    readShowsProsePicture(this, await visitorFollowsNewsLink(name), words);
   },
 );
 

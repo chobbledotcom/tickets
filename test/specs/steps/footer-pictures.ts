@@ -18,26 +18,14 @@ import {
 import {
   expectFooterPicture,
   footerShowsPicture,
+  readShowsFooterPicture,
 } from "#test/specs/support/site-pictures.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
-
-/** The page a visitor opened says its own words and shows the story's picture
- * in its site footer, so an error page cannot pass for the page named. */
-const readShowsFooterPicture = (
-  world: TicketsWorld,
-  page: TestBrowser,
-  words: string,
-): void => {
-  expect(page.answered).toBe(200);
-  expect(page.pageText).toContain(words);
-  expectFooterPicture(world, page.currentHtml);
-};
 
 Then(
   "a visitor on the list sees the {word} and the picture in the footer",

@@ -23,6 +23,14 @@ Feature: An owner tells people the news
       And a visitor on the news page reads "Big launch"
       And a visitor following "Big launch" from the news page reads "Doors open Friday."
 
+    @case:news.read-a-post-with-a-picture
+    Scenario: The owner puts a picture in a post
+      Given the public site is on
+      And the owner has uploaded a picture called "Hero"
+      When the owner posts news called "Poster Drop" saying "Doors open Friday." with the picture in its words
+      Then the owner is told the news post was created
+      And a visitor following "Poster Drop" from the news page reads "Doors open Friday." and sees the picture
+
   @rule:pages.the-news-link-waits-for-the-first-post
   @surface:public
   Rule: The news link waits for the first post

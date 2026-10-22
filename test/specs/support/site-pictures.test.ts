@@ -3,10 +3,15 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   expectFooterPicture,
+  expectProsePicture,
   footerHtml,
   footerShowsPicture,
+  proseHtml,
+  readShowsFooterPicture,
+  readShowsProsePicture,
   sitePictureTag,
   textWithSitePicture,
+  wordsWithSitePicture,
 } from "#test/specs/support/site-pictures.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
@@ -32,6 +37,12 @@ describe("the site picture helpers", () => {
     );
   });
 
+  test("places the story's picture after the owner's words", () => {
+    expect(wordsWithSitePicture(worldWithPicture(), "Doors open Friday.")).toBe(
+      "Doors open Friday.\n\n![A sunny field](img#3)",
+    );
+  });
+
   test("slices out the page's footer region", () => {
     expect(
       footerHtml(
@@ -44,6 +55,21 @@ describe("the site picture helpers", () => {
     expect(() => footerHtml("<main>words</main>")).toThrow(
       "the page renders no site footer",
     );
+  });
+
+  test("slices out the page's own words, never the footer's", () => {
+    expect(
+      proseHtml(
+        '<main><div class="prose"><p>page words</p></div></main>' +
+          '<footer class="site-footer"><p>footer words</p></footer>',
+      ),
+    ).toBe('<div class="prose"><p>page words</p></div>');
+  });
+
+  test("fails loudly when the page shows no words of its own", () => {
+    expect(() =>
+      proseHtml('<footer class="site-footer"><p>footer words</p></footer>'),
+    ).toThrow("the page renders no words of its own");
   });
 
   test("reads the story's picture inside the page's footer region", () => {
@@ -71,6 +97,39 @@ describe("the site picture helpers", () => {
         worldWithPicture(),
         '<footer class="site-footer"><img src="/image/field.png" alt="A sunny field"></footer>' +
           "<p>Still shows img#3.</p>",
+      ),
+    ).toThrow();
+  });
+
+  test("reads the story's picture in the page's own words", () => {
+    expect(() =>
+      expectProsePicture(
+        worldWithPicture(),
+        '<main><div class="prose"><p>Come along.</p>' +
+          '<img src="/image/field.png" alt="A sunny field"></div></main>' +
+          '<footer class="site-footer"></footer>',
+      ),
+    ).not.toThrow();
+  });
+
+  test("says so when the picture shows only in the footer", () => {
+    expect(() =>
+      expectProsePicture(
+        worldWithPicture(),
+        '<main><div class="prose"><p>Come along.</p></div></main>' +
+          '<footer class="site-footer">' +
+          '<img src="/image/field.png" alt="A sunny field"></footer>',
+      ),
+    ).toThrow();
+  });
+
+  test("says so when a reference is left unresolved in the page's own words", () => {
+    expect(() =>
+      expectProsePicture(
+        worldWithPicture(),
+        '<main><div class="prose">' +
+          '<img src="/image/field.png" alt="A sunny field">' +
+          "Still shows img#3.</div></main>",
       ),
     ).toThrow();
   });
@@ -121,6 +180,54 @@ describe("the site picture helpers", () => {
         200,
         '<footer class="site-footer"><p>Come along.</p></footer>',
       ),
+    );
+  });
+
+  /** The reader refuses a page that does not show the story's picture the way
+   * the story expects. */
+  const expectReaderToThrow = (
+    read: (world: TicketsWorld, browser: TestBrowser, words: string) => void,
+    browser: TestBrowser,
+    words: string,
+  ): void => {
+    expect(() => read(worldWithPicture(), browser, words)).toThrow();
+  };
+
+  test("reads the story's words and picture in the page's own words", () => {
+    expect(() =>
+      readShowsProsePicture(
+        worldWithPicture(),
+        answeredBrowser(
+          200,
+          '<main><div class="prose"><p>Doors open Friday.</p>' +
+            '<img src="/image/field.png" alt="A sunny field"></div></main>',
+        ),
+        "Doors open Friday.",
+      ),
+    ).not.toThrow();
+  });
+
+  test("says so when the story's read gets another status", () => {
+    expectReaderToThrow(
+      readShowsFooterPicture,
+      answeredBrowser(
+        500,
+        '<footer class="site-footer">' +
+          '<img src="/image/field.png" alt="A sunny field"></footer>',
+      ),
+      "Doors open Friday.",
+    );
+  });
+
+  test("says so when the words are not the page's own", () => {
+    expectReaderToThrow(
+      readShowsProsePicture,
+      answeredBrowser(
+        200,
+        '<main><div class="prose">' +
+          '<img src="/image/field.png" alt="A sunny field"></div></main>',
+      ),
+      "Doors open Friday.",
     );
   });
 });
