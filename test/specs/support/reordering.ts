@@ -37,9 +37,12 @@ export interface MovesNamedRows {
 }
 
 export const movingRowsOn = (
-  listPath: string,
+  listPath: string | ((world: TicketsWorld) => string),
   openAt: OpensAtOneRow,
 ): MovesNamedRows => {
+  const pathOn = (world: TicketsWorld): string =>
+    typeof listPath === "function" ? listPath(world) : listPath;
+
   /** The list in front of somebody, and where this row's arrow for going that
    * way posts — or nothing when the row offers them no such arrow. Read off
    * the named row's own markup, so an arrow rendered beside somebody else's
@@ -50,7 +53,7 @@ export const movingRowsOn = (
     direction: Direction,
   ): Promise<{ browser: TestBrowser; posts: string | null }> => {
     const { browser, id, row } = await openAt(world, name);
-    const posts = `${listPath}/${id}/move-${direction}`;
+    const posts = `${pathOn(world)}/${id}/move-${direction}`;
     return {
       browser,
       posts: row.includes(posts) ? posts : null,

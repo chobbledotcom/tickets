@@ -13,23 +13,29 @@ import {
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
   A_MADE_UP_CODE,
+  aMadeUpCode,
   askForAMadeUpCode,
+  askForTicketCode,
   customerBooksTheirDay,
   customerOrders,
   customerPaysForOnePlace,
   everyCodeCollected,
   headingForTickets,
+  linkInTheirHand,
   openTicket,
+  ownerSignsInWith,
   sellsSomethingByTheDay,
   sellsSomethingFilledIn,
   theDayTheyPicked,
   theirLinkCarries,
+  theWaitPasses,
   wordsOnTheirTicket,
 } from "#test/specs/support/tickets.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
 
 // jscpd:ignore-end
 
@@ -394,5 +400,94 @@ Then(
     expect(requiredWorldValue(this.firstBody, "what the site said")).toContain(
       t("public.not_found.heading"),
     );
+  },
+);
+
+When(
+  "somebody tries {int} made-up ticket code(s) one after another",
+  async function (this: TicketsWorld, count: number): Promise<void> {
+    for (let tried = 0; tried < count; tried++) {
+      const { answered, said } = await askForTicketCode(aMadeUpCode(tried));
+      this.firstStatus = answered;
+      this.firstBody = said;
+    }
+  },
+);
+
+When(
+  "somebody opens the same made-up ticket code {int} time(s)",
+  async function (this: TicketsWorld, count: number): Promise<void> {
+    for (let tried = 0; tried < count; tried++) {
+      const { answered, said } = await askForTicketCode(A_MADE_UP_CODE);
+      this.firstStatus = answered;
+      this.firstBody = said;
+    }
+  },
+);
+
+When("the wait passes", function (this: TicketsWorld): Promise<void> {
+  return theWaitPasses();
+});
+
+When(
+  "{word} asks for that ticket and gets in",
+  async function (this: TicketsWorld, _who: string): Promise<void> {
+    const page = await openTicket(this);
+    expect(page.pageText).toContain(headingForTickets(1));
+  },
+);
+
+When(
+  "the owner gets their password wrong {int} time(s)",
+  async function (this: TicketsWorld, count: number): Promise<void> {
+    for (let tried = 0; tried < count; tried++) {
+      const page = await ownerSignsInWith(`wrong-password-${tried}`);
+      this.firstBody = page.pageText;
+    }
+  },
+);
+
+Then(
+  "the site refuses them for a while",
+  async function (this: TicketsWorld): Promise<void> {
+    // The try that hit the limit was still answered normally: the refusal
+    // begins with the next ask.
+    const { answered } = await askForTicketCode(`${A_MADE_UP_CODE}-refused`);
+    expect(answered).toBe(429);
+  },
+);
+
+Then(
+  "even {word}'s own ticket is refused for a while",
+  async function (this: TicketsWorld, _who: string): Promise<void> {
+    const { answered } = await askForTicketCode(linkInTheirHand(this));
+    expect(answered).toBe(429);
+  },
+);
+
+Then(
+  "the site still answers there is no such page",
+  function (this: TicketsWorld): void {
+    expect(requiredWorldValue(this.firstStatus, "what the site answered")).toBe(
+      404,
+    );
+  },
+);
+
+Then(
+  "even the right password is told to wait",
+  async function (this: TicketsWorld): Promise<void> {
+    const page = await ownerSignsInWith(TEST_ADMIN_PASSWORD);
+    expect(page.pageText).toContain(t("error.too_many_attempts"));
+  },
+);
+
+Then(
+  "the owner signs in and sees their pages",
+  async function (this: TicketsWorld): Promise<void> {
+    const page = await ownerSignsInWith(TEST_ADMIN_PASSWORD);
+    // The nav's own label is an aria-label, not text a reader sees, so the
+    // assertion reads a page name the signed-in nav actually shows.
+    expect(page.pageText).toContain(t("nav.calendar"));
   },
 );

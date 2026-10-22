@@ -13,17 +13,21 @@ import {
 } from "#shared/admin-features.ts";
 import {
   adminPageHtmlAt,
+  browserOf,
   keepsWhatTheOrganiserSaw,
   ORGANISER,
-  submitRenderedAdminForm,
+  openAdminPage,
+  rememberBrowser,
 } from "#test/specs/support/browser.ts";
 import { copyLoaded } from "#test/specs/support/copy.ts";
+import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   keepWhatTheyWereTold,
   type StoryJourney,
   scenarioEnv,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -59,6 +63,58 @@ export const linkToFeature = (feature: AdminFeatureDefinition): string =>
 const featurePathFor = async (printed: string): Promise<string> =>
   `/admin/features/${(await featureNamed(printed)).slug}`;
 
+/** The window the owner read a feature's choice on, kept so the story can
+ * send exactly what that page served. */
+const FEATURE_FORM_WINDOW = "the feature choice they opened";
+
+/** The shape of acting on one feature by the name the settings page prints. */
+type ActsOnAFeature = (world: TicketsWorld, printed: string) => Promise<void>;
+
+/** The owner opens a feature's editable form, and the window it was served
+ * in is kept for a later send. */
+export const ownerOpensFeatureChoice: ActsOnAFeature = async (
+  world,
+  printed,
+) => {
+  await featureCopy();
+  await rememberBrowser(
+    world,
+    FEATURE_FORM_WINDOW,
+    await openAdminPage(world, await featurePathFor(printed)),
+  );
+};
+
+/** Send one feature choice from the window in front of the owner, and keep
+ * what the site said back. */
+const sendFeatureChoice = async (
+  world: TicketsWorld,
+  browser: TestBrowser,
+  enabled: boolean,
+): Promise<void> => {
+  await fillInAndSend(
+    browser,
+    { enabled: String(enabled) },
+    t("features.save"),
+  );
+  keepWhatTheyWereTold(world, ORGANISER, browser.currentHtml);
+};
+
+/** The owner sends the choice from the form they opened earlier: the same
+ * served form, not a fresh read of the page. What the site says back is
+ * kept, because a refusal is the point of the story. */
+export const ownerSendsTheChoiceTheyOpened = async (
+  world: TicketsWorld,
+  printed: string,
+  enabled: boolean,
+): Promise<void> => {
+  await featureNamed(printed);
+  await sendFeatureChoice(
+    world,
+    browserOf(world, FEATURE_FORM_WINDOW),
+    enabled,
+  );
+};
+
 /** What one feature's own page says right now. */
 export const featurePageHtml = async (
   world: TicketsWorld,
@@ -67,10 +123,7 @@ export const featurePageHtml = async (
 
 /** The owner opens one feature's page, keeping what it said so the Then steps
  * read the same page the When opened. */
-export const ownerOpensFeature = async (
-  world: TicketsWorld,
-  printed: string,
-): Promise<void> => {
+export const ownerOpensFeature: ActsOnAFeature = async (world, printed) => {
   keepsWhatTheOrganiserSaw(world, await featurePageHtml(world, printed));
 };
 
@@ -79,13 +132,8 @@ export const ownerOpensFeature = async (
 export const ownerChoosesFeature =
   (enabled: boolean): StoryJourney<[string], void> =>
   async (world, printed) => {
-    const browser = await submitRenderedAdminForm(
-      world,
-      await featurePathFor(printed),
-      t("features.save"),
-      { enabled: String(enabled) },
-    );
-    keepWhatTheyWereTold(world, ORGANISER, browser.currentHtml);
+    const browser = await openAdminPage(world, await featurePathFor(printed));
+    await sendFeatureChoice(world, browser, enabled);
   };
 
 /** Just the feature list out of the settings page. The page names features
