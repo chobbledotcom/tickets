@@ -9,20 +9,26 @@ import {
   visitorOpensBooking,
 } from "#test/specs/support/buyer-questions.ts";
 import { imageNamed } from "#test/specs/support/images.ts";
-import { rememberListing } from "#test/specs/support/listings.ts";
+import {
+  listingIdNamed,
+  rememberListing,
+} from "#test/specs/support/listings.ts";
 import {
   expectShownImage,
+  expectShownImageInPackageSection,
   referenceNoImageAnswers,
   referenceToLibraryImage,
   sellsReadableThing,
-  visitorReadsMixedPage,
   visitorReadsSharedPage,
   visitorReadsTwoThingsFromOnePage,
 } from "#test/specs/support/ticket-page-images.ts";
 import { openTicket } from "#test/specs/support/tickets.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { updateTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTestListing,
+  updateTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import { createFreePackage } from "#test-utils/packages.ts";
 
 // jscpd:ignore-end
@@ -90,18 +96,42 @@ Given(
 );
 
 Given(
-  "the owner sells a {word} package holding a {word} with the image {word} in its description",
+  "the owner sells a {word} package holding a {word}",
   async function (
     this: TicketsWorld,
     name: string,
     part: string,
+  ): Promise<void> {
+    const { group, member } = await createFreePackage(name, part);
+    this.things.remember("bundle", name, group);
+    rememberListing(this, part, member);
+  },
+);
+
+Given(
+  "the {word} package's description carries the image {word}",
+  async function (
+    this: TicketsWorld,
+    name: string,
     image: string,
   ): Promise<void> {
-    const { group } = await createFreePackage(name, part);
+    const group = this.things.require("bundle", name);
     await updateTestGroup(group.id, {
       description: await referenceToLibraryImage(image),
     });
-    this.things.remember("bundle", name, group);
+  },
+);
+
+Given(
+  "the {word}'s description carries the image {word}",
+  async function (
+    this: TicketsWorld,
+    name: string,
+    image: string,
+  ): Promise<void> {
+    await updateTestListing(listingIdNamed(this, name), {
+      description: await referenceToLibraryImage(image),
+    });
   },
 );
 
@@ -183,16 +213,32 @@ Then(
 );
 
 Then(
-  "a visitor reading the page that offers the {word} and the {word} is shown the image {word}",
+  "a visitor reading the page that offers the {word} and the {word} is shown the image {word} in the package's description",
   async function (
     this: TicketsWorld,
     packageName: string,
     extraName: string,
     image: string,
   ): Promise<void> {
-    expectShownImage(
-      (await visitorReadsMixedPage(this, packageName, extraName)).currentHtml,
-      await imageNamed(image),
+    await expectShownImageInPackageSection(this, packageName, extraName, image);
+  },
+);
+
+Then(
+  "a visitor reading the page that offers the {word} and the {word} is shown the image {word} in the {word}'s row",
+  async function (
+    this: TicketsWorld,
+    packageName: string,
+    extraName: string,
+    image: string,
+    memberName: string,
+  ): Promise<void> {
+    await expectShownImageInPackageSection(
+      this,
+      packageName,
+      extraName,
+      image,
+      memberName,
     );
   },
 );

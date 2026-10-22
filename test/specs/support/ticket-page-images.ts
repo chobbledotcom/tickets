@@ -20,7 +20,7 @@ import {
 } from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-import type { Image } from "#types";
+import type { Group, Image } from "#types";
 
 // jscpd:ignore-end
 
@@ -63,6 +63,46 @@ export const expectShownImage = (html: string, image: Image): void => {
   expect(html).toContain(resolvedImageTag(image));
 };
 
+/** The named package's own section on a served page: the fieldset the page
+ * renders for it, where its description and each member's row show. */
+export const packageSectionHtml = (html: string, group: Group): string => {
+  const start = html.indexOf(`data-package-section="${group.id}"`);
+  if (start < 0) {
+    throw new Error(`the page shows no section for the package ${group.name}`);
+  }
+  const end = html.indexOf("</fieldset>", start);
+  return html.slice(start, end + "</fieldset>".length);
+};
+
+/** The package a story set up, by the story's name for it. */
+const packageGroupNamed = (world: TicketsWorld, name: string): Group =>
+  requiredWorldValue(
+    world.things.recall("bundle", name),
+    `the package called "${name}"`,
+  );
+
+/** The image shows inside the named package's own section on the page that
+ * sells it beside one thing on its own — in the package's description, or in
+ * one member's row when the story names that member. */
+export const expectShownImageInPackageSection = async (
+  world: TicketsWorld,
+  packageName: string,
+  extraName: string,
+  image: string,
+  memberName?: string,
+): Promise<void> => {
+  const section = packageSectionHtml(
+    (await visitorReadsMixedPage(world, packageName, extraName)).currentHtml,
+    packageGroupNamed(world, packageName),
+  );
+  if (memberName !== undefined) {
+    expect(section).toContain(
+      `<label>${memberName} <span class="package-member-qty">`,
+    );
+  }
+  expectShownImage(section, await imageNamed(image));
+};
+
 /** A visitor reads the shared page the story set up, by the page's name. */
 export const visitorReadsSharedPage = (
   world: TicketsWorld,
@@ -84,12 +124,10 @@ export const visitorReadsMixedPage = (
   packageName: string,
   extraName: string,
 ): Promise<TestBrowser> => {
-  const group = requiredWorldValue(
-    world.things.recall("bundle", packageName),
-    `the package called "${packageName}"`,
-  );
   const extra = listingNamed(world, extraName);
-  return openAsNewcomer(`/ticket/${group.slug}+${extra.slug}`);
+  return openAsNewcomer(
+    `/ticket/${packageGroupNamed(world, packageName).slug}+${extra.slug}`,
+  );
 };
 
 /** A visitor reads the plain page that sells two things together, each thing

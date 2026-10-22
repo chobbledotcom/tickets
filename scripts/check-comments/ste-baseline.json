@@ -261,8 +261,8 @@
     "banned-modal": 2
   },
   "src/features/public/ticket-submit.ts": {
-    "long-sentence": 6,
-    "banned-modal": 5,
+    "long-sentence": 5,
+    "banned-modal": 4,
     "contraction": 2,
     "semicolon": 4,
     "wordy": 1

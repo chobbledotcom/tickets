@@ -39,9 +39,18 @@ Feature: A customer sees the images the owner put in the ticket page
     @case:ticket-page.image-in-a-package-description
     Scenario: The owner puts an image in what a package includes
       Given the owner has an image called Kit in the library
-      And the owner sells a Hamper package holding a Tent with the image Kit in its description
+      And the owner sells a Hamper package holding a Tent
+      And the Hamper package's description carries the image Kit
       And the Hamper package and a Torch sell from one page
-      Then a visitor reading the page that offers the Hamper and the Torch is shown the image Kit
+      Then a visitor reading the page that offers the Hamper and the Torch is shown the image Kit in the package's description
+
+    @case:ticket-page.image-in-what-an-included-thing-is
+    Scenario: The owner puts an image in what an included thing is
+      Given the owner has an image called Bedroll in the library
+      And the owner sells a Hamper package holding a Tent
+      And the Tent's description carries the image Bedroll
+      And the Hamper package and a Torch sell from one page
+      Then a visitor reading the page that offers the Hamper and the Torch is shown the image Bedroll in the Tent's row
 
     @case:ticket-page.image-in-the-terms
     Scenario: The owner puts an image in the terms
