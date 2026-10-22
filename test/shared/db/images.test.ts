@@ -358,9 +358,11 @@ describeWithEnv("db > images", { db: true }, () => {
       const coast = await makeImage("Coast");
       const dune = await makeImage("Dune");
       const anchor = await makeImage("Anchor");
+      const beacon = await makeImage("Beacon");
 
       await withRequestContext(async () => {
         await addTicketPageImageUrls({
+          footer: `![Beacon](img#${beacon.id})`,
           groupDescription: `![Coast](img#${coast.id})`,
           listings: [
             { listing: { description: null } },
@@ -385,6 +387,7 @@ describeWithEnv("db > images", { db: true }, () => {
           [coast.id, "/image/coast.webp"],
           [dune.id, "/image/dune.webp"],
           [anchor.id, "/image/anchor.webp"],
+          [beacon.id, "/image/beacon.webp"],
         ]);
       });
     });

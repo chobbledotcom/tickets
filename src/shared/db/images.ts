@@ -152,13 +152,14 @@ export type TicketPageTexts = {
   questions: readonly { text: string }[];
   groupDescription?: string;
   terms?: string | null;
+  footer?: string | null;
   packages: readonly { description: string }[];
 };
 
 /** Write one ticket page's img#N table into the request's page-image slot.
  * The lookup is one bounded batch over the listing descriptions, the question
- * texts, the group description, the terms, and the packages' descriptions.
- * The submit, quote, and API flows never call it. */
+ * texts, the group description, the terms, the site footer, and the packages'
+ * descriptions. The submit, quote, and API flows never call it. */
 export const addTicketPageImageUrls = async (
   page: TicketPageTexts,
 ): Promise<void> =>
@@ -167,6 +168,7 @@ export const addTicketPageImageUrls = async (
     ...page.questions.map((question) => question.text),
     page.groupDescription,
     page.terms,
+    page.footer,
     ...page.packages.map((pkg) => pkg.description),
   ]);
 

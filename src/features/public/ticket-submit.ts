@@ -125,7 +125,9 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
     getIframeMode() || !settings.features.site
       ? Promise.resolve(undefined)
       : publicNavProps(null),
-    addTicketPageImageUrls(ctx),
+    // The layout renders the site footer's markdown on the booking page, so
+    // its references resolve like the page's other words.
+    addTicketPageImageUrls({ ...ctx, footer: settings.siteFooter }),
   ]);
   const caps = childCapacityInfo(childCaps, childOwnRemaining, membership);
   return {
