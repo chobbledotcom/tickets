@@ -9,6 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import type { BlindIndex } from "#crypto/sealed.ts";
 import {
   type ChosenColumns,
   type ChosenRow,
@@ -235,3 +236,19 @@ export const readerFor = <Row>(table: ReadableTable<Row>): TableReader<Row> => {
     statement: (filter, options) => whole().statement(filter, options),
   };
 };
+
+/** The one full row an id names, or null when absent: the by-id read every
+ *  id-keyed table shares. */
+export const readById =
+  <Row>(table: { primaryKey: keyof Row & string; read: TableReader<Row> }) =>
+  (id: number): Promise<Row | null> =>
+    table.read.one(byPrimaryKey(table, id));
+
+/** The one full row a slug's blind index names, or null when absent: the
+ *  by-slug read every slugged table shares. */
+export const readBySlugIndex =
+  <Row extends { slug_index: BlindIndex }>(reader: TableReader<Row>) =>
+  (slugIndex: BlindIndex): Promise<Row | null> =>
+    // The mapped filter defers its column conditional over the generic row —
+    // the same case byPrimaryKey's own cast covers.
+    reader.one({ slug_index: slugIndex } as RowFilter<Row>);

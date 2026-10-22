@@ -41,6 +41,7 @@ import {
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
 import { col } from "#db/table.ts";
+import { readById, readBySlugIndex } from "#db/table-reader.ts";
 import { fieldById, mapParallel } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
@@ -180,15 +181,11 @@ export const getNewsPostNames = async (): Promise<Map<number, string>> => {
 
 /** One full post (fully decrypted) by id — the admin single-post views.
  * Null when absent. */
-export const getNewsPostById = (id: number): Promise<NewsPost | null> =>
-  newsPostsTable.read.one({ id });
+export const getNewsPostById = readById(newsPostsTable);
 
 /** One full post (fully decrypted) by blind-index slug lookup — the public
  * `/news/:slug` read. Null when absent. */
-export const getNewsPostBySlugIndex = (
-  slugIndex: BlindIndex,
-): Promise<NewsPost | null> =>
-  newsPostsTable.read.one({ slug_index: slugIndex });
+export const getNewsPostBySlugIndex = readBySlugIndex(newsPostsTable.read);
 
 /** Create a post, stamping `created` now (the admin flow) or at a pinned time
  * (tests/restore), and deriving its immutable `/news` permalink from that date

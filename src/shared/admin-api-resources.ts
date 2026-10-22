@@ -78,6 +78,46 @@ export const ListingRowSchema = v.looseObject({
 
 export type AdminApiListing = v.InferOutput<typeof ListingRowSchema>;
 
+/** The writable fields one site-page update carries, including the parent.
+ *  The field list repeats the shape uptime-kuma's own schemas spell. The two
+ *  domains share nothing, so the matcher's finding is marked. */
+/* jscpd:ignore-start */
+const SitePageUpdateFields = {
+  content: v.string(),
+  hidden: v.boolean(),
+  meta_description: v.string(),
+  meta_title: v.string(),
+  name: v.string(),
+  parent: v.nullable(v.number()),
+  slug: v.string(),
+};
+/* jscpd:ignore-end */
+
+/** The body a site-page update accepts: every writable field optional. */
+export const UpdateSitePageBodySchema = v.partial(
+  v.object(SitePageUpdateFields),
+);
+
+/** The body a site-page create accepts. A new page is always a root page, so
+ *  the create body carries no parent. The server stores the form's defaults
+ *  for a silent field (empty text, a visible page), so only the name and the
+ *  slug are required. */
+export const CreateSitePageBodySchema = v.partial(
+  v.omit(v.object(SitePageUpdateFields), ["parent"]),
+  ["content", "hidden", "meta_description", "meta_title"],
+);
+
+/** One site page as the admin API answers with it. A content page answers
+ *  every field. A fixed page (home, contact and terms — not site_pages rows)
+ *  answers only its name and its content. `parent` names the page this page
+ *  nests under, null at the top level. */
+export const SitePageRowSchema = v.looseObject({
+  ...UpdateSitePageBodySchema.entries,
+  id: v.optional(v.number()),
+});
+
+export type AdminApiSitePage = v.InferOutput<typeof SitePageRowSchema>;
+
 /* ===========================================================================
  * Request body schemas — the shapes a caller sends. Bodies the server
  * validates against dynamic catalog fields (groups, listings) stay unknown.
@@ -144,7 +184,7 @@ export const adminApiIdParam = (label: string): string =>
 
 /** A server-side custom route declared for the docs and the route keys. */
 export type AdminApiCustomRoute = {
-  method: "DELETE" | "GET" | "POST";
+  method: "DELETE" | "GET" | "POST" | "PUT";
   /** The URL segment under the resource root, including the id param. */
   subpath: string;
 };
@@ -222,6 +262,16 @@ export const ADMIN_API_RESOURCES = {
     }),
     path: "listings",
     singleSchema: v.looseObject({ listing: ListingRowSchema }),
+  },
+  "site-pages": {
+    createBodySchema: CreateSitePageBodySchema,
+    label: "Page",
+    listSchema: v.looseObject({
+      "site-pages": v.array(SitePageRowSchema),
+    }),
+    path: "site-pages",
+    singleSchema: v.looseObject({ page: SitePageRowSchema }),
+    updateBodySchema: UpdateSitePageBodySchema,
   },
 } as const satisfies Record<string, AdminApiResource>;
 
