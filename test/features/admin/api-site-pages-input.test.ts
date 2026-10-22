@@ -87,6 +87,24 @@ describeWithEnv("Admin API - Site page input refusals", { db: true }, () => {
     );
   });
 
+  test("refuses a slug past the form's length cap with its message", async () => {
+    await assertJson(
+      apiRequest("/api/admin/site-pages", {
+        body: { name: "Long slug", slug: "a".repeat(251) },
+        method: "POST",
+      }),
+      400,
+      (body) => {
+        expect(body.error).toBe(
+          t("fields.validation.max_length", {
+            label: t("common.slug"),
+            max: 250,
+          }),
+        );
+      },
+    );
+  });
+
   test("refuses a non-string content value with the field message", async () => {
     const page = await createTestSitePage("visit", { name: "Visit" });
 

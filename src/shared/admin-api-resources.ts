@@ -102,9 +102,12 @@ export type AdminApiUpdateSitePageBody = v.InferOutput<
 >;
 
 /** The body a site-page create accepts. A new page is always a root page, so
- *  the create body carries no parent. */
-export const CreateSitePageBodySchema = v.object(
-  (({ parent: _parent, ...fields }) => fields)(SitePageUpdateFields),
+ *  the create body carries no parent. The server stores the form's defaults
+ *  for a silent field (empty text, a visible page), so only the name and the
+ *  slug are required. */
+export const CreateSitePageBodySchema = v.partial(
+  v.omit(v.object(SitePageUpdateFields), ["parent"]),
+  ["content", "hidden", "meta_description", "meta_title"],
 );
 export type AdminApiCreateSitePageBody = v.InferOutput<
   typeof CreateSitePageBodySchema

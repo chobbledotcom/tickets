@@ -102,6 +102,21 @@ describe("CLI describe", () => {
         kind: "fields",
       },
     });
+    // The server defaults a silent site-page create to empty text and a
+    // visible page, so describe names only the name and the slug required.
+    expect(doc.resources["site-pages"]!.verbs.create).toEqual({
+      body: {
+        fields: [
+          { name: "content", required: false, type: "string" },
+          { name: "hidden", required: false, type: "boolean" },
+          { name: "meta_description", required: false, type: "string" },
+          { name: "meta_title", required: false, type: "string" },
+          { name: "name", required: true, type: "string" },
+          { name: "slug", required: true, type: "string" },
+        ],
+        kind: "fields",
+      },
+    });
   });
 
   test("answers the resources of the table it is handed", () => {

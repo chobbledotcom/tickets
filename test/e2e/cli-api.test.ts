@@ -252,6 +252,32 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
       }
     });
 
+    test("creates a site page from the minimal body the server defaults", async () => {
+      const apiKey = await createTestApiKeyToken();
+      const api = serveTestApi();
+
+      try {
+        const created = await runCliApi(api.hostname, apiKey, [
+          "create",
+          "site-pages",
+          JSON.stringify({ name: "CLI Page", slug: "cli-page" }),
+        ]);
+
+        expect(created).toEqual(
+          expect.objectContaining({
+            page: expect.objectContaining({
+              content: "",
+              hidden: false,
+              name: "CLI Page",
+              slug: "cli-page",
+            }),
+          }),
+        );
+      } finally {
+        await api.stop();
+      }
+    });
+
     test("answers exit 2 with a JSON usage error for an unknown command", async () => {
       const apiKey = await createTestApiKeyToken();
       const api = serveTestApi();

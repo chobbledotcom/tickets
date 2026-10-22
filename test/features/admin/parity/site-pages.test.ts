@@ -7,6 +7,7 @@ import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { getSitePageBySlugIndex } from "#db/site-pages.ts";
 import { t } from "#i18n";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { assertJson, expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -161,6 +162,16 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
     await refuseSlugOnBothSurfaces(
       listing.slug,
       t("site.pages.error.slug_taken"),
+    );
+  });
+
+  test("both surfaces refuse a slug past the input cap with the same message", async () => {
+    await refuseSlugOnBothSurfaces(
+      "a".repeat(MAX_INPUT_LENGTH + 1),
+      t("fields.validation.max_length", {
+        label: t("common.slug"),
+        max: MAX_INPUT_LENGTH,
+      }),
     );
   });
 

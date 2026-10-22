@@ -116,6 +116,16 @@ const optionalSlug = (body: Record<string, unknown>, stored: string) =>
     const slug = normalizeSlug(raw);
     const invalid = validateSlug(slug);
     if (invalid) return errorResult(invalid);
+    // The form's slug field refuses a value past the input cap, after the
+    // format check and before the reserved words. The same refusal here.
+    if (slug.length > MAX_INPUT_LENGTH) {
+      return errorResult(
+        t("fields.validation.max_length", {
+          label: t("common.slug"),
+          max: MAX_INPUT_LENGTH,
+        }),
+      );
+    }
     if (isReservedSlug(slug)) {
       return errorResult(t("site.pages.error.reserved"));
     }

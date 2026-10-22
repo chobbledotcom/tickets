@@ -181,6 +181,20 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
         },
       );
     });
+
+    test("stores a slug at the form's length cap", async () => {
+      const slug = "a".repeat(250);
+      await assertJson(
+        apiRequest("/api/admin/site-pages", {
+          body: { name: "Capped slug", slug },
+          method: "POST",
+        }),
+        201,
+        (body) => {
+          expect(body.page.slug).toBe(slug);
+        },
+      );
+    });
   });
 
   describe("PUT /api/admin/site-pages/:pageId", () => {
