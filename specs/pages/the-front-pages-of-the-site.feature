@@ -57,8 +57,9 @@ Feature: An owner writes the front pages of the site
   @surface:public
   Rule: Pictures in the front pages show as pictures
     The owner can place a picture they uploaded in the homepage text, the
-    contact page, the terms, or the order page's introduction. A visitor sees
-    the picture itself, and never sees the reference that names it.
+    contact page, the terms, the order page's introduction, or an item's
+    description on the list. A visitor sees the picture itself, and never
+    sees the reference that names it.
 
     @case:front-pages.homepage-picture
     Scenario: The owner puts a picture in the homepage
@@ -88,6 +89,13 @@ Feature: An owner writes the front pages of the site
       When the owner writes the terms with the picture in it
       Then the owner is told the terms saved
       And a visitor on the terms page sees the picture
+
+    @case:front-pages.item-description-picture
+    Scenario: The owner puts a picture in an item's description
+      Given the public site is on
+      And the owner has uploaded a picture called "Loom"
+      When the site sells a Pottery with the picture in its description
+      Then a visitor on the list reads the Pottery and sees the picture
 
     @case:front-pages.unknown-picture-keeps-its-describing-words
     Scenario: The homepage names a picture that is not there

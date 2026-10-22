@@ -17,14 +17,26 @@ import {
   imageNamed,
   ownerHasImageInLibrary,
 } from "#test/specs/support/images.ts";
-import { listingNamed } from "#test/specs/support/listings.ts";
+import {
+  listingNamed,
+  putsPlainThingOnSale,
+} from "#test/specs/support/listings.ts";
+import {
+  ownerWritesPage,
+  ownerWritesPages,
+  whatOwnerWasTold,
+  wordsOnlyOn,
+} from "#test/specs/support/site-pages.ts";
 import {
   footerHtml,
   sitePictureTag,
   textWithSitePicture,
 } from "#test/specs/support/site-pictures.ts";
 import { openTicket } from "#test/specs/support/tickets.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import {
+  requiredWorldValue,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -55,6 +67,52 @@ const footerShowsPicture = (
 ): void => {
   expect(browser.answered).toBe(answered);
   expectFooterPicture(world, browser.currentHtml);
+};
+
+/** A page the footer story reads beside its own words: where it lives, the
+ * words it carries, and how the owner writes them. The words prove the
+ * visitor read that page itself, not a page that merely answers. */
+type StoryPage = {
+  path: string;
+  words: string;
+  write: (world: TicketsWorld, words: string) => Promise<void>;
+};
+
+const STORY_PAGES: Record<string, StoryPage> = {
+  "contact page": {
+    path: "/contact",
+    words: "Reach the studio on market days.",
+    write: (world, words) => ownerWritesContactPage(world, words),
+  },
+  "order page": {
+    path: "/order",
+    words: "Everything on one page.",
+    write: (world, words) => ownerTurnsOrderPageOn(world, words),
+  },
+  "page the owner wrote": {
+    path: "/page/how-to-find-us",
+    words: wordsOnlyOn("Directions"),
+    write: async (world) => {
+      await ownerWritesPages(world);
+      await ownerWritesPage(world, "Directions", "how-to-find-us");
+      expect(whatOwnerWasTold(world)).toContain("Page created");
+    },
+  },
+  "terms page": {
+    path: "/terms",
+    words: "Be kind to the kilns.",
+    write: (world, words) => ownerWritesTerms(world, words),
+  },
+};
+
+/** The page the story named. A story that names a page the story does not
+ * know fails here rather than reading some other page. */
+const storyPage = (page: string): StoryPage => {
+  const known = STORY_PAGES[page];
+  if (known === undefined) {
+    throw new Error(`The story does not know the page "${page}".`);
+  }
+  return known;
 };
 
 Given(
@@ -112,6 +170,14 @@ When(
   },
 );
 
+Given(
+  "the owner has written the {string} with their own words",
+  async function (this: TicketsWorld, page: string): Promise<void> {
+    const known = storyPage(page);
+    await known.write(this, known.words);
+  },
+);
+
 When(
   "the owner saves a site footer with the picture in it",
   function (this: TicketsWorld): Promise<void> {
@@ -153,6 +219,29 @@ Then(
   "a visitor on the front page sees the picture in the footer",
   async function (this: TicketsWorld): Promise<void> {
     footerShowsPicture(this, 200, await openAsNewcomer("/"));
+  },
+);
+
+Then(
+  "a visitor on the {string} sees the picture in the footer",
+  async function (this: TicketsWorld, page: string): Promise<void> {
+    const known = storyPage(page);
+    const browser = await openAsNewcomer(known.path);
+    expect(browser.currentHtml).toContain(known.words);
+    footerShowsPicture(this, 200, browser);
+  },
+);
+
+Then(
+  "the page they were shown shows the picture in the footer",
+  function (this: TicketsWorld): void {
+    expectFooterPicture(
+      this,
+      requiredWorldValue(
+        this.returnPageHtml,
+        "the page the customer was shown",
+      ),
+    );
   },
 );
 
@@ -205,5 +294,24 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openAsNewcomer("/");
     expect(browser.currentHtml).not.toContain('<img src="/image/');
+  },
+);
+
+When(
+  "the site sells a {word} with the picture in its description",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    await putsPlainThingOnSale(this, name, {
+      description: textWithSitePicture(this),
+    });
+  },
+);
+
+Then(
+  "a visitor on the list reads the {word} and sees the picture",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    const browser = await openAsNewcomer("/listings");
+    expect(browser.currentHtml).toContain(`<h2>${name}</h2>`);
+    expect(browser.currentHtml).toContain(sitePictureTag(this));
+    expect(browser.currentHtml).not.toContain("img#");
   },
 );

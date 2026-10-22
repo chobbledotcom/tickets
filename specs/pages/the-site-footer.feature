@@ -46,6 +46,40 @@ Feature: The site's footer
       Then a visitor asking for a page nobody wrote is told the page does not exist
       And a visitor asking for a page nobody wrote still sees the picture in the footer
 
+    Scenario Outline: The footer's picture shows beside the page's own words
+      Given the public site is on
+      And the owner has uploaded a picture called "FooterPoster"
+      And the owner has written the "<page>" with their own words
+      When the owner saves a site footer with the picture in it
+      Then a visitor on the "<page>" sees the picture in the footer
+
+      Examples:
+        | case_id                               | page                 |
+        | site-footer.picture-on-contact        | contact page         |
+        | site-footer.picture-on-terms          | terms page           |
+        | site-footer.picture-on-order          | order page           |
+        | site-footer.picture-on-a-written-page | page the owner wrote |
+
+    @case:site-footer.picture-when-the-checkout-has-ended
+    Scenario: The footer's picture shows when a customer's checkout has ended
+      Given the public site is on
+      And a customer's unpaid checkout has ended without a payment
+      And the owner has uploaded a picture called "FooterPoster"
+      When the owner saves a site footer with the picture in it
+      And the customer comes back to the checkout
+      Then they are told the payment was cancelled
+      And the page they were shown shows the picture in the footer
+
+    @case:site-footer.picture-while-the-payment-still-waits
+    Scenario: The footer's picture shows while the payment still waits
+      Given the public site is on
+      And a customer's checkout is still open and unpaid
+      And the owner has uploaded a picture called "FooterPoster"
+      When the owner saves a site footer with the picture in it
+      And the customer comes back to the checkout
+      Then they are asked to check again shortly
+      And the page they were shown shows the picture in the footer
+
   @rule:pages.an-embedded-page-shows-no-footer
   @surface:public
   Rule: An embedded page shows no footer
