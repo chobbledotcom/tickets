@@ -132,9 +132,9 @@ Then(
     // own message attributes. The bundle tests see the client show those
     // words.
     expect(page).toContain(
-      `data-message-offline-banner-auto="${
-        t("admin.scanner.offline_banner_auto")
-      }"`,
+      `data-message-offline-banner-auto="${t(
+        "admin.scanner.offline_banner_auto",
+      )}"`,
     );
     expect(page).toContain(
       `data-message-offline-queued="${t("admin.scanner.offline_queued")}"`,
