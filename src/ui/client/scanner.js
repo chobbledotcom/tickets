@@ -1,11 +1,17 @@
 // Browser-only code - bundled with jsQR by scripts/build-edge.ts
 import jsQR from "jsqr";
+import {
+  FADE_DELAY_MS,
+  formatTicketCount,
+  getMessage,
+  interpolate,
+  showStatus,
+} from "./scanner-messages.js";
 import { showQuantitySelect } from "./quantity-select.ts";
 import { showConfirm } from "./confirm-dialog.ts";
 
 const COOLDOWN_MS = 2000;
 const SCAN_INTERVAL_MS = 150;
-const FADE_DELAY_MS = 5000;
 
 /** Extract ticket token from a checkin URL or raw token string */
 const extractToken = (data) => {
@@ -37,41 +43,6 @@ const postScan = async (scanPath, token, csrfToken, { force, idVerified, quantit
   });
 
   return res.json();
-};
-
-const interpolate = (template, values) =>
-  template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ""));
-
-const getMessage = (messages, key, fallback) => messages[key] ?? fallback;
-
-const formatTicketCount = (messages, count) => {
-  const safeCount = Number.isFinite(count) ? count : 1;
-  const key = safeCount === 1 ? "messageTicketCountOne" : "messageTicketCountOther";
-  return interpolate(getMessage(messages, key, "{count} ticket"), {
-    count: safeCount,
-  });
-};
-
-let fadeTimer = 0;
-
-/** Show a status message with color via CSS classes */
-const showStatus = (el, message, type) => {
-  clearTimeout(fadeTimer);
-  el.textContent = message;
-  el.classList.remove(
-    "hidden",
-    "scanner-status-success",
-    "scanner-status-warning",
-    "scanner-status-error",
-    "scanner-status-fade-out",
-  );
-  el.classList.add("scanner-status", `scanner-status-${type}`);
-
-  if (type === "success" || type === "warning") {
-    fadeTimer = setTimeout(() => {
-      el.classList.add("scanner-status-fade-out");
-    }, FADE_DELAY_MS);
-  }
 };
 
 /** Build a "{name} … ({tickets})" status message for a check-in result. */
