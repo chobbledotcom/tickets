@@ -44,7 +44,7 @@ Feature: An organiser reads and corrects the record kept about someone
       When the organiser opens Sam's record
       Then the record's note shows the "Poster" picture
       When the organiser opens Sam's page
-      Then the outreach panel shows the "Poster" picture
+      Then the stats / notes panel shows the "Poster" picture
 
     @case:contact-record.a-refused-note-comes-back-with-its-picture
     Scenario: The organiser saves a note that is too long

@@ -84,7 +84,7 @@ describeWithEnv(
         expect(html).not.toContain("img#");
       });
 
-      test("resolves the contact record's note images in the outreach panel", async () => {
+      test("resolves the contact record's note images in the stats / notes panel", async () => {
         const { attendee } = await setupListingAndAttendee();
         const image = await makeImage("RecordPoster");
         // The booking's email is the panel's lookup key. The raw attendee row

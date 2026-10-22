@@ -67,7 +67,7 @@ Then(
 );
 
 Then(
-  "the outreach panel shows the {string} picture",
+  "the stats \\/ notes panel shows the {string} picture",
   function (this: TicketsWorld, _name: string): void {
     regionShowsPicture(
       scenarioBrowser(this).currentHtml,
