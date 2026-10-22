@@ -57,6 +57,27 @@ Feature: The organiser sees which bookings still owe a notification
       When the organiser opens Ada's own page from the attendee list
       Then Ada's own page says nothing about their sends
 
+    @case:unsent.email-notice-on-the-resend-page
+    Scenario: The re-send page shows the owed email
+      Given Ada has a ticket for the Ceilidh whose email never went out
+      When the organiser opens Ada's own page from the attendee list
+      And the organiser opens the re-send notification page from the Actions tab
+      Then the re-send page says Ada's email never went out beside their name
+
+    @case:unsent.webhook-notice-on-the-resend-page
+    Scenario: The re-send page shows the owed webhooks
+      Given Ada has a ticket for the Ceilidh whose webhooks never went out
+      When the organiser opens Ada's own page from the attendee list
+      And the organiser opens the re-send notification page from the Actions tab
+      Then the re-send page says Ada's webhooks never went out beside their name
+
+    @case:unsent.a-notified-booking-shows-no-notice-on-the-resend-page
+    Scenario: A booking whose sends went out shows no notice on the re-send page
+      Given Ada has a ticket for the Ceilidh whose sends all went out
+      When the organiser opens Ada's own page from the attendee list
+      And the organiser opens the re-send notification page from the Actions tab
+      Then the re-send page says nothing about Ada's sends
+
     @case:unsent.no-booked-listing-collects-an-email
     Scenario: The email notice goes when no booked listing collects an email
       Given Ada has a ticket for the Ceilidh whose email never went out
