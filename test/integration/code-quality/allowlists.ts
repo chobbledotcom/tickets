@@ -88,8 +88,22 @@ export const ALLOWED_DUPLICATE_TYPE_SHAPES: {
 ];
 
 /**
- * Test hooks - functions that are intentionally exported for test setup/cleanup.
- * These are necessary for testing but should not be used in production code.
+ * Statements the repeated-bind rule may not judge. Format: "file" exempts a
+ * whole file; "file:declaration" exempts one top-level declaration.
+ * `accountsScope`'s clause rides the shared WhereClause assembly
+ * (`where-clauses.ts`, `read.ts`), which concatenates clause text and args
+ * across independently built clauses — a clause there cannot know its offset
+ * in the assembled statement, so it cannot carry a numbered namespace that
+ * reuses slots. Converting it belongs to the reader-pipeline rework
+ * (issue #2198).
+ */
+export const ALLOWED_REPEATED_BINDS: string[] = [
+  "shared/accounting/queries.ts:accountsScope",
+];
+
+/**
+ * Exports that exist only for tests to reach.
+ *
  * Format: "file:exportName"
  */
 export const ALLOWED_TEST_HOOKS: string[] = [

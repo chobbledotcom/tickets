@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   AGGREGATION_MODULES,
   ALLOWED_DUPLICATE_TYPE_SHAPES,
+  ALLOWED_REPEATED_BINDS,
   ALLOWED_TEST_HOOKS,
   LIBRARY_PATHS,
 } from "#test/integration/code-quality/allowlists.ts";
@@ -20,6 +21,7 @@ import {
   type NamedTypeShape,
   type Site,
 } from "#test/scripts/code-quality/detectors.ts";
+import { findNumberedBindViolations } from "#test/scripts/code-quality/numbered-binds.ts";
 import { detectRelativeImport } from "#test/scripts/code-quality/relative-import.ts";
 import {
   ensureLoaded,
@@ -110,6 +112,20 @@ describe("code quality", () => {
         );
         if (violation) violations.push(violation);
       }
+
+      expect(violations).toEqual([]);
+    });
+  });
+
+  describe("numbered parameters", () => {
+    test("the site's own source passes the job", async () => {
+      const { srcFiles, srcContents } = await ensureLoaded();
+      const violations = findNumberedBindViolations(
+        srcFiles,
+        srcContents,
+        getRelativePath,
+        ALLOWED_REPEATED_BINDS,
+      );
 
       expect(violations).toEqual([]);
     });
