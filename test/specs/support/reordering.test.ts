@@ -54,6 +54,12 @@ describe("finding a row's own arrow", () => {
     ...others,
   });
 
+  /** The list already open at the Confirmed row, in front of this browser. */
+  const confirmedOpenAt =
+    (browser: TestBrowser, row: string, wayIn: string): OpensAtOneRow =>
+    () =>
+      Promise.resolve({ browser, id: 7, name: "Confirmed", row, wayIn });
+
   /** Whether the list of these rows offers to move Confirmed one way. */
   const offersConfirmed = (
     rows: Record<string, { id: number; row: string }>,
@@ -81,14 +87,9 @@ describe("finding a row's own arrow", () => {
     const { browser, sent } = recordingBrowser();
     const row = `<td>Confirmed</td>${arrowAt(7)}`;
     browser.currentHtml = `<table><tr>${row}</table>`;
-    const arrows = movingRowsOn(LIST, () =>
-      Promise.resolve({
-        browser,
-        id: 7,
-        name: "Confirmed",
-        row,
-        wayIn: `${LIST}/7`,
-      }),
+    const arrows = movingRowsOn(
+      LIST,
+      confirmedOpenAt(browser, row, `${LIST}/7`),
     );
 
     await arrows.move(world, "Confirmed", "up");
@@ -101,5 +102,23 @@ describe("finding a row's own arrow", () => {
     const rows = confirmedWith(arrowAt(7, "down"));
     expect(await offersConfirmed(rows, "up")).toBe(false);
     expect(await offersConfirmed(rows, "down")).toBe(true);
+  });
+
+  test("names the list from the world when the caller hands a function", async () => {
+    const { browser, sent } = recordingBrowser();
+    const list = "/admin/questions/3/answers";
+    const row = `<td>Confirmed</td><td><form action="${list}/7/move-up" method="POST"><button>➤</button></form></td>`;
+    browser.currentHtml = `<table><tr>${row}</table>`;
+    const asked = {
+      buyerQuestion: { id: 3, text: "Collection day?" },
+    } as TicketsWorld;
+    const arrows = movingRowsOn(
+      (w) => `/admin/questions/${w.buyerQuestion!.id}/answers`,
+      confirmedOpenAt(browser, row, `${list}/7`),
+    );
+
+    await arrows.move(asked, "Confirmed", "up");
+
+    expect(sent().path).toBe(`${list}/7/move-up`);
   });
 });
