@@ -150,6 +150,9 @@ export interface TicketsWorld extends World, EvidencePages {
   lengthChangeMessage?: string;
   listingDetail?: { id: number; name: string };
   listingId?: number;
+  /** How many made-up ticket codes this story has already tried, so a later
+   * step can carry on with codes nobody has tried yet. */
+  madeUpCodesTried?: number;
   mergeOutcome?: { applied: boolean; message: string };
   mergePreviewHtml?: string;
   messagesOut?: {

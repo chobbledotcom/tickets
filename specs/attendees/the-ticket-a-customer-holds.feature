@@ -85,7 +85,7 @@ Feature: The ticket a customer holds after booking
       And Ada books 1 place on the Pottery
       When somebody tries 4 made-up ticket codes one after another
       And Ada asks for that ticket and gets in
-      And somebody tries 4 made-up ticket codes one after another
+      And somebody tries 4 more made-up ticket codes one after another
       Then the site still answers there is no such page
 
     @case:ticket.a-locked-sign-in-does-not-block-tickets
