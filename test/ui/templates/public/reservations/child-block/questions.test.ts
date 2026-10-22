@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -27,7 +28,7 @@ const assignQuestionId = async (
 
 const expectQuestionControls = (html: string, questionIds: number[]): void => {
   for (const questionId of questionIds) {
-    expect(html).toContain(`name="question_${questionId}"`);
+    assertStringIncludes(html, `name="question_${questionId}"`);
   }
 };
 
@@ -45,10 +46,11 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       expect(html.split(`name="question_${question.id}"`).length - 1).toBe(1);
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `class="custom-question" data-listing-ids="${child.id}"`,
       );
-      expect(html).not.toContain(`name="question_${question.id}" required`);
+      assert(!html.includes(`name="question_${question.id}" required`));
 
       const res = await bookParent(parent.slug, {
         ...parentField(parent, "1"),
@@ -83,9 +85,10 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       expectQuestionControls(html, [questionAId, questionBId]);
-      expect(html).toContain(`data-listing-ids="${childA.id}"`);
-      expect(html).toContain(`data-listing-ids="${childB.id}"`);
-      expect(html).toContain(
+      assertStringIncludes(html, `data-listing-ids="${childA.id}"`);
+      assertStringIncludes(html, `data-listing-ids="${childB.id}"`);
+      assertStringIncludes(
+        html,
         `</fieldset><fieldset class="custom-question" data-listing-ids="${childB.id}">`,
       );
     });
@@ -98,7 +101,8 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       expectQuestionControls(html, [questionAId, questionBId]);
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `</fieldset><fieldset class="custom-question" data-listing-ids="${child.id}">`,
       );
     });
@@ -117,14 +121,15 @@ describeWithEnv(
       await listingQuestions.setIds(childB.id, [sharedQuestionId]);
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).toContain(`name="question_${pageQuestionId}" required`);
+      assertStringIncludes(html, `name="question_${pageQuestionId}" required`);
       expect(html.split(`name="question_${sharedQuestionId}"`).length - 1).toBe(
         1,
       );
-      expect(html).toContain(`data-listing-ids="${childA.id} ${childB.id}"`);
-      expect(html).not.toContain(
-        `name="question_${sharedQuestionId}" required`,
+      assertStringIncludes(
+        html,
+        `data-listing-ids="${childA.id} ${childB.id}"`,
       );
+      assert(!html.includes(`name="question_${sharedQuestionId}" required`));
     });
 
     test("an all-deactivated child choice question does not render", async () => {
@@ -137,7 +142,7 @@ describeWithEnv(
       );
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).not.toContain(`name="question_${question.id}"`);
+      assert(!html.includes(`name="question_${question.id}"`));
     });
   },
 );
