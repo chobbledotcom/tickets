@@ -8,7 +8,7 @@
  */
 
 import ts from "typescript";
-import { collectSourceFiles } from "#scripts/walk-files.ts";
+import { collectScriptFiles } from "#scripts/walk-files.ts";
 import { aliasPaths } from "./aliases.ts";
 import { barePaths } from "./bare-paths.ts";
 import { fieldNameText } from "./fields/names.ts";
@@ -48,8 +48,8 @@ const sourceFilesIn = async (root: string): Promise<string[]> => {
   }
   const here = ALSO_READ.filter((folder) => isDirectory(`${root}/${folder}`));
   const [reported, alsoRead] = await Promise.all([
-    collectSourceFiles(`${root}/${REPORTED}`),
-    Promise.all(here.map((folder) => collectSourceFiles(`${root}/${folder}`))),
+    collectScriptFiles(`${root}/${REPORTED}`),
+    Promise.all(here.map((folder) => collectScriptFiles(`${root}/${folder}`))),
   ]);
   // An empty folder reports nothing, and nothing reads like a clean bill.
   if (reported.length === 0) {

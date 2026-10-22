@@ -22,6 +22,7 @@ describe("Cucumber story catalog", () => {
       "attendees.checking-in-from-the-attendee-list",
       "attendees.checking-people-in-at-the-door",
       "attendees.checking-people-in-at-the-group-door",
+      "attendees.checking-people-in-with-no-connection",
       "attendees.downloading-the-attendee-list",
       "attendees.editing-and-moving",
       "attendees.merging-duplicate-bookings",

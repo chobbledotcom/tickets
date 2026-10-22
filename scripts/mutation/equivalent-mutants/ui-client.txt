@@ -148,9 +148,9 @@ src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.count~0irieiu H
 # assertions kill that lookup mutant. The JSON scan API answers every
 # interpolated hole with a non-empty string or a finite number, so the
 # interpolate and ticket-count fallbacks never fire either.
-src/ui/client/scanner.js::interpolate~1j841kk ??→|| audited:09espsq # every interpolated hole arrives as a non-empty string or a finite number, so no falsy non-null value reaches the fallback
-src/ui/client/scanner.js::interpolate~1j841kk →"mutated" audited:09espsq # the fallback fires only on a hole no reachable scan answer omits
 src/ui/client/scanner.js::getMessage~0dasa24 ??→|| audited:09espsq # a stored attribute value is a rendered non-empty copy or the key is absent; "" is never stored, so ?? and || agree
+src/ui/client/scanner.js::init.scannerOffline.tokensPath~0ecr0z3 ??→|| audited:1vihgrp # the template always renders data-tokens-path, and a dataset attribute answers its rendered value or undefined, so ?? and || agree
+src/ui/client/scanner.js::init.scannerOffline.tokensPath~0ecr0z3 →"mutated" audited:1vihgrp # the template always renders data-tokens-path, and scopeFromTokensPath throws on every string no scan-tokens path matches, so the fallback's words cannot change behaviour
 src/ui/client/scanner.js::formatTicketCount.safeCount~1eg2obm 1→0 audited:09espsq # the count comes from the JSON scan API, which cannot carry a non-finite number, so the fallback never fires
 src/ui/client/scanner.js::formatTicketCount~1vjt9r9 {count} ticket→"" audited:09espsq # the page always renders data-message-ticket-count-one, so the fallback copy never shows
 src/ui/client/scanner.js::admitScan.count~00jh1rq How many tickets for {name}?→"" audited:09espsq # the page always renders data-message-select-quantity, so the fallback copy never shows
@@ -175,15 +175,16 @@ src/ui/client/scanner.js::admitScan~0ly9bwc ID does not match {name}→"" audite
 src/ui/client/scanner.js::startScanner.scan.processing~1gtvkhn =→+= audited:09espsq # the write runs only after the guard above it passed, so processing is always false there; false + true is 1, which is truthy like the true it replaces
 src/ui/client/scanner.js::startScanner.scan~1ub4fcx messageInvalidQr→"" audited:09espsq # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::startScanner.scan~1ub4fcx Invalid QR code→"" audited:09espsq # the camera page always renders data-message-invalid-qr, so the fallback copy never shows
-src/ui/client/scanner.js::startScanner.scan~0ws35sc messageNetworkError→"" audited:09espsq # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner.js::startScanner.scan~0ws35sc Network error→"" audited:09espsq # the camera page always renders data-message-network-error, so the fallback copy never shows
 src/ui/client/scanner.js::init~12c1xgq messageScanning→"" audited:09espsq # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::init~12c1xgq Scanning...→"" audited:09espsq # the camera page always renders data-message-scanning, so the fallback copy never shows
 src/ui/client/scanner.js::init.csrfToken~0ke2mq5 →"mutated" audited:09espsq # the scanner page's headExtra always renders the csrf meta, so the empty fallback never fires
 
 # The offline mode's wiring moved from scanner.js to scanner-offline.ts; the
 # proofs ride with the code they name. A person re-derived these proofs
-# against the direct wiring suite on this branch.
+# against the direct wiring suite on this branch. That suite kills three
+# former records: the interpolate fallback word, the probe write's removal,
+# and the offline message fallback word. Their mutants die there, so the
+# records are gone.
 src/ui/client/scanner-offline.ts::interpolate~1j841kk ??→|| audited:0cxh0ch # the door passes counts of one or more and non-empty names, and a missing hole is undefined, so ?? and || agree
 src/ui/client/scanner-offline.ts::storeWithFallback~1ijqa8e scanner:probe→"" audited:0cxh0ch # the probe writes and removes its scratch key under one name; the name is never read, so the write and its cleanup answer the same under any name
 src/ui/client/scanner-offline.ts::storeWithFallback~1ijqa8e 1→"" audited:0cxh0ch # the probe's scratch value is never read; the write and its cleanup make no observable difference

@@ -17,11 +17,6 @@ export const UI_BASELINE: readonly FindingIdentity[] = [
       [{ name: "MarkdownEditorHandle" }],
     ],
   ])(["setMode", "view"]),
-  // The offline engine's door API. The scanner page reads these through
-  // the built bundle; this branch carries the engine before that wiring.
-  ...identitiesAt([
-    ["src/ui/client/scanner-offline.ts", [{ name: "OfflineScanner" }]],
-  ])(["replay", "replaying", "routeScan", "scan"]),
   ...identitiesAt([
     [
       "src/ui/templates/admin/backup.tsx",

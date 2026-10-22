@@ -190,13 +190,55 @@ export const adminScannerPage = (
           data-message-id-mismatch={messageTemplates.idMismatch}
           data-message-invalid-qr={t("admin.scanner.invalid_qr")}
           data-message-no-door={messageTemplates.noDoor}
+          data-message-offline-duplicates-one={t(
+            "admin.scanner.offline_duplicates_one",
+            // The client knows the count and the names. The holes reach it
+            // intact.
+            { count: "{count}", names: "{names}" },
+          )}
+          data-message-offline-duplicates-other={t(
+            "admin.scanner.offline_duplicates_other",
+            { count: "{count}", names: "{names}" },
+          )}
+          data-message-offline-queue-one={t("admin.scanner.offline_queue_one")}
+          data-message-offline-queue-other={t(
+            "admin.scanner.offline_queue_other",
+            // The client knows the count. The hole reaches it intact.
+            { count: "{count}" },
+          )}
+          data-message-offline-scan-no-list={t(
+            "admin.scanner.offline_scan_no_list",
+          )}
+          data-message-offline-scan-saved={t(
+            "admin.scanner.offline_scan_saved",
+          )}
+          data-message-offline-scan-unknown={t(
+            "admin.scanner.offline_scan_unknown",
+          )}
+          data-message-offline-send-failed={t(
+            "admin.scanner.offline_send_failed",
+          )}
+          data-message-offline-sync-already-checked-in={t(
+            "admin.scanner.offline_sync_already_checked_in",
+            // The client knows the name. The hole reaches it intact.
+            { name: "{name}" },
+          )}
+          data-message-offline-toggle-off={t(
+            "admin.scanner.offline_toggle_off",
+          )}
+          data-message-offline-toggle-on={t("admin.scanner.offline_toggle_on")}
           data-message-scanning={t("admin.scanner.scanning")}
           data-message-verify-id-confirm={messageTemplates.verifyIdConfirm}
           data-message-wrong-listing-confirm={
             messageTemplates.wrongListingConfirm
           }
+          data-tokens-path={scanPath.replace(/\/scan$/, "/scan-tokens")}
           id="scanner-container"
         >
+          <aside class="hidden" id="scanner-offline-banner" role="alert">
+            <p>{t("admin.scanner.offline_banner")}</p>
+          </aside>
+          <p class="hidden" id="scanner-offline-queue" role="status"></p>
           <video
             class="hidden"
             data-scan-path={scanPath}
@@ -252,6 +294,14 @@ export const adminScannerPage = (
 
         <button id="scanner-start" type="button">
           {t("admin.scanner.start_camera")}
+        </button>
+        <button
+          aria-pressed="false"
+          class="muted"
+          id="scanner-offline-toggle"
+          type="button"
+        >
+          {t("admin.scanner.offline_toggle_off")}
         </button>
       </article>
 

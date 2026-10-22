@@ -1,7 +1,14 @@
 // Browser-only code - bundled with jsQR by scripts/build-edge.ts
 import jsQR from "jsqr";
-import { showQuantitySelect } from "./quantity-select.ts";
 import { showConfirm } from "./confirm-dialog.ts";
+import {
+  interpolate,
+  setupOfflineScanner,
+  strictScannerPost,
+} from "./scanner-offline.ts";
+import { showQuantitySelect } from "./quantity-select.ts";
+
+/** @typedef {import("./scanner-offline.ts").OfflineScanner} OfflineScanner */
 
 const COOLDOWN_MS = 2000;
 const SCAN_INTERVAL_MS = 150;
@@ -20,11 +27,15 @@ const extractToken = (data) => {
 };
 
 /** POST to scan API — the page names it door it posts to (one listing or a
- * whole group), so the same client serves both. */
-const postScan = async (scanPath, token, csrfToken, { force, idVerified, quantity } = {}) => {
-  const body = { token };
+ * whole group), so the same client serves both. A replay names the person
+ * by the token digest the device stored, because the device never held
+ * the token itself. The replay also carries the delivery id the device
+ * made up for it. */
+const postScan = async (scanPath, token, csrfToken, { force, idVerified, operationId, quantity } = {}, asHash = false) => {
+  const body = asHash ? { token_hash: token } : { token };
   if (force) body.force = true;
   if (idVerified) body.id_verified = true;
+  if (operationId) body.operation_id = operationId;
   if (quantity) body.quantity = quantity;
 
   const res = await fetch(scanPath, {
@@ -39,8 +50,9 @@ const postScan = async (scanPath, token, csrfToken, { force, idVerified, quantit
   return res.json();
 };
 
-const interpolate = (template, values) =>
-  template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ""));
+/** The scan POST the page trusts: only real scan answers pass. A login
+ * page or a bare error can never settle a scan or a queued check-in. */
+const trustedPost = strictScannerPost(postScan);
 
 const getMessage = (messages, key, fallback) => messages[key] ?? fallback;
 
@@ -82,13 +94,16 @@ const nameAndTicketsMessage = (messages, key, fallback, result) =>
     tickets: formatTicketCount(messages, result.quantity),
   });
 
-/** Say the door sent this person away without checking them in. */
-const skipPerson = (el, messages, name) =>
+/** Say the door sent this person away without checking them in, and hand
+ * back the answer their ask came from. */
+const skipPerson = (el, messages, answer) => {
   showStatus(
     el,
-    interpolate(getMessage(messages, "messageSkipped", "Skipped {name}"), { name }),
+    interpolate(getMessage(messages, "messageSkipped", "Skipped {name}"), { name: answer.name }),
     "warning",
   );
+  return answer;
+};
 
 /** Handle a scan result and display status */
 const handleResult = (el, result, messages) => {
@@ -143,9 +158,12 @@ const handleResult = (el, result, messages) => {
  * confirmation, then one re-POST. A wrong listing widens the door, an ID
  * check confirms the person, and a quantity ask picks how many tickets this
  * scan admits. Every later POST carries every answer the door already gave,
- * so nothing re-asks and nothing is lost. */
-const admitScan = async (scanPath, token, csrfToken, statusEl, messages) => {
-  let answer = await postScan(scanPath, token, csrfToken);
+ * so nothing re-asks and nothing is lost. A replay runs the same flow with
+ * its own post, which names the person by the stored digest. The answer the
+ * admission settled on comes back, ask skips included, so a replay can say
+ * which check-ins the door had already taken. */
+const admitScan = async (scanPath, token, csrfToken, statusEl, messages, post = postScan) => {
+  let answer = await post(scanPath, token, csrfToken);
   const given = {};
   while (true) {
     if (answer.status === "wrong_listing" && !given.force) {
@@ -160,15 +178,14 @@ const admitScan = async (scanPath, token, csrfToken, statusEl, messages) => {
         ),
       );
       if (!ok) {
-        skipPerson(statusEl, messages, answer.name);
-        return;
+        return skipPerson(statusEl, messages, answer);
       }
       given.force = true;
     } else if (answer.status === "verify_id" && !given.idVerified) {
       const ok = await showConfirm(interpolate(getMessage(messages, "messageVerifyIdConfirm", 'Does their ID match "{name}"?'), { name: answer.name }));
       if (!ok) {
         showStatus(statusEl, interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: answer.name }), "error");
-        return;
+        return answer;
       }
       given.idVerified = true;
     } else if (answer.status === "select_quantity") {
@@ -181,20 +198,48 @@ const admitScan = async (scanPath, token, csrfToken, statusEl, messages) => {
         (count) => formatTicketCount(messages, count),
       );
       if (!count) {
-        skipPerson(statusEl, messages, answer.name);
-        return;
+        return skipPerson(statusEl, messages, answer);
       }
       given.quantity = count;
     } else {
       handleResult(statusEl, answer, messages);
-      return;
+      return answer;
     }
-    answer = await postScan(scanPath, token, csrfToken, given);
+    answer = await post(scanPath, token, csrfToken, given);
   }
 };
 
-/** Main scanner loop */
-const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) => {
+/** One scan, wherever the door is working. Offline mode sends every scan to
+ * the saved list and queues. Online, the scan settles with the server. A
+ * send that cannot land settles against the saved list too. The device
+ * queues the check-ins it accepted and sends them once the connection is
+ * back. A door working online behaves as before.
+ *
+ * @param {OfflineScanner} offline
+ */
+const dispatchScan = async (offline, scanPath, token, csrfToken, statusEl, messages) => {
+  if (offline.routeScan() === "offline") {
+    await offline.scan(token);
+    return;
+  }
+  try {
+    await admitScan(scanPath, token, csrfToken, statusEl, messages, trustedPost);
+    // The door answered for good, so the connection is there. The waiting
+    // check-ins can send.
+    await offline.replay();
+  } catch {
+    // The send did not reach the door's server, or the answer was no scan
+    // answer. The saved list takes the scan and queues its check-in for
+    // the next replay.
+    await offline.scan(token);
+  }
+};
+
+/** Main scanner loop
+ *
+ * @param {OfflineScanner} offline
+ */
+const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages, offline) => {
   const ctx = canvas.getContext("2d");
   let lastScanTime = 0;
   let processing = false;
@@ -211,7 +256,7 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0);
 
-    if (processing || Date.now() - lastScanTime < COOLDOWN_MS) {
+    if (processing || offline.replaying() || Date.now() - lastScanTime < COOLDOWN_MS) {
       setTimeout(scan, SCAN_INTERVAL_MS);
       return;
     }
@@ -245,10 +290,7 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
       lastToken = null;
     }, FADE_DELAY_MS);
 
-    admitScan(scanPath, token, csrfToken, statusEl, messages)
-      .catch(() => {
-        showStatus(statusEl, getMessage(messages, "messageNetworkError", "Network error"), "error");
-      })
+    dispatchScan(offline, scanPath, token, csrfToken, statusEl, messages)
       .finally(() => {
         processing = false;
         setTimeout(scan, SCAN_INTERVAL_MS);
@@ -257,6 +299,9 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages) =>
 
   scan();
 };
+
+// The page's live offline mode, wired by init. Null on a broken page.
+let scannerOffline = null;
 
 /** Initialize scanner when DOM is ready */
 const init = () => {
@@ -287,7 +332,31 @@ const init = () => {
   // Release camera when navigating away (including bfcache)
   document.addEventListener("pagehide", stopCamera);
 
+  /** One full live admission of one queued check-in, through the page's
+   * own flow, its asks included. */
+  const admitQueued = (tokenHash, post, syncMessages) =>
+    admitScan(scanPath, tokenHash, csrfToken, statusEl, syncMessages, post);
+
+  /** The POST a replay runs: it names the person by the token digest the
+   * device stored, because the device never held the token itself. */
+  const postScanHash = (scanPath, tokenHash, csrfToken, choices) =>
+    postScan(scanPath, tokenHash, csrfToken, choices, true);
+
+  scannerOffline = setupOfflineScanner({
+    admitOne: admitQueued,
+    container: scannerContainer,
+    doorCacheKey: scannerContainer.dataset.doorCacheKey ?? "",
+    post: postScanHash,
+    showStatus,
+    statusEl,
+    tokensPath: scannerContainer.dataset.tokensPath ?? "",
+  });
+
   startBtn.addEventListener("click", async () => {
+    // The scanning message paints before the camera answers, so a queued
+    // check-in that settles during the camera's start keeps its answer on
+    // the status line.
+    showStatus(statusEl, getMessage(messages, "messageScanning", "Scanning..."), "success");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
@@ -296,8 +365,7 @@ const init = () => {
       await video.play();
       startBtn.classList.add("hidden");
       video.classList.remove("hidden");
-      showStatus(statusEl, getMessage(messages, "messageScanning", "Scanning..."), "success");
-      startScanner(video, canvas, statusEl, scanPath, csrfToken, messages);
+      startScanner(video, canvas, statusEl, scanPath, csrfToken, messages, scannerOffline);
     } catch {
       showStatus(statusEl, getMessage(messages, "messageCameraDenied", "Camera access denied"), "error");
     }
@@ -311,4 +379,12 @@ init();
 // The tail that makes this a module bundle (like the order widget's): the
 // served script tag is type="module", and these exports are the pieces the
 // direct test drives through the built bundle.
-export { admitScan, extractToken, handleResult, postScan, showConfirm };
+export {
+  admitScan,
+  dispatchScan,
+  extractToken,
+  handleResult,
+  scannerOffline as offline,
+  postScan,
+  showConfirm,
+};

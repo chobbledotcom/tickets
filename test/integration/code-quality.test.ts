@@ -25,6 +25,7 @@ import {
   ensureLoaded,
   getRelativePath,
   type ScanContext,
+  SRC_DIR,
   scanSourceFiles,
   scanSourceLines,
 } from "#test/scripts/code-quality/scan-context.ts";
@@ -177,6 +178,14 @@ describe("code quality", () => {
         const relativePath = getRelativePath(file);
         if (shouldSkipFile(relativePath)) continue;
 
+        // The hand-written browser entries are .js (src/ui/client/scanner.js),
+        // and their imports are production use: only the src-side .js files
+        // count, so a test-side .js file cannot launder a test-only export.
+        const srcJsContents = new Map(
+          [...scan.jsContents].filter(([path]) =>
+            path.startsWith(`${SRC_DIR}/`),
+          ),
+        );
         violations.push(
           ...findTestOnlyExportViolations(
             file,
@@ -185,7 +194,12 @@ describe("code quality", () => {
             scan.srcTsxContents,
             scan.testContents,
             ALLOWED_TEST_HOOKS,
-            [scan.scriptsContents, scan.cliContents, scan.e2eContents],
+            [
+              scan.scriptsContents,
+              scan.cliContents,
+              scan.e2eContents,
+              srcJsContents,
+            ],
           ),
         );
       }

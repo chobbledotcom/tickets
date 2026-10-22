@@ -73,6 +73,9 @@ export const compilerOptions = (
   declared: unknown,
 ): ts.CompilerOptions => ({
   ...asDeclared(root, declared),
+  // The walk hands the program plain .js browser modules, so the compiler
+  // must read them. Without checkJs, their shapes stay inferred, not claimed.
+  allowJs: true,
   baseUrl: root,
   module: ts.ModuleKind.ESNext,
   moduleResolution: ts.ModuleResolutionKind.Bundler,

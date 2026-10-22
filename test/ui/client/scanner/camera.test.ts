@@ -283,7 +283,7 @@ describe("scanner camera", {
     expect(started.posts()).toBe(3);
   });
 
-  test("fails over to the network message when the scan cannot be sent", async () => {
+  test("falls back to the saved list when the scan cannot be sent", async () => {
     const h = fresh();
     using fakes = cameraFakes(h);
     fakes.ready(4);
@@ -293,7 +293,11 @@ describe("scanner camera", {
     await start(h);
     await scanFirst(fakes, "tok12345");
 
-    expect(h.statusEl.textContent).toBe("Network error");
+    // The saved list is empty on this page, so the door says where its
+    // saved list is, not a bare network failure.
+    expect(h.statusEl.textContent).toBe(
+      "The saved ticket list is out of date or missing. Go online and reload the page to refresh it.",
+    );
     assertStringIncludes(h.statusEl.className, "scanner-status-error");
     // The failed scan settled too, and its cooldown spent, so the loop went
     // back to reading frames.
