@@ -359,6 +359,13 @@ describe("the admin scanner page template", () => {
     expect(html).toContain('id="scanner-container"');
     expect(html).toContain('id="scanner-video"');
     expect(html).toContain('id="scanner-status"');
+    // The offline door: the banner the client raises and fills, and the
+    // queue panel it keeps the kept scans in.
+    expect(html).toContain('id="scanner-offline-banner"');
+    expect(html).toContain('id="scanner-offline-banner-text"');
+    expect(html).toContain('id="scanner-queue"');
+    expect(html).toContain('id="scanner-queue-summary"');
+    expect(html).toContain('id="scanner-queue-items"');
     expect(html).toContain('id="scanner-quantity-message"');
     expect(html).toContain('for="scanner-quantity-select"');
     expect(html).toContain('id="scanner-quantity-select"');
