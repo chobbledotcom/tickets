@@ -130,18 +130,40 @@ Then(
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
     // This harness serves the page and never runs its script, so the step
-    // reads the words the template serves for the client to show: the
-    // banner words in both modes, and the queue panel's words for a queued
-    // check-in and its count. The count words are served with the {count}
-    // placeholder the client fills in.
-    expect(page).toContain(t("admin.scanner.offline_banner_auto"));
-    expect(page).toContain(t("admin.scanner.offline_banner_manual"));
-    expect(page).toContain(t("admin.scanner.queue_item_queued"));
-    expect(page).toContain(
-      t("admin.scanner.queue_count_one", { count: "{count}" }),
+    // reads the elements the client looks up and the words the page serves
+    // for each: the banner's words in both modes, and the queue panel's
+    // words for a queued check-in and its count. The count words are served
+    // with the {count} placeholder the client fills in.
+    expect(page).toMatch(
+      /<aside[^>]*\bid="scanner-offline-banner"[^>]*>\s*<p id="scanner-offline-banner-text"><\/p>\s*<\/aside>/,
     );
     expect(page).toContain(
-      t("admin.scanner.queue_count_other", { count: "{count}" }),
+      `data-message-offline-banner-auto="${t(
+        "admin.scanner.offline_banner_auto",
+      )}"`,
+    );
+    expect(page).toContain(
+      `data-message-offline-banner-manual="${t(
+        "admin.scanner.offline_banner_manual",
+      )}"`,
+    );
+    const queuePanel = page.match(
+      /<div[^>]*\bid="scanner-queue"[^>]*>[\s\S]*?<\/div>/,
+    );
+    expect(queuePanel?.[0]).toContain('id="scanner-queue-summary"');
+    expect(queuePanel?.[0]).toContain('id="scanner-queue-items"');
+    expect(page).toContain(
+      `data-message-queue-item-queued="${t("admin.scanner.queue_item_queued")}"`,
+    );
+    expect(page).toContain(
+      `data-message-queue-count-one="${t("admin.scanner.queue_count_one", {
+        count: "{count}",
+      })}"`,
+    );
+    expect(page).toContain(
+      `data-message-queue-count-other="${t("admin.scanner.queue_count_other", {
+        count: "{count}",
+      })}"`,
     );
   },
 );
