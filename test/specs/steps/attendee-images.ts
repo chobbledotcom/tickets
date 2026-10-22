@@ -2,6 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { t } from "#i18n";
 import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
@@ -68,10 +69,15 @@ When(
   },
 );
 
+/** The note's own "×", the link titled "Delete note". */
+const NOTE_DELETE_MARK = "×";
+
 When(
   "the organiser asks to remove that note",
   async function (this: TicketsWorld): Promise<void> {
-    await openAdminPage(this, noteDeletePath(this));
+    // The "×" beside the note is the way in. This step follows the link from
+    // the page the story opened, and never opens the delete address itself.
+    await scenarioBrowser(this).clickLink(NOTE_DELETE_MARK);
   },
 );
 
@@ -111,6 +117,15 @@ Then(
       "details",
       this,
     );
+  },
+);
+
+Then(
+  "the organiser is on the note's delete page",
+  function (this: TicketsWorld): void {
+    const browser = scenarioBrowser(this);
+    expect(browser.currentUrl).toBe(noteDeletePath(this));
+    expect(browser.pageText).toContain(t("notes.delete_confirm"));
   },
 );
 
