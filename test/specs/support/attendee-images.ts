@@ -9,6 +9,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { getNoteRows } from "#db/notes/queries.ts";
+import { emailFor } from "#test/specs/support/tickets.ts";
 import {
   type NoteImage,
   requiredWorldValue,
@@ -20,9 +21,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
-
-/** Everyone a story talks about has an email the site files them under. */
-const emailFor = (who: string): string => `${who.toLowerCase()}@example.com`;
 
 /** The listing every note story books its person onto, so one note shows on
  * the person's page, the attendees list, and the listing's own panels. */

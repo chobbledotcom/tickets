@@ -9,6 +9,7 @@ import { t } from "#i18n";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { typedNoteWithPicture } from "#test/specs/support/attendee-images.ts";
 import { openRecord, recordFor } from "#test/specs/support/contact-records.ts";
+import { emailFor } from "#test/specs/support/tickets.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -17,16 +18,21 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
-/** Everyone a story talks about has an email the site files them under. */
-const emailFor = (who: string): string => `${who.toLowerCase()}@example.com`;
-
-/** The site keeps a private note about someone, with a picture named in it,
- * and that someone is booked with the email the record is filed under. */
-export const recordNoteWithPicture = async (
+/** A story step that keeps a private note about someone, with a picture
+ * named in it. */
+type KeepsANoteWithPicture = (
   world: TicketsWorld,
   who: string,
   name: string,
-): Promise<void> => {
+) => Promise<void>;
+
+/** The site keeps a private note about someone, with a picture named in it,
+ * and that someone is booked with the email the record is filed under. */
+export const recordNoteWithPicture: KeepsANoteWithPicture = async (
+  world,
+  who,
+  name,
+) => {
   const { picture, typed } = await typedNoteWithPicture(
     world,
     who,
