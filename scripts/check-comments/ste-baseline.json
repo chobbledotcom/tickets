@@ -262,9 +262,9 @@
   },
   "src/features/public/ticket-submit.ts": {
     "contraction": 5,
-    "long-sentence": 17,
+    "long-sentence": 16,
     "semicolon": 5,
-    "banned-modal": 8,
+    "banned-modal": 7,
     "present-perfect": 2,
     "wordy": 2
   },

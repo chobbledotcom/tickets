@@ -9,7 +9,9 @@ import { sitePages } from "#db/site-pages.ts";
 import { publicNavModel, publicNavProps } from "#routes/public/site-nav.ts";
 
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
+import type { NavModel, NavNode, TargetKey } from "#shared/site-pages/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createGroupWithListings } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createTestNewsPost,
@@ -25,6 +27,16 @@ const addPage = async (name: string, slug: string, sortOrder: number) =>
     slugIndex: await hmacHash(slug),
     sortOrder,
   });
+
+const targetKey = (type: "group" | "listing", id: number): TargetKey =>
+  sitePageItemTargets.key(sitePageItemTargets.of(type)(id));
+
+/** Every node the model carries, on the root row or in any submenu level. */
+const nodesOf = (model: NavModel): NavNode[] => [
+  ...model.rootPageNodes,
+  ...model.submenuLevels.flatMap((level) => level.nodes),
+  ...model.currentChildren,
+];
 
 /** Put one listing on a page and read the nav as that page. `change` runs
  *  after the listing is placed, so a test can alter it first. */
@@ -89,10 +101,12 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
     );
 
     const calls = await withRequestContext(() =>
-      countDatabaseCalls(3, () => publicNavModel(current)),
+      // The forest's two reads answer everything: with no leaf on the page,
+      // the resolution reads no listings and no groups.
+      countDatabaseCalls(2, () => publicNavModel(current)),
     );
 
-    expect(calls).toBe(3);
+    expect(calls).toBe(2);
   });
 
   test("resolves a page's listing item to a live link", async () => {
@@ -168,5 +182,66 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
       sitePageItemTargets.of("page")(child.id),
     );
     expect((await publicNavModel(current)).activeRootId).toBe(child.id);
+  });
+
+  test("resolves the chain's leaves and pays nothing for the leaves off it", async () => {
+    const things = await addPage("Things", "things", 1);
+    const other = await addPage("Other", "other", 2);
+    const onChain = await createTestListing({ name: "On chain" });
+    const besideIt = await createTestListing({ name: "Beside it" });
+    const offChain = await createTestListing({ name: "Off chain" });
+    const { group } = await createGroupWithListings("Elsewhere group", [
+      "Member",
+    ]);
+    await addPageItem(things.id, "listing", onChain.id);
+    await addPageItem(things.id, "listing", besideIt.id);
+    const current = targetKey("listing", onChain.id);
+
+    const withoutOffChainLeaves = await withRequestContext(() =>
+      countDatabaseCalls(50, () => publicNavModel(current)),
+    );
+    await addPageItem(other.id, "listing", offChain.id);
+    await addPageItem(other.id, "group", group.id);
+    const withOffChainLeaves = await withRequestContext(() =>
+      countDatabaseCalls(50, () => publicNavModel(current)),
+    );
+
+    // The far page's listing and its group cost the chain's nav nothing: no
+    // off-chain leaf is resolved, so no group row is read either.
+    expect(withOffChainLeaves).toBe(withoutOffChainLeaves);
+
+    const model = await withRequestContext(() => publicNavModel(current));
+    // The chain keeps its own complete list...
+    expect(
+      model.submenuLevels.map((level) => level.nodes.map((node) => node.label)),
+    ).toEqual([["On chain", "Beside it"]]);
+    // ...and carries nothing from the page the visitor is not on.
+    expect(nodesOf(model).map((node) => node.label)).not.toContain("Off chain");
+    expect(nodesOf(model).map((node) => node.key)).not.toContain(
+      targetKey("group", group.id),
+    );
+  });
+
+  test("resolves the group leaves the chain itself carries", async () => {
+    const things = await addPage("Things", "things", 1);
+    const { group } = await createGroupWithListings("Weekend", ["Tent"]);
+    const onChain = await createTestListing({ name: "On chain" });
+    await addPageItem(things.id, "group", group.id);
+    await addPageItem(things.id, "listing", onChain.id);
+
+    const model = await withRequestContext(() =>
+      publicNavModel(targetKey("group", group.id)),
+    );
+
+    const weekend = nodesOf(model).find(
+      (node) => node.key === targetKey("group", group.id),
+    );
+    expect(weekend?.href).toBe(`/ticket/${group.slug}`);
+    expect(weekend?.live).toBe(true);
+    expect(weekend?.active).toBe(true);
+    expect(model.submenuLevels[0]?.nodes.map((node) => node.label)).toEqual([
+      "Weekend",
+      "On chain",
+    ]);
   });
 });

@@ -220,6 +220,18 @@ const anchorPageId = (
   return candidates[0]?.pageId ?? null;
 };
 
+/** The page ids of the active nav chain, root-first: the anchor page and its
+ * ancestors. Empty when `current` is null or sits on no page. Only these
+ * pages' items render in the model, so the leaf resolution for a target can
+ * stop at them instead of the whole tree. */
+export const navChainPageIds = (
+  forest: Forest,
+  current: TargetKey | null,
+): number[] => {
+  const anchor = anchorPageId(forest, current);
+  return anchor === null ? [] : [...ancestorsOf(forest, anchor), anchor];
+};
+
 /**
  * Build the public nav view model: root page nodes (shallow — the top row), the
  * stacked submenu levels for the active chain (root-first), and which root to
@@ -235,8 +247,7 @@ export const buildNavModel = (
   targets: TargetMap,
   current: TargetKey | null,
 ): NavModel => {
-  const anchor = anchorPageId(forest, current);
-  const chain = anchor === null ? [] : [...ancestorsOf(forest, anchor), anchor];
+  const chain = navChainPageIds(forest, current);
   const activeRootId = chain[0] ?? null;
   const deepest = chain.length - 1;
   const currentIsLeaf =

@@ -17,7 +17,11 @@ import { allPageItemsRead } from "#db/site-page-items.ts";
 import { sitePagesNavRead } from "#db/site-pages.ts";
 import { compact, filter, map, pipe, unique } from "#fp";
 import { isQualifyingTierListing } from "#shared/renewal-tier.ts";
-import { buildForest, buildNavModel } from "#shared/site-pages/core.ts";
+import {
+  buildForest,
+  buildNavModel,
+  navChainPageIds,
+} from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import type {
@@ -50,7 +54,9 @@ const resolveTargets = async (
   const groupIds = leafIds(items, "group");
   const [referencedRows, allGroups] = await Promise.all([
     getListingsWithCountsByIds(listingIds),
-    groups.cache.getAll(),
+    // No group leaf renders, no group row is read: the all-groups read exists
+    // only to answer the group leaves' liveness.
+    groupIds.length > 0 ? groups.cache.getAll() : Promise.resolve([]),
   ]);
   const referenced = compact(referencedRows);
   const referencedGroups = allGroups.filter((group) =>
@@ -108,7 +114,9 @@ const resolveTargets = async (
  * pages — home, listings, order, terms, contact — which show just the root
  * row). With no current target there is no active chain, so no submenu level
  * can render a leaf: skip the leaf resolution entirely and keep the hot fixed
- * pages to the two cached reads. */
+ * pages to the two cached reads. With a target, only the chain pages' leaves
+ * render: each level lists one chain page's items. The resolution stops at
+ * them, so it never pays for leaves the model will not show. */
 export const publicNavModel = async (
   current: TargetKey | null,
 ): Promise<NavModel> => {
@@ -118,8 +126,13 @@ export const publicNavModel = async (
   // level instead of stranding under an invisible parent. The pageNode
   // builder renders nothing for a hidden child row.
   const visibleRows = navRows.filter((row) => !row.hidden);
-  const targets = current === null ? new Map() : await resolveTargets(items);
-  return buildNavModel(buildForest(visibleRows, items), targets, current);
+  const forest = buildForest(visibleRows, items);
+  if (current === null) return buildNavModel(forest, new Map(), current);
+  const chainPages = new Set(navChainPageIds(forest, current));
+  const renderedLeaves = items.filter(
+    (item) => item.item_type !== "page" && chainPages.has(item.page_id),
+  );
+  return buildNavModel(forest, await resolveTargets(renderedLeaves), current);
 };
 
 /** The three small reads behind every public page's nav: is there any news, the
@@ -129,6 +142,16 @@ export const publicNavModel = async (
  * page that wants the same rows reads them from there. */
 const fillNavReads = (): Promise<void> =>
   fillTogether([newsExistenceRead, sitePagesNavRead, allPageItemsRead]);
+
+/** The nav key for a booking page's header entity: the group on a group page,
+ * the sole listing on a single-listing page. Null — a multi-item combo —
+ * keeps the fixed-page fast path: a combo highlights nothing. */
+export const bookingNavKey = (
+  target: { type: "group" | "listing"; id: number } | null,
+): TargetKey | null =>
+  target === null
+    ? null
+    : sitePageItemTargets.key(sitePageItemTargets.of(target.type)(target.id));
 
 /** The full prop set {@link PublicNav} renders: the settings-driven page
  * flags, the news flag (see {@link hasNewsPosts}), and the site-pages tree —

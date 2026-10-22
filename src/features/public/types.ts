@@ -14,12 +14,7 @@ import type {
   GroupAvailability,
 } from "#templates/public/reservations/types.ts";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
-import type {
-  Image,
-  ImageUseItemType,
-  ItemImageColumns,
-  ListingWithCount,
-} from "#types";
+import type { Image, ItemImageColumns, ListingWithCount } from "#types";
 
 /** Parent listing id → its bookable-child candidates, each hydrated to a
  * {@link TicketListing} so availability (isSoldOut/isClosed/maxPurchasable) is
@@ -52,8 +47,10 @@ export type TicketSharedContext = {
   /** The header entity whose image gallery the public page renders (the group
    * on a group page, or the sole listing on a single-listing page); null for a
    * multi-listing combo. Just the reference — the images are read lazily on the
-   * render path only ({@link renderCtx}), so submit/quote/API flows pay no read. */
-  galleryTarget: { type: ImageUseItemType; id: number } | null;
+   * render path only ({@link renderCtx}), so submit/quote/API flows pay no
+   * read. The kind is only ever these two, so the nav can highlight the
+   * entity's own chain. */
+  galleryTarget: { type: "group" | "listing"; id: number } | null;
   /** Whether the page root is hidden. A group is the root, not its members. */
   pageHidden: boolean;
   /** The header entity's images, rendered as the shared CSS gallery above the

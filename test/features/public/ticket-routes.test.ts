@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { settings } from "#db/settings.ts";
+import { addPageItem } from "#db/site-page-items.ts";
 import { handleRequest } from "#routes";
 import {
   getFromEmailIfConfigured,
@@ -16,6 +17,7 @@ import {
   updateTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
@@ -40,6 +42,45 @@ const reservedOrder = async (slug: string): Promise<string> => {
 describeWithEnv("public ticket routes", { db: true }, () => {
   afterEach(() => {
     hostEmail.resetOverride();
+  });
+
+  test("a booking page highlights its listing's nav chain", async () => {
+    await enablePublicSite();
+    const visit = await createTestSitePage("visit", { name: "Visit" });
+    const listing = await createTestListing({ name: "Kayak Tour" });
+    const sibling = await createTestListing({ name: "Harbour Walk" });
+    await addPageItem(visit.id, "listing", listing.id);
+    await addPageItem(visit.id, "listing", sibling.id);
+
+    const response = await handleRequest(
+      mockRequest(`/ticket/${listing.slug}`),
+    );
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    // The listing's page's submenu bar renders, the current listing is its
+    // active node, and the sibling sits beside it.
+    expect(html).toContain('aria-label="Visit"');
+    expect(html).toContain(`<a class="active" href="/ticket/${listing.slug}">`);
+    expect(html).toContain(`href="/ticket/${sibling.slug}"`);
+  });
+
+  test("a multi-item combo booking page keeps the unhighlighted menu", async () => {
+    await enablePublicSite();
+    const visit = await createTestSitePage("visit", { name: "Visit" });
+    const first = await createTestListing({ name: "Kayak Tour" });
+    const second = await createTestListing({ name: "Harbour Walk" });
+    await addPageItem(visit.id, "listing", first.id);
+    await addPageItem(visit.id, "listing", second.id);
+
+    const response = await handleRequest(
+      mockRequest(`/ticket/${first.slug}+${second.slug}`),
+    );
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    // No page's submenu renders and no menu entry is active: a combo
+    // highlights no chain.
+    expect(html).not.toContain('aria-label="Visit"');
+    expect(html).not.toContain('class="active" href=');
   });
 
   test("a listing's QR answers with an SVG of its ticket address", async () => {

@@ -2,12 +2,18 @@
  * Cold-start benchmark 2: the first request's database round trips.
  * Prepares a migrated, setup-complete database file, then per simulated
  * latency spawns fresh children whose libsql clients delay every round trip;
- * each child serves `GET /listings` twice (cold, warm) and reports a query
+ * each child serves the scenario's GET twice (cold, warm) and reports a query
  * timeline. The prepared catalogue includes enough regular groups to expose
  * query fan-out that grows with the number of groups.
  * The slope of "first request" against latency = sequential round trips.
  *
- * Run with: deno run -A scripts/bench/cold-start/first-request.ts
+ * Scenarios:
+ * - `listings` (default): `GET /listings`, the catalogue's own surface.
+ * - `booking-nav`: `GET /ticket/…` for a benchmark listing placed on a
+ *   site page, so the request builds the public nav's model for a real
+ *   target (`seedBenchmarkNavTree`).
+ *
+ * Run with: deno run -A scripts/bench/cold-start/first-request.ts [scenario]
  */
 
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
@@ -16,15 +22,18 @@ import { serveAndDrain } from "./serve-request.ts";
 import { spawnChildJson } from "./spawn-child.ts";
 import { median, medianAbsoluteDeviation } from "./strip-lib.ts";
 import {
+  BENCHMARK_BOOKING_SLUG,
   BENCHMARK_PACKAGE_GROUPS,
   BENCHMARK_REGULAR_GROUPS,
+  type BenchmarkCatalogueIds,
   balancedCycles,
   balancedRotation,
-  benchmarkGroupName,
-  benchmarkListingName,
-  requireBenchmarkCatalogue,
+  benchmarkCatalogueMarkers,
   requiredEnv,
+  requireMarkers,
   samplesFor,
+  seedBenchmarkCatalogue,
+  seedBenchmarkNavTree,
 } from "./support.ts";
 
 const LATENCIES_MS = [0, 5, 10, 20];
@@ -35,42 +44,34 @@ const BUILD_COMMIT = "benchmark0";
 
 const log = console.log.bind(console);
 
-/** Add the public catalogue whose group count makes query scaling visible. */
-const seedCatalogue = async (): Promise<void> => {
-  const { groups, setListingGroups } = await import("#db/groups.ts");
-  const { listingsTable } = await import("#db/listings/records.ts");
-  const { hmacHash } = await import("#crypto/hashing.ts");
-
-  const addGroupWithListing = async (
-    number: number,
-    isPackage: boolean,
-  ): Promise<void> => {
-    const kind = isPackage ? "package" : "group";
-    const slug = `benchmark-${kind}-${number}`;
-    const group = await groups.table.insert({
-      isPackage,
-      name: benchmarkGroupName(number, isPackage),
-      slug,
-      slugIndex: await hmacHash(slug),
-    });
-    const listingSlug = `benchmark-listing-${number}`;
-    const listing = await listingsTable.insert({
-      maxAttendees: 100,
-      maxPrice: 0,
-      name: benchmarkListingName(number),
-      slug: listingSlug,
-      slugIndex: await hmacHash(listingSlug),
-    });
-    await setListingGroups(listing.id, [group.id]);
-  };
-
-  for (let number = 1; number <= BENCHMARK_REGULAR_GROUPS; number++) {
-    await addGroupWithListing(number, false);
-  }
-  for (let number = 1; number <= BENCHMARK_PACKAGE_GROUPS; number++) {
-    await addGroupWithListing(BENCHMARK_REGULAR_GROUPS + number, true);
-  }
+/** The measured scenarios: the listings page the catalogue serves, and a
+ * booking page whose nav tree carries leaves (one off the active chain, so
+ * the benchmark confirms that the chain-scoped resolution skips a leaf the
+ * model never shows). */
+type BenchScenario = {
+  path: string;
+  prepare?: (ids: BenchmarkCatalogueIds) => Promise<void>;
 };
+
+const SCENARIOS: Record<"booking-nav" | "listings", BenchScenario> = {
+  "booking-nav": {
+    path: `/ticket/${BENCHMARK_BOOKING_SLUG}`,
+    prepare: seedBenchmarkNavTree,
+  },
+  listings: { path: "/listings" },
+};
+
+const scenarioName = Deno.args[0] ?? "listings";
+const scenario = Object.entries(SCENARIOS).find(
+  ([name]) => name === scenarioName,
+)?.[1];
+if (scenario === undefined) {
+  throw new Error(
+    `Unknown scenario ${scenarioName}. Supported scenarios: ${Object.keys(
+      SCENARIOS,
+    ).join(", ")}`,
+  );
+}
 
 /** Create and fully migrate a database file, then complete site setup. */
 const prepareDatabase = async (): Promise<void> => {
@@ -99,7 +100,8 @@ const prepareDatabase = async (): Promise<void> => {
   await initDb({ allowMissingSettings: true });
   await settings.setup.complete("benchadmin", "bench-password-123", "GB");
   await setAdminFeatureEnabled("site", true);
-  await seedCatalogue();
+  const ids = await seedBenchmarkCatalogue();
+  await scenario.prepare?.(ids);
 
   // Stamp the markers as an earlier isolate of this deploy would have.
   setBuildTimestampForTest(BUILD_ISO);
@@ -110,7 +112,11 @@ const prepareDatabase = async (): Promise<void> => {
   // markers) lands in prep, not in a measured child.
   const { bunnyServeHandler } = await import("#src/serve-app.ts");
   const response = await serveAndDrain(bunnyServeHandler, "/listings");
-  requireBenchmarkCatalogue(response, "database preparation request");
+  requireMarkers(
+    response,
+    "database preparation request",
+    benchmarkCatalogueMarkers(),
+  );
 };
 
 type QueryEvent = { ms: number; sql: string; startOffsetMs: number };
@@ -140,13 +146,16 @@ const runChild = async (
       "-A",
       "scripts/bench/cold-start/first-request-child.ts",
       String(latencyMs),
+      scenario.path,
     ],
     env,
     120_000,
     `first-request child at ${latencyMs}ms latency`,
   );
   if (report.firstStatus !== 200 || report.secondStatus !== 200) {
-    throw new Error(`listings request at ${latencyMs}ms did not return 200`);
+    throw new Error(
+      `${scenario.path} request at ${latencyMs}ms did not return 200`,
+    );
   }
   return report;
 };
@@ -219,7 +228,7 @@ const printReport = (
   runs: readonly ChildReport[][],
 ): void => {
   log(
-    `\nGET /listings medians of ${RUNS} fresh processes per latency ` +
+    `\nGET ${scenario.path} medians of ${RUNS} fresh processes per latency ` +
       `(${BENCHMARK_REGULAR_GROUPS} regular groups, ${BENCHMARK_PACKAGE_GROUPS} packages):\n`,
   );
   log(
