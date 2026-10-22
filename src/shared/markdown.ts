@@ -109,10 +109,29 @@ export const isSimpleMarkdown = (text: string): boolean => {
  * tab whose URL also starts with a shared base the viewer CAN open). */
 type LinkMatcher = string | ((href: string) => boolean);
 
+/** What one rewrite pass does to the tokens it meets: it rewrites the leaf
+ * kinds it names and walks every other token for children. */
+type TokenRewrites = {
+  /** Demote a link to its plain text when its target matches. */
+  link?: LinkMatcher;
+  /** Replace a picture's address. undefined keeps the address as written. */
+  image?: ImageDestination;
+};
+
+/** The address one picture reference resolves to, or undefined to keep the
+ * address the author wrote. */
+type ImageDestination = (href: string) => string | undefined;
+
 /** True when `href` should be demoted to plain text. A string matcher is a
  * prefix check; a function matcher is called directly. */
 const linkMatches = (matcher: LinkMatcher, href: string): boolean =>
   typeof matcher === "string" ? href.startsWith(matcher) : matcher(href);
+
+/** Runs one rewrite pass over the whole lexed source. */
+const rewriteLexedSource = (
+  markdown: string,
+  rewrites: TokenRewrites,
+): string => rewriteTokens(Lexer.lex(markdown), rewrites);
 
 /** Replace each markdown link whose target matches `matcher` with its plain
  * text. Used to strip links the viewer isn't allowed to open (e.g. owner-only
@@ -121,7 +140,17 @@ const linkMatches = (matcher: LinkMatcher, href: string): boolean =>
 export const withoutLinksTo = (
   markdown: string,
   matcher: LinkMatcher,
-): string => rewriteTokens(Lexer.lex(markdown), matcher);
+): string => rewriteLexedSource(markdown, { link: matcher });
+
+/** Rewrites each picture reference's address through `toUrl`, and keeps
+ * every other byte of the source. The lexer parses code spans and fenced
+ * code blocks as code, not as pictures. A reference inside them keeps the
+ * form the author wrote, the way the HTML render shows it. A reference
+ * whose address `toUrl` leaves undefined keeps its written form too. */
+export const rewriteImageDestinations = (
+  markdown: string,
+  toUrl: ImageDestination,
+): string => rewriteLexedSource(markdown, { image: toUrl });
 
 /** Replace child token source in order while preserving every byte between
  * children (markers, whitespace, table pipes, list bullets, and safe markdown). */
@@ -163,21 +192,21 @@ const rewriteSourceParts = <Part>(
 const rewriteChildren = (
   raw: string,
   children: readonly Token[],
-  matcher: LinkMatcher,
+  rewrites: TokenRewrites,
   flattenMissing = true,
 ): string => {
   const parts = locateSourceParts(raw, children, (child) => child.raw);
   if (flattenMissing && parts.some(({ index }) => index < 0)) {
-    return rewriteChildren(raw, children.flatMap(leafTokens), matcher, false);
+    return rewriteChildren(raw, children.flatMap(leafTokens), rewrites, false);
   }
   return rewriteSourceParts(
     raw,
     parts.filter(({ index }) => index >= 0),
-    (child) => rewriteToken(child, matcher),
+    (child) => rewriteToken(child, rewrites),
   );
 };
 
-const rewriteTable = (token: Tokens.Table, matcher: LinkMatcher): string => {
+const rewriteTable = (token: Tokens.Table, rewrites: TokenRewrites): string => {
   const cells = [...token.header, ...token.rows.flat()];
   const parts = locateSourceParts(token.raw, cells, (cell) => cell.text);
   // Marked normalizes escaped pipes (`\|` → `|`) in cell.text, so a cell whose
@@ -188,7 +217,7 @@ const rewriteTable = (token: Tokens.Table, matcher: LinkMatcher): string => {
   return rewriteSourceParts(
     token.raw,
     parts.filter(({ index }) => index >= 0),
-    (cell) => rewriteChildren(cell.text, cell.tokens, matcher),
+    (cell) => rewriteChildren(cell.text, cell.tokens, rewrites),
   );
 };
 
@@ -213,26 +242,51 @@ const leafTokens = (token: Token): Token[] => {
   return children.length > 0 ? children.flatMap(leafTokens) : [token];
 };
 
-const rewriteToken = (token: Token, matcher: LinkMatcher): string => {
+/** Replaces one picture's address inside the token's own source, and keeps
+ * every other byte of that source. A source that does not end in the
+ * address's parentheses, such as a `![alt][label]` reference, keeps its
+ * written form. */
+const rewriteImageSource = (
+  raw: string,
+  href: string,
+  toUrl: ImageDestination,
+): string => {
+  const url = toUrl(href);
+  if (url === undefined) return raw;
+  return raw.replace(/\]\([^)]*\)$/, () => `](${url})`);
+};
+
+const rewriteToken = (token: Token, rewrites: TokenRewrites): string => {
   if (token.type === "link") {
-    if (!linkMatches(matcher, token.href)) return token.raw;
     // `Token` is `MarkedToken | Tokens.Generic`; Generic has `tokens?`
     // optional and `type: string`, so narrowing on `type === "link"` still
     // leaves `tokens` as `Token[] | undefined`. The assert narrows it.
     assert(token.tokens, "Markdown link has no parsed text");
-    return rewriteChildren(token.text, token.tokens, matcher);
+    if (rewrites.link !== undefined && linkMatches(rewrites.link, token.href)) {
+      return rewriteChildren(token.text, token.tokens, rewrites);
+    }
+    // A kept link still passes its inner tokens on, so a picture inside the
+    // link's text resolves.
+    return rewriteChildren(token.raw, token.tokens, rewrites);
   }
-  if (isTableToken(token)) return rewriteTable(token, matcher);
+  if (
+    token.type === "image" &&
+    typeof token.href === "string" &&
+    rewrites.image
+  ) {
+    return rewriteImageSource(token.raw, token.href, rewrites.image);
+  }
+  if (isTableToken(token)) return rewriteTable(token, rewrites);
   if (token.type === "list") {
-    return rewriteChildren(token.raw, token.items, matcher);
+    return rewriteChildren(token.raw, token.items, rewrites);
   }
   if ("tokens" in token && Array.isArray(token.tokens)) {
-    return rewriteChildren(token.raw, token.tokens, matcher);
+    return rewriteChildren(token.raw, token.tokens, rewrites);
   }
   return token.raw;
 };
 
 const rewriteTokens = (
   tokens: readonly Token[],
-  matcher: LinkMatcher,
-): string => tokens.map((token) => rewriteToken(token, matcher)).join("");
+  rewrites: TokenRewrites,
+): string => tokens.map((token) => rewriteToken(token, rewrites)).join("");

@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { hashEmail, unsubscribeHash } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import {
   seedDraft,
   seedListingWithAttendees,
@@ -14,6 +15,7 @@ import {
   getAllActivityLog,
   getListingActivityLog,
 } from "#test-utils/activity-log.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { expectFlashRedirect, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -64,6 +66,29 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       return { listing, response };
     };
 
+    /** Make a picture, draft an email naming it the editor would store it,
+     * send it through the provider stub, and return the picture with the
+     * payload the provider received. */
+    const sendPictureDraft = async (
+      name: string,
+      reference: (id: number) => string,
+    ) => {
+      useResend();
+      const image = await makeImage(name);
+      const listing = await seedListingWithAttendees();
+      await adminFormPost("/admin/emails/preview", {
+        body: reference(image.id),
+        listing_id: String(listing.id),
+        subject: "Update",
+      });
+      const { response } = await adminFormPost("/admin/emails/send", {});
+      await expectFlashRedirect(
+        "/admin/emails",
+        expect.stringContaining("Sent to 2 recipients"),
+      )(response);
+      return { image, sent: fetch.getFetchJsonBody() };
+    };
+
     test("sends to recipients, clears the draft, and logs activity", async () => {
       useResend();
 
@@ -77,6 +102,57 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       expect(settings.bulkEmailDraft).toBe("");
       const log = await getAllActivityLog(10);
       expect(log.some((e) => e.message.includes("Sent bulk email"))).toBe(true);
+    });
+
+    test("sends an img#id reference as an absolute image URL", async () => {
+      const { image, sent } = await sendPictureDraft(
+        "Flyer",
+        (id) => `![Flyer](img#${id})`,
+      );
+      // Email clients cannot read root-relative sources, so the sent HTML
+      // carries the site origin; the admin preview keeps the relative URL.
+      expect(sent[0].html).toContain(
+        `src="https://${getEffectiveDomain()}/image/${image.filename}"`,
+      );
+      // The text part cannot render the picture, so it names the same address.
+      expect(sent[0].text).toContain(
+        `![Flyer](https://${getEffectiveDomain()}/image/${image.filename})`,
+      );
+      expect(sent[0].text).not.toContain("img#");
+    });
+
+    test("sends an img#id reference for a picture whose name carries brackets", async () => {
+      const { image, sent } = await sendPictureDraft(
+        "Poster [blue]",
+        (id) => `![Poster \\[blue\\]](img#${id})`,
+      );
+      // The HTML render percent-encodes the address it emits; the text part
+      // names it as the site stores it.
+      expect(sent[0].html).toContain(
+        `src="https://${getEffectiveDomain()}/image/${encodeURIComponent(
+          image.filename,
+        )}"`,
+      );
+      // The editor's serializer escapes the name's brackets, and the text
+      // part keeps that spelling the owner wrote.
+      expect(sent[0].text).toContain(
+        `![Poster \\[blue\\]](https://${getEffectiveDomain()}/image/${image.filename})`,
+      );
+      expect(sent[0].text).not.toContain("img#");
+    });
+
+    test("keeps a reference inside code as code in the text part", async () => {
+      const { image, sent } = await sendPictureDraft(
+        "Flyer",
+        (id) => `Write \`![Flyer](img#${id})\` by hand: ![Flyer](img#${id})`,
+      );
+      // The code span is text the owner wrote as code, so the text part
+      // keeps it written. The real reference still names the picture's
+      // address on the site.
+      expect(sent[0].text).toContain(`\`![Flyer](img#${image.id})\` by hand:`);
+      expect(sent[0].text).toContain(
+        `![Flyer](https://${getEffectiveDomain()}/image/${image.filename})`,
+      );
     });
 
     test("clears the draft when recording the contacts fails after the send", async () => {

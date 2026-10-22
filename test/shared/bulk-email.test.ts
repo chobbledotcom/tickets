@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { summarizeProviderResponse } from "#shared/bulk-email.ts";
+import {
+  resolveImageReferences,
+  summarizeProviderResponse,
+} from "#shared/bulk-email.ts";
 import type {
   BatchMessageOutcome,
   BulkBatchResponse,
@@ -168,5 +171,91 @@ describe("summarizeProviderResponse", () => {
     expect(summary).toContain("It refused 40 messages.");
     expect(summary).toContain("...");
     expect(summary).not.toContain(reasons.join("; "));
+  });
+});
+
+describe("resolveImageReferences", () => {
+  const urls = new Map([[5, "https://tickets.example/image/poster.webp"]]);
+
+  test("replaces every reference the table holds with its address on the site", () => {
+    expect(
+      resolveImageReferences(
+        "See ![Poster](img#5) and ![Poster](img#5).",
+        urls,
+      ),
+    ).toBe(
+      "See ![Poster](https://tickets.example/image/poster.webp) and ![Poster](https://tickets.example/image/poster.webp).",
+    );
+  });
+
+  test("resolves a reference whose alt text escapes its brackets", () => {
+    expect(resolveImageReferences("![Poster \\[blue\\]](img#5)", urls)).toBe(
+      "![Poster \\[blue\\]](https://tickets.example/image/poster.webp)",
+    );
+  });
+
+  test("keeps the written form of a reference the table lacks", () => {
+    expect(resolveImageReferences("See ![Poster](img#7).", urls)).toBe(
+      "See ![Poster](img#7).",
+    );
+  });
+
+  test("keeps a web address that merely names an image", () => {
+    expect(
+      resolveImageReferences(
+        "Directions: [the hall's page](https://example.org/img#5). See ![Poster](img#5).",
+        urls,
+      ),
+    ).toBe(
+      "Directions: [the hall's page](https://example.org/img#5). See ![Poster](https://tickets.example/image/poster.webp).",
+    );
+  });
+
+  test("keeps the written form of a picture whose address is a web address", () => {
+    expect(
+      resolveImageReferences(
+        "Poster: ![hall](https://files.example/hall.webp). See ![Poster](img#5).",
+        urls,
+      ),
+    ).toBe(
+      "Poster: ![hall](https://files.example/hall.webp). See ![Poster](https://tickets.example/image/poster.webp).",
+    );
+  });
+
+  test("keeps prose that merely names an image", () => {
+    expect(
+      resolveImageReferences("Poster is picture img#5 on the wall.", urls),
+    ).toBe("Poster is picture img#5 on the wall.");
+  });
+
+  test("keeps the written form when an escaped bracket closes the alt text", () => {
+    expect(resolveImageReferences("![a\\](img#5)", urls)).toBe("![a\\](img#5)");
+  });
+
+  test("leaves a long run of backslashes after ![ alone", () => {
+    const body = `![${"\\".repeat(10_000)}`;
+    expect(resolveImageReferences(body, urls)).toBe(body);
+  });
+
+  test("keeps a reference inside a code span written as code", () => {
+    expect(resolveImageReferences("`![Poster](img#5)`", urls)).toBe(
+      "`![Poster](img#5)`",
+    );
+  });
+
+  test("keeps a reference inside a fenced code block written as code", () => {
+    const body = "```\n![Poster](img#5)\n```";
+    expect(resolveImageReferences(body, urls)).toBe(body);
+  });
+
+  test("keeps code as code and resolves the picture beside it", () => {
+    expect(
+      resolveImageReferences(
+        "Write `![Poster](img#5)` by hand: ![Poster](img#5).",
+        urls,
+      ),
+    ).toBe(
+      "Write `![Poster](img#5)` by hand: ![Poster](https://tickets.example/image/poster.webp).",
+    );
   });
 });

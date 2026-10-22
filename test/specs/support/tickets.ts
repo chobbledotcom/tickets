@@ -34,6 +34,8 @@ import {
 } from "#test/specs/support/sales-pages.ts";
 import { dayFromToday } from "#test/specs/support/stays.ts";
 import {
+  emailFor,
+  type NoteAPictureAboutOnePerson,
   type ReadAboutOneThing,
   requiredWorldValue,
   type TicketsWorld,
@@ -46,13 +48,6 @@ import type { Listing } from "#types";
 /** The code the site gave somebody, read off the link on the page their
  * booking landed on. A booking whose page offers no way back to a ticket is a
  * booking its holder can never look at again, so it stops the story here. */
-/** The email address the person a story names books with. One rule, so a
- * later step can look a person up by the same address the booking used. Kept
- * here rather than in world.ts: world.ts is loaded by the unit suite, which
- * never books anybody, so a home there would read as uncovered. */
-export const emailFor = (who: string): string =>
-  `${who.toLowerCase().replaceAll(" ", ".")}@example.com`;
-
 export const codeOnTheLinkTheyWereGiven = (browser: TestBrowser): string => {
   const toTicket = browser.links.find(({ href }) => href.startsWith("/t/"));
   if (!toTicket) throw new Error("The booking gave them no link to a ticket");
@@ -128,11 +123,11 @@ export const theDayTheyPicked = (world: TicketsWorld): string =>
   dayFromToday(world, 10);
 
 /** Somebody books the day they picked on a thing sold by the day. */
-export const customerBooksTheirDay = (
-  world: TicketsWorld,
-  who: string,
-  name: string,
-): Promise<void> =>
+export const customerBooksTheirDay: NoteAPictureAboutOnePerson = (
+  world,
+  who,
+  name,
+) =>
   ordersAndKeepsTheCode(
     world,
     [name],
