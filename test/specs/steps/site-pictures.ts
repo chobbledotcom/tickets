@@ -21,6 +21,7 @@ import {
   listingNamed,
   putsPlainThingOnSale,
 } from "#test/specs/support/listings.ts";
+import { groupHolding } from "#test/specs/support/public-list.ts";
 import {
   ownerWritesPage,
   ownerWritesPages,
@@ -276,6 +277,15 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openAsNewcomer("/");
     expect(browser.currentHtml).not.toContain('<img src="/image/');
+  },
+);
+
+Given(
+  "a {word} group holding a {word} with the picture in its words",
+  function (this: TicketsWorld, group: string, part: string): Promise<void> {
+    return groupHolding(this, group, [{ name: part, state: "on sale" }], {
+      describedAs: textWithSitePicture(this),
+    });
   },
 );
 
