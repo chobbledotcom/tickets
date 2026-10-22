@@ -119,15 +119,15 @@ export const saveContent = async <T>(
 
 /** Turn a conditional content write into its saved value or the standard form
  * response for the reason it did not write. */
-export const contentWriteOrError = <T>(
+export const contentWriteOrError = async <T>(
   result: Result<T, "notFound" | "slugTaken">,
   path: string,
   slugError: string,
-): T | Response =>
+): Promise<T | Response> =>
   result.ok
     ? result.value
     : result.error === "notFound"
-      ? notFoundResponse()
+      ? await notFoundResponse()
       : errorRedirect(path, slugError);
 
 /** Define the standard Site content lifecycle while leaving domain validation,

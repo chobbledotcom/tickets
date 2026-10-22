@@ -85,7 +85,7 @@ export type CsrfFormResult =
  */
 export const requireCsrfForm = async (
   request: Request,
-  onInvalid: () => Response,
+  onInvalid: () => Response | Promise<Response>,
 ): Promise<CsrfFormResult> => {
   const { form, formCsrf } = await parseFormWithCsrf(request);
 
@@ -99,7 +99,7 @@ export const requireCsrfForm = async (
   }
 
   await signCsrfToken();
-  return { ok: false, response: onInvalid() };
+  return { ok: false, response: await onInvalid() };
 };
 
 /**
@@ -109,7 +109,7 @@ export const requireCsrfForm = async (
  */
 export const withCsrfForm = async (
   request: Request,
-  onInvalid: (message: string, status: number) => Response,
+  onInvalid: (message: string, status: number) => Response | Promise<Response>,
   handler: ResponseHandler<[form: FormParams]>,
 ): Promise<Response> => {
   const csrf = await requireCsrfFormWithMessage(request, (message) =>
@@ -125,7 +125,7 @@ export const withCsrfForm = async (
  */
 export const requireCsrfFormWithMessage = (
   request: Request,
-  onInvalid: (message: string) => Response,
+  onInvalid: (message: string) => Response | Promise<Response>,
 ): Promise<CsrfFormResult> =>
   requireCsrfForm(request, () => onInvalid(csrfInvalidFormMessage()));
 

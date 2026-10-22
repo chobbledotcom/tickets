@@ -9,7 +9,7 @@ import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("paymentErrorResponse", () => {
   test("renders the message on a 400 by default", async () => {
-    const response = paymentErrorResponse("Something went wrong");
+    const response = await paymentErrorResponse("Something went wrong");
 
     expect(response.status).toBe(400);
     const page = await response.text();
@@ -17,12 +17,13 @@ describe("paymentErrorResponse", () => {
     expect(page).not.toContain("Staff diagnostics");
   });
 
-  test("honours the given status", () => {
-    expect(paymentErrorResponse("Busy", 503).status).toBe(503);
+  test("honours the given status", async () => {
+    const response = await paymentErrorResponse("Busy", 503);
+    expect(response.status).toBe(503);
   });
 
   test("renders the diagnostics panel when handed one", async () => {
-    const response = paymentErrorResponse("Payment failed", 400, {
+    const response = await paymentErrorResponse("Payment failed", 400, {
       reasons: ["The card step was never finished."],
       rows: [{ label: "Session id", value: "cs_panel" }],
     });

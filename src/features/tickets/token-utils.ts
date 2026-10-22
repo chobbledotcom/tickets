@@ -82,7 +82,7 @@ export const lookupSingleTokenPassData = async (
 ): Promise<SingleTokenResult> => {
   const token = tokens[0];
   if (!token || tokens.length > 1) {
-    return { ok: false, response: notFoundResponse() };
+    return { ok: false, response: await notFoundResponse() };
   }
 
   const result = await lookupAttendees([token]);
@@ -90,7 +90,7 @@ export const lookupSingleTokenPassData = async (
 
   const entries = await resolveEntries(result.attendees);
   const entry = entries[0];
-  if (!entry) return { ok: false, response: notFoundResponse() };
+  if (!entry) return { ok: false, response: await notFoundResponse() };
   // A wallet pass is built from a single member listing, so for a package
   // booking it would misrepresent the bundle as one member — and for a HIDDEN
   // package it would leak that member's name/location to anyone with the token.
@@ -101,7 +101,7 @@ export const lookupSingleTokenPassData = async (
   // wrong whenever ANY row is a package member, even when it doesn't sort first.
   const packageDisplays = await packageDisplaysForRows(entries);
   if (packageDisplays.size > 0) {
-    return { ok: false, response: notFoundResponse() };
+    return { ok: false, response: await notFoundResponse() };
   }
   return { ok: true, passData: buildWalletPassData(entry, token) };
 };
@@ -264,7 +264,7 @@ export const lookupAttendees = async (
   const results = await getAttendeesByTokens(tokens);
   const valid = compact(results);
   return valid.length === 0
-    ? { ok: false, response: notFoundResponse() }
+    ? { ok: false, response: await notFoundResponse() }
     : { attendees: valid, ok: true };
 };
 

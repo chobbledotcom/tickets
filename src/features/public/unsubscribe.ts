@@ -15,7 +15,11 @@ import {
 import { t } from "#i18n";
 import { withCsrfForm } from "#routes/csrf.ts";
 import { flashForPage } from "#routes/flash-for-page.ts";
-import { htmlResponse, infoRedirect, redirect } from "#routes/response.ts";
+import {
+  infoRedirect,
+  publicPageResponse,
+  redirect,
+} from "#routes/response.ts";
 import { unsubscribePage } from "#templates/public/unsubscribe.tsx";
 
 const pagePath = (hash: string): string =>
@@ -28,7 +32,7 @@ export const handleUnsubscribeGet = async (
   const flash = await flashForPage(request);
   const hash = new URL(request.url).searchParams.get("email");
   const unsubscribed = hash ? await isHashUnsubscribed(hash) : false;
-  return htmlResponse(
+  return publicPageResponse(() =>
     unsubscribePage({
       error: flash.error,
       hash,
@@ -44,8 +48,13 @@ export const handleUnsubscribePost = (request: Request): Promise<Response> =>
   withCsrfForm(
     request,
     (message, status) =>
-      htmlResponse(
-        unsubscribePage({ error: message, hash: null, unsubscribed: false }),
+      publicPageResponse(
+        () =>
+          unsubscribePage({
+            error: message,
+            hash: null,
+            unsubscribed: false,
+          }),
         status,
       ),
     async (form) => {

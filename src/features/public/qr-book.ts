@@ -13,7 +13,7 @@ import { getActiveHolidays } from "#db/holidays.ts";
 import { anyNonStandaloneChild, listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCountBySlug } from "#db/listings/records.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
-import { htmlResponse } from "#routes/response.ts";
+import { publicPageResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
@@ -32,13 +32,13 @@ import type { ListingWithCount } from "#types";
 import { getTicketContext, runCheckoutFlow } from "./ticket-payment.ts";
 import { handleTicket } from "./ticket-submit.ts";
 
-const errorResponse = (slug: string, status: number): Response =>
-  htmlResponse(qrBookErrorPage(slug), status);
+const errorResponse = (slug: string, status: number): Promise<Response> =>
+  publicPageResponse(() => qrBookErrorPage(slug), status);
 
 /** QR error with no fallback booking link for a child that cannot be booked
  * alone. */
-const noPageErrorResponse = (status: number): Response =>
-  htmlResponse(qrBookErrorPage(null), status);
+const noPageErrorResponse = (status: number): Promise<Response> =>
+  publicPageResponse(() => qrBookErrorPage(null), status);
 
 /** Build per-listing prefill entries from a QR payload */
 const buildListingPrefills = (
@@ -121,7 +121,10 @@ const skipToCheckout = (
     request,
     intent,
     (msg, status) =>
-      htmlResponse(qrBookCheckoutErrorPage(listing.slug, msg), status),
+      publicPageResponse(
+        () => qrBookCheckoutErrorPage(listing.slug, msg),
+        status,
+      ),
   );
 };
 

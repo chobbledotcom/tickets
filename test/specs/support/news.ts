@@ -1,10 +1,10 @@
 /** News posts: the owner writes and removes them, a visitor reads them. */
 
+// jscpd:ignore-start
+
 import {
   makesRecordThroughForm,
-  newcomerReading,
   openAsNewcomer,
-  type PageRead,
   recordPageUnder,
   type TakesOneThingDown,
   takesDownFromList,
@@ -13,6 +13,9 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
+
+// jscpd:ignore-end
 
 const makesPost = makesRecordThroughForm({
   button: "Create News Post",
@@ -37,26 +40,29 @@ export const ownerTakesDownNews: TakesOneThingDown = takesDownFromList(
   },
 );
 
-/** What a visitor finds on the news page, signed out. */
-export const visitorOnNewsPage = (): Promise<PageRead> =>
-  newcomerReading("/news");
+/** The news page as a visitor opens it, signed out, with the page kept so a
+ * story can read both its words and its regions. */
+export const visitorOnNewsPage = (): Promise<TestBrowser> =>
+  openAsNewcomer("/news");
 
-/** Follow the post's own link off the news page, so a post the page stopped
- * linking cannot be read this way. */
-export const visitorFollowsNewsLink = async (
-  name: string,
-): Promise<PageRead> => {
-  const browser = await openAsNewcomer("/news");
-  const cards = browser.currentHtml.matchAll(
+/** The post's own address, read off the news page's real link, so a post the
+ * page stopped linking cannot be opened this way. */
+const newsLinkTo = async (name: string): Promise<string> => {
+  const cards = (await visitorOnNewsPage()).currentHtml.matchAll(
     /<a[^>]*href="(\/news\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g,
   );
   // The link is found by the post's name, never by its place in the list.
-  const target = requiredWorldValue(
+  return requiredWorldValue(
     [...cards].find((card) => card[2]!.includes(name))?.[1],
     `the news page's link to "${name}"`,
   );
-  return newcomerReading(target);
 };
+
+/** The post's page, opened the way a visitor opens it: by following the
+ * post's own link off the news page. */
+export const visitorFollowsNewsLink = async (
+  name: string,
+): Promise<TestBrowser> => openAsNewcomer(await newsLinkTo(name));
 
 /** Whether a public page offers the News link in its navigation. */
 export const newsLinkOfferedOnFrontPage = async (): Promise<boolean> => {

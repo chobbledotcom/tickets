@@ -12,7 +12,7 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import { getNewsPostBySlugIndex, getNewsPostCards } from "#db/news-posts.ts";
 import { settings } from "#db/settings.ts";
-import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { notFoundResponse, publicPageResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { requirePublicSite } from "#shared/public-site.ts";
 import { newsListPage, newsPostPage } from "#templates/public/news.tsx";
@@ -26,7 +26,9 @@ const handleNewsList = async (): Promise<Response> => {
     publicNavProps(null),
   ]);
   if (posts.length === 0) return notFoundResponse();
-  return htmlResponse(newsListPage(posts, nav, settings.websiteTitle));
+  return publicPageResponse(() =>
+    newsListPage(posts, nav, settings.websiteTitle),
+  );
 };
 
 const handleNewsPost = async (slug: string): Promise<Response> => {

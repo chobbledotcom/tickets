@@ -23,6 +23,9 @@ export type FeatureGate = ResponseHandler<[action: ResponseHandler]>;
  * caller's action; when it fails, return the blocked response instead (a 404
  * outside demo mode, a "storage is off" redirect, and so on). */
 export const featureGate =
-  (isOn: () => boolean, blocked: () => Response): FeatureGate =>
+  (
+    isOn: () => boolean,
+    blocked: () => Response | Promise<Response>,
+  ): FeatureGate =>
   (action: ResponseHandler) =>
     isOn() ? action() : blocked();

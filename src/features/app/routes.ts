@@ -13,8 +13,8 @@ import {
 import type { MessageGroup } from "#locales/manifest.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import {
-  htmlResponse,
   notFoundResponse,
+  publicPageResponse,
   redirectResponse,
 } from "#routes/response.ts";
 import {
@@ -372,10 +372,12 @@ const apiPrefixHandler: RouterFn = async (request, path, method) => {
     : null;
 };
 
-const readOnlyInfoHandler: RouterFn = (_request, path, method) =>
-  path === "/read-only" && method === "GET"
-    ? Promise.resolve(htmlResponse(readOnlyPage()))
-    : Promise.resolve(null);
+const readOnlyInfoHandler: RouterFn = async (_request, path, method) => {
+  if (path === "/read-only" && method === "GET") {
+    return publicPageResponse(readOnlyPage);
+  }
+  return null;
+};
 
 // Object.entries widens the keys to string; name them back as prefixes so the
 // group and gate lookups below stay typed.
