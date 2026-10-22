@@ -34,7 +34,7 @@ Feature: An add-on that can also be bought on its own
       Then the Cover is offered with a link to its own page
       And the Cover is not called an add-on there
       And the Chair is still offered too
-      And the Cover is still offered when booking the Chair
+      And the "Cover" is still offered when booking the Chair
 
   @rule:bookings.the-organiser-can-open-and-close-the-page-again
   @surface:admin
@@ -80,7 +80,8 @@ Feature: An add-on that can also be bought on its own
       When the organiser tries to stop selling the Cover on its own
       Then the organiser is told "Engraving" still needs the Cover's page
       And a customer can open the Cover's own page
-      And the Cover is still offered when booking the Chair
+      And the "Cover" is still offered when booking the Chair
+      And the "Engraving" is still offered when booking the Cover
 
     @case:add-ons.a-choice-through-the-group-blocks-closing
     Scenario: A choice assigned through the add-on's group blocks the close
@@ -89,6 +90,7 @@ Feature: An add-on that can also be bought on its own
       When the organiser tries to stop selling the Cushion on its own
       Then the organiser is told "Gift wrap" still needs the Cushion's page
       And a customer can open the Cushion's own page
+      And the "Gift wrap" is still offered when booking the Cushion
 
     @case:add-ons.a-choice-that-reaches-a-booking-page-does-not-block
     Scenario: A choice that also shows where the add-on is booked does not block
@@ -96,4 +98,4 @@ Feature: An add-on that can also be bought on its own
       And a buyer's choice called "Engraving" offered on the Chair's page as well as the Cover's
       When the organiser tries to stop selling the Cover on its own
       Then a customer cannot open the Cover's own page
-      And the Engraving is still offered when booking the Chair
+      And the "Engraving" is still offered when booking the Chair

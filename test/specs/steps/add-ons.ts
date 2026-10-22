@@ -112,16 +112,15 @@ Then(
 );
 
 Then(
-  "the {word} is still offered when booking the {word}",
+  "the {string} is still offered when booking the {word}",
   async function (
     this: TicketsWorld,
-    addOn: string,
+    offered: string,
     mainThing: string,
   ): Promise<void> {
-    // Selling it on its own must not take it off the page of the thing it goes
-    // with — that is where most people will meet it.
+    // The edit must not take it off a page that still offers it.
     const page = await bookingPageFor(this, mainThing);
-    expect(page.pageText).toContain(addOn);
+    expect(page.pageText).toContain(offered);
   },
 );
 
