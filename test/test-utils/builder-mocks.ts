@@ -1,4 +1,4 @@
-import { assertStringIncludes } from "@std/assert";
+import { assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { type Stub, stub } from "@std/testing/mock";
 import { builderApi } from "#shared/builder.ts";
@@ -275,6 +275,7 @@ export const testCreateDatabaseReturnsErrorOn403 = async (api: {
   const result = await api.createDatabase("Bad");
   expect(result.ok).toBe(false);
   if (!result.ok) {
-    assertStringIncludes(result.error ?? "", "Create database failed (403)");
+    assertExists(result.error);
+    assertStringIncludes(result.error, "Create database failed (403)");
   }
 };

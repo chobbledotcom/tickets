@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { once } from "#fp";
@@ -28,7 +28,8 @@ export const expectDatabaseResetRedirect = (response: Response): Response => {
   const sessionCookie = response.headers
     .getSetCookie()
     .find((c) => c.startsWith(`${getSessionCookieName()}=`));
-  assertStringIncludes(sessionCookie ?? "", "Max-Age=0");
+  assertExists(sessionCookie);
+  assertStringIncludes(sessionCookie, "Max-Age=0");
   return response;
 };
 
@@ -90,9 +91,10 @@ export const expectTestAttendeeCsvColumns = (
   row: string | undefined,
   quantity = 1,
 ): void => {
-  assertStringIncludes(row ?? "", "John Doe");
-  assertStringIncludes(row ?? "", "john@example.com");
-  assertStringIncludes(row ?? "", `,${quantity},`);
+  assertExists(row);
+  assertStringIncludes(row, "John Doe");
+  assertStringIncludes(row, "john@example.com");
+  assertStringIncludes(row, `,${quantity},`);
 };
 
 /** Asserts a response is a 200 CSV download with the standard
@@ -105,14 +107,10 @@ export const expectCsvDownloadHeaders = (
 ): void => {
   expect(response.status).toBe(200);
   expect(response.headers.get("content-type")).toBe("text/csv; charset=utf-8");
-  assertStringIncludes(
-    response.headers.get("content-disposition") ?? "",
-    "attachment",
-  );
-  assertStringIncludes(
-    response.headers.get("content-disposition") ?? "",
-    filenameFragment,
-  );
+  const disposition = response.headers.get("content-disposition");
+  assertExists(disposition);
+  assertStringIncludes(disposition, "attachment");
+  assertStringIncludes(disposition, filenameFragment);
 };
 
 /** Fetch a listing's CSV export as the given admin, assert 200, return the body. */
