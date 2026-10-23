@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -90,8 +91,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       // The shared child-edit frame: a back link to the question and a small
       // context line naming it.
-      expect(html).toContain(`href="/admin/questions/${qId}"`);
-      expect(html).toContain("Answer for: Edit answer page");
+      assertStringIncludes(html, `href="/admin/questions/${qId}"`);
+      assertStringIncludes(html, "Answer for: Edit answer page");
     });
 
     test("updates the answer text and redirects to the question", async () => {
@@ -227,8 +228,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      expect(body).toContain("Logged after");
-      expect(body).toContain("updated");
+      assertStringIncludes(body, "Logged after");
+      assertStringIncludes(body, "updated");
     });
 
     test("saves the edited selection total", async () => {
@@ -314,9 +315,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const body = await response.text();
       expect(response.status).toBe(200);
       // Stored (8) and the value rebuilt from the single booking (1).
-      expect(body).toContain("<td>8</td>");
-      expect(body).toContain("<td>1</td>");
-      expect(body).toContain(
+      assertStringIncludes(body, "<td>8</td>");
+      assertStringIncludes(body, "<td>1</td>");
+      assertStringIncludes(
+        body,
         `action="/admin/questions/${qId}/answers/${aId}/recalculate"`,
       );
     });
@@ -331,7 +333,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       const body = await response.text();
       expect(response.status).toBe(400);
-      expect(body).toContain("Choose at least one total to recalculate");
+      assertStringIncludes(body, "Choose at least one total to recalculate");
     });
 
     test("resets the stored total from attendee answers and redirects", async () => {

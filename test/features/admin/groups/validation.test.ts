@@ -1,5 +1,6 @@
 /** The checks that stop a bad group save. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -61,7 +62,7 @@ describeWithEnv("admin group validation", { db: true }, () => {
       await groupInput({ isPackage: true, name: group.name, slug: group.slug }),
       group.id,
     );
-    expect(error).toContain("Package child");
+    assertStringIncludes(error ?? "", "Package child");
   });
 
   test("a visible package with no bookings can be un-packaged", async () => {

@@ -1,6 +1,7 @@
 /** The admin group pages, and the routes that create, delete and illustrate a
  * group. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -29,14 +30,14 @@ describeWithEnv("admin group pages", { db: true }, () => {
 
     const response = await adminGet("/admin/groups");
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain(group.name);
+    assertStringIncludes(await response.text(), group.name);
   });
 
   test("offers a form for a new group", async () => {
     const response = await adminGet("/admin/groups/new");
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain('name="name"');
+    assertStringIncludes(await response.text(), 'name="name"');
   });
 
   test("opens a group's own page", async () => {
@@ -44,7 +45,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
 
     const response = await adminGet(`/admin/groups/${group.id}`);
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain(group.name);
+    assertStringIncludes(await response.text(), group.name);
   });
 
   test("sends the operator to the new group's page after creating it", async () => {
@@ -57,7 +58,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toMatch(/^\/admin\/groups\/\d+/);
-    expect(parseFlashCookie(response).success).toContain("Group");
+    assertStringIncludes(parseFlashCookie(response).success ?? "", "Group");
   });
 
   test("sends the operator back to the group list after deleting one", async () => {
@@ -70,7 +71,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
       },
     );
     expect(response.headers.get("location")).toMatch(/^\/admin\/groups(\?|$)/);
-    expect(parseFlashCookie(response).success).toContain("Group");
+    assertStringIncludes(parseFlashCookie(response).success ?? "", "Group");
   });
 
   test("adds an uploaded image to the group", async () => {

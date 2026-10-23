@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { MANUAL_LISTING_COST } from "#accounting/manual-entries.ts";
 import { postTransfers } from "#accounting/store.ts";
@@ -48,8 +48,8 @@ describeWithEnv(
           cookie: await createTestManagerSession("mgr-detail"),
         });
         expectStatus(200)(response);
-        expect(await response.text()).not.toContain(
-          `/admin/ledger?group=${group.id}`,
+        assert(
+          !(await response.text()).includes(`/admin/ledger?group=${group.id}`),
         );
       });
 
@@ -113,8 +113,8 @@ describeWithEnv(
         const response = await adminGet(`/admin/groups/${group.id}`);
         const html = await response.text();
         // The embed/share affordances render despite the member being sold out.
-        expect(html).toContain("Embed Script");
-        expect(html).toContain("/ticket/sold-out-group");
+        assertStringIncludes(html, "Embed Script");
+        assertStringIncludes(html, "/ticket/sold-out-group");
       });
 
       test("a bookable package is shareable — public URL, QR, and embed render", async () => {
@@ -136,8 +136,8 @@ describeWithEnv(
         ]);
 
         const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
-        expect(html).toContain("/ticket/bookable-pkg");
-        expect(html).toContain(`embed-script-${group.id}`);
+        assertStringIncludes(html, "/ticket/bookable-pkg");
+        assertStringIncludes(html, `embed-script-${group.id}`);
       });
 
       test("a sold-out package hides its share affordances", async () => {
@@ -165,8 +165,8 @@ describeWithEnv(
         );
 
         const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
-        expect(html).toContain("isn't currently bookable");
-        expect(html).not.toContain("/ticket/sold-out-pkg");
+        assertStringIncludes(html, "isn't currently bookable");
+        assert(!html.includes("/ticket/sold-out-pkg"));
       });
 
       test("add-listings form offers listings from other groups, not this group's own members", async () => {
@@ -199,9 +199,9 @@ describeWithEnv(
           (form) => form.action === `/admin/groups/${target.id}/add-listings`,
         );
         // The listing already in Group A is offered as an add candidate…
-        expect(addForm?.body).toContain(`value="${inOtherGroup.id}"`);
+        assertStringIncludes(addForm?.body ?? "", `value="${inOtherGroup.id}"`);
         // …while the target's own member is not (no add-form checkbox for it).
-        expect(addForm?.body).not.toContain(`value="${ownMember.id}"`);
+        assert(!(addForm?.body ?? "").includes(`value="${ownMember.id}"`));
       });
 
       test("group revenue comes from the ledger and survives attendee deletion", async () => {
@@ -250,9 +250,9 @@ describeWithEnv(
 
         const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
 
-        expect(html).toContain("Costs paid outside checkout");
-        expect(html).toContain("−£30");
-        expect(html).toContain(`href="/admin/ledger?group=${group.id}"`);
+        assertStringIncludes(html, "Costs paid outside checkout");
+        assertStringIncludes(html, "−£30");
+        assertStringIncludes(html, `href="/admin/ledger?group=${group.id}"`);
       });
 
       test("shows hidden status on detail page when group is hidden", async () => {
@@ -277,7 +277,7 @@ describeWithEnv(
         });
         const response = await adminGet(`/admin/groups/${group.id}`);
         const html = await response.text();
-        expect(html).not.toContain("not shown in public listings list");
+        assert(!html.includes("not shown in public listings list"));
       });
 
       test("shows empty listings message when group has no listings", async () => {
@@ -294,8 +294,8 @@ describeWithEnv(
           "No listings in this group",
           "isn't currently bookable",
         );
-        expect(html).not.toContain(`/ticket/${group.slug}`);
-        expect(html).not.toContain(`embed-script-${group.id}`);
+        assert(!html.includes(`/ticket/${group.slug}`));
+        assert(!html.includes(`embed-script-${group.id}`));
       });
 
       test("shows ungrouped listings for adding to group", async () => {
@@ -327,7 +327,7 @@ describeWithEnv(
         const response = await adminGet(`/admin/groups/${group.id}`);
         expectStatus(200)(response);
         const html = await response.text();
-        expect(html).not.toContain("Add listings:");
+        assert(!html.includes("Add listings:"));
       });
     });
   },

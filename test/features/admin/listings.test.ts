@@ -4,6 +4,7 @@
  * the per-feature modules beside it, each with its own suite.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -18,7 +19,7 @@ describeWithEnv("the listings routes", { db: true }, () => {
     const tab = await adminGet(`/admin/listing/${listing.id}/attendees`);
 
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain("Bouncy Castle");
+    assertStringIncludes(await page.text(), "Bouncy Castle");
     expect(tab.status).toBe(200);
   });
 
@@ -37,7 +38,8 @@ describeWithEnv("the listings routes", { db: true }, () => {
     );
 
     expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toContain(
+    assertStringIncludes(
+      response.headers.get("location") ?? "",
       `/admin/listing/${listing.id}/edit`,
     );
   });
@@ -50,6 +52,9 @@ describeWithEnv("the listings routes", { db: true }, () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("text/csv");
+    assertStringIncludes(
+      response.headers.get("content-type") ?? "",
+      "text/csv",
+    );
   });
 });

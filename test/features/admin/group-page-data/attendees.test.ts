@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { listingAggregates } from "#db/listings/aggregates.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
@@ -40,10 +40,10 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
-      expect(html).toContain("Attendees");
-      expect(html).toContain("Checked In");
-      expect(html).toContain("0 / 2");
-      expect(html).toContain("2 remain");
+      assertStringIncludes(html, "Attendees");
+      assertStringIncludes(html, "Checked In");
+      assertStringIncludes(html, "0 / 2");
+      assertStringIncludes(html, "2 remain");
     });
 
     test("shows stored-total mismatches on the group detail page", async () => {
@@ -107,11 +107,11 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
-      expect(html).toContain("Attendees Checked In");
-      expect(html).toContain("Tickets Checked In");
+      assertStringIncludes(html, "Attendees Checked In");
+      assertStringIncludes(html, "Tickets Checked In");
       // 0 / 2 tickets checked in, 0 / 4 attendees checked in
-      expect(html).toContain("0 / 2");
-      expect(html).toContain("0 / 4");
+      assertStringIncludes(html, "0 / 2");
+      assertStringIncludes(html, "0 / 4");
     });
 
     test("shows attendees table with listing name column", async () => {
@@ -135,9 +135,9 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}/attendees`);
       expectStatus(200)(response);
       const html = await response.text();
-      expect(html).toContain("Charlie");
-      expect(html).toContain("Table Listing");
-      expect(html).toContain(`/admin/listing/${listing.id}`);
+      assertStringIncludes(html, "Charlie");
+      assertStringIncludes(html, "Table Listing");
+      assertStringIncludes(html, `/admin/listing/${listing.id}`);
     });
 
     test("Attendees tab renders the roster's answers column when a listing has questions", async () => {
@@ -177,9 +177,9 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const html = await (
         await adminGet(`/admin/groups/${group.id}/attendees`)
       ).text();
-      expect(html).toContain("Quentin");
+      assertStringIncludes(html, "Quentin");
       // The Answers column only renders when the roster carries question data.
-      expect(html).toContain("<th>Answers</th>");
+      assertStringIncludes(html, "<th>Answers</th>");
     });
 
     test("shows question answer summary in group details", async () => {
@@ -216,8 +216,8 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
-      expect(html).toContain("<th>Color</th>");
-      expect(html).toContain("Red (0)");
+      assertStringIncludes(html, "<th>Color</th>");
+      assertStringIncludes(html, "Red (0)");
     });
 
     test("shows total revenue for paid listings", async () => {
@@ -241,7 +241,7 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
-      expect(html).toContain("Total income earned");
+      assertStringIncludes(html, "Total income earned");
     });
   });
 });
