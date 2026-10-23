@@ -8,7 +8,8 @@
 /**
  * The offline door: the switch the page restores from its store, and the
  * scans a dead connection queues or refuses. The replay that settles the
- * queue is offline-sync.test.ts. Every test drives the real built bundle, so
+ * queue is ../scanner-offline-ui/sync.test.ts. Every test drives the real
+ * built bundle, so
  * the words asserted are the words the door reads.
  */
 
@@ -22,7 +23,7 @@ import {
   seedTicketCache,
   start,
   whenStatusShows,
-} from "./camera-fakes.ts";
+} from "../scanner/camera-fakes.ts";
 import {
   el,
   fullStore,
@@ -32,7 +33,7 @@ import {
   storedQueue,
   TOKEN,
   useScannerSuite,
-} from "./fixture.ts";
+} from "../scanner/fixture.ts";
 
 describe("scanner offline door", {
   sanitizeOps: false,
