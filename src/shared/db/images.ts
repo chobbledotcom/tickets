@@ -5,7 +5,12 @@
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { StoredRowOf } from "#db/chosen-columns.ts";
-import { executeBatch, type SqlStatement, useTransaction } from "#db/client.ts";
+import {
+  executeBatch,
+  type SqlStatement,
+  type TxScope,
+  useTransaction,
+} from "#db/client.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
@@ -16,10 +21,13 @@ import {
   type RecordTarget,
   type RecordTargets,
 } from "#db/record-target.ts";
-import { type ColumnDef, col } from "#db/table.ts";
+import { settingsVersionIncrement } from "#db/settings/cache.ts";
+import { getCurrentSettingsVersion } from "#db/settings.ts";
+import { type ColumnDef, col, writeTableRow } from "#db/table.ts";
 import { readById } from "#db/table-reader.ts";
 import { equals, inList } from "#db/where-clauses.ts";
-import { mapById } from "#fp";
+import { lazyRef, mapById } from "#fp";
+import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { decryptImageFilename } from "#shared/images/broken.ts";
 import {
@@ -106,28 +114,66 @@ export type ImageUrls = ReadonlyMap<number, string>;
 /** The markdown texts an image-url lookup scans. */
 type ImageUrlTexts = readonly (string | null | undefined)[];
 
-/** The read is bounded by the ids the texts actually reference. It runs only
- * when they name any. */
-export const imageUrlsFor = async (
-  texts: ImageUrlTexts,
-): Promise<ImageUrls> => {
-  const sources = texts.filter(
-    (text): text is string => typeof text === "string",
-  );
-  const ids = [
-    ...new Set(
-      sources.flatMap((text) =>
+/** The image ids the texts name, deduplicated. A text that names no image
+ * contributes nothing. */
+const referencedImageIds = (texts: ImageUrlTexts): number[] => [
+  ...new Set(
+    texts
+      .filter((text): text is string => typeof text === "string")
+      .flatMap((text) =>
         [...text.matchAll(/img#(\d+)/g)]
           .map((match) => Number(match[1]))
           .filter((id) => Number.isSafeInteger(id) && id > 0),
       ),
-    ),
-  ];
-  return ids.length === 0
-    ? new Map()
-    : mapById((row: { id: number; filename: string }) =>
-        getImageProxyUrl(row.filename),
-      )(await imageUrlColumns.many({}, { where: inList("id", ids) }));
+  ),
+];
+
+/** The per-isolate id→URL cache. The whole map is valid for one settings
+ * version. Every images write bumps that version in its transaction, so a
+ * write makes the next lookup drop the map. Apps live about 30 seconds, so
+ * a warm entry dies before staleness matters. The version check is the only
+ * staleness signal the cache needs. */
+const cacheBound = 200;
+
+const [getCache, setCache] = lazyRef<{
+  urls: Map<number, string>;
+  version: number;
+} | null>(() => null);
+
+registerTableInvalidation(["images"], () => {
+  setCache(null);
+});
+
+/** The read is bounded by the ids the texts actually reference. Answers come
+ * from the cache while its version matches. The misses share one batched
+ * query, and a failed lookup fills nothing. A fill that carries the map
+ * past the bound resets it, so the map never grows without limit. It runs
+ * only when the texts name any image. */
+export const imageUrlsFor = async (
+  texts: ImageUrlTexts,
+): Promise<ImageUrls> => {
+  const ids = referencedImageIds(texts);
+  if (ids.length === 0) return new Map();
+  const version = await getCurrentSettingsVersion();
+  const cache = getCache();
+  const cached = cache?.version === version ? cache.urls : undefined;
+  const table = new Map<number, string>();
+  const missing: number[] = [];
+  for (const id of ids) {
+    const url = cached?.get(id);
+    if (url === undefined) missing.push(id);
+    else table.set(id, url);
+  }
+  if (missing.length === 0) return table;
+  const fetched = mapById((row: { id: number; filename: string }) =>
+    getImageProxyUrl(row.filename),
+  )(await imageUrlColumns.many({}, { where: inList("id", missing) }));
+  for (const [id, url] of fetched) table.set(id, url);
+  const warm = cached ?? new Map<number, string>();
+  for (const [id, url] of fetched) warm.set(id, url);
+  if (warm.size > cacheBound) setCache({ urls: new Map(), version });
+  else setCache({ urls: warm, version });
+  return table;
 };
 
 /** Merge one id→URL table into the request's page-image slot, which
@@ -383,9 +429,40 @@ export const setItemsForImage = (
   });
 };
 
+/** Run one images-row write with the shared version bump in the same
+ * transaction. */
+const withImageVersionBump = <T>(
+  write: (transaction: TxScope) => Promise<T>,
+): Promise<T> =>
+  useTransaction(undefined, async (transaction) => {
+    const result = await write(transaction);
+    await transaction.execute(settingsVersionIncrement());
+    return result;
+  });
+
+/** Insert one image record. The insert is unconditional, so the written row
+ * always comes back. */
+export const insertImageRecord = async (input: ImageInput): Promise<Image> =>
+  withImageVersionBump((transaction) =>
+    writeTableRow(transaction, imagesTable, { input, kind: "insert" }),
+  );
+
+/** Update one image record's metadata. Returns null when the id names no
+ * row. */
+export const updateImageRecord = (
+  id: number,
+  input: Partial<ImageInput>,
+): Promise<Image | null> =>
+  withImageVersionBump((transaction) =>
+    writeTableRow(transaction, imagesTable, { id, input, kind: "update" }),
+  );
+
 export const deleteImageRecord = async (imageId: number): Promise<void> => {
   await executeBatch([
     { args: [imageId], sql: "DELETE FROM image_uses WHERE image_id = ?" },
     { args: [imageId], sql: "DELETE FROM images WHERE id = ?" },
+    // The shared version is the signal every isolate reads, so a deletion
+    // here drops the cached URLs the other isolates still hold.
+    settingsVersionIncrement(),
   ]);
 };
