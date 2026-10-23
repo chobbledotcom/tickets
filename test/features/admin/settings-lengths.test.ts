@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { MAX_EMAIL_TEMPLATE_LENGTH } from "#db/settings/constants.ts";
@@ -43,7 +44,7 @@ describeWithEnv("settings length refusals", { db: true }, () => {
       const control = html.match(
         new RegExp(`<(?:input|textarea)\\b[^>]*name="${name}"[^>]*>`),
       );
-      expect(control?.[0], name).toContain(`maxlength="${limit}"`);
+      assertStringIncludes(control?.[0] ?? "", `maxlength="${limit}"`, name);
     }
   });
 

@@ -4,6 +4,7 @@
  * what the GET surface shows.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -18,9 +19,9 @@ describeWithEnv("the site page's page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain(`action="/admin/site/pages/${page.id}/edit"`);
-    expect(html).toContain("About us");
-    expect(html).toContain('href="/admin/guide#public-site"');
+    assertStringIncludes(html, `action="/admin/site/pages/${page.id}/edit"`);
+    assertStringIncludes(html, "About us");
+    assertStringIncludes(html, 'href="/admin/guide#public-site"');
   });
 
   test("titles the page with the page's own name", async () => {
@@ -28,7 +29,7 @@ describeWithEnv("the site page's page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/site/pages/${page.id}`)).text();
 
-    expect(html).toContain("<h1>Find us</h1>");
+    assertStringIncludes(html, "<h1>Find us</h1>");
   });
 
   test("carries the contents manager as its own tab", async () => {
@@ -39,7 +40,7 @@ describeWithEnv("the site page's page", { db: true }, () => {
     const strip = await (await adminGet(`/admin/site/pages/${page.id}`)).text();
     const response = await adminGet(`/admin/site/pages/${page.id}/items`);
 
-    expect(strip).toContain(`href="/admin/site/pages/${page.id}/items"`);
+    assertStringIncludes(strip, `href="/admin/site/pages/${page.id}/items"`);
     expect(response.status).toBe(200);
   });
 
@@ -50,7 +51,7 @@ describeWithEnv("the site page's page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain(`href="/admin/site/pages/${page.id}/delete"`);
+    assertStringIncludes(html, `href="/admin/site/pages/${page.id}/delete"`);
   });
 
   test("answers 404 for a page that is not there", async () => {

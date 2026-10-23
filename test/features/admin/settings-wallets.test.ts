@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -151,12 +152,12 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       cookie,
     });
     const body = await response.text();
-    expect(body).toContain("Google Wallet");
-    expect(body).toContain("google_wallet_issuer_id");
-    expect(body).toContain("1234567890");
-    expect(body).toContain("test@test-project.iam.gserviceaccount.com");
+    assertStringIncludes(body, "Google Wallet");
+    assertStringIncludes(body, "google_wallet_issuer_id");
+    assertStringIncludes(body, "1234567890");
+    assertStringIncludes(body, "test@test-project.iam.gserviceaccount.com");
     // Secret is masked
-    expect(body).toContain("••••••••");
+    assertStringIncludes(body, "••••••••");
   });
 });
 

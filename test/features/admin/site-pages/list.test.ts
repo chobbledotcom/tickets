@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { addPageItem } from "#db/site-page-items.ts";
 import { sitePages } from "#db/site-pages.ts";
@@ -17,18 +17,18 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
 
     test("empty state renders the no-pages message", async () => {
       const html = await expectHtmlResponse(await adminGet(BASE), 200);
-      expect(html).toContain("No pages yet");
+      assertStringIncludes(html, "No pages yet");
     });
 
     test("GET new renders the create form with a slug field but no public link", async () => {
       const html = await expectHtmlResponse(await adminGet(`${BASE}/new`), 200);
-      expect(html).toContain("Create Page");
+      assertStringIncludes(html, "Create Page");
       // The content textarea is a markdown field (preview enabled).
-      expect(html).toContain("data-markdown-preview");
+      assertStringIncludes(html, "data-markdown-preview");
       // The slug is entered on create, but the page has no live page yet — so no
       // "Public link" (which would 404 or point at a duplicate/reserved slug).
-      expect(html).toContain('name="slug"');
-      expect(html).not.toContain("Public link");
+      assertStringIncludes(html, 'name="slug"');
+      assert(!html.includes("Public link"));
     });
 
     test("reorder arrows appear only where a move is possible", async () => {
@@ -40,12 +40,12 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       const last = rows[2]!;
       const html = await expectHtmlResponse(await adminGet(BASE), 200);
       // Roots exist, so the all-empty message must not show.
-      expect(html).not.toContain("No pages yet");
+      assert(!html.includes("No pages yet"));
       // The first row can only move down; the last row can only move up.
-      expect(html).toContain(`${BASE}/${first.id}/move-down`);
-      expect(html).not.toContain(`${BASE}/${first.id}/move-up`);
-      expect(html).toContain(`${BASE}/${last.id}/move-up`);
-      expect(html).not.toContain(`${BASE}/${last.id}/move-down`);
+      assertStringIncludes(html, `${BASE}/${first.id}/move-down`);
+      assert(!html.includes(`${BASE}/${first.id}/move-up`));
+      assertStringIncludes(html, `${BASE}/${last.id}/move-up`);
+      assert(!html.includes(`${BASE}/${last.id}/move-down`));
     });
 
     test("list shows root and nested pages with reorder arrows", async () => {
@@ -56,12 +56,12 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       const child = await findPage("child-a");
       await addPageItem(parent.id, "page", child.id);
       const html = await expectHtmlResponse(await adminGet(BASE), 200);
-      expect(html).toContain("Top-level pages");
-      expect(html).toContain("Nested pages");
-      expect(html).toContain("/page/root-a");
+      assertStringIncludes(html, "Top-level pages");
+      assertStringIncludes(html, "Nested pages");
+      assertStringIncludes(html, "/page/root-a");
       // Two roots ⇒ both arrows render (first has "down", second has "up").
-      expect(html).toContain("move-down");
-      expect(html).toContain("move-up");
+      assertStringIncludes(html, "move-down");
+      assertStringIncludes(html, "move-up");
     });
 
     test("removes the order column in read-only mode", async () => {
@@ -72,9 +72,9 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
 
       const html = await expectHtmlResponse(await adminGet(BASE), 200);
 
-      expect(html).not.toContain('class="col-reorder"');
-      expect(html).not.toContain("move-down");
-      expect(html).not.toContain("move-up");
+      assert(!html.includes('class="col-reorder"'));
+      assert(!html.includes("move-down"));
+      assert(!html.includes("move-up"));
     });
   });
 });

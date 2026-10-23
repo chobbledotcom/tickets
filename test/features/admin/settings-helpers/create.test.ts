@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { fn } from "@std/expect/fn";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
@@ -146,7 +147,7 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
       });
       const res = await runHandler(handler, { value: "x" }, mockErrorPage);
       const location = res.headers.get("location") ?? "";
-      expect(location).not.toContain("form=");
+      assert(!location.includes("form="));
     });
 
     test("passes no formId to errorPage when formId is not set", async () => {

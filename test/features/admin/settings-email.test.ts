@@ -12,6 +12,7 @@
  */
 
 // jscpd:ignore-start
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -201,7 +202,7 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
     settings.invalidateCache();
 
     const html = await (await adminGet("/admin/settings-advanced")).text();
-    expect(html).toContain('id="settings-email"');
-    expect(html).toContain('id="settings-email-test"');
+    assertStringIncludes(html, 'id="settings-email"');
+    assertStringIncludes(html, 'id="settings-email-test"');
   });
 });

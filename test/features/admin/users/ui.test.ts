@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
@@ -18,8 +19,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("owner sees all nav links", async () => {
       const response = await adminGet("/admin/");
       const html = await response.text();
-      expect(html).toContain("Settings");
-      expect(html).toContain("Users");
+      assertStringIncludes(html, "Settings");
+      assertStringIncludes(html, "Users");
     });
 
     test("manager does not see owner-only nav links", async () => {
@@ -29,8 +30,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
       const dashboardResponse = await awaitTestRequest("/admin/", { cookie });
       const html = await dashboardResponse.text();
-      expect(html).not.toContain("Settings");
-      expect(html).not.toContain("Users");
+      assert(!html.includes("Settings"));
+      assert(!html.includes("Users"));
     });
 
     test("manager sees log nav link", async () => {
@@ -40,7 +41,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
       const dashboardResponse = await awaitTestRequest("/admin/", { cookie });
       const html = await dashboardResponse.text();
-      expect(html).toContain("/admin/log");
+      assertStringIncludes(html, "/admin/log");
     });
   });
 
@@ -67,7 +68,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const response = await adminGet("/admin/users");
       const html = await response.text();
-      expect(html).toContain("Invited");
+      assertStringIncludes(html, "Invited");
     });
 
     test("shows Invite Expired status for expired invite", async () => {
@@ -87,7 +88,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const response = await adminGet("/admin/users");
       const html = await response.text();
-      expect(html).toContain("Invite Expired");
+      assertStringIncludes(html, "Invite Expired");
     });
   });
 
@@ -113,7 +114,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         "#templates/fields/validators.ts"
       );
       const result = validateUsername("user name");
-      expect(result).toContain("letters, numbers");
+      assertStringIncludes(result ?? "", "letters, numbers");
     });
 
     test("validateUsername accepts valid username", async () => {
