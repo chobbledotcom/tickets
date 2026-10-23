@@ -14,9 +14,9 @@ import {
   getImageById,
   getImageUsesForImage,
   type ImageUseTarget,
-  imagesTable,
   imageUseTargets,
   setItemsForImage,
+  updateImageRecord,
 } from "#db/images.ts";
 import { getAllListingOptions } from "#db/listings/records.ts";
 import { getNewsPostNames } from "#db/news-posts.ts";
@@ -227,7 +227,7 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
     if (!metadata.ok) {
       return redirect(imagePath(image.id), metadata.error, false);
     }
-    await imagesTable.update(image.id, metadata.value);
+    await updateImageRecord(image.id, metadata.value);
     await setItemsForImage(
       image.id,
       allowedImageTargets(adminLevel, parseImageTargets(form)),
