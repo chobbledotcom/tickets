@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -121,10 +122,10 @@ describeWithEnv(
         )(response);
 
         const setNames = secrets.setCalls.map((c) => c.name);
-        expect(setNames).toContain("NTFY_URL");
-        expect(setNames).toContain("DB_URL");
+        assertArrayIncludes(setNames, ["NTFY_URL"]);
+        assertArrayIncludes(setNames, ["DB_URL"]);
         // The unreproducible encryption key is never set.
-        expect(setNames).not.toContain("DB_ENCRYPTION_KEY");
+        assert(!setNames.includes("DB_ENCRYPTION_KEY"));
 
         const logs = await getAllActivityLog();
         expect(logs.some((l) => l.message.includes("missing secret"))).toBe(
@@ -182,14 +183,18 @@ describeWithEnv(
           `/admin/built-sites/${site.id}/secrets`,
           expect.stringContaining("BOTPOISON_SECRET_KEY"),
         )(response);
-        expect(secrets.setCalls).toContainEqual({
-          name: "BOTPOISON_PUBLIC_KEY",
-          value: "pk_live_a1",
-        });
-        expect(secrets.setCalls).toContainEqual({
-          name: "BOTPOISON_SECRET_KEY",
-          value: "sk_live_b2",
-        });
+        assertArrayIncludes(secrets.setCalls, [
+          {
+            name: "BOTPOISON_PUBLIC_KEY",
+            value: "pk_live_a1",
+          },
+        ]);
+        assertArrayIncludes(secrets.setCalls, [
+          {
+            name: "BOTPOISON_SECRET_KEY",
+            value: "sk_live_b2",
+          },
+        ]);
       } finally {
         secrets.restore();
       }

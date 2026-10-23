@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -152,9 +153,9 @@ describeWithEnv(
         { ok: true, value: "# Old text" },
         "# Draft that failed to save",
       );
-      expect(html).toContain("# Draft that failed to save");
-      expect(html).not.toContain("# Old text");
-      expect(html).toContain("The support message could not be saved");
+      assertStringIncludes(html, "# Draft that failed to save");
+      assert(!html.includes("# Old text"));
+      assertStringIncludes(html, "The support message could not be saved");
     });
 
     test("keeps the refused draft above the error when the follow-up read fails", async () => {
@@ -170,9 +171,9 @@ describeWithEnv(
         },
         "# Draft kept through the outage",
       );
-      expect(html).toContain("# Draft kept through the outage");
-      expect(html).toContain('name="support_message"');
-      expect(html).toContain("The support message could not be read");
+      assertStringIncludes(html, "# Draft kept through the outage");
+      assertStringIncludes(html, 'name="support_message"');
+      assertStringIncludes(html, "The support message could not be read");
     });
 
     test("keeps a refused empty draft empty over the stored text", async () => {
@@ -191,8 +192,8 @@ describeWithEnv(
       // empty editor.
       const editorStart = html.indexOf(">", html.indexOf("<textarea")) + 1;
       expect(html.slice(editorStart, html.indexOf("</textarea>"))).toBe("\n");
-      expect(html).toContain("</textarea>");
-      expect(html).not.toContain("# Old text");
+      assertStringIncludes(html, "</textarea>");
+      assert(!html.includes("# Old text"));
     });
 
     test("shows the Bunny error when the write fails", async () => {
