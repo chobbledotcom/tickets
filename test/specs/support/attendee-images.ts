@@ -10,6 +10,7 @@
 import { expect } from "@std/expect";
 import { getNoteRows } from "#db/notes/queries.ts";
 import { emailFor } from "#test/specs/support/emails.ts";
+import { showsPicture } from "#test/specs/support/picture-assertions.ts";
 import {
   type NoteImage,
   requiredWorldValue,
@@ -75,15 +76,13 @@ export const regionShowsPicture = (
 ): void => {
   const region = regionFrom(html, openMarker, tag);
   expect(region).not.toBe("");
-  expect(region).toContain(pictureTag(world));
-  expect(region).not.toContain("img#");
+  showsPicture(region, pictureTag(world));
 };
 
 /** Hold the page as a whole to the picture: it shows at its own address, and
  * no reference stays anywhere on the page. */
 export const pageShowsPicture = (html: string, world: TicketsWorld): void => {
-  expect(html).toContain(pictureTag(world));
-  expect(html).not.toContain("img#");
+  showsPicture(html, pictureTag(world));
 };
 
 /** The picture the story named, uploaded now. The world keeps it as the
