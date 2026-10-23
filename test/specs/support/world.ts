@@ -198,10 +198,6 @@ export interface TicketsWorld extends World, EvidencePages {
   /** The admin page a notification story last opened, carried between the
    * opening step and the steps that read it. */
   notificationsPage?: string;
-  /** The picture a story put in a note or a question, with the words the
-   * story typed around it: the image row, the address its picture shows at,
-   * and the note as it was first typed. */
-  noteImage?: NoteImage;
   orderCatalogSpec?: JourneyCatalogSpec;
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;

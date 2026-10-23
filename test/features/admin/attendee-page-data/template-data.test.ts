@@ -72,7 +72,8 @@ describeWithEnv("attendee form template data", { db: true }, () => {
       isPaidDefault: true,
       name: "Paid before booking",
     });
-25: @ours
+
+    expect((await dataForStatus(status)).balanceNotice).toBeNull();
   });
 
   test("loads a stored parent name for an add-on booking path", async () => {

@@ -15,7 +15,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import type { ListingWithCount } from "#types";
-26: @ours
 
 /** Book places on one listing through the same atomic create the ticket page
  * uses, so the capacity checks in the warnings read real stored rows. */
