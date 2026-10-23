@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handlePaymentSuccess } from "#routes/api/payment-success.ts";
@@ -36,12 +37,12 @@ describeWithEnv("the payment success redirect route", { db: true }, () => {
 
     expect(response.status).toBe(200);
     const page = await response.text();
-    expect(page).toContain("We have not received your payment yet");
-    expect(page).toContain("Staff diagnostics");
-    expect(page).toContain("cs_route_unpaid");
+    assertStringIncludes(page, "We have not received your payment yet");
+    assertStringIncludes(page, "Staff diagnostics");
+    assertStringIncludes(page, "cs_route_unpaid");
     // The row markup (label, then value) cannot pass because the session id
     // carries the word, so this reads the status itself, not the id.
-    expect(page).toContain("Payment status</strong> unpaid");
+    assertStringIncludes(page, "Payment status</strong> unpaid");
   });
 
   test("names the callback's facts to an owner when nothing readable arrived", async () => {
@@ -54,7 +55,7 @@ describeWithEnv("the payment success redirect route", { db: true }, () => {
     );
 
     const page = await response.text();
-    expect(page).toContain("Invalid payment callback");
-    expect(page).toContain("Staff diagnostics");
+    assertStringIncludes(page, "Invalid payment callback");
+    assertStringIncludes(page, "Staff diagnostics");
   });
 });
