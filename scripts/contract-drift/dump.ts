@@ -8,11 +8,12 @@
  * the LOCAL atlas lists: a machine that only the head has never loads
  * here, so a branch that adds a machine still gets its base dump. A table
  * module the tree does not have reads back as no table, which the differ
- * reports as an added table. It imports only `#shared` and `#test`
- * declarations and nothing from `#scripts`. */
+ * reports as an added table. Every module this file imports must also
+ * exist in that older tree, so it imports no helper that a branch adds.
+ * It imports nothing from `#scripts`. */
 
 import * as v from "valibot";
-import { sortedPairs } from "#fp-strings";
+import { sort } from "#fp";
 import { ILLEGAL_JOINT_STATES } from "#payment/joint-state.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import type { AtlasMachine } from "#shared/schema-atlas/types.ts";
@@ -171,6 +172,14 @@ const MACHINE_LOADERS: Readonly<Record<string, MachineLoader>> = {
 export const sortedStrings = (values: readonly string[]): string[] =>
   [...values].sort();
 
+/** The entries of one record in the key order sortedStrings gives, so one
+ * tree always dumps the same JSON. It sorts with the `#fp` `sort` because
+ * the base worktree runs this file against an older tree. */
+const sortedEntries = <Value>(entries: [string, Value][]): [string, Value][] =>
+  sort(([left]: [string, Value], [right]: [string, Value]) =>
+    left < right ? -1 : 1,
+  )(entries);
+
 /** The event id behind one edge label. An edge without an event is a
  * declaration gap, so the dump stops rather than guess. */
 const eventIdFor = (events: MachineEvents, labelKey: string): string => {
@@ -221,15 +230,15 @@ const sortedDeclaredMoves = (
   table: DumpedDeclaredMoves,
 ): DumpedDeclaredMoves => {
   const moves: DumpedDeclaredMoves = {};
-  for (const [node, cells] of sortedPairs(Object.entries(table))) {
+  for (const [node, cells] of sortedEntries(Object.entries(table))) {
     const sorted: Record<string, DumpedMoveCell> = {};
-    for (const [event, cell] of sortedPairs(Object.entries(cells))) {
+    for (const [event, cell] of sortedEntries(Object.entries(cells))) {
       sorted[event] =
         typeof cell === "string"
           ? cell
           : {
               perRep: Object.fromEntries(
-                sortedPairs(Object.entries(cell.perRep)),
+                sortedEntries(Object.entries(cell.perRep)),
               ),
             };
     }
