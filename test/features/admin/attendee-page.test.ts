@@ -4,6 +4,7 @@
  * `defineEntityPage`, so everything here goes through a real render.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
@@ -58,7 +59,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
   describe("the overview tab", () => {
     test("names the attendee in the page title", async () => {
       const html = await tabHtml(await bookAttendee(), "");
-      expect(html).toContain("Ada Lovelace");
+      assertStringIncludes(html, "Ada Lovelace");
     });
 
     test("offers every tab the owner may open", async () => {
@@ -71,7 +72,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
         "activity",
         "actions",
       ]) {
-        expect(html).toContain(`/admin/attendees/${id}/${slug}`);
+        assertStringIncludes(html, `/admin/attendees/${id}/${slug}`);
       }
     });
 
@@ -79,7 +80,8 @@ describeWithEnv("the attendee page", { db: true }, () => {
       const id = await bookAttendee();
       await finalizeProcessedPayment("sess_page_refresh", id);
 
-      expect(await tabHtml(id, "")).toContain(
+      assertStringIncludes(
+        await tabHtml(id, ""),
         `action="/admin/attendees/${id}/refresh-payment"`,
       );
     });
@@ -93,12 +95,11 @@ describeWithEnv("the attendee page", { db: true }, () => {
       );
 
       const html = await tabHtml(id, "");
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         "This older payment does not record which provider took it",
       );
-      expect(html).not.toContain(
-        `action="/admin/attendees/${id}/refresh-payment"`,
-      );
+      assert(!html.includes(`action="/admin/attendees/${id}/refresh-payment"`));
     });
   });
 
@@ -116,7 +117,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("is not even linked for a manager, so no one clicks a dead link", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "", MANAGER);
-      expect(html).not.toContain(`/admin/attendees/${id}/ledger`);
+      assert(!html.includes(`/admin/attendees/${id}/ledger`));
     });
   });
 
@@ -144,7 +145,8 @@ describeWithEnv("the attendee page", { db: true }, () => {
       );
       // The hidden field itself — the admin nav also links /admin/calendar,
       // so a looser check would pass without the value ever being carried.
-      expect(await response.text()).toContain(
+      assertStringIncludes(
+        await response.text(),
         'name="return_url" type="hidden" value="/admin/calendar"',
       );
     });
@@ -153,7 +155,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "edit");
       // No return URL means no hidden field, rather than an empty one.
-      expect(html).not.toContain('name="return_url" type="hidden"');
+      assert(!html.includes('name="return_url" type="hidden"'));
     });
   });
 
@@ -167,8 +169,8 @@ describeWithEnv("the attendee page", { db: true }, () => {
         "has@example.com",
       );
       const html = await tabHtml(attendee.id, "");
-      expect(html).toContain("/t/");
-      expect(html).not.toContain("No quantity");
+      assertStringIncludes(html, "/t/");
+      assert(!html.includes("No quantity"));
     });
 
     test("says so instead of linking a ticket page that would not open", async () => {
@@ -181,9 +183,9 @@ describeWithEnv("the attendee page", { db: true }, () => {
       );
       await setBookingLineQuantity(attendee.id, listing.id, 0);
       const html = await tabHtml(attendee.id, "");
-      expect(html).toContain("No quantity");
+      assertStringIncludes(html, "No quantity");
       // The /t page 404s without a quantity, so it must not be linked at all.
-      expect(html).not.toContain("/t/");
+      assert(!html.includes("/t/"));
     });
   });
 
@@ -193,7 +195,8 @@ describeWithEnv("the attendee page", { db: true }, () => {
       const html = await tabHtml(id, "");
       // The preview's own link, not the tab strip's — the strip would still
       // link activity even if the preview pointed somewhere else.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<a href="/admin/attendees/${id}/activity">View all activity</a>`,
       );
     });
@@ -203,7 +206,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("sits at the attendee's own address, with no slug after it", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "");
-      expect(html).toContain(`href="/admin/attendees/${id}"`);
+      assertStringIncludes(html, `href="/admin/attendees/${id}"`);
     });
   });
 
@@ -211,7 +214,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("marks Attendees as the section being viewed", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "");
-      expect(html).toContain('class="active" href="/admin/attendees"');
+      assertStringIncludes(html, 'class="active" href="/admin/attendees"');
     });
   });
 
@@ -219,14 +222,14 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("is offered while the site can be written to", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "");
-      expect(html).toContain("Add a note");
+      assertStringIncludes(html, "Add a note");
     });
 
     test("is not offered once the site is read-only", async () => {
       const id = await bookAttendee();
       using _env = withEnv({ READ_ONLY_FROM: "2000-01-01" });
       const html = await tabHtml(id, "");
-      expect(html).not.toContain("Add a note");
+      assert(!html.includes("Add a note"));
     });
   });
 
@@ -234,7 +237,8 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("links back to the full activity history", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "ledger");
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<a href="/admin/attendees/${id}/activity">See the full plain-English log on the Activity tab</a>`,
       );
     });
@@ -253,7 +257,10 @@ describeWithEnv(
         "pat@example.com",
         "pay_cue_missing",
       );
-      expect(await tabHtml(attendee.id, "")).toContain("No site assigned yet");
+      assertStringIncludes(
+        await tabHtml(attendee.id, ""),
+        "No site assigned yet",
+      );
     });
 
     test("hides the cue once the buyer's site is assigned", async () => {
@@ -271,8 +278,8 @@ describeWithEnv(
         [plan.id],
         plan.id,
       );
-      expect(await tabHtml(attendee.id, "")).not.toContain(
-        "No site assigned yet",
+      assert(
+        !(await tabHtml(attendee.id, "")).includes("No site assigned yet"),
       );
     });
 
@@ -287,8 +294,8 @@ describeWithEnv(
         "",
         plan.unit_price,
       );
-      expect(await tabHtml(attendee.id, "")).not.toContain(
-        "No site assigned yet",
+      assert(
+        !(await tabHtml(attendee.id, "")).includes("No site assigned yet"),
       );
     });
   },

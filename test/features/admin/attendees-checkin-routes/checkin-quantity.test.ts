@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -52,13 +53,13 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const html = await expectHtmlResponse(response, 200, "Check in tickets");
       // The line's state, the three options, the whole line selected, and no
       // release form while nothing is admitted.
-      expect(html).toContain(`Cara Party, ${listing.name}`);
-      expect(html).toContain("Tickets to check in");
-      expect(html).toContain(`<option selected value="3">3 tickets`);
+      assertStringIncludes(html, `Cara Party, ${listing.name}`);
+      assertStringIncludes(html, "Tickets to check in");
+      assertStringIncludes(html, `<option selected value="3">3 tickets`);
       for (const option of ["1 ticket", "2 tickets", "3 tickets"]) {
-        expect(html).toContain(`>${option}</option>`);
+        assertStringIncludes(html, `>${option}</option>`);
       }
-      expect(html).not.toContain("Tickets to check out");
+      assert(!html.includes("Tickets to check out"));
     });
 
     test("keeps the roster's filter and return link on its forms", async () => {
@@ -71,10 +72,12 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         ),
         200,
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         '<input name="return_filter" type="hidden" value="out">',
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         '<input name="return_url" type="hidden" value="/admin/calendar">',
       );
     });
@@ -90,12 +93,12 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
       );
       const html = await expectHtmlResponse(response, 200, "Check in tickets");
-      expect(html).toContain("1 of 3 tickets checked in");
+      assertStringIncludes(html, "1 of 3 tickets checked in");
       // The check-in select tops out at the two still owed; the release
       // select holds the one admitted place.
-      expect(html).toContain('<option selected value="2">2 tickets');
-      expect(html).toContain("Tickets to check out");
-      expect(html).toContain('<option selected value="1">1 ticket');
+      assertStringIncludes(html, '<option selected value="2">2 tickets');
+      assertStringIncludes(html, "Tickets to check out");
+      assertStringIncludes(html, '<option selected value="1">1 ticket');
     });
 
     test("totals only the rows a refund has not returned", async () => {
@@ -124,9 +127,9 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const html = await expectHtmlResponse(response, 200, "Check in tickets");
       // The refunded sibling holds no movable tickets, so the page totals
       // the live row alone: one owed, and no offer the write cannot apply.
-      expect(html).toContain("0 of 1 tickets checked in");
-      expect(html).toContain('<option selected value="1">1 ticket');
-      expect(html).not.toContain('value="3"');
+      assertStringIncludes(html, "0 of 1 tickets checked in");
+      assertStringIncludes(html, '<option selected value="1">1 ticket');
+      assert(!html.includes('value="3"'));
     });
 
     test("admits the count the page names", async () => {
@@ -144,7 +147,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const messages = (await getListingActivityLog(listing.id))
         .map((entry) => entry.message)
         .join(" ");
-      expect(messages).toContain("checked in 2 tickets");
+      assertStringIncludes(messages, "checked in 2 tickets");
     });
 
     test("releases the count the page names", async () => {
@@ -176,10 +179,10 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
       );
       const html = await expectHtmlResponse(response, 200, "Check out tickets");
-      expect(html).toContain("3 of 3 tickets checked in");
-      expect(html).not.toContain("Tickets to check in");
-      expect(html).toContain("Tickets to check out");
-      expect(html).toContain('<option selected value="3">3 tickets');
+      assertStringIncludes(html, "3 of 3 tickets checked in");
+      assert(!html.includes("Tickets to check in"));
+      assertStringIncludes(html, "Tickets to check out");
+      assertStringIncludes(html, '<option selected value="3">3 tickets');
     });
 
     test("refuses a count that is not a positive whole number", async () => {

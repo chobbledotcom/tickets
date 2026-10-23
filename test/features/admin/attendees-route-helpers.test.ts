@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -78,9 +79,9 @@ describeWithEnv("admin attendee action loaders", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(400);
-    expect(html).toContain("Refresh payment status");
-    expect(html).not.toContain("Refund Attendee</button>");
-    expect(html).not.toContain('name="confirm_identifier"');
+    assertStringIncludes(html, "Refresh payment status");
+    assert(!html.includes("Refund Attendee</button>"));
+    assert(!html.includes('name="confirm_identifier"'));
   });
 
   test("names the attendee field and preserves the return address on a refused confirmation", async () => {

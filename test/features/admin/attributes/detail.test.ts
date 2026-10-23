@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -44,21 +45,24 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         200,
         '<th class="col-quantity">Listings</th>',
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<a href="/admin/attributes/${attribute.id}/options/${
           easy!.id
         }/edit">Easy</a>`,
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<a href="/admin/attributes/${attribute.id}/options/${
           hard!.id
         }/edit">Hard</a>`,
       );
       // Easy is set on one listing; Hard on none.
-      expect(html).toContain('<td class="col-quantity">1</td>');
-      expect(html).toContain('<td class="col-quantity">0</td>');
+      assertStringIncludes(html, '<td class="col-quantity">1</td>');
+      assertStringIncludes(html, '<td class="col-quantity">0</td>');
       // The attribute's own delete action stays on its detail page.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<a class="danger" href="/admin/attributes/${attribute.id}/delete">`,
       );
     });
@@ -73,15 +77,17 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         200,
         "Listings using this attribute",
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<a href="/admin/listing/${listing.id}">Climbing</a>`,
       );
-      expect(html).toContain("<td>Easy</td>");
+      assertStringIncludes(html, "<td>Easy</td>");
       // A listing with several options appears once, options in option order.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<a href="/admin/listing/${bothListing.id}">Both options</a>`,
       );
-      expect(html).toContain("<td>Easy, Hard</td>");
+      assertStringIncludes(html, "<td>Easy, Hard</td>");
       // Rows are ordered by listing id (creation order).
       const climbingIndex = html.indexOf(">Climbing</a>");
       const bothOptionsIndex = html.indexOf(">Both options</a>");
@@ -100,7 +106,8 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         await adminGet(`/admin/attributes/${attribute.id}`),
         200,
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<a class="muted" href="/admin/listing/${listing.id}">Climbing</a>`,
       );
     });
@@ -148,12 +155,14 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         "Listings using this option",
         "Set on 1 listing.",
       );
-      expect(html).toContain('value="Easy"');
-      expect(html).toContain(
+      assertStringIncludes(html, 'value="Easy"');
+      assertStringIncludes(
+        html,
         `<a href="/admin/listing/${listing.id}">Climbing</a>`,
       );
-      expect(html).toContain(`href="/admin/attributes/${attribute.id}"`);
-      expect(html).toContain(
+      assertStringIncludes(html, `href="/admin/attributes/${attribute.id}"`);
+      assertStringIncludes(
+        html,
         `<a class="danger" href="/admin/attributes/${attribute.id}/options/${easy.id}/delete">Delete option</a>`,
       );
     });
@@ -171,7 +180,7 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         200,
         "Hard only",
       );
-      expect(html).not.toContain("Climbing");
+      assert(!html.includes("Climbing"));
     });
 
     test("shows the empty state and plural count when no listings use the option", async () => {

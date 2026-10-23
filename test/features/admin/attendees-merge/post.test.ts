@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
@@ -159,8 +160,8 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
 
       // Before the merge the sibling lists the source, not the target.
       const before = await siblingPage();
-      expect(before).toContain(`/admin/attendees/${source.id}`);
-      expect(before).not.toContain(`/admin/attendees/${target.id}`);
+      assertStringIncludes(before, `/admin/attendees/${source.id}`);
+      assert(!before.includes(`/admin/attendees/${target.id}`));
 
       // Merge the source into the target, keeping the source's email.
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
@@ -173,8 +174,8 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       // The target now carries the shared email, so the sibling lists it; the
       // deleted source is gone from the table.
       const after = await siblingPage();
-      expect(after).toContain(`/admin/attendees/${target.id}`);
-      expect(after).not.toContain(`/admin/attendees/${source.id}`);
+      assertStringIncludes(after, `/admin/attendees/${target.id}`);
+      assert(!after.includes(`/admin/attendees/${source.id}`));
     });
 
     test("merges source listings into target and deletes source", async () => {

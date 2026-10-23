@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getNoteRows, getNotesFor } from "#db/notes/queries.ts";
@@ -16,8 +17,8 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     const response = await adminGet(`/admin/attendee/${attendee.id}/note`);
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain(`action="/admin/attendee/${attendee.id}/note"`);
-    expect(html).toContain('name="note"');
+    assertStringIncludes(html, `action="/admin/attendee/${attendee.id}/note"`);
+    assertStringIncludes(html, 'name="note"');
   });
 
   test("GET on a missing attendee is a 404", async () => {
@@ -54,7 +55,7 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
       { note: "   " },
     );
     expect(response.status).toBe(400);
-    expect(await response.text()).toContain("Enter a note");
+    assertStringIncludes(await response.text(), "Enter a note");
     expect(await getNoteRows("attendee", [attendee.id])).toEqual([]);
   });
 
@@ -78,10 +79,10 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Are you sure");
-    expect(html).toContain("deletable note");
+    assertStringIncludes(html, "Are you sure");
+    assertStringIncludes(html, "deletable note");
     // The intermediate page never asks for the copy/paste confirmation.
-    expect(html).not.toContain('name="confirm_identifier"');
+    assert(!html.includes('name="confirm_identifier"'));
   });
 
   test("GET delete resolves the note's img#N reference", async () => {
@@ -95,10 +96,11 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     const html = await (
       await adminGet(`/admin/attendee/${attendee.id}/note/${row!.id}/delete`)
     ).text();
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<img src="/image/${image.filename}" alt="DeletePoster">`,
     );
-    expect(html).not.toContain("img#");
+    assert(!html.includes("img#"));
   });
 
   test("GET delete on a missing note is a 404", async () => {

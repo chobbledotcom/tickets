@@ -5,6 +5,7 @@
  * view with the confirmation.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, queryOne } from "#db/client.ts";
@@ -150,7 +151,8 @@ describeWithEnv("adding an attendee by hand", { db: true }, () => {
     );
 
     expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toContain(
+    assertStringIncludes(
+      response.headers.get("location") ?? "",
       `/admin/listing/${listing.id}/attendees`,
     );
   });
