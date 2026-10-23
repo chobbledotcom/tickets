@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "#clock": "./test/scripts/check-effects/fixtures/clock.ts",
+    "#io/": "./test/scripts/check-effects/fixtures/io/",
+    "#pure/": "./test/scripts/check-effects/fixtures/pure/"
+  }
+}

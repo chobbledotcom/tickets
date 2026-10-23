@@ -48,6 +48,10 @@ const STEPS = [
   // no import spelling a module longer than its own alias allows (see
   // "Imports name a module one way" in AGENTS.md).
   { cmd: ["task", "check:imports"], name: "check:imports" },
+  // Keep the pure core pure: no pure-listed module may reach the database,
+  // the network, or the wall clock through its imports (see "Pure,
+  // functional" in docs/designing-systems.md).
+  { cmd: ["task", "check:effects"], name: "check:effects" },
   // An exported name must do more than rename an imported one (see "No alias
   // exports" in AGENTS.md).
   {

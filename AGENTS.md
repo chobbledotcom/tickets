@@ -525,6 +525,11 @@ automatic.
   read as the checkout holds it, so run `git fetch origin main` first for a
   current base. Drift is a report, not a gate: paste it in the pull request
   description when the branch touches a machine spec
+- `deno task check:effects` — hold the pure core to the effect table: a
+  module the pure list names must hold no import path, static or dynamic,
+  to a module that opens the database, the network, or the wall clock. The
+  finding names the import chain, and the fix is to split the IO shell out
+  or drop the pure entry
 - `deno task grade:code [<file-or-dir>] [--csv <path>] [--no-jev]` — score
   source files against these rules. With no target, it grades every module under
   `src/`. `--no-jev` runs the mechanical checks only. A grade is advice, not a
