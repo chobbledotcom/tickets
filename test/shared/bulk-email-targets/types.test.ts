@@ -1,5 +1,6 @@
 /** Direct tests for the shared lockups in the target types module. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -33,7 +34,7 @@ describe("the bulk-email target types module", () => {
 
   test("the bulk compose copy carries a heading and an intro", () => {
     expect(BULK_COMPOSE_COPY.heading).toBe("Send a bulk email");
-    expect(BULK_COMPOSE_COPY.intro).toContain("Choose who receives it");
+    assertStringIncludes(BULK_COMPOSE_COPY.intro, "Choose who receives it");
   });
 
   test("each audience names itself and who it covers", () => {

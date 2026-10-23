@@ -7,6 +7,7 @@
  * the bound args is caught.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingReader } from "#db/listings/select.ts";
@@ -40,7 +41,7 @@ describe("the listing reader's statement", () => {
       "AS image_url",
       "listing.booked_quantity AS attendee_count",
     ]) {
-      expect(sql).toContain(projection);
+      assertStringIncludes(sql, projection);
     }
   });
 
@@ -78,7 +79,8 @@ describe("the listing reader's statement", () => {
     const { sql, args } = listingReader.statement({
       where: { inGroups: [3, 4] },
     });
-    expect(sql).toContain(
+    assertStringIncludes(
+      sql,
       "json_group_array(groupListing.group_id) AS group_ids",
     );
     expect(tail(sql)).toBe(
@@ -89,9 +91,9 @@ describe("the listing reader's statement", () => {
 
   test("a read that is not by group has no join, group column, or grouping", () => {
     const { sql } = listingReader.statement({ where: { ids: [1] } });
-    expect(sql).not.toContain("group_listings");
-    expect(sql).not.toContain("group_ids");
-    expect(tail(sql)).not.toContain("GROUP BY");
+    assert(!sql.includes("group_listings"));
+    assert(!sql.includes("group_ids"));
+    assert(!tail(sql).includes("GROUP BY"));
   });
 
   test("keeps only active listings when asked", () => {
@@ -104,8 +106,10 @@ describe("the listing reader's statement", () => {
 
   test("does not constrain on activity when not asked", () => {
     for (const where of [{}, { activeOnly: false }]) {
-      expect(tail(listingReader.statement({ where }).sql)).not.toContain(
-        "listing.active",
+      assert(
+        !tail(listingReader.statement({ where }).sql).includes(
+          "listing.active",
+        ),
       );
     }
   });

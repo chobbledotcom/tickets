@@ -1,3 +1,4 @@
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -56,9 +57,9 @@ const AUTHORITY_FACTS: readonly AuthorityFact[] = Object.values(
 describe("payment joint state", () => {
   test("every declared entry names known facts with a real reason", () => {
     for (const entry of ILLEGAL_JOINT_STATES) {
-      expect(AUTHORITY_FACTS).toContain(entry.authority);
+      assertArrayIncludes(AUTHORITY_FACTS, [entry.authority]);
       expect(entry.reason.length).toBeGreaterThan(0);
-      for (const row of entry.rows) expect(ROW_FACTS).toContain(row);
+      for (const row of entry.rows) assertArrayIncludes(ROW_FACTS, [row]);
     }
   });
 
@@ -98,12 +99,15 @@ describe("payment joint state", () => {
     for (const row of ROW_FACTS) {
       const reason = illegalJointReasonOrNull(row, "send_armed");
       if (row.startsWith("claim")) expect(reason, row).toBeNull();
-      else expect(reason, row).toContain("armed");
+      else assertStringIncludes(reason ?? "", "armed", row);
     }
   });
 
   test("a held claim is illegal over references with no charge", () => {
-    expect(illegalJointReasonOrNull("claim", "absent")).toContain("claim");
+    assertStringIncludes(
+      illegalJointReasonOrNull("claim", "absent") ?? "",
+      "claim",
+    );
     expect(illegalJointReasonOrNull("free_finalized", "absent")).toBeNull();
     expect(illegalJointReasonOrNull("settled", "absent")).toBeNull();
   });

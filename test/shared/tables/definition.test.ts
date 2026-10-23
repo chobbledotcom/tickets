@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
@@ -41,7 +42,8 @@ describe("defineTable", () => {
     expect(table.layout.defaultColumnKeys).toEqual(["name"]);
     expect(table.layout.parse("{{status}}").columnKeys).toEqual(["status"]);
     expect(table.layout.validate("{{status}}")).toBe(null);
-    expect(table.layout.validate("{{missing}}")).toContain(
+    assertStringIncludes(
+      table.layout.validate("{{missing}}") ?? "",
       'Unknown column "missing"',
     );
   });

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Spy, spy } from "@std/testing/mock";
@@ -42,8 +43,8 @@ describe("error fan-out", () => {
   } as const;
   const firstErrorLine = (): string => String(errorSpy.calls[0]?.args[0]);
   const expectOperatorDetailHidden = (line: string): void => {
-    expect(line).not.toContain("Suppressed");
-    expect(line).not.toContain("boss@example.com");
+    assert(!line.includes("Suppressed"));
+    assert(!line.includes("boss@example.com"));
   };
 
   test("writes the console line for every error", () => {
@@ -66,8 +67,8 @@ describe("error fan-out", () => {
     logError(operatorError);
 
     const line = firstErrorLine();
-    expect(line).toContain('detail="provider=postmark status=422"');
-    expect(line).not.toContain("operatorDetail");
+    assertStringIncludes(line, 'detail="provider=postmark status=422"');
+    assert(!line.includes("operatorDetail"));
     expectOperatorDetailHidden(line);
   });
 
@@ -76,7 +77,7 @@ describe("error fan-out", () => {
       logError(operatorError);
 
       const line = firstErrorLine();
-      expect(line).toContain('operatorDetail="(activity log)"');
+      assertStringIncludes(line, 'operatorDetail="(activity log)"');
       expectOperatorDetailHidden(line);
     });
   });
@@ -84,14 +85,14 @@ describe("error fan-out", () => {
   test("does not mark operator detail for local-only errors", async () => {
     await withRequestContext(async () => {
       logErrorLocal(operatorError);
-      expect(firstErrorLine()).not.toContain("operatorDetail");
+      assert(!firstErrorLine().includes("operatorDetail"));
     });
   });
 
   test("omits the operator marker when there is no operator-only detail", () => {
     logError({ code: ErrorCode.DB_QUERY, detail: "boom" });
 
-    expect(String(errorSpy.calls[0]?.args[0])).not.toContain("operatorDetail");
+    assert(!String(errorSpy.calls[0]?.args[0]).includes("operatorDetail"));
   });
 
   test("sends the report out from inside a request", async () => {

@@ -1,7 +1,7 @@
 /** The Square link-end machine on the schema page: pin its layout and the
  * one fact an operator acts on, whether the link can still take payment. */
 
-/* jscpd:ignore-start -- imports */
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -95,8 +95,9 @@ describe("square link ends atlas", () => {
   });
 
   test("joins the machines the schema page folds over", () => {
-    expect(SCHEMA_ATLAS_MACHINES.map((machine) => machine.id)).toContain(
-      "square_link_ends",
+    assertArrayIncludes(
+      SCHEMA_ATLAS_MACHINES.map((machine) => machine.id),
+      ["square_link_ends"],
     );
   });
 });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -216,9 +217,9 @@ describe("sendSupportMessage", () => {
     expect(captured.body.subject).toBe(
       "Support message from Chobble Tickets site tickets.example.com",
     );
-    expect(String(captured.body.text)).toContain("Please help");
-    expect(String(captured.body.text)).toContain("tickets.example.com");
-    expect(String(captured.body.html)).toContain("owner@example.com");
+    assertStringIncludes(String(captured.body.text), "Please help");
+    assertStringIncludes(String(captured.body.text), "tickets.example.com");
+    assertStringIncludes(String(captured.body.html), "owner@example.com");
   });
 
   test("returns false when the email provider responds with an error", async () => {
