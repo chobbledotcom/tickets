@@ -1,4 +1,4 @@
-import { assertExists } from "@std/assert";
+import { assert, assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { KIND } from "#accounting/kinds.ts";
 import { MANUAL_ATTENDEE_PAYMENT } from "#accounting/manual-entries.ts";
@@ -17,8 +17,8 @@ export const ledgerPageHtml = async (path: string): Promise<string> => {
   const response = await adminGet(path);
   expect(response.status).toBe(200);
   const html = await response.text();
-  expect(html).toContain("Money");
-  expect(html).not.toContain("Money history");
+  assertStringIncludes(html, "Money");
+  assert(!html.includes("Money history"));
   return html;
 };
 

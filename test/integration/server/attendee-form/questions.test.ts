@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -105,8 +106,8 @@ describeWithEnv(
           },
         );
         const html = await response.text();
-        expect(html).toContain("Shirt size?");
-        expect(html).toContain("Meal choice?");
+        assertStringIncludes(html, "Shirt size?");
+        assertStringIncludes(html, "Meal choice?");
       });
 
       test("saving an edit preserves answers for every booked event", async () => {
@@ -218,7 +219,8 @@ describeWithEnv(
       );
 
       expect(response.status).toBe(200);
-      expect(await response.text()).toContain(
+      assertStringIncludes(
+        await response.text(),
         "Answer is too long: Access needs?",
       );
     });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -26,7 +27,7 @@ describeWithEnv("admin attendee create atomic failures", { db: true }, () => {
         ]),
       });
       expect(response.status).toBe(200);
-      expect(await response.text()).toContain("spots");
+      assertStringIncludes(await response.text(), "spots");
     });
 
     await expectNoAttendeesForListings([first.id, full.id]);

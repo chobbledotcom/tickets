@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryOne } from "#db/client.ts";
@@ -133,11 +134,12 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       const html = await response.text();
 
       expect(response.status).toBe(400);
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         "A refund for this person is still in progress. Finish or re-run the refund, then try again.",
       );
-      expect(html).not.toContain('name="confirm_identifier"');
-      expect(html).not.toContain("Delete Attendee</button>");
+      assert(!html.includes('name="confirm_identifier"'));
+      assert(!html.includes("Delete Attendee</button>"));
     });
 
     test("includes return_url as hidden field when provided", async () => {
@@ -216,7 +218,8 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       // The bounce-back confirm page must keep the caller's return_url so a
       // corrected retry still lands where the operator came from.
       const location = response.headers.get("location") ?? "";
-      expect(location).toContain(
+      assertStringIncludes(
+        location,
         `return_url=${encodeURIComponent("/admin/calendar#attendees")}`,
       );
     });

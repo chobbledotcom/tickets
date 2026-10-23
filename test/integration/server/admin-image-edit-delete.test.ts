@@ -1,3 +1,4 @@
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -68,7 +69,7 @@ describeWithEnv(
         const response = await adminGet(`/admin/images/${image.id}/edit`);
         expect(response.status).toBe(200);
         const html = await response.text();
-        expect(html).toContain("<strong>Linked listings (0):</strong>");
+        assertStringIncludes(html, "<strong>Linked listings (0):</strong>");
         const liveIndex = html.indexOf(`value="listing:${live.id}"`);
         const retiredIndex = html.indexOf(
           `<label class="muted"><input name="image_items" type="checkbox" value="listing:${retired.id}"`,
@@ -162,7 +163,7 @@ describeWithEnv(
         const messages = (await getAllActivityLog()).map(
           (entry) => entry.message,
         );
-        expect(messages).toContain("Image 'Updated' updated");
+        assertArrayIncludes(messages, ["Image 'Updated' updated"]);
       });
 
       test("keeps an existing item image order during metadata-only saves", async () => {
@@ -312,7 +313,7 @@ describeWithEnv(
         const messages = (await getAllActivityLog()).map(
           (entry) => entry.message,
         );
-        expect(messages).toContain("Image 'Discard' deleted");
+        assertArrayIncludes(messages, ["Image 'Discard' deleted"]);
       });
 
       test("keeps the image row when storage cleanup fails", async () => {

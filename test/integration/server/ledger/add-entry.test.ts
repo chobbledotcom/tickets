@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -30,8 +31,9 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     const response = await adminGet(`/admin/ledger/attendee/${attendeeId}`);
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Add money change");
-    expect(html).toContain(
+    assertStringIncludes(html, "Add money change");
+    assertStringIncludes(
+      html,
       `/admin/ledger/attendee/${attendeeId}/add?return_url=%2Fadmin%2Fledger%2Fattendee%2F${attendeeId}`,
     );
   });
@@ -43,11 +45,11 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Add money change");
-    expect(html).toContain("Payment received another way");
-    expect(html).toContain("Extra amount this attendee needs to pay");
-    expect(html).toContain("Waive or reduce what this attendee owes");
-    expect(html).toContain(`/admin/attendees/${attendeeId}`);
+    assertStringIncludes(html, "Add money change");
+    assertStringIncludes(html, "Payment received another way");
+    assertStringIncludes(html, "Extra amount this attendee needs to pay");
+    assertStringIncludes(html, "Waive or reduce what this attendee owes");
+    assertStringIncludes(html, `/admin/attendees/${attendeeId}`);
   });
 
   test("renders listing add choices for outside income and listing costs", async () => {
@@ -59,10 +61,10 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     const response = await adminGet(`/admin/ledger/revenue/${listing.id}/add`);
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Village Hall");
-    expect(html).toContain("Income received another way");
-    expect(html).toContain("Listing cost paid another way");
-    expect(html).not.toContain("Extra amount this attendee needs to pay");
+    assertStringIncludes(html, "Village Hall");
+    assertStringIncludes(html, "Income received another way");
+    assertStringIncludes(html, "Listing cost paid another way");
+    assert(!html.includes("Extra amount this attendee needs to pay"));
   });
 
   test("renders modifier add choices for modifier-specific changes", async () => {
@@ -77,10 +79,10 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Helmet hire");
-    expect(html).toContain("Extra option income");
-    expect(html).toContain("Reduce option income");
-    expect(html).not.toContain("Listing cost paid another way");
+    assertStringIncludes(html, "Helmet hire");
+    assertStringIncludes(html, "Extra option income");
+    assertStringIncludes(html, "Reduce option income");
+    assert(!html.includes("Listing cost paid another way"));
   });
 
   test("posts an attendee payment received outside checkout", async () => {
@@ -219,7 +221,8 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
       },
     );
     expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toContain(
+    assertStringIncludes(
+      response.headers.get("location") ?? "",
       `/admin/ledger/attendee/${attendeeId}/add`,
     );
     expect(await allTransfers()).toEqual([]);
@@ -252,7 +255,7 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
         ...override,
       });
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(path);
+      assertStringIncludes(response.headers.get("location") ?? "", path);
     }
     expect(await allTransfers()).toEqual([]);
   });
@@ -273,7 +276,10 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
         amount: "12.34",
       });
       expect(decimal.response.status).toBe(302);
-      expect(decimal.response.headers.get("location")).toContain(path);
+      assertStringIncludes(
+        decimal.response.headers.get("location") ?? "",
+        path,
+      );
       expect(await allTransfers()).toEqual([]);
 
       const whole = await adminFormPost(path, valid);
