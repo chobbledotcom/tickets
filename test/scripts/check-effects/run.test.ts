@@ -64,6 +64,17 @@ describe("effects check", () => {
     );
   });
 
+  test("reports a pure module that reaches a root through a re-export", async () => {
+    const output = capture();
+    const code = await runEffectsCheck(
+      checkOver(output, { pureModules: ["#pure/reexporter.ts"] }),
+    );
+    expect(code).toBe(1);
+    expect(output.errors[0]).toContain(
+      `db: ${FIXTURES}/pure/reexporter.ts → ${FIXTURES}/io/client.ts`,
+    );
+  });
+
   test("reports a pure module that reaches the clock root", async () => {
     const output = capture();
     const code = await runEffectsCheck(
