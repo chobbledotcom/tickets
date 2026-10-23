@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -79,7 +80,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(html).toMatch(
         /<input checked name="payment_provider" type="radio" value="none">/,
       );
-      expect(html).toContain("None (payments disabled)");
+      assertStringIncludes(html, "None (payments disabled)");
     });
 
     test("shows that an empty Square webhook key is not configured", async () => {
@@ -88,11 +89,12 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       const html = await (await adminGet("/admin/settings")).text();
 
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         "No webhook signature key is configured. Follow the steps above to set one up.",
       );
-      expect(html).not.toContain(
-        "A webhook signature key is currently configured.",
+      assert(
+        !html.includes("A webhook signature key is currently configured."),
       );
     });
 
@@ -109,8 +111,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       // With no ?form= target, no CsrfForm claims the flash, so the Layout
       // backstop renders it — surfacing it rather than the old behavior of
       // silently swallowing an unattributed flash.
-      expect(html).toContain('class="success"');
-      expect(html).toContain("Test success message");
+      assertStringIncludes(html, 'class="success"');
+      assertStringIncludes(html, "Test success message");
     });
 
     test("displays success message on the matching form when form param is provided", async () => {
@@ -127,7 +129,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         /id="settings-business-email"[\s\S]*?<\/form>/,
       );
       expect(formMatch).toBeDefined();
-      expect(formMatch?.[0]).toContain("Business email updated");
+      assertStringIncludes(formMatch?.[0] ?? "", "Business email updated");
     });
 
     test("does not show success on non-matching forms", async () => {
@@ -139,7 +141,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       // The theme form should not contain the success message
       const themeFormMatch = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
       expect(themeFormMatch).toBeDefined();
-      expect(themeFormMatch?.[0]).not.toContain("Business email updated");
+      assert(!(themeFormMatch?.[0] ?? "").includes("Business email updated"));
     });
 
     test("does not render the country form (locale is write-once, set at /setup)", async () => {
@@ -147,28 +149,28 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const html = await response.text();
       // Country/locale can only be set during setup, then changed by an admin
       // editing the database — there is no editor on the settings page.
-      expect(html).not.toContain('id="settings-country"');
-      expect(html).not.toContain("/admin/settings/country");
+      assert(!html.includes('id="settings-country"'));
+      assert(!html.includes("/admin/settings/country"));
     });
 
     test("each settings form has an id attribute", async () => {
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      expect(html).toContain('id="settings-business-email"');
-      expect(html).toContain('id="settings-payment-provider"');
-      expect(html).toContain('id="settings-embed-hosts"');
-      expect(html).toContain('id="settings-terms"');
-      expect(html).toContain('id="settings-password"');
-      expect(html).toContain('id="settings-theme"');
-      expect(html).not.toContain("/admin/settings/show-public-site");
+      assertStringIncludes(html, 'id="settings-business-email"');
+      assertStringIncludes(html, 'id="settings-payment-provider"');
+      assertStringIncludes(html, 'id="settings-embed-hosts"');
+      assertStringIncludes(html, 'id="settings-terms"');
+      assertStringIncludes(html, 'id="settings-password"');
+      assertStringIncludes(html, 'id="settings-theme"');
+      assert(!html.includes("/admin/settings/show-public-site"));
     });
 
     test("shows settings sub-navigation", async () => {
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      expect(html).toContain('href="/admin/settings-advanced"');
-      expect(html).toContain('href="/admin/backup"');
-      expect(html).toContain('href="/admin/debug"');
+      assertStringIncludes(html, 'href="/admin/settings-advanced"');
+      assertStringIncludes(html, 'href="/admin/backup"');
+      assertStringIncludes(html, 'href="/admin/debug"');
     });
   });
 
@@ -190,8 +192,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       // Rendering the page reads every row, and a missing key throws there, so
       // a 200 with this wording is proof the whole table resolved.
-      expect(html).toContain("Link to view the tickets");
-      expect(html).toContain("Picks the singular or plural word for a number");
+      assertStringIncludes(html, "Link to view the tickets");
+      assertStringIncludes(
+        html,
+        "Picks the singular or plural word for a number",
+      );
     });
 
     test("shows exact empty host settings and scheduled-key state", async () => {
@@ -208,11 +213,12 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       settings.googleWallet.setHostConfigForTest(null);
       try {
         const html = await (await adminGet("/admin/settings-advanced")).text();
-        expect(html).toContain(">None (disabled)</option>");
-        expect(html).toContain(
+        assertStringIncludes(html, ">None (disabled)</option>");
+        assertStringIncludes(
+          html,
           "No scheduled maintenance key is set on this site.",
         );
-        expect(html).not.toContain("Currently using:");
+        assert(!html.includes("Currently using:"));
       } finally {
         settings.appleWallet.resetHostConfig();
         settings.googleWallet.resetHostConfig();
@@ -234,10 +240,12 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       });
       try {
         const html = await (await adminGet("/admin/settings-advanced")).text();
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           "Currently using: Host env (pass.com.host.tickets).",
         );
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           "Currently using: Host env (3388000000012345678).",
         );
       } finally {
@@ -256,10 +264,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       const html = await (await adminGet("/admin/settings-advanced")).text();
 
-      expect(html).toContain('<span class="muted">.tickets.test</span>');
+      assertStringIncludes(html, '<span class="muted">.tickets.test</span>');
       // No pending preview: the hidden subdomain input only appears after a
       // successful check.
-      expect(html).not.toContain('<input name="subdomain" type="hidden"');
+      assert(!html.includes('<input name="subdomain" type="hidden"'));
     });
 
     test("splits an exact subdomain preview from its full domain", async () => {
@@ -274,8 +282,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         "my-site\nmy-site.tickets.test",
       );
 
-      expect(html).toContain("<strong>my-site.tickets.test</strong>");
-      expect(html).toContain(
+      assertStringIncludes(html, "<strong>my-site.tickets.test</strong>");
+      assertStringIncludes(
+        html,
         '<input name="subdomain" type="hidden" value="my-site">',
       );
     });
@@ -289,8 +298,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       const html = await advancedPageWithResult("my-site");
 
-      expect(html).toContain("<strong></strong>");
-      expect(html).toContain(
+      assertStringIncludes(html, "<strong></strong>");
+      assertStringIncludes(
+        html,
         '<input name="subdomain" type="hidden" value="my-site">',
       );
     });
@@ -301,9 +311,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
         const html = await (await adminGet("/admin/settings-advanced")).text();
 
-        expect(html).toContain("Your custom domain is not yet validated.");
-        expect(html).toContain("<strong>Value:</strong> <code></code>");
-        expect(html).not.toContain("Last validated:");
+        assertStringIncludes(html, "Your custom domain is not yet validated.");
+        assertStringIncludes(html, "<strong>Value:</strong> <code></code>");
+        assert(!html.includes("Last validated:"));
       }));
 
     test("shows the exact validated custom domain and CDN target", () =>
@@ -321,25 +331,26 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         const html = await response.text();
 
         expect(response.status).toBe(200);
-        expect(html).toContain("<code>tickets.example.com</code>");
-        expect(html).toContain(
+        assertStringIncludes(html, "<code>tickets.example.com</code>");
+        assertStringIncludes(
+          html,
           "<strong>Value:</strong> <code>site.b-cdn.net</code>",
         );
-        expect(html).toContain(`Last validated: ${validatedAt}`);
+        assertStringIncludes(html, `Last validated: ${validatedAt}`);
       }));
 
     test("keeps an empty custom domain empty when Bunny CDN is configured", () =>
       withCdnHostname({ hostname: "site.b-cdn.net", ok: true }, async () => {
         const html = await (await adminGet("/admin/settings-advanced")).text();
 
-        expect(html).not.toContain("Your custom domain is not yet validated.");
-        expect(html).not.toContain("Last validated:");
+        assert(!html.includes("Your custom domain is not yet validated."));
+        assert(!html.includes("Last validated:"));
       }));
 
     test("shows warning about careful changes", async () => {
       const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
-      expect(html).toContain("Be careful changing settings on this page");
+      assertStringIncludes(html, "Be careful changing settings on this page");
     });
 
     test("renders with a payment provider configured", async () => {
@@ -351,19 +362,19 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("shows breadcrumb back to settings", async () => {
       const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
-      expect(html).toContain('href="/admin/settings"');
-      expect(html).toContain("Settings");
+      assertStringIncludes(html, 'href="/admin/settings"');
+      assertStringIncludes(html, "Settings");
     });
 
     test("each advanced settings form has an id attribute", async () => {
       const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
-      expect(html).toContain('id="settings-show-public-api"');
-      expect(html).toContain('id="settings-apple-wallet"');
-      expect(html).toContain('id="settings-email-tpl-confirmation"');
-      expect(html).toContain('id="settings-email-tpl-admin"');
-      expect(html).toContain('id="settings-email"');
-      expect(html).toContain('id="settings-reset-database"');
+      assertStringIncludes(html, 'id="settings-show-public-api"');
+      assertStringIncludes(html, 'id="settings-apple-wallet"');
+      assertStringIncludes(html, 'id="settings-email-tpl-confirmation"');
+      assertStringIncludes(html, 'id="settings-email-tpl-admin"');
+      assertStringIncludes(html, 'id="settings-email"');
+      assertStringIncludes(html, 'id="settings-reset-database"');
     });
 
     test("shows host email label when host email is configured", async () => {
@@ -374,8 +385,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       });
       const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
-      expect(html).toContain("Host Resend (noreply@example.com)");
-      expect(html).not.toContain("None (disabled)");
+      assertStringIncludes(html, "Host Resend (noreply@example.com)");
+      assert(!html.includes("None (disabled)"));
     });
 
     test("displays success message on the matching form when form param is provided", async () => {

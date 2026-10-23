@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -55,17 +56,17 @@ describeWithEnv(
     });
 
     test("hides the section when DNS is not configured", async () => {
-      expect(await advancedPageHtml()).not.toContain(
-        'id="settings-host-subdomain"',
+      assert(
+        !(await advancedPageHtml()).includes('id="settings-host-subdomain"'),
       );
     });
 
     test("shows the section when DNS is configured", async () => {
       enable();
       const html = await advancedPageHtml();
-      expect(html).toContain('id="settings-host-subdomain"');
-      expect(html).toContain("Host subdomain");
-      expect(html).toContain("Check if the name is free");
+      assertStringIncludes(html, 'id="settings-host-subdomain"');
+      assertStringIncludes(html, "Host subdomain");
+      assertStringIncludes(html, "Check if the name is free");
     });
 
     test("shows a registered subdomain on its secure host", async () => {
@@ -84,9 +85,9 @@ describeWithEnv(
       );
       const html = await response.text();
       expect(response.status).toBe(200);
-      expect(html).toContain("mylisting.tickets.example.com");
-      expect(html).toContain("permanent and cannot be changed");
-      expect(html).toContain("keeps working at the same time");
+      assertStringIncludes(html, "mylisting.tickets.example.com");
+      assertStringIncludes(html, "permanent and cannot be changed");
+      assertStringIncludes(html, "keeps working at the same time");
     });
 
     test("rejects registration when DNS is not configured", async () => {
@@ -151,7 +152,7 @@ describeWithEnv(
         const html = await (
           await followRedirectWithFlash(response, handleRequest, cookie)
         ).text();
-        expect(html).toContain("mylisting.tickets.example.com");
+        assertStringIncludes(html, "mylisting.tickets.example.com");
       });
     });
 

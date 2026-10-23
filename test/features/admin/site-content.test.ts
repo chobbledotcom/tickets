@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -51,7 +52,8 @@ describeWithEnv("the routes a site content type gets", { db: true }, () => {
     const response = await adminGet(`/admin/site/news/${post.id}`);
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain(
+    assertStringIncludes(
+      await response.text(),
       `action="/admin/site/news/${post.id}/edit"`,
     );
   });

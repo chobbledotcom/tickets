@@ -4,6 +4,7 @@
  * with a stand-in record rather than one of them.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -43,8 +44,8 @@ describeWithEnv("a site content page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain("<h1>Opening times</h1>");
-    expect(html).toContain("<p>Edit Opening times</p>");
+    assertStringIncludes(html, "<h1>Opening times</h1>");
+    assertStringIncludes(html, "<p>Edit Opening times</p>");
   });
 
   test("puts the extra tabs between edit and actions", async () => {
@@ -65,7 +66,7 @@ describeWithEnv("a site content page", { db: true }, () => {
 
     const html = await (await page.renderPage(session, 3, "")).text();
 
-    expect(html).not.toContain('href="/admin/site/pages/3/images"');
+    assert(!html.includes('href="/admin/site/pages/3/images"'));
   });
 
   test("adds the images tab once a storage zone is configured", async () => {
@@ -75,7 +76,7 @@ describeWithEnv("a site content page", { db: true }, () => {
       (await page.renderPage(session, 3, "")).text(),
     );
 
-    expect(html).toContain('href="/admin/site/pages/3/images">Images</a>');
+    assertStringIncludes(html, 'href="/admin/site/pages/3/images">Images</a>');
   });
 
   test("links the guide section the page belongs to", async () => {
@@ -83,7 +84,7 @@ describeWithEnv("a site content page", { db: true }, () => {
 
     const html = await (await page.renderPage(session, 3, "")).text();
 
-    expect(html).toContain('href="/admin/guide#public-site"');
+    assertStringIncludes(html, 'href="/admin/guide#public-site"');
   });
 
   test("offers deleting the record on the actions tab", async () => {
@@ -91,7 +92,7 @@ describeWithEnv("a site content page", { db: true }, () => {
 
     const html = await (await page.renderPage(session, 3, "actions")).text();
 
-    expect(html).toContain('href="/admin/site/pages/3/delete"');
+    assertStringIncludes(html, 'href="/admin/site/pages/3/delete"');
   });
 
   test("answers 404 for a record that is not there", async () => {
