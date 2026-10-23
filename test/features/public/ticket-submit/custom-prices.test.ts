@@ -52,7 +52,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
         500,
       );
       expect(typeof result).toBe("string");
-      // A Map result fails the assertion, as the override did.
+      // A Map result fails the assertion.
       const priceMessage = typeof result === "string" ? result : "";
       assertStringIncludes(priceMessage, "Supporter ticket");
     });
