@@ -1,4 +1,5 @@
 import { type Client, createClient, type Transaction } from "@libsql/client";
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
@@ -72,8 +73,8 @@ describe("withTransaction", () => {
         return getQueryLog();
       });
       const sqls = log.map((entry) => entry.sql);
-      expect(sqls).toContain("INSERT INTO t VALUES (1)");
-      expect(sqls).toContain("SELECT COUNT(*) AS n FROM t");
+      assertArrayIncludes(sqls, ["INSERT INTO t VALUES (1)"]);
+      assertArrayIncludes(sqls, ["SELECT COUNT(*) AS n FROM t"]);
     });
   });
 

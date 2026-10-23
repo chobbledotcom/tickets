@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   afterEach,
@@ -238,9 +239,9 @@ describe("log-error", () => {
         const messages = (await getAllActivityLog()).map(
           ({ message }) => message,
         );
-        expect(messages).toContain(
+        assertArrayIncludes(messages, [
           "Error: Email send failed (provider=resend status=422) — provider-activity-marker",
-        );
+        ]);
       });
 
       test("persists every independent error in one request", async () => {
@@ -283,7 +284,7 @@ describe("log-error", () => {
         const messages = (await getAllActivityLog()).map(
           ({ message }) => message,
         );
-        expect(messages).toContain("Error: Database connection failed");
+        assertArrayIncludes(messages, ["Error: Database connection failed"]);
         expect(messages.some((message) => message.includes("N+1 query"))).toBe(
           false,
         );
@@ -308,8 +309,8 @@ describe("log-error", () => {
         const messages = (await getAllActivityLog()).map(
           ({ message }) => message,
         );
-        expect(messages).toContain("Error: Database connection failed");
-        expect(messages).toContain("Error: Database query failed");
+        assertArrayIncludes(messages, ["Error: Database connection failed"]);
+        assertArrayIncludes(messages, ["Error: Database query failed"]);
       });
     });
   });

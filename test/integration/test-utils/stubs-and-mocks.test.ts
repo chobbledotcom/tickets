@@ -1,3 +1,4 @@
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -45,7 +46,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
     );
     const body = await request.text();
     for (const expected of bodyContains) {
-      expect(body).toContain(expected);
+      assertStringIncludes(body, expected);
     }
   };
 
@@ -141,7 +142,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
       const { getDb } = await import("#db/client.ts");
       const result = await getDb().execute("SELECT 1 as test");
       expect(result.rows.length).toBe(1);
-      expect(result.columns).toContain("test");
+      assertArrayIncludes(result.columns, ["test"]);
     });
   });
 
@@ -301,7 +302,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
         `${getSessionCookieName()}=mytoken`,
       );
       const body = await request.text();
-      expect(body).toContain("name=Test+Listing");
+      assertStringIncludes(body, "name=Test+Listing");
     });
 
     test("allows custom method override", () => {
@@ -318,7 +319,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
       });
       expect(request.method).toBe("PUT");
       const body = await request.text();
-      expect(body).toContain("name=Updated");
+      assertStringIncludes(body, "name=Updated");
     });
   });
 

@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -11,7 +11,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
   test("default theme is light", async () => {
     const response = await adminGet("/admin/settings");
     const html = await response.text();
-    expect(html).toContain('data-theme="light"');
+    assertStringIncludes(html, 'data-theme="light"');
   });
 
   test("changing theme to dark via admin settings", async () => {
@@ -29,7 +29,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
 
     const response = await adminGet("/admin/settings");
     const html = await response.text();
-    expect(html).toContain('data-theme="dark"');
+    assertStringIncludes(html, 'data-theme="dark"');
   });
 
   test("dark theme is reflected on public pages", async () => {
@@ -38,7 +38,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
 
     const response = await handleRequest(mockRequest("/"));
     const html = await response.text();
-    expect(html).toContain('data-theme="dark"');
+    assertStringIncludes(html, 'data-theme="dark"');
   });
 
   test("switching back to light theme", async () => {
@@ -47,13 +47,13 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
 
     const response = await adminGet("/admin/settings");
     const html = await response.text();
-    expect(html).toContain('data-theme="light"');
+    assertStringIncludes(html, 'data-theme="light"');
   });
 
   test("links are not underlined by default (no data-underline-links)", async () => {
     const response = await adminGet("/admin/settings");
     const html = await response.text();
-    expect(html).not.toContain("data-underline-links");
+    assert(!html.includes("data-underline-links"));
   });
 
   test("enabling underline links adds data-underline-links to the page", async () => {
@@ -64,7 +64,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
 
     const response = await adminGet("/admin/settings");
     const html = await response.text();
-    expect(html).toContain("data-underline-links");
+    assertStringIncludes(html, "data-underline-links");
   });
 
   test("underline links setting is reflected on public pages", async () => {
@@ -76,6 +76,6 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
 
     const response = await handleRequest(mockRequest("/"));
     const html = await response.text();
-    expect(html).toContain("data-underline-links");
+    assertStringIncludes(html, "data-underline-links");
   });
 });

@@ -13,6 +13,7 @@
  *     servicing create/edit core.
  */
 // jscpd:ignore-start
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -75,7 +76,10 @@ describeWithEnv("servicing §11 — custom questions", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 10, name: "L" });
     const { questionId } = await attachQuestion(listing.id);
     const { questions } = await getQuestionsWithListingIds([listing.id]);
-    expect(questions.map((q) => q.id)).toContain(questionId);
+    assertArrayIncludes(
+      questions.map((q) => q.id),
+      [questionId],
+    );
   });
 
   test("answers entered at creation are saved against the new servicing id", async () => {

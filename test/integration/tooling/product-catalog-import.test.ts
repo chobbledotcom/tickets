@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { cliErrorFromUnknown, exitCodeFor } from "#cli/errors.ts";
@@ -59,13 +60,14 @@ Body text that the importer never reads.
 `;
 
   test("writes the tickets ids before the closing fence once", () => {
-    const withMeta = withTicketsMeta(productFrontmatter, {
-      id: 42,
-      slug: "9zz9z",
-    });
-    expect(withMeta).toContain("tickets_id: 42\ntickets_slug: 9zz9z\n---\n");
+    const stamp = { id: 42, slug: "9zz9z" };
+    const withMeta = withTicketsMeta(productFrontmatter, stamp);
+    assertStringIncludes(
+      withMeta,
+      "tickets_id: 42\ntickets_slug: 9zz9z\n---\n",
+    );
     // A rerun with the same ids leaves the block as it is.
-    expect(withTicketsMeta(withMeta, { id: 42, slug: "9zz9z" })).toBe(withMeta);
+    expect(withTicketsMeta(withMeta, stamp)).toBe(withMeta);
   });
 
   test("replaces a stored placeholder and an older stamp", () => {
