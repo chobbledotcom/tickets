@@ -1,4 +1,4 @@
-import { assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
@@ -28,7 +28,7 @@ describe("test-state", () => {
       expect(state.users).toHaveLength(1);
       assertStringIncludes(state.session.cookie, "=");
       const keys = state.settings.map((row: { key: string }) => row.key);
-      assertStringIncludes(keys, "setup_complete");
+      assertArrayIncludes(keys, ["setup_complete"]);
       // The scratch DB the ceremony ran on is cleaned away.
       await expect(Deno.stat(`${dir}/setup-work.db`)).rejects.toThrow();
     } finally {
