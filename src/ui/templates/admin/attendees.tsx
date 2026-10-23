@@ -26,8 +26,6 @@ import { RadioOption } from "#templates/components/radio-option.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import type { AdminSession, Attendee, ListingWithCount } from "#types";
 
-/* jscpd:ignore-end */
-
 /** The "Amount paid: £X" paragraph, rendered when the attendee paid > 0. */
 const amountPaidPara = (attendee: Attendee): JSX.Element | null =>
   Number.parseInt(attendee.price_paid, 10) > 0 ? (
