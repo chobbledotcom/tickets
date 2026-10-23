@@ -18,10 +18,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { Stub } from "@std/testing/mock";
 import {
   cameraFakes,
+  postedScanTokens,
   scanFirst,
-  seedTicketCache,
+  scanWaitingOnDigest,
   start,
   whenStatusShows,
+  withEmptyCache,
 } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
   el,
@@ -91,11 +93,16 @@ describe("scanner offline sync", {
     expect(el(h.document, "scanner-queue-summary").textContent).toBe(
       "0 queued check-ins",
     );
-    expect(
-      fetchStub.calls
-        .filter((call) => String(call.args[0]) === SCAN_PATH)
-        .map((call) => JSON.parse(String(call.args[1]?.body)).token),
-    ).toEqual(postedTokens);
+    expect(postedScanTokens(fetchStub)).toEqual(postedTokens);
+  };
+
+  /** Drops and restores the connection the way the browser hands the state
+   * and its event over. */
+  const reconnect = (h: ScannerHarness): void => {
+    h.stash.set("navigator", { onLine: false });
+    h.window.dispatchEvent(new h.window.Event("offline"));
+    h.stash.set("navigator", { onLine: true });
+    h.window.dispatchEvent(new h.window.Event("online"));
   };
 
   /** The queued check-ins one reload settles, oldest first. */
@@ -122,17 +129,15 @@ describe("scanner offline sync", {
 
   /** Answers each replayed check-in with the answer its queued token maps
    * to, and the page's cache refresh with an empty list. */
-  const answerEachToken =
-    (answers: Record<string, Record<string, unknown>>): FetchResponder =>
-    (url, init) => {
-      if (String(url).endsWith("-cache")) {
-        return Response.json({ hashes: [] });
-      }
+  const answerEachToken = (
+    answers: Record<string, Record<string, unknown>>,
+  ): FetchResponder =>
+    withEmptyCache((_url, init) => {
       const { token } = JSON.parse(String(init?.body));
       const answer = answers[token];
       if (!answer) throw new Error(`No answer staged for ${token}`);
       return Response.json(answer);
-    };
+    });
 
   test("settles a queued check-in on the next page load", async () => {
     const fetchStub = stubFetch(settledCheckIn);
@@ -232,20 +237,16 @@ describe("scanner offline sync", {
     // arrives mid-run: it must not die with the run it interrupted.
     const dropped = Promise.withResolvers<Response>();
     let posts = 0;
-    const fetchStub = stubFetch((url) => {
-      if (String(url).endsWith("-cache")) {
-        return Response.json({ hashes: [] });
-      }
-      posts += 1;
-      return posts === 1 ? dropped.promise : settledCheckIn();
-    });
+    const fetchStub = stubFetch(
+      withEmptyCache(() => {
+        posts += 1;
+        return posts === 1 ? dropped.promise : settledCheckIn();
+      }),
+    );
     try {
       const h = fresh(queueSeeded());
 
-      h.stash.set("navigator", { onLine: false });
-      h.window.dispatchEvent(new h.window.Event("offline"));
-      h.stash.set("navigator", { onLine: true });
-      h.window.dispatchEvent(new h.window.Event("online"));
+      reconnect(h);
 
       // The run's own answer dies with the connection, and the ask the
       // returning connection made now settles the queue.
@@ -257,30 +258,63 @@ describe("scanner offline sync", {
     }
   });
 
+  test("replays only the check-ins still queued when the sync re-runs", async () => {
+    // The first check-in settles and the second's answer dies with the
+    // connection. The online ask that lands mid-run schedules a re-run,
+    // and the re-run walks the rows the first run rendered: a row the
+    // first run settled must not replay its check-in.
+    const dropped = Promise.withResolvers<Response>();
+    let firstPosts = 0;
+    let secondPosts = 0;
+    const fetchStub = stubFetch(
+      withEmptyCache((_url, init) => {
+        const { token } = JSON.parse(String(init?.body));
+        if (token === "tok1") {
+          firstPosts += 1;
+          // The door's guard reads a replayed check-in as one it already
+          // counted, the way it answers the page's own replay.
+          return firstPosts === 1
+            ? settledCheckIn()
+            : Response.json({ name: "Ada", status: "already_checked_in" });
+        }
+        secondPosts += 1;
+        return secondPosts === 1 ? dropped.promise : settledCheckIn();
+      }),
+    );
+    try {
+      const h = fresh({
+        seed: (store) =>
+          store.setItem("scanner-queue", queuedItems(["tok1", "tok2"])),
+      });
+
+      reconnect(h);
+
+      // The run's own answer dies with the connection, and the ask the
+      // returning connection made settles only what is still queued.
+      dropped.reject(new Error("connection dropped"));
+      await expectSyncSettled(h, whenTextShows, fetchStub, [
+        "tok1",
+        "tok2",
+        "tok2",
+      ]);
+      // The settled row keeps the answer the page's own check-in got.
+      expect(rowWords(h)).toEqual(["Checked in", "Checked in"]);
+    } finally {
+      fetchStub.restore();
+    }
+  });
+
   test("settles a scan queued while the sync is already running", async () => {
     // The sync waits on the queued check-in's answer, and the scan's digest
     // waits on the platform's crypto. Both gates stage the reachable order:
     // the sync starts while the scan is still digesting its token.
     const answerGate = Promise.withResolvers<void>();
-    const digestGate = Promise.withResolvers<void>();
-    const realSign = globalThis.crypto.subtle.sign.bind(
-      globalThis.crypto.subtle,
+    const fetchStub = stubFetch(
+      withEmptyCache(async () => {
+        await answerGate.promise;
+        return settledCheckIn();
+      }),
     );
-    const holdDigest = (async (
-      algorithm: AlgorithmIdentifier,
-      key: CryptoKey,
-      data: BufferSource,
-    ) => {
-      await digestGate.promise;
-      return realSign(algorithm, key, data);
-    }) as typeof globalThis.crypto.subtle.sign;
-    const fetchStub = stubFetch(async (url) => {
-      if (String(url).endsWith("-cache")) {
-        return Response.json({ hashes: [] });
-      }
-      await answerGate.promise;
-      return settledCheckIn();
-    });
     try {
       const h = fresh({
         onLine: false,
@@ -292,12 +326,7 @@ describe("scanner offline sync", {
       // The scan's own token, not the queued one: the queue refuses a
       // ticket it already holds.
       const scanToken = "tokB67890";
-      await seedTicketCache(h, scanToken, Date.now());
-      // The seed's digest is in. From here the scan's own digest waits on
-      // the gate the test opens.
-      globalThis.crypto.subtle.sign = holdDigest;
-      await start(h);
-      await scanFirst(fakes, scanToken);
+      using digest = await scanWaitingOnDigest(h, fakes, scanToken);
 
       // The connection returns and the sync starts while the scan is still
       // digesting. The digest then comes back, and the new check-in must
@@ -305,7 +334,7 @@ describe("scanner offline sync", {
       // detaches them.
       h.stash.set("navigator", { onLine: true });
       h.window.dispatchEvent(new h.window.Event("online"));
-      digestGate.resolve();
+      digest.release();
       await whenStatusShows(
         h.statusEl,
         "Ticket looks valid. It will be checked in when you are back online.",
@@ -320,7 +349,6 @@ describe("scanner offline sync", {
       ]);
       expect(rowWords(h)).toEqual(["Checked in", "Checked in"]);
     } finally {
-      globalThis.crypto.subtle.sign = realSign;
       fetchStub.restore();
     }
   });
