@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   attendeeAccount,
@@ -295,7 +296,7 @@ Then(
     const page = await adminPageHtml(
       `/admin/attendees/${bookingId(this)}/ledger`,
     );
-    expect(page).toContain("This booking is fully paid");
+    assertStringIncludes(page, "This booking is fully paid");
   },
 );
 
@@ -303,10 +304,11 @@ Then(
   "their payment link offers to take the {word} that is left",
   async function (this: TicketsWorld, amount: string): Promise<void> {
     const page = await balancePageHtml(this);
-    expect(page).toContain(
+    assertStringIncludes(
+      page,
       `Balance due:</strong> ${formatCurrency(minorUnits(amount))}`,
     );
-    expect(page).toContain(`Pay ${formatCurrency(minorUnits(amount))} now`);
+    assertStringIncludes(page, `Pay ${formatCurrency(minorUnits(amount))} now`);
   },
 );
 
@@ -319,11 +321,13 @@ Then(
     paid: string,
   ): Promise<void> {
     const page = await balancePageHtml(this);
-    expect(page).toContain(name);
-    expect(page).toContain(
+    assertStringIncludes(page, name);
+    assertStringIncludes(
+      page,
       `Full order price:</strong> ${formatCurrency(minorUnits(ordered))}`,
     );
-    expect(page).toContain(
+    assertStringIncludes(
+      page,
       `Already paid:</strong> ${formatCurrency(minorUnits(paid))}`,
     );
   },
@@ -336,7 +340,7 @@ Then(
     // The booker's own name and address are what the link must not carry, so
     // a fixture that set neither would prove nothing rather than pass.
     for (const key of ["attendeeEmail", "attendeeName"] as const) {
-      expect(page).not.toContain(requiredWorldValue(this[key], key));
+      assert(!page.includes(requiredWorldValue(this[key], key)));
     }
   },
 );

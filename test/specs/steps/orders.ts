@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { settings } from "#db/settings.ts";
 import { addDays } from "#shared/dates.ts";
@@ -133,11 +134,11 @@ Then(
   "each booking says which bundle or parent it came from",
   async function (this: TicketsWorld): Promise<void> {
     const editor = await openOrder(this, "Tent");
-    expect(editor).toContain("via Mega Kit");
-    expect(editor).toContain("add-on under Marquee");
+    assertStringIncludes(editor, "via Mega Kit");
+    assertStringIncludes(editor, "add-on under Marquee");
     // The day the customer picked rides with the order.
-    expect(editor).toContain('name="start_date"');
-    expect(editor).toContain(`value="${this.orderDay}"`);
+    assertStringIncludes(editor, 'name="start_date"');
+    assertStringIncludes(editor, `value="${this.orderDay}"`);
   },
 );
 
@@ -206,7 +207,7 @@ Then(
     const { catalog } = placedOrder(this);
     const tent = catalog.listing("Tent").id;
     for (const bundle of ["Camp Kit", "Glamp Kit"]) {
-      expect(editor).toContain(`via ${bundle}`);
+      assertStringIncludes(editor, `via ${bundle}`);
       expect(
         attendeeLineIndex(editor, tent, catalog.group(bundle).id),
       ).not.toBeNull();

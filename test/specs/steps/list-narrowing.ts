@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { CUSTOMER, ORGANISER } from "#test/specs/support/browser.ts";
 import {
@@ -61,8 +62,8 @@ Then(
   "the customer is shown both the {word} and the {word}",
   function (this: TicketsWorld, first: string, second: string): void {
     const shown = whatTheCustomerSees(this);
-    expect(shown).toContain(first);
-    expect(shown).toContain(second);
+    assertStringIncludes(shown, first);
+    assertStringIncludes(shown, second);
   },
 );
 

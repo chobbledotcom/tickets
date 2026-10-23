@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { bookingError } from "#booking/form.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -139,7 +140,8 @@ Then(
   function (this: TicketsWorld): void {
     // The site's own words, so a refusal that stopped explaining itself — or
     // stopped happening at all — fails here rather than passing quietly.
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       t("error.listing_min_quantity_above_max"),
     );
   },
@@ -217,7 +219,7 @@ When(
     // The send has happened; now the proof it was a stale or tampered one:
     // the page the buyer was served offered no such choice, which is why the
     // server-side rule exists.
-    expect(offered).not.toContain(String(places));
+    assert(!offered.includes(String(places)));
     keepWhatTheyWereTold(this, BUYER, browser.pageText);
   },
 );
@@ -227,7 +229,8 @@ Then(
   function (this: TicketsWorld, name: string, minimum: number): void {
     // The production message, not a copy of its wording, so the two can never
     // drift apart.
-    expect(whatTheyWereTold(this, BUYER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, BUYER),
       bookingError.minimum(listingNamed(this, name).name, minimum),
     );
   },
@@ -248,7 +251,8 @@ Then(
     await openTheBookingPage(this, name);
     // One listing's own page says it is full in its own words; the multi-row
     // pages badge each row. Both are the site's own copy, read from the keys.
-    expect(browserSeenBy(this, VISITOR).pageText).toContain(
+    assertStringIncludes(
+      browserSeenBy(this, VISITOR).pageText,
       t("public.ticket.listing_full"),
     );
   },
@@ -260,8 +264,10 @@ Then(
     const listing = listingNamed(this, name);
     // Sold out is the sold-out row: no chooser at all, not one whose every
     // choice happens to be unusable.
-    expect(browserSeenBy(this, VISITOR).currentHtml).not.toContain(
-      `name="quantity_${listing.id}"`,
+    assert(
+      !browserSeenBy(this, VISITOR).currentHtml.includes(
+        `name="quantity_${listing.id}"`,
+      ),
     );
   },
 );

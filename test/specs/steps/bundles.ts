@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { toMinorUnits } from "#shared/currency.ts";
@@ -136,9 +137,10 @@ Then(
   function (this: TicketsWorld): void {
     // The site's own words, so a refusal that stopped explaining itself — or
     // stopped happening at all — fails here rather than passing quietly.
-    expect(
+    assertStringIncludes(
       requiredWorldValue(this.bundleOutcome, "what the organiser was told"),
-    ).toContain(t("error.sold_hidden_package"));
+      t("error.sold_hidden_package"),
+    );
   },
 );
 
@@ -195,8 +197,8 @@ const onlyBundle = (world: TicketsWorld): string => {
 const expectTicketNaming = (shown: boolean) =>
   async function (this: TicketsWorld, thing: string): Promise<void> {
     const ticket = await wordsOnTheirTicket(this);
-    if (shown) expect(ticket).toContain(thing);
-    else expect(ticket).not.toContain(thing);
+    if (shown) assertStringIncludes(ticket, thing);
+    else assert(!ticket.includes(thing));
   };
 
 Then("their ticket names the {word}", expectTicketNaming(true));
@@ -214,9 +216,10 @@ Then(
   async function (this: TicketsWorld, bundle: string): Promise<void> {
     // Told it went, as well as finding it gone: a delete that removed the
     // bundle and then fell over is not an organiser deleting one.
-    expect(
+    assertStringIncludes(
       requiredWorldValue(this.bundleOutcome, "what the organiser was told"),
-    ).toContain(GROUP_DELETED);
+      GROUP_DELETED,
+    );
     expect(await bundleStillExists(this, bundle)).toBe(false);
   },
 );
@@ -232,8 +235,8 @@ Then(
 const expectBookingPageNaming = (shown: boolean) =>
   function (this: TicketsWorld, thing: string): void {
     const page = requiredWorldValue(this.bundleBookingPage, "the booking page");
-    if (shown) expect(page).toContain(thing);
-    else expect(page).not.toContain(thing);
+    if (shown) assertStringIncludes(page, thing);
+    else assert(!page.includes(thing));
   };
 
 Then("the booking page named the {word}", expectBookingPageNaming(true));
@@ -242,7 +245,8 @@ Then("the booking page never named the {word}", expectBookingPageNaming(false));
 Then("the organiser is told it saved", function (this: TicketsWorld): void {
   // A save that quietly failed would leave the same bundle behind as one the
   // site refused, so the story reads what the organiser was actually told.
-  expect(
+  assertStringIncludes(
     requiredWorldValue(this.bundleOutcome, "what the organiser was told"),
-  ).toContain(GROUP_SAVED);
+    GROUP_SAVED,
+  );
 });

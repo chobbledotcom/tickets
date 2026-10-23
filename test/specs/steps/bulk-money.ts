@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute } from "#db/client.ts";
@@ -128,9 +129,10 @@ When(
 Then(
   "Refund All stops before asking the provider to return money",
   function (this: TicketsWorld): void {
-    expect(
+    assertStringIncludes(
       requiredWorldValue(this.bulkRefundMessage, "what the organiser was told"),
-    ).toContain("Refund recovery");
+      "Refund recovery",
+    );
     expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(0);
   },
 );
@@ -138,9 +140,10 @@ Then(
 Then(
   "Refund All stops because older payment history is incomplete",
   function (this: TicketsWorld): void {
-    expect(
+    assertStringIncludes(
       requiredWorldValue(this.bulkRefundMessage, "what the organiser was told"),
-    ).toContain("payment provider");
+      "payment provider",
+    );
     expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(0);
   },
 );
@@ -174,10 +177,11 @@ Then(
       this.bulkRefundMessage,
       "what they were told",
     );
-    expect(told).toContain(
+    assertStringIncludes(
+      told,
       `${worked} refund${worked === 1 ? "" : "s"} succeeded`,
     );
-    expect(told).toContain(`There was ${failed} failure`);
+    assertStringIncludes(told, `There was ${failed} failure`);
     // Every booking was tried, not just the ones before the failure.
     expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(
       worked + failed,
@@ -192,10 +196,12 @@ Then(
       this.bulkRefundMessage,
       "what they were told",
     );
-    expect(told).toContain(
+    assertStringIncludes(
+      told,
       `${worked} refund${worked === 1 ? "" : "s"} succeeded`,
     );
-    expect(told).toContain(
+    assertStringIncludes(
+      told,
       `${remaining} refund${remaining === 1 ? "" : "s"} remain`,
     );
     expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(worked);
@@ -205,9 +211,10 @@ Then(
 Then(
   "the organiser is told {int} refund(s) remain",
   function (this: TicketsWorld, remaining: number): void {
-    expect(
+    assertStringIncludes(
       requiredWorldValue(this.bulkRefundMessage, "what they were told"),
-    ).toContain(`${remaining} refund${remaining === 1 ? "" : "s"} remain`);
+      `${remaining} refund${remaining === 1 ? "" : "s"} remain`,
+    );
   },
 );
 

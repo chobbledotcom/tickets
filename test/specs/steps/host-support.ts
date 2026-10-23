@@ -3,8 +3,9 @@
  * carries, and what the owner is told when one did not go.
  */
 
-// jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
+// jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -156,8 +157,8 @@ Then(
     // Sent to the admin area, which answers with the sign-in page — not the
     // Support page itself and not an error.
     const browser = this.things.require("browser", STRANGER);
-    expect(browser.pageText).toContain("Login");
-    expect(browser.currentUrl).not.toContain("support");
+    assertStringIncludes(browser.pageText, "Login");
+    assert(!browser.currentUrl.includes("support"));
   },
 );
 
@@ -174,7 +175,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const browser = await adminBrowser(this);
     await browser.visit("/admin/settings");
-    expect(browser.currentHtml).not.toContain(`href="${SUPPORT_PAGE}"`);
+    assert(!browser.currentHtml.includes(`href="${SUPPORT_PAGE}"`));
   },
 );
 
@@ -186,8 +187,8 @@ Then(
     words: string,
   ): Promise<void> {
     const html = (await openAdminPage(this, SUPPORT_PAGE)).currentHtml;
-    expect(html).toContain(`<h1>${heading}</h1>`);
-    expect(html).toContain(`<p>${words}</p>`);
+    assertStringIncludes(html, `<h1>${heading}</h1>`);
+    assertStringIncludes(html, `<p>${words}</p>`);
   },
 );
 
@@ -195,7 +196,7 @@ Then(
   "the page does not say the host has written nothing",
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openAdminPage(this, SUPPORT_PAGE);
-    expect(browser.pageText).not.toContain(t("support.missing_text"));
+    assert(!browser.pageText.includes(t("support.missing_text")));
   },
 );
 
@@ -203,7 +204,7 @@ Then(
   "the owner is told the host has written nothing yet",
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openAdminPage(this, SUPPORT_PAGE);
-    expect(browser.pageText).toContain(t("support.missing_text"));
+    assertStringIncludes(browser.pageText, t("support.missing_text"));
   },
 );
 
@@ -211,7 +212,7 @@ Then(
   "the owner is offered no form to write in",
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openAdminPage(this, SUPPORT_PAGE);
-    expect(browser.currentHtml).not.toContain(`action="${SUPPORT_PAGE}"`);
+    assert(!browser.currentHtml.includes(`action="${SUPPORT_PAGE}"`));
   },
 );
 
@@ -219,16 +220,16 @@ Then(
   "the owner is offered a message box and nothing else to fill in",
   async function (this: TicketsWorld): Promise<void> {
     const html = (await openAdminPage(this, SUPPORT_PAGE)).currentHtml;
-    expect(html).toContain(`action="${SUPPORT_PAGE}"`);
-    expect(html).toContain('name="message"');
-    expect(html).not.toContain('name="email"');
+    assertStringIncludes(html, `action="${SUPPORT_PAGE}"`);
+    assertStringIncludes(html, 'name="message"');
+    assert(!html.includes('name="email"'));
   },
 );
 
 Then(
   "the owner is told the message was sent",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(SENT);
+    assertStringIncludes(whatTheyWereTold(this, ORGANISER), SENT);
   },
 );
 
@@ -236,15 +237,15 @@ Then(
   "the owner is told it could not be sent",
   function (this: TicketsWorld): void {
     const told = whatTheyWereTold(this, ORGANISER);
-    expect(told).toContain(MESSAGE_SEND_FAILED);
-    expect(told).not.toContain(SENT);
+    assertStringIncludes(told, MESSAGE_SEND_FAILED);
+    assert(!told.includes(SENT));
   },
 );
 
 Then(
   "the owner is told to enter a message",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(ENTER_A_MESSAGE);
+    assertStringIncludes(whatTheyWereTold(this, ORGANISER), ENTER_A_MESSAGE);
   },
 );
 
@@ -257,7 +258,7 @@ Then("the message reaches the host", function (this: TicketsWorld): void {
     this.messageWritten,
     "the message written",
   );
-  expect(String(sent.body?.html ?? "")).toContain(written);
+  assertStringIncludes(String(sent.body?.html ?? ""), written);
 });
 
 Then("nothing reaches the host", function (this: TicketsWorld): void {
@@ -276,6 +277,6 @@ Then(
   "the owner is reminded they sent a message a moment ago",
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openAdminPage(this, SUPPORT_PAGE);
-    expect(browser.pageText).toContain(LAST_SUBMITTED);
+    assertStringIncludes(browser.pageText, LAST_SUBMITTED);
   },
 );

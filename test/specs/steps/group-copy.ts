@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getListingsByGroupId } from "#db/groups.ts";
 import { t } from "#i18n";
@@ -174,7 +175,7 @@ Then(
     // The production message names the collision; assert the reason the site
     // gave, not merely that it refused — a 500 or a redirect to login would
     // also leave the page with words on it.
-    expect(whatOrganiserWasTold(this)).toContain("already exists");
+    assertStringIncludes(whatOrganiserWasTold(this), "already exists");
   },
 );
 
@@ -185,7 +186,10 @@ Then(
   "the organiser's list offers the {string} group",
   async function (this: TicketsWorld, name: string): Promise<void> {
     const browser = await openAdminPage(this, GROUPS_LIST_PATH);
-    expect(browser.links.map(({ text }) => text)).toContain(name);
+    assertArrayIncludes(
+      browser.links.map(({ text }) => text),
+      [name],
+    );
   },
 );
 
@@ -193,7 +197,7 @@ Then(
   "the organiser's list does not offer the {string} group",
   async function (this: TicketsWorld, name: string): Promise<void> {
     const browser = await openAdminPage(this, GROUPS_LIST_PATH);
-    expect(browser.pageText).not.toContain(name);
+    assert(!browser.pageText.includes(name));
   },
 );
 
