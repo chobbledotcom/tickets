@@ -1,20 +1,17 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { queryOne } from "#db/client.ts";
-import {
-  contactHash,
-  forgetContact,
-} from "#db/contact-preferences.ts";
 import { decryptPiiBlob } from "#db/attendees/pii.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { updateAttendeePII } from "#db/attendees/update.ts";
-import type { Attendee } from "#types";
+import { queryOne } from "#db/client.ts";
+import { contactHash, forgetContact } from "#db/contact-preferences.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { mergePair, submitMerge } from "#test-utils/attendees/merge.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { attendeePiiOf } from "#test-utils/db-helpers/attendee-payments.ts";
+import type { Attendee } from "#types";
 
 // jscpd:ignore-end
 

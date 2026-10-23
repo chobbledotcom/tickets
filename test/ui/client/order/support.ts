@@ -168,11 +168,14 @@ export interface ShadowQueryable extends Queryable {
 }
 
 export interface QueryNode extends Queryable {
+  children: ArrayLike<QueryNode>;
+  className: string;
   click(): void;
   dispatchEvent(event: unknown): boolean;
   getAttribute(name: string): string | null;
   hidden: boolean;
   open: boolean;
+  tagName: string;
   textContent: string;
   type: string;
 }
