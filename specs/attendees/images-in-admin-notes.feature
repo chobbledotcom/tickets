@@ -12,15 +12,15 @@ Feature: The organiser reads notes that carry pictures
   @surface:admin
   Rule: A picture in a note shows wherever the note is read
     Each place that shows the note shows the picture inside its own region. A
-    picture seen anywhere on the page is not enough: the banner and the notes
-    section are held to their own copies, and so is every summary.
+    picture seen anywhere on the page is not enough. On the person's page the
+    note shows once, in the notes block in the page's top block above the
+    tabs. Every summary holds its own copy.
 
     @case:images-in-notes.the-banner-and-the-notes-section-each-show-it
     Scenario: The organiser opens the person's page
       Given the organiser noted about Ada "Called about parking" with a picture called "Poster"
       When the organiser opens Ada's page
-      Then the banner shows the "Poster" picture
-      And the notes section shows the "Poster" picture
+      Then the notes block above the tabs shows the "Poster" picture
 
     @case:images-in-notes.the-attendees-list-summary-shows-it
     Scenario: The organiser reads the notes summary on the Attendees page

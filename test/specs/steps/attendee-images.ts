@@ -16,9 +16,9 @@ import {
   regionShowsPicture,
 } from "#test/specs/support/attendee-images.ts";
 
-/** The notes block the banner carries: every note, oldest first, right above
- * the tab strip. */
-const BANNER_NOTES = '<section class="attendee-notes">';
+/** The notes block on the person's page: every note, oldest first, right
+ * above the tab strip. */
+const NOTES_BLOCK = '<section class="attendee-notes">';
 /** The expandable notes summary above the attendees list and the listing's
  * panels. */
 const NOTES_SUMMARY = "attendee-notes-summary";
@@ -82,23 +82,11 @@ When(
 );
 
 Then(
-  "the banner shows the {string} picture",
+  "the notes block above the tabs shows the {string} picture",
   function (this: TicketsWorld, _name: string): void {
     regionShowsPicture(
       scenarioBrowser(this).currentHtml,
-      'class="page-block attendee-banner"',
-      "div",
-      this,
-    );
-  },
-);
-
-Then(
-  "the notes section shows the {string} picture",
-  function (this: TicketsWorld, _name: string): void {
-    regionShowsPicture(
-      scenarioBrowser(this).currentHtml,
-      BANNER_NOTES,
+      NOTES_BLOCK,
       "section",
       this,
     );
