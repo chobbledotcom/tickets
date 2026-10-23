@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -69,9 +70,10 @@ describeWithEnv(
         const updated = await findSite(site.id);
         const expectedBase = new Date(NOW_MS + 10 * 86400000).toISOString();
         expect(updated.readOnlyFrom).toBe(addMonthsIso(expectedBase, 3));
-        expect(
+        assertArrayIncludes(
           (await getAllActivityLog()).map(({ message }) => message),
-        ).toContain("Admin bumped 'Bump Future' deadline by 3 month(s)");
+          ["Admin bumped 'Bump Future' deadline by 3 month(s)"],
+        );
       });
 
       test("bumps from now on expired site", async () => {
@@ -123,7 +125,7 @@ describeWithEnv(
         expect(response.status).toBe(302);
 
         const secretNames = secretNamesOf(suite.secretStub);
-        expect(secretNames).not.toContain("RENEWAL_URL");
+        assert(!secretNames.includes("RENEWAL_URL"));
       });
 
       test("clamps months <= 0 to 1", () =>
