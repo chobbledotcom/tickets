@@ -8,22 +8,21 @@
 /**
  * The offline door: the switch the page restores from its store, and the
  * scans a dead connection queues or refuses. The replay that settles the
- * queue is ../scanner-offline-ui/sync.test.ts. Every test drives the real
- * built bundle, so
- * the words asserted are the words the door reads.
+ * queue is #test/ui/client/scanner-offline-ui/sync.test.ts. Every test
+ * drives the real built bundle, so the words asserted are the words the
+ * door reads.
  */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Stub } from "@std/testing/mock";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   cameraFakes,
   scanFirst,
   seedTicketCache,
   start,
   whenStatusShows,
-} from "../scanner/camera-fakes.ts";
+} from "#test/ui/client/scanner/camera-fakes.ts";
 import {
   el,
   fullStore,
@@ -33,7 +32,8 @@ import {
   storedQueue,
   TOKEN,
   useScannerSuite,
-} from "../scanner/fixture.ts";
+} from "#test/ui/client/scanner/fixture.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 describe("scanner offline door", {
   sanitizeOps: false,
