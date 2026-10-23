@@ -157,17 +157,23 @@ export const queueCheckIn = (scanPath, token) => {
   return item;
 };
 
-/** Drop one settled item from the queue. The rendered rows hold parsed
- * copies, so the match is on the item's stored fields, not its reference. */
+/** Whether two stored queue items are the same check-in. The rendered rows
+ * hold parsed copies, so the match is on the stored fields, not the
+ * reference. */
+export const sameQueuedCheckIn = (one, two) =>
+  one.queuedAt === two.queuedAt &&
+  one.scanPath === two.scanPath &&
+  one.token === two.token;
+
+/** Whether the stored queue still holds this item. A sync re-run walks the
+ * rows an earlier run rendered. A row whose item that run settled left the
+ * store, so the re-run must not replay its check-in. */
+export const queueHolds = (item) =>
+  readQueue().some((queued) => sameQueuedCheckIn(queued, item));
+
+/** Drop one settled item from the queue. */
 export const dropFromQueue = (item) =>
-  writeQueue(
-    readQueue().filter(
-      (queued) =>
-        queued.queuedAt !== item.queuedAt ||
-        queued.scanPath !== item.scanPath ||
-        queued.token !== item.token,
-    ),
-  );
+  writeQueue(readQueue().filter((queued) => !sameQueuedCheckIn(queued, item)));
 
 /** Whether a sync is running. The camera loop holds its scans while the
  * queue settles, so one overlay asks one question at a time. */

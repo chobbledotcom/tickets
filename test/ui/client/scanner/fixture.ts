@@ -88,7 +88,8 @@ export interface ScannerGlobals {
  * stays object shorthand for itself. The one QR read is rewritten onto a
  * stashed decoder, so a camera test feeds frames without bundling a second
  * copy of jsQR; with no decoder stashed the read answers no code, which is
- * what the confirm suites (that never decode) would see anyway. */
+ * what the confirm suites (that never decode) would see anyway. The
+ * minifier's short names may carry a `$` (`$0`), so the matches read `[\w$]`. */
 const runBundleOnce = (): void => {
   const bundle = Deno.readTextFileSync("src/ui/static/scanner.js")
     .replace(
@@ -96,10 +97,10 @@ const runBundleOnce = (): void => {
       (_all, list: string) =>
         `;globalThis.${MODULE_MARKER}={${list
           .trim()
-          .replace(/(\w+)\s+as\s+(\w+)/g, "$2: $1")}};`,
+          .replace(/([\w$]+)\s+as\s+([\w$]+)/g, "$2: $1")}};`,
     )
     .replace(
-      /\(0,(\w+)\.default\)\((\w+)\.data,\2\.width,\2\.height\)/,
+      /\(0,([\w$]+)\.default\)\(([\w$]+)\.data,\2\.width,\2\.height\)/,
       "(0,globalThis.__scannerJsqr||(() => null))($2.data,$2.width,$2.height)",
     );
   new Function(bundle)();
