@@ -13,6 +13,7 @@
  * door reads.
  */
 
+// jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Stub } from "@std/testing/mock";
@@ -34,6 +35,8 @@ import {
   useScannerSuite,
 } from "#test/ui/client/scanner/fixture.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+
+// jscpd:ignore-end
 
 describe("scanner offline door", {
   sanitizeOps: false,
