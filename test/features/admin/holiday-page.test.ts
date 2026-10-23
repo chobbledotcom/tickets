@@ -4,6 +4,7 @@
  * what the page shows and what a rejected save keeps.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { holidayPage } from "#routes/admin/holiday-page.ts";
@@ -20,8 +21,8 @@ describeWithEnv("the holiday page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain(`action="/admin/holidays/${holiday.id}/edit"`);
-    expect(html).toContain("Bank Holiday");
+    assertStringIncludes(html, `action="/admin/holidays/${holiday.id}/edit"`);
+    assertStringIncludes(html, "Bank Holiday");
   });
 
   test("marks the holidays list as the section it belongs to", async () => {
@@ -29,7 +30,7 @@ describeWithEnv("the holiday page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/holidays/${holiday.id}`)).text();
 
-    expect(html).toContain(`<a class="active" href="/admin/holidays">`);
+    assertStringIncludes(html, `<a class="active" href="/admin/holidays">`);
   });
 
   test("offers deleting the holiday on its actions tab", async () => {
@@ -39,8 +40,8 @@ describeWithEnv("the holiday page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain(`href="/admin/holidays/${holiday.id}/delete"`);
-    expect(html).toContain("Delete holiday");
+    assertStringIncludes(html, `href="/admin/holidays/${holiday.id}/delete"`);
+    assertStringIncludes(html, "Delete holiday");
   });
 
   test("answers 404 for a holiday that is not there", async () => {
@@ -59,7 +60,7 @@ describeWithEnv("the holiday page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(400);
-    expect(html).toContain("2026-06-01");
-    expect(html).toContain("End date is before the start date");
+    assertStringIncludes(html, "2026-06-01");
+    assertStringIncludes(html, "End date is before the start date");
   });
 });

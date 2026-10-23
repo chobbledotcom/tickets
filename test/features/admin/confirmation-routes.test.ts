@@ -5,6 +5,7 @@
  * mutation gate runs against.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -52,7 +53,10 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("/admin/away/a");
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
+        "/admin/away/a",
+      );
       expectFlash(
         response,
         expect.stringContaining("Name does not match"),
@@ -208,7 +212,8 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
         "/admin/test/1/delete",
       );
       expectFlash(
@@ -232,7 +237,10 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("/admin/test");
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
+        "/admin/test",
+      );
       expectFlash(response, "deleted");
     });
 
@@ -270,7 +278,10 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
         7,
       );
 
-      expect(response.headers.get("location")).toContain("/admin/test/Alpha/7");
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
+        "/admin/test/Alpha/7",
+      );
     });
 
     test("answers with the given not-found response", async () => {
@@ -356,7 +367,10 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
         ),
         1,
       );
-      expect(anyPost.headers.get("location")).toContain("/admin/test");
+      assertStringIncludes(
+        anyPost.headers.get("location") ?? "",
+        "/admin/test",
+      );
     });
 
     test("uses the guard pair an explicit auth option names", async () => {

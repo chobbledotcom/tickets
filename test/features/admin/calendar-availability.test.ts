@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -23,14 +23,14 @@ describeWithEnv(
           name: "Avail Listing",
         });
         const html = await fetchCalendarHtml();
-        expect(html).toContain("Check availability");
-        expect(html).toContain("data-availability-checker");
-        expect(html).toContain("Avail Listing");
-        expect(html).toContain("5/5");
-        expect(html).toContain('action="/admin/attendees/new"');
-        expect(html).toContain('formaction="/admin/servicing/new"');
-        expect(html).toContain("Create Service Event");
-        expect(html).toContain(`name="select_${listing.id}"`);
+        assertStringIncludes(html, "Check availability");
+        assertStringIncludes(html, "data-availability-checker");
+        assertStringIncludes(html, "Avail Listing");
+        assertStringIncludes(html, "5/5");
+        assertStringIncludes(html, 'action="/admin/attendees/new"');
+        assertStringIncludes(html, 'formaction="/admin/servicing/new"');
+        assertStringIncludes(html, "Create Service Event");
+        assertStringIncludes(html, `name="select_${listing.id}"`);
       });
 
       test("reflects bookings in the remaining count", async () => {
@@ -41,7 +41,7 @@ describeWithEnv(
         });
         await bookAttendee(listing, { quantity: 2 });
         const html = await fetchCalendarHtml();
-        expect(html).toContain("3/5");
+        assertStringIncludes(html, "3/5");
       });
 
       test("passes the selected calendar date to the create form", async () => {
@@ -53,8 +53,8 @@ describeWithEnv(
           name: "A",
         });
         const html = await fetchCalendarHtml(`/admin/calendar?date=${date}`);
-        expect(html).toContain('name="start_date"');
-        expect(html).toContain(`value="${date}"`);
+        assertStringIncludes(html, 'name="start_date"');
+        assertStringIncludes(html, `value="${date}"`);
       });
     });
   },

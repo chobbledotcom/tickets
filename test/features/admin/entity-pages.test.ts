@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -168,21 +169,21 @@ describe("defineEntityPage", () => {
     const response = await page.renderPage(SESSION, 7, "");
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("<h1>Widget: Widget</h1>");
+    assertStringIncludes(html, "<h1>Widget: Widget</h1>");
     // Summary row + activity preview with a view-all link into the full tab.
-    expect(html).toContain('<th scope="row">Name</th>');
-    expect(html).toContain("made");
-    expect(html).toContain('href="/admin/holidays/7/activity"');
+    assertStringIncludes(html, '<th scope="row">Name</th>');
+    assertStringIncludes(html, "made");
+    assertStringIncludes(html, 'href="/admin/holidays/7/activity"');
     // The hidden tab is absent from the strip; the actions tab's content is
     // not rendered on this tab (per-tab loading).
-    expect(html).not.toContain("/admin/holidays/7/hidden");
-    expect(html).not.toContain("/admin/holidays/7/refund");
+    assert(!html.includes("/admin/holidays/7/hidden"));
+    assert(!html.includes("/admin/holidays/7/refund"));
   });
 
   test("the full activity tab renders without a view-all link", async () => {
     const html = await (await page.renderPage(SESSION, 7, "activity")).text();
-    expect(html).toContain("No activity recorded yet");
-    expect(html).not.toContain("View all activity");
+    assertStringIncludes(html, "No activity recorded yet");
+    assert(!html.includes("View all activity"));
   });
 
   test("active sections load concurrently without changing their declared order", async () => {
@@ -233,11 +234,12 @@ describe("defineEntityPage", () => {
   test("actions filter on their visible predicate and custom sections get ctx", async () => {
     const html = await (await page.renderPage(SESSION, 7, "actions")).text();
     // paid=false hides the refund action but keeps the danger delete.
-    expect(html).not.toContain("/admin/holidays/7/refund");
-    expect(html).toContain('href="/admin/holidays/7/delete"');
-    expect(html).toContain("entity-danger-zone");
+    assert(!html.includes("/admin/holidays/7/refund"));
+    assertStringIncludes(html, 'href="/admin/holidays/7/delete"');
+    assertStringIncludes(html, "entity-danger-zone");
     // The custom section received the tab's canonical URL as returnUrl.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<p data-from="">Widget @ /admin/holidays/7/actions from </p>',
     );
   });
@@ -245,7 +247,7 @@ describe("defineEntityPage", () => {
   test("read-only mode hides write-form tabs and actions", async () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const actions = await page.renderPage(SESSION, 7, "actions");
-    expect(await actions.text()).not.toContain("/admin/holidays/7/delete");
+    assert(!(await actions.text()).includes("/admin/holidays/7/delete"));
     expect((await page.renderPage(SESSION, 7, "edit")).status).toBe(404);
   });
 
@@ -278,11 +280,11 @@ describe("defineEntityPage", () => {
     });
     expect(response.status).toBe(400);
     const html = await response.text();
-    expect(html).toContain("<p>override</p>");
-    expect(html).not.toContain("<p>section</p>");
+    assertStringIncludes(html, "<p>override</p>");
+    assert(!html.includes("<p>section</p>"));
     expect(loaded).toEqual(["panel"]);
     // The shell (title + strip) still renders around the override.
-    expect(html).toContain("<h1>Widget: Widget</h1>");
+    assertStringIncludes(html, "<h1>Widget: Widget</h1>");
   });
 
   test("an invalid response status fails instead of becoming a success", async () => {
@@ -293,10 +295,10 @@ describe("defineEntityPage", () => {
 
   test("tab labels render translated, never as raw locale keys", async () => {
     const html = await (await page.renderPage(SESSION, 7, "")).text();
-    expect(html).toContain(">Overview</a>");
-    expect(html).toContain(">Activity</a>");
-    expect(html).toContain(">Actions</a>");
-    expect(html).not.toContain("entity.tab.");
+    assertStringIncludes(html, ">Overview</a>");
+    assertStringIncludes(html, ">Activity</a>");
+    assertStringIncludes(html, ">Actions</a>");
+    assert(!html.includes("entity.tab."));
   });
 
   test("deleteActionTab renders one write-only danger action", async () => {
@@ -310,9 +312,9 @@ describe("defineEntityPage", () => {
       ],
     });
     const html = await (await deletePage.renderPage(SESSION, 7, "")).text();
-    expect(html).toContain('href="/admin/holidays/7/delete"');
-    expect(html).toContain("Delete");
-    expect(html).toContain("entity-danger-zone");
+    assertStringIncludes(html, 'href="/admin/holidays/7/delete"');
+    assertStringIncludes(html, "Delete");
+    assertStringIncludes(html, "entity-danger-zone");
     expect((await deletePage.renderPage(SESSION, 7, "actions")).status).toBe(
       200,
     );
@@ -342,7 +344,8 @@ describe("defineEntityPage", () => {
       "Invalid",
     );
     expect(response.status).toBe(400);
-    expect(await response.text()).toContain(
+    assertStringIncludes(
+      await response.text(),
       "<p>Widget|/admin/holidays/7|Submitted|Invalid</p>",
     );
   });
@@ -362,7 +365,8 @@ describeWithEnv("an entity page serving a request", { db: true }, () => {
       ),
     );
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain(
+    assertStringIncludes(
+      await response.text(),
       '<p data-from="queue">Widget @ /admin/holidays/7/actions from https://tickets.example</p>',
     );
   });

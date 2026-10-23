@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
@@ -22,9 +23,10 @@ describeWithEnv("admin > logged actions", { db: true }, () => {
     )({ id: 7, name: "Colour" });
 
     expect(deleted).toEqual([7]);
-    expect(
+    assertArrayIncludes(
       (await withTestSession(() => getAllActivityLog())).map((e) => e.message),
-    ).toContain("Attribute 'Colour' deleted");
+      ["Attribute 'Colour' deleted"],
+    );
   });
 
   test("the create hook appends to the collection and logs with the transaction", async () => {
@@ -40,9 +42,10 @@ describeWithEnv("admin > logged actions", { db: true }, () => {
     });
 
     expect(appended).toEqual([3]);
-    expect(
+    assertArrayIncludes(
       (await withTestSession(() => getAllActivityLog())).map((e) => e.message),
-    ).toContain("Question 'Postcode' created");
+      ["Question 'Postcode' created"],
+    );
   });
 
   test("a rolled-back creation leaves no log line", async () => {
@@ -62,8 +65,10 @@ describeWithEnv("admin > logged actions", { db: true }, () => {
     });
 
     expect(rolledBack).toBe(true);
-    expect(
-      (await withTestSession(() => getAllActivityLog())).map((e) => e.message),
-    ).not.toContain("Question 'Ghost' created");
+    assert(
+      !(await withTestSession(() => getAllActivityLog()))
+        .map((e) => e.message)
+        .includes("Question 'Ghost' created"),
+    );
   });
 });
