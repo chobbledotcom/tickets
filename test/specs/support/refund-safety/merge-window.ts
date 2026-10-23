@@ -1,6 +1,7 @@
 /** A real merge form kept open while another owner window starts a refund. */
 
 // jscpd:ignore-start
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
@@ -151,7 +152,7 @@ export const choosePaidDetails = (
   );
   const values = sourceChoices(form.body);
   for (const field of Object.keys(values)) {
-    expect(choicesForQuestion(form.body, field)).toContain("source");
+    assertArrayIncludes(choicesForQuestion(form.body, field), ["source"]);
   }
   keptForms.set(world, { html: form.body, values });
 };

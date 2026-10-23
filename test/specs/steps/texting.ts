@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { ORGANISER } from "#test/specs/support/browser.ts";
 import {
@@ -79,7 +80,8 @@ When(
 Then(
   "the page says {int} messages are waiting to go",
   async function (this: TicketsWorld, waiting: number): Promise<void> {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       await textingCopy("sms.queue.awaiting", { count: waiting }),
     );
   },
@@ -88,8 +90,10 @@ Then(
 Then(
   "there is no way to write a text",
   async function (this: TicketsWorld): Promise<void> {
-    expect(whatTheyWereTold(this, ORGANISER)).not.toContain(
-      await textingCopy("sms.contact.compose_heading"),
+    assert(
+      !whatTheyWereTold(this, ORGANISER).includes(
+        await textingCopy("sms.contact.compose_heading"),
+      ),
     );
   },
 );
@@ -97,7 +101,8 @@ Then(
 Then(
   "the page says the gateway is not set up",
   async function (this: TicketsWorld): Promise<void> {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       await textingCopy("sms.contact.not_configured"),
     );
   },
@@ -106,7 +111,8 @@ Then(
 Then(
   "the page says there is no number on file",
   async function (this: TicketsWorld): Promise<void> {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       await textingCopy("sms.contact.no_phone"),
     );
   },
@@ -116,23 +122,30 @@ Then(
   "the page names {word} and the number she gave",
   async function (this: TicketsWorld, who: string): Promise<void> {
     const page = whatTheyWereTold(this, ORGANISER);
-    expect(page).toContain(who);
-    expect(page).toContain(phoneOf(this, who));
-    expect(page).toContain(await textingCopy("sms.contact.compose_heading"));
+    assertStringIncludes(page, who);
+    assertStringIncludes(page, phoneOf(this, who));
+    assertStringIncludes(
+      page,
+      await textingCopy("sms.contact.compose_heading"),
+    );
   },
 );
 
 Then(
   "the organiser is told the text was queued",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain("Text message queued");
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
+      "Text message queued",
+    );
   },
 );
 
 Then(
   "the organiser is told the text could not be queued",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       "Message could not be queued",
     );
   },
@@ -141,7 +154,8 @@ Then(
 Then(
   "the organiser is told the message cannot be empty",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       "Message cannot be empty",
     );
   },
@@ -154,14 +168,15 @@ Then(
     who: string,
     message: string,
   ): Promise<void> {
-    expect(await historyShownTo(this, who)).toContain(message);
+    assertStringIncludes(await historyShownTo(this, who), message);
   },
 );
 
 Then(
   "nothing has been said to {word}",
   async function (this: TicketsWorld, who: string): Promise<void> {
-    expect(await historyShownTo(this, who)).toContain(
+    assertStringIncludes(
+      await historyShownTo(this, who),
       await textingCopy("sms.contact.no_messages"),
     );
   },
@@ -170,7 +185,10 @@ Then(
 Then(
   "{word}'s history says the text could not be queued",
   async function (this: TicketsWorld, who: string): Promise<void> {
-    expect(await historyShownTo(this, who)).toContain("could not be queued");
+    assertStringIncludes(
+      await historyShownTo(this, who),
+      "could not be queued",
+    );
   },
 );
 
@@ -180,7 +198,7 @@ Then(
     // The queue itself, not only the log's wording: a message that reached
     // the queue without its success line would otherwise read as nothing.
     expect(await messagesQueued()).toBe(0);
-    expect(await historyShownTo(this, who)).not.toContain("queued for");
+    assert(!(await historyShownTo(this, who)).includes("queued for"));
   },
 );
 

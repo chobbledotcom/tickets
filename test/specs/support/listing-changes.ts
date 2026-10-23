@@ -4,7 +4,7 @@
  */
 
 // jscpd:ignore-start
-import { expect } from "@std/expect";
+import { assertArrayIncludes } from "@std/assert";
 import { DAY_NAMES } from "#shared/day-names.ts";
 import { tickedCheckboxes } from "#test/specs/support/form-controls/reading.ts";
 import { setBoxOnListing } from "#test/specs/support/listings.ts";
@@ -33,7 +33,7 @@ export const stopOpeningOn: ChangeOneThing<string> = async (
     // fixed hidden box is one nobody could untick, so the story must fail
     // rather than post an edit no organiser could make.
     const ticked = tickedCheckboxes(served, "bookable_days");
-    expect(ticked).toContain(weekday);
+    assertArrayIncludes(ticked, [weekday]);
     return ticked.filter((day) => day !== weekday);
   });
 };

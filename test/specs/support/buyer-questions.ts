@@ -5,8 +5,8 @@
  */
 
 // jscpd:ignore-start
+import { assertStringIncludes } from "@std/assert";
 import { parse } from "@std/csv/parse";
-import { expect } from "@std/expect";
 import {
   adminBrowser,
   type OpensAtOneRow,
@@ -97,7 +97,7 @@ export const ownerAsksChoiceQuestion: AsksAChoiceQuestion = async (
     await fillInAndSend(browser, { text: answer }, "Add answer");
   }
   for (const answer of answers) {
-    expect(browser.pageText).toContain(answer);
+    assertStringIncludes(browser.pageText, answer);
   }
   await ownerAssignsQuestionTo(world, listingName);
 };
@@ -127,7 +127,7 @@ export const questionFieldOn = (
   browser: TestBrowser,
 ): string => {
   const name = `question_${askedQuestion(world).id}`;
-  expect(browser.currentHtml).toContain(`name="${name}"`);
+  assertStringIncludes(browser.currentHtml, `name="${name}"`);
   return name;
 };
 
@@ -149,7 +149,7 @@ export const visitorBooksAnswering = async (
     },
     "Continue",
   );
-  expect(browser.pageText).toContain("Thank you for your order");
+  assertStringIncludes(browser.pageText, "Thank you for your order");
 };
 
 /** What the owner's list download says this booking answered. The download is
@@ -290,7 +290,7 @@ export const offeredAnswersInOrder = async (
 ): Promise<string[]> => {
   const browser = await visitorOpensBooking(world, listingName);
   const field = `question_${questionIdFor(world, text)}`;
-  expect(browser.currentHtml).toContain(`name="${field}"`);
+  assertStringIncludes(browser.currentHtml, `name="${field}"`);
   // Each answer renders as one labelled radio under the question's name, in
   // the order the site put them in, so the labels themselves are the order a
   // buyer reads. The input is a void element: the served markup closes it

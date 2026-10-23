@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { ORGANISER } from "#test/specs/support/browser.ts";
 import {
@@ -49,14 +50,20 @@ When(
 Then(
   "the organiser is told {word} was checked in",
   function (this: TicketsWorld, who: string): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(`Checked ${who} in`);
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
+      `Checked ${who} in`,
+    );
   },
 );
 
 Then(
   "the organiser is told {word} was checked out",
   function (this: TicketsWorld, who: string): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(`Checked ${who} out`);
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
+      `Checked ${who} out`,
+    );
   },
 );
 
@@ -116,7 +123,8 @@ Then(
     who: string,
     total: number,
   ): Promise<void> {
-    expect(await partCountOnTheList(this, listing)).toContain(
+    assertStringIncludes(
+      await partCountOnTheList(this, listing),
       `${who}, ${listing}: ${admitted} of ${total} tickets checked in`,
     );
   },

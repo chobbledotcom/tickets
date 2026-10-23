@@ -5,6 +5,7 @@
  * than being reached around.
  */
 
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";
 import { map } from "#fp";
@@ -115,7 +116,7 @@ const bundleForm = (
   const filledIn = Object.fromEntries(
     map((part: PartOfBundle) => {
       const box = `package_price_${listingIdNamed(world, part.name)}`;
-      expect(html).toContain(`name="${box}"`);
+      assertStringIncludes(html, `name="${box}"`);
       return [
         box,
         part.bundlePrice === undefined ? "" : part.bundlePrice.toFixed(2),
@@ -136,7 +137,7 @@ const choiceOnForm = (
   wanted: boolean,
 ): string[] => {
   const value = checkboxValueOffered(html, field);
-  expect(tickedCheckboxes(html, field)).not.toContain(value);
+  assert(!tickedCheckboxes(html, field).includes(value));
   return wanted ? [value] : [];
 };
 
@@ -144,9 +145,9 @@ const choiceOnForm = (
  * if the page had it ticked, so a form that came back already clear fails here
  * rather than the story "changing" something that was never set. */
 const boxCleared = (html: string, field: string): string[] => {
-  expect(tickedCheckboxes(html, field)).toContain(
+  assertArrayIncludes(tickedCheckboxes(html, field), [
     checkboxValueOffered(html, field),
-  );
+  ]);
   return [];
 };
 
@@ -173,7 +174,7 @@ const saveBundleForm: SavesNamedThingsForm<string> = async (
 const savesBundleForm = async (
   ...saving: Parameters<typeof saveBundleForm>
 ): Promise<void> => {
-  expect(await saveBundleForm(...saving)).toContain(GROUP_SAVED);
+  assertStringIncludes(await saveBundleForm(...saving), GROUP_SAVED);
 };
 
 /** The organiser turns a group into a bundle, pricing each part, and says
@@ -255,7 +256,10 @@ export const customerOpensBundlePage: ReadAboutOneThing<TestBrowser> = async (
   const browser = await openBundlePage(world, name);
   // The box has to be there and be able to take a one, or the bundle could not
   // be chosen in a real browser however well a crafted send goes through.
-  expect(browser.currentHtml).toContain(`name="package_quantity_${group.id}"`);
+  assertStringIncludes(
+    browser.currentHtml,
+    `name="package_quantity_${group.id}"`,
+  );
   world.bundleBookingPage = browser.pageText;
   leaveEvidencePage(world, ["bundle-booking-page"], `/ticket/${group.slug}`);
   return browser;
@@ -321,7 +325,7 @@ export const customerOpensPartPage: ReadAboutOneThing<TestBrowser> = async (
 export const expectPartOnSaleAlone: ActOnOneThing = async (world, part) => {
   const listing = listingNamed(world, part);
   const browser = await customerOpensPartPage(world, part);
-  expect(browser.pageText).toContain(part);
+  assertStringIncludes(browser.pageText, part);
   const box = `quantity_${listing.id}`;
   expect(whyValueCannotBeSent(browser.currentHtml, box, "1")).toBeNull();
 };

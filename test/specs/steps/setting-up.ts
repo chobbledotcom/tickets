@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
@@ -35,7 +36,7 @@ Then(
   "a newcomer is told the site is not ready",
   async function (this: TicketsWorld): Promise<void> {
     const { said } = await newcomerReading("/");
-    expect(said).toContain(t("public.not_activated.message"));
+    assertStringIncludes(said, t("public.not_activated.message"));
   },
 );
 
@@ -44,7 +45,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const { answered, said } = await newcomerReading("/setup/");
     expect(answered).toBe(200);
-    expect(said).toContain(t("setup.heading"));
+    assertStringIncludes(said, t("setup.heading"));
   },
 );
 
@@ -63,7 +64,7 @@ When(
 );
 
 Then("they are told the site is set up", function (this: TicketsWorld): void {
-  expect(whatSetterWasTold(this)).toContain(t("setup.complete.heading"));
+  assertStringIncludes(whatSetterWasTold(this), t("setup.complete.heading"));
 });
 
 Then(
@@ -76,7 +77,7 @@ Then(
 Then(
   "they are told the passwords do not match",
   function (this: TicketsWorld): void {
-    expect(whatSetterWasTold(this)).toContain("Passwords do not match");
+    assertStringIncludes(whatSetterWasTold(this), "Passwords do not match");
   },
 );
 
@@ -87,7 +88,7 @@ Then(
     // then complained would still be somebody else's site now.
     expect(await firstOwnerCanSignIn(GOOD_PASSWORD)).toBe(false);
     const { said } = await newcomerReading("/");
-    expect(said).toContain(t("public.not_activated.message"));
+    assertStringIncludes(said, t("public.not_activated.message"));
   },
 );
 
@@ -131,7 +132,7 @@ Then(
     // the site unable to be set up at all — the username is taken and nobody
     // can sign in. Setting it up properly now is what proves nothing was left.
     await somebodySetsUp(this, GOOD_PASSWORD, GOOD_PASSWORD);
-    expect(whatSetterWasTold(this)).toContain(t("setup.complete.heading"));
+    assertStringIncludes(whatSetterWasTold(this), t("setup.complete.heading"));
     expect(await firstOwnerCanSignIn(GOOD_PASSWORD)).toBe(true);
   },
 );

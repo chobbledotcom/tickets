@@ -7,6 +7,7 @@
 /** The box on the edit form. Its value is read off the page, not assumed. */
 const FIELD = "bookable_alone";
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { groups, setListingGroups } from "#db/groups.ts";
 // jscpd:ignore-start
@@ -97,7 +98,7 @@ export const bookingLinkFor = (world: TicketsWorld, name: string): string =>
 export const expectCustomerCanOpen: ActOnOneThing = async (world, name) => {
   await expectTicketPageAnswers(200)(world, name);
   const browser = await openAsNewcomer(bookingLinkFor(world, name));
-  expect(browser.pageText).toContain(name);
+  assertStringIncludes(browser.pageText, name);
 };
 
 /** What the site answers when a customer asks for this thing's own page. */
