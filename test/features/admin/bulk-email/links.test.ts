@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { seedListingWithAttendees } from "#test/integration/server/bulk-email/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -22,10 +22,11 @@ describeWithEnv("server bulk email > links", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/attendees/${attendee.id}`)
       ).text();
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `/admin/emails?attendee=${encodeURIComponent(token)}`,
       );
-      expect(html).toContain("Send an email to this attendee");
+      assertStringIncludes(html, "Send an email to this attendee");
     });
 
     test("managers do not see the email link", async () => {
@@ -46,7 +47,7 @@ describeWithEnv("server bulk email > links", { db: true }, () => {
           cookie,
         })
       ).text();
-      expect(html).not.toContain("/admin/emails?attendee=");
+      assert(!html.includes("/admin/emails?attendee="));
     });
 
     test("the link is disabled when the attendee has no email", async () => {
@@ -62,10 +63,10 @@ describeWithEnv("server bulk email > links", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/attendees/${attendee.id}`)
       ).text();
-      expect(html).toContain("No email address on file.");
+      assertStringIncludes(html, "No email address on file.");
       // Rendered as an inert span, not a clickable link to the email page.
-      expect(html).toContain("btn--disabled");
-      expect(html).not.toContain("/admin/emails?attendee=");
+      assertStringIncludes(html, "btn--disabled");
+      assert(!html.includes("/admin/emails?attendee="));
     });
   });
 
@@ -84,7 +85,7 @@ describeWithEnv("server bulk email > links", { db: true }, () => {
           cookie,
         })
       ).text();
-      expect(html).not.toContain("/admin/emails?listing=");
+      assert(!html.includes("/admin/emails?listing="));
     });
   });
 });
