@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -45,10 +46,12 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
         `/admin/listing/${listing.id}/export.json`,
       );
       expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toContain(
+      assertStringIncludes(
+        response.headers.get("content-type") ?? "",
         "application/json",
       );
-      expect(response.headers.get("content-disposition")).toContain(
+      assertStringIncludes(
+        response.headers.get("content-disposition") ?? "",
         'attachment; filename="listing-exportable.json"',
       );
       const blob = await response.json();
@@ -72,7 +75,8 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       const response = await adminGet(
         `/admin/listing/${listing.id}/export.json`,
       );
-      expect(response.headers.get("content-disposition")).toContain(
+      assertStringIncludes(
+        response.headers.get("content-disposition") ?? "",
         'filename="listing-listing.json"',
       );
     });
@@ -95,7 +99,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
         `/admin/listing/${listing.id}/export.json`,
       );
       expect(response.status).toBe(422);
-      expect(await response.text()).toContain("can't be exported");
+      assertStringIncludes(await response.text(), "can't be exported");
     });
 
     test("returns 422 when a group row holds an unexportable value", async () => {
@@ -107,7 +111,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       ]);
       const response = await adminGet(`/admin/groups/${group.id}/export.json`);
       expect(response.status).toBe(422);
-      expect(await response.text()).toContain("can't be exported");
+      assertStringIncludes(await response.text(), "can't be exported");
     });
   });
 
@@ -118,8 +122,8 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       const response = await adminGet("/admin/catalog/import");
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Import a listing or group");
-      expect(html).toContain('name="catalog_file"');
+      assertStringIncludes(html, "Import a listing or group");
+      assertStringIncludes(html, 'name="catalog_file"');
     });
   });
 
@@ -239,8 +243,8 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
         version: 1,
       });
       const location = response.headers.get("location") ?? "";
-      expect(location).toContain("/admin/catalog/import");
-      expect(location).toContain("flash=");
+      assertStringIncludes(location, "/admin/catalog/import");
+      assertStringIncludes(location, "flash=");
     });
   });
 });

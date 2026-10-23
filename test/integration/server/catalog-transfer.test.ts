@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -165,7 +166,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         });
         expect(result.ok).toBe(false);
         if (result.ok) throw new Error("unreachable");
-        expect(result.error).toContain(`listing.${field}`);
+        assertStringIncludes(result.error, `listing.${field}`);
       }
     });
 
@@ -306,7 +307,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       const result = await importCatalog(blob);
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain('named "Existing" already exists');
+      assertStringIncludes(result.error, 'named "Existing" already exists');
     });
 
     test("rejects a listing whose parent does not exist", async () => {
@@ -318,7 +319,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain('No listing named "Missing Parent"');
+      assertStringIncludes(result.error, 'No listing named "Missing Parent"');
     });
 
     test("rejects a listing whose group does not exist", async () => {
@@ -330,7 +331,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain('No group named "Ghost Group"');
+      assertStringIncludes(result.error, 'No group named "Ghost Group"');
     });
 
     test("rejects a package join whose pick count passes the listing's cap", async () => {
@@ -365,8 +366,8 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("listing.name");
-      expect(result.error).toContain("listing.maxAttendees");
+      assertStringIncludes(result.error, "listing.name");
+      assertStringIncludes(result.error, "listing.maxAttendees");
     });
 
     test("rejects an unsupported version", async () => {
@@ -377,23 +378,23 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("Unsupported export version");
+      assertStringIncludes(result.error, "Unsupported export version");
     });
 
     test("rejects a blob with an unknown kind (nested field message)", async () => {
       const result = await importCatalog({ kind: "widget" });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("kind:");
-      expect(result.error).toContain("listing");
+      assertStringIncludes(result.error, "kind:");
+      assertStringIncludes(result.error, "listing");
     });
 
     test("rejects a blob that is not an object (root type message)", async () => {
       const result = await importCatalog(42);
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("Invalid catalog file — Invalid type");
-      expect(result.error).toContain("Object");
+      assertStringIncludes(result.error, "Invalid catalog file — Invalid type");
+      assertStringIncludes(result.error, "Object");
     });
 
     test("rejects a blob with an unknown relationship key", async () => {
@@ -408,7 +409,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("parent");
+      assertStringIncludes(result.error, "parent");
     });
 
     test("rejects a group whose member listing does not exist", async () => {
@@ -420,7 +421,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain('No listing named "No Such Listing"');
+      assertStringIncludes(result.error, 'No listing named "No Such Listing"');
     });
 
     test("rejects a listing whose parent edge is incompatible", async () => {
@@ -436,7 +437,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error.toLowerCase()).toContain("daily");
+      assertStringIncludes(result.error.toLowerCase(), "daily");
     });
 
     test("rejects a group whose members are not the same type", async () => {
@@ -450,7 +451,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("must be the same type");
+      assertStringIncludes(result.error, "must be the same type");
     });
   });
 
@@ -475,7 +476,7 @@ describeWithEnv(
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("listing.maxAttendees");
+      assertStringIncludes(result.error, "listing.maxAttendees");
     });
 
     test("rejects a day-price key that is not a day count", async () => {
@@ -490,7 +491,7 @@ describeWithEnv(
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("day count");
+      assertStringIncludes(result.error, "day count");
     });
 
     test("rejects a duplicate parent reference", async () => {
@@ -503,7 +504,7 @@ describeWithEnv(
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("referenced more than once");
+      assertStringIncludes(result.error, "referenced more than once");
     });
 
     test("strips webhook URL and use-defaults for an editor import", async () => {
@@ -613,7 +614,7 @@ describeWithEnv(
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("package hides listing names");
+      assertStringIncludes(result.error, "package hides listing names");
     });
 
     test("imports a listing with many parents in one batched insert", async () => {
@@ -752,7 +753,7 @@ describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
     });
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    expect(result.error).toContain("names must be unique to import");
+    assertStringIncludes(result.error, "names must be unique to import");
   });
 
   test("surfaces a listing-validation error (group type mismatch)", async () => {
@@ -770,7 +771,7 @@ describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
     });
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    expect(result.error).toContain("same type");
+    assertStringIncludes(result.error, "same type");
   });
 
   test("rejects a group name already in use", async () => {
@@ -783,7 +784,7 @@ describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
     });
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    expect(result.error).toContain("already exists");
+    assertStringIncludes(result.error, "already exists");
   });
 
   test("rejects group members that disagree on customisable days", async () => {
@@ -803,7 +804,7 @@ describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
     });
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    expect(result.error).toContain("customisable days");
+    assertStringIncludes(result.error, "customisable days");
   });
 
   test("rejects a package group with a non-packageable member", async () => {
@@ -821,6 +822,6 @@ describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
     });
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    expect(result.error).toContain("Packages cannot contain");
+    assertStringIncludes(result.error, "Packages cannot contain");
   });
 });

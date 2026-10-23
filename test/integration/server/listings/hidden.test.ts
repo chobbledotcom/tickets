@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
@@ -64,7 +65,7 @@ describeWithEnv("server listings > hidden listings", { db: true }, () => {
     test("admin listing detail page does not show Hidden row when disabled", async () => {
       const { listing } = await setupListingAndLogin();
       const html = await assertAdminHtml(`/admin/listing/${listing.id}`);
-      expect(html).not.toContain("not shown in public listings list");
+      assert(!html.includes("not shown in public listings list"));
     });
 
     test("admin listing edit page pre-fills hidden checkbox", async () => {
@@ -78,7 +79,7 @@ describeWithEnv("server listings > hidden listings", { db: true }, () => {
         },
       );
       const html = await response.text();
-      expect(html).toContain("hidden");
+      assertStringIncludes(html, "hidden");
     });
 
     test("admin listing edit page shows attachment info when listing has attachment", async () => {
@@ -94,9 +95,9 @@ describeWithEnv("server listings > hidden listings", { db: true }, () => {
           { cookie },
         );
         const html = await response.text();
-        expect(html).toContain("attachment-info");
-        expect(html).toContain("Listing Guide.pdf");
-        expect(html).toContain("Remove Attachment");
+        assertStringIncludes(html, "attachment-info");
+        assertStringIncludes(html, "Listing Guide.pdf");
+        assertStringIncludes(html, "Remove Attachment");
       });
     });
 
@@ -109,8 +110,8 @@ describeWithEnv("server listings > hidden listings", { db: true }, () => {
           { cookie },
         );
         const html = await response.text();
-        expect(html).not.toContain("attachment-info");
-        expect(html).not.toContain("Remove Attachment");
+        assert(!html.includes("attachment-info"));
+        assert(!html.includes("Remove Attachment"));
       });
     });
   });
