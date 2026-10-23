@@ -7,6 +7,7 @@
  * and the door suites beside this one; this one owns who may open a door.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -73,7 +74,7 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     const response = await getAs("/admin/scanner", cookie);
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain(t("admin.scanner.doors_empty"));
+    assertStringIncludes(body, t("admin.scanner.doors_empty"));
   });
 
   test("lists every listing door and group door on the doors page", async () => {
@@ -90,10 +91,10 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     expect(response.status).toBe(200);
     const body = await response.text();
 
-    expect(body).toContain("Ceilidh");
-    expect(body).toContain("Summer Ball");
+    assertStringIncludes(body, "Ceilidh");
+    assertStringIncludes(body, "Summer Ball");
     // A "No check-in" listing sells something with no door, so it is not one.
-    expect(body).not.toContain("Merch Stand");
+    assert(!body.includes("Merch Stand"));
   });
 
   test("orders the doors by name", async () => {
@@ -125,13 +126,13 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain("Quiz");
+    assertStringIncludes(body, "Quiz");
     // The guide link behind this page is staff-only, so a scanner login must
     // not be promised it (never render a forbidden link).
-    expect(body).not.toContain('href="/admin/guide');
+    assert(!body.includes('href="/admin/guide'));
     // The manual pick list carries attendee ids, never the ticket
     // credential: the token opens the attendee's own ticket page elsewhere.
-    expect(body).not.toContain(attendee.ticket_token);
+    assert(!body.includes(attendee.ticket_token));
   });
 
   test("answers 404 for a no-check-in listing's door and refuses its scan", async () => {
@@ -241,10 +242,12 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     );
 
     const body = await doorPage(group.id);
-    expect(body).toContain(
+    assertStringIncludes(
+      body,
       `Ada (2 tickets) — Standard · ${formatDateLabel(firstDay)}`,
     );
-    expect(body).toContain(
+    assertStringIncludes(
+      body,
       `Ada (2 tickets) — Society · ${formatDateLabel(addDays(testDate(firstDay), 1))}`,
     );
   });

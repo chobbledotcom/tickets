@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
@@ -24,13 +25,17 @@ describeWithEnv("server (admin listings CSV)", { db: true }, () => {
     test("exports every listing as a CSV download", async () => {
       await createTestListing({ name: "Gala Night" });
       const response = await adminGet("/admin/listings/csv");
-      expect(response.headers.get("content-type")).toContain("text/csv");
-      expect(response.headers.get("content-disposition")).toContain(
+      assertStringIncludes(
+        response.headers.get("content-type") ?? "",
+        "text/csv",
+      );
+      assertStringIncludes(
+        response.headers.get("content-disposition") ?? "",
         'filename="listings.csv"',
       );
       const csv = await response.text();
-      expect(csv.split("\n")[0]).toContain("Name,Status,Type");
-      expect(csv).toContain("Gala Night");
+      assertStringIncludes(csv.split("\n")[0] ?? "", "Name,Status,Type");
+      assertStringIncludes(csv, "Gala Night");
       expect(await wasActivityLogged("Listings CSV exported")).toBe(true);
     });
 
@@ -38,12 +43,13 @@ describeWithEnv("server (admin listings CSV)", { db: true }, () => {
       await createTestListing({ name: "Standard One" });
       await createTestListing({ name: "Daily One", ...DAILY });
       const response = await adminGet("/admin/listings/csv?type=daily");
-      expect(response.headers.get("content-disposition")).toContain(
+      assertStringIncludes(
+        response.headers.get("content-disposition") ?? "",
         'filename="listings_daily.csv"',
       );
       const csv = await response.text();
-      expect(csv).toContain("Daily One");
-      expect(csv).not.toContain("Standard One");
+      assertStringIncludes(csv, "Daily One");
+      assert(!csv.includes("Standard One"));
       expect(
         await wasActivityLogged("Listings CSV exported (type: daily)"),
       ).toBe(true);
@@ -56,8 +62,8 @@ describeWithEnv("server (admin listings CSV)", { db: true }, () => {
       await createTestListing({ name: "Outside Listing" });
       const response = await adminGet(`/admin/listings/csv?group=${group.id}`);
       const csv = await response.text();
-      expect(csv).toContain("Fair Listing");
-      expect(csv).not.toContain("Outside Listing");
+      assertStringIncludes(csv, "Fair Listing");
+      assert(!csv.includes("Outside Listing"));
       expect(
         await wasActivityLogged("Listings CSV exported (group: Autumn fair)"),
       ).toBe(true);
@@ -68,7 +74,7 @@ describeWithEnv("server (admin listings CSV)", { db: true }, () => {
       const csv = await (
         await adminGet("/admin/listings/csv?group=999999")
       ).text();
-      expect(csv).toContain("Standard One");
+      assertStringIncludes(csv, "Standard One");
       expect(await wasActivityLogged("Listings CSV exported")).toBe(true);
     });
 
@@ -79,8 +85,8 @@ describeWithEnv("server (admin listings CSV)", { db: true }, () => {
         await adminGet(`/admin/listings/csv?group=${group.id}`)
       ).text();
       // Only the header line: the group exists but holds no listings.
-      expect(csv).toContain("Name,Status,Type");
-      expect(csv).not.toContain("Outside Listing");
+      assertStringIncludes(csv, "Name,Status,Type");
+      assert(!csv.includes("Outside Listing"));
       expect(
         await wasActivityLogged("Listings CSV exported (group: Empty group)"),
       ).toBe(true);

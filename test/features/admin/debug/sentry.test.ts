@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -47,17 +48,17 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
     const response = await adminGet("/admin/debug");
     const html = await response.text();
     expect(response.status).toBe(200);
-    expect(html).toContain('action="/admin/debug/sentry"');
-    expect(html).toContain('class="inline"');
-    expect(html).toContain('id="debug-sentry-test"');
-    expect(html).toContain(">Test Sentry</button>");
+    assertStringIncludes(html, 'action="/admin/debug/sentry"');
+    assertStringIncludes(html, 'class="inline"');
+    assertStringIncludes(html, 'id="debug-sentry-test"');
+    assertStringIncludes(html, ">Test Sentry</button>");
   });
 
   test("hides the test form when Sentry is not configured", async () => {
     using _env = withEnv({ SENTRY_URL: undefined });
     const html = await (await adminGet("/admin/debug")).text();
-    expect(html).toContain("Sentry URL");
-    expect(html).not.toContain('action="/admin/debug/sentry"');
+    assertStringIncludes(html, "Sentry URL");
+    assert(!html.includes('action="/admin/debug/sentry"'));
   });
 
   test("sends a tagged test error and confirms delivery", async () => {
@@ -82,11 +83,12 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
       // The exact values sendSentryTest (src/shared/sentry.ts) writes today —
       // keep these literals in sync with that source.
       expect(envelopes).toHaveLength(1);
-      expect(envelopes[0]).toContain(
+      assertStringIncludes(
+        envelopes[0] ?? "",
         "Test Sentry notification from the admin debug page.",
       );
-      expect(envelopes[0]).toContain('"source":"admin-debug"');
-      expect(envelopes[0]).toContain('"test":"true"');
+      assertStringIncludes(envelopes[0] ?? "", '"source":"admin-debug"');
+      assertStringIncludes(envelopes[0] ?? "", '"test":"true"');
     } finally {
       resetSentry();
     }

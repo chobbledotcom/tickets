@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
@@ -28,7 +29,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
 
       const html = await getDuplicateForm(group.id);
 
-      expect(html).toContain("This group has no listings");
+      assertStringIncludes(html, "This group has no listings");
     });
 
     test("renders the duplicate form with listing preview data", async () => {
@@ -43,8 +44,8 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
 
       const html = await getDuplicateForm(group.id);
 
-      expect(html).toContain("Spring Workshop");
-      expect(html).toContain("Original (copy)");
+      assertStringIncludes(html, "Spring Workshop");
+      assertStringIncludes(html, "Original (copy)");
     });
   });
 
@@ -168,11 +169,11 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
 
       // Every field must still show what the owner submitted, so a failed
       // duplicate costs no retyping.
-      expect(html).toContain('value="Summer Tour"');
-      expect(html).toContain('value="First"');
-      expect(html).toContain('value="Second"');
-      expect(html).toContain('value="2026-03-02"');
-      expect(html).toContain('value="2026-03-09"');
+      assertStringIncludes(html, 'value="Summer Tour"');
+      assertStringIncludes(html, 'value="First"');
+      assertStringIncludes(html, 'value="Second"');
+      assertStringIncludes(html, 'value="2026-03-02"');
+      assertStringIncludes(html, 'value="2026-03-09"');
     });
 
     test("rebuilds the preview from the restored replacements", async () => {
