@@ -518,6 +518,11 @@ automatic.
   head into the base in a throwaway worktree. It runs typecheck and the test
   suite on the merged tree, then removes the worktree. The boss runs it
   before a pull request is ready. The head CI and this check must both pass
+- `deno task check:effects` — hold the pure core to the effect table: a
+  module the pure list names must hold no import path, static or dynamic,
+  to a module that opens the database, the network, or the wall clock. The
+  finding names the import chain, and the fix is to split the IO shell out
+  or drop the pure entry
 - `deno task grade:code [<file-or-dir>] [--csv <path>] [--no-jev]` — score
   source files against these rules. With no target, it grades every module under
   `src/`. `--no-jev` runs the mechanical checks only. A grade is advice, not a
