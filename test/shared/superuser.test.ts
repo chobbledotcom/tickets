@@ -503,9 +503,7 @@ describe("generateSuperuserPassword", () => {
     const allChars = new Set(
       samplePasswords(10)(100).flatMap((pw) => pw.split("")),
     );
-    for (const c of allChars) {
-      assertStringIncludes(ALPHABET, c);
-    }
+    for (const c of allChars) assertStringIncludes(ALPHABET, c);
   });
 
   test("excludes ambiguous characters (0, O, I, l, 1)", () => {

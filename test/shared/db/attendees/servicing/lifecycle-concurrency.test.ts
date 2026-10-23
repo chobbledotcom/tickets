@@ -1,3 +1,18 @@
+/**
+ * Servicing edge cases — lifecycle interactions & concurrency.
+ *
+ * The "deletable things getting deleted between operations" theme, plus the
+ * concurrent-operation guards the atomic create/edit core is the only defence
+ * for. Every test here exercises a window where the world changed under a
+ * servicing event between two steps that a serial test assumes are adjacent.
+ *
+ * Implementation contract (implemented — this describes the shipped behavior):
+ *   - The servicing create/edit/delete paths reuse the atomic attendee core,
+ *     which holds a write lock for the duration of each transaction.
+ *   - `deleteServicingEvent` is the same row-vanishes check the attendee edit
+ *     core runs; a concurrent delete must not re-insert a phantom row.
+ */
+// jscpd:ignore-start
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";

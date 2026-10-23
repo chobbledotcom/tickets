@@ -754,24 +754,18 @@ describe("dates", () => {
 
   describe("formatDatetimeLabel", () => {
     test("formats ISO datetime as human-readable string", () => {
-      assertStringIncludes(
-        formatDatetimeLabel("2026-06-15T14:00:00.000Z"),
-        "Monday 15 June 2026 at 14:00",
-      );
+      const label = formatDatetimeLabel("2026-06-15T14:00:00.000Z");
+      assertStringIncludes(label, "Monday 15 June 2026 at 14:00");
     });
 
     test("pads single-digit hours and minutes", () => {
-      assertStringIncludes(
-        formatDatetimeLabel("2026-01-05T09:05:00.000Z"),
-        "Monday 5 January 2026 at 09:05",
-      );
+      const label = formatDatetimeLabel("2026-01-05T09:05:00.000Z");
+      assertStringIncludes(label, "Monday 5 January 2026 at 09:05");
     });
 
     test("handles midnight", () => {
-      assertStringIncludes(
-        formatDatetimeLabel("2026-03-01T00:00:00.000Z"),
-        "Sunday 1 March 2026 at 00:00",
-      );
+      const label = formatDatetimeLabel("2026-03-01T00:00:00.000Z");
+      assertStringIncludes(label, "Sunday 1 March 2026 at 00:00");
     });
   });
 

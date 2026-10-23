@@ -225,7 +225,6 @@ describe("sentry", () => {
         detail: "structured-detail-marker",
         error: new Error("kaboom"),
       });
-
       assertStringIncludes(
         firstFetchBody(),
         '"extra":{"detail":"structured-detail-marker"}',
@@ -339,7 +338,6 @@ describe("sentry", () => {
       await initSentry();
 
       await captureServerError({ code: ErrorCode.DB_QUERY });
-
       assertStringIncludes(
         firstFetchBody(),
         `"site":${JSON.stringify(getEffectiveDomain())}`,
@@ -367,7 +365,6 @@ describe("sentry", () => {
         code: ErrorCode.IMAGE_BROKEN,
         detail: "image 4821 missing",
       });
-
       assertStringIncludes(
         firstFetchBody(),
         '"fingerprint":["E_IMAGE_BROKEN","GET","/admin/listings/[id]"]',
@@ -396,10 +393,7 @@ describe("sentry", () => {
       using _env = withEnv({ SENTRY_URL: DSN });
       fetchStub.restore();
       fetchStub = stubFetch(
-        new Response(null, {
-          headers: { "retry-after": "60" },
-          status: 429,
-        }),
+        new Response(null, { headers: { "retry-after": "60" }, status: 429 }),
       );
       await initSentry();
 
