@@ -32,8 +32,8 @@ const RENDERED_NOTE = '<div class="contact-notes">';
 
 Given(
   "the site has a note about {word} with a picture called {string} in it",
-  // The step books the person and writes the note through the real forms, so
-  // it needs headroom over the five-second default.
+  // The step books the person through the ticket form and seeds the note
+  // directly, so it needs headroom over the five-second default.
   { timeout: 15_000 },
   async function (
     this: TicketsWorld,
