@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { TestBrowser } from "#test-utils/test-browser.ts";
@@ -130,8 +131,8 @@ describe("TestBrowser submitting the one form that posts to an address", () => {
 
     const body = browser.formBodyFor("Publish");
 
-    expect(body).toContain('name="elsewhere"');
-    expect(body).not.toContain('name="only_here"');
+    assertStringIncludes(body, 'name="elsewhere"');
+    assert(!body.includes('name="only_here"'));
   });
 
   it("gives back only the body of the form that posts to an address", () => {
@@ -142,8 +143,8 @@ describe("TestBrowser submitting the one form that posts to an address", () => {
 
     // The second row's own hidden field, and not the first row's, so a caller
     // checking what it may fill in is held to that one form.
-    expect(body).toContain('value="tok2"');
-    expect(body).not.toContain('value="tok"><');
+    assertStringIncludes(body, 'value="tok2"');
+    assert(!body.includes('value="tok"><'));
   });
 
   describe("what one box of that form would really send", () => {

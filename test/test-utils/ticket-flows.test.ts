@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#shared/cookies.ts";
@@ -194,7 +195,7 @@ describe("test-utils — ticket & join flows", () => {
       const { inviteCode, cookie, csrfToken } =
         await createTestInvite("invitee1");
       expect(inviteCode).toBeTruthy();
-      expect(cookie).toContain(`${getSessionCookieName()}=`);
+      assertStringIncludes(cookie, `${getSessionCookieName()}=`);
       expect(csrfToken).toMatch(/^s1\./);
     });
 
@@ -253,7 +254,7 @@ describe("test-utils — ticket & join flows", () => {
 
     test("returns cookie and CSRF token after successful login", async () => {
       const session = await loginAsAdmin();
-      expect(session.cookie).toContain(`${getSessionCookieName()}=`);
+      assertStringIncludes(session.cookie, `${getSessionCookieName()}=`);
       expect(session.csrfToken).toBeTruthy();
       expect(typeof session.csrfToken).toBe("string");
     });

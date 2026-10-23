@@ -1,3 +1,4 @@
+import { assertExists, assertStringIncludes } from "@std/assert";
 import type { NewsPostWriteInput } from "#db/news-posts.ts";
 import type { SitePageWriteInput } from "#db/site-pages.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
@@ -49,7 +50,8 @@ export const assertAdminPasswordVerifies = async (): Promise<void> => {
   expect(user).not.toBeNull();
   const result = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
   expect(result).toBeTruthy();
-  expect(result).toContain("pbkdf2:");
+  assertExists(result);
+  assertStringIncludes(result, "pbkdf2:");
 };
 
 /** Assert that verifyUserPassword returns null for an incorrect password. */

@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { t } from "#i18n";
 import { TEMPLATE_VARIABLES } from "#templates/components/email-template-reference.tsx";
 
@@ -10,8 +10,9 @@ export const shown = (text: string): string => text.replaceAll('"', "&quot;");
  * form's reference surfaces. */
 export const expectVariablesShown = (html: string): void => {
   for (const [code, key] of TEMPLATE_VARIABLES) {
-    expect(html).toContain(`<code>${shown(code)}</code>`);
-    expect(html).toContain(
+    assertStringIncludes(html, `<code>${shown(code)}</code>`);
+    assertStringIncludes(
+      html,
       shown(t(`settings.advanced.email_variables.${key}`)),
     );
   }

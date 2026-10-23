@@ -5,7 +5,7 @@
  */
 
 import { join } from "node:path";
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import {
   STRIPE_MOCK_FAILED_TO_START,
   startStripeMock,
@@ -125,7 +125,7 @@ export const startFailedOrPortTaken = async (
   try {
     started = await start();
   } catch (error) {
-    if (message) expect(String(error)).toContain(message);
+    if (message) assertStringIncludes(String(error), message);
     return false;
   }
   // Outside the catch above, so a stop that goes wrong is not mistaken for
