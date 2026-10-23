@@ -7,6 +7,7 @@
  * digests only, and only of tokens a scan could admit right now.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
@@ -126,8 +127,8 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
     const text = await response.text();
     // The page alone carries the key, so a copied cache response digests
     // nothing by itself.
-    expect(text).not.toContain(
-      pageDoorCacheKey(doorCacheName("listing", listing.id)),
+    assert(
+      !text.includes(pageDoorCacheKey(doorCacheName("listing", listing.id))),
     );
   });
 
@@ -139,7 +140,8 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
     const response = await authedGet(`/admin/listing/${listing.id}/scanner`);
     // The page is the only response that carries the key, so the device can
     // digest a scan offline under the same key the cache digested with.
-    expect(await response.text()).toContain(
+    assertStringIncludes(
+      await response.text(),
       `data-door-cache-key="${pageDoorCacheKey(
         doorCacheName("listing", listing.id),
       )}"`,

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -25,7 +26,8 @@ describeWithEnv("POST /admin/markdown-preview", { db: true }, () => {
     const response = await postPreview(`![Hero](img#${hero.id})`);
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain(
+    assertStringIncludes(
+      await response.text(),
       `<img src="/image/${hero.filename}" alt="Hero">`,
     );
   });
@@ -34,6 +36,6 @@ describeWithEnv("POST /admin/markdown-preview", { db: true }, () => {
     const response = await postPreview("![Ghost](img#99999)");
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain('<img src="" alt="Ghost">');
+    assertStringIncludes(await response.text(), '<img src="" alt="Ghost">');
   });
 });
