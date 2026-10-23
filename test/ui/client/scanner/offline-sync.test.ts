@@ -263,19 +263,20 @@ describe("scanner offline sync", {
     const realSign = globalThis.crypto.subtle.sign.bind(
       globalThis.crypto.subtle,
     );
-    const holdDigest = ((
+    const holdDigest = (async (
       algorithm: AlgorithmIdentifier,
       key: CryptoKey,
       data: BufferSource,
-    ) =>
-      digestGate.promise.then(() =>
-        realSign(algorithm, key, data),
-      )) as typeof globalThis.crypto.subtle.sign;
-    const fetchStub = stubFetch((url) => {
+    ) => {
+      await digestGate.promise;
+      return realSign(algorithm, key, data);
+    }) as typeof globalThis.crypto.subtle.sign;
+    const fetchStub = stubFetch(async (url) => {
       if (String(url).endsWith("-cache")) {
         return Response.json({ hashes: [] });
       }
-      return answerGate.promise.then(settledCheckIn);
+      await answerGate.promise;
+      return settledCheckIn();
     });
     try {
       const h = fresh({
