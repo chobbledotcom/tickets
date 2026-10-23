@@ -50,7 +50,7 @@ describe("specifier resolution", () => {
 });
 
 describe("module graph", () => {
-  test("keeps static runtime imports and drops type-only ones", () => {
+  test("keeps static runtime imports and re-exports, and drops type-only ones", () => {
     const files = [
       source(
         "a.ts",
@@ -58,19 +58,21 @@ describe("module graph", () => {
           'import { x } from "./b.ts";',
           'import type { Y } from "./c.ts";',
           'export { x } from "./d.ts";',
+          'export type { Z } from "./e.ts";',
           "",
         ].join("\n"),
       ),
       source("b.ts", "export const x = 1;"),
       source("c.ts", "export type Y = number;"),
       source("d.ts", "export const d = 1;"),
+      source("e.ts", "export type Z = number;"),
     ];
     const graph = moduleGraph(
       files,
       ALIASES,
-      walked(["a.ts", "b.ts", "c.ts", "d.ts"]),
+      walked(["a.ts", "b.ts", "c.ts", "d.ts", "e.ts"]),
     );
-    expect(graph.get("a.ts")).toEqual(["b.ts"]);
+    expect(graph.get("a.ts")).toEqual(["b.ts", "d.ts"]);
   });
 
   test("keeps literal dynamic imports and type-position ones never load", () => {

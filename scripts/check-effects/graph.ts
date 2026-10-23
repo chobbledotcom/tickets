@@ -60,9 +60,10 @@ const dynamicImportSpecifiers = (
   return specifiers;
 };
 
-/** The local files one module's runtime imports load. Type-only imports
- * and re-exports load nothing; a resolved path outside the walked set
- * holds no effect data and stays out. */
+/** The local files one module's runtime imports load. A type-only
+ * import or re-export loads nothing; a runtime re-export loads its
+ * source like an import. A resolved path outside the walked set holds
+ * no effect data and stays out. */
 const importsOf = (
   file: string,
   content: string,
@@ -70,7 +71,7 @@ const importsOf = (
   walkedFiles: ReadonlySet<string>,
 ): readonly string[] => {
   const staticSpecifiers = topLevelImports(file, content)
-    .filter((line) => !line.typeOnly && !line.reExport)
+    .filter((line) => !line.typeOnly)
     .map((line) => line.specifier);
   const specifiers = [
     ...staticSpecifiers,
