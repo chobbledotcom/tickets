@@ -6,7 +6,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { getGroupBySlugIndex } from "#db/groups.ts";
 /* jscpd:ignore-start -- imports */
 import { getListingWithCountBySlug } from "#db/listings/records.ts";
-import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { notFoundResponse, publicPageResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { verifyTokensWithRealLine } from "#routes/tickets/token-utils.ts";
 /* jscpd:ignore-end */
@@ -42,7 +42,7 @@ const handleReservedGet = async (request: Request): Promise<Response> => {
     verifiedTokens.length > 0 ? `/t/${verifiedTokens.join("+")}` : null;
   const fromEmail = ticketUrl ? await getFromEmailIfConfigured() : "";
 
-  return htmlResponse(successPage({ fromEmail, ticketUrl }));
+  return publicPageResponse(() => successPage({ fromEmail, ticketUrl }));
 };
 
 /**

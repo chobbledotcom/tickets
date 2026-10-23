@@ -7,7 +7,11 @@
 import { getIframeMode } from "#shared/request-context.ts";
 import type { LabelledLine } from "#templates/components/labelled-para.tsx";
 import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
-import { htmlResponse, redirectResponse } from "./response.ts";
+import {
+  htmlResponse,
+  publicPageResponse,
+  redirectResponse,
+} from "./response.ts";
 
 /** Owner-facing facts a payment failure page carries beside its refusal. */
 export interface StaffDiagnostics {
@@ -25,7 +29,8 @@ export const paymentErrorResponse = (
   message: string,
   status = 400,
   diagnostics?: StaffDiagnostics,
-): Response => htmlResponse(paymentErrorPage(message, diagnostics), status);
+): Promise<Response> =>
+  publicPageResponse(() => paymentErrorPage(message, diagnostics), status);
 
 /**
  * Respond with checkout: popup page in iframe mode, 302 redirect otherwise.

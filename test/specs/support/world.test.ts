@@ -21,13 +21,10 @@ import {
   theListing,
   whatTheyWereTold,
   whatWasKeptFor,
+  worldWith,
 } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
-
-/** Just enough of a World for these lookups to read. */
-const worldWith = (fields: Partial<TicketsWorld>): TicketsWorld =>
-  fields as TicketsWorld;
 
 /** A World that can remember things by name, for the lookups that read them
  * back. */

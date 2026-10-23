@@ -9,10 +9,7 @@ import {
   hashPhone,
   saveContactRecord,
 } from "#db/contact-preferences.ts";
-import {
-  EMPTY_CONTACT_RECORDS,
-  loadContactRecords,
-} from "#routes/admin/attendee-page-data.ts";
+import { loadContactRecords } from "#routes/admin/contact-records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 import { withTestSession } from "#test-utils/session.ts";
@@ -33,7 +30,7 @@ describeWithEnv("attendee contact records", { db: true }, () => {
       testAttendee({ email: "  ", phone: "" }),
     );
 
-    expect(records).toBe(EMPTY_CONTACT_RECORDS);
+    expect(records).toEqual({ email: null, phone: null });
   });
 
   test("loads the one saved channel without inventing the blank channel", async () => {
@@ -46,7 +43,10 @@ describeWithEnv("attendee contact records", { db: true }, () => {
     );
 
     expect(records).toEqual({
-      email: { hashParam: base64ToBase64Url(hash), record: SAVED_RECORD },
+      email: {
+        hashParam: base64ToBase64Url(hash),
+        record: SAVED_RECORD,
+      },
       phone: null,
     });
   });

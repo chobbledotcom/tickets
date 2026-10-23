@@ -19,6 +19,7 @@ import {
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
+import { addPageImageUrls } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { compact, uniqueBy } from "#fp";
 import { t } from "#i18n";
@@ -57,9 +58,9 @@ import { publicNavProps } from "./site-nav.ts";
  * — redirecting to admin login when the whole public site is off (as the other
  * public pages do) and 404ing when only the order page is disabled.
  */
-const orderUnavailable = (): Response | null => {
+const orderUnavailable = async (): Promise<Response | null> => {
   if (!settings.features.site) return redirectResponse("/admin/login");
-  if (!settings.orderEnabled) return notFoundResponse();
+  if (!settings.orderEnabled) return await notFoundResponse();
   return null;
 };
 
@@ -222,7 +223,7 @@ const withEvaluatedOrder =
     >,
   ) =>
   async (request: Request): Promise<Response> => {
-    const blocked = orderUnavailable();
+    const blocked = await orderUnavailable();
     if (blocked) return blocked;
     const catalog = await loadOrderCatalog();
     const params = new URL(request.url).searchParams;
@@ -244,6 +245,10 @@ const handleOrder = withEvaluatedOrder(async (catalog, evaluation) => {
   const attributesByListing = await getSelectedAttributesForListings(
     catalog.ticketListings.map((info) => info.listing.id),
   );
+  // The gallery's intro text and the site footer can carry the editor's
+  // img#N references. Both load after the redirect decision above, so a
+  // redirected request runs no lookup.
+  await addPageImageUrls([settings.orderIntroText, settings.siteFooter]);
   return htmlResponse(
     orderGalleryPage(
       catalog.ticketListings,

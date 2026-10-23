@@ -15,14 +15,14 @@ import { withRequestContext } from "#test-utils/request-context.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describe("admin site content write outcomes", () => {
-  test("returns the saved value", () => {
-    expect(contentWriteOrError(okResult("saved"), "/edit", "Taken")).toBe(
+  test("returns the saved value", async () => {
+    expect(await contentWriteOrError(okResult("saved"), "/edit", "Taken")).toBe(
       "saved",
     );
   });
 
-  test("returns not found when the row disappeared", () => {
-    const response = contentWriteOrError(
+  test("returns not found when the row disappeared", async () => {
+    const response = await contentWriteOrError(
       errorResult("notFound"),
       "/edit",
       "Taken",

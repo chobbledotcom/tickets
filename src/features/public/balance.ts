@@ -17,7 +17,7 @@ import { map, sumOf, unique } from "#fp";
 import { t } from "#i18n";
 import { withCsrfForm } from "#routes/csrf.ts";
 import { checkoutResponse } from "#routes/payment-response.ts";
-import { htmlResponse } from "#routes/response.ts";
+import { publicPageResponse } from "#routes/response.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { verifyBalanceToken } from "#shared/balance-link.ts";
@@ -55,11 +55,13 @@ const withOutstanding = async (
 ): Promise<Response> => {
   const payload = await verifyBalanceToken(token);
   const state = payload ? await getAttendeeBalanceState(payload.a) : null;
-  if (!payload || !state) return htmlResponse(balanceInvalidPage());
+  if (!payload || !state) {
+    return publicPageResponse(balanceInvalidPage);
+  }
   // Any attendee who still owes money can pay it online — the balance to
   // collect is what's outstanding, whatever status the booking sits in.
   if (state.remainingBalance <= 0) {
-    return htmlResponse(balanceSettledPage());
+    return publicPageResponse(balanceSettledPage);
   }
   const summary = await getAttendeeOrderSummary(payload.a);
   // Publicly payable only when the attendee has ≥1 real (quantity > 0) line to
@@ -67,7 +69,9 @@ const withOutstanding = async (
   // checkbox save / merge writer already clear such a balance; this guards stale
   // links and is why the order summary excludes quantity-0 lines.) Say so
   // honestly rather than claiming the link is invalid.
-  if (summary.lines.length === 0) return htmlResponse(balanceNoItemsPage());
+  if (summary.lines.length === 0) {
+    return publicPageResponse(balanceNoItemsPage);
+  }
   return fn({ amount: state.remainingBalance, attendeeId: payload.a, summary });
 };
 
@@ -107,11 +111,9 @@ const publicRecapLines = async (
 const handleBalanceGet = (token: string): Promise<Response> =>
   withOutstanding(token, async ({ amount, summary }) => {
     await signCsrfToken();
-    return htmlResponse(
-      balancePaymentPage(token, amount, {
-        ...summary,
-        lines: await publicRecapLines(summary.lines),
-      }),
+    const lines = await publicRecapLines(summary.lines);
+    return publicPageResponse(() =>
+      balancePaymentPage(token, amount, { ...summary, lines }),
     );
   });
 
@@ -122,11 +124,13 @@ const handleBalancePost = (
 ): Promise<Response> =>
   withCsrfForm(
     request,
-    () => htmlResponse(balanceInvalidPage()),
+    () => publicPageResponse(balanceInvalidPage),
     () =>
       withOutstanding(token, async ({ amount, attendeeId, summary }) => {
         const provider = await getActivePaymentProvider();
-        if (!provider) return htmlResponse(balanceInvalidPage());
+        if (!provider) {
+          return publicPageResponse(balanceInvalidPage);
+        }
 
         const intent: CheckoutIntent = {
           address: "",
@@ -157,7 +161,7 @@ const handleBalancePost = (
           getBaseUrl(request),
         );
         if (!result || "error" in result) {
-          return htmlResponse(balanceInvalidPage());
+          return publicPageResponse(balanceInvalidPage);
         }
         return checkoutResponse(result.checkoutUrl);
       }),

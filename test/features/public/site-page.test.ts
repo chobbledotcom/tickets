@@ -2,6 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createSitePage } from "#db/site-pages.ts";
 import { handleRequest } from "#routes";
+import { makeImage } from "#test-utils/admin-images.ts";
+import { assertPublicHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
@@ -25,6 +27,24 @@ describeWithEnv("public /page/:slug route", { db: true }, () => {
     const body = await response.text();
     expect(body).toContain("About Us");
     expect(body).toContain("Everything about About Us.");
+  });
+
+  test("renders a page's img#N reference as the image's uid URL", async () => {
+    await enablePublicSite();
+    const image = await makeImage("TrailMap");
+    await createSitePage({
+      content: `Find us.![TrailMap](img#${image.id})`,
+      hidden: false,
+      metaDescription: "Map description",
+      metaTitle: "Map title",
+      name: "Trail Map",
+      slug: "find-us",
+    });
+    const html = await assertPublicHtml(
+      "/page/find-us",
+      `<img src="/image/${image.filename}" alt="TrailMap">`,
+    );
+    expect(html).not.toContain("img#");
   });
 
   test("an unknown slug 404s", async () => {

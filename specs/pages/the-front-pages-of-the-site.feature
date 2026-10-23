@@ -52,3 +52,72 @@ Feature: An owner writes the front pages of the site
       When the owner turns the order page on, introducing it with "Pick what you fancy."
       Then a visitor on the order page reads "Pick what you fancy."
       And a visitor on the order page reads "Pottery"
+
+  @rule:pages.pictures-in-the-front-pages-show-as-pictures
+  @surface:public
+  Rule: Pictures in the front pages show as pictures
+    The owner can place a picture they uploaded in the homepage text, the
+    contact page, the terms, the order page's introduction, a group's words,
+    an item's description on the list, or a page the owner wrote. A visitor
+    sees the picture itself, and never sees the reference that names it.
+
+    @case:front-pages.homepage-picture
+    Scenario: The owner puts a picture in the homepage
+      Given the owner has uploaded a picture called "Riverbank"
+      When the owner writes a homepage called "Riverbank Pottery" with the picture in it
+      Then the owner is told the homepage saved
+      And a visitor on the front page sees the picture
+
+    @case:front-pages.contact-picture
+    Scenario: The owner puts a picture in the contact page
+      Given the owner has uploaded a picture called "StudioDoor"
+      When the owner writes a contact page with the picture in it
+      Then the owner is told the contact page saved
+      And a visitor on the contact page sees the picture
+
+    @case:front-pages.order-intro-picture
+    Scenario: The owner puts a picture in the order page's introduction
+      Given the site sells a Pottery
+      And the owner has uploaded a picture called "PickPoster"
+      When the owner turns the order page on, introducing it with the picture in it
+      Then a visitor on the order page sees the picture
+
+    @case:front-pages.terms-picture
+    Scenario: The owner puts a picture in the terms
+      Given the public site is on
+      And the owner has uploaded a picture called "Rules"
+      When the owner writes the terms with the picture in it
+      Then the owner is told the terms saved
+      And a visitor on the terms page sees the picture
+
+    @case:front-pages.item-description-picture
+    Scenario: The owner puts a picture in an item's description
+      Given the public site is on
+      And the owner has uploaded a picture called "Loom"
+      When the site sells a Pottery with the picture in its description
+      Then a visitor on the list reads the Pottery and sees the picture
+
+    @case:front-pages.group-words-picture
+    Scenario: The owner puts a picture in a group's words
+      Given the public site is on
+      And the owner has uploaded a picture called "FestivalMap"
+      And a Festival group holding a Concert with the picture in its words
+      When a customer looks at everything on sale
+      Then the list offers the Festival
+      And the list says the Festival is "Have a look."
+      And a visitor on the list reads the Festival and sees the picture
+
+    @case:front-pages.owner-page-picture
+    Scenario: The owner puts a picture in a page they wrote
+      Given the public site is on
+      And the owner has uploaded a picture called "TrailMap"
+      When the owner writes a page called Directions at "how-to-find-us" with the picture in it
+      Then the owner is told it saved
+      And a visitor reading "how-to-find-us" is shown Directions and sees the picture
+
+    @case:front-pages.unknown-picture-keeps-its-describing-words
+    Scenario: The homepage names a picture that is not there
+      When the owner writes a homepage naming a picture that was never uploaded
+      Then a visitor on the front page reads "Have a look."
+      And the front page keeps the picture's describing words
+      And the front page shows no picture at all

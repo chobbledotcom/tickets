@@ -9,8 +9,12 @@
  * assertions on the finished bundle text.
  */
 
-/** Asset definition: [filename, exportName, contentType, pathConstant, publishToCdn]. */
-export type AssetDef = [string, string, string, string, boolean?];
+/** Asset definition: [filename, exportName, contentType, pathConstant,
+ * publishToCdn, freshRevalidation]. A fresh-revalidation asset serves with
+ * `cache-control: no-cache` on both the Deno server (assets.ts) and the edge
+ * bundle, so a browser revalidates it every page load — the service worker
+ * script's requirement; every other asset is immutable for a year. */
+export type AssetDef = [string, string, string, string, boolean?, boolean?];
 
 export interface PublishedAssetUrls {
   origin: string;
@@ -74,13 +78,15 @@ export const buildAssetsModule = (
   );
 
   const cacheHeader = `const CACHE_HEADERS = { "cache-control": "public, max-age=31536000, immutable" };`;
+  const freshHeader = `const FRESH_HEADERS = { "cache-control": "no-cache" };`;
 
   const handlerLines = assetDefs.map(
     ([filename, exportName, contentType], i) => {
       const publishedUrl = published?.urls[filename];
+      const headers = assetDefs[i]![5] ? "FRESH_HEADERS" : "CACHE_HEADERS";
       return publishedUrl
         ? `export const ${exportName} = () => new Response(null, { status: 302, headers: { location: ${JSON.stringify(publishedUrl)} } });`
-        : `export const ${exportName} = () => new Response(v${i}, { headers: { "content-type": "${contentType}", ...CACHE_HEADERS } });`;
+        : `export const ${exportName} = () => new Response(v${i}, { headers: { "content-type": "${contentType}", ...${headers} } });`;
     },
   );
 
@@ -90,7 +96,13 @@ export const buildAssetsModule = (
     "export const orderWidgetBody = () => orderJsBody;",
   ].join("\n");
 
-  return [...varLines, cacheHeader, ...handlerLines, orderWidget].join("\n");
+  return [
+    ...varLines,
+    cacheHeader,
+    freshHeader,
+    ...handlerLines,
+    orderWidget,
+  ].join("\n");
 };
 
 /**

@@ -4,6 +4,7 @@ import { groups } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { enablePublicOrder } from "#test/features/public/order/helpers.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import {
   assertPublicHtml,
   expectRedirect,
@@ -73,6 +74,19 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       await settings.update.orderIntroText("**Pick** your items");
       const html = await assertPublicHtml("/order");
       expect(html).toContain("<strong>Pick</strong>");
+    });
+
+    test("renders the intro's img#N reference as the image's uid URL", async () => {
+      await createTestListing({ name: "Tote" });
+      const image = await makeImage("OrderPoster");
+      await settings.update.orderIntroText(
+        `Hello.![OrderPoster](img#${image.id})`,
+      );
+      const html = await assertPublicHtml(
+        "/order",
+        `<img src="/image/${image.filename}" alt="OrderPoster">`,
+      );
+      expect(html).not.toContain("img#");
     });
 
     test("shows an empty state and no cart when there are no listings", async () => {

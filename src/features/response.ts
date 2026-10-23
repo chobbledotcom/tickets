@@ -2,6 +2,8 @@
  * Response builder utilities for route handlers
  */
 
+import { addPageImageUrls } from "#db/images.ts";
+import { settings } from "#db/settings.ts";
 import { buildFlashCookie, type FlashLevel } from "#shared/cookies.ts";
 import { stashForm } from "#shared/form-stash.ts";
 import { getSavedFormData } from "#shared/forms/saved-data.ts";
@@ -55,18 +57,31 @@ export const orResponse = async <T>(
 export const htmlResponse: EncodedResponse = encodedResponse("text/html");
 
 /**
- * Create 404 not found response
+ * Respond with a rendered public page. The page renders the site footer, so
+ * the footer's img#N references resolve like the page's own before the page
+ * renders. The lookup no-ops outside a request.
  */
-export const notFoundResponse = (): Response =>
-  htmlResponse(notFoundPage(), 404);
+export const publicPageResponse = async (
+  renderPage: () => string,
+  status = 200,
+): Promise<Response> => {
+  await addPageImageUrls([settings.siteFooter]);
+  return htmlResponse(renderPage(), status);
+};
+
+/**
+ * Create 404 not found response.
+ */
+export const notFoundResponse = (): Promise<Response> =>
+  publicPageResponse(notFoundPage, 404);
 
 /**
  * Create 429 rate limited response for token URLs.
  * No Retry-After: exposing the lockout duration would give brute-force
  * clients a ready-made backoff schedule.
  */
-export const rateLimitedResponse = (): Response =>
-  htmlResponse(rateLimitedPage(), 429);
+export const rateLimitedResponse = (): Promise<Response> =>
+  publicPageResponse(rateLimitedPage, 429);
 
 type RequestErrorResponse = (method: string) => Response;
 

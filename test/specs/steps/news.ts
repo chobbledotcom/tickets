@@ -40,9 +40,9 @@ Then(
 );
 
 const newsPageReads = async (words: string): Promise<void> => {
-  const read = await visitorOnNewsPage();
-  expect(read.answered).toBe(200);
-  expect(read.said).toContain(words);
+  const page = await visitorOnNewsPage();
+  expect(page.answered).toBe(200);
+  expect(page.pageText).toContain(words);
 };
 
 Then(
@@ -62,9 +62,9 @@ Then(
 Then(
   "a visitor following {string} from the news page reads {string}",
   async function (this: TicketsWorld, name: string, words: string) {
-    const read = await visitorFollowsNewsLink(name);
-    expect(read.answered).toBe(200);
-    expect(read.said).toContain(words);
+    const page = await visitorFollowsNewsLink(name);
+    expect(page.answered).toBe(200);
+    expect(page.pageText).toContain(words);
   },
 );
 

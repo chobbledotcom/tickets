@@ -117,12 +117,14 @@ const CDN_ASSETS = {
   },
 };
 
-const importAssetsModule = (
+/** Import one generated module, typed by the caller's claim about its
+ * exports: the data import itself carries no types. */
+const importAssetsModule = <T extends Record<string, unknown>>(
   source: string,
-): Promise<{ handleAdminJs: () => Response }> =>
+): Promise<T> =>
   import(
     `data:text/javascript;charset=utf-8,${encodeURIComponent(source)}#${crypto.randomUUID()}`
-  );
+  ) as Promise<T>;
 
 describe("buildAssetsModule", () => {
   test("declares a variable per def carrying the pre-read content", () => {
@@ -147,6 +149,32 @@ describe("buildAssetsModule", () => {
     );
   });
 
+  test("wires a fresh-revalidation asset to FRESH_HEADERS and serves it", async () => {
+    const out = buildAssetsModule(
+      [
+        [
+          "scanner-sw.js",
+          "handleScannerSwJs",
+          "application/javascript",
+          "",
+          false,
+          true,
+        ],
+      ],
+      { "scanner-sw.js": "worker-source" },
+    );
+    expect(out).toContain(
+      `export const handleScannerSwJs = () => new Response(v0, { headers: { "content-type": "application/javascript", ...FRESH_HEADERS } });`,
+    );
+
+    const generated = await importAssetsModule<{
+      handleScannerSwJs: () => Response;
+    }>(out);
+    expect(generated.handleScannerSwJs().headers.get("cache-control")).toBe(
+      "no-cache",
+    );
+  });
+
   test("mirrors assets.ts's orderWidgetBody from the inlined order.js", () => {
     const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS);
     expect(out).toContain(`const orderJsBody = "widget-source";`);
@@ -163,9 +191,9 @@ describe("buildAssetsModule", () => {
   });
 
   test("returns a CDN redirect whose security headers remain mutable", async () => {
-    const generated = await importAssetsModule(
-      buildAssetsModule(ASSET_DEFS, STATIC_ASSETS, CDN_ASSETS),
-    );
+    const generated = await importAssetsModule<{
+      handleAdminJs: () => Response;
+    }>(buildAssetsModule(ASSET_DEFS, STATIC_ASSETS, CDN_ASSETS));
     const response = generated.handleAdminJs();
 
     response.headers.set("x-content-type-options", "nosniff");
@@ -182,6 +210,7 @@ describe("buildAssetsModule", () => {
         `const v0 = "<svg/>";`,
         `const v1 = "console.log(1)";`,
         `const CACHE_HEADERS = { "cache-control": "public, max-age=31536000, immutable" };`,
+        `const FRESH_HEADERS = { "cache-control": "no-cache" };`,
         `export const handleFavicon = () => new Response(v0, { headers: { "content-type": "image/svg+xml", ...CACHE_HEADERS } });`,
         `export const handleAdminJs = () => new Response(v1, { headers: { "content-type": "application/javascript", ...CACHE_HEADERS } });`,
         `const orderJsBody = "widget-source";`,

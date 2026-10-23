@@ -102,6 +102,18 @@ export const asksIfThereIs =
   async (world, name) =>
     (await look(world, name)) !== null;
 
+/** The picture a story put in a note or a question, with the words the story
+ * typed around it: the image row, the address its picture shows at, and the
+ * note as it was first typed. */
+export type NoteImage = {
+  alt: string;
+  filename: string;
+  id: number;
+  /** The note row that names the picture, when the story wrote one. */
+  noteId?: number;
+  noteText: string;
+};
+
 export interface TicketsWorld extends World, EvidencePages {
   apiAnswer?: ApiAnswer;
   apiFirstDay?: string;
@@ -162,6 +174,10 @@ export interface TicketsWorld extends World, EvidencePages {
   modifierId?: number;
   moneyFault?: RefundLedgerFault;
   newStayLength?: number;
+  /** The picture a story put in a note or a question, with the words the
+   * story typed around it: the image row, the address its picture shows at,
+   * and the note as it was first typed. */
+  noteImage?: NoteImage;
   /** The admin page a notification story last opened, carried between the
    * opening step and the steps that read it. */
   notificationsPage?: string;
@@ -195,6 +211,9 @@ export interface TicketsWorld extends World, EvidencePages {
   sharedDayLimit?: number;
   sharedDayOver?: string;
   shownCode?: CodeOnScreen;
+  /** The picture a story put in the site's own words, with the name the
+   * owner's text gives it and the address its picture shows at. */
+  siteImage?: { alt: string; filename: string; id: number };
   stayStartsOn?: string;
   things: RemembersThings;
   ticketToken?: string;
@@ -281,3 +300,8 @@ export const requiredWorldValue = <Value>(
   }
   return value;
 };
+
+/** Just enough of a World for a unit test to read: the test names only the
+ * fields its helper reads. */
+export const worldWith = (fields: Partial<TicketsWorld>): TicketsWorld =>
+  fields as TicketsWorld;

@@ -4,6 +4,9 @@ import { describe, it as test } from "@std/testing/bdd";
 // jscpd:ignore-end
 import { moveTickets } from "#db/attendees/update.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
+import { createSystemNote } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectHtmlResponse,
   testRequiresAuth,
@@ -61,6 +64,23 @@ describeWithEnv(
         expect(html).not.toContain(
           `/admin/attendee/${attendee.id}/note?return_url=`,
         );
+      });
+
+      test("resolves a note's img#N reference on the banner and notes section", async () => {
+        const { attendee } = await setupListingAndAttendee();
+        const image = await makeImage("BannerPoster");
+        await createSystemNote(
+          attendeeNotes(attendee.id),
+          `Refunded. ![BannerPoster](img#${image.id})`,
+        );
+
+        const html = await (
+          await adminGet(`/admin/attendees/${attendee.id}`)
+        ).text();
+        expect(html).toContain(
+          `<img src="/image/${image.filename}" alt="BannerPoster">`,
+        );
+        expect(html).not.toContain("img#");
       });
 
       test("shows edit form with prefilled attendee data", async () => {

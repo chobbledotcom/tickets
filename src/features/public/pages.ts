@@ -2,10 +2,11 @@
  * Public pages - home, listings, terms, contact
  */
 
+/* jscpd:ignore-start */
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
+import { addPageImageUrls } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-/* jscpd:ignore-start */
 import { requireMessageField, withCsrfForm } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -53,6 +54,7 @@ const renderPublicPage: ResponseHandler<
 > = (pageType, getContent) =>
   requirePublicSite(async () => {
     const content = getContent();
+    await addPageImageUrls([content, settings.siteFooter]);
     return htmlResponse(
       publicSitePage(
         pageType,
@@ -140,9 +142,15 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
       getSelectedAttributesForListings(listings.map((listing) => listing.id)),
     ]);
     const soldOutPackages = soldOutPackageIds(publicGroups, unavailableOnDate);
+    const homeListings = applyParentSoldOut(ticketListings, classification);
+    await addPageImageUrls([
+      ...homeListings.map((entry) => entry.listing.description),
+      ...groups.map((group) => group.description),
+      settings.siteFooter,
+    ]);
     return htmlResponse(
       homepagePage(
-        applyParentSoldOut(ticketListings, classification),
+        homeListings,
         settings.websiteTitle,
         groups,
         childCardState(
@@ -160,18 +168,18 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
 
 /** Handle GET /terms - public terms and conditions page (404 when empty) */
 export const handlePublicTerms: ResponseHandler = () =>
-  requirePublicSite(async () =>
-    settings.terms
-      ? htmlResponse(
-          publicSitePage(
-            "terms",
-            await publicNavProps(null),
-            settings.websiteTitle,
-            settings.terms,
-          ),
-        )
-      : notFoundResponse(),
-  );
+  requirePublicSite(async () => {
+    if (!settings.terms) return notFoundResponse();
+    await addPageImageUrls([settings.terms, settings.siteFooter]);
+    return htmlResponse(
+      publicSitePage(
+        "terms",
+        await publicNavProps(null),
+        settings.websiteTitle,
+        settings.terms,
+      ),
+    );
+  });
 
 /** Render the contact page (descriptive text and/or the message form).
  * 404 when there is neither contact text nor an active form to show.
@@ -180,6 +188,7 @@ const renderContactPage = async (): Promise<Response> => {
   const formActive = isContactFormActive();
   if (!settings.contactPageText && !formActive) return notFoundResponse();
   if (formActive) await signCsrfToken();
+  await addPageImageUrls([settings.contactPageText, settings.siteFooter]);
   return htmlResponse(
     contactPage({
       botpoisonPublicKey: getBotpoisonPublicKey(),
