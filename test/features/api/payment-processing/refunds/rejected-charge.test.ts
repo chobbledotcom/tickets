@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { refundRejectedCharge } from "#routes/api/payment-processing/refunds.ts";
@@ -153,7 +154,7 @@ describeWithEnv("rejected session refunds", { db: true }, () => {
         [stripeRefundRequestShape(reference, capturedAmount)],
       ]);
       expect(result.status).toBe(400);
-      expect(result.page).toContain("sent your money back");
+      assertStringIncludes(result.page, "sent your money back");
       expect(result.logged).toEqual([
         `Session rejected as malformed_charge (session=cs_${reference}, refunded: true)`,
       ]);
@@ -166,7 +167,10 @@ describeWithEnv("rejected session refunds", { db: true }, () => {
       reason: "rejected",
     }))(() => answerFor("pi_refused"));
     expect(result.status).toBe(503);
-    expect(result.page).toContain("We could not find this payment session.");
+    assertStringIncludes(
+      result.page,
+      "We could not find this payment session.",
+    );
     expect(result.logged).toEqual([
       "Session rejected as malformed_charge (session=cs_pi_refused, refunded: false)",
     ]);
