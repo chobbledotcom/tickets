@@ -5,7 +5,7 @@
  */
 
 // jscpd:ignore-start
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { openAdminPage, withAdminPage } from "#test/specs/support/browser.ts";
 import {
@@ -37,7 +37,7 @@ export const organiserAddsBooking = (
     // The form must offer a day, or the organiser could not say when the stay
     // starts and the booking would silently land on the wrong days.
     if (booking.day !== undefined) {
-      expect(browser.currentHtml).toContain('name="date"');
+      assertStringIncludes(browser.currentHtml, 'name="date"');
     }
     await browser.submitForm(
       {

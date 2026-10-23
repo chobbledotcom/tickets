@@ -6,7 +6,7 @@
  * the story rather than being worked around.
  */
 
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { stub } from "@std/testing/mock";
 import { formatCurrency } from "#shared/currency.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
@@ -187,6 +187,6 @@ export const expectDiscountLine = (
   poundsOff: string,
 ): void => {
   const summary = priceSummary(world);
-  expect(summary).toContain(code);
-  expect(summary).toContain(formatCurrency(-minorUnits(poundsOff)));
+  assertStringIncludes(summary, code);
+  assertStringIncludes(summary, formatCurrency(-minorUnits(poundsOff)));
 };

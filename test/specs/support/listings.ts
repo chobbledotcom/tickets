@@ -8,6 +8,7 @@
  */
 
 // jscpd:ignore-start
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { requireListingWithCount } from "#db/listings/records.ts";
 import {
@@ -134,7 +135,7 @@ export const tickOnListingTab = async (
   );
   requireCheckboxOffered(browser.currentHtml, field, String(boxId));
   await fillInAndSend(browser, { [field]: String(boxId) }, "Save");
-  expect(browser.pageText).toContain(saidAfter);
+  assertStringIncludes(browser.pageText, saidAfter);
 };
 
 /** What the site tells somebody when a listing's own form saves. */

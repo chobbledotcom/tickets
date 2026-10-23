@@ -3,7 +3,7 @@
 // jscpd:ignore-start
 
 import { Then, When } from "@cucumber/cucumber";
-import { expect } from "@std/expect";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { t } from "#i18n";
 import { DEMO_LISTING_NAMES, DEMO_NAMES } from "#shared/demo/samples.ts";
 import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
@@ -42,7 +42,8 @@ When(
 Then(
   "they are told {int} listings and {int} attendees were created",
   function (this: TicketsWorld, listings: number, attendees: number): void {
-    expect(scenarioBrowser(this).pageText).toContain(
+    assertStringIncludes(
+      scenarioBrowser(this).pageText,
       t("admin.seeds.created", { attendees, listings }),
     );
   },
@@ -52,7 +53,7 @@ Then(
   "an example listing is on the dashboard",
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openAdminPage(this, "/admin");
-    expect(browser.pageText).toContain(freeExampleListing());
+    assertStringIncludes(browser.pageText, freeExampleListing());
   },
 );
 
@@ -73,8 +74,8 @@ Then(
   function (this: TicketsWorld): void {
     // The name box holding a real example name proves the attendee's locked
     // details were opened and read back, not merely that a box rendered.
-    expect(DEMO_NAMES).toContain(
+    assertArrayIncludes(DEMO_NAMES, [
       fieldValueOnPage(scenarioBrowser(this), "name"),
-    );
+    ]);
   },
 );

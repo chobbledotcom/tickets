@@ -4,6 +4,7 @@
  * whose customers may pay more than it asks.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { execute } from "#db/client.ts";
 import type { ChargeMoney } from "#payment/resources.ts";
@@ -180,9 +181,11 @@ export const openRefundEveryone: ActOnTheStory = async (world) => {
 /** The blocked page explains the state but cannot submit a refund. */
 export const expectRefundEveryoneUnavailable = (world: TicketsWorld): void => {
   const html = browserSeenBy(world, ORGANISER).currentHtml;
-  expect(html).not.toContain("Refund All Attendees");
-  expect(html).not.toContain(
-    `action="${REFUND_FORM_BY_TARGET.listing.page(theListing(world))}"`,
+  assert(!html.includes("Refund All Attendees"));
+  assert(
+    !html.includes(
+      `action="${REFUND_FORM_BY_TARGET.listing.page(theListing(world))}"`,
+    ),
   );
 };
 
@@ -252,8 +255,9 @@ export const leaveFirstRefundCaseForOwner: ActOnTheStory = async (world) => {
   await browser.clickLink("Privacy");
   expect(browser.containsText("Refunds needing attention")).toBe(true);
   await openListedRefundCase(browser);
-  expect(browser.pageText).toContain("Check the provider again");
-  expect(browser.currentHtml).toContain(
+  assertStringIncludes(browser.pageText, "Check the provider again");
+  assertStringIncludes(
+    browser.currentHtml,
     'name="choice" type="hidden" value="check_again"',
   );
   expect(usableInputsOfKind(browser.currentHtml, "radio")).toEqual([]);

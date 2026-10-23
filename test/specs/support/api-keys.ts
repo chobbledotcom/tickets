@@ -5,7 +5,7 @@
  */
 
 // jscpd:ignore-start
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
@@ -176,5 +176,5 @@ export const ownerTakesBackKey: TakesOneThingDown = takesDownFromList(
 /** The story's own listing, so "it was told about the Pottery" means the site
  * really named it rather than answering with anything at all. */
 export const expectToldAbout = (said: string, name: string): void => {
-  expect(said).toContain(name);
+  assertStringIncludes(said, name);
 };

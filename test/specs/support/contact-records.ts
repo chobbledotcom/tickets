@@ -5,6 +5,7 @@
  * the story names and lets the site work that code out.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { base64ToBase64Url } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
@@ -131,7 +132,7 @@ export const saveRecord = async (
 ): Promise<TestBrowser> => {
   const browser = await openRecord(world, email);
   for (const box of Object.values(BOXES)) {
-    expect(browser.currentHtml).toContain(`name="${box}"`);
+    assertStringIncludes(browser.currentHtml, `name="${box}"`);
   }
   const values = Object.fromEntries(
     mapNotNullish(([word, box]: [string, string]) => {

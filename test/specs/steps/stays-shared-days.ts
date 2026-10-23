@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   browserSeenBy,
@@ -166,7 +167,8 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     expect(this.bookingWasTaken).toBe(false);
     // Refused for want of room, not for some unrelated reason.
-    expect(browserSeenBy(this, CUSTOMER).pageText).toContain(
+    assertStringIncludes(
+      browserSeenBy(this, CUSTOMER).pageText,
       "enough spots available",
     );
     // Neither half of the order may be taken — a partly-booked order would

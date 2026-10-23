@@ -3,8 +3,9 @@
  * person is meant, and what a removal — or a refusal — leaves behind.
  */
 
-// jscpd:ignore-start
 import { Then, When } from "@cucumber/cucumber";
+// jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { ORGANISER } from "#test/specs/support/browser.ts";
@@ -55,15 +56,16 @@ Then(
   "the owner is told the username does not match",
   function (this: TicketsWorld): void {
     const told = whatTheyWereTold(this, ORGANISER);
-    expect(told).toContain(DOES_NOT_MATCH);
-    expect(told).not.toContain(t("success.user_deleted"));
+    assertStringIncludes(told, DOES_NOT_MATCH);
+    assert(!told.includes(t("success.user_deleted")));
   },
 );
 
 Then(
   "the owner is told {word} was deleted",
   function (this: TicketsWorld, _who: string): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       t("success.user_deleted"),
     );
   },
@@ -105,6 +107,6 @@ Then(
     // before now lands him on the sign-in page.
     const browser = managerBrowser(this, "Sam");
     await browser.visit("/admin/attendees");
-    expect(browser.pageText).toContain("Login");
+    assertStringIncludes(browser.pageText, "Login");
   },
 );

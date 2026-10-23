@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
@@ -63,7 +64,8 @@ Then(
 Then(
   "the booking page says the booking is fully paid",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await adminPageHtml(bookingPagePath(this, "ledger"))).toContain(
+    assertStringIncludes(
+      await adminPageHtml(bookingPagePath(this, "ledger")),
       "This booking is fully paid",
     );
   },
@@ -80,12 +82,15 @@ Given(
       "Refund issued",
     );
     // The money event is on the customer's own history for anyone to see.
-    expect(await adminPageHtml(bookingPagePath(this, "activity"))).toContain(
+    assertStringIncludes(
+      await adminPageHtml(bookingPagePath(this, "activity")),
       "Refund issued",
     );
-    expect(
-      await adminPageHtml(bookingPagePath(this, "activity")),
-    ).not.toContain("Refund issued for attendee 'Logged Guest'");
+    assert(
+      !(await adminPageHtml(bookingPagePath(this, "activity"))).includes(
+        "Refund issued for attendee 'Logged Guest'",
+      ),
+    );
   },
 );
 

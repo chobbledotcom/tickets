@@ -9,6 +9,7 @@
  * is a note of its own, which is what the forgetting rule is about.
  */
 
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   type ContactChannel,
@@ -127,7 +128,7 @@ export const organiserDeletesListing: ActOnOneThing = async (world, name) => {
   });
   // A delete the site refused would leave every later reading unchanged, and
   // "nothing was left behind" would look like a pass.
-  expect(told).toContain(t("success.listing_deleted"));
+  assertStringIncludes(told, t("success.listing_deleted"));
 };
 
 /** Whether the listing still lists Ada. Read from the organiser's own attendee
@@ -179,7 +180,9 @@ const pressesOnOrphansForm =
     const tick = checkboxValueOffered(browser.currentHtml, BY_ITSELF);
     // The box starts ticked, so a story that clears it is really changing
     // something. A page that came back already clear would make that a no-op.
-    expect(tickedCheckboxes(browser.currentHtml, BY_ITSELF)).toContain(tick);
+    assertArrayIncludes(tickedCheckboxes(browser.currentHtml, BY_ITSELF), [
+      tick,
+    ]);
     await organiserSendsAndIsTold(
       world,
       browser,
