@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptBytes } from "#crypto/encryption.ts";
@@ -51,9 +52,8 @@ describeWithEnv(
             const response = await proxyRequest();
             expect(response.status).toBe(200);
             expect(response.headers.get("content-type")).toBe("image/jpeg");
-            expect(response.headers.get("cache-control")).toContain(
-              "immutable",
-            );
+            const cacheControl = response.headers.get("cache-control") ?? "";
+            assertStringIncludes(cacheControl, "immutable");
             const body = new Uint8Array(await response.arrayBuffer());
             expect(body).toEqual(imageData);
           },
@@ -65,8 +65,9 @@ describeWithEnv(
           () => new Response("Not Found", { status: 404 }),
           async () => {
             await expectBrokenImageResponse(await proxyRequest());
-            expect(errors.lastMessage()).toContain("E_IMAGE_BROKEN");
-            expect(errors.lastMessage()).toContain(
+            assertStringIncludes(errors.lastMessage() ?? "", "E_IMAGE_BROKEN");
+            assertStringIncludes(
+              errors.lastMessage() ?? "",
               "abc123-def4-5678-9abc-def012345678.jpg is missing from storage",
             );
           },
@@ -78,8 +79,9 @@ describeWithEnv(
           () => new Response("not encrypted bytes", { status: 200 }),
           async () => {
             await expectBrokenImageResponse(await proxyRequest());
-            expect(errors.lastMessage()).toContain("E_IMAGE_BROKEN");
-            expect(errors.lastMessage()).toContain(
+            assertStringIncludes(errors.lastMessage() ?? "", "E_IMAGE_BROKEN");
+            assertStringIncludes(
+              errors.lastMessage() ?? "",
               "abc123-def4-5678-9abc-def012345678.jpg could not be decrypted",
             );
           },
@@ -221,7 +223,8 @@ describeWithEnv(
       await withRequestContext(async () => {
         await addPageImageUrls([`![Poster](img#${hero.id})`, "plain"]);
 
-        expect(renderMarkdown(`![Poster](img#${hero.id})`)).toContain(
+        assertStringIncludes(
+          renderMarkdown(`![Poster](img#${hero.id})`),
           `src="/image/${hero.filename}"`,
         );
       });
@@ -232,7 +235,7 @@ describeWithEnv(
       await withRequestContext(async () => {
         await addPageImageUrls(["plain text", null]);
 
-        expect(renderMarkdown("![Poster](img#7)")).toContain('src=""');
+        assertStringIncludes(renderMarkdown("![Poster](img#7)"), 'src=""');
       });
     });
 
@@ -241,7 +244,10 @@ describeWithEnv(
 
       await addPageImageUrls([`![Poster](img#${hero.id})`]);
 
-      expect(renderMarkdown(`![Poster](img#${hero.id})`)).toContain('src=""');
+      assertStringIncludes(
+        renderMarkdown(`![Poster](img#${hero.id})`),
+        'src=""',
+      );
     });
   },
 );

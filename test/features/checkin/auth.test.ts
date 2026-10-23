@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { logisticsAgents } from "#db/logistics-agents.ts";
@@ -60,20 +61,20 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       );
 
       const allowedBody = await readTicketPage(own.token, cookie);
-      expect(allowedBody).toContain("Assigned Person");
+      assertStringIncludes(allowedBody, "Assigned Person");
       // An agent's run-sheet view never carries the bulk actions: their
       // session is not a door role, so the POST would refuse them.
-      expect(allowedBody).not.toContain('name="check_in"');
-      expect(allowedBody).toContain("assigned@example.com");
-      expect(allowedBody).not.toContain("Check In All");
-      expect(allowedBody).not.toContain(
-        `href="/admin/attendees/${own.attendee.id}"`,
+      assert(!allowedBody.includes('name="check_in"'));
+      assertStringIncludes(allowedBody, "assigned@example.com");
+      assert(!allowedBody.includes("Check In All"));
+      assert(
+        !allowedBody.includes(`href="/admin/attendees/${own.attendee.id}"`),
       );
-      expect(allowedBody).not.toContain(
-        `href="/admin/listing/${own.listing.id}"`,
-      );
-      expect(allowedBody).not.toContain(
-        `/admin/listing/${own.listing.id}/attendee/${own.attendee.id}/checkin`,
+      assert(!allowedBody.includes(`href="/admin/listing/${own.listing.id}"`));
+      assert(
+        !allowedBody.includes(
+          `/admin/listing/${own.listing.id}/attendee/${own.attendee.id}/checkin`,
+        ),
       );
 
       const forbidden = await awaitTestRequest(`/checkin/${other.token}`, {
@@ -81,8 +82,8 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       });
       expect(forbidden.status).toBe(403);
       const forbiddenBody = await forbidden.text();
-      expect(forbiddenBody).not.toContain("Other Person");
-      expect(forbiddenBody).not.toContain("other@example.com");
+      assert(!forbiddenBody.includes("Other Person"));
+      assert(!forbiddenBody.includes("other@example.com"));
 
       const mixed = await awaitTestRequest(
         `/checkin/${own.token}+${other.token}`,
@@ -90,18 +91,16 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       );
       expect(mixed.status).toBe(200);
       const mixedBody = await mixed.text();
-      expect(mixedBody).toContain("Assigned Person");
-      expect(mixedBody).toContain("assigned@example.com");
-      expect(mixedBody).not.toContain("Other Person");
-      expect(mixedBody).not.toContain("other@example.com");
-      expect(mixedBody).not.toContain(
-        `href="/admin/attendees/${own.attendee.id}"`,
-      );
-      expect(mixedBody).not.toContain(
-        `href="/admin/listing/${own.listing.id}"`,
-      );
-      expect(mixedBody).not.toContain(
-        `/admin/listing/${own.listing.id}/attendee/${own.attendee.id}/checkin`,
+      assertStringIncludes(mixedBody, "Assigned Person");
+      assertStringIncludes(mixedBody, "assigned@example.com");
+      assert(!mixedBody.includes("Other Person"));
+      assert(!mixedBody.includes("other@example.com"));
+      assert(!mixedBody.includes(`href="/admin/attendees/${own.attendee.id}"`));
+      assert(!mixedBody.includes(`href="/admin/listing/${own.listing.id}"`));
+      assert(
+        !mixedBody.includes(
+          `/admin/listing/${own.listing.id}/attendee/${own.attendee.id}/checkin`,
+        ),
       );
     });
 
@@ -129,11 +128,11 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       await refundThroughLedger(own.attendee.id, own.listing.id);
 
       const body = await readTicketPage(own.token, cookie);
-      expect(body).toContain("Refunded Person");
+      assertStringIncludes(body, "Refunded Person");
       // A refunded leg offers nothing to change, and an agent's session is
       // not a door role: no bulk action may appear.
-      expect(body).not.toContain("Check In All");
-      expect(body).not.toContain('name="check_in"');
+      assert(!body.includes("Check In All"));
+      assert(!body.includes('name="check_in"'));
     });
 
     test("a scanner's door role alone offers no action on a token no row can change", async () => {
@@ -149,10 +148,10 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       // A door role is one half of the bulk action's gate; the other half is
       // a row the POST could change. A fully refunded token meets neither
       // offer: the POST would refuse, so the page must not advertise it.
-      expect(body).toContain("Still Home");
-      expect(body).not.toContain("Check In All");
-      expect(body).not.toContain("Check Out All");
-      expect(body).not.toContain('name="check_in"');
+      assertStringIncludes(body, "Still Home");
+      assert(!body.includes("Check In All"));
+      assert(!body.includes("Check Out All"));
+      assert(!body.includes('name="check_in"'));
     });
 
     test("keeps the door-safe columns even when a staff layout names contact ones", async () => {
@@ -172,10 +171,10 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       // An operator's saved column order is a staff-table choice; the
       // door-only ticket page always reads its own fixed door-safe columns,
       // so a contact column can never ride onto a door worker's screen.
-      expect(body).toContain("<th>Name</th>");
-      expect(body).not.toContain("perry@test.com");
-      expect(body).not.toContain("<th>Email</th>");
-      expect(body).not.toContain("<th>Phone</th>");
+      assertStringIncludes(body, "<th>Name</th>");
+      assert(!body.includes("perry@test.com"));
+      assert(!body.includes("<th>Email</th>"));
+      assert(!body.includes("<th>Phone</th>"));
     });
 
     test("delivery agents see only the row whose leg is on their run sheet when one attendee has two rows on the same listing on different dates", async () => {
@@ -208,14 +207,14 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       const body = await readTicketPage(token, cookie);
 
       // The agent owns only Row A, so only its quantity appears.
-      expect(body).toContain("Multi Row Person");
-      expect(body).toContain("multirow@example.com");
+      assertStringIncludes(body, "Multi Row Person");
+      assertStringIncludes(body, "multirow@example.com");
       // Row A's quantity (2) is visible; Row B's quantity (3) never is.
-      expect(body).toContain(">2<");
-      expect(body).not.toContain(">3<");
+      assertStringIncludes(body, ">2<");
+      assert(!body.includes(">3<"));
       // Row A's date label is visible; Row B's later date must not leak.
-      expect(body).toContain(formatDateLabel(today));
-      expect(body).not.toContain(formatDateLabel(laterDate));
+      assertStringIncludes(body, formatDateLabel(today));
+      assert(!body.includes(formatDateLabel(laterDate)));
     });
 
     test("delivery agents see a leg that is on tomorrow's run sheet", async () => {
@@ -241,7 +240,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       );
 
       const body = await readTicketPage(token, cookie);
-      expect(body).toContain("Tomorrow Person");
+      assertStringIncludes(body, "Tomorrow Person");
     });
   });
 
@@ -259,8 +258,8 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
       expect(response.status).toBe(403);
       const body = await response.text();
-      expect(body).not.toContain("Editor Hidden");
-      expect(body).not.toContain("editor-hidden@example.com");
+      assert(!body.includes("Editor Hidden"));
+      assert(!body.includes("editor-hidden@example.com"));
     });
   });
 
@@ -276,12 +275,12 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
 
       const body = await readTicketPage(token, cookie);
 
-      expect(body).toContain("Door Guest");
-      expect(body).toContain("Check In All");
+      assertStringIncludes(body, "Door Guest");
+      assertStringIncludes(body, "Check In All");
       // The admin pages behind these links stay shut for a scanner login, so
       // the page must not promise them (never render a forbidden link).
-      expect(body).not.toContain('href="/admin/attendees/');
-      expect(body).not.toContain('href="/admin/listing/');
+      assert(!body.includes('href="/admin/attendees/'));
+      assert(!body.includes('href="/admin/listing/'));
     });
   });
 });
