@@ -193,12 +193,18 @@ Then(
   ): void {
     const origin = `https://${getEffectiveDomain()}`;
     const written = writtenWords(this, name, words);
+    // The HTML part shows the code span without its backticks.
+    const insideTheCode = written.slice(1, -1);
     for (const email of bookedOnto(this, listingName)) {
       const copy = whatWasSentTo(this, email);
       // The code the owner wrote arrives as code in the plain part, and the
       // picture beside it travels to the site's own address.
       expect(copy.text).toContain(written);
       expect(copy.text).toContain(pictureUrl(this, name, origin));
+      // The HTML part shows the code as code too. The reference inside it
+      // keeps the owner's words, so no picture appears inside the code
+      // there.
+      expect(copy.html).toContain(`<code>${insideTheCode}</code>`);
       expect(copy.html).toContain(
         pictureTag(pictureUrl(this, name, origin), name),
       );
