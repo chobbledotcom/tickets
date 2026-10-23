@@ -81,20 +81,33 @@ const renderQueueCount = (panel, messages) => {
   );
 };
 
+/** One waiting row for the panel's list, paired with its stored item. */
+const queuedRow = (panel, messages, item) => {
+  const row = document.createElement("li");
+  row.textContent = getMessage(
+    messages,
+    "messageQueueItemQueued",
+    "Waiting — will be checked in when online",
+  );
+  panel.list.appendChild(row);
+  return { item, row };
+};
+
 /** Rebuild the queue panel's rows from the stored queue, oldest first. */
 const renderQueuePanel = (panel, messages) => {
   panel.list.replaceChildren();
   panel.rows = [];
   for (const item of readQueue()) {
-    const row = document.createElement("li");
-    row.textContent = getMessage(
-      messages,
-      "messageQueueItemQueued",
-      "Waiting — will be checked in when online",
-    );
-    panel.list.appendChild(row);
-    panel.rows.push({ item, row });
+    panel.rows.push(queuedRow(panel, messages, item));
   }
+  renderQueueCount(panel, messages);
+};
+
+/** Add one queued check-in's waiting row without touching the rows already
+ * on the panel. A running sync writes its answers to those rows, and the
+ * loop settles the appended row too. */
+const appendQueuedRow = (panel, messages, item) => {
+  panel.rows.push(queuedRow(panel, messages, item));
   renderQueueCount(panel, messages);
 };
 
@@ -204,10 +217,11 @@ export const offlineScan = async (
     );
     return;
   }
-  // A storage failure here leaves the scan unqueued. The network-error
-  // wording points the door at its router while the person walks in.
+  // A storage failure here leaves the scan unqueued, and the save-failed
+  // message tells the door to scan again.
+  let queued;
   try {
-    queueCheckIn(scanPath, token);
+    queued = queueCheckIn(scanPath, token);
   } catch {
     showStatus(
       statusEl,
@@ -220,7 +234,13 @@ export const offlineScan = async (
     );
     return;
   }
-  renderQueuePanel(panel, messages);
+  // A running sync owns the panel's rows: the new row joins the rows the
+  // sync settles. A rebuild detaches the rows the sync writes to.
+  if (isSyncing()) {
+    appendQueuedRow(panel, messages, queued);
+  } else {
+    renderQueuePanel(panel, messages);
+  }
   showStatus(
     statusEl,
     getMessage(
@@ -232,14 +252,75 @@ export const offlineScan = async (
   );
 };
 
+/** A sync asked for while another runs re-runs once the running one ends.
+ * The ask that arrives mid-run — a returning connection, a disarm — must
+ * not die with the run it interrupted. */
+let syncRequested = false;
+
 /** Send every queued check-in and report each one's outcome on its own row.
  * An item leaves the queue only after the door answered it with a scan
  * decision. Nothing is lost when the connection drops mid-sync or the door
  * refuses the page's session. The door answers a replayed check-in
  * with already_checked_in rather than checking anyone in twice. */
 const syncQueue = async (csrfToken, statusEl, messages, panel, settleScan) => {
-  if (isSyncing() || !navigator.onLine || readQueue().length === 0) return;
+  if (isSyncing()) {
+    syncRequested = true;
+    return;
+  }
+  if (!navigator.onLine || readQueue().length === 0) return;
   setSyncing(true);
+
+  /** Settle one queued check-in: send it, mark its answer on the row, and
+   * drop it from the store. False when the store refused the removal, which
+   * stops the sync. */
+  const settleRow = async ({ item, row }) => {
+    let answer;
+    try {
+      answer = await settleScan(
+        item.scanPath,
+        item.token,
+        csrfToken,
+        statusEl,
+        messages,
+      );
+      // An answer without a scan decision is no settlement: an expired
+      // session or a refused role leaves the check-in queued.
+      if (typeof answer?.status !== "string") {
+        throw new Error("The door sent no scan decision.");
+      }
+    } catch {
+      // No answer or no scan decision — a dead connection, an expired
+      // session, a refused role. The item waits for the next sync.
+      row.textContent = getMessage(
+        messages,
+        "messageQueueItemStillQueued",
+        "Not sent yet — still queued",
+      );
+      renderQueueCount(panel, messages);
+      return true;
+    }
+    try {
+      dropFromQueue(item);
+    } catch {
+      // The door answered, so the check-in is safe, but the store refused
+      // the removal. A replay reads as already checked in, so the item
+      // stands and the door learns why the row still waits.
+      showStatus(
+        statusEl,
+        getMessage(
+          messages,
+          "messageQueueSaveFailed",
+          "This device could not save the queued check-ins. Free up space, then reload this page.",
+        ),
+        "error",
+      );
+      return false;
+    }
+    row.textContent = queueOutcome(messages, answer);
+    renderQueueCount(panel, messages);
+    return true;
+  };
+
   try {
     showStatus(
       statusEl,
@@ -250,51 +331,10 @@ const syncQueue = async (csrfToken, statusEl, messages, panel, settleScan) => {
       ),
       "success",
     );
-    for (const { item, row } of panel.rows) {
-      let answer;
-      try {
-        answer = await settleScan(
-          item.scanPath,
-          item.token,
-          csrfToken,
-          statusEl,
-          messages,
-        );
-        // An answer without a scan decision is no settlement: an expired
-        // session or a refused role leaves the check-in queued.
-        if (typeof answer?.status !== "string") {
-          throw new Error("The door sent no scan decision.");
-        }
-      } catch {
-        // No answer or no scan decision — a dead connection, an expired
-        // session, a refused role. The item waits for the next sync.
-        row.textContent = getMessage(
-          messages,
-          "messageQueueItemStillQueued",
-          "Not sent yet — still queued",
-        );
-        renderQueueCount(panel, messages);
-        continue;
-      }
-      try {
-        dropFromQueue(item);
-      } catch {
-        // The door answered, so the check-in is safe, but the store refused
-        // the removal. A replay reads as already checked in, so the item
-        // stands and the door learns why the row still waits.
-        showStatus(
-          statusEl,
-          getMessage(
-            messages,
-            "messageQueueSaveFailed",
-            "This device could not save the queued check-ins. Free up space, then reload this page.",
-          ),
-          "error",
-        );
-        return;
-      }
-      row.textContent = queueOutcome(messages, answer);
-      renderQueueCount(panel, messages);
+    // A scan queued after this sync started appended its own row, so the
+    // loop settles that item too.
+    for (const pair of panel.rows) {
+      if (!(await settleRow(pair))) return;
     }
     const settledAll = readQueue().length === 0;
     showStatus(
@@ -310,6 +350,10 @@ const syncQueue = async (csrfToken, statusEl, messages, panel, settleScan) => {
     );
   } finally {
     setSyncing(false);
+    if (syncRequested) {
+      syncRequested = false;
+      syncQueue(csrfToken, statusEl, messages, panel, settleScan);
+    }
   }
 };
 

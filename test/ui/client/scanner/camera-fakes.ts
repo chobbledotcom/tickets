@@ -1,12 +1,50 @@
 /// <reference lib="dom" />
 
-import { el, type ScannerHarness } from "./fixture.ts";
+import { expect } from "@std/expect";
+import { fromBase64Url } from "#crypto/utils.ts";
+import { hmacHex } from "#shared/sha256.ts";
+import { el, SCAN_PATH, type ScannerHarness } from "./fixture.ts";
 
 export type CameraFakes = ReturnType<typeof cameraFakes>;
 
 /** Drain the promise hops a stubbed fetch and a settled scan need. */
 export const drain = async (): Promise<void> => {
   for (let hop = 0; hop < 50; hop++) await Promise.resolve();
+};
+
+/** The page's own door key, as the fixture renders it. */
+const doorKey = fromBase64Url("dGVzdC1kb296LWNhY2hlLWtleQ");
+
+/** The door's ticket cache, stamped by the clock the scan will read. The
+ * camera fakes own the clock, so the seed lands after they do. */
+export const seedTicketCache = async (
+  h: ScannerHarness,
+  token: string,
+  storedAt: number,
+): Promise<void> => {
+  h.window.localStorage.setItem(
+    `scanner-tickets-${SCAN_PATH}`,
+    JSON.stringify({ hashes: [await hmacHex(doorKey, token)], storedAt }),
+  );
+};
+
+/** The real timer the camera fakes replace, captured at module load. */
+const realSetTimeout = globalThis.setTimeout;
+
+/** Waits for an element to carry the text over real event-loop turns: the
+ * offline digest runs on the platform's own crypto promise, which no
+ * microtask drain resolves. */
+export const whenStatusShows = async (
+  target: HTMLElement,
+  text: string,
+): Promise<void> => {
+  for (let turns = 0; turns < 20 && target.textContent !== text; turns++) {
+    const { promise, resolve } = Promise.withResolvers<void>();
+    realSetTimeout(resolve, 0);
+    await promise;
+    for (let hops = 0; hops < 50; hops++) await Promise.resolve();
+  }
+  expect(target.textContent).toBe(text);
 };
 
 /** Press the start button and let the camera flow settle. */
