@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -216,9 +217,15 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
       model.submenuLevels.map((level) => level.nodes.map((node) => node.label)),
     ).toEqual([["On chain", "Beside it"]]);
     // ...and carries nothing from the page the visitor is not on.
-    expect(nodesOf(model).map((node) => node.label)).not.toContain("Off chain");
-    expect(nodesOf(model).map((node) => node.key)).not.toContain(
-      targetKey("group", group.id),
+    assert(
+      !nodesOf(model)
+        .map((node) => node.label)
+        .includes("Off chain"),
+    );
+    assert(
+      !nodesOf(model)
+        .map((node) => node.key)
+        .includes(targetKey("group", group.id)),
     );
   });
 

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { questionListings } from "#db/questions/queries.ts";
@@ -30,7 +31,10 @@ describeWithEnv("the ticket page's image references", { db: true }, () => {
    * head's og:description echoes the raw description, so only the resolved
    * body image proves the lookup ran; an unresolved page renders src="". */
   const expectResolved = (html: string, image: Image, alt: string): void => {
-    expect(html).toContain(`<img src="/image/${image.filename}" alt="${alt}">`);
+    assertStringIncludes(
+      html,
+      `<img src="/image/${image.filename}" alt="${alt}">`,
+    );
   };
 
   test("resolves a listing description's image reference on its own page", async () => {
@@ -105,6 +109,6 @@ describeWithEnv("the ticket page's image references", { db: true }, () => {
       name: "Kayak Tour",
     });
     const html = await ticketPageHtml(listing.slug);
-    expect(html).toContain('<img src="" alt="Poster">');
+    assertStringIncludes(html, '<img src="" alt="Poster">');
   });
 });

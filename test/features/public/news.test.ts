@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createNewsPost } from "#db/news-posts.ts";
@@ -28,7 +29,7 @@ describeWithEnv("public /news routes", { db: true }, () => {
     await enablePublicSite();
     await makePost("Big Launch");
     const body = await (await handleRequest(mockRequest("/news"))).text();
-    expect(body).toContain("Big Launch");
+    assertStringIncludes(body, "Big Launch");
   });
 
   test("a post page renders its content; an unknown slug 404s", async () => {
@@ -36,7 +37,10 @@ describeWithEnv("public /news routes", { db: true }, () => {
     const post = await makePost("Behind The Scenes");
     const page = await handleRequest(mockRequest(`/news/${post.slug}`));
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain("The full story of Behind The Scenes.");
+    assertStringIncludes(
+      await page.text(),
+      "The full story of Behind The Scenes.",
+    );
 
     const unknown = await handleRequest(mockRequest("/news/no-such-post"));
     expect(unknown.status).toBe(404);
@@ -49,9 +53,9 @@ describeWithEnv("public /news routes", { db: true }, () => {
     const page = await handleRequest(mockRequest(`/news/${post.slug}`));
     expect(page.status).toBe(200);
     const body = await page.text();
-    expect(body).toContain(`src="/image/${image.filename}"`);
-    expect(body).toContain('alt="Hero"');
-    expect(body).not.toContain("/image/id/");
+    assertStringIncludes(body, `src="/image/${image.filename}"`);
+    assertStringIncludes(body, 'alt="Hero"');
+    assert(!body.includes("/image/id/"));
   });
 
   test("the site footer's img#id reference renders the image's uid URL", async () => {
@@ -64,7 +68,8 @@ describeWithEnv("public /news routes", { db: true }, () => {
     const body = await (
       await handleRequest(mockRequest(`/news/${post.slug}`))
     ).text();
-    expect(body).toContain(
+    assertStringIncludes(
+      body,
       `<img src="/image/${image.filename}" alt="FooterPoster">`,
     );
   });
@@ -77,7 +82,8 @@ describeWithEnv("public /news routes", { db: true }, () => {
     });
     await makePost("Index Drop");
     const body = await (await handleRequest(mockRequest("/news"))).text();
-    expect(body).toContain(
+    assertStringIncludes(
+      body,
       `<img src="/image/${image.filename}" alt="FooterIndex">`,
     );
   });
@@ -88,7 +94,7 @@ describeWithEnv("public /news routes", { db: true }, () => {
     const page = await handleRequest(mockRequest(`/news/${post.slug}`));
     expect(page.status).toBe(200);
     const body = await page.text();
-    expect(body).toContain('src="" alt="Ghost"');
-    expect(body).not.toContain("424242");
+    assertStringIncludes(body, 'src="" alt="Ghost"');
+    assert(!body.includes("424242"));
   });
 });

@@ -1,5 +1,6 @@
 // jscpd:ignore-start
 import type { InStatement } from "@libsql/client";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -60,9 +61,9 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     await settings.update.siteFooter("");
 
     const home = await assertPublicHtml("/");
-    expect(home).not.toContain(footerTag);
+    assert(!home.includes(footerTag));
     const listings = await assertPublicHtml("/listings");
-    expect(listings).not.toContain(footerTag);
+    assert(!listings.includes(footerTag));
   });
 
   test("renders the footer once, at the bottom of the home page and the listings page", async () => {
@@ -91,7 +92,7 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
       "&lt;script&gt;alert(1)&lt;/script&gt;",
       "<strong>Bold</strong>",
     );
-    expect(html).not.toContain("<script>alert(1)");
+    assert(!html.includes("<script>alert(1)"));
   });
 
   test("keeps the footer off an embedded page", async () => {
@@ -99,9 +100,9 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     await settings.update.siteFooter("A visitor-facing note.");
 
     const embedded = await assertPublicHtml("/listings?iframe=true");
-    expect(embedded).not.toContain(footerTag);
+    assert(!embedded.includes(footerTag));
     const page = await assertPublicHtml("/listings");
-    expect(page).toContain(footerTag);
+    assertStringIncludes(page, footerTag);
   });
 
   test("keeps the footer off admin pages", async () => {
@@ -110,12 +111,10 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
 
     const admin = await adminGet("/admin/settings");
     const html = await expectHtmlResponse(admin, 200);
-    expect(html).not.toContain(footerTag);
+    assert(!html.includes(footerTag));
     // The settings form shows the raw text for editing; the page must not
     // render it as markdown.
-    expect(html).not.toContain(
-      "<strong>Admin pages must not show this</strong>",
-    );
+    assert(!html.includes("<strong>Admin pages must not show this</strong>"));
   });
 
   test("the footer's img#N reference resolves on the pages that render it", async () => {
@@ -129,7 +128,7 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
         path,
         `<img src="/image/${image.filename}" alt="FooterPoster">`,
       );
-      expect(html).not.toContain("img#");
+      assert(!html.includes("img#"));
     }
   });
 
@@ -158,7 +157,7 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
         404,
         `<img src="/image/${image.filename}" alt="FooterNotFound">`,
       );
-      expect(html).not.toContain("img#");
+      assert(!html.includes("img#"));
     }
   });
 
@@ -184,7 +183,7 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
         status,
         `<img src="/image/${image.filename}" alt="FooterLink">`,
       );
-      expect(html).not.toContain("img#");
+      assert(!html.includes("img#"));
     }
   });
 
@@ -197,11 +196,11 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     const picture = `<img src="/image/${image.filename}" alt="FooterBalance">`;
     const attendeeId = await createReserved(1500);
     for (const html of [await getPayPage(attendeeId)]) {
-      expect(html).toContain(picture);
-      expect(html).not.toContain("img#");
+      assertStringIncludes(html, picture);
+      assert(!html.includes("img#"));
     }
     await settleAttendeeBalance(attendeeId, 1500, settle());
-    expect(await getPayPage(attendeeId)).toContain(picture);
+    assertStringIncludes(await getPayPage(attendeeId), picture);
     // A link whose every line is no-quantity shows the honest no-tickets
     // page, and its footer resolves the same way. The two bookings name their
     // listings differently, because one test may not create two listings of
@@ -213,7 +212,7 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
       args: [noTicketsId],
       sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
     });
-    expect(await getPayPage(noTicketsId)).toContain(picture);
+    assertStringIncludes(await getPayPage(noTicketsId), picture);
   });
 
   test("the footer's img#N reference resolves on the paid success page", async () => {
@@ -226,7 +225,7 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
       200,
       `<img src="/image/${image.filename}" alt="FooterPaid">`,
     );
-    expect(html).not.toContain("img#");
+    assert(!html.includes("img#"));
   });
 
   test("the footer's img#N reference resolves when a form post is refused", async () => {
@@ -240,7 +239,7 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
       403,
       `<img src="/image/${image.filename}" alt="FooterForm">`,
     );
-    expect(html).not.toContain("img#");
+    assert(!html.includes("img#"));
   });
 
   test("the footer's img#N reference resolves on the rate-limited page", async () => {
@@ -260,7 +259,7 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
       429,
       `<img src="/image/${image.filename}" alt="FooterLimited">`,
     );
-    expect(html).not.toContain("img#");
+    assert(!html.includes("img#"));
   });
 
   test("a page render runs the footer's images lookup through the recorder", async () => {

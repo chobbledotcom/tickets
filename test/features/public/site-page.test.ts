@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createSitePage } from "#db/site-pages.ts";
@@ -25,8 +26,8 @@ describeWithEnv("public /page/:slug route", { db: true }, () => {
     const response = await handleRequest(mockRequest("/page/about-us"));
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain("About Us");
-    expect(body).toContain("Everything about About Us.");
+    assertStringIncludes(body, "About Us");
+    assertStringIncludes(body, "Everything about About Us.");
   });
 
   test("renders a page's img#N reference as the image's uid URL", async () => {
@@ -44,7 +45,7 @@ describeWithEnv("public /page/:slug route", { db: true }, () => {
       "/page/find-us",
       `<img src="/image/${image.filename}" alt="TrailMap">`,
     );
-    expect(html).not.toContain("img#");
+    assert(!html.includes("img#"));
   });
 
   test("an unknown slug 404s", async () => {

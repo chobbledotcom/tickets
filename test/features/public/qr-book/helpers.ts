@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import {
@@ -59,7 +60,9 @@ export const expectStripeRedirect = (
   stripe: StripeStub,
 ): void => {
   expect(response.status).toBe(302);
-  expect(response.headers.get("location")).toContain("stripe.example");
+  const location = response.headers.get("location");
+  assert(location !== null);
+  assertStringIncludes(location, "stripe.example");
   expect(stripe.calls()).toBe(1);
 };
 

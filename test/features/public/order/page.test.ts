@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
@@ -63,17 +63,17 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         "View order",
         "Continue",
       );
-      expect(html).toContain(`name="select_${standard.id}"`);
-      expect(html).toContain(`name="select_${daily.id}"`);
+      assertStringIncludes(html, `name="select_${standard.id}"`);
+      assertStringIncludes(html, `name="select_${daily.id}"`);
       // The login footer is a homepage-only affordance (#69).
-      expect(html).not.toContain('href="/admin/login"');
+      assert(!html.includes('href="/admin/login"'));
     });
 
     test("renders the intro text as markdown", async () => {
       await createTestListing({ name: "Tote" });
       await settings.update.orderIntroText("**Pick** your items");
       const html = await assertPublicHtml("/order");
-      expect(html).toContain("<strong>Pick</strong>");
+      assertStringIncludes(html, "<strong>Pick</strong>");
     });
 
     test("renders the intro's img#N reference as the image's uid URL", async () => {
@@ -86,7 +86,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         "/order",
         `<img src="/image/${image.filename}" alt="OrderPoster">`,
       );
-      expect(html).not.toContain("img#");
+      assert(!html.includes("img#"));
     });
 
     test("shows an empty state and no cart when there are no listings", async () => {
@@ -94,8 +94,8 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         "/order",
         "No items are available to order",
       );
-      expect(html).not.toContain('class="order-cart"');
-      expect(html).not.toContain('class="order-continue"');
+      assert(!html.includes('class="order-cart"'));
+      assert(!html.includes('class="order-continue"'));
     });
 
     test("excludes hidden and inactive listings", async () => {
@@ -105,26 +105,26 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       await deactivateTestListing(inactive.id);
 
       const html = await assertPublicHtml("/order", "Real Item");
-      expect(html).not.toContain("Hidden Item");
-      expect(html).not.toContain("Inactive Item");
+      assert(!html.includes("Hidden Item"));
+      assert(!html.includes("Inactive Item"));
     });
 
     test("shows the Order link in the public nav when enabled", async () => {
       const html = await assertPublicHtml("/listings");
-      expect(html).toContain('href="/order"');
+      assertStringIncludes(html, 'href="/order"');
     });
 
     test("shows the website title as a heading", async () => {
       await createTestListing({ name: "Tote" });
       await settings.update.websiteTitle("Acme Shop");
       const html = await assertPublicHtml("/order");
-      expect(html).toContain("<h1>Acme Shop</h1>");
+      assertStringIncludes(html, "<h1>Acme Shop</h1>");
     });
 
     test("shows a price for priced listings", async () => {
       await createTestListing({ name: "Priced", unitPrice: 1500 });
       const html = await assertPublicHtml("/order");
-      expect(html).toContain('class="order-card-price"');
+      assertStringIncludes(html, 'class="order-card-price"');
     });
 
     test("shows a 'From' price for pay-what-you-want listings", async () => {
@@ -135,7 +135,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         unitPrice: 1000,
       });
       const html = await assertPublicHtml("/order");
-      expect(html).toContain("From ");
+      assertStringIncludes(html, "From ");
     });
 
     test("shows selected listing attributes on order cards", async () => {
@@ -156,13 +156,13 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       const sold = await createTestListing({ maxAttendees: 1, name: "Gone" });
       await createTestAttendee(sold.id, sold.slug, "Buyer", "b@example.com");
       const html = await assertPublicHtml("/order", "Gone", "Sold Out");
-      expect(html).not.toContain(`name="select_${sold.id}"`);
+      assert(!html.includes(`name="select_${sold.id}"`));
     });
 
     test("marks a closed listing as unavailable", async () => {
       await createTestListing({ closesAt: "2020-01-01T00:00", name: "Past" });
       const html = await assertPublicHtml("/order", "Past", "Unavailable");
-      expect(html).not.toContain("Sold Out");
+      assert(!html.includes("Sold Out"));
     });
 
     test("lists bookable packages as selectable cards under a Packages heading", async () => {
@@ -197,7 +197,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         `name="select_package_${beach.id}"`,
         `data-order-key="package:${camp.id}"`,
       );
-      expect(html).toContain(`name="select_${tent.id}"`);
+      assertStringIncludes(html, `name="select_${tent.id}"`);
     });
 
     test("the whole gallery is one cart form with live-availability hooks", async () => {
@@ -210,7 +210,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         `name="order"`,
         "data-order-state-label",
       );
-      expect(html).toContain(`data-order-key="listing:${item.id}"`);
+      assertStringIncludes(html, `data-order-key="listing:${item.id}"`);
     });
 
     test("renders the date prompt and needs-date labels for daily items", async () => {
@@ -224,13 +224,13 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         "Have a date in mind?",
         "Pick a date to see availability",
       );
-      expect(html).toContain("data-order-date");
+      assertStringIncludes(html, "data-order-date");
     });
 
     test("omits the date field when nothing on the page needs a date", async () => {
       await createTestListing({ name: "Dateless Mug" });
       const html = await assertPublicHtml("/order");
-      expect(html).not.toContain('name="start_date"');
+      assert(!html.includes('name="start_date"'));
     });
 
     test("shows a concealing package and its standalone member", async () => {
@@ -246,10 +246,10 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       });
 
       const html = await assertPublicHtml("/order", "Mystery Box");
-      expect(html).toContain(`name="select_package_${group.id}"`);
-      expect(html).toContain("Secret Widget");
-      expect(html).toContain(`name="select_${secret.id}"`);
-      expect(html).not.toContain("No items are available to order");
+      assertStringIncludes(html, `name="select_package_${group.id}"`);
+      assertStringIncludes(html, "Secret Widget");
+      assertStringIncludes(html, `name="select_${secret.id}"`);
+      assert(!html.includes("No items are available to order"));
     });
   });
 
@@ -260,7 +260,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         `/ticket/${item.slug}?q_${item.id}=2`,
         `name="quantity_${item.id}"`,
       );
-      expect(html).toContain("selected>2</option>");
+      assertStringIncludes(html, "selected>2</option>");
     });
 
     test("pre-selects quantities per row on a multi-listing page", async () => {
@@ -272,7 +272,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         `name="quantity_${b.id}"`,
       );
       // Row A is pre-filled to 2; row B has no q param so stays unselected.
-      expect(html).toContain("selected>2</option>");
+      assertStringIncludes(html, "selected>2</option>");
     });
 
     test("ignores malformed quantity pre-fill values", async () => {
@@ -281,7 +281,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         `/ticket/${item.slug}?q_${item.id}=2x`,
         `name="quantity_${item.id}"`,
       );
-      expect(html).not.toContain("selected>2</option>");
+      assert(!html.includes("selected>2</option>"));
     });
   });
 });

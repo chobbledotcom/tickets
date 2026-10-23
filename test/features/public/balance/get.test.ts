@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -25,26 +26,26 @@ describeWithEnv("server (public balance page) > GET", { db: true }, () => {
     const html = await getPayPage(await createReserved(1500));
     expectRecap(html);
     // No PII (the booker's name) is shown.
-    expect(html).not.toContain("Guest");
+    assert(!html.includes("Guest"));
   });
 
   test("GET shows a settled message once the balance is cleared", async () => {
     const attendeeId = await createReserved(1500);
     await settleAttendeeBalance(attendeeId, 1500, settle());
-    expect(await getPayPage(attendeeId)).toContain("Nothing to pay");
+    assertStringIncludes(await getPayPage(attendeeId), "Nothing to pay");
   });
 
   test("GET rejects an invalid token", async () => {
     const response = await handleRequest(mockRequest("/pay/bal1.bogus.bogus"));
     const html = await response.text();
-    expect(html).toContain("not valid");
+    assertStringIncludes(html, "not valid");
   });
 
   test("GET rejects a validly-signed token for a missing attendee", async () => {
     // The token verifies, but no attendee row matches, so the balance state is
     // null. The handler must short-circuit to the not-valid page rather than
     // dereference the absent state.
-    expect(await getPayPage(999_999)).toContain("not valid");
+    assertStringIncludes(await getPayPage(999_999), "not valid");
   });
 
   test("GET shows the recap for a non-reservation attendee with an outstanding balance", async () => {
@@ -52,7 +53,7 @@ describeWithEnv("server (public balance page) > GET", { db: true }, () => {
     // money can pay it online, whatever status the booking sits in.
     const html = await getPayPage(await createNonReservation(1500));
     expectRecap(html);
-    expect(html).not.toContain("Nothing to pay");
+    assert(!html.includes("Nothing to pay"));
   });
 
   test("GET shows the recap when just 1 is still owed", async () => {
@@ -60,7 +61,7 @@ describeWithEnv("server (public balance page) > GET", { db: true }, () => {
     // penny still outstanding shows the pay page rather than "Nothing to pay".
     const html = await getPayPage(await createNonReservation(1));
     expectRecap(html);
-    expect(html).not.toContain("Nothing to pay");
+    assert(!html.includes("Nothing to pay"));
   });
 
   test("GET refuses a reserved balance whose only line is no-quantity", async () => {
@@ -71,7 +72,7 @@ describeWithEnv("server (public balance page) > GET", { db: true }, () => {
       sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
     });
     // An honest "no tickets to pay for" message, not a misleading "link invalid".
-    expect(await getPayPage(attendeeId)).toContain("no tickets to pay for");
+    assertStringIncludes(await getPayPage(attendeeId), "no tickets to pay for");
   });
 
   test("GET hides concealed package members behind the package name", async () => {
@@ -82,10 +83,10 @@ describeWithEnv("server (public balance page) > GET", { db: true }, () => {
 
     const html = await getPayPage(attendeeId);
 
-    expect(html).not.toContain("Secret Contents");
-    expect(html).toContain("Mystery Box");
-    expect(html).toContain("Workshop Ticket");
-    expect(html).toContain("Balance due");
+    assert(!html.includes("Secret Contents"));
+    assertStringIncludes(html, "Mystery Box");
+    assertStringIncludes(html, "Workshop Ticket");
+    assertStringIncludes(html, "Balance due");
   });
 
   test("GET uses the generic package label when the package row is gone", async () => {
@@ -123,8 +124,8 @@ describeWithEnv("server (public balance page) > GET", { db: true }, () => {
 
     const html = await getPayPage(attendee.id);
 
-    expect(html).not.toContain("Secret Remnant");
-    expect(html).toContain("Package");
+    assert(!html.includes("Secret Remnant"));
+    assertStringIncludes(html, "Package");
   });
 
   test("non-matching /pay requests fall through", async () => {
