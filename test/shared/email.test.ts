@@ -24,7 +24,6 @@ const plainMsg: EmailMessage = {
   text: "Hi",
   to: validEmail("user@test.com"),
 };
-
 const sendWithProvider = (
   provider: EmailConfig["provider"],
   msg: EmailMessage = minimalEmailMessage,
