@@ -7,6 +7,7 @@
  * every step held: one pair of legs, one note, one activity line, and an
  * authority that stays recorded. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { decrypt } from "#crypto/encryption.ts";
@@ -157,7 +158,8 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
     const first = await storedNote();
     expect(first?.total).toBe(1);
     expect(first?.system_name).not.toBeNull();
-    expect(await decrypt(first!.note)).toContain(
+    assertStringIncludes(
+      await decrypt(first!.note),
       "but its payment was refunded because",
     );
     expect(await activityCount()).toBe(1);

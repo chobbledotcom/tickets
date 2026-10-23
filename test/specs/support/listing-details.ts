@@ -5,7 +5,7 @@
  */
 
 // jscpd:ignore-start
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { getAllAttributesWithOptions } from "#db/attributes.ts";
 import {
   openAdminPage,
@@ -49,7 +49,7 @@ export const ownerKeepsDetail = (
       await fillInAndSend(browser, { text: wording }, "Add option");
     }
     for (const wording of wordings) {
-      expect(browser.pageText).toContain(wording);
+      assertStringIncludes(browser.pageText, wording);
     }
   });
 

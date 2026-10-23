@@ -3,6 +3,7 @@
  * record an upload writes, the file it clears away, and how a rejection reads.
  */
 
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
@@ -88,9 +89,9 @@ describeWithEnv("uploading a listing's attachment", { db: true }, () => {
     await withStorageMock(async () => {
       await upload(leaflet());
 
-      expect(await activityMessages()).toContain(
+      assertArrayIncludes(await activityMessages(), [
         "Attachment uploaded for listing",
-      );
+      ]);
     });
   });
 
@@ -171,7 +172,8 @@ describeWithEnv("uploading a listing's attachment", { db: true }, () => {
         undefined,
         false,
       )(response);
-      expect(flash.headers.get("set-cookie")).toContain(
+      assertStringIncludes(
+        flash.headers.get("set-cookie") ?? "",
         "Attachment%20upload%20failed",
       );
       expect(stored.url).toBe("");
@@ -195,7 +197,8 @@ describeWithEnv("uploading a listing's attachment", { db: true }, () => {
         undefined,
         false,
       )(response);
-      expect(decodeURIComponent(flash.headers.get("set-cookie")!)).toContain(
+      assertStringIncludes(
+        decodeURIComponent(flash.headers.get("set-cookie")!),
         "its required child was left off; Attachment upload failed",
       );
     });
@@ -224,9 +227,9 @@ describeWithEnv("removing a listing's attachment", { db: true }, () => {
         storageCalls.some((url) => url.endsWith("/stored-leaflet.pdf")),
       ).toBe(true);
       expect(await storedAttachment(listing.id)).toEqual({ name: "", url: "" });
-      expect(await activityMessages()).toContain(
+      assertArrayIncludes(await activityMessages(), [
         "Attachment removed for 'Had A Leaflet'",
-      );
+      ]);
     });
   });
 });

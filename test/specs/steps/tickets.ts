@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 
 import { type DataTable, Given, Then, When } from "@cucumber/cucumber";
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
@@ -206,28 +206,29 @@ Then(
     _who: string,
     count: number,
   ): Promise<void> {
-    expect(await ticketWords(this)).toContain(headingForTickets(count));
+    assertStringIncludes(await ticketWords(this), headingForTickets(count));
   },
 );
 
 Then(
   "the ticket names the {word}",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    expect(await ticketWords(this)).toContain(name);
+    assertStringIncludes(await ticketWords(this), name);
   },
 );
 
 Then(
   "the ticket never names the {word}",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    expect(await ticketWords(this)).not.toContain(name);
+    assert(!(await ticketWords(this)).includes(name));
   },
 );
 
 Then(
   "the ticket says {int} place(s) was/were taken",
   async function (this: TicketsWorld, places: number): Promise<void> {
-    expect(await ticketWords(this)).toContain(
+    assertStringIncludes(
+      await ticketWords(this),
       `${t("tickets.quantity")} ${places}`,
     );
   },
@@ -238,7 +239,7 @@ Then(
   async function (this: TicketsWorld, howMany: number): Promise<void> {
     // A private bundle counts what was bought without naming a single part,
     // so the whole bundle carries one count rather than a quantity per part.
-    expect(await ticketWords(this)).toContain(`\u00d7${howMany}`);
+    assertStringIncludes(await ticketWords(this), `\u00d7${howMany}`);
   },
 );
 
@@ -250,22 +251,25 @@ Then(
     place: string,
   ): Promise<void> {
     const words = await ticketWords(this);
-    expect(words).toContain(day);
-    expect(words).toContain(place);
+    assertStringIncludes(words, day);
+    assertStringIncludes(words, place);
   },
 );
 
 Then(
   "the ticket describes it as {string}",
   async function (this: TicketsWorld, description: string): Promise<void> {
-    expect(await ticketWords(this)).toContain(description);
+    assertStringIncludes(await ticketWords(this), description);
   },
 );
 
 Then(
   "the ticket says it may not be passed on",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await ticketWords(this)).toContain(t("tickets.non_transferable"));
+    assertStringIncludes(
+      await ticketWords(this),
+      t("tickets.non_transferable"),
+    );
   },
 );
 
@@ -273,7 +277,7 @@ Then(
   "the ticket offers {string} to download",
   async function (this: TicketsWorld, file: string): Promise<void> {
     const browser = await openTicket(this);
-    expect(browser.pageText).toContain(`${t("tickets.download")} ${file}`);
+    assertStringIncludes(browser.pageText, `${t("tickets.download")} ${file}`);
     // A name with no link behind it is a file nobody can open, so the way in
     // has to be there too.
     const toFile = browser.links.find(({ href }) =>
@@ -290,7 +294,7 @@ const expectNoBlock = async (
   world: TicketsWorld,
   block: string,
 ): Promise<void> => {
-  expect((await openTicket(world)).currentHtml).not.toContain(block);
+  assert(!(await openTicket(world)).currentHtml.includes(block));
 };
 
 Then(
@@ -311,23 +315,22 @@ Then(
 Then(
   "the ticket says nothing about being passed on",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await ticketWords(this)).not.toContain(
-      t("tickets.non_transferable"),
-    );
+    assert(!(await ticketWords(this)).includes(t("tickets.non_transferable")));
   },
 );
 
 Then(
   "the ticket offers nothing to download",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await ticketWords(this)).not.toContain(t("tickets.download"));
+    assert(!(await ticketWords(this)).includes(t("tickets.download")));
   },
 );
 
 Then(
   "the ticket says {float} was paid",
   async function (this: TicketsWorld, pounds: number): Promise<void> {
-    expect(await ticketWords(this)).toContain(
+    assertStringIncludes(
+      await ticketWords(this),
       `${t("tickets.price")} ${formatCurrency(minorUnits(pounds.toFixed(2)))}`,
     );
   },
@@ -336,14 +339,15 @@ Then(
 Then(
   "the ticket says nothing about a price",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await ticketWords(this)).not.toContain(t("tickets.price"));
+    assert(!(await ticketWords(this)).includes(t("tickets.price")));
   },
 );
 
 Then(
   "the ticket says it is booked for the day they picked",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await ticketWords(this)).toContain(
+    assertStringIncludes(
+      await ticketWords(this),
       `${t("tickets.booking_date")} ${formatDateLabel(theDayTheyPicked(this))}`,
     );
   },
@@ -352,14 +356,14 @@ Then(
 Then(
   "the ticket gives no booked day",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await ticketWords(this)).not.toContain(t("tickets.booking_date"));
+    assert(!(await ticketWords(this)).includes(t("tickets.booking_date")));
   },
 );
 
 Then(
   "the ticket prints the code {word} was given",
   async function (this: TicketsWorld, _who: string): Promise<void> {
-    expect(await ticketWords(this)).toContain(theOneCodeTheyHold(this));
+    assertStringIncludes(await ticketWords(this), theOneCodeTheyHold(this));
   },
 );
 
@@ -368,7 +372,8 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     // The picture is fetched from an address of its own, so the ticket page
     // stays small and the door's code can be cached like any other image.
-    expect((await openTicket(this)).currentHtml).toContain(
+    assertStringIncludes(
+      (await openTicket(this)).currentHtml,
       `src="/t/${theOneCodeTheyHold(this)}/svg"`,
     );
   },
@@ -388,7 +393,7 @@ Then(
   "even the right password is told to wait",
   async function (this: TicketsWorld): Promise<void> {
     const page = await ownerSignsInWith(TEST_ADMIN_PASSWORD);
-    expect(page.pageText).toContain(t("error.too_many_attempts"));
+    assertStringIncludes(page.pageText, t("error.too_many_attempts"));
   },
 );
 
@@ -398,6 +403,6 @@ Then(
     const page = await ownerSignsInWith(TEST_ADMIN_PASSWORD);
     // The nav's own label is an aria-label, not text a reader sees, so the
     // assertion reads a page name the signed-in nav actually shows.
-    expect(page.pageText).toContain(t("nav.calendar"));
+    assertStringIncludes(page.pageText, t("nav.calendar"));
   },
 );

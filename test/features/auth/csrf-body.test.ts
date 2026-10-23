@@ -7,6 +7,7 @@
  * key is the secret.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -134,7 +135,7 @@ describeWithEnv("what a JSON body must look like", { db: true }, () => {
     const response = await post({ body: "hello", contentType: "text/plain" });
 
     expect(response.status).toBe(400);
-    expect(await response.text()).toContain("Invalid request body");
+    assertStringIncludes(await response.text(), "Invalid request body");
   });
 
   test("refuses JSON that does not parse", async () => {
@@ -144,7 +145,7 @@ describeWithEnv("what a JSON body must look like", { db: true }, () => {
     });
 
     expect(response.status).toBe(400);
-    expect(await response.text()).toContain("Invalid request body");
+    assertStringIncludes(await response.text(), "Invalid request body");
     expect(errors.contains("Malformed JSON body")).toBe(true);
   });
 
@@ -155,7 +156,7 @@ describeWithEnv("what a JSON body must look like", { db: true }, () => {
     });
 
     expect(response.status).toBe(400);
-    expect(await response.text()).toContain("Invalid request body");
+    assertStringIncludes(await response.text(), "Invalid request body");
   });
 
   test("hands the parsed object to the handler", async () => {

@@ -4,6 +4,7 @@
  * module assembles itself, and the stats tests pin the figures the all-scope
  * table reports. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { KIND } from "#accounting/kinds.ts";
@@ -24,7 +25,7 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
 
     const html = await ledgerPageHtml("/admin/ledger");
 
-    expect(html).toContain("Weekend runs");
+    assertStringIncludes(html, "Weekend runs");
   });
 
   test("offers a group-linked listing by name in the listing scope", async () => {
@@ -34,7 +35,7 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
 
     const html = await ledgerPageHtml("/admin/ledger?scope=listing");
 
-    expect(html).toContain("Sprint night");
+    assertStringIncludes(html, "Sprint night");
   });
 
   /** The ledger rows this suite seeds sit on their own day, and the render
@@ -103,10 +104,10 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
     // The three figures the page owes the operator: the total income, the
     // service costs taken away, and the total income minus those costs. The
     // expected strings come from the same formatter the page renders with.
-    expect(body).toContain("Total income earned");
-    expect(body).toContain(formatSignedCurrency(25000, true));
-    expect(body).toContain("Service event costs");
-    expect(body).toContain(formatSignedCurrency(-9000, true));
+    assertStringIncludes(body, "Total income earned");
+    assertStringIncludes(body, formatSignedCurrency(25000, true));
+    assertStringIncludes(body, "Service event costs");
+    assertStringIncludes(body, formatSignedCurrency(-9000, true));
     expect(netCellValue(body)).toBe(formatSignedCurrency(16000, false));
     // The costs and the net sit between the income and the rows that were
     // already there.
@@ -132,8 +133,8 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
     await seedLedger(false);
     const body = await renderAdminPage(SEED_RANGE);
 
-    expect(body).toContain(formatSignedCurrency(25000, true));
-    expect(body).toContain(formatSignedCurrency(0, true));
+    assertStringIncludes(body, formatSignedCurrency(25000, true));
+    assertStringIncludes(body, formatSignedCurrency(0, true));
     // The income row already contains the net's unsigned string, so the net
     // assertion compares the net row's own cell exactly, sign included.
     expect(netCellValue(body)).toBe(formatSignedCurrency(25000, false));

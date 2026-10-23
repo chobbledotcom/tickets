@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 // jscpd:ignore-end
 
@@ -104,15 +105,16 @@ Then(
     // The scanner's own window stands on the door's scanner page: the page
     // carries the door's scan target and answers with the door's own heading.
     const page = scannerBrowser(this).currentHtml;
-    expect(page).toContain("data-scan-path=");
-    expect(page).toContain(t("admin.scanner.title", { name: listing }));
+    assertStringIncludes(page, "data-scan-path=");
+    assertStringIncludes(page, t("admin.scanner.title", { name: listing }));
   },
 );
 
 Then(
   "the ticket page offers to check them out",
   function (this: TicketsWorld): void {
-    expect(scannerBrowser(this).currentHtml).toContain(
+    assertStringIncludes(
+      scannerBrowser(this).currentHtml,
       t("admin.checkin.check_out_all"),
     );
   },
@@ -134,7 +136,7 @@ Then(
   function (this: TicketsWorld): void {
     // The check-in page answers with its own words, and the person it is
     // about is on the page underneath them.
-    expect(scannerBrowser(this).pageText).toContain("Checked out");
+    assertStringIncludes(scannerBrowser(this).pageText, "Checked out");
   },
 );
 
@@ -184,7 +186,8 @@ When(
 Then(
   "the ticket page says {int} of {int} are checked in",
   function (this: TicketsWorld, admitted: number, total: number): void {
-    expect(scannerBrowser(this).pageText).toContain(
+    assertStringIncludes(
+      scannerBrowser(this).pageText,
       t("attendee_form.checked_in_count", { count: admitted, total }),
     );
   },
@@ -194,7 +197,7 @@ Then(
   "the ticket page offers to check them in and out",
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
-    expect(page).toContain(t("admin.checkin.check_in_all"));
-    expect(page).toContain(t("admin.checkin.check_out_all"));
+    assertStringIncludes(page, t("admin.checkin.check_in_all"));
+    assertStringIncludes(page, t("admin.checkin.check_out_all"));
   },
 );

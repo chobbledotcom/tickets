@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
@@ -77,14 +78,14 @@ When(
 Then(
   "{string} is one of the states a booking can be in",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    expect(await statesOffered(this)).toContain(name);
+    assertArrayIncludes(await statesOffered(this), [name]);
   },
 );
 
 Then(
   "there is no state called {string}",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    expect(await statesOffered(this)).not.toContain(name);
+    assert(!(await statesOffered(this)).includes(name));
   },
 );
 
@@ -102,7 +103,8 @@ Then(
 Then(
   "the organiser is told what a deposit can look like",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       RESERVATION_AMOUNT_HINT,
     );
   },
@@ -111,7 +113,8 @@ Then(
 Then(
   "the organiser is told a paid state cannot also ask for a deposit",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       t("statuses.error_paid_default_reservation"),
     );
   },
@@ -156,7 +159,8 @@ When(
 Then(
   "the organiser is told the name does not match",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       "Name does not match. Please type the exact name to confirm deletion.",
     );
   },
@@ -165,7 +169,8 @@ Then(
 Then(
   "the organiser is told at least one state must be kept",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       "You must keep at least one status",
     );
   },
@@ -174,7 +179,8 @@ Then(
 Then(
   "the organiser is told to choose another starting state first",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       "Choose another public default before deleting this status",
     );
   },

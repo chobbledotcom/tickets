@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups } from "#i18n";
@@ -16,11 +17,11 @@ const { answerTextForm, questionTextForm } = await import(
 describe("question/answer form field rendering", () => {
   test("questionTextForm renders the markdown text field with its placeholder", () => {
     const html = questionTextForm.render();
-    expect(html).toContain("Question text");
-    expect(html).toContain("<textarea");
-    expect(html).toContain('placeholder="e.g. What is your T-shirt size?"');
+    assertStringIncludes(html, "Question text");
+    assertStringIncludes(html, "<textarea");
+    assertStringIncludes(html, 'placeholder="e.g. What is your T-shirt size?"');
     // markdown: true enables the in-editor preview hook
-    expect(html).toContain("data-markdown-preview");
+    assertStringIncludes(html, "data-markdown-preview");
   });
 
   test("questionTextForm requires both of its fields", () => {
@@ -33,19 +34,19 @@ describe("question/answer form field rendering", () => {
 
   test("questionTextForm renders the display-type select with mapped labels", () => {
     const html = questionTextForm.render();
-    expect(html).toContain("Display as");
-    expect(html).toContain("<select");
+    assertStringIncludes(html, "Display as");
+    assertStringIncludes(html, "<select");
     // Each stored value maps to its own human label; a swapped ternary arm or
     // flipped === would mislabel one of these.
-    expect(html).toContain('<option value="radio">Radio buttons</option>');
-    expect(html).toContain('<option value="select">Select box</option>');
-    expect(html).toContain('<option value="free_text">Free text</option>');
+    assertStringIncludes(html, '<option value="radio">Radio buttons</option>');
+    assertStringIncludes(html, '<option value="select">Select box</option>');
+    assertStringIncludes(html, '<option value="free_text">Free text</option>');
   });
 
   test("answerTextForm renders a text input with its placeholder", () => {
     const html = answerTextForm.render();
-    expect(html).toContain("Answer text");
-    expect(html).toContain('type="text"');
-    expect(html).toContain('placeholder="e.g. Medium"');
+    assertStringIncludes(html, "Answer text");
+    assertStringIncludes(html, 'type="text"');
+    assertStringIncludes(html, 'placeholder="e.g. Medium"');
   });
 });

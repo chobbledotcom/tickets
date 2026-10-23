@@ -12,8 +12,17 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 const blankForm = () => buildCreateForm([], [], new Map(), "");
+
+/** The create form's template data for a blank form booked on `status` — the
+ * shape the no-order balance tests read. */
+const dataForStatus = async (status: { id: number }) => {
+  const parsed = blankForm();
+  parsed.statusId = status.id;
+  return buildTemplateData("create", parsed, null);
+};
 
 describeWithEnv("attendee form template data", { db: true }, () => {
   test("the package editor still offers an inactive member's path", async () => {
@@ -54,12 +63,8 @@ describeWithEnv("attendee form template data", { db: true }, () => {
       name: "New reservation",
       reservationAmount: "25%",
     });
-    const parsed = blankForm();
-    parsed.statusId = status.id;
 
-    const data = await buildTemplateData("create", parsed, null);
-
-    expect(data.balanceNotice).toBeNull();
+    expect((await dataForStatus(status)).balanceNotice).toBeNull();
   });
 
   test("a new paid attendee with no order does not show an owing warning", async () => {
@@ -67,11 +72,23 @@ describeWithEnv("attendee form template data", { db: true }, () => {
       isPaidDefault: true,
       name: "Paid before booking",
     });
-    const parsed = blankForm();
-    parsed.statusId = status.id;
+
+    expect((await dataForStatus(status)).balanceNotice).toBeNull();
+  });
+
+  test("loads a stored parent name for an add-on booking path", async () => {
+    const parent = await createTestListing({ name: "Named parent" });
+    const child = await createTestListing({ name: "Named child" });
+    const parsed = buildCreateForm(
+      [testListingWithCount(child)],
+      [],
+      new Map([[child.id, 1]]),
+      "",
+    );
+    parsed.lines[0]!.parentListingId = parent.id;
 
     const data = await buildTemplateData("create", parsed, null);
 
-    expect(data.balanceNotice).toBeNull();
+    expect(data.parentNamesById).toEqual(new Map([[parent.id, parent.name]]));
   });
 });

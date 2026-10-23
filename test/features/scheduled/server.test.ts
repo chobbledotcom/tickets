@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -57,7 +58,8 @@ describeWithEnv(
           typeof options.body === "string"
             ? options.body
             : new TextDecoder().decode(options.body as Uint8Array);
-        expect(body).toContain(
+        assertStringIncludes(
+          body,
           "Scheduled maintenance requires completed setup",
         );
       } finally {

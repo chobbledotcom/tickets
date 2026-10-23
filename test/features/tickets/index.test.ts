@@ -1,5 +1,6 @@
 /** Direct tests for the ticket view route's own dispatch. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
@@ -39,10 +40,11 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     const response = await handleRequest(mockRequest(`/t/${token}`));
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<img src="/image/${image.filename}" alt="FooterPoster">`,
     );
-    expect(html).not.toContain("img#");
+    assert(!html.includes("img#"));
   });
 
   test("shows the holder their ticket and its attachment link", async () => {
@@ -59,7 +61,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(response).toBeInstanceOf(Response);
     expect(response!.status).toBe(200);
     // The signed attachment link renders only for a listing that has one.
-    expect(await response!.text()).toContain("/attachment/");
+    assertStringIncludes(await response!.text(), "/attachment/");
   });
 
   test("serves the QR SVG with a full-year cache", async () => {

@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { ORGANISER } from "#test/specs/support/browser.ts";
 import {
@@ -95,8 +96,8 @@ Then(
   "the list names {string} holding {string}",
   function (this: TicketsWorld, name: string, rooms: string): void {
     const page = whatTheyWereTold(this, ORGANISER);
-    expect(page).toContain(name);
-    expect(page).toContain(rooms);
+    assertStringIncludes(page, name);
+    assertStringIncludes(page, rooms);
   },
 );
 
@@ -110,7 +111,7 @@ Then(
       whatTheyWereTold(this, ORGANISER),
       "Boiler Service",
     );
-    expect(row).toContain("1 July 2099");
+    assertStringIncludes(row, "1 July 2099");
   },
 );
 
@@ -119,7 +120,10 @@ Then(
   function (this: TicketsWorld, places: number): void {
     // The Quantity cell itself, so a number that happened to appear in a date
     // or a listing name cannot answer for it.
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(`<td>${places}</td>`);
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
+      `<td>${places}</td>`,
+    );
   },
 );
 
@@ -140,7 +144,7 @@ Then(
   "{string} is listed once",
   function (this: TicketsWorld, name: string): void {
     const page = whatTheyWereTold(this, ORGANISER);
-    expect(page).toContain(name);
+    assertStringIncludes(page, name);
     expect(eventsListedOn(page)).toBe(1);
   },
 );
@@ -151,14 +155,14 @@ const workComingUp = (world: TicketsWorld): Promise<string> =>
 Then(
   "the work coming up names {string}",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    expect(await workComingUp(this)).toContain(name);
+    assertStringIncludes(await workComingUp(this), name);
   },
 );
 
 Then(
   "the work coming up does not name {string}",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    expect(await workComingUp(this)).not.toContain(name);
+    assert(!(await workComingUp(this)).includes(name));
   },
 );
 
@@ -170,8 +174,9 @@ Then(
     listings: number,
   ): Promise<void> {
     const block = await workComingUp(this);
-    expect(block).toContain(name);
-    expect(block).toContain(
+    assertStringIncludes(block, name);
+    assertStringIncludes(
+      block,
       await dashboardCopy("admin.dashboard.service_event_listing_count", {
         count: listings,
       }),
@@ -182,7 +187,8 @@ Then(
 Then(
   "the page says there are no service events yet",
   async function (this: TicketsWorld): Promise<void> {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
       await servicingCopy("servicing.empty"),
     );
   },

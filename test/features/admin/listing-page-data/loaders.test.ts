@@ -3,8 +3,11 @@
  * rendering, and what the roster and activity panels put on screen.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { createSystemNote } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import {
   listingHasEmailableAttendees,
@@ -15,6 +18,7 @@ import {
   loadListingRosterPanel,
 } from "#routes/admin/listing-page-data.ts";
 import type { AuthSession } from "#routes/auth.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -128,11 +132,39 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
     };
 
     test("lists an attendee who booked", async () => {
-      expect(await rosterFor()).toContain("Ada Lovelace");
+      assertStringIncludes(await rosterFor(), "Ada Lovelace");
     });
 
     test("ignores a chosen day on a listing not booked by the day", async () => {
-      expect(await rosterFor("date=2026-08-03")).toContain("Ada Lovelace");
+      assertStringIncludes(await rosterFor("date=2026-08-03"), "Ada Lovelace");
+    });
+
+    test("resolves a summary note's img#N reference", async () => {
+      const listing = await createTestListing({});
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Roster Person",
+        "roster@example.com",
+      );
+      const image = await makeImage("RosterPoster");
+      await withTestSession(() =>
+        createSystemNote(
+          attendeeNotes(attendee.id),
+          `Welcomed. ![RosterPoster](img#${image.id})`,
+        ),
+      );
+
+      const html = await withTestSession(async () =>
+        String(
+          await loadListingRosterPanel(await loaded(listing.id), ctxWith()),
+        ),
+      );
+      assertStringIncludes(
+        html,
+        `<img src="/image/${image.filename}" alt="RosterPoster">`,
+      );
+      assert(!html.includes("img#"));
     });
   });
 
@@ -140,25 +172,25 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
     test("names the listing", async () => {
       const listing = await createTestListing({ name: "Winter Show" });
       const html = await overviewHtml(listing.id);
-      expect(html).toContain("Winter Show");
+      assertStringIncludes(html, "Winter Show");
     });
 
     test("links this listing's own ledger for someone who may see the money", async () => {
       const listing = await createTestListing({});
       const html = await overviewHtml(listing.id, true);
-      expect(html).toContain(`/admin/ledger?listing=${listing.id}`);
+      assertStringIncludes(html, `/admin/ledger?listing=${listing.id}`);
     });
 
     test("keeps the ledger away from someone who may not", async () => {
       const listing = await createTestListing({});
       const html = await overviewHtml(listing.id, false);
-      expect(html).not.toContain("/admin/ledger");
+      assert(!html.includes("/admin/ledger"));
     });
 
     test("keeps it away by default, so a caller must ask for it", async () => {
       const listing = await createTestListing({});
       const html = await overviewHtml(listing.id);
-      expect(html).not.toContain("/admin/ledger");
+      assert(!html.includes("/admin/ledger"));
     });
   });
 
@@ -224,7 +256,7 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
           await loadListingRosterPanel(await loaded(parent.id), ctxWith()),
         ),
       );
-      expect(html).toContain("Distinctive Child");
+      assertStringIncludes(html, "Distinctive Child");
     });
   });
 
@@ -255,7 +287,7 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       // The date picker only appears when the booked days were collected, so
       // its presence is the assertion — the attendee row below prints the same
       // date either way.
-      expect(html).toContain("All dates");
+      assertStringIncludes(html, "All dates");
     });
   });
 
@@ -268,15 +300,37 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
         "Noted Person",
         "noted@example.com",
       );
-      const { createSystemNote } = await import("#db/notes/queries.ts");
-      const { attendeeNotes } = await import("#db/notes/target.ts");
       await withTestSession(() =>
         createSystemNote(attendeeNotes(attendee.id), "Called about parking"),
       );
 
       const html = await overviewHtml(listing.id);
-      expect(html).toContain("Called about parking");
-      expect(html).toContain("Noted Person");
+      assertStringIncludes(html, "Called about parking");
+      assertStringIncludes(html, "Noted Person");
+    });
+
+    test("resolve a note's img#N reference on the overview", async () => {
+      const listing = await createTestListing({});
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Noted Person",
+        "noted-poster@example.com",
+      );
+      const image = await makeImage("OverviewPoster");
+      await withTestSession(() =>
+        createSystemNote(
+          attendeeNotes(attendee.id),
+          `Called about parking. ![OverviewPoster](img#${image.id})`,
+        ),
+      );
+
+      const html = await overviewHtml(listing.id);
+      assertStringIncludes(
+        html,
+        `<img src="/image/${image.filename}" alt="OverviewPoster">`,
+      );
+      assert(!html.includes("img#"));
     });
   });
 
@@ -299,13 +353,13 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       await askEveryone("Favourite colour");
       const listing = await createTestListing({});
       const html = await overviewHtml(listing.id);
-      expect(html).toContain("Favourite colour");
+      assertStringIncludes(html, "Favourite colour");
     });
 
     test("is left out entirely for a listing that asks nothing", async () => {
       const listing = await createTestListing({});
       const html = await overviewHtml(listing.id);
-      expect(html).not.toContain("Favourite colour");
+      assert(!html.includes("Favourite colour"));
     });
   });
 });

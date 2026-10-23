@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
@@ -196,7 +197,7 @@ describeWithEnv("payment processing pending flags", { db: true }, () => {
       webhooks: 0,
     });
     expect(logs).toHaveLength(1);
-    expect(logs[0]).toContain("E_REGISTRATION_DELIVERY");
+    assertStringIncludes(logs[0] ?? "", "E_REGISTRATION_DELIVERY");
     expect(await deliveryFailureLines()).toBe(0);
   });
 

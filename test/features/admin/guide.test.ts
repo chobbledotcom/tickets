@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { hostEmail } from "#shared/email.ts";
@@ -18,16 +19,19 @@ describeWithEnv("admin guide routes", { db: true }, () => {
   });
 
   test("serves the staff guide", async () => {
-    expect(await guideHtml()).toContain("Guide");
+    assertStringIncludes(await guideHtml(), "Guide");
   });
 
   test("serves the formatting help on its own route", async () => {
-    expect(await guideHtml("/admin/formatting")).toContain("Text formatting");
+    assertStringIncludes(
+      await guideHtml("/admin/formatting"),
+      "Text formatting",
+    );
   });
 
   test("shows nothing about host email when the host has none", async () => {
     hostEmail.setOverride(null);
-    expect(await guideHtml()).not.toContain("host@example.com");
+    assert(!(await guideHtml()).includes("host@example.com"));
   });
 
   test("names the host's from-address and provider when it has them", async () => {
@@ -37,8 +41,8 @@ describeWithEnv("admin guide routes", { db: true }, () => {
       provider: "resend",
     });
     const html = await guideHtml();
-    expect(html).toContain("host@example.com");
-    expect(html).toContain("Resend");
+    assertStringIncludes(html, "host@example.com");
+    assertStringIncludes(html, "Resend");
   });
 
   test("turns an unauthenticated visitor away", async () => {

@@ -4,6 +4,7 @@
  * these ask the routes it produces rather than the fields it sets.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
@@ -24,8 +25,8 @@ describeWithEnv("the attendee status page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain(`action="${PATH}/${status.id}/edit"`);
-    expect(html).toContain(status.name);
+    assertStringIncludes(html, `action="${PATH}/${status.id}/edit"`);
+    assertStringIncludes(html, status.name);
   });
 
   test("marks the statuses list as the section it belongs to", async () => {
@@ -33,7 +34,7 @@ describeWithEnv("the attendee status page", { db: true }, () => {
 
     const html = await (await adminGet(`${PATH}/${status.id}`)).text();
 
-    expect(html).toContain(`<a class="active" href="${PATH}">`);
+    assertStringIncludes(html, `<a class="active" href="${PATH}">`);
   });
 
   test("offers deleting the status on its actions tab", async () => {
@@ -43,8 +44,8 @@ describeWithEnv("the attendee status page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain(`href="${PATH}/${status.id}/delete"`);
-    expect(html).toContain("Delete status");
+    assertStringIncludes(html, `href="${PATH}/${status.id}/delete"`);
+    assertStringIncludes(html, "Delete status");
   });
 
   test("answers 404 for a status that is not there", async () => {
@@ -68,7 +69,7 @@ describeWithEnv("the attendee status page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(400);
-    expect(html).toContain("Half typed");
-    expect(html).toContain("Name is already taken");
+    assertStringIncludes(html, "Half typed");
+    assertStringIncludes(html, "Name is already taken");
   });
 });

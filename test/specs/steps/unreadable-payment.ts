@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
@@ -190,12 +191,16 @@ Then(
       await getTestPrivateKey(),
     );
     expect(notes).toHaveLength(1);
-    expect(notes[0]?.note).toContain(
+    assertStringIncludes(
+      notes[0]?.note ?? "",
       "the provider reported the payment in a form the site could not read",
     );
-    expect(notes[0]?.note).toContain("Refund code: malformed_charge");
-    expect(notes[0]?.note).toContain(`/admin/ledger/attendee/${attendeeId}`);
-    expect(notes[0]?.note).not.toContain(UNREADABLE.paymentIntent);
+    assertStringIncludes(notes[0]?.note ?? "", "Refund code: malformed_charge");
+    assertStringIncludes(
+      notes[0]?.note ?? "",
+      `/admin/ledger/attendee/${attendeeId}`,
+    );
+    assert(!notes[0]?.note.includes(UNREADABLE.paymentIntent));
   },
 );
 
@@ -214,6 +219,6 @@ Then(
 Then(
   "no returned payment is waiting in refund recovery",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await adminPageHtml("/admin/privacy")).not.toContain("Open refund ");
+    assert(!(await adminPageHtml("/admin/privacy")).includes("Open refund "));
   },
 );

@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   attendeeAccount,
@@ -90,7 +91,8 @@ export const assertStatementBalance: CheckMoneyShown = async (
   minor,
 ) => {
   const statement = await adminPageHtml(`/admin/ledger/revenue/${listingId}`);
-  expect(statement).toContain(
+  assertStringIncludes(
+    statement,
     `Income balance: ${formatSignedCurrency(minor, false)}`,
   );
 };
@@ -108,7 +110,7 @@ export const assertEditPageIncome: CheckMoneyShown = async (
   minor,
 ) => {
   const edit = await adminPageHtml(`/admin/listing/${listingId}/edit`);
-  expect(edit).toContain(`value="${formatCurrency(minor)}"`);
+  assertStringIncludes(edit, `value="${formatCurrency(minor)}"`);
 };
 
 /** With no refund applied, both income surfaces agree on the same figure. */
@@ -133,8 +135,8 @@ export const assertRenderedOwed: CheckMoneyShown = async (
   const balancePage = await adminPageHtml(
     `/admin/attendees/${attendeeId}/ledger`,
   );
-  expect(balancePage).toContain("Balance outstanding:");
-  expect(balancePage).toContain(formatted);
+  assertStringIncludes(balancePage, "Balance outstanding:");
+  assertStringIncludes(balancePage, formatted);
 };
 
 /**
@@ -147,9 +149,9 @@ export const assertRenderedModifierRevenue: CheckMoneyShown = async (
 ) => {
   const formatted = formatCurrency(minor);
   const edit = await adminPageHtml(`/admin/modifiers/${modifierId}/edit`);
-  expect(edit).toContain(`value="${formatted}"`);
+  assertStringIncludes(edit, `value="${formatted}"`);
   const list = await adminPageHtml("/admin/modifiers");
-  expect(list).toContain(formatted);
+  assertStringIncludes(list, formatted);
 };
 
 /** Slice the `#income-ledger` reconciliation article out of a listing detail

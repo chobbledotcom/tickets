@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createInvitedUser, getUserByUsername } from "#db/users.ts";
@@ -30,17 +31,17 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("serves both password boxes with their labels, hints, and bounds", async () => {
       const { joinForm } = await import("#routes/join.ts");
       const html = joinForm.render();
-      expect(html).toContain("Password");
-      expect(html).toContain("Confirm password");
-      expect(html).toContain("Minimum 8 characters");
+      assertStringIncludes(html, "Password");
+      assertStringIncludes(html, "Confirm password");
+      assertStringIncludes(html, "Minimum 8 characters");
       const password = inputNamed(html, "password");
-      expect(password).toContain('minlength="8"');
-      expect(password).toContain('autocomplete="new-password"');
-      expect(password).toContain("required");
+      assertStringIncludes(password, 'minlength="8"');
+      assertStringIncludes(password, 'autocomplete="new-password"');
+      assertStringIncludes(password, "required");
       const confirm = inputNamed(html, "password_confirm");
-      expect(confirm).toContain('minlength="8"');
-      expect(confirm).toContain('autocomplete="new-password"');
-      expect(confirm).toContain("required");
+      assertStringIncludes(confirm, 'minlength="8"');
+      assertStringIncludes(confirm, 'autocomplete="new-password"');
+      assertStringIncludes(confirm, "required");
     });
   });
 
@@ -102,8 +103,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
       expect(joinResponse.status).toBe(200);
       const joinHtml = await joinResponse.text();
-      expect(joinHtml).toContain("joiner");
-      expect(joinHtml).toContain("password");
+      assertStringIncludes(joinHtml, "joiner");
+      assertStringIncludes(joinHtml, "password");
     });
 
     test("GET /join/complete shows confirmation page", async () => {

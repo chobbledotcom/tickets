@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -106,7 +107,7 @@ describeWithEnv("catalog group import", { db: true }, () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("The package import should be rejected");
-    expect(result.error).toContain("5-day");
+    assertStringIncludes(result.error, "5-day");
   });
 });
 

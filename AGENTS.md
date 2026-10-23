@@ -523,6 +523,11 @@ automatic.
   to a module that opens the database, the network, or the wall clock. The
   finding names the import chain, and the fix is to split the IO shell out
   or drop the pure entry
+- `deno task contract:diff [base]` — print the semantic drift of this
+  branch's declared contracts (machine moves, money flags, joint-state
+  invariants) against `base`, `origin/main` by default. Run `git fetch origin
+  main` first. Drift is a report, not a gate: paste it in the pull request
+  description when the branch touches a machine spec
 - `deno task grade:code [<file-or-dir>] [--csv <path>] [--no-jev]` — score
   source files against these rules. With no target, it grades every module under
   `src/`. `--no-jev` runs the mechanical checks only. A grade is advice, not a

@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
@@ -167,7 +168,7 @@ Then(
   "the admin dashboard shows the Studio floor treatment hold",
   async function (this: TicketsWorld): Promise<void> {
     const body = await renderAdminPage("/admin/");
-    expect(body).toContain(STUDIO_HOLD);
+    assertStringIncludes(body, STUDIO_HOLD);
   },
 );
 
@@ -186,7 +187,7 @@ Then(
     await enablePublicSite();
     const response = await awaitTestRequest("/");
     expect(response.status).toBe(200);
-    expect(await response.text()).not.toContain(STUDIO_HOLD);
+    assert(!(await response.text()).includes(STUDIO_HOLD));
   },
 );
 
@@ -194,7 +195,7 @@ Then(
   "the admin dashboard no longer shows Boiler Service",
   async function (this: TicketsWorld): Promise<void> {
     const body = await renderAdminPage("/admin/");
-    expect(body).not.toContain(BOILER_SERVICE);
+    assert(!body.includes(BOILER_SERVICE));
   },
 );
 
@@ -206,8 +207,8 @@ Then(
     // The page carrying the cost this story just recorded, for a screenshot.
     leaveEvidencePage(this, ["maintenance-cost-on-a-room"], path);
     const body = await renderAdminPage(path);
-    expect(body).toContain(">£90<");
-    expect(body).toContain("Boiler part");
+    assertStringIncludes(body, ">£90<");
+    assertStringIncludes(body, "Boiler part");
   },
 );
 

@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
@@ -60,7 +61,7 @@ Given(
   ): Promise<void> {
     await writesPage.call(this, name, address);
     // The set-up has to have worked, or the scenario it feeds proves nothing.
-    expect(whatOwnerWasTold(this)).toContain("Page created");
+    assertStringIncludes(whatOwnerWasTold(this), "Page created");
   },
 );
 
@@ -81,7 +82,7 @@ Given(
 );
 
 Then("the owner is told it saved", function (this: TicketsWorld): void {
-  expect(whatOwnerWasTold(this)).toContain("Page created");
+  assertStringIncludes(whatOwnerWasTold(this), "Page created");
 });
 
 Then("the owner is told that will not do", function (this: TicketsWorld): void {
@@ -100,7 +101,7 @@ Then(
   async function (this: TicketsWorld, name: string): Promise<void> {
     // A refusal that wrote the row anyway and then complained would satisfy
     // the message check on its own, so the story reads the pages back.
-    expect(await pagesInOrder(this)).not.toContain(name);
+    assert(!(await pagesInOrder(this)).includes(name));
   },
 );
 
@@ -115,7 +116,7 @@ Then(
     expect(answered).toBe(200);
     // Wording only this page carries. Every page's name is in the navigation on
     // every page, so looking for the name alone would pass against any of them.
-    expect(said).toContain(wordsOnlyOn(name));
+    assertStringIncludes(said, wordsOnlyOn(name));
   },
 );
 
@@ -149,7 +150,7 @@ When(
   "the owner takes down the page called {word}",
   async function (this: TicketsWorld, name: string): Promise<void> {
     const told = await ownerTakesPageDown(this, name, name);
-    expect(told).toContain(t("site.pages.deleted"));
+    assertStringIncludes(told, t("site.pages.deleted"));
   },
 );
 
@@ -167,7 +168,7 @@ When(
 Then(
   "the owner is told the page name does not match",
   function (this: TicketsWorld): void {
-    expect(whatOwnerWasTold(this)).toContain("does not match");
+    assertStringIncludes(whatOwnerWasTold(this), "does not match");
   },
 );
 
@@ -206,7 +207,7 @@ Given(
   async function (this: TicketsWorld, name: string): Promise<void> {
     await ownerSetsPageHidden(this, name, true);
     // The set-up has to have worked, or the scenario it feeds proves nothing.
-    expect(whatOwnerWasTold(this)).toContain(t("site.pages.updated"));
+    assertStringIncludes(whatOwnerWasTold(this), t("site.pages.updated"));
   },
 );
 
@@ -297,7 +298,8 @@ Then(
     image: string,
   ): Promise<void> {
     const id = await imageIdNamed(image);
-    expect(await reopenedPageContent(this, name)).toContain(
+    assertStringIncludes(
+      await reopenedPageContent(this, name),
       `![${image}](img#${id})`,
     );
   },

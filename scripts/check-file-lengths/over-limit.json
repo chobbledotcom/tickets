@@ -1,6 +1,5 @@
 {
   "src/features/admin/attendee-form-model.ts": 565,
-  "src/features/admin/attendee-page-data.ts": 679,
   "src/features/admin/attendees-merge.ts": 502,
   "src/features/auth.ts": 743,
   "src/fp.ts": 585,
@@ -20,7 +19,6 @@
   "src/ui/templates/admin/questions.tsx": 589,
   "test/features/admin/attendee-form-model.test.ts": 919,
   "test/features/admin/builder/server.test.ts": 585,
-  "test/features/admin/built-sites/server.test.ts": 726,
   "test/features/admin/debug/server.test.ts": 667,
   "test/fp/collections.test.ts": 515,
   "test/integration/bunny-cdn/domain.test.ts": 581,
