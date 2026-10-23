@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { defaultDeps } from "#scripts/check-merged-tree/run.ts";
@@ -8,7 +9,7 @@ describe("merged-tree check default dependencies", () => {
     const deps = defaultDeps();
     const bare = await deps.command("git", ["--version"]);
     expect(bare.success).toBe(true);
-    expect(bare.stdout).toContain("git version");
+    assertStringIncludes(bare.stdout, "git version");
     const rooted = await deps.command(
       "git",
       ["rev-parse", "--show-toplevel"],

@@ -1,5 +1,6 @@
 /** Direct tests for the harness's crash report to the bug catcher. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -95,7 +96,7 @@ describe("reportCrash", () => {
       target: "stripe",
     });
     const lines = logs.calls.map((call) => String(call.args[0])).join("\n");
-    expect(lines).toContain("reported the crash to the bug catcher");
+    assertStringIncludes(lines, "reported the crash to the bug catcher");
   });
 
   it("does not re-initialize when the SDK is already up", async () => {
@@ -116,7 +117,7 @@ describe("reportCrash", () => {
     await reportCrash("email sandbox e2e", "resend", new Error("boom"));
 
     const lines = warns.calls.map((call) => String(call.args[0])).join("\n");
-    expect(lines).toContain("failed to report to the bug catcher");
+    assertStringIncludes(lines, "failed to report to the bug catcher");
   });
 
   it("never claims delivery when the bug catcher does not confirm it", async () => {
@@ -131,10 +132,11 @@ describe("reportCrash", () => {
     const warnLines = warns.calls
       .map((call) => String(call.args[0]))
       .join("\n");
-    expect(warnLines).toContain(
+    assertStringIncludes(
+      warnLines,
       "the bug catcher did not confirm the crash report",
     );
     const logLines = logs.calls.map((call) => String(call.args[0])).join("\n");
-    expect(logLines).not.toContain("reported the crash to the bug catcher");
+    assert(!logLines.includes("reported the crash to the bug catcher"));
   });
 });

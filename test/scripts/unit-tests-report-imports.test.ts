@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -389,6 +390,6 @@ describe("formatMisplacedSection", () => {
       25,
     );
     expect(lines).toHaveLength(1);
-    expect(lines[0]).not.toContain("more");
+    assert(!(lines[0] ?? "").includes("more"));
   });
 });

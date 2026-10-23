@@ -1,5 +1,6 @@
 /** Direct tests for one email leg's probes, outcomes, and containment. */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -60,7 +61,7 @@ describe("runEmailLeg on a ready resend leg", () => {
     }[];
     expect(attachments).toHaveLength(1);
     expect(attachments[0]!.filename).toBe("probe.svg");
-    expect(atob(attachments[0]!.content)).toContain("<svg");
+    assertStringIncludes(atob(attachments[0]!.content), "<svg");
   });
 
   test("sends the bulk probe with the unsubscribe substitution filled in", async () => {
@@ -77,8 +78,11 @@ describe("runEmailLeg on a ready resend leg", () => {
     expect(batch).toHaveLength(1);
     expect(batch[0]!.to).toEqual(["delivered@resend.dev"]);
     expect(batch[0]!.subject).toMatch(/\(resend, bulk\)$/);
-    expect(batch[0]!.html).toContain('href="https://example.com/unsubscribe"');
-    expect(batch[0]!.html).not.toContain(BULK_UNSUBSCRIBE_PLACEHOLDER);
+    assertStringIncludes(
+      batch[0]!.html,
+      'href="https://example.com/unsubscribe"',
+    );
+    assert(!batch[0]!.html.includes(BULK_UNSUBSCRIBE_PLACEHOLDER));
   });
 
   test("reports both accepted sends as one sent leg", async () => {
@@ -304,7 +308,7 @@ describe("runEmailLeg on a ready postmark leg", () => {
     using _fetched = stubFetch(okJson(), new Response("to@example.com"));
     const outcome = await runEmailLeg("postmark");
     expect(outcome.state).toBe("failed");
-    expect(outcome.detail).not.toContain("to@example.com");
+    assert(!outcome.detail.includes("to@example.com"));
   });
 
   test("skips the per-message read when the batch itself was refused", async () => {

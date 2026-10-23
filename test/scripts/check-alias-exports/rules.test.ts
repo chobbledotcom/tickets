@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -102,7 +103,7 @@ describe("check-alias-exports rules", () => {
     expect(issues).toHaveLength(1);
     expect(issues[0]?.exported).toBe("CheckinEntry");
     expect(issues[0]?.target).toBe("TokenEntry");
-    expect(issues[0]?.fix).toContain("its own module");
+    assertStringIncludes(issues[0]?.fix ?? "", "its own module");
   });
 
   test("lets a wrapper that adds something stand", () => {

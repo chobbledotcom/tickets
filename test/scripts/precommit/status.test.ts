@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -120,7 +121,7 @@ describe("precommit status producer", () => {
     expect(failed.state).toBe("failed");
     expect(failed.exitCode).toBe(1);
     expect(failed.stepCompletedAt).toBeNull();
-    expect(JSON.stringify(failed)).not.toContain("SECRET");
+    assert(!JSON.stringify(failed).includes("SECRET"));
   });
 
   test("records a failure before a step starts", async () => {
@@ -146,7 +147,7 @@ describe("precommit status producer", () => {
     expect(called).toBe(false);
     expect((await record()).state).toBe("failed");
     expect((await record()).step).toBeNull();
-    expect(JSON.stringify(await record())).not.toContain("SECRET");
+    assert(!JSON.stringify(await record()).includes("SECRET"));
   });
 
   test("retains completed checks when the push fails", async () => {

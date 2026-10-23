@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { findIssues } from "#scripts/check-empty-catch/rules.ts";
@@ -125,7 +126,7 @@ describe("check-empty-catch rules", () => {
   test("reports the finding with the rule's fix", () => {
     const [issue] = findIssues("six.ts", "try {\n} catch (e) {}\n");
     expect(issue?.rule).toBe("empty-catch");
-    expect(issue?.problem).toContain("no statement");
-    expect(issue?.fix).toContain("re-raise");
+    assertStringIncludes(issue?.problem ?? "", "no statement");
+    assertStringIncludes(issue?.fix ?? "", "re-raise");
   });
 });

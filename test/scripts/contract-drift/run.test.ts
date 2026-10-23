@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Contracts, DumpedMachine } from "#scripts/contract-drift/dump.ts";
@@ -133,7 +134,8 @@ describe("contract drift runner", () => {
     const fake = fakeDeps({ addResult: failedRun });
     const code = await runContractDrift("origin/main", fake.deps);
     expect(code).toBe(1);
-    expect(fake.errors[0]).toContain(
+    assertStringIncludes(
+      fake.errors[0] ?? "",
       "cannot create the base worktree for origin/main",
     );
     expect(fake.copyDirs).toEqual([]);
@@ -144,7 +146,8 @@ describe("contract drift runner", () => {
     const fake = fakeDeps({ dumpResult: failedRun });
     const code = await runContractDrift("origin/main", fake.deps);
     expect(code).toBe(1);
-    expect(fake.errors[0]).toContain(
+    assertStringIncludes(
+      fake.errors[0] ?? "",
       "the base dump at origin/main did not run",
     );
     expect(fake.gitCalls).toHaveLength(2);
@@ -155,7 +158,8 @@ describe("contract drift runner", () => {
       const fake = fakeDeps({ dumpResult: cleanWith(stdout) });
       const code = await runContractDrift("origin/main", fake.deps);
       expect(code).toBe(1);
-      expect(fake.errors[0]).toContain(
+      assertStringIncludes(
+        fake.errors[0] ?? "",
         "the base dump at origin/main printed no contracts",
       );
     }
@@ -165,6 +169,9 @@ describe("contract drift runner", () => {
     const fake = fakeDeps({ removeResult: failedRun });
     const code = await runContractDrift("origin/main", fake.deps);
     expect(code).toBe(1);
-    expect(fake.errors[0]).toContain("could not remove the base worktree");
+    assertStringIncludes(
+      fake.errors[0] ?? "",
+      "could not remove the base worktree",
+    );
   });
 });
