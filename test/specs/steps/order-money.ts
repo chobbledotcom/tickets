@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { revenueAccount } from "#accounting/accounts.ts";
 import { accountBalance } from "#accounting/queries.ts";
@@ -91,7 +92,7 @@ Then(
     const cabin = catalog.listing("Cabin").id;
     await openEditorFromRoster(browser, cabin, BUYER);
     const editor = browser.currentHtml;
-    expect(editor).toContain("via Deluxe Kit");
+    assertStringIncludes(editor, "via Deluxe Kit");
     expect(
       attendeeLineIndex(editor, cabin, catalog.group("Deluxe Kit").id),
     ).not.toBeNull();

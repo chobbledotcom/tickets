@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { addDays } from "#shared/dates.ts";
 import {
@@ -64,8 +65,10 @@ Then(
   ): Promise<void> {
     // A stay reaching a day the listing no longer takes cannot start at all,
     // so the day drops off the chooser the customer is shown.
-    expect(await daysOfferedFor(listingNamed(this, name))).not.toContain(
-      dayFromToday(this, startsIn),
+    assert(
+      !(await daysOfferedFor(listingNamed(this, name))).includes(
+        dayFromToday(this, startsIn),
+      ),
     );
   },
 );

@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { ORGANISER } from "#test/specs/support/browser.ts";
 import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
@@ -67,7 +68,7 @@ Given(
 Then(
   "the organiser is told the holiday was created",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("Holiday created");
+    assertStringIncludes(ownerLastTold(this), "Holiday created");
   },
 );
 
@@ -101,7 +102,7 @@ When(
 Then(
   "the organiser is told the holiday was deleted",
   function (this: TicketsWorld): void {
-    expect(ownerLastTold(this)).toContain("Holiday deleted");
+    assertStringIncludes(ownerLastTold(this), "Holiday deleted");
   },
 );
 

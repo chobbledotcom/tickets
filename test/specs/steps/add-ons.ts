@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
@@ -92,9 +93,10 @@ Then(
   "the {word} is offered with a link to its own page",
   function (this: TicketsWorld, name: string): void {
     const page = forSalePage(this);
-    expect(page.pageText).toContain(name);
-    expect(page.links.map(({ href }) => href)).toContain(
-      bookingLinkFor(this, name),
+    assertStringIncludes(page.pageText, name);
+    assertArrayIncludes(
+      page.links.map(({ href }) => href),
+      [bookingLinkFor(this, name)],
     );
   },
 );
@@ -104,7 +106,7 @@ Then(
   function (this: TicketsWorld, name: string): void {
     // The note belongs to things that are only ever sold alongside something
     // else, so it must not follow this one onto the page.
-    expect(forSalePage(this).pageText).toContain(name);
+    assertStringIncludes(forSalePage(this).pageText, name);
     expect(
       forSalePage(this).containsText("as an add-on to another booking"),
     ).toBe(false);
@@ -120,15 +122,16 @@ Then(
   ): Promise<void> {
     // The edit must not take it off a page that still offers it.
     const page = await bookingPageFor(this, mainThing);
-    expect(page.pageText).toContain(offered);
+    assertStringIncludes(page.pageText, offered);
   },
 );
 
 Then(
   "the {word} is still offered too",
   function (this: TicketsWorld, name: string): void {
-    expect(forSalePage(this).links.map(({ href }) => href)).toContain(
-      bookingLinkFor(this, name),
+    assertArrayIncludes(
+      forSalePage(this).links.map(({ href }) => href),
+      [bookingLinkFor(this, name)],
     );
   },
 );
@@ -176,7 +179,8 @@ Then(
     await copyLoaded("modifiers");
     // The unmark save refuses through the add-on reachability guard, whose
     // words name the add-on and the required child listing.
-    expect(ownerLastTold(this)).toContain(
+    assertStringIncludes(
+      ownerLastTold(this),
       t("modifiers.err_child_only_addon", { name: choice }),
     );
   },

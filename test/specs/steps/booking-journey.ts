@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
@@ -80,7 +81,7 @@ const askSizeQuestion = async (
     expect(browser.containsText(size)).toBe(true);
   }
   await browser.visit(`/admin/listing/${id}/questions`);
-  expect(browser.currentHtml).toContain('name="question_ids"');
+  assertStringIncludes(browser.currentHtml, 'name="question_ids"');
   await browser.submitForm({ question_ids: ALL_CHECKBOXES }, "Save");
   expect(browser.containsText("Questions updated")).toBe(true);
 };
@@ -91,7 +92,7 @@ const groupTheListing = async (browser: TestBrowser): Promise<string> => {
   expect(browser.containsText("Add Group")).toBe(true);
   await browser.submitForm({ name: GROUP }, "Create Group");
   expect(browser.containsText(GROUP)).toBe(true);
-  expect(browser.currentHtml).toContain('name="listing_ids"');
+  assertStringIncludes(browser.currentHtml, 'name="listing_ids"');
   await browser.submitForm(
     { listing_ids: ALL_CHECKBOXES },
     "Add selected listings",

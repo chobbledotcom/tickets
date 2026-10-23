@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   browserSeenBy,
@@ -146,7 +147,7 @@ When(
     // Resubmitting what the page already showed, which is what an organiser
     // pressing Save on the repaired form actually sends.
     const page = recordPage(this);
-    expect(page.currentHtml).toContain('name="admin_notes"');
+    assertStringIncludes(page.currentHtml, 'name="admin_notes"');
     rememberBrowser(
       this,
       CUSTOMER,
@@ -181,7 +182,8 @@ Then(
   function (this: TicketsWorld, who: string): void {
     // The note is kept as the organiser typed it and shown made-up, so bold
     // stays bold rather than arriving as raw markup.
-    expect(recordPage(this).currentHtml).toContain(
+    assertStringIncludes(
+      recordPage(this).currentHtml,
       `<strong>VIP</strong> ${who}`,
     );
   },
