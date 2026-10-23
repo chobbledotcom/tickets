@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import type { PaymentProviderType } from "#types";
 
@@ -46,8 +47,8 @@ export const expectClosedCheckoutFailure = async (
   expect(Reflect.get(thrown, "body")).toBeUndefined();
   expect(Reflect.get(thrown, "error")).toBeUndefined();
   for (const value of privateValues) {
-    expect(String(thrown)).not.toContain(value);
-    expect(String(thrown.stack)).not.toContain(value);
+    assert(!String(thrown).includes(value));
+    assert(!String(thrown.stack).includes(value));
   }
 };
 
