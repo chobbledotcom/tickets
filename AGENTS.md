@@ -334,6 +334,13 @@ error.
   that has a real recovery path, and re-raise otherwise. A `catch {}` is
   acceptable only when the fallback is the documented behavior, stated in a
   comment.
+- **No `as unknown as` double casts.** A cast through `unknown` is the loudest
+  unchecked assertion: it asserts a shape nothing has checked and erases the
+  compiler's evidence first. Parse and validate at the boundary, or narrow. The
+  casts the code still carries are ratcheted in
+  `scripts/check-double-casts/baseline.json`, which only falls —
+  `deno task check:double-casts` fails on any file holding more casts than its
+  entry records (`--update` after removing casts).
 - **A function that looks something up must throw when it cannot.** Never return
   `null`, `""`, `0`, or `[]` as a "not found" stand-in. When "not found" is a
   genuine documented outcome, name it with the `*OrNull` suffix and a `| null`

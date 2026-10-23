@@ -222,21 +222,76 @@ export const staleEntryLines = (
         fix,
         problem: `entry names nothing the check reads (${registry})`,
         rule: "stale-entry",
-      }),
+      })
     );
 
+/** One collector a whole-tree check reads its files through. */
+type Collector = (root: string) => Promise<string[]>;
+
+/** One per-file rule a registry-free whole-tree check runs. */
+type FileRule = (file: string, content: string) => PerFileFinding[];
+
+/** One per-file rule that also reads the check's counts registry. */
+type CountedFileRule = (
+  file: string,
+  content: string,
+  accepted: Counts,
+) => PerFileFinding[];
+
+/** Report one whole-tree check's findings in the house shape. */
+const reportFound = (
+  output: CheckOutput,
+  found: string[],
+  words: CheckWords,
+): number =>
+  reportCheck({
+    ...output,
+    found,
+    ...words,
+  });
+
 /** Build a whole-tree check from one per-file rule over one collector. */
-export const perFileCheck =
-  (
-    collect: (root: string) => Promise<string[]>,
-    rule: (file: string, content: string) => PerFileFinding[],
-    words: CheckWords,
-  ): ((roots: readonly string[], output: CheckOutput) => Promise<number>) =>
-  async (roots, output) =>
-    reportCheck({
-      ...output,
-      found: await collectFromFiles(roots, collect, (file, content) =>
-        fileFindingLines(file, rule(file, content)),
-      ),
-      ...words,
-    });
+export const perFileCheck = (
+  collect: Collector,
+  rule: FileRule,
+  words: CheckWords,
+): (roots: readonly string[], output: CheckOutput) => Promise<number> =>
+async (roots, output) =>
+  reportFound(
+    output,
+    await collectFromFiles(roots, collect, (file, content) =>
+      fileFindingLines(file, rule(file, content))),
+    words,
+  );
+
+/**
+ * Build a whole-tree check whose per-file rule reads a counts registry: the
+ * rule sees the recorded counts, and every registry entry whose key names
+ * nothing the check now reads reports itself, since a registry only falls.
+ * One mechanism behind every counts-ratchet check, so the IO shells cannot
+ * drift apart.
+ */
+export const registryCheck = (
+  collect: Collector,
+  rule: CountedFileRule,
+  registry: string,
+  words: CheckWords,
+): (
+  roots: readonly string[],
+  accepted: Counts,
+  output: CheckOutput,
+) => Promise<number> =>
+async (roots, accepted, output) => {
+  const paths: string[] = [];
+  const found = await collectFromFiles(roots, collect, (file, content) => {
+    paths.push(file);
+    return fileFindingLines(file, rule(file, content, accepted));
+  });
+  const stale = staleEntryLines(
+    paths,
+    Object.keys(accepted),
+    registry,
+    "delete the entry",
+  );
+  return reportFound(output, [...found, ...stale].sort(), words);
+};
