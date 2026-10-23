@@ -1,3 +1,10 @@
+/**
+ * Locks the migration registry to the migration implementations. The boot
+ * probe reads only the registry's ids (the implementations load lazily), so
+ * an entry whose id differs from the migration its module actually builds
+ * would make the probe and the migration runner disagree about what has been
+ * applied. Loading every entry here keeps the two from drifting.
+ */
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
