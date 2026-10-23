@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -36,7 +37,10 @@ describeWithEnv(
       const columns = await getDb().execute(
         "PRAGMA table_info(maintenance_tasks)",
       );
-      expect(columns.rows.map((row) => row.name)).toContain("checkpoint");
+      assertArrayIncludes(
+        columns.rows.map((row) => row.name),
+        ["checkpoint"],
+      );
     });
   },
 );

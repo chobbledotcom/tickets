@@ -1,4 +1,5 @@
 import type { ResultSet } from "@libsql/client";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -143,7 +144,7 @@ describeWithEnv("backup", { db: true }, () => {
 
       // All tables present
       for (const table of SCHEMA_TABLE_NAMES) {
-        expect(Object.keys(files)).toContain(`${table}.sql`);
+        assertArrayIncludes(Object.keys(files), [`${table}.sql`]);
       }
 
       // Manifest has correct schema hash
@@ -157,7 +158,8 @@ describeWithEnv("backup", { db: true }, () => {
         manifest.timestamp,
       );
       expect(manifest.tables.listings).toBe(1);
-      expect(new TextDecoder().decode(files["manifest.json"]!)).toContain(
+      assertStringIncludes(
+        new TextDecoder().decode(files["manifest.json"]!),
         '\n  "latestUpdate"',
       );
       // ZIP method 8 is DEFLATE; method 0 would store every entry uncompressed.

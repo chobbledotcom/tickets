@@ -10,6 +10,7 @@
  * their own checks in `render-content.test.ts`.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { renderEmailContent } from "#shared/email-renderer.ts";
@@ -110,8 +111,12 @@ describe("the whole email the site's own wording sends with answers", () => {
     test("the confirmation prints each answer", async () => {
       const sent = await renderEmailContent("confirmation", await data());
 
-      expect(sent.text).toContain("Any allergies?: Peanuts <b>and</b> nuts");
-      expect(sent.html).toContain(
+      assertStringIncludes(
+        sent.text,
+        "Any allergies?: Peanuts <b>and</b> nuts",
+      );
+      assertStringIncludes(
+        sent.html,
         "Any allergies?: Peanuts &lt;b&gt;and&lt;/b&gt; nuts",
       );
     });
@@ -119,10 +124,12 @@ describe("the whole email the site's own wording sends with answers", () => {
     test("the admin notification prints each answer with its listing", async () => {
       const sent = await renderEmailContent("admin", await data());
 
-      expect(sent.text).toContain(
+      assertStringIncludes(
+        sent.text,
         "Any allergies? (Test Listing): Peanuts <b>and</b> nuts",
       );
-      expect(sent.html).toContain(
+      assertStringIncludes(
+        sent.html,
         "Any allergies? (Test Listing): Peanuts &lt;b&gt;and&lt;/b&gt; nuts",
       );
     });

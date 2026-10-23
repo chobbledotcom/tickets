@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { account } from "#shared/ledger/account.ts";
@@ -112,9 +113,9 @@ describe("validateTransfer", () => {
     });
     if (result.ok) throw new Error("expected validation to fail");
     const codes = result.error.map((e) => e.code);
-    expect(codes).toContain("non_positive_amount");
-    expect(codes).toContain("self_transfer");
-    expect(codes).toContain("empty_reference");
+    assertArrayIncludes(codes, ["non_positive_amount"]);
+    assertArrayIncludes(codes, ["self_transfer"]);
+    assertArrayIncludes(codes, ["empty_reference"]);
   });
 });
 

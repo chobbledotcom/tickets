@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -108,12 +109,12 @@ describe("jsx-runtime", () => {
 
     test("escapes text children", () => {
       const result = jsx("div", { children: "<script>alert(1)</script>" });
-      expect(result.toString()).toContain("&lt;script&gt;");
+      assertStringIncludes(result.toString(), "&lt;script&gt;");
     });
 
     test("escapes attribute values", () => {
       const result = jsx("div", { title: 'say "hello"' });
-      expect(result.toString()).toContain('title="say &quot;hello&quot;"');
+      assertStringIncludes(result.toString(), 'title="say &quot;hello&quot;"');
     });
 
     test("renders component that returns SafeHtml", () => {
