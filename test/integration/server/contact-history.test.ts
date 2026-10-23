@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { base64ToBase64Url } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
 import {
@@ -10,6 +11,7 @@ import {
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import {
+  expectFlashRedirect,
   expectHtml,
   expectRedirect,
   testRequiresAuth,
@@ -123,7 +125,12 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
         public_booking_count: "11",
         visits: "13",
       });
-      expectRedirect(response, `/admin/history/${param}`);
+      // The redirect's flash carries the saved message as a success, and the
+      // editor the operator lands on renders exactly one success banner.
+      await expectFlashRedirect(
+        `/admin/history/${param}`,
+        "Contact record saved",
+      )(response);
 
       const record = await getContactRecord(hash, pk);
       expect(record.publicBookingCount).toBe(11);
@@ -205,9 +212,20 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       // The editor still renders (not a 500), and crucially pre-fills every
       // surviving plaintext count — a fallback that blanked them would let a
       // blind save zero a contact's real booking history.
+      // The repair logs the reader by name, so an operator can tell which
+      // editor hit the corrupt row.
+      const errorLines: string[] = [];
+      using _loggedErrors = stub(console, "error", (line: unknown) => {
+        errorLines.push(String(line));
+      });
       const html = await expectHtml(await adminGet(`/admin/history/${param}`), {
         status: 200,
       });
+      const decryptFailure = errorLines.find((line) =>
+        line.includes("DECRYPT_FAILED"),
+      );
+      expect(decryptFailure).toBeDefined();
+      expect(decryptFailure).toContain('detail="contact history editor ');
       expect(html).toMatch(/name="visits"[^>]*value="9"/);
       expect(html).toMatch(/name="public_booking_count"[^>]*value="5"/);
       expect(html).toMatch(/name="admin_booking_count"[^>]*value="2"/);
