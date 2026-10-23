@@ -22,7 +22,7 @@ import {
   seedTicketCache,
   start,
   whenStatusShows,
-} from "./camera-fakes.ts";
+} from "../scanner/camera-fakes.ts";
 import {
   el,
   fullStore,
@@ -35,7 +35,7 @@ import {
   useScannerSuite,
   whenMessageShows,
   whenTextShows,
-} from "./fixture.ts";
+} from "../scanner/fixture.ts";
 
 describe("scanner offline sync", {
   sanitizeOps: false,
