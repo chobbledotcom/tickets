@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { formatAtomicError } from "#booking/form.ts";
@@ -184,8 +185,8 @@ describeWithEnv("selected package names", { db: true }, () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected a child quantity refusal");
-    expect(result.error).toContain(group.name);
-    expect(result.error).not.toContain(parent.name);
+    assertStringIncludes(result.error, group.name);
+    assert(!result.error.includes(parent.name));
   });
 
   for (const namedFirst of [false, true]) {

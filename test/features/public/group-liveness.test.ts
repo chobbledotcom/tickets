@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
@@ -183,9 +184,10 @@ describeWithEnv(
       const memberQueries = batchedMemberQueries(seen);
       expect(memberQueries.length).toBe(1);
       const [memberQuery] = memberQueries;
-      expect(memberQuery).toContain("GROUP BY listing.id");
-      expect(memberQuery).not.toContain("GROUP BY listing.id,");
-      expect(memberQuery).toContain(
+      assertStringIncludes(memberQuery ?? "", "GROUP BY listing.id");
+      assert(!(memberQuery ?? "").includes("GROUP BY listing.id,"));
+      assertStringIncludes(
+        memberQuery ?? "",
         "ORDER BY listing.created DESC, listing.id DESC",
       );
     });

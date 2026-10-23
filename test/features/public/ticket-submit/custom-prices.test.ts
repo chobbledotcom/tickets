@@ -4,6 +4,7 @@
  */
 
 /* jscpd:ignore-start -- imports */
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { customPriceFieldName } from "#booking/tree.ts";
@@ -51,7 +52,9 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
         500,
       );
       expect(typeof result).toBe("string");
-      expect(result).toContain("Supporter ticket");
+      // A Map result fails the assertion.
+      const priceMessage = typeof result === "string" ? result : "";
+      assertStringIncludes(priceMessage, "Supporter ticket");
     });
 
     test("ignores a pay-more listing the buyer chose none of", async () => {

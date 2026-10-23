@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -40,9 +41,9 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     const res = await orderJs("https://shop.example.com");
     const body = await res.text();
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
-    expect(res.headers.get("content-type")).toContain("javascript");
-    expect(body).toContain("not enabled");
-    expect(body).not.toContain("const CATALOG");
+    assertStringIncludes(res.headers.get("content-type") ?? "", "javascript");
+    assertStringIncludes(body, "not enabled");
+    assert(!body.includes("const CATALOG"));
   });
 
   test("enabled with empty allow-list: embeds catalog with ACAO *", async () => {
@@ -55,9 +56,9 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
     expect(res.headers.get("vary")).toBe("Origin");
     expect(res.headers.get("cache-control")).toBe("no-store");
-    expect(body).toContain("const CATALOG");
-    expect(body).toContain(slug);
-    expect(body).toContain("isExternalOrderModule");
+    assertStringIncludes(body, "const CATALOG");
+    assertStringIncludes(body, slug);
+    assertStringIncludes(body, "isExternalOrderModule");
   });
 
   test("includes a concealed package's members in the catalog", async () => {
@@ -69,8 +70,8 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     const standaloneSlug = await slugByName("Standalone");
 
     const body = await (await orderJs()).text();
-    expect(body).toContain(standaloneSlug);
-    expect(body).toContain(memberSlug);
+    assertStringIncludes(body, standaloneSlug);
+    assertStringIncludes(body, memberSlug);
   });
 
   test("advertises a bookable package's bundle slug in the catalog packages", async () => {
@@ -85,8 +86,8 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     const body = await (await orderJs()).text();
     // The bundle is bookable via /ticket/<group>, so its slug rides in the
     // packages map even though it's not a listing cart line.
-    expect(body).toContain('"packages"');
-    expect(body).toContain('"camp-bundle"');
+    assertStringIncludes(body, '"packages"');
+    assertStringIncludes(body, '"camp-bundle"');
   });
 
   test("a hidden package's bundle is still bookable from the widget", async () => {
@@ -105,9 +106,9 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
 
     const body = await (await orderJs()).text();
     // Both booking paths stay available in the widget.
-    expect(body).toContain('"secret-bundle"');
-    expect(body).toContain(`"${memberSlug}"`);
-    expect(body).toContain(member.name);
+    assertStringIncludes(body, '"secret-bundle"');
+    assertStringIncludes(body, `"${memberSlug}"`);
+    assertStringIncludes(body, member.name);
   });
 
   test("omits an unbookable package (an inactive member) from the catalog", async () => {
@@ -125,30 +126,30 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
 
     const body = await (await orderJs()).text();
     // The bundle can't sell (its sole member is inactive), so it isn't advertised.
-    expect(body).not.toContain('"gone-bundle"');
+    assert(!body.includes('"gone-bundle"'));
   });
 
   test("defaults the catalog debug flag off without the query param", async () => {
     await settings.update.externalOrderEnabled(true);
 
     const body = await (await orderJs()).text();
-    expect(body).toContain('"debug":false');
-    expect(body).not.toContain('"debug":true');
+    assertStringIncludes(body, '"debug":false');
+    assert(!body.includes('"debug":true'));
   });
 
   test("debug=true bakes the verbose-logging flag into the catalog", async () => {
     await settings.update.externalOrderEnabled(true);
 
     const body = await (await orderJsPath("/order.js?debug=true")).text();
-    expect(body).toContain('"debug":true');
-    expect(body).not.toContain('"debug":false');
+    assertStringIncludes(body, '"debug":true');
+    assert(!body.includes('"debug":false'));
   });
 
   test("a non-true debug value leaves verbose logging off", async () => {
     await settings.update.externalOrderEnabled(true);
 
     const body = await (await orderJsPath("/order.js?debug=1")).text();
-    expect(body).toContain('"debug":false');
+    assertStringIncludes(body, '"debug":false');
   });
 
   test("marks a pay-what-you-want listing as variable-price in the catalog", async () => {
@@ -158,8 +159,8 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     await createTestListing({ canPayMore: true, name: "Pay What You Want" });
 
     const body = await (await orderJs()).text();
-    expect(body).toContain('"variablePrice":true');
-    expect(body).not.toContain('"variablePrice":false');
+    assertStringIncludes(body, '"variablePrice":true');
+    assert(!body.includes('"variablePrice":false'));
   });
 
   test("marks a customisable-days listing as variable-price in the catalog", async () => {
@@ -172,8 +173,8 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     });
 
     const body = await (await orderJs()).text();
-    expect(body).toContain('"variablePrice":true');
-    expect(body).not.toContain('"variablePrice":false');
+    assertStringIncludes(body, '"variablePrice":true');
+    assert(!body.includes('"variablePrice":false'));
   });
 
   test("excludes hidden listings from the embedded catalog", async () => {
@@ -182,8 +183,8 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     const slug = await slugByName("Secret Listing");
 
     const body = await (await orderJs()).text();
-    expect(body).toContain("const CATALOG");
-    expect(body).not.toContain(slug);
+    assertStringIncludes(body, "const CATALOG");
+    assert(!body.includes(slug));
   });
 
   test("a Hidden=true default hides a use-defaults listing from the catalog", async () => {
@@ -198,8 +199,8 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     const slug = await slugByName("Inherits Hidden");
 
     const body = await (await orderJs()).text();
-    expect(body).toContain("const CATALOG");
-    expect(body).not.toContain(slug);
+    assertStringIncludes(body, "const CATALOG");
+    assert(!body.includes(slug));
   });
 
   test("a Hidden=false default reveals a use-defaults listing stored as hidden", async () => {
@@ -214,8 +215,8 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     const slug = await slugByName("Inherits Visible");
 
     const body = await (await orderJs()).text();
-    expect(body).toContain("const CATALOG");
-    expect(body).toContain(slug);
+    assertStringIncludes(body, "const CATALOG");
+    assertStringIncludes(body, slug);
   });
 
   test("a Hidden=No default never reveals a renewal tier", async () => {
@@ -234,8 +235,8 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     });
 
     const body = await (await orderJs()).text();
-    expect(body).toContain("const CATALOG");
-    expect(body).not.toContain(tier.slug);
+    assertStringIncludes(body, "const CATALOG");
+    assert(!body.includes(tier.slug));
   });
 
   test("excludes a required child even when a Hidden=No default would reveal it", async () => {
@@ -253,9 +254,9 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     await listingChildren.setIds(parent.id, [child.id]);
 
     const body = await (await orderJs()).text();
-    expect(body).toContain("const CATALOG");
-    expect(body).toContain(parent.slug);
-    expect(body).not.toContain(child.slug);
+    assertStringIncludes(body, "const CATALOG");
+    assertStringIncludes(body, parent.slug);
+    assert(!body.includes(child.slug));
   });
 
   test("caches the widget body so it is not re-read from disk per request", () => {
@@ -290,8 +291,8 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     expect(allowed.headers.get("access-control-allow-origin")).toBe(
       "https://shop.example.com",
     );
-    expect(body).toContain("const CATALOG");
-    expect(body).toContain(slug);
+    assertStringIncludes(body, "const CATALOG");
+    assertStringIncludes(body, slug);
   });
 
   test("a disallowed origin gets no CORS header, no catalog, and no slugs", async () => {
@@ -303,7 +304,7 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     const denied = await orderJs("https://evil.example.com");
     const body = await denied.text();
     expect(denied.headers.get("access-control-allow-origin")).toBeNull();
-    expect(body).not.toContain("const CATALOG");
-    expect(body).not.toContain(slug);
+    assert(!body.includes("const CATALOG"));
+    assert(!body.includes(slug));
   });
 });
