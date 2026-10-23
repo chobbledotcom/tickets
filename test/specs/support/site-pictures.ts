@@ -7,6 +7,7 @@
 // jscpd:ignore-start
 
 import { expect } from "@std/expect";
+import { showsPicture } from "#test/specs/support/picture-assertions.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -81,8 +82,7 @@ export const proseHtml = (html: string): string =>
 const expectPictureIn =
   (region: PageRegion) =>
   (world: TicketsWorld, html: string): void => {
-    expect(region(html)).toContain(sitePictureTag(world));
-    expect(html).not.toContain("img#");
+    showsPicture(region(html), sitePictureTag(world), html);
   };
 
 /** The page's site footer shows the story's picture, and no unresolved

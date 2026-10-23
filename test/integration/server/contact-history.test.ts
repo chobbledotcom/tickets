@@ -8,6 +8,7 @@ import {
   saveContactRecord,
 } from "#db/contact-preferences.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectHtml,
   expectRedirect,
@@ -60,6 +61,27 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       expect(html).toMatch(/name="visits"[^>]*value="9"/);
     });
 
+    test("resolves the saved note's img#N reference in the preview", async () => {
+      const image = await makeImage("EditPoster");
+      const hash = await hashEmail("editposter@example.com");
+      await saveContactRecord(
+        hash,
+        seededRecord({
+          adminNotes: `Hello. ![EditPoster](img#${image.id})`,
+        }),
+      );
+
+      // The textarea legitimately shows the note's raw img#N source. The
+      // preview beneath it renders the image.
+      await expectHtml(
+        await adminGet(`/admin/history/${base64ToBase64Url(hash)}`),
+        {
+          contains: [`<img src="/image/${image.filename}" alt="EditPoster">`],
+          status: 200,
+        },
+      );
+    });
+
     test("renders the private note in the shared markdown editor box, label without '(markdown)'", async () => {
       const param = base64ToBase64Url(await hashEmail("mdbox@example.com"));
       const html = await expectHtml(await adminGet(`/admin/history/${param}`), {
@@ -110,6 +132,30 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       expect(record.visits).toBe(13);
       expect(record.adminNotes).toBe("Updated **note**");
       expect(record.lastSubject).toBe("Subject");
+    });
+
+    test("re-renders a rejected over-long note with its images resolved", async () => {
+      const image = await makeImage("Note Poster");
+      const hash = await hashEmail("noteposter@example.com");
+      const { response } = await adminFormPost(
+        `/admin/history/${base64ToBase64Url(hash)}`,
+        {
+          admin_notes: `![Note Poster](img#${image.id}) ${"x".repeat(MAX_TEXTAREA_LENGTH)}`,
+          public_booking_count: "4",
+        },
+      );
+      // Re-rendered in place with an error, not redirected.
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("characters or fewer");
+      // The note preview renders the saved-but-rejected note, and its image
+      // reference resolves through the image-url table like the GET path's.
+      expect(html).toContain('class="contact-notes"');
+      // renderMarkdown percent-encodes the image URL, so the filename's space
+      // renders as %20.
+      expect(html).toContain(
+        `<img src="/image/${encodeURI(image.filename)}" alt="Note Poster">`,
+      );
     });
 
     test("coerces blank/negative counters to zero", async () => {

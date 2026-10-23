@@ -9,8 +9,8 @@
 import { expect } from "@std/expect";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
+import { emailFor } from "#test/specs/support/emails.ts";
 import { listingNamed } from "#test/specs/support/listings.ts";
-import { emailFor } from "#test/specs/support/tickets.ts";
 import type {
   ReadAboutOneThing,
   TicketsWorld,

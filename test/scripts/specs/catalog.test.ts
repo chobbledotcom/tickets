@@ -64,6 +64,7 @@ describe("Cucumber story catalog", () => {
       "pages.hearing-from-a-visitor",
       "pages.keeping-a-page-off-the-menus",
       "pages.previewing-formatted-text",
+      "pages.reading-a-sites-support-message",
       "pages.telling-people-the-news",
       "pages.the-front-pages-of-the-site",
       "pages.the-menu-above-a-booking",

@@ -53,6 +53,13 @@ Feature: The owner asks the host for help
       Then the owner reads "Help Center" as a heading and "Reach out anytime" as its words
       And the page does not say the host has written nothing
 
+    @case:support.host-words-with-a-picture
+    Scenario: The host wrote an introduction with a picture in it
+      Given the host listens for the owner's messages
+      And the host has written an introduction with a picture called "Poster" on the Support page
+      When the owner opens the Support page
+      Then the introduction shows the "Poster" picture
+
     @case:support.no-words-fallback
     Scenario: The host wrote nothing
       Given the host listens for the owner's messages

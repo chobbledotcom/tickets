@@ -14,6 +14,7 @@ import { getNoteRows } from "#db/notes/queries.ts";
 import {
   noteDeletePath,
   notedAboutWithPicture,
+  pageShowsPicture,
   regionShowsPicture,
   uploadsAPicture,
 } from "#test/specs/support/attendee-images.ts";
@@ -89,6 +90,27 @@ describe("holding one page region to its own picture", () => {
   test("fails loudly when the region's own tag never closes", () => {
     const html = `<div class="contact-notes"><p>words</p>${shown}`;
     expectRegionCheckToThrow(html, "contact-notes", worldWithPicture());
+  });
+});
+
+describe("holding the page as a whole to its picture", () => {
+  test("passes when the picture shows and no reference stays", () => {
+    pageShowsPicture(`<main><p>words</p>${shown}</main>`, worldWithPicture());
+  });
+
+  test("fails loudly when a raw reference stays anywhere on the page", () => {
+    expect(() =>
+      pageShowsPicture(
+        `${shown}<p>see img#${poster.id}</p>`,
+        worldWithPicture(),
+      ),
+    ).toThrow();
+  });
+
+  test("fails loudly when the picture never shows", () => {
+    expect(() =>
+      pageShowsPicture("<main><p>words</p></main>", worldWithPicture()),
+    ).toThrow();
   });
 });
 

@@ -9,6 +9,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { getNoteRows } from "#db/notes/queries.ts";
+import { emailFor } from "#test/specs/support/emails.ts";
+import { showsPicture } from "#test/specs/support/picture-assertions.ts";
 import {
   type NoteImage,
   requiredWorldValue,
@@ -20,9 +22,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
-
-/** Everyone a story talks about has an email the site files them under. */
-const emailFor = (who: string): string => `${who.toLowerCase()}@example.com`;
 
 /** The listing every note story books its person onto, so one note shows on
  * the person's page, the attendees list, and the listing's own panels. */
@@ -77,8 +76,13 @@ export const regionShowsPicture = (
 ): void => {
   const region = regionFrom(html, openMarker, tag);
   expect(region).not.toBe("");
-  expect(region).toContain(pictureTag(world));
-  expect(region).not.toContain("img#");
+  showsPicture(region, pictureTag(world));
+};
+
+/** Hold the page as a whole to the picture: it shows at its own address, and
+ * no reference stays anywhere on the page. */
+export const pageShowsPicture = (html: string, world: TicketsWorld): void => {
+  showsPicture(html, pictureTag(world));
 };
 
 /** The picture the story named, uploaded now. The world keeps it as the
@@ -103,7 +107,7 @@ export const uploadsAPicture = async (
  * picture uploaded and the note typed around the picture's reference. The
  * world remembers the person and the picture; the caller writes the note
  * where their story does. */
-const typedNoteWithPicture = async (
+export const typedNoteWithPicture = async (
   world: TicketsWorld,
   who: string,
   name: string,

@@ -6,7 +6,6 @@ import type {
   QuestionWithAnswers,
   SelectedQuestionAnswers,
 } from "#db/question-types.ts";
-/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";

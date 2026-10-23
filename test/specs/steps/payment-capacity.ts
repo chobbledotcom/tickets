@@ -8,7 +8,7 @@ import { getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { handleRequest } from "#routes";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { emailFor } from "#test/specs/support/tickets.ts";
+import { emailFor } from "#test/specs/support/emails.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,

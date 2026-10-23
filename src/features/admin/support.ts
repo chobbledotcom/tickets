@@ -9,6 +9,7 @@ import { defineRoutes } from "#routes/router.ts";
  */
 
 /* jscpd:ignore-start */
+import { addPageImageUrls } from "#db/images.ts";
 import { t } from "#i18n";
 import { formPost, OWNER_FORM, ownerResponsePage } from "#routes/auth.ts";
 import { requireMessageField } from "#routes/csrf.ts";
@@ -34,8 +35,10 @@ import { adminSupportPage } from "#templates/admin/support.tsx";
 const SUPPORT_PATH = "/admin/support";
 
 /** GET /admin/support — render the support page (404 when the feature is off). */
-const handleSupportGet = ownerResponsePage((session, _request, flash) => {
+const handleSupportGet = ownerResponsePage(async (session, _request, flash) => {
   if (!isSupportEnabled()) return notFoundResponse();
+  const supportText = getSupportPageText();
+  await addPageImageUrls([supportText]);
   return htmlResponse(
     adminSupportPage({
       error: flash.error,
@@ -43,7 +46,7 @@ const handleSupportGet = ownerResponsePage((session, _request, flash) => {
       nagLabel: supportNagLabel(),
       session,
       success: flash.success,
-      supportText: getSupportPageText(),
+      supportText,
     }),
   );
 });
