@@ -8,7 +8,11 @@ import {
   serializeCatalog,
 } from "#shared/external-order.ts";
 import { testListing } from "#test-utils/factories.ts";
-import { createGlobalStash } from "#test-utils/happy-dom.ts";
+import {
+  createGlobalStash,
+  fireEvent,
+  requireElement,
+} from "#test-utils/happy-dom.ts";
 
 export const ORIGIN = "https://tickets.test";
 export const MODULE_MARKER = "__orderWidgetModule";
@@ -61,14 +65,12 @@ export const harness = (): Harness => {
   const animateCalls: AnimateCall[] = [];
   const focusCalls: number[] = [];
 
-  (
-    window.HTMLElement.prototype as unknown as {
-      animate: (keyframes: unknown, options: unknown) => unknown;
-    }
-  ).animate = (keyframes: unknown, options: unknown) => {
-    animateCalls.push({ keyframes, options });
-    return {};
-  };
+  Object.assign(window.HTMLElement.prototype, {
+    animate: (keyframes: unknown, options: unknown) => {
+      animateCalls.push({ keyframes, options });
+      return {};
+    },
+  });
   const realFocus = window.HTMLElement.prototype.focus;
   window.HTMLElement.prototype.focus = function focusSpy(this: unknown) {
     focusCalls.push(1);
@@ -150,9 +152,19 @@ export const addLink = (slug: string, quantity?: string): string =>
     quantity === undefined ? "" : ` data-add-quantity="${quantity}"`
   }>Book ${slug}</a>`;
 
+/** One stylesheet the widget adopted as an in-memory constructable sheet. */
+type AdoptedSheet = { cssRules: ArrayLike<{ cssText: string }> };
+
 export interface Queryable {
   querySelector(selector: string): QueryNode | null;
   querySelectorAll(selector: string): ArrayLike<QueryNode>;
+  shadowRoot?: ShadowQueryable | null;
+}
+
+/** A shadow root: happy-dom defines `adoptedStyleSheets` on every shadow
+ *  root — empty until its host adopts a constructable sheet. */
+export interface ShadowQueryable extends Queryable {
+  adoptedStyleSheets: readonly AdoptedSheet[];
 }
 
 export interface QueryNode extends Queryable {
@@ -168,8 +180,8 @@ export interface QueryNode extends Queryable {
 export const hostElOrNull = (h: Harness): Queryable | null =>
   h.document.querySelector("[data-chobble-order]") as Queryable | null;
 
-export const shadow = (h: Harness): Queryable =>
-  (hostElOrNull(h) as unknown as { shadowRoot: Queryable }).shadowRoot;
+export const shadow = (h: Harness): ShadowQueryable =>
+  hostElOrNull(h)!.shadowRoot!;
 
 export const cartButton = (h: Harness): QueryNode =>
   shadow(h).querySelector(".cart-button") as QueryNode;
@@ -177,13 +189,7 @@ export const cartButton = (h: Harness): QueryNode =>
 /** The scoped CSS the widget adopted as an in-memory stylesheet (the CSP-safe
  *  path used when the browser supports constructable stylesheets). */
 export const adoptedCss = (h: Harness): string =>
-  Array.from(
-    (
-      shadow(h) as unknown as {
-        adoptedStyleSheets: { cssRules: ArrayLike<{ cssText: string }> }[];
-      }
-    ).adoptedStyleSheets,
-  )
+  Array.from(shadow(h).adoptedStyleSheets)
     .flatMap((sheet) => Array.from(sheet.cssRules))
     .map((rule) => rule.cssText)
     .join("\n");
@@ -197,15 +203,16 @@ export const dialogEl = (h: Harness): QueryNode =>
   shadow(h).querySelector("dialog") as QueryNode;
 
 export const clickAnchor = (h: Harness, slug: string): boolean => {
-  const anchor = h.document.querySelector(
+  const anchor = requireElement<HTMLElement>(
+    h.document,
     `a[data-add-listing="${ORIGIN}/ticket/${slug}"]`,
-  ) as unknown as QueryNode;
+  );
   const event = new h.window.MouseEvent("click", {
     bubbles: true,
     cancelable: true,
   });
-  anchor.dispatchEvent(event);
-  return (event as unknown as { defaultPrevented: boolean }).defaultPrevented;
+  fireEvent(anchor, event);
+  return event.defaultPrevented;
 };
 
 export const clickIn = (root: Queryable, selector: string): void => {

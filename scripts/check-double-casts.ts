@@ -10,7 +10,6 @@
  * no longer be recorded anew.
  */
 
-import { SOURCE_DIRS } from "#scripts/source-dirs.ts";
 import { consoleOutput } from "#scripts/check-report.ts";
 import {
   countsRose,
@@ -18,6 +17,7 @@ import {
   recordedState,
   updateMode,
 } from "#scripts/check-runner.ts";
+import { SOURCE_DIRS } from "#scripts/source-dirs.ts";
 import {
   filesWithDoubleCasts,
   runDoubleCastsCheck,

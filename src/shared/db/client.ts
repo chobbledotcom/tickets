@@ -217,8 +217,7 @@ export const getDb = (): Client => withRoundTripGuard(dbGetter());
 export const setDb = (client: Client | null): void => dbSetter(client);
 
 /** Cast libsql ResultSet rows to a typed array (single centralized assertion) */
-export const resultRows = <T>(result: ResultSet): T[] =>
-  result.rows as unknown as T[];
+export const resultRows = <T>(result: ResultSet): T[] => result.rows as T[];
 
 /** Raised when a write can't get through because the database stays locked after
  *  the retries below — too busy. The request layer turns this into a friendly

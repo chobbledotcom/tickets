@@ -2,7 +2,6 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { resolve } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import {
   fetchQueue,
   GhFailure,
@@ -10,7 +9,10 @@ import {
   runGhCommand,
 } from "#scripts/pr-queue/gh.ts";
 import type { GraphQlPr } from "#scripts/pr-queue/types.ts";
-import { captureCommands } from "#test-utils/command-capture.ts";
+import {
+  captureCommands,
+  stubDenoCommand,
+} from "#test-utils/command-capture.ts";
 import { withTempDir } from "#test-utils/files.ts";
 import { ghSaying, queueReply } from "./fixtures.ts";
 
@@ -80,10 +82,7 @@ describe("running the gh command itself", () => {
       stdout: new TextEncoder().encode("hi"),
       success: false,
     });
-    const commandNamespace = Deno as unknown as {
-      Command: typeof captured.Command;
-    };
-    using _command = stub(commandNamespace, "Command", captured.Command);
+    using _command = stubDenoCommand(captured.Command);
 
     expect(await runGhCommand(["pr", "list"])).toEqual({
       code: 2,

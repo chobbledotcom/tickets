@@ -186,3 +186,23 @@ src/ui/client/scanner.js::init~12c1xgq messageScanning→"" audited:15l0fej # th
 src/ui/client/scanner.js::init~12c1xgq Scanning...→"" audited:15l0fej # the camera page always renders data-message-scanning, so the fallback copy never shows
 src/ui/client/scanner.js::init.csrfToken~0ke2mq5 →"mutated" audited:15l0fej # the scanner page's headExtra always renders the csrf meta, so the empty fallback never fires
 
+
+# --- External order widget additions (2026-10 sessions) -------------------------
+src/ui/client/order.ts::CartController.load~1hort7n  ?? → ||   # load() wraps the filter in a try/catch: a non-array parsed value throws into the catch, which returns [], exactly what the alternate arm gives
+src/ui/client/order.ts::CartController.reconcile~0sfsfu1  <=→<   # reconcile's only caller feeds it load()'s output, already filtered to integer quantities >= 1, so the quantity half of the drop condition is false for every reachable line
+src/ui/client/order.ts::CartController.reconcile~0sfsfu1  0→-1   # every line arrived with quantity >= 1 (isCartLine), so the <= 0 arm is false either way
+src/ui/client/order.ts::CartController.add.quantity~0o3iajo  1→-1   # every call site passes parseAddQuantity()'s positive integer, so add()'s default parameter never applies
+src/ui/client/order.ts::CartController.add.quantity~0o3iajo  1→2   # the default is unreachable: the one call site always passes a positive integer
+src/ui/client/order.ts::CartController.continueUrl~0mcdhcj  0→-1   # continueUrl is read only by buildContinue, which renderBody appends only when lines.length > 0
+src/ui/client/order.ts::buildStepper~0x8lb2z  0→-1   # the remove button's setQuantity(slug, n) removes for any n <= 0
+src/ui/client/order.ts::buildButton.count%2etextContent~0nqcdm1  0→"0 mutated"   # the constructor's render() rewrites the count text from the live total before anything reads it
+
+# --- Embed loader additions -----------------------------------------------------
+src/ui/client/embed.ts::initEmbed.iframe%2esrc~0smhe0c  =→+=   # fresh iframe has no src attribute; the getter returns ""
+src/ui/client/embed.ts::initEmbed.parentScript%2esrc~0fzfrm7  =→+=   # fresh script has no src attribute; the getter returns ""
+src/ui/client/embed.ts::initEmbed.iframe%2estyle%2eborder~0jzb6gh  =→+=   # a fresh element's style declaration is empty, so "" + "none" === "none"
+src/ui/client/embed.ts::initEmbed.iframe%2estyle%2ewidth~1dq2brj  =→+=   # a fresh element's style declaration is empty, so "" + "100%" === "100%"
+
+# --- Admin attendee merge additions ---------------------------------------------
+src/features/admin/attendees-merge.ts::loadMergeSource~1mk8jvg  false→true   # decryptPiiBlob's paidListing arg only fills payment_id, which loadMergeSource drops
+src/features/admin/attendees-merge.ts::oneChoiceOf~16ss0cv  ??→||   # find returns a member of a non-empty known list or undefined; both fallbacks agree

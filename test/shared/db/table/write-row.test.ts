@@ -1,4 +1,3 @@
-import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -80,7 +79,7 @@ describeWithEnv("db > writeTableRow", { db: true }, () => {
       const result = await realExecute(
         ...(args as Parameters<typeof realExecute>),
       );
-      return { ...result, lastInsertRowid: undefined } as unknown as ResultSet;
+      return { ...result, lastInsertRowid: undefined };
     });
 
     const row = await table.insert({ name: "Named" });

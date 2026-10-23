@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { initManualCheckin } from "#src/ui/client/admin/manual-checkin.ts";
+import { fireEvent } from "#test-utils/happy-dom.ts";
 import { useManualCheckinPage } from "./fixture.ts";
 
 describe("manual check-in combobox", () => {
@@ -15,9 +16,7 @@ describe("manual check-in combobox", () => {
     const page = setup();
     page.input.focus();
     page.input.value = "a";
-    page.input.dispatchEvent(
-      new page.window.Event("input") as unknown as Event,
-    );
+    fireEvent(page.input, new page.window.Event("input"));
 
     const first = page.keydown("ArrowDown");
     expect(first.defaultPrevented).toBe(true);
@@ -47,9 +46,7 @@ describe("manual check-in combobox", () => {
     page.input.focus();
     page.keydown("ArrowDown");
     page.input.value = "missing";
-    page.input.dispatchEvent(
-      new page.window.Event("input") as unknown as Event,
-    );
+    fireEvent(page.input, new page.window.Event("input"));
 
     const arrow = page.keydown("ArrowDown");
 
@@ -63,9 +60,7 @@ describe("manual check-in combobox", () => {
     page.attendeeIdInput.value = "11";
     page.input.value = "Bea";
 
-    page.input.dispatchEvent(
-      new page.window.Event("input") as unknown as Event,
-    );
+    fireEvent(page.input, new page.window.Event("input"));
 
     expect(page.attendeeIdInput.value).toBe("");
     expect(page.listbox.classList.contains("hidden")).toBe(true);
@@ -83,9 +78,7 @@ describe("manual check-in combobox", () => {
     page.input.focus();
     page.input.value = "mutated";
 
-    page.input.dispatchEvent(
-      new page.window.Event("input") as unknown as Event,
-    );
+    fireEvent(page.input, new page.window.Event("input"));
 
     expect(option.classList.contains("hidden")).toBe(true);
     expect(page.listbox.classList.contains("hidden")).toBe(true);
@@ -97,14 +90,10 @@ describe("manual check-in combobox", () => {
     expect(page.listbox.classList.contains("hidden")).toBe(false);
     expect(page.input.getAttribute("aria-expanded")).toBe("true");
 
-    page.input.dispatchEvent(
-      new page.window.Event("click", { bubbles: true }) as unknown as Event,
-    );
+    fireEvent(page.input, new page.window.Event("click", { bubbles: true }));
     expect(page.listbox.classList.contains("hidden")).toBe(false);
 
-    page.listbox.dispatchEvent(
-      new page.window.Event("click", { bubbles: true }) as unknown as Event,
-    );
+    fireEvent(page.listbox, new page.window.Event("click", { bubbles: true }));
     expect(page.listbox.classList.contains("hidden")).toBe(false);
 
     page.window.document.body.dispatchEvent(
@@ -121,9 +110,7 @@ describe("manual check-in combobox", () => {
       "[data-attendee-id='12']",
     )!;
 
-    option.dispatchEvent(
-      new page.window.Event("click", { bubbles: true }) as unknown as Event,
-    );
+    fireEvent(option, new page.window.Event("click", { bubbles: true }));
 
     expect(page.attendeeIdInput.value).toBe("12");
     expect(page.input.value).toBe("Bea (1 pass)");
@@ -150,9 +137,7 @@ describe("manual check-in combobox", () => {
       "[data-attendee-id='12']",
     )!;
 
-    option.dispatchEvent(
-      new page.window.Event("click", { bubbles: true }) as unknown as Event,
-    );
+    fireEvent(option, new page.window.Event("click", { bubbles: true }));
 
     expect(page.input.value).toBe("Bea (1 ticket)");
   });

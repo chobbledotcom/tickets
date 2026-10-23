@@ -18,7 +18,6 @@ import type {
 } from "#payment/provider-read.ts";
 import {
   judgeThrough,
-  parsedBy,
   type Rung,
   refuseUnless,
 } from "#payment/provider-resource-read.ts";
@@ -180,7 +179,7 @@ type ReadCheckout = {
 };
 
 const readCheckout = (body: unknown): ReadCheckout | null => {
-  const checkout = parsedBy(WireCheckoutSchema)(body);
+  const checkout = parseOrNull(WireCheckoutSchema, body);
   if (checkout === null) return null;
   return {
     checkout,

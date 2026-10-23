@@ -33,8 +33,10 @@ const isUnknownDoubleCast = (node: Record<string, unknown>): boolean => {
   if (node.type !== "TSAsExpression") return false;
   const inner = node.expression as Record<string, unknown> | undefined;
   if (inner?.type !== "TSAsExpression") return false;
-  return (inner.typeAnnotation as Record<string, unknown> | undefined)
-    ?.type === "TSUnknownKeyword";
+  return (
+    (inner.typeAnnotation as Record<string, unknown> | undefined)?.type ===
+    "TSUnknownKeyword"
+  );
 };
 
 /** Every `as unknown as` cast in one file's content, in source order. */
@@ -79,7 +81,8 @@ export const findIssues = (
       {
         fix: `lower the entry in ${BASELINE}`,
         line: 1,
-        problem: `holds ${casts.length} double casts, down from the recorded ` +
+        problem:
+          `holds ${casts.length} double casts, down from the recorded ` +
           recorded,
         rule: "improved",
       },

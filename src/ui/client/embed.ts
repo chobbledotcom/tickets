@@ -2,6 +2,8 @@
 /// <reference lib="dom.iterable" />
 /** Embed loader: creates an iframe and wires iframe-resizer. */
 
+import "#src/ui/client/window-globals.ts";
+
 (() => {
   const script = document.currentScript as HTMLScriptElement;
   const listings = script.dataset.listings!.split(/[+,]/);
@@ -26,17 +28,7 @@
 
   const initResize = () => {
     if (!scriptLoaded || !iframeLoaded) return;
-    const iframeResize = (
-      window as unknown as {
-        iframeResize: (
-          options: {
-            license: string;
-          },
-          target: HTMLIFrameElement,
-        ) => void;
-      }
-    ).iframeResize;
-    iframeResize(
+    window.iframeResize(
       {
         license: "GPLv3",
       },

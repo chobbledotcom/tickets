@@ -20,6 +20,7 @@ import {
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 import {
   checkoutSessionEvent,
   expectWebhookProcessed,

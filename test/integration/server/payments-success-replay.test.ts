@@ -14,6 +14,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 
 // jscpd:ignore-end
 

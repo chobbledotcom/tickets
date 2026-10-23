@@ -8,7 +8,10 @@ import {
 } from "#payment/validated-session.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { BLANK_SESSION_METADATA } from "#test-utils/payment-session.ts";
+import {
+  BLANK_SESSION_METADATA,
+  wireMetadata,
+} from "#test-utils/payment-session.ts";
 
 /**
  * The provider boundary: every paid session the live callbacks read is built by
@@ -193,13 +196,13 @@ describe("validatedPaymentSession", () => {
       ...basePaid,
       amountTotal: 10.5,
       currency: "GBP",
-      metadata: {
+      metadata: wireMetadata({
         b: JSON.stringify({ date: "2026-08-01", phone: "07700900000" }),
         email: "a@example.com",
         items: "[]",
         name: "Alice",
         price_proof: "500.sig",
-      } as unknown as SessionMetadata,
+      }),
     });
     expect(isSessionRejection(build)).toBe(true);
     if (!isSessionRejection(build)) return;

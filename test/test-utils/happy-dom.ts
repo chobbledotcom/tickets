@@ -100,3 +100,31 @@ export const createDomInstaller = (
     },
   };
 };
+
+/**
+ * The one element the selector must name, as the given element type. Throws
+ * naming the selector when the page lacks it, so a wrong selector fails here
+ * instead of a `null` flowing on as a confusing `TypeError` later. The root
+ * is structural so both a real document and a scoped element work.
+ */
+export const requireElement = <T extends Element>(
+  root: { querySelector(selector: string): Element | null },
+  selector: string,
+): T => {
+  const el = root.querySelector(selector) as T | null;
+  if (!el) throw new Error(`The page carries no ${selector}`);
+  return el;
+};
+
+/**
+ * Fire a happy-dom event at an element. Client code is compiled against the
+ * DOM lib's `Event`, happy-dom declares its own — the two describe the same
+ * runtime shape, so the element's own `dispatchEvent` takes the event as is.
+ * One name here instead of a cast at every dispatch.
+ */
+export const fireEvent = (
+  target: { dispatchEvent(event: unknown): unknown },
+  event: unknown,
+): void => {
+  target.dispatchEvent(event);
+};

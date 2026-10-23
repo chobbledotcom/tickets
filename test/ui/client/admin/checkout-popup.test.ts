@@ -12,6 +12,7 @@ import { initCheckoutPopup } from "#src/ui/client/admin/checkout-popup.ts";
 import {
   createDomInstaller,
   createGlobalStash,
+  requireElement,
 } from "#test-utils/happy-dom.ts";
 
 const ORIGIN = "https://admin.test";
@@ -36,28 +37,23 @@ const POPUP_HTML = `
     </div>
   </div>`;
 
-/** The parts of the popup page these tests drive. */
-type PopupElement = {
-  click: () => void;
-  hidden: boolean;
-  parentElement: PopupElement;
-};
-
 /** Stub `window.open` to hand back `popup`, press the Pay Now link, and hand
  *  back the Pay row and the waiting box. */
 const pressPay = (
   window: Window,
   popup: { closed: boolean },
-): { pay: PopupElement; waiting: PopupElement } => {
+): { pay: HTMLElement; waiting: HTMLElement } => {
   window.open = (() => popup) as typeof window.open;
-  const anchor = window.document.querySelector(
+  const anchor = requireElement<HTMLElement>(
+    window.document,
     "[data-open-checkout]",
-  ) as unknown as PopupElement;
-  const waiting = window.document.querySelector(
+  );
+  const waiting = requireElement<HTMLElement>(
+    window.document,
     "[data-checkout-waiting]",
-  ) as unknown as PopupElement;
+  );
   anchor.click();
-  return { pay: anchor.parentElement, waiting };
+  return { pay: anchor.parentElement as HTMLElement, waiting };
 };
 
 describe("the checkout popup", () => {

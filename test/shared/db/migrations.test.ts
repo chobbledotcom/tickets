@@ -1,6 +1,7 @@
 import {
   type Client,
   createClient,
+  type Replicated,
   type ResultSet,
   type TransactionMode,
 } from "@libsql/client";
@@ -28,6 +29,10 @@ import {
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  stubClient,
+  stubResultSet,
+} from "#test-utils/db-helpers/result-set.ts";
+import {
   appliedMigrationIds,
   assertSchemaEmpty,
   schemaMarkerKeys,
@@ -43,20 +48,8 @@ import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 const MIGRATIONS = await loadMigrations();
 describeWithEnv("db > migrations", { db: true }, () => {
   describe("initDb version check", () => {
-    const resultSet = (
-      rows: Record<string, unknown>[],
-      rowsAffected = 0,
-    ): ResultSet => ({
-      columns: [],
-      columnTypes: [],
-      lastInsertRowid: undefined,
-      rows: rows as unknown as ResultSet["rows"],
-      rowsAffected,
-      toJSON: () => ({}),
-    });
-
     const mockClient = (execute: Client["execute"]): Client =>
-      ({
+      stubClient({
         batch: (_statements: never[], _mode?: TransactionMode) =>
           Promise.reject(new Error("unexpected batch")),
         close: () => undefined,
@@ -65,9 +58,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
           Promise.reject(new Error("unexpected executeMultiple")),
         migrate: () => Promise.reject(new Error("unexpected migrate")),
         protocol: "file",
-        sync: () => Promise.resolve(),
+        sync: () => Promise.resolve({} as Replicated),
         transaction: () => Promise.reject(new Error("unexpected transaction")),
-      }) as unknown as Client;
+      });
 
     const mockMigrationClient = (
       route: (sql: string) => Promise<ResultSet> | undefined,
@@ -453,7 +446,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
         mockMigrationClient((sql) => {
           if (sql.includes("FROM settings")) {
             return Promise.resolve(
-              resultSet([
+              stubResultSet([
                 { key: "latest_db_update", value: "stale" },
                 { key: "db_schema_hash", value: "stale" },
               ]),

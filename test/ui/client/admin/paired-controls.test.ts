@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { initPairedControls } from "#src/ui/client/admin/paired-controls.ts";
-import { createDomInstaller } from "#test-utils/happy-dom.ts";
+import { createDomInstaller, requireElement } from "#test-utils/happy-dom.ts";
 
 describe("paired controls", () => {
   const dom = createDomInstaller();
@@ -26,9 +26,10 @@ describe("paired controls", () => {
     initPairedControls();
     initPairedControls();
     const input = (name: string) =>
-      window.document.querySelector(
+      requireElement<HTMLInputElement>(
+        window.document,
         `input[name="${name}"]`,
-      ) as unknown as HTMLInputElement;
+      );
     return {
       paid: input("is_paid_default"),
       reservation: input("is_reservation"),
@@ -40,12 +41,10 @@ describe("paired controls", () => {
   const whyHolder = (control: HTMLInputElement) => {
     control.checked = true;
     control.dispatchEvent(new Event("change"));
-    return control
-      .closest("label")!
-      .querySelector(".exclusive-why") as unknown as {
-      hidden: boolean;
-      textContent: string | null;
-    };
+    return requireElement<HTMLElement>(
+      control.closest("label")!,
+      ".exclusive-why",
+    );
   };
 
   test("holding one control of a pair disables the counterpart and shows why", () => {
@@ -59,9 +58,10 @@ describe("paired controls", () => {
     expect(why.hidden).toBe(false);
     expect(why.textContent).toBe("A paid status can't also be a reservation");
     // Only the held side shows why; the freed side's holder stays hidden.
-    const reservationWhy = reservation
-      .closest("label")!
-      .querySelector(".exclusive-why") as unknown as { hidden: boolean };
+    const reservationWhy = requireElement<HTMLElement>(
+      reservation.closest("label")!,
+      ".exclusive-why",
+    );
     expect(reservationWhy.hidden).toBe(true);
 
     paid.checked = false;
@@ -81,9 +81,10 @@ describe("paired controls", () => {
 
     initPairedControls();
 
-    const lonely = window.document.querySelector(
+    const lonely = requireElement<HTMLInputElement>(
+      window.document,
       'input[name="lonely"]',
-    ) as unknown as HTMLInputElement;
+    );
     expect(lonely.disabled).toBe(false);
     expect(lonely.closest("label")!.querySelector(".exclusive-why")).toBeNull();
   });
@@ -100,9 +101,10 @@ describe("paired controls", () => {
 
     initPairedControls();
 
-    const days = window.document.querySelector(
+    const days = requireElement<HTMLInputElement>(
+      window.document,
       'input[name="customisable_days"]',
-    ) as unknown as HTMLInputElement;
+    );
     expect(whyHolder(days).textContent).toBe("");
   });
 
@@ -119,9 +121,10 @@ describe("paired controls", () => {
 
     initPairedControls();
 
-    const payMore = window.document.querySelector(
+    const payMore = requireElement<HTMLInputElement>(
+      window.document,
       'input[name="can_pay_more"]',
-    ) as unknown as HTMLInputElement;
+    );
     expect(payMore.disabled).toBe(true);
   });
 
@@ -142,9 +145,10 @@ describe("paired controls", () => {
     initPairedControls();
 
     const pick = (name: string) =>
-      window.document.querySelector(
+      requireElement<HTMLInputElement>(
+        window.document,
         `input[name="${name}"]`,
-      ) as unknown as HTMLInputElement;
+      );
     // Disabling in both directions would lock the pair until a reload, so
     // the server-rendered conflict stays editable and its flash explains it.
     const reservation = pick("is_reservation");

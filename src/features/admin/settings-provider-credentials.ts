@@ -98,9 +98,9 @@ export const defineProviderCredentialsRoute = <T>(
         form,
         PAYMENT_PROVIDERS[cfg.provider].secretField,
       );
-      const fields = cfg.extraFields
-        ? cfg.extraFields(form)
-        : (undefined as unknown as T);
+      // A provider without extra fields carries no fields: it declares
+      // `T = undefined` (see stripeRoutes), so the assertion is exact there.
+      const fields = cfg.extraFields ? cfg.extraFields(form) : (undefined as T);
 
       const settingsFlash = (message: string): Response =>
         redirect(SETTINGS_PATH, message, true, { formId });

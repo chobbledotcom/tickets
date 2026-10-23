@@ -75,4 +75,4 @@ export const buildRuntimeInfo = (g: RuntimeGlobals): RuntimeInfo => {
 
 /** Collect runtime info from the current global scope. */
 export const getRuntimeInfo = (): RuntimeInfo =>
-  buildRuntimeInfo(globalThis as unknown as RuntimeGlobals);
+  buildRuntimeInfo(globalThis as RuntimeGlobals);

@@ -13,7 +13,11 @@ import {
   type MapLibrary,
   readMapPin,
 } from "#src/ui/client/admin/logistics-map.ts";
-import { createDomInstaller } from "#test-utils/happy-dom.ts";
+import {
+  createDomInstaller,
+  fireEvent,
+  requireElement,
+} from "#test-utils/happy-dom.ts";
 
 const { installDom, cleanup } = createDomInstaller();
 
@@ -64,10 +68,13 @@ const setup = (lat: string, lng: string) => {
   initLogisticsMap(library);
   const doc = window.document;
   const setInput = (name: string, value: string): void => {
-    const input = doc.querySelector(`input[name="${name}"]`)!;
+    const input = requireElement<HTMLInputElement>(
+      doc,
+      `input[name="${name}"]`,
+    );
     input.setAttribute("value", value);
-    (input as unknown as { value: string }).value = value;
-    input.dispatchEvent(new window.Event("input", { bubbles: true }));
+    input.value = value;
+    fireEvent(input, new window.Event("input", { bubbles: true }));
   };
   return {
     calls,

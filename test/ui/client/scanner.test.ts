@@ -16,8 +16,142 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { el, useScannerSuite } from "./scanner/fixture.ts";
+import { createGlobalStash, requireElement } from "#test-utils/happy-dom.ts";
 
+const MODULE_MARKER = "__scannerModule";
+
+interface ScannerModule {
+  extractToken: (data: string) => string | null;
+  handleResult: (
+    el: HTMLElement,
+    result: Record<string, unknown>,
+    messages: Record<string, string | undefined>,
+  ) => void;
+  postScan: (
+    scanPath: string,
+    token: string,
+    csrfToken: string,
+    choices?: { force?: boolean; idVerified?: boolean },
+  ) => Promise<Record<string, unknown>>;
+  showConfirm: (message: string) => Promise<boolean>;
+}
+
+interface ScannerHarness {
+  cleanup(): Promise<void>;
+  confirm: {
+    close: HTMLElement;
+    message: HTMLElement;
+    no: HTMLElement;
+    yes: HTMLElement;
+  };
+  document: Window["document"];
+  messages: Record<string, string | undefined>;
+  module: ScannerModule;
+  restore: () => void;
+  statusEl: HTMLElement;
+  video: HTMLVideoElement;
+  window: Window;
+}
+
+/** The built bundle's export tail, rewritten as a global assignment: each
+ * `export { internal as name }` becomes `name: internal`, an object the test
+ * can reach (a function body can't carry `export`). */
+const runBundleOnce = (): void => {
+  const bundle = Deno.readTextFileSync("src/ui/static/scanner.js").replace(
+    /export\s*\{([^}]*)\}\s*;?\s*$/,
+    (_all, list: string) => {
+      const pairs = list.split(",").map((one) => {
+        const [internal, exported] = one.trim().split(/\s+as\s+/);
+        const name = exported ?? internal ?? "";
+        return `${name.trim()}:${internal?.trim() ?? ""}`;
+      });
+      return `;globalThis.${MODULE_MARKER}={${pairs.join(",")}};`;
+    },
+  );
+  new Function(bundle)();
+};
+
+/** The scanner page's own markup, as the template renders it: the messages
+ * the container carries, the camera, the status line, and the start button. */
+const SCANNER_PAGE = `
+  <meta name="csrf-token" content="csrf-page-token" />
+  <div
+    data-message-already-checked-in="{name} already checked in for {listingName} ({tickets})"
+    data-message-checked-in="{name} checked in for {listingName} ({tickets})"
+    data-message-camera-denied="Camera access denied"
+    data-message-error="Error"
+    data-message-id-mismatch="ID does not match {name}"
+    data-message-invalid-qr="Invalid QR code"
+    data-message-network-error="Network error"
+    data-message-not-found="Ticket not found"
+    data-message-refunded="{name} has been refunded"
+    data-message-scanning="Scanning..."
+    data-message-skipped="Skipped {name}"
+    data-message-ticket-count-one="{count} ticket"
+    data-message-ticket-count-other="{count} tickets"
+    data-message-verify-id-confirm="Does their ID match {name}?"
+    data-message-wrong-listing-confirm="{name} is registered for {listingName}. Check in anyway?"
+    id="scanner-container"
+  >
+    <video data-scan-path="/admin/groups/5/scan" id="scanner-video" muted playsinline></video>
+    <div id="scanner-status"></div>
+    <div id="scanner-confirm">
+      <button id="scanner-confirm-close" type="button">×</button>
+      <p id="scanner-confirm-message"></p>
+      <button id="scanner-confirm-yes" type="button">Yes</button>
+      <button id="scanner-confirm-no" type="button">No</button>
+    </div>
+  </div>
+  <button id="scanner-start" type="button">Start Camera</button>
+`;
+
+const useScanner = (): ScannerHarness => {
+  const window = new Window({ url: "http://localhost/" });
+  const document = window.document;
+  document.body.innerHTML = SCANNER_PAGE;
+  const stash = createGlobalStash();
+  stash.set("document", document);
+
+  runBundleOnce();
+
+  const module = (globalThis as Record<string, unknown>)[
+    MODULE_MARKER
+  ] as ScannerModule;
+  const messages = requireElement<HTMLElement>(
+    document,
+    "#scanner-container",
+  ).dataset;
+
+  return {
+    cleanup: async (): Promise<void> => {
+      await window.happyDOM.abort();
+      window.close();
+    },
+    confirm: {
+      close: requireElement<HTMLElement>(document, "#scanner-confirm-close"),
+      message: requireElement<HTMLElement>(
+        document,
+        "#scanner-confirm-message",
+      ),
+      no: requireElement<HTMLElement>(document, "#scanner-confirm-no"),
+      yes: requireElement<HTMLElement>(document, "#scanner-confirm-yes"),
+    },
+    document,
+    messages,
+    module,
+    restore: (): void => {
+      stash.restore();
+      delete (globalThis as Record<string, unknown>)[MODULE_MARKER];
+    },
+    statusEl: requireElement<HTMLElement>(document, "#scanner-status"),
+    video: requireElement<HTMLVideoElement>(document, "#scanner-video"),
+    window,
+  };
+};
+
+// happy-dom's Window starts internal async tasks/timers that no public teardown
+// fully clears; confined to the emulated DOM, they would trip Deno's op
+// sanitizer diagnostics in the coverage runner, so this suite runs alone.
 describe("scanner bundle", {
   sanitizeOps: false,
   sanitizeResources: false,
@@ -26,7 +160,7 @@ describe("scanner bundle", {
 
   test("reacts to the camera being unavailable", async () => {
     const h = fresh();
-    el(h.document, "scanner-start").click();
+    requireElement<HTMLElement>(h.document, "#scanner-start").click();
     await h.window.happyDOM.waitUntilComplete();
 
     expect(h.statusEl.textContent).toBe("Camera access denied");

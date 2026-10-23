@@ -3,6 +3,7 @@
  */
 
 /* jscpd:ignore-start */
+import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { StoredRowOf } from "#db/chosen-columns.ts";
 import {
@@ -75,11 +76,11 @@ export type OrderedImage = Image & { sort_order: number };
  * thrown — one broken record must not take down every page that lists images).
  * The `as` cast is the same sanctioned read boundary as col.encrypted. */
 const encryptedFilenameText = (label: string): ColumnDef<NonEmptyString> =>
-  ({
-    read: (raw: string, rowId?: unknown) =>
-      decryptImageFilename(raw, `image ${String(rowId)} ${label}`),
+  col.converted<NonEmptyString>({
+    read: (raw: InValue, rowId?: unknown) =>
+      decryptImageFilename(raw as string, `image ${String(rowId)} ${label}`),
     write: (value: NonEmptyString) => encrypt(value),
-  }) as unknown as ColumnDef<NonEmptyString>;
+  });
 
 export const imagesTable = defineIdTable<Image, ImageInput>("images", {
   alt_text: col.encryptedText(encrypt, decrypt),

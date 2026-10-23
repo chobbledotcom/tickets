@@ -17,8 +17,8 @@ export const runFileLengthCheck = registryCheck(
   {
     guide: '"Keep code and test files under ~400 lines" in AGENTS.md',
     noun: "file-length",
-    success: "Every source file sits at or under the limit its list holds " +
-      "it to.",
+    success:
+      "Every source file sits at or under the limit its list holds it to.",
   },
 );
 

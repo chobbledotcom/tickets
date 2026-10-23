@@ -18,6 +18,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
+import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
 const stubRefund = (id: string, amount = 1000) => stubRefundPayment(id, amount);

@@ -3,10 +3,22 @@ import {
   type SessionRejection,
 } from "#payment/validated-session.ts";
 import type {
+  SessionMetadata,
   ValidatedPaymentSession,
   WebhookSessionResult,
 } from "#shared/payments.ts";
 import { signedMeta, webhookMeta } from "#test-utils/factories.ts";
+
+/**
+ * Provider metadata as `hasRequiredSessionMetadata` hands it through: the type
+ * claims every known key, the wire carries whatever the provider sent (packed
+ * fields included), and `extractSessionMetadata` reads an absent key and an
+ * empty value identically — so filling the defaults changes nothing it
+ * returns. The one unsafe cast lives here, not at every call site.
+ */
+export const wireMetadata = (
+  fields: Record<string, string | undefined>,
+): SessionMetadata => ({ ...fields }) as SessionMetadata;
 
 /**
  * Every metadata field the price signature covers, blank. The boundary hands

@@ -1,5 +1,4 @@
 import {
-  type Client,
   LibsqlError,
   type Transaction,
   type TransactionMode,
@@ -10,7 +9,11 @@ import { FakeTime } from "@std/testing/time";
 import { getDb, setDb, withReadSnapshot } from "#db/client.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import {
+  emptyResultSet,
+  stubClient,
+} from "#test-utils/db-helpers/result-set.ts";
+import { transactionStub } from "#test-utils/db-helpers/stub-transaction.ts";
 
 /**
  * The read snapshot's own contract: only SELECTs pass its gates, and the
@@ -65,20 +68,22 @@ describeWithEnv("db > client read snapshot", { db: true }, () => {
       "SERVER_ERROR",
     );
     let transactions = 0;
-    const failingFirst = {
+    const failingFirst = stubClient({
       transaction: (_mode?: TransactionMode) => {
         transactions += 1;
         const attempt = transactions;
         const failOr = <T>(result: Promise<T>): Promise<T> =>
           attempt === 1 ? Promise.reject(upstreamError) : result;
-        return Promise.resolve({
-          batch: (statements: unknown[]) =>
-            failOr(Promise.resolve(statements.map(() => emptyResultSet()))),
-          close: () => {},
-          execute: () => failOr(Promise.resolve(emptyResultSet())),
-        });
+        return Promise.resolve(
+          transactionStub({
+            batch: (statements: unknown[]) =>
+              failOr(Promise.resolve(statements.map(() => emptyResultSet()))),
+            close: () => {},
+            execute: () => failOr(Promise.resolve(emptyResultSet())),
+          }),
+        );
       },
-    } as unknown as Client;
+    });
     setDb(failingFirst);
     try {
       let runs = 0;

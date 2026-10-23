@@ -1,5 +1,4 @@
 import { expect } from "@std/expect";
-import { fn } from "@std/expect/fn";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { defineProviderCredentialsRoute } from "#routes/admin/settings-provider-credentials.ts";
@@ -10,6 +9,7 @@ import {
   expectRedirectWithFlash,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { mockFn } from "#test-utils/mock-fn.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
@@ -26,12 +26,10 @@ const storeProviderSecret = (): Promise<void> =>
   settings.update.stripe.secretKey("sk_test_stored_key");
 
 const makeProviderRoute = (overrides: Partial<Config> = {}) => {
-  const saveSecret = fn((_value: string, _activateFromMissing: boolean) =>
+  const saveSecret = mockFn((_value: string, _activateFromMissing: boolean) =>
     Promise.resolve(null),
-  ) as unknown as Config["saveSecret"] & ReturnType<typeof fn>;
-  const saveFields = fn((_fields: Fields) =>
-    Promise.resolve(),
-  ) as unknown as NonNullable<Config["saveFields"]> & ReturnType<typeof fn>;
+  );
+  const saveFields = mockFn((_fields: Fields) => Promise.resolve());
   const routes = defineProviderCredentialsRoute<Fields>({
     extraFields: (form) => ({ merchant: form.getString("merchant") }),
     logMessage: "Test provider credentials updated",

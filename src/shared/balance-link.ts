@@ -9,8 +9,12 @@
  * Format: bal1.{payloadB64url}.{hmacB64url}  ·  HMAC input: "balance:{payload}"
  */
 
+import * as v from "valibot";
+/* jscpd:ignore-start -- imports */
 import { defineSignedToken } from "#crypto/define-signed-token.ts";
 import { expiresIn } from "#shared/now.ts";
+import { parseOrNull } from "#shared/validation/parse.ts";
+/* jscpd:ignore-end */
 
 /** Balance links last 90 days — long enough to be a "pay when you can" link. */
 export const BALANCE_LINK_MAX_AGE_S = 90 * 24 * 60 * 60;
@@ -23,14 +27,16 @@ export type BalancePayload = {
   e: number;
 };
 
+const BalancePayloadSchema = v.strictObject({
+  a: v.number(),
+  e: v.number(),
+});
+
 /** The balance scheme: the HMAC message is bound to the payload alone. */
 const balanceToken = defineSignedToken<BalancePayload, void>({
   maxAgeS: BALANCE_LINK_MAX_AGE_S,
   message: (_context, encoded) => `balance:${encoded}`,
-  parse: (parsed) =>
-    typeof parsed.a === "number" && typeof parsed.e === "number"
-      ? (parsed as unknown as BalancePayload)
-      : null,
+  parse: (raw) => parseOrNull(BalancePayloadSchema, raw),
   prefix: "bal1.",
 });
 

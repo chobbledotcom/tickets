@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -10,12 +11,15 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
   bookingRows,
   packageChildSession,
   packageWithChild,
 } from "./helpers.ts";
+
+// jscpd:ignore-end
 
 describeWithEnv("package child configuration drift", { db: true }, () => {
   test("a child edge removed mid-checkout refunds instead of booking a stale bundle", async () => {

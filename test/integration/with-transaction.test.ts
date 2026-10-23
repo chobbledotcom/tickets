@@ -16,6 +16,8 @@ import {
 } from "#db/query-log.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { stubClient } from "#test-utils/db-helpers/result-set.ts";
+import { transactionStub } from "#test-utils/db-helpers/stub-transaction.ts";
 import {
   cleanupTestDbPath,
   createTrackedTestDbFile,
@@ -179,12 +181,12 @@ describe("withTransaction", () => {
 describe("withTransaction lock contention", () => {
   const busy = (): Error => new Error("SQLITE_BUSY: database is locked");
   const fakeTx = (): Transaction =>
-    ({
+    transactionStub({
       commit: () => Promise.resolve(),
       rollback: () => Promise.resolve(),
-    }) as unknown as Transaction;
+    });
   const clientWith = (transaction: () => Promise<Transaction>): Client =>
-    ({ transaction }) as unknown as Client;
+    stubClient({ transaction });
 
   test("retries a briefly-locked write lock, then succeeds", async () => {
     let calls = 0;
@@ -245,10 +247,10 @@ describe("withTransaction lock contention", () => {
     // A failed commit leaves the transaction in a state where rollback can itself
     // throw; that failure is swallowed so the real cause (here the commit error)
     // is what propagates — and what the retry/give-up logic keys off.
-    const tx = {
+    const tx = transactionStub({
       commit: () => Promise.reject(new Error("commit boom")),
       rollback: () => Promise.reject(new Error("rollback boom")),
-    } as unknown as Transaction;
+    });
     setDb(clientWith(() => Promise.resolve(tx)));
     try {
       let message = "";

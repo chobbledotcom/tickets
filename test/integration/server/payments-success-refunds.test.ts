@@ -24,7 +24,10 @@ import { mockRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
-import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
+import {
+  stripeIntentWithCharge,
+  stubCheckoutSession,
+} from "#test-utils/stripe/responses.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {

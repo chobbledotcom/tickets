@@ -13,6 +13,7 @@ import {
   editorKeymap,
 } from "#src/ui/client/admin/markdown-editor-setup.ts";
 import { TOOLBAR_ITEMS } from "#src/ui/client/admin/markdown-editor-toolbar.ts";
+import { fireEvent } from "#test-utils/happy-dom.ts";
 import {
   cleanup,
   enhanced,
@@ -43,9 +44,7 @@ describe("markdown editor toolbar", () => {
     expect(
       window.document.querySelector(".md-editor .md-toolbar"),
     ).not.toBeNull();
-    const buttons = [
-      ...window.document.querySelectorAll(".md-toolbar-button"),
-    ] as unknown as HTMLButtonElement[];
+    const buttons = [...window.document.querySelectorAll(".md-toolbar-button")];
     // Real <button type> matters: an empty/attr-less type defaults to "submit",
     // which would submit the surrounding form on every click.
     expect(buttons.map((b) => b.getAttribute("type"))).toEqual(
@@ -78,8 +77,8 @@ describe("markdown editor toolbar", () => {
     const event = new window.Event("mousedown", {
       bubbles: true,
       cancelable: true,
-    }) as unknown as Event;
-    toolbarButton(window, "bold").dispatchEvent(event);
+    });
+    fireEvent(toolbarButton(window, "bold"), event);
     expect(event.defaultPrevented).toBe(true);
   });
 

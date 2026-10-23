@@ -5,7 +5,7 @@
 import { pick } from "@std/collections";
 import { logActivity } from "#db/activity-log.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
-import { decryptAttendeeOrNull, decryptAttendees } from "#db/attendees/pii.ts";
+import { decryptAttendeeOrNull, decryptPiiBlob } from "#db/attendees/pii.ts";
 import {
   getAttendeeRaw,
   LISTING_ATTENDEE_ROW_COLS,
@@ -40,8 +40,9 @@ import type {
 } from "#shared/merge/attendee-merge-types.ts";
 import type { ParamsRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
+import type { ContactInfo } from "#shared/types.ts";
 import { AttendeeMergePanel } from "#templates/admin/attendees/merge-panel.tsx";
-import type { Attendee, ContactInfo } from "#types";
+import type { Attendee } from "#types";
 
 /* jscpd:ignore-end */
 
@@ -72,24 +73,18 @@ const loadMergeSource = async (
   const results = await getAttendeesByTokens([token]);
   const raw = results[0];
   if (!raw) return null;
-  const decrypted = (
-    await decryptAttendees([raw as unknown as Attendee], pk)
-  )[0]!;
+  // The token read selects only what the merge reads back: id, the queue
+  // counters, bookings and the PII blob. Opening the blob directly skips the
+  // attendee-shaped decrypt, which would fabricate columns the read never
+  // selected. paidListing stays false: no reader wants the source's payment
+  // pointer — the target keeps its own.
   return {
-    address: decrypted.address,
     bookings: raw.bookings,
-    email: decrypted.email,
     email_owed: raw.email_owed,
     email_pending: raw.email_pending,
     id: raw.id,
-    lat: decrypted.lat,
-    lng: decrypted.lng,
-    name: decrypted.name,
-    payment_id: decrypted.payment_id,
-    phone: decrypted.phone,
-    special_instructions: decrypted.special_instructions,
-    ticket_token: decrypted.ticket_token,
     webhooks_pending: raw.webhooks_pending,
+    ...(await decryptPiiBlob(raw.pii_blob, pk, false)),
   };
 };
 
@@ -158,12 +153,11 @@ const updateTargetPiiFromDecision = async (
   transaction: TxScope,
 ): Promise<void> => {
   // The (possibly-source) value of one PII field, read off the side the
-  // operator's decision names.
-  const chosen = (field: keyof MergeSourceLookup & string): string => {
+  // operator's decision names. The field is one of the five contact fields,
+  // which both sides carry as strings — no widening cast needed.
+  const chosen = (field: keyof ContactInfo): string => {
     const decisionChoice = decision.pii[field];
-    const sourceVal = source[field] as unknown as string;
-    const targetVal = target[field as keyof Attendee] as unknown as string;
-    return decisionChoice === "source" ? sourceVal : targetVal;
+    return decisionChoice === "source" ? source[field] : target[field];
   };
   // The pin follows whichever side's address the operator keeps. When the kept
   // side has no pin but the OTHER side pinned the very same address text, keep

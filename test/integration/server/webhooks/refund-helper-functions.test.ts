@@ -13,6 +13,7 @@ import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 import {
   stubRefundPayment,
   stubRetrieveCheckoutSession,

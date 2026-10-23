@@ -5,6 +5,7 @@ import {
   createDomInstaller,
   createGlobalStash,
   type DomInstaller,
+  fireEvent,
 } from "#test-utils/happy-dom.ts";
 import { rebrandedPage } from "#test-utils/rebrand-page.ts";
 
@@ -105,8 +106,8 @@ const setupManualCheckin = (
 ): ManualCheckinPage => {
   const window = dom.installDom(page);
   const scrolledIds: string[] = [];
-  window.HTMLElement.prototype.scrollIntoView = function () {
-    scrolledIds.push((this as unknown as HTMLElement).dataset.attendeeId!);
+  window.HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+    scrolledIds.push(this.dataset.attendeeId!);
   };
   initManualCheckin();
   const input = document.querySelector<HTMLInputElement>(
@@ -123,7 +124,7 @@ const setupManualCheckin = (
       cancelable: true,
       key,
     });
-    input.dispatchEvent(event as unknown as Event);
+    fireEvent(input, event);
     return event;
   };
   return {
@@ -144,7 +145,7 @@ const setupManualCheckin = (
         bubbles: true,
         cancelable: true,
       });
-      form.dispatchEvent(event as unknown as Event);
+      form.dispatchEvent(event);
       await waitUntilSettled(() => !submitButton.disabled, "the check-in");
       return event;
     },

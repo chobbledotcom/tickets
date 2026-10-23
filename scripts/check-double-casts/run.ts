@@ -20,7 +20,8 @@ export const runDoubleCastsCheck = registryCheck(
   {
     guide: '"Offensive Programming" in AGENTS.md',
     noun: "double-cast",
-    success: "No file casts through `unknown` beyond the count its baseline " +
+    success:
+      "No file casts through `unknown` beyond the count its baseline " +
       "entry holds.",
   },
 );
