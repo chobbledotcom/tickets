@@ -1,3 +1,5 @@
+/* jscpd:ignore-start -- imports */
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -16,6 +18,8 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+
+/* jscpd:ignore-end */
 
 /** Assert every package member's most recent booking landed on `date` and
  *  carries the package's group id — the shared check for a dated package
@@ -381,9 +385,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           }),
         );
         const page = await response.text();
-        expect(page).toContain("Staff diagnostics");
-        expect(page).toContain("cs_staff_unpaid");
-        expect(page).toContain("unpaid");
+        assertStringIncludes(page, "Staff diagnostics");
+        assertStringIncludes(page, "cs_staff_unpaid");
+        assertStringIncludes(page, "unpaid");
       } finally {
         mockRetrieve.restore();
       }

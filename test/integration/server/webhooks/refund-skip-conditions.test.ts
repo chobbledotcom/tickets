@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -187,7 +188,10 @@ describeWithEnv(
         // The payment has a reference but the refund couldn't go through (no
         // provider), so it is retryable: 5xx for the provider to re-deliver once
         // reconfigured, rather than ack a still-charged customer.
-        expect(await postWebhookForRetry()).toContain("no longer accepting");
+        assertStringIncludes(
+          await postWebhookForRetry(),
+          "no longer accepting",
+        );
       } finally {
         mockVerify.restore();
       }
