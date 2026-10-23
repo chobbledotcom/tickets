@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { flashConsumed } from "#shared/flash-context.ts";
@@ -7,8 +8,8 @@ import { withRequestContext } from "#test-utils/request-context.ts";
 describe("Flash", () => {
   test("renders a success message inside a success alert", () => {
     const html = String(Flash({ success: "Saved" }));
-    expect(html).toContain('class="success"');
-    expect(html).toContain("Saved");
+    assertStringIncludes(html, 'class="success"');
+    assertStringIncludes(html, "Saved");
   });
 
   test("consumes the request flash for any single flash kind", () => {
@@ -17,7 +18,7 @@ describe("Flash", () => {
     for (const field of ["error", "success", "info"] as const) {
       withRequestContext(() => {
         const html = String(Flash({ [field]: "Message" }));
-        expect(html).toContain("Message");
+        assertStringIncludes(html, "Message");
         expect(flashConsumed()).toBe(true);
       });
     }
@@ -32,26 +33,26 @@ describe("Flash", () => {
 
   test("renders an info message inside an info alert", () => {
     const html = String(Flash({ info: "Heads up" }));
-    expect(html).toContain('class="info"');
-    expect(html).toContain("Heads up");
+    assertStringIncludes(html, 'class="info"');
+    assertStringIncludes(html, "Heads up");
   });
 
   test("renders an error message inside the error alert", () => {
     const html = String(Flash({ error: "Bad" }));
-    expect(html).toContain("Bad");
+    assertStringIncludes(html, "Bad");
   });
 
   test("renders nothing when no field carries a message", () => {
     const html = String(Flash({}));
-    expect(html).not.toContain('class="success"');
-    expect(html).not.toContain('class="info"');
-    expect(html).not.toContain("alert");
+    assert(!html.includes('class="success"'));
+    assert(!html.includes('class="info"'));
+    assert(!html.includes("alert"));
   });
 });
 
 describe("renderError", () => {
   test("renders the error message as text", () => {
-    expect(renderError("Payment refused")).toContain("Payment refused");
+    assertStringIncludes(renderError("Payment refused"), "Payment refused");
   });
 
   test("renders nothing when there is no error", () => {
@@ -62,8 +63,8 @@ describe("renderError", () => {
 describe("renderSuccess", () => {
   test("renders the success message inside a success alert", () => {
     const html = renderSuccess("Saved");
-    expect(html).toContain('class="success"');
-    expect(html).toContain("Saved");
+    assertStringIncludes(html, 'class="success"');
+    assertStringIncludes(html, "Saved");
   });
 
   test("renders nothing when there is no message", () => {

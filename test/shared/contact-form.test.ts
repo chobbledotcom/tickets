@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -113,10 +114,10 @@ describe("sendContactMessage", () => {
     expect(captured.url).toBe("https://api.resend.com/emails");
     expect(captured.body.to).toEqual(["owner@example.com"]);
     expect(captured.body.reply_to).toBe("visitor@external.test");
-    expect(String(captured.body.text)).toContain("Hello there");
-    expect(String(captured.body.text)).toContain("tickets.example.com");
-    expect(String(captured.body.html)).toContain("Hello there");
-    expect(String(captured.body.html)).not.toContain("spoof");
+    assertStringIncludes(String(captured.body.text), "Hello there");
+    assertStringIncludes(String(captured.body.text), "tickets.example.com");
+    assertStringIncludes(String(captured.body.html), "Hello there");
+    assert(!String(captured.body.html).includes("spoof"));
   });
 
   test("warns about spoofing the owner when the submitter shares the business email host", async () => {
@@ -135,8 +136,8 @@ describe("sendContactMessage", () => {
 
     expect(result).toBe(true);
     expect(captured.body.reply_to).toBe("sender@sending.test");
-    expect(String(captured.body.html)).toContain("spoof you");
-    expect(String(captured.body.text)).toContain("spoof you");
+    assertStringIncludes(String(captured.body.html), "spoof you");
+    assertStringIncludes(String(captured.body.text), "spoof you");
   });
 
   test("warns about spoofing the host when the submitter shares the sending email host", async () => {
@@ -155,8 +156,8 @@ describe("sendContactMessage", () => {
 
     expect(result).toBe(true);
     expect(captured.body.reply_to).toBe("sender@sending.test");
-    expect(String(captured.body.html)).toContain("spoof the host");
-    expect(String(captured.body.text)).toContain("spoof the host");
+    assertStringIncludes(String(captured.body.html), "spoof the host");
+    assertStringIncludes(String(captured.body.text), "spoof the host");
   });
 
   test("returns false when the email provider responds with an error", async () => {
@@ -178,7 +179,7 @@ describe("sendContactMessage", () => {
       "<script>x</script>",
     );
 
-    expect(String(captured.body.html)).not.toContain("<script>x</script>");
-    expect(String(captured.body.html)).toContain("&lt;script&gt;");
+    assert(!String(captured.body.html).includes("<script>x</script>"));
+    assertStringIncludes(String(captured.body.html), "&lt;script&gt;");
   });
 });

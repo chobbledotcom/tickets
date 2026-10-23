@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decrypt } from "#crypto/encryption.ts";
@@ -85,12 +86,12 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
       const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
       const anchor = await prepared.forAttendee(attendeeId);
       expect(anchor.statement.args).toHaveLength(8);
-      expect(anchor.statement.args).toContain(
+      assertArrayIncludes(anchor.statement.args, [
         await paymentReferenceIndex({
           kind: "untagged",
           reference: payment.reference,
         }),
-      );
+      ]);
 
       for (const _attempt of [1, 2]) {
         await execute(anchor.statement.sql, anchor.statement.args);
@@ -98,7 +99,7 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
 
       const rows = await anchorRows(attendeeId);
       expect(rows).toHaveLength(1);
-      expect(rows[0]!.payment_reference).not.toContain(payment.reference);
+      assert(!rows[0]!.payment_reference.includes(payment.reference));
       expect(rows[0]!.payment_reference_index).toBe(
         await paymentReferenceIndex(payment),
       );

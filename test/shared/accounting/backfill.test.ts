@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import {
@@ -283,8 +284,9 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
       const ran = getQueryLog()
         .map((entry) => entry.sql)
         .join("\n");
-      expect(ran).toContain("ORDER BY attendee.attendee_id LIMIT ?");
-      expect(ran).toContain(
+      assertStringIncludes(ran, "ORDER BY attendee.attendee_id LIMIT ?");
+      assertStringIncludes(
+        ran,
         "ORDER BY listingAttendee.attendee_id, listingAttendee.listing_id",
       );
     });

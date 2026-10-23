@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import listingPricesMigration from "#db/migrations/2026-07-01_listing_prices.ts";
@@ -33,9 +34,9 @@ describeWithEnv(
   () => {
     test("up() rebuilds every listing's base row from its unit_price", async () => {
       // The migration's own id, as the stored marker rows will say it.
-      expect(await appliedMigrationIds()).toContain(
+      assertArrayIncludes(await appliedMigrationIds(), [
         "2026-07-01_listing_prices",
-      );
+      ]);
       await expectBackfillRebuildsBaseRows(() =>
         listingPricesMigration(context).up(),
       );

@@ -1,6 +1,7 @@
 /** Direct tests for settings/fields.ts — the custom settings form fields the
  *  admin routes render and post. */
 
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_EMAIL_TEMPLATE_LENGTH } from "#db/settings/constants.ts";
@@ -89,7 +90,7 @@ describe("CUSTOM_SETTINGS_FIELDS", () => {
     };
     for (const [formId, secretField] of Object.entries(secretFields)) {
       const names = fieldsOf(formId).map((field) => field.name);
-      expect(names, formId).toContain(secretField);
+      assertArrayIncludes(names, [secretField], formId);
     }
   });
 });
