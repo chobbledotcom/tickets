@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { adminGet, makeImage } from "#test-utils/admin-images.ts";
@@ -15,9 +16,9 @@ describeWithEnv(
       const response = await adminGet("/admin/images/options");
 
       expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toContain(
-        "application/json",
-      );
+      const contentType = response.headers.get("content-type");
+      assert(contentType !== null);
+      assertStringIncludes(contentType, "application/json");
       expect(await response.json()).toEqual({
         images: [
           { id: alpha.id, name: "alpha" },
