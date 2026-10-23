@@ -394,6 +394,21 @@ describe("markdown", () => {
         "See ![A][5] now.",
       );
     });
+
+    test("keeps a picture's title when it rewrites the address", () => {
+      expect(
+        rewriteImageDestinations('See ![A](img#5 "the poster") now.', toPoster),
+      ).toBe('See ![A](/image/poster.webp "the poster") now.');
+    });
+
+    test("keeps a title that holds a closing parenthesis", () => {
+      expect(
+        rewriteImageDestinations(
+          'See ![A](img#5 "the (best) poster") now.',
+          toPoster,
+        ),
+      ).toBe('See ![A](/image/poster.webp "the (best) poster") now.');
+    });
   });
 
   describe("short-form image references", () => {

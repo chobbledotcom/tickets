@@ -194,6 +194,17 @@ describe("resolveImageReferences", () => {
     );
   });
 
+  test("resolves a titled reference and keeps its title", () => {
+    expect(
+      resolveImageReferences(
+        'Poster: ![Poster](img#5 "our (best) poster")',
+        urls,
+      ),
+    ).toBe(
+      'Poster: ![Poster](https://tickets.example/image/poster.webp "our (best) poster")',
+    );
+  });
+
   test("keeps the written form of a reference the table lacks", () => {
     expect(resolveImageReferences("See ![Poster](img#7).", urls)).toBe(
       "See ![Poster](img#7).",
