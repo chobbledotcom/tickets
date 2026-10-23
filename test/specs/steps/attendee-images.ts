@@ -81,9 +81,6 @@ When(
   },
 );
 
-/** The notes section lives inside the banner, so one picture serves both
- * checks. This check fails when the notes section is not inside the banner.
- * The notes check fails when the picture is not inside the notes section. */
 Then(
   "the banner shows the {string} picture",
   function (this: TicketsWorld, _name: string): void {

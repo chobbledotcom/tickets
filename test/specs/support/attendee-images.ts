@@ -51,8 +51,10 @@ const regionFrom = (html: string, openMarker: string, tag: string): string => {
   const openTag = `<${tag}`;
   let start = html.lastIndexOf(openTag, markerAt);
   // A match can sit inside a longer tag's name. Hold out for a real boundary.
+  // A negative fromIndex finds the tag at 0 again, so stop at the string's
+  // start.
   while (start >= 0 && !/[\s>]/.test(html[start + openTag.length] ?? "")) {
-    start = html.lastIndexOf(openTag, start - 1);
+    start = start > 0 ? html.lastIndexOf(openTag, start - 1) : -1;
   }
   if (start < 0) return "";
   const tokens = new RegExp(`<(/?)${tag}[\\s>]`, "g");
@@ -80,9 +82,9 @@ export const regionShowsPicture = (
 };
 
 /** The picture the story named, uploaded now. The world keeps it as the
- * picture the story's reference points at. The caller writes the words that
+ * picture the story's reference points at; the caller writes the words that
  * name it. */
-const uploadsAPicture = async (
+export const uploadsAPicture = async (
   world: TicketsWorld,
   name: string,
 ): Promise<NoteImage> => {
@@ -99,7 +101,7 @@ const uploadsAPicture = async (
 
 /** Someone booked onto the note listing under their own email, with a
  * picture uploaded and the note typed around the picture's reference. The
- * world remembers the person and the picture. The caller writes the note
+ * world remembers the person and the picture; the caller writes the note
  * where their story does. */
 const typedNoteWithPicture = async (
   world: TicketsWorld,
@@ -123,7 +125,7 @@ const typedNoteWithPicture = async (
 
 /** The organiser booked someone onto the note listing and wrote a note that
  * names the picture. The note goes in through the real note form, so the row
- * the site keeps is the row a browser makes. */
+ * the site keeps is the one a browser would have made. */
 export const notedAboutWithPicture = async (
   world: TicketsWorld,
   who: string,

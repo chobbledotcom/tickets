@@ -63,6 +63,7 @@ describe("Cucumber story catalog", () => {
       "pages.asking-the-host-for-help",
       "pages.hearing-from-a-visitor",
       "pages.keeping-a-page-off-the-menus",
+      "pages.previewing-formatted-text",
       "pages.telling-people-the-news",
       "pages.the-front-pages-of-the-site",
       "pages.the-menu-above-a-booking",
