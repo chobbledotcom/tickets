@@ -1,4 +1,5 @@
 /* jscpd:ignore-start -- imports */
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -104,8 +105,9 @@ describe("sumup recovery atlas", () => {
   });
 
   test("joins the machines the schema page folds over", () => {
-    expect(SCHEMA_ATLAS_MACHINES.map((machine) => machine.id)).toContain(
-      "sumup_recovery",
+    assertArrayIncludes(
+      SCHEMA_ATLAS_MACHINES.map((machine) => machine.id),
+      ["sumup_recovery"],
     );
   });
 });

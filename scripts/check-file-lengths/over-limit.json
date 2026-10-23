@@ -48,7 +48,7 @@
   "test/shared/email.test.ts": 510,
   "test/shared/maintenance/runner.test.ts": 561,
   "test/shared/sentry.test.ts": 540,
-  "test/shared/superuser.test.ts": 801,
+  "test/shared/superuser.test.ts": 800,
   "test/test-utils/assertions.ts": 701,
   "test/test-utils/mocks.ts": 569,
   "test/test-utils/parents.ts": 536,

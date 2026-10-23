@@ -4,6 +4,7 @@
  * around a failing send.
  */
 
+import { assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { spy } from "@std/testing/mock";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
@@ -113,6 +114,7 @@ export const expectOneError = (
   code: string,
 ): string | undefined => {
   expect(logs).toHaveLength(1);
-  expect(logs[0]).toContain(code);
+  assertExists(logs[0]);
+  assertStringIncludes(logs[0], code);
   return logs[0];
 };

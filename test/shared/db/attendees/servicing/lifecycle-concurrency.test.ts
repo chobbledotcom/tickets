@@ -13,6 +13,7 @@
  *     core runs; a concurrent delete must not re-insert a phantom row.
  */
 // jscpd:ignore-start
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -135,7 +136,7 @@ describeWithEnv(
       expect(rows.length).toBe(1);
       // One of the two quantities won (last writer). Both are valid; assert
       // it's one of {2, 3}, never a sum like 5.
-      expect([2, 3]).toContain(rows[0]!.quantity);
+      assertArrayIncludes([2, 3], [rows[0]!.quantity]);
     });
 
     test("a real attendee booked on a listing alongside a servicing hold is unaffected by the hold's edit", async () => {

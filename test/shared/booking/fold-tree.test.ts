@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type BuildTreeInput, buildBookingTree } from "#booking/build-tree.ts";
@@ -141,7 +142,10 @@ describe("foldBookingTree — walking the tree", () => {
     if (!fold.ok) return;
     expect(fold.allocations).toEqual([{ childId: 9, parentId: 1, qty: 2 }]);
     expect(fold.quantities.get(9)).toBe(2);
-    expect(fold.listings.map((l) => l.listing.id)).toContain(9);
+    assertArrayIncludes(
+      fold.listings.map((l) => l.listing.id),
+      [9],
+    );
   });
 
   test("a parent booked through two paths folds its children exactly once", () => {

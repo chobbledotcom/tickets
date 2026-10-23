@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -502,18 +503,16 @@ describe("generateSuperuserPassword", () => {
     const allChars = new Set(
       samplePasswords(10)(100).flatMap((pw) => pw.split("")),
     );
-    for (const c of allChars) {
-      expect(ALPHABET).toContain(c);
-    }
+    for (const c of allChars) assertStringIncludes(ALPHABET, c);
   });
 
   test("excludes ambiguous characters (0, O, I, l, 1)", () => {
     for (const pw of samplePasswords(20)(100)) {
-      expect(pw).not.toContain("0");
-      expect(pw).not.toContain("O");
-      expect(pw).not.toContain("I");
-      expect(pw).not.toContain("l");
-      expect(pw).not.toContain("1");
+      assert(!pw.includes("0"));
+      assert(!pw.includes("O"));
+      assert(!pw.includes("I"));
+      assert(!pw.includes("l"));
+      assert(!pw.includes("1"));
     }
   });
 
@@ -540,7 +539,7 @@ describe("generateSuperuserPassword", () => {
   test("handles length 1 correctly", () => {
     const result = generateSuperuserPassword(1);
     expect(result.length).toBe(1);
-    expect(ALPHABET).toContain(result);
+    assertStringIncludes(ALPHABET, result);
   });
 
   test("uses Web Crypto API (crypto.getRandomValues), not Math.random", () => {
@@ -697,7 +696,7 @@ describe("sendSuperuserCredentialsEmail", () => {
     async (): Promise<void> => {
       const { body } = await sendAndCapture();
       const content = String(body[field]);
-      for (const value of values) expect(content).toContain(value);
+      for (const value of values) assertStringIncludes(content, value);
     };
 
   test("calls sendEmail with the provided config and a correctly structured message", async () => {
@@ -741,8 +740,8 @@ describe("sendSuperuserCredentialsEmail", () => {
   test("email html body escapes an apostrophe in the username", async () => {
     const { body } = await sendAndCapture({ username: "o'brien" });
     const html = String(body.html);
-    expect(html).toContain("o&#39;brien");
-    expect(html).not.toContain("o'brien");
+    assertStringIncludes(html, "o&#39;brien");
+    assert(!html.includes("o'brien"));
   });
 
   test("email text body contains a security warning", async () => {
@@ -758,9 +757,9 @@ describe("sendSuperuserCredentialsEmail", () => {
 
   test("HTML body escapes special characters in password", async () => {
     const { body } = await sendAndCapture({ password: "abc<foo>&bar" });
-    expect(String(body.html)).toContain("&lt;");
-    expect(String(body.html)).toContain("&amp;");
-    expect(String(body.html)).not.toContain("abc<foo>");
+    assertStringIncludes(String(body.html), "&lt;");
+    assertStringIncludes(String(body.html), "&amp;");
+    assert(!String(body.html).includes("abc<foo>"));
   });
 
   const STATUS_RESULTS: { status: number; expected: boolean }[] = [

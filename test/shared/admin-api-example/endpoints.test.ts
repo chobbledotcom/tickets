@@ -2,6 +2,7 @@
  * Rules every documented endpoint follows, whichever one it is.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
@@ -121,7 +122,7 @@ describe("every documented endpoint", () => {
     for (const endpoint of allEndpoints) {
       for (const body of [endpoint.request, endpoint.response]) {
         if (body === undefined) continue;
-        expect(body).toContain("\n  ");
+        assertStringIncludes(body, "\n  ");
       }
     }
   });

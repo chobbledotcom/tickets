@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
@@ -95,11 +96,12 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
     expect(
       await transfersByAccount(attendeeAccount(PLACEHOLDER.attendeeId)),
     ).toEqual([]);
-    expect(errors.lastMessage()).toContain("E_LEDGER_POST");
-    expect(errors.lastMessage()).toContain(
+    assertStringIncludes(errors.lastMessage() ?? "", "E_LEDGER_POST");
+    assertStringIncludes(
+      errors.lastMessage() ?? "",
       "Placeholder refund ledger post failed",
     );
-    expect(errors.lastMessage()).toContain("attendee=7");
+    assertStringIncludes(errors.lastMessage() ?? "", "attendee=7");
   });
 
   test("logs and does not throw when the payment reference conflicts", async () => {
@@ -107,7 +109,7 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
     expect(
       await recordPlaceholderRefund(PLACEHOLDER, "sold_out", true),
     ).toEqual({ posted: false });
-    expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+    assertStringIncludes(errors.lastMessage() ?? "", "E_LEDGER_POST");
   });
 
   test("reports a payment-only conflict as not posted", async () => {
@@ -115,6 +117,6 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
     expect(
       await recordPlaceholderRefund(PLACEHOLDER, "charge_mismatch", false),
     ).toEqual({ posted: false });
-    expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+    assertStringIncludes(errors.lastMessage() ?? "", "E_LEDGER_POST");
   });
 });

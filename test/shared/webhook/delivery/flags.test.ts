@@ -1,3 +1,4 @@
+import { assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
@@ -102,9 +103,9 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
       return errorSpy.calls.map(({ args }) => String(args[0]));
     });
 
-    expect(expectOneError(logs, "E_DB_QUERY")).toContain(
-      "The pending-flag settle batch failed",
-    );
+    const message = expectOneError(logs, "E_DB_QUERY");
+    assertExists(message);
+    assertStringIncludes(message, "The pending-flag settle batch failed");
     // The failed settle batch leaves both flags up, and no failure activity
     // is written for a failure the raised flags represent.
     await expectFlagsAndActivity(

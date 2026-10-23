@@ -1,3 +1,4 @@
+import { assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 
 /** Assert a `{ ok: false; error }` result whose error contains `contains`. */
@@ -6,5 +7,6 @@ export const expectErrorResult = (
   contains: string,
 ): void => {
   expect(result.ok).toBe(false);
-  if (!result.ok) expect(result.error).toContain(contains);
+  assertExists(result.error);
+  assertStringIncludes(result.error, contains);
 };
