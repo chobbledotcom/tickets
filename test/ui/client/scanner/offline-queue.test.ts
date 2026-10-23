@@ -15,10 +15,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Stub } from "@std/testing/mock";
-import { fromBase64Url } from "#crypto/utils.ts";
-import { hmacHex } from "#shared/sha256.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { cameraFakes, scanFirst, start } from "./camera-fakes.ts";
+import {
+  cameraFakes,
+  scanFirst,
+  seedTicketCache,
+  start,
+  whenStatusShows,
+} from "./camera-fakes.ts";
 import {
   el,
   fullStore,
@@ -35,22 +39,6 @@ describe("scanner offline door", {
   sanitizeResources: false,
 }, () => {
   const fresh = useScannerSuite();
-
-  /** The page's own door key, as the fixture renders it. */
-  const doorKey = fromBase64Url("dGVzdC1kb296LWNhY2hlLWtleQ");
-
-  /** The door's ticket cache, stamped by the clock the scan will read. The
-   * camera fakes own the clock, so the seed lands after they do. */
-  const seedTicketCache = async (
-    h: ScannerHarness,
-    token: string,
-    storedAt: number,
-  ): Promise<void> => {
-    h.window.localStorage.setItem(
-      `scanner-tickets-${SCAN_PATH}`,
-      JSON.stringify({ hashes: [await hmacHex(doorKey, token)], storedAt }),
-    );
-  };
 
   /** Every fetch the page made, as the urls it asked for. */
   const askedUrls = (fetchStub: Stub): string[] =>
@@ -75,27 +63,6 @@ describe("scanner offline door", {
     expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe(
       left.mode,
     );
-  };
-
-  /** The real timer the camera fakes replace, captured at module load. */
-  const realSetTimeout = globalThis.setTimeout;
-
-  /** Waits for the status line over real event-loop turns: the offline
-   * digest runs on the platform's own crypto promise, which no microtask
-   * drain resolves. */
-  const whenStatusShows = async (
-    h: ScannerHarness,
-    text: string,
-  ): Promise<void> => {
-    for (
-      let turns = 0;
-      turns < 20 && h.statusEl.textContent !== text;
-      turns++
-    ) {
-      await new Promise<void>((resolve) => realSetTimeout(resolve, 0));
-      for (let hops = 0; hops < 50; hops++) await Promise.resolve();
-    }
-    expect(h.statusEl.textContent).toBe(text);
   };
 
   /** One offline scan: the camera opens with the door's cache holding the
@@ -183,7 +150,7 @@ describe("scanner offline door", {
       const h = fresh({ onLine: false });
       await scanOffline(h, TOKEN);
       await whenStatusShows(
-        h,
+        h.statusEl,
         "Ticket looks valid. It will be checked in when you are back online.",
       );
       expect(JSON.parse(String(storedQueue(h)))).toEqual([
@@ -214,7 +181,7 @@ describe("scanner offline door", {
     // The cache holds another ticket's digest; the scanned one is a stranger.
     await scanOffline(h, TOKEN, { token: "other12345" });
     await whenStatusShows(
-      h,
+      h.statusEl,
       "This ticket cannot be checked in offline. Scan it again when you are back online to see why.",
     );
     expect(storedQueue(h)).toBe(null);
@@ -228,7 +195,7 @@ describe("scanner offline door", {
     });
     await scanOffline(h, TOKEN);
     await whenStatusShows(
-      h,
+      h.statusEl,
       "This ticket is already queued. Do not let them in again.",
     );
     // The first queue item stands alone.
@@ -240,7 +207,7 @@ describe("scanner offline door", {
     fullStore(h);
     await scanOffline(h, TOKEN);
     await whenStatusShows(
-      h,
+      h.statusEl,
       "This scan was not saved. Free up space on this device, then scan it again.",
     );
     expect(h.statusEl.className).toContain("scanner-status-error");
@@ -282,7 +249,7 @@ describe("scanner offline door", {
     // cannot run offline: the door learns why the scan is refused.
     await scanOffline(h, TOKEN, null);
     await whenStatusShows(
-      h,
+      h.statusEl,
       "No offline ticket list yet. Go online and reload this page first.",
     );
     expect(h.statusEl.className).toContain("scanner-status-error");
@@ -294,7 +261,7 @@ describe("scanner offline door", {
     const h = fresh({ onLine: false });
     await scanOffline(h, TOKEN, { storedAt: Date.now() + 60_000 });
     await whenStatusShows(
-      h,
+      h.statusEl,
       "The offline ticket list has expired. Go online and reload this page.",
     );
     expect(storedQueue(h)).toBe(null);
@@ -312,7 +279,7 @@ describe("scanner offline door", {
         storedAt: Date.now() - 13 * 60 * 60 * 1000,
       });
       await whenStatusShows(
-        h,
+        h.statusEl,
         "The offline ticket list has expired. Go online and reload this page.",
       );
       // Only the page load's refresh ran; the scan itself asked for nothing.

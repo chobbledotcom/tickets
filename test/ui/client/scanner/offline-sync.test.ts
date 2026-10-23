@@ -14,8 +14,15 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { Stub } from "@std/testing/mock";
 import { type FetchResponder, stubFetch } from "#test-utils/fetch-stub.ts";
-import { cameraFakes, scanFirst, start } from "./camera-fakes.ts";
+import {
+  cameraFakes,
+  scanFirst,
+  seedTicketCache,
+  start,
+  whenStatusShows,
+} from "./camera-fakes.ts";
 import {
   el,
   fullStore,
@@ -66,6 +73,26 @@ describe("scanner offline sync", {
     expect(h.statusEl.className).toContain("scanner-status-warning");
     expect(firstRow(h).textContent).toBe("Not sent yet — still queued");
     expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
+  };
+
+  /** What one settled sync leaves: the done words, the store empty, the
+   * panel count at zero, and the check-ins the door received, in order. */
+  const expectSyncSettled = async (
+    h: ScannerHarness,
+    wait: (target: HTMLElement, text: string) => Promise<void>,
+    fetchStub: Stub,
+    postedTokens: string[],
+  ): Promise<void> => {
+    await wait(h.statusEl, "Queued tickets are done.");
+    expect(storedQueue(h)).toBe("[]");
+    expect(el(h.document, "scanner-queue-summary").textContent).toBe(
+      "0 queued check-ins",
+    );
+    expect(
+      fetchStub.calls
+        .filter((call) => String(call.args[0]) === SCAN_PATH)
+        .map((call) => JSON.parse(String(call.args[1]?.body)).token),
+    ).toEqual(postedTokens);
   };
 
   /** The queued check-ins one reload settles, oldest first. */
@@ -196,6 +223,104 @@ describe("scanner offline sync", {
     expect(storedQueue(h)).toBe("[]");
   });
 
+  test("retries the queue when the connection returns during a sync", async () => {
+    // The page-load sync waits on the door's answer. The connection drops
+    // and returns while that answer is still pending, so the online ask
+    // arrives mid-run: it must not die with the run it interrupted.
+    const dropped = Promise.withResolvers<Response>();
+    let posts = 0;
+    const fetchStub = stubFetch((url) => {
+      if (String(url).endsWith("-cache")) {
+        return Response.json({ hashes: [] });
+      }
+      posts += 1;
+      return posts === 1 ? dropped.promise : settledCheckIn();
+    });
+    try {
+      const h = fresh(queueSeeded());
+
+      h.stash.set("navigator", { onLine: false });
+      h.window.dispatchEvent(new h.window.Event("offline"));
+      h.stash.set("navigator", { onLine: true });
+      h.window.dispatchEvent(new h.window.Event("online"));
+
+      // The run's own answer dies with the connection, and the ask the
+      // returning connection made now settles the queue.
+      dropped.reject(new Error("connection dropped"));
+      await expectSyncSettled(h, whenTextShows, fetchStub, [TOKEN, TOKEN]);
+      expect(firstRow(h).textContent).toBe("Checked in");
+    } finally {
+      fetchStub.restore();
+    }
+  });
+
+  test("settles a scan queued while the sync is already running", async () => {
+    // The sync waits on the queued check-in's answer, and the scan's digest
+    // waits on the platform's crypto. Both gates stage the reachable order:
+    // the sync starts while the scan is still digesting its token.
+    const answerGate = Promise.withResolvers<void>();
+    const digestGate = Promise.withResolvers<void>();
+    const realSign = globalThis.crypto.subtle.sign.bind(
+      globalThis.crypto.subtle,
+    );
+    const holdDigest = ((
+      algorithm: AlgorithmIdentifier,
+      key: CryptoKey,
+      data: BufferSource,
+    ) =>
+      digestGate.promise.then(() =>
+        realSign(algorithm, key, data),
+      )) as typeof globalThis.crypto.subtle.sign;
+    const fetchStub = stubFetch((url) => {
+      if (String(url).endsWith("-cache")) {
+        return Response.json({ hashes: [] });
+      }
+      return answerGate.promise.then(settledCheckIn);
+    });
+    try {
+      const h = fresh({
+        onLine: false,
+        seed: (store) =>
+          store.setItem("scanner-queue", JSON.stringify([queuedItem])),
+      });
+      using fakes = cameraFakes(h);
+      fakes.ready(4);
+      // The scan's own token, not the queued one: the queue refuses a
+      // ticket it already holds.
+      const scanToken = "tokB67890";
+      await seedTicketCache(h, scanToken, Date.now());
+      // The seed's digest is in. From here the scan's own digest waits on
+      // the gate the test opens.
+      globalThis.crypto.subtle.sign = holdDigest;
+      await start(h);
+      await scanFirst(fakes, scanToken);
+
+      // The connection returns and the sync starts while the scan is still
+      // digesting. The digest then comes back, and the new check-in must
+      // join the rows the running sync settles instead of a rebuild that
+      // detaches them.
+      h.stash.set("navigator", { onLine: true });
+      h.window.dispatchEvent(new h.window.Event("online"));
+      digestGate.resolve();
+      await whenStatusShows(
+        h.statusEl,
+        "Ticket looks valid. It will be checked in when you are back online.",
+      );
+      answerGate.resolve();
+
+      // The running sync settles the queued check-in and the new one: both
+      // rows read their answer, the store empties, and the panel agrees.
+      await expectSyncSettled(h, whenStatusShows, fetchStub, [
+        TOKEN,
+        scanToken,
+      ]);
+      expect(rowWords(h)).toEqual(["Checked in", "Checked in"]);
+    } finally {
+      globalThis.crypto.subtle.sign = realSign;
+      fetchStub.restore();
+    }
+  });
+
   test("stops the sync and names the store when a settled check-in will not save", async () => {
     using _fetch = stubFetch(settledCheckIn);
     const h = fresh(queueSeeded());
@@ -249,7 +374,11 @@ describe("scanner offline sync", {
         seed: (store) =>
           store.setItem("scanner-queue", queuedItems(["tok1", "tok2", "tok3"])),
       });
-      await whenTextShows(h.statusEl, "Queued tickets are done.");
+      await expectSyncSettled(h, whenTextShows, fetchStub, [
+        "tok1",
+        "tok2",
+        "tok3",
+      ]);
 
       // Each row carries its own answer's words, oldest queue item first.
       expect(rowWords(h)).toEqual([
@@ -257,16 +386,6 @@ describe("scanner offline sync", {
         "Refunded — not checked in",
         "Ticket not found",
       ]);
-      expect(storedQueue(h)).toBe("[]");
-      expect(el(h.document, "scanner-queue-summary").textContent).toBe(
-        "0 queued check-ins",
-      );
-      // The replay sent each queued ticket to the door it was scanned at.
-      expect(
-        fetchStub.calls
-          .filter((call) => String(call.args[0]) === SCAN_PATH)
-          .map((call) => JSON.parse(String(call.args[1]?.body)).token),
-      ).toEqual(["tok1", "tok2", "tok3"]);
     } finally {
       fetchStub.restore();
     }
@@ -301,13 +420,16 @@ describe("scanner offline sync", {
     );
     el(h.document, "scanner-quantity-cancel").click();
 
-    await whenTextShows(h.statusEl, "Queued tickets are done.");
+    await expectSyncSettled(h, whenTextShows, fetchStub, [
+      "tok1",
+      "tok2",
+      "tok3",
+    ]);
     expect(rowWords(h)).toEqual([
       "This ticket has no door to check in at.",
       "Not checked in",
       "Not checked in",
     ]);
-    expect(storedQueue(h)).toBe("[]");
     // A declined ask is the end: no re-scan went out for any of them.
     expect(
       fetchStub.calls.filter((call) => String(call.args[0]) === SCAN_PATH)
