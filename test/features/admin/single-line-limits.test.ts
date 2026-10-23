@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -55,7 +56,8 @@ describe("single-line form limits", () => {
       });
 
       test(`${label} renders the declared cap for ${field}`, () => {
-        expect(inputNamed(form.render(), field)).toContain(
+        assertStringIncludes(
+          inputNamed(form.render(), field),
           `maxlength="${cap}"`,
         );
       });

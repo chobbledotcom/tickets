@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { logActivities } from "#db/activity-log.ts";
@@ -49,24 +50,28 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
 
     test("highlights the backup navigation link", async () => {
       const html = await (await adminGet("/admin/backup")).text();
-      expect(html).toContain('class="active" href="/admin/backup"');
+      assertStringIncludes(html, 'class="active" href="/admin/backup"');
     });
 
     test("shows the encryption key", async () => {
       const html = await (await adminGet("/admin/backup")).text();
-      expect(html).toContain("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
+      assertStringIncludes(
+        html,
+        "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+      );
     });
 
     test("shows storage not configured when disabled", async () => {
       await withStorageDisabled(async () => {
         const html = await (await adminGet("/admin/backup")).text();
-        expect(html).toContain("Storage is not configured");
+        assertStringIncludes(html, "Storage is not configured");
       });
     });
 
     test("shows where backups are stored", async () => {
       const html = await (await adminGet("/admin/backup")).text();
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `Backups for this database live in the ${backupDir()} folder.`,
       );
     });
@@ -82,13 +87,15 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
           const html = await (await adminGet("/admin/backup")).text();
           // The key and restore instructions still render, but the failure is
           // named instead of masquerading as an empty backup list.
-          expect(html).toContain("deno task restore");
-          expect(html).toContain(
+          assertStringIncludes(html, "deno task restore");
+          assertStringIncludes(
+            html,
             "Could not read the list of backups: list failed",
           );
-          expect(html).not.toContain("No backups found");
+          assert(!html.includes("No backups found"));
           // Under Bunny storage the page also names the zone it reads.
-          expect(html).toContain(
+          assertStringIncludes(
+            html,
             `of the ${TEST_STORAGE_ZONE.zoneName} storage zone`,
           );
         }),
@@ -115,8 +122,8 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
       await uploadRaw(new Uint8Array(0), `${backupDir()}backup-stale.tmp`);
       await adminFormPost("/admin/backup/create");
       const html = await (await adminGet("/admin/backup")).text();
-      expect(html).not.toContain("backup-stale.tmp");
-      expect(html).toContain(".zip");
+      assert(!html.includes("backup-stale.tmp"));
+      assertStringIncludes(html, ".zip");
     });
 
     test("shows the timestamp from the stored filename", async () => {
@@ -126,14 +133,14 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
         /backup-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)\.zip/,
       )?.[1];
       expect(token).toBeDefined();
-      expect(html).toContain(`<code>${token}</code>`);
+      assertStringIncludes(html, `<code>${token}</code>`);
     });
 
     test("shows the retention summary", async () => {
       await adminFormPost("/admin/backup/create");
       const html = await (await adminGet("/admin/backup")).text();
-      expect(html).toContain("There is 1 backup");
-      expect(html).toContain("Up to 30 are kept");
+      assertStringIncludes(html, "There is 1 backup");
+      assertStringIncludes(html, "Up to 30 are kept");
     });
   });
 
@@ -153,9 +160,9 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
       using _env = withEnv({ BACKUP_PAGE_SIZE: "1" });
       await seedOversizedDatabase();
       const html = await (await adminGet("/admin/backup")).text();
-      expect(html).toContain("too big to back up from this page");
-      expect(html).toContain("deno task backup");
-      expect(html).not.toContain('action="/admin/backup/create"');
+      assertStringIncludes(html, "too big to back up from this page");
+      assertStringIncludes(html, "deno task backup");
+      assert(!html.includes('action="/admin/backup/create"'));
     });
 
     test("refuses to create a backup, with a plain explanation", async () => {

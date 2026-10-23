@@ -1,21 +1,10 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { builtSites } from "#db/built-sites.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { builderApi } from "#shared/builder.ts";
-import { builderForm } from "#templates/fields/builder.ts";
-import {
-  MOCK_DB_RESULT,
-  stubBuildSiteApis,
-} from "#test-utils/builder-mocks.ts";
-
-/** Stub `testDbConnection` to resolve `ok: true`. */
-const stubDbOk = () =>
-  stub(builderApi, "testDbConnection", () =>
-    Promise.resolve({ ok: true as const }),
-  );
-
 import {
   expectFlash,
   expectHtmlResponse,
@@ -24,6 +13,7 @@ import {
   flashCookieHeader,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+import { MOCK_DB_RESULT } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import {
@@ -33,102 +23,12 @@ import {
 } from "#test-utils/mocks.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
-
-/** Stub all Bunny + GitHub APIs for a successful build */
-const stubSuccessfulBuild = () => ({
-  ...stubBuildSiteApis(),
-  dbTestStub: stubDbOk(),
-});
-
-/** Assert a build redirected to /admin/builder with the "created successfully"
- *  flash, then return the single recorded built site for per-test checks. */
-const expectSiteCreated = async (response: Response) => {
-  expectRedirect(response, "/admin/builder");
-  expectFlash(response, expect.stringContaining("created successfully"));
-  const sites = await builtSites.getAll();
-  expect(sites).toHaveLength(1);
-  return sites[0]!;
-};
-
-/** Stub `buildSite` to capture its input and return a success result. */
-const stubBuildAndCapture = () => {
-  const capture: {
-    currentTask: string | null;
-    input: Parameters<typeof builderApi.buildSite>[0] | null;
-    restore?: () => void;
-  } = { currentTask: null, input: null };
-  return {
-    buildStub: stub(builderApi, "buildSite", async (input, retain) => {
-      capture.currentTask = settings.currentTask;
-      capture.input = input;
-      const result = {
-        dbProvider: "bunny" as const,
-        dbToken: "tok",
-        dbUrl: "libsql://test.io",
-        defaultHostname: "https://test-42.b-cdn.net",
-        hostingId: "42",
-        hostingProvider: "bunny" as const,
-        ok: true as const,
-      };
-      await retain({ ...result, scheduledTaskKey: TEST_SCHEDULED_KEY });
-      return result;
-    }),
-    capture,
-    dbTestStub: stub(builderApi, "testDbConnection", () =>
-      Promise.resolve({ ok: true as const }),
-    ),
-  };
-};
-
-test("builder form defines every field and option exactly", () => {
-  expect(JSON.parse(JSON.stringify(builderForm.fields))).toEqual([
-    {
-      label: "Site name",
-      maxlength: 250,
-      minlength: 1,
-      name: "site_name",
-      placeholder: "My Ticket Site",
-      required: true,
-      type: "text",
-    },
-    {
-      label: "Hosting provider",
-      name: "hosting_provider",
-      options: [
-        { label: "Bunny Edge Scripting", value: "bunny" },
-        { label: "Deno Deploy", value: "deno" },
-      ],
-      type: "select",
-    },
-    {
-      label: "Database provider",
-      name: "db_provider",
-      options: [
-        { label: "Bunny DB (auto-provision)", value: "bunny" },
-        { label: "Turso (auto-provision)", value: "turso" },
-        { label: "Manual (enter URL below)", value: "manual" },
-      ],
-      type: "select",
-    },
-    {
-      hint: "Leave blank to auto-provision a database.",
-      label: "Database URL",
-      name: "db_url",
-      placeholder: "libsql://your-db.turso.io",
-      type: "url",
-    },
-    {
-      hint: "Leave blank to auto-provision a database.",
-      label: "Database token",
-      // A pasted machine credential: the shared textarea cap, not the
-      // single-line rule.
-      maxlength: 10240,
-      name: "db_token",
-      placeholder: "Database auth token",
-      type: "password",
-    },
-  ]);
-});
+import {
+  expectSiteCreated,
+  stubBuildAndCapture,
+  stubDbOk,
+  stubSuccessfulBuild,
+} from "./build-mocks.ts";
 
 describeWithEnv(
   "server (admin builder)",
@@ -181,7 +81,7 @@ describeWithEnv(
     test("GET /admin/builder shows empty sites message", async () => {
       const response = await adminGet("/admin/builder");
       const html = await response.text();
-      expect(html).toContain("No sites have been built yet");
+      assertStringIncludes(html, "No sites have been built yet");
     });
 
     test("GET /admin/builder displays success flash", async () => {
@@ -193,7 +93,7 @@ describeWithEnv(
         },
       );
       const html = await response.text();
-      expect(html).toContain("Site created");
+      assertStringIncludes(html, "Site created");
     });
 
     test("GET /admin/builder displays error flash", async () => {
@@ -205,7 +105,7 @@ describeWithEnv(
         },
       );
       const html = await response.text();
-      expect(html).toContain("Build failed");
+      assertStringIncludes(html, "Build failed");
     });
 
     test("POST /admin/builder returns error when site name is empty", async () => {
@@ -520,8 +420,8 @@ describeWithEnv(
 
       const response = await adminGet("/admin/builder");
       const html = await response.text();
-      expect(html).toContain("Table Test Site");
-      expect(html).toContain("test-42.b-cdn.net");
+      assertStringIncludes(html, "Table Test Site");
+      assertStringIncludes(html, "test-42.b-cdn.net");
     });
 
     test("POST /admin/builder passes deno hosting_provider to buildSite", async () => {

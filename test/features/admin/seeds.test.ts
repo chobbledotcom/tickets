@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAllListings } from "#db/listings/records.ts";
@@ -44,7 +45,7 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
       cookie: await testCookie(),
     });
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain(t("admin.seeds.heading"));
+    assertStringIncludes(await response.text(), t("admin.seeds.heading"));
   });
 
   test("creates the asked-for listings and says exactly what was made", async () => {
