@@ -3,6 +3,7 @@
  *  POST form and the JSON refresh. Split from the main QR suite to keep both
  *  under the ~400-line target. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
@@ -29,7 +30,7 @@ describeWithEnv("admin listing QR minimum quantity", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain("Quantity must be at least 3.");
+    assertStringIncludes(body, "Quantity must be at least 3.");
     expect(extractToken(body)).toBeNull();
   });
 

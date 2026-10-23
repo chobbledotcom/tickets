@@ -3,6 +3,7 @@
  * the route must load their message catalogs or a refusal becomes a 500.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -52,7 +53,7 @@ describeWithEnv("catalog import refusal messages", { db: true }, () => {
       version: 1,
     });
 
-    expect(flash).toContain(t("error.customisable_days_with_pay_more"));
+    assertStringIncludes(flash, t("error.customisable_days_with_pay_more"));
   });
 
   test("a group type clash is explained, not a server error", async () => {
@@ -76,7 +77,8 @@ describeWithEnv("catalog import refusal messages", { db: true }, () => {
       version: 1,
     });
 
-    expect(flash).toContain(
+    assertStringIncludes(
+      flash,
       t("error.group_listing_type_mismatch", { type: "daily" }),
     );
   });

@@ -7,6 +7,7 @@
  * details are posted.
  */
 
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAllListings } from "#db/listings/records.ts";
@@ -43,7 +44,7 @@ describeWithEnv("creating a one-off event", { db: true }, () => {
     );
 
     expect(response.status).toBe(400);
-    expect(await response.text()).toContain(DATE_REQUIRED);
+    assertStringIncludes(await response.text(), DATE_REQUIRED);
     expect(await storedListing("No Date")).toBeUndefined();
   });
 
@@ -81,7 +82,8 @@ describeWithEnv("a rejected create", { db: true }, () => {
     });
 
     expect(response.status).toBe(400);
-    expect(await response.text()).toContain(
+    assertStringIncludes(
+      await response.text(),
       '<input checked id="customise-listing" name="customise"',
     );
   });
@@ -92,7 +94,8 @@ describeWithEnv("a rejected create", { db: true }, () => {
       template_id: "weekly-event",
     });
 
-    expect(await response.text()).toContain(
+    assertStringIncludes(
+      await response.text(),
       '<input id="customise-listing" name="customise"',
     );
   });
@@ -105,9 +108,9 @@ describeWithEnv("what a create writes down", { db: true }, () => {
       buildCreateListingForm(testListingInput({ name: "Logged Create" })),
     );
 
-    expect(await activityMessages()).toContain(
+    assertArrayIncludes(await activityMessages(), [
       "Listing 'Logged Create' created",
-    );
+    ]);
   });
 });
 
