@@ -4,12 +4,15 @@
  * head and from a base worktree, then reports the semantic changes.
  *
  * This module also runs inside the base worktree, which holds an older
- * tree. The machine events load lazily, one per machine the LOCAL atlas
- * lists: a machine that only the head has never loads here, so a branch
- * that adds a machine still gets its base dump. It imports only `#shared`
+ * tree. Each machine's events and declared table load lazily, per machine
+ * the LOCAL atlas lists: a machine that only the head has never loads
+ * here, so a branch that adds a machine still gets its base dump. A table
+ * module the tree does not have reads back as no table, which the differ
+ * reports as an added table. It imports only `#shared` and `#test`
  * declarations and nothing from `#scripts`. */
 
 import * as v from "valibot";
+import { sortedPairs } from "#fp-strings";
 import { ILLEGAL_JOINT_STATES } from "#payment/joint-state.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import type { AtlasMachine } from "#shared/schema-atlas/types.ts";
@@ -22,9 +25,29 @@ export const DumpedEdgeSchema = v.object({
 });
 export type DumpedEdge = v.InferOutput<typeof DumpedEdgeSchema>;
 
+/** One declared cell: the node one event must land on, or a node per
+ * stored shape when capability rules split the outcome. */
+export const DumpedMoveCellSchema = v.union([
+  v.string(),
+  v.object({ perRep: v.record(v.string(), v.string()) }),
+]);
+export type DumpedMoveCell = v.InferOutput<typeof DumpedMoveCellSchema>;
+
+/** One machine's declared table: for each node, the events that must move
+ * it and where to. A cell the table leaves out is a declared refusal. */
+export const DumpedDeclaredMovesSchema = v.record(
+  v.string(),
+  v.record(v.string(), DumpedMoveCellSchema),
+);
+export type DumpedDeclaredMoves = v.InferOutput<
+  typeof DumpedDeclaredMovesSchema
+>;
+
 /** One machine's contract: its states, its start, the moves its real
- * transitions prove, and the events that send money. */
+ * transitions prove, the table that declares them, and the events that
+ * send money. */
 export const DumpedMachineSchema = v.object({
+  declaredMoves: v.optional(DumpedDeclaredMovesSchema),
   edges: v.record(v.string(), v.array(DumpedEdgeSchema)),
   moneyEvents: v.array(v.string()),
   start: v.string(),
@@ -58,23 +81,89 @@ type MachineEvents = readonly {
   readonly movesMoney: boolean;
 }[];
 
-/** One machine's events, loaded only when this tree's atlas lists that
- * machine. */
-type EventsLoader = () => Promise<MachineEvents>;
+/** One machine's declared table, validated into the dump's shape, or
+ * undefined when the module that holds it does not exist in this tree: a
+ * branch can introduce a table the base never had, and the base dump then
+ * reports no table, which the differ reports as an added table. Any other
+ * failure stops the dump. */
+export const declaredTableOrNone = async (
+  machineId: string,
+  load: () => unknown,
+): Promise<DumpedDeclaredMoves | undefined> => {
+  let table: unknown;
+  try {
+    table = await load();
+  } catch (error) {
+    if (error instanceof TypeError && /module not found/i.test(error.message)) {
+      return;
+    }
+    throw error;
+  }
+  const parsed = v.safeParse(DumpedDeclaredMovesSchema, table);
+  if (!parsed.success) {
+    throw new Error(
+      `Machine ${machineId}'s declared table is not the dumped shape`,
+    );
+  }
+  return parsed.output;
+};
 
-const EVENT_LOADERS: Readonly<Record<string, EventsLoader>> = {
+/** One machine's declared contract pieces: its events beside its declared
+ * table. */
+type MachineContract = {
+  declaredMoves: DumpedDeclaredMoves | undefined;
+  events: MachineEvents;
+};
+
+type MachineLoader = () => Promise<MachineContract>;
+
+/** One machine's declared contract: its events beside its declared table,
+ * the table read through the dump's own validator. */
+const machineContract = async (
+  machineId: string,
+  events: MachineEvents,
+  table: () => unknown,
+): Promise<MachineContract> => ({
+  declaredMoves: await declaredTableOrNone(machineId, table),
+  events,
+});
+
+const MACHINE_LOADERS: Readonly<Record<string, MachineLoader>> = {
   refund: () =>
-    import("#payment/refund-machine-spec.ts").then((m) => m.REFUND_EVENTS),
+    import("#payment/refund-machine-spec.ts").then((m) =>
+      machineContract("refund", m.REFUND_EVENTS, () => m.EXPECTED_MOVES),
+    ),
   review: () =>
-    import("#payment/review-machine-spec.ts").then((m) => m.REVIEW_EVENTS),
-  row: () => import("#payment/row-machine-spec.ts").then((m) => m.ROW_EVENTS),
+    import("#payment/review-machine-spec.ts").then((m) =>
+      machineContract("review", m.REVIEW_EVENTS, () =>
+        import(
+          "#test/shared/payment/review-machine-spec/expected-moves.ts"
+        ).then((t) => t.EXPECTED_MOVES),
+      ),
+    ),
+  row: () =>
+    import("#payment/row-machine-spec.ts").then((m) =>
+      machineContract("row", m.ROW_EVENTS, () =>
+        import("#test/shared/payment/row-machine-spec/expected-moves.ts").then(
+          (t) => t.EXPECTED_MOVES,
+        ),
+      ),
+    ),
   square_link_ends: () =>
-    import("#payment/square-link-end-machine-spec.ts").then(
-      (m) => m.LINK_END_EVENTS,
+    import("#payment/square-link-end-machine-spec.ts").then((m) =>
+      machineContract(
+        "square_link_ends",
+        m.LINK_END_EVENTS,
+        () => m.LINK_END_MOVES,
+      ),
     ),
   sumup_recovery: () =>
-    import("#payment/sumup-recovery-machine-spec.ts").then(
-      (m) => m.RECOVERY_EVENTS,
+    import("#payment/sumup-recovery-machine-spec.ts").then((m) =>
+      machineContract(
+        "sumup_recovery",
+        m.RECOVERY_EVENTS,
+        () => m.RECOVERY_MOVES,
+      ),
     ),
 };
 
@@ -92,10 +181,12 @@ const eventIdFor = (events: MachineEvents, labelKey: string): string => {
   return event.id;
 };
 
-/** One machine's contract, folded from its atlas entry and its events. */
+/** One machine's contract, folded from its atlas entry, its events, and
+ * its declared table. */
 export const dumpMachine = (
   machine: AtlasMachine,
   events: MachineEvents,
+  declaredMoves?: DumpedDeclaredMoves | undefined,
 ): DumpedMachine => {
   const startStates = machine.states.filter((state) => state.start === true);
   const start = startStates[0];
@@ -110,7 +201,7 @@ export const dumpMachine = (
       to: edge.to,
     }));
   }
-  return {
+  const dumped: DumpedMachine = {
     edges,
     moneyEvents: sortedStrings(
       events.filter((event) => event.movesMoney).map((event) => event.id),
@@ -118,15 +209,42 @@ export const dumpMachine = (
     start: start.id,
     states: sortedStrings(machine.states.map((state) => state.id)),
   };
+  if (declaredMoves !== undefined) {
+    dumped.declaredMoves = sortedDeclaredMoves(declaredMoves);
+  }
+  return dumped;
 };
 
-/** The events of one machine this tree's atlas lists. A machine without a
- * loader stops the dump: its money flags and edge names are unknown. */
-const loadEvents = (machineId: string): Promise<MachineEvents> => {
-  const loader = EVENT_LOADERS[machineId];
+/** The declared table with its nodes, events, and split shapes in sorted
+ * key order, so one tree always dumps the same JSON. */
+const sortedDeclaredMoves = (
+  table: DumpedDeclaredMoves,
+): DumpedDeclaredMoves => {
+  const moves: DumpedDeclaredMoves = {};
+  for (const [node, cells] of sortedPairs(Object.entries(table))) {
+    const sorted: Record<string, DumpedMoveCell> = {};
+    for (const [event, cell] of sortedPairs(Object.entries(cells))) {
+      sorted[event] =
+        typeof cell === "string"
+          ? cell
+          : {
+              perRep: Object.fromEntries(
+                sortedPairs(Object.entries(cell.perRep)),
+              ),
+            };
+    }
+    moves[node] = sorted;
+  }
+  return moves;
+};
+
+/** The events and declared table of one machine this tree's atlas lists.
+ * A machine without a loader stops the dump: its contract is unknown. */
+const loadMachine = (machineId: string): Promise<MachineContract> => {
+  const loader = MACHINE_LOADERS[machineId];
   if (loader === undefined) {
     throw new Error(
-      `Machine ${machineId} joined the atlas; the drift dump must learn its events`,
+      `Machine ${machineId} joined the atlas; the drift dump must learn its events and declared moves`,
     );
   }
   return loader();
@@ -138,7 +256,8 @@ export const contractsFromAtlas = async (
 ): Promise<Contracts> => {
   const dumped: Record<string, DumpedMachine> = {};
   for (const machine of machines) {
-    dumped[machine.id] = dumpMachine(machine, await loadEvents(machine.id));
+    const { declaredMoves, events } = await loadMachine(machine.id);
+    dumped[machine.id] = dumpMachine(machine, events, declaredMoves);
   }
   return {
     jointStates: ILLEGAL_JOINT_STATES.map((entry) => ({
