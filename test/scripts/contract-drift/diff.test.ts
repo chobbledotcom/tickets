@@ -4,11 +4,13 @@ import { driftLines, formatDrift } from "#scripts/contract-drift/diff.ts";
 import type {
   DumpedJointState,
   DumpedMachine,
+  DumpedMoves,
 } from "#scripts/contract-drift/dump.ts";
 
 const machine = (over: Partial<DumpedMachine> = {}): DumpedMachine => ({
   edges: {},
   moneyEvents: [],
+  moves: null,
   start: "a",
   states: ["a"],
   ...over,
@@ -18,6 +20,9 @@ const machine = (over: Partial<DumpedMachine> = {}): DumpedMachine => ({
  * node `to`. */
 const movesBy = (actor: string, to: string): DumpedMachine =>
   machine({ edges: { a: [{ actor, event: "e", to }] } });
+
+/** One machine carrying exactly the given declared moves table. */
+const declared = (moves: DumpedMoves): DumpedMachine => machine({ moves });
 
 const contracts = (
   machines: Record<string, DumpedMachine>,
@@ -110,6 +115,69 @@ describe("contract drift lines", () => {
     ]);
     expect(driftLines(withArmed, withoutArmed)).toEqual([
       "- joint invariant removed: send_armed cannot sit on claim",
+    ]);
+  });
+
+  test("reports a declared move the head allows", () => {
+    const before = declared({ a: { e: { target: "b" } } });
+    const after = declared({ a: { e: { target: "b" }, f: { target: "b" } } });
+    expect(driftOf(before, after)).toEqual([
+      "+ declared move allowed: m.a --f--> b",
+    ]);
+  });
+
+  test("reports a declared move the head refuses", () => {
+    const before = declared({ a: { e: { target: "b" }, f: { target: "b" } } });
+    const after = declared({ a: { e: { target: "b" } } });
+    expect(driftOf(before, after)).toEqual([
+      "- declared move refused: m.a --f--> b",
+    ]);
+  });
+
+  test("reports a declared cell retargeted one line each way", () => {
+    const before = declared({ a: { e: { target: "b" } } });
+    const after = declared({ a: { e: { target: "c" } } });
+    expect(driftOf(before, after)).toEqual([
+      "- declared move refused: m.a --e--> b",
+      "+ declared move allowed: m.a --e--> c",
+    ]);
+  });
+
+  test("reports a declared split branch retargeted", () => {
+    const before = declared({ a: { e: { perRep: { open: "b", seen: "b" } } } });
+    const after = declared({ a: { e: { perRep: { open: "c", seen: "b" } } } });
+    expect(driftOf(before, after)).toEqual([
+      "+ declared move allowed: m.a --e--> c",
+    ]);
+  });
+
+  test("reports a declared split branch removed", () => {
+    const before = declared({ a: { e: { perRep: { open: "b", seen: "b" } } } });
+    const after = declared({ a: { e: { target: "b" } } });
+    expect(driftOf(before, after)).toEqual([]);
+  });
+
+  test("reports a declared cell on a node only one side's table has", () => {
+    const before = declared({ a: { e: { target: "b" } } });
+    const after = declared({
+      a: { e: { target: "b" } },
+      c: { f: { target: "b" } },
+    });
+    expect(driftOf(before, after)).toEqual([
+      "+ declared move allowed: m.c --f--> b",
+    ]);
+    expect(driftOf(after, before)).toEqual([
+      "- declared move refused: m.c --f--> b",
+    ]);
+  });
+
+  test("reports a declared moves table added and removed", () => {
+    const withTable = machine({ moves: { a: { e: { target: "b" } } } });
+    expect(driftOf(machine(), withTable)).toEqual([
+      "+ declared moves table added: m",
+    ]);
+    expect(driftOf(withTable, machine())).toEqual([
+      "- declared moves table removed: m",
     ]);
   });
 });

@@ -5,6 +5,7 @@
 import { unique } from "#fp";
 import {
   type Contracts,
+  type DumpedCell,
   type DumpedJointState,
   type DumpedMachine,
   jointStateKey,
@@ -66,17 +67,17 @@ const edgeRows = (
   return rows;
 };
 
-/** The move lines for one event's targets. The sign and verb name what
+/** The move lines for one event's targets. The sign and word name what
  * happened; the rest names where. */
 const moveLines =
-  (sign: DriftSide, verb: string) =>
+  (sign: DriftSide, word: string) =>
   (where: string, event: string, targets: ReadonlySet<string>): string[] =>
-    [...targets].map(
-      (to) => `${sign} move ${verb}: ${where} --${event}--> ${to}`,
-    );
+    [...targets].map((to) => `${sign} ${word}: ${where} --${event}--> ${to}`);
 
-const refusedLines = moveLines("-", "refused");
-const allowedLines = moveLines("+", "allowed");
+const refusedLines = moveLines("-", "move refused");
+const allowedLines = moveLines("+", "move allowed");
+const declaredRefusedLines = moveLines("-", "declared move refused");
+const declaredAllowedLines = moveLines("+", "declared move allowed");
 
 /** The targets one side holds and the other does not. */
 const onlyIn = (
@@ -167,6 +168,55 @@ const edgeDrift = ({ after, before, id }: MachinePair): string[] => {
   }
   return lines;
 };
+/** An empty declared row, for a node only one side's table holds. */
+const EMPTY_MOVES_ROW: Readonly<Record<string, DumpedCell>> = {};
+
+/** The landing nodes one declared cell names: its plain target, or every
+ * split branch's target. */
+const targetsOf = (cell: DumpedCell | undefined): ReadonlySet<string> => {
+  if (cell === undefined) return new Set();
+  return "target" in cell
+    ? new Set([cell.target])
+    : new Set(Object.values(cell.perRep));
+};
+
+/** The lines for one machine's declared moves table: cells the head
+ * allows or refuses, and a table that arrived or left whole. */
+const declaredDrift = ({ after, before, id }: MachinePair): string[] => {
+  if (before.moves === null && after.moves === null) return [];
+  if (before.moves === null) return [`+ declared moves table added: ${id}`];
+  if (after.moves === null) return [`- declared moves table removed: ${id}`];
+  const lines: string[] = [];
+  const froms = sortedStrings([
+    ...unique([...Object.keys(before.moves), ...Object.keys(after.moves)]),
+  ]);
+  for (const from of froms) {
+    const where = `${id}.${from}`;
+    const cellsBefore = before.moves[from] ?? EMPTY_MOVES_ROW;
+    const cellsAfter = after.moves[from] ?? EMPTY_MOVES_ROW;
+    const events = sortedStrings([
+      ...unique([...Object.keys(cellsBefore), ...Object.keys(cellsAfter)]),
+    ]);
+    for (const event of events) {
+      const beforeTargets = targetsOf(cellsBefore[event]);
+      const afterTargets = targetsOf(cellsAfter[event]);
+      lines.push(
+        ...declaredRefusedLines(
+          where,
+          event,
+          onlyIn(beforeTargets, afterTargets),
+        ),
+        ...declaredAllowedLines(
+          where,
+          event,
+          onlyIn(afterTargets, beforeTargets),
+        ),
+      );
+    }
+  }
+  return lines;
+};
+
 /** The lines for one string list both machines hold, worded by `word`. */
 const listDrift = (
   pair: MachinePair,
@@ -218,6 +268,7 @@ export const driftLines = (base: Contracts, head: Contracts): string[] => {
       lines.push(`~ start moved: ${id}.${after.start} (was ${before.start})`);
     }
     lines.push(...edgeDrift(pair));
+    lines.push(...declaredDrift(pair));
     lines.push(
       ...listDrift(pair, (machine) => machine.moneyEvents, MONEY_WORD),
     );

@@ -43,10 +43,20 @@ export const defaultDriftDeps = (): DriftDeps => ({
   makeTempDir: () => Deno.makeTempDir({ prefix: "tickets-contract-drift-" }),
   output: consoleOutput,
   removeTree: (path) => Deno.remove(path, { recursive: true }),
+  // --allow-read: the dump's moves-table helpers sit under test/ and are
+  // not part of the static module graph, so a runtime import of one needs
+  // read access the way the #shared specs do not.
   runBaseDump: (worktreeDir) =>
-    runCommand(["deno", "run", "--no-check", join(DUMP_DIR, "dump-entry.ts")], {
-      cwd: worktreeDir,
-    }),
+    runCommand(
+      [
+        "deno",
+        "run",
+        "--no-check",
+        "--allow-read",
+        join(DUMP_DIR, "dump-entry.ts"),
+      ],
+      { cwd: worktreeDir },
+    ),
 });
 
 /** Log one failed step and say the run failed. Null is the answer every

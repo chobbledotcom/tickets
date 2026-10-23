@@ -3,7 +3,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   contractsFromAtlas,
   currentContracts,
+  type DumpedMachine,
+  type DumpedMoves,
   dumpMachine,
+  loadMoves,
+  movesOrNull,
 } from "#scripts/contract-drift/dump.ts";
 import { requireValue } from "#shared/required-value.ts";
 import {
@@ -11,6 +15,30 @@ import {
   type AtlasState,
   atlasState,
 } from "#shared/schema-atlas/types.ts";
+
+/** Every executed edge of one machine names states it declares. */
+const expectEdgesInsideStates = (machine: DumpedMachine): void => {
+  for (const [from, edges] of Object.entries(machine.edges)) {
+    expect(machine.states, `edges from ${from}`).toContain(from);
+    for (const edge of edges) {
+      expect(machine.states, `${from} --${edge.event}-->`).toContain(edge.to);
+    }
+  }
+};
+
+/** Every declared cell of one machine names states it declares. */
+const expectMovesInsideStates = (machine: DumpedMachine): void => {
+  for (const [from, cells] of Object.entries(machine.moves ?? {})) {
+    expect(machine.states, `declared moves from ${from}`).toContain(from);
+    for (const cell of Object.values(cells)) {
+      const targets =
+        "target" in cell ? [cell.target] : Object.values(cell.perRep);
+      for (const to of targets) {
+        expect(machine.states, `declared move to ${to}`).toContain(to);
+      }
+    }
+  }
+};
 
 const oneState = (labelKey: string, start: true | undefined): AtlasState =>
   atlasState(
@@ -96,17 +124,47 @@ describe("contract dump", () => {
     ]);
   });
 
-  test("keeps every edge inside its machine's states", async () => {
+  test("keeps every edge and declared move inside its machine's states", async () => {
     for (const machine of Object.values((await currentContracts()).machines)) {
-      for (const [from, edges] of Object.entries(machine.edges)) {
-        expect(machine.states, `edges from ${from}`).toContain(from);
-        for (const edge of edges) {
-          expect(machine.states, `${from} --${edge.event}-->`).toContain(
-            edge.to,
-          );
-        }
-      }
+      expectEdgesInsideStates(machine);
+      expectMovesInsideStates(machine);
     }
+  });
+
+  test("dumps every machine's declared moves table", async () => {
+    const machines = (await currentContracts()).machines;
+    const refund = requireValue(machines.refund, "refund machine in the dump");
+    const sumup = requireValue(
+      machines.sumup_recovery,
+      "sumup machine in the dump",
+    );
+    const square = requireValue(
+      machines.square_link_ends,
+      "square machine in the dump",
+    );
+    const row = requireValue(machines.row, "row machine in the dump");
+    const review = requireValue(machines.review, "review machine in the dump");
+    expect(refund.moves?.ready?.arm).toEqual({ target: "send_armed" });
+    expect(refund.moves?.choice_open?.owner_confirms_not_sent).toEqual({
+      target: "ready",
+    });
+    expect(sumup.moves?.owed?.read_paid_booked).toEqual({
+      target: "finished",
+    });
+    expect(sumup.moves?.staged?.checkout_created).toEqual({
+      target: "waiting",
+    });
+    expect(square.moves?.pending?.claim_due).toEqual({ target: "ending" });
+    expect(square.moves?.unwritten?.checkout_created).toEqual({
+      target: "pending",
+    });
+    expect(row.moves?.free?.claim_granted).toEqual({ target: "claim" });
+    expect(review.moves?.none?.open_partially_returned_obligation).toEqual({
+      target: "open",
+    });
+    expect(review.moves?.open?.retire_partially_returned_obligation).toEqual({
+      perRep: { partially_returned_obligation: "none" },
+    });
   });
 
   test("dumps the declared joint states", async () => {
@@ -140,16 +198,38 @@ describe("contract dump", () => {
     );
   });
 
+  test("answers null when a moves module is missing from the tree", async () => {
+    const missing = async (): Promise<DumpedMoves> => {
+      throw new Error(
+        'Module not found "file:///older/review-expected-moves.ts"',
+      );
+    };
+    await expect(movesOrNull(missing)).resolves.toBeNull();
+  });
+
+  test("answers null for a machine without a declared moves loader", async () => {
+    await expect(loadMoves("no_table_machine")).resolves.toBeNull();
+  });
+
+  test("lets a moves load failure other than a missing module through", async () => {
+    const broken = async (): Promise<DumpedMoves> => {
+      throw new Error("The declared table is corrupt");
+    };
+    await expect(movesOrNull(broken)).rejects.toThrow(
+      "The declared table is corrupt",
+    );
+  });
+
   test("refuses an edge without an event", () => {
     const state = oneState("schema.m.edge.unknown", true);
-    expect(() => dumpMachine(machineWith([state]), [oneEvent])).toThrow(
+    expect(() => dumpMachine(machineWith([state]), [oneEvent], null)).toThrow(
       "No machine event carries the label key schema.m.edge.unknown",
     );
   });
 
   test("refuses a machine with no start", () => {
     const state = oneState("schema.m.edge.e", undefined);
-    expect(() => dumpMachine(machineWith([state]), [oneEvent])).toThrow(
+    expect(() => dumpMachine(machineWith([state]), [oneEvent], null)).toThrow(
       "Machine m must declare exactly one start",
     );
   });
@@ -159,7 +239,7 @@ describe("contract dump", () => {
       oneState("schema.m.edge.e", true),
       oneState("schema.m.edge.e", true),
     ];
-    expect(() => dumpMachine(machineWith(states), [oneEvent])).toThrow(
+    expect(() => dumpMachine(machineWith(states), [oneEvent], null)).toThrow(
       "Machine m must declare exactly one start",
     );
   });

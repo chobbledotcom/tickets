@@ -23,6 +23,7 @@ const failedRun: CapturedOutput = {
 const closed: DumpedMachine = {
   edges: {},
   moneyEvents: [],
+  moves: null,
   start: "a",
   states: ["a"],
 };
