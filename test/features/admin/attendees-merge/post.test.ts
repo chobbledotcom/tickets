@@ -101,7 +101,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
         {},
       );
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Source token"), false);
+      expectFlash(response, "Source token is required", false);
     });
 
     test("rejects invalid source token", async () => {
@@ -113,7 +113,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
         { source_token: "nonexistent-token" },
       );
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("not found"), false);
+      expectFlash(response, "Ticket token not found", false);
     });
 
     test("rejects self-merge", async () => {
@@ -127,7 +127,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Cannot merge an attendee with themselves"),
+        "Cannot merge an attendee with themselves",
         false,
       );
     });
@@ -388,10 +388,12 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Missing money decision"),
+        [
+          `Missing money decision for booking: Listing #${listing1.id}`,
+          `Missing money decision for booking: Listing #${listing2.id}`,
+        ].join("; "),
         false,
       );
-      expectFlash(response, expect.stringContaining("; "), false);
     });
   });
 });
