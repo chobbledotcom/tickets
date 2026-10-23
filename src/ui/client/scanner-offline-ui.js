@@ -14,6 +14,7 @@ import {
   isSyncing,
   offlineModeActive,
   queueCheckIn,
+  queueHolds,
   readManualMode,
   readQueue,
   readTicketCache,
@@ -250,6 +251,11 @@ export const offlineScan = async (
     ),
     "success",
   );
+  // The connection can return while the scan's digest is still computing,
+  // and the returning connection finds an empty store. The queued check-in
+  // asks for the sync itself. A running sync takes the ask. An armed
+  // switch holds the check-in. A dead connection leaves it queued.
+  if (!readManualMode()) panel.sync();
 };
 
 /** A sync asked for while another runs re-runs once the running one ends.
@@ -332,8 +338,11 @@ const syncQueue = async (csrfToken, statusEl, messages, panel, settleScan) => {
       "success",
     );
     // A scan queued after this sync started appended its own row, so the
-    // loop settles that item too.
+    // loop settles that item too. A row whose item an earlier run settled
+    // left the store: the re-run a mid-sync ask scheduled must not replay
+    // its check-in.
     for (const pair of panel.rows) {
+      if (!queueHolds(pair.item)) continue;
       if (!(await settleRow(pair))) return;
     }
     const settledAll = readQueue().length === 0;
@@ -377,6 +386,9 @@ export const initOfflineScanner = ({
     list: lookup("scanner-queue-items"),
     rows: [],
     summary: lookup("scanner-queue-summary"),
+    /** The queue's sync, wired to this page's door. A check-in the door
+     * queued as the connection returned asks for it once it lands. */
+    sync: () => syncQueue(csrfToken, statusEl, messages, panel, settleScan),
   };
   const banner = lookup("scanner-offline-banner");
   const bannerText = lookup("scanner-offline-banner-text");
