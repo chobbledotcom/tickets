@@ -213,10 +213,11 @@ describe("ticketPage — packages", () => {
             packages: kits(`![Kit](img#${kit.id})`),
             slugs: [PKG_SLUG],
           });
-          expect(html).toContain(
+          assertStringIncludes(
+            html,
             `<img src="/image/${kit.filename}" alt="Kit">`,
           );
-          expect(html).not.toContain(`img#${kit.id}`);
+          assert(!html.includes(`img#${kit.id}`));
         });
       });
     },

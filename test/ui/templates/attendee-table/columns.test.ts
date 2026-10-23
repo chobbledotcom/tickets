@@ -43,16 +43,16 @@ attendeeTableSuite(() => {
       const staff = render(
         makeOpts({ rows: [makeRow({ attendee: flagged })] }),
       );
-      expect(staff).toContain("Email not sent");
-      expect(staff).toContain("Webhooks not sent");
+      assertStringIncludes(staff, "Email not sent");
+      assertStringIncludes(staff, "Webhooks not sent");
       const scanner = render(
         makeOpts({
           adminLinks: false,
           rows: [makeRow({ attendee: flagged })],
         }),
       );
-      expect(scanner).not.toContain("Email not sent");
-      expect(scanner).not.toContain("Webhooks not sent");
+      assert(!scanner.includes("Email not sent"));
+      assert(!scanner.includes("Webhooks not sent"));
     });
 
     test("renders Qty column", () => {
