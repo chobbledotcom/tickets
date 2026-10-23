@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -140,7 +141,7 @@ describe("check-ste runner", () => {
     expect(errors[1]).toBe(
       'a.md:1:16 [banned-modal]: "may" — use can, will, or must',
     );
-    expect(errors[2]).toContain("2 technical-english issue(s) found");
+    assertStringIncludes(errors[2] ?? "", "2 technical-english issue(s) found");
   });
 
   test("keeps an allowance from moving to a new line of prose", () => {
@@ -161,15 +162,15 @@ describe("check-ste runner", () => {
     recorded[Object.keys(recorded)[0]!] = 3;
     const { code, errors } = checkAgainst("Write one; note.\n", recorded);
     expect(code).toBe(1);
-    expect(errors[0]).toContain("a.md [improved]");
-    expect(errors[0]).toContain("--update");
+    assertStringIncludes(errors[0] ?? "", "a.md [improved]");
+    assertStringIncludes(errors[0] ?? "", "--update");
   });
 
   test("fails when a document holds no findings any more", () => {
     const recorded = freshEntry("Write it; clean.\n");
     const { code, errors } = checkAgainst("Write it clean.\n", recorded);
     expect(code).toBe(1);
-    expect(errors[0]).toContain("a.md [improved]");
+    assertStringIncludes(errors[0] ?? "", "a.md [improved]");
   });
 
   test("reports findings in path order, whatever order the files arrive in", () => {
@@ -234,10 +235,10 @@ describe("check-ste runner", () => {
       },
     );
     expect(code).toBe(1);
-    expect(errors[0]).toContain("gone.md");
-    expect(errors[0]).toContain("records.json");
-    expect(errors[1]).toContain("also-gone.md");
-    expect(errors[1]).toContain("baseline.json");
+    assertStringIncludes(errors[0] ?? "", "gone.md");
+    assertStringIncludes(errors[0] ?? "", "records.json");
+    assertStringIncludes(errors[1] ?? "", "also-gone.md");
+    assertStringIncludes(errors[1] ?? "", "baseline.json");
   });
 
   test("logs the success line when everything matches", () => {

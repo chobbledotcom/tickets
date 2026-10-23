@@ -1,5 +1,6 @@
 /** Direct tests for the config and log helpers. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import {
@@ -33,9 +34,9 @@ describe("randomOwnerCredentials", () => {
 describe("newBookerIdentity", () => {
   it("builds a unique email and name from the run id", () => {
     const id1 = newBookerIdentity("abc123");
-    expect(id1.email).toContain("abc123");
-    expect(id1.email).toContain("@mailinator.com");
-    expect(id1.name).toContain("E2E Booker");
+    assertStringIncludes(id1.email, "abc123");
+    assertStringIncludes(id1.email, "@mailinator.com");
+    assertStringIncludes(id1.name, "E2E Booker");
     const id2 = newBookerIdentity("abc123");
     expect(id1.email).not.toBe(id2.email);
   });
@@ -72,8 +73,8 @@ describe("log functions", () => {
     } finally {
       console.log = original;
     }
-    expect(captured).toContain("▸");
-    expect(captured).toContain("hello");
+    assertStringIncludes(captured, "▸");
+    assertStringIncludes(captured, "hello");
   });
 
   it("warn writes to console.warn with an exclamation", () => {
@@ -85,8 +86,8 @@ describe("log functions", () => {
     } finally {
       console.warn = original;
     }
-    expect(captured).toContain("!");
-    expect(captured).toContain("careful");
+    assertStringIncludes(captured, "!");
+    assertStringIncludes(captured, "careful");
   });
 
   it("fail writes to console.error with a cross", () => {
@@ -98,8 +99,8 @@ describe("log functions", () => {
     } finally {
       console.error = original;
     }
-    expect(captured).toContain("✖");
-    expect(captured).toContain("broken");
+    assertStringIncludes(captured, "✖");
+    assertStringIncludes(captured, "broken");
   });
 
   it("log writes to console.log with a timestamp", () => {
@@ -111,6 +112,6 @@ describe("log functions", () => {
     } finally {
       console.log = original;
     }
-    expect(captured).toContain("plain");
+    assertStringIncludes(captured, "plain");
   });
 });

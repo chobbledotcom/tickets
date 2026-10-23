@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -128,9 +129,11 @@ describe("findRawDbViolation", () => {
   });
 
   test("flags a direct getDb().batch call", () => {
-    expect(
-      findRawDbViolation("features/y.ts", "await getDb().batch(stmts);", []),
-    ).toContain("instead of getDb().execute/.batch");
+    assertStringIncludes(
+      findRawDbViolation("features/y.ts", "await getDb().batch(stmts);", []) ??
+        "",
+      "instead of getDb().execute/.batch",
+    );
   });
 
   test("returns null for clean content", () => {

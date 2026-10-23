@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { storeEvidenceCss } from "#scripts/specs/evidence/style.ts";
@@ -15,9 +16,9 @@ describe("Cucumber evidence style", () => {
     );
 
     expect(writes).toHaveLength(1);
-    expect(writes[0]).toContain("#form { color: navy; }");
-    expect(writes[0]).toContain(":is(#form), :is(#form) *");
-    expect(writes[0]).toContain("animation: none !important");
+    assertStringIncludes(writes[0] ?? "", "#form { color: navy; }");
+    assertStringIncludes(writes[0] ?? "", ":is(#form), :is(#form) *");
+    assertStringIncludes(writes[0] ?? "", "animation: none !important");
   });
 
   test("stores isolation and deterministic rules without optional branding", async () => {
@@ -28,6 +29,6 @@ describe("Cucumber evidence style", () => {
     });
 
     expect(stored.startsWith("\nbody *")).toBe(true);
-    expect(stored).not.toContain("undefined");
+    assert(!stored.includes("undefined"));
   });
 });

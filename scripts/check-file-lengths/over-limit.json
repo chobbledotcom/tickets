@@ -34,7 +34,7 @@
   "test/integration/server/settings/apple-wallet.test.ts": 680,
   "test/integration/server/settings/superuser.test.ts": 506,
   "test/integration/server/setup.test.ts": 582,
-  "test/scripts/code-quality/detectors.test.ts": 812,
+  "test/scripts/code-quality/detectors.test.ts": 815,
   "test/scripts/code-quality/detectors.ts": 850,
   "test/scripts/precommit.test.ts": 503,
   "test/scripts/precommit/mutation-step.test.ts": 506,

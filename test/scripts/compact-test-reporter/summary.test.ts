@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { runCompactDenoTest } from "#scripts/compact-test-reporter.ts";
@@ -60,10 +61,10 @@ describe("running deno test with the compact reporter", () => {
     const { code, logs } = await runOver('Deno.test("works", () => {});');
 
     expect(code).toBe(0);
-    expect(logs).toContain("Running tests...");
-    expect(logs).toContain("\nPASS 1 passed");
+    assertArrayIncludes(logs, ["Running tests..."]);
+    assertArrayIncludes(logs, ["\nPASS 1 passed"]);
     // CI in the environment hides the progress bar.
-    expect(logs).toContain("ok   works");
+    assertArrayIncludes(logs, ["ok   works"]);
   });
 
   test("reports a failing file and exits with its code", async () => {
@@ -72,8 +73,8 @@ describe("running deno test with the compact reporter", () => {
     );
 
     expect(code).not.toBe(0);
-    expect(logs).toContain("\nFAILED 0 passed, 1 failed");
-    expect(logs.join("\n")).toContain("nope");
+    assertArrayIncludes(logs, ["\nFAILED 0 passed, 1 failed"]);
+    assertStringIncludes(logs.join("\n"), "nope");
   });
 
   test("shows an error line a dying child printed on stdout", async () => {
@@ -90,10 +91,11 @@ describe("running deno test with the compact reporter", () => {
       );
 
       expect(value).toBe(1);
-      expect(errors.join("\n")).toContain(
+      assertStringIncludes(
+        errors.join("\n"),
         "error: Uncaught boom from the dying child",
       );
-      expect(errors.join("\n")).toContain("deno exited with code 1");
+      assertStringIncludes(errors.join("\n"), "deno exited with code 1");
     } finally {
       dir.dispose();
     }
@@ -139,10 +141,11 @@ describe("running deno test with the compact reporter", () => {
       ]);
 
       expect(value).not.toBe(0);
-      expect(errors.join("\n")).toContain(
+      assertStringIncludes(
+        errors.join("\n"),
         "\ndeno's JUnit report marks these files with uncaught errors:",
       );
-      expect(errors.join("\n")).toContain("  ./crashes.test.ts");
+      assertStringIncludes(errors.join("\n"), "  ./crashes.test.ts");
     } finally {
       dir.dispose();
     }
@@ -170,7 +173,7 @@ describe("running deno test with the compact reporter", () => {
       ]);
 
       expect(value).not.toBe(0);
-      expect(errors.join("\n")).not.toContain("stale.test.ts");
+      assert(!errors.join("\n").includes("stale.test.ts"));
     } finally {
       dir.dispose();
     }
@@ -182,7 +185,7 @@ describe("running deno test with the compact reporter", () => {
     });
 
     expect(code).toBe(1);
-    expect(logs).toContain("No test matched --filter no such leaf.");
+    assertArrayIncludes(logs, ["No test matched --filter no such leaf."]);
   });
 
   test("fails a filtered run whose only matches are skipped tests", async () => {
@@ -192,7 +195,7 @@ describe("running deno test with the compact reporter", () => {
     );
 
     expect(code).toBe(1);
-    expect(logs).toContain("No test matched --filter ignored.");
+    assertArrayIncludes(logs, ["No test matched --filter ignored."]);
   });
 
   test("passes a filtered run that matched a test", async () => {
@@ -202,6 +205,6 @@ describe("running deno test with the compact reporter", () => {
     );
 
     expect(code).toBe(0);
-    expect(logs.join("\n")).not.toContain("No test matched");
+    assert(!logs.join("\n").includes("No test matched"));
   });
 });

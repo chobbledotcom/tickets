@@ -1,4 +1,5 @@
 import { basename } from "node:path";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -65,7 +66,7 @@ describe("planIsolateEntries", () => {
     expect(entry.startsWith(`${root}/${GROUPS_DIR}/`)).toBe(true);
     const body = await Deno.readTextFile(entry);
     for (const path of paths) {
-      expect(body).toContain(`import "../${basename(path)}";`);
+      assertStringIncludes(body, `import "../${basename(path)}";`);
     }
 
     await plan.cleanup();
@@ -84,7 +85,7 @@ describe("planIsolateEntries", () => {
     expect(plan.runArgs).toHaveLength(2);
     expect(plan.runArgs.at(-1)).toBe(`${root}/c.test.ts`);
     const body = await Deno.readTextFile(plan.runArgs[0]!);
-    expect(body).not.toContain("c.test.ts");
+    assert(!body.includes("c.test.ts"));
 
     await plan.cleanup();
     await Deno.remove(root, { recursive: true });

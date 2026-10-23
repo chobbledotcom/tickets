@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -253,7 +254,8 @@ describe("startStripeMock ports", () => {
         stdout: "null",
       }).output();
       expect(success).toBe(false);
-      expect(new TextDecoder().decode(stderr)).toContain(
+      assertStringIncludes(
+        new TextDecoder().decode(stderr),
         "without a -http-port value",
       );
     });
