@@ -24,6 +24,7 @@ describe("Cucumber story catalog", () => {
       "attendees.checking-people-in-at-the-group-door",
       "attendees.downloading-the-attendee-list",
       "attendees.editing-and-moving",
+      "attendees.images-in-admin-notes",
       "attendees.merging-duplicate-bookings",
       "attendees.no-quantity-tickets",
       "attendees.removing-one-part-of-an-order",

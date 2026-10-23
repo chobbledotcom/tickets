@@ -6,12 +6,16 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
+import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
 import { attendeePage } from "#routes/admin/attendee-page.ts";
 import { paymentRecoveryAction } from "#routes/admin/attendees-route-helpers.ts";
 import { setBookingLineQuantity } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { planListing } from "#test-utils/db-helpers/site-plans.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { seedHistoricalProcessedPayment } from "#test-utils/historical-payment-references.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
@@ -236,3 +240,56 @@ describeWithEnv("the attendee page", { db: true }, () => {
     });
   });
 });
+
+describeWithEnv(
+  "the overview's missing-site cue",
+  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  () => {
+    test("shows the cue on a paid plan row whose buyer holds no site", async () => {
+      const plan = await planListing("Cue Plan");
+      const attendee = await createPaidTestAttendee(
+        plan.id,
+        "Pat Plan",
+        "pat@example.com",
+        "pay_cue_missing",
+      );
+      expect(await tabHtml(attendee.id, "")).toContain("No site assigned yet");
+    });
+
+    test("hides the cue once the buyer's site is assigned", async () => {
+      const plan = await planListing("Served Cue Plan");
+      const attendee = await createPaidTestAttendee(
+        plan.id,
+        "Served Plan",
+        "served@example.com",
+        "pay_cue_served",
+      );
+      await insertBuiltSite("Cue Site", "cue.example.test", "", "", true);
+      await takePooledSiteForBuyer(
+        await getAssignableBuiltSites(),
+        attendee.id,
+        [plan.id],
+        plan.id,
+      );
+      expect(await tabHtml(attendee.id, "")).not.toContain(
+        "No site assigned yet",
+      );
+    });
+
+    test("hides the cue while the sale carries no payment reference", async () => {
+      const plan = await planListing("Unrecorded Cue Plan");
+      // A recorded sale with no payment id: the money has no provider
+      // reference, so the sale never completed and the cue stays quiet.
+      const attendee = await createPaidTestAttendee(
+        plan.id,
+        "Unrecorded Plan",
+        "unrecorded@example.com",
+        "",
+        plan.unit_price,
+      );
+      expect(await tabHtml(attendee.id, "")).not.toContain(
+        "No site assigned yet",
+      );
+    });
+  },
+);

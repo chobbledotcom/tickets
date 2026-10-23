@@ -4,6 +4,7 @@ import { getNoteRows, getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { t } from "#i18n";
 import { setupAdminTest } from "#test-utils/admin-fixture.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -81,6 +82,23 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     expect(html).toContain("deletable note");
     // The intermediate page never asks for the copy/paste confirmation.
     expect(html).not.toContain('name="confirm_identifier"');
+  });
+
+  test("GET delete resolves the note's img#N reference", async () => {
+    const { attendee } = await setupAdminTest();
+    const image = await makeImage("DeletePoster");
+    await adminFormPost(`/admin/attendee/${attendee.id}/note`, {
+      note: `Remove me. ![DeletePoster](img#${image.id})`,
+    });
+    const [row] = await getNoteRows("attendee", [attendee.id]);
+
+    const html = await (
+      await adminGet(`/admin/attendee/${attendee.id}/note/${row!.id}/delete`)
+    ).text();
+    expect(html).toContain(
+      `<img src="/image/${image.filename}" alt="DeletePoster">`,
+    );
+    expect(html).not.toContain("img#");
   });
 
   test("GET delete on a missing note is a 404", async () => {

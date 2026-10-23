@@ -50,14 +50,20 @@ const noteDeleteAction = (note: SystemNote): string =>
 const deleteNoteUrl = (note: SystemNote, returnUrl: string): string =>
   withReturnUrl(noteDeleteAction(note), returnUrl);
 
-/** One note plus whether the viewer is an owner (the only role allowed to
- * open the ledger pages a note may link to). */
-type NoteViewProps = { note: SystemNote; isOwner: boolean };
+/** One note plus whether the viewer is an owner. Only an owner can open the
+ * ledger pages a note may link to. */
+type NoteViewProps = {
+  isOwner: boolean;
+  note: SystemNote;
+};
 
 /** A collection of notes plus whether the viewer is an owner. Shared by the
  * note section, the summary, and the attendee banner so the `{ notes, isOwner }`
  * pair has one declared shape. */
-export type NotesViewProps = { notes: SystemNote[]; isOwner: boolean };
+export type NotesViewProps = {
+  notes: SystemNote[];
+  isOwner: boolean;
+};
 
 /** True when a link target is an owner-only page — the standalone ledger routes
  * (`/admin/ledger…`) and the attendee page's ledger tab
@@ -70,8 +76,9 @@ const isOwnerOnlyLink = (href: string): boolean =>
 /** Render a note's body as (safe) markdown — links and emphasis, HTML escaped.
  * The ledger pages are owner-only, so for any other admin a stored ledger link
  * (the refund notes carry one) is demoted to its plain text — a rendered link
- * is a promise that it works. */
-const NoteBody = ({ note, isOwner }: NoteViewProps): JSX.Element => (
+ * is a promise that it works. The render resolves the note's img#N references
+ * through the request's page-image slot. */
+const NoteBody = ({ isOwner, note }: NoteViewProps): JSX.Element => (
   <Raw
     html={renderMarkdown(
       isOwner ? note.note : withoutLinksTo(note.note, isOwnerOnlyLink),
@@ -104,7 +111,7 @@ const NoteActions = ({
  * booking can't be missed), a neutral box for an `owner` note. The "×" opens the
  * delete confirmation, returning to the attendee page.
  */
-const NoteBox = ({ note, isOwner }: NoteViewProps): JSX.Element => {
+const NoteBox = ({ isOwner, note }: NoteViewProps): JSX.Element => {
   const isSystem = note.type === "system";
   return (
     <div
@@ -255,7 +262,9 @@ export const adminNoteDeletePage = ({
   session,
   returnUrl,
   error,
-}: { note: SystemNote } & NotePageProps): string =>
+}: {
+  note: SystemNote;
+} & NotePageProps): string =>
   ConfirmPage({
     action: noteDeleteAction(note),
     active: { section: "/admin/attendees" },

@@ -9,6 +9,7 @@ import { logActivity } from "#db/activity-log.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesPage } from "#db/attendees/queries.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
+import { addNoteImageUrls } from "#db/images.ts";
 import { loadNotesForAttendees } from "#db/notes/queries.ts";
 import { settings } from "#db/settings.ts";
 import { fieldById, filter, unique } from "#fp";
@@ -154,6 +155,7 @@ export const handleAttendeesListGet: TypedRouteHandler<
       Promise.resolve(privateKey),
     );
 
+    await addNoteImageUrls(systemNotes);
     return htmlResponse(
       adminAttendeesListPage({
         allowedDomain: getEffectiveDomain(),
