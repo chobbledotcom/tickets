@@ -125,13 +125,14 @@ Then(
 );
 
 Then(
-  "the door page carries the offline banner and the queue panel",
+  "the door page says a scan made now is kept and checked in when the connection returns",
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
     // This harness serves the page and never runs its script, so the step
-    // reads the elements the client looks up and the words the page serves
-    // for each: the banner's words in both modes, and the queue panel's
-    // words for a queued check-in and its count. The count words are served
+    // reads the words the page serves for its promise. The banner's words
+    // in both modes say a scan is queued and checked in when the
+    // connection is back, and the queue panel's words say what a kept
+    // check-in waits as and how many wait. The count words are served
     // with the {count} placeholder the client fills in.
     expect(page).toMatch(
       /<aside[^>]*\bid="scanner-offline-banner"[^>]*>\s*<p id="scanner-offline-banner-text"><\/p>\s*<\/aside>/,
