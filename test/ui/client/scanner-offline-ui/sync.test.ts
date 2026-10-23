@@ -15,14 +15,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Stub } from "@std/testing/mock";
-import { type FetchResponder, stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   cameraFakes,
   scanFirst,
   seedTicketCache,
   start,
   whenStatusShows,
-} from "../scanner/camera-fakes.ts";
+} from "#test/ui/client/scanner/camera-fakes.ts";
 import {
   el,
   fullStore,
@@ -35,7 +34,8 @@ import {
   useScannerSuite,
   whenMessageShows,
   whenTextShows,
-} from "../scanner/fixture.ts";
+} from "#test/ui/client/scanner/fixture.ts";
+import { type FetchResponder, stubFetch } from "#test-utils/fetch-stub.ts";
 
 describe("scanner offline sync", {
   sanitizeOps: false,
