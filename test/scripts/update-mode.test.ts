@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { FetchText, FetchTextResult } from "#scripts/fetch-text.ts";
@@ -92,7 +93,7 @@ describe("runUpdateMode", () => {
       log: (line) => logged.push(line),
     });
     expect(code).toBe(1);
-    expect(logged.join("\n")).toContain("Usage:");
+    assertStringIncludes(logged.join("\n"), "Usage:");
     return { calls };
   };
 
@@ -375,7 +376,8 @@ describe("runUpdateMode", () => {
         log: (line) => logged.push(line),
       });
       expect(code).toBe(1);
-      expect(logged.join("\n")).toContain(
+      assertStringIncludes(
+        logged.join("\n"),
         "The deploy passed no site URL for script 42",
       );
       expect(calls).toEqual([]);

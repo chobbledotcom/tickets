@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { readCatalog, runLabelCheck } from "#scripts/check-e2e-labels/run.ts";
@@ -124,7 +125,7 @@ describe("e2e label check run", () => {
       await expect(
         runLabelCheck(`${root}/no-locales`, `${root}/scan`, output),
       ).resolves.toBe(1);
-      expect(output.lines.join("\n")).toContain("Cannot read the message");
+      assertStringIncludes(output.lines.join("\n"), "Cannot read the message");
     } finally {
       await Deno.remove(root, { recursive: true });
     }

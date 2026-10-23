@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { shapeOf } from "#scripts/typescript-lex.ts";
@@ -171,6 +172,6 @@ describe("shapeOf slash basics", () => {
   });
 
   test("still divides inside a braced control body", () => {
-    expect(shapeOf("if (a) { b = c() / 2; }")).toContain("/");
+    assertArrayIncludes(shapeOf("if (a) { b = c() / 2; }"), ["/"]);
   });
 });

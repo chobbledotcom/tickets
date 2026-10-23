@@ -1,5 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -127,7 +128,7 @@ describe("CLI API without configuration", () => {
     const described = JSON.parse(stdout) as {
       resources: Record<string, unknown>;
     };
-    expect(Object.keys(described.resources)).toContain("listings");
+    assertArrayIncludes(Object.keys(described.resources), ["listings"]);
   });
 
   test("reports the missing site as the usage envelope", async () => {
@@ -401,7 +402,7 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
         expect(answer.error.kind).toBe("server");
         expect(answer.error.status).toBe(200);
         expect(answer.error.fields).toBeNull();
-        expect(answer.error.message).toContain("failed validation");
+        assertStringIncludes(answer.error.message, "failed validation");
       } finally {
         await server.shutdown();
       }

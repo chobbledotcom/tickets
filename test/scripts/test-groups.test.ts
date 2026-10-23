@@ -1,3 +1,4 @@
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
@@ -169,9 +170,9 @@ describe("test-groups", () => {
       // Each import sits on its own line, so a generated entry stays readable
       // when a group needs eyeballing.
       const lines = source.split("\n");
-      expect(lines).toContain('import "../test/a.test.ts";');
-      expect(lines).toContain('import "../test/b.test.ts";');
-      expect(source).toContain("do not edit");
+      assertArrayIncludes(lines, ['import "../test/a.test.ts";']);
+      assertArrayIncludes(lines, ['import "../test/b.test.ts";']);
+      assertStringIncludes(source, "do not edit");
     });
   });
 
@@ -381,7 +382,7 @@ describe("test-groups", () => {
           `${root}/test/plain.test.ts`,
         ]);
         const entry = await Deno.readTextFile(groups.runArgs[0]!);
-        expect(entry).toContain('import "../test/plain.test.ts";');
+        assertStringIncludes(entry, 'import "../test/plain.test.ts";');
 
         await groups.cleanup();
         await groups.cleanup(); // a second pass finds nothing left — no throw
@@ -400,7 +401,7 @@ describe("test-groups", () => {
         );
         // A later run must reuse that leftover dir rather than choke on it.
         const again = await writeTestGroups(root, 1);
-        expect(again.runArgs[0]).toContain(GROUPS_DIR);
+        assertStringIncludes(again.runArgs[0] ?? "", GROUPS_DIR);
         await again.cleanup();
       });
     });

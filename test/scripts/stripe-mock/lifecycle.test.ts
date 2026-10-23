@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -207,8 +208,8 @@ describe("starting stripe-mock", () => {
         startAttempts: 2,
       });
 
-      expect(message).toContain(STRIPE_MOCK_FAILED_TO_START);
-      expect(message).toContain("Failed to spawn");
+      assertStringIncludes(message, STRIPE_MOCK_FAILED_TO_START);
+      assertStringIncludes(message, "Failed to spawn");
     });
   });
 
@@ -332,7 +333,7 @@ describe("starting stripe-mock", () => {
           // The holder child keeps the pipe open past the kill: the starter
           // must name the wait it gave up rather than hang the run on it
           // (issue #2225).
-          expect(message).toContain("stripe-mock stderr read timed out");
+          assertStringIncludes(message, "stripe-mock stderr read timed out");
         } finally {
           Deno.kill(Number(await Deno.readTextFile(holderPidPath)), "SIGKILL");
           // One turn lets the pipe the holder kept open finish closing, so
@@ -356,7 +357,7 @@ describe("starting stripe-mock", () => {
         });
 
         // Without the fetch it would fail later, on a binary that is not there.
-        expect(message).toContain("no network");
+        assertStringIncludes(message, "no network");
       });
     });
   });

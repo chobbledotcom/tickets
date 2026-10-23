@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -110,7 +111,7 @@ describe("the Markdown mutation report", () => {
     const summary = await stepSummary([fakeResult("survived", 7, "??", "||")]);
     const row = summary.split("\n").find((line) => line.includes("fn7"))!;
 
-    expect(row).toContain("&#124;&#124;");
+    assertStringIncludes(row, "&#124;&#124;");
     expect(row.split("|")).toHaveLength(4);
   });
 
@@ -121,8 +122,8 @@ describe("the Markdown mutation report", () => {
       writeStepSummary(summarize([fakeResult("ignored", 1, "??", "||")]));
     });
 
-    expect(text).toContain("Inconclusive");
-    expect(text).toContain("nothing killable");
+    assertStringIncludes(text, "Inconclusive");
+    assertStringIncludes(text, "nothing killable");
   });
 
   test("says on the console where the Markdown summary went", async () => {
@@ -154,8 +155,8 @@ describe("the Markdown mutation report", () => {
       "| phase | runs | time |",
       "| --- | ---: | ---: |",
     ]);
-    expect(markdown).toContain("| lint | 1 | 4ms |");
-    expect(markdown).toContain("| direct-tests | 1 | 10ms |");
+    assertStringIncludes(markdown, "| lint | 1 | 4ms |");
+    assertStringIncludes(markdown, "| direct-tests | 1 | 10ms |");
   });
 
   test("writes phase timing work when all mutants are ignored", async () => {
@@ -164,8 +165,8 @@ describe("the Markdown mutation report", () => {
       writeStepSummary(timingSummary("ignored")),
     );
 
-    expect(markdown).toContain("### Phase timings");
-    expect(markdown).toContain("| direct-tests | 1 | 10ms |");
+    assertStringIncludes(markdown, "### Phase timings");
+    assertStringIncludes(markdown, "| direct-tests | 1 | 10ms |");
   });
 
   test("ignores absent or unwritable GitHub step summary paths", async () => {

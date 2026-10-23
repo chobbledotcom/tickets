@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -38,7 +39,7 @@ describe("taking a claim", () => {
       await writeClaim(path, `someone-else\n${LONG_AGO_MS}`);
 
       await withTestClaim(path, async () => {
-        expect(await Deno.readTextFile(path)).not.toContain("someone-else");
+        assert(!(await Deno.readTextFile(path)).includes("someone-else"));
       });
     });
   });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -81,8 +82,8 @@ describe("scoring a mutation run", () => {
       ]),
     );
 
-    expect(lines.join("\n")).toContain("src/example.ts:12:3");
-    expect(lines.join("\n")).toContain("return value");
+    assertStringIncludes(lines.join("\n"), "src/example.ts:12:3");
+    assertStringIncludes(lines.join("\n"), "return value");
   });
 
   test("formats plain progress lines with counts and the latest mutation", () => {
@@ -104,7 +105,7 @@ describe("scoring a mutation run", () => {
   });
 
   test("formats zero-total progress as complete", () => {
-    expect(
+    assertStringIncludes(
       formatProgressLine({
         completed: 0,
         ignored: 0,
@@ -113,6 +114,7 @@ describe("scoring a mutation run", () => {
         survived: 0,
         total: 0,
       }),
-    ).toContain("0/0 (100.0%)");
+      "0/0 (100.0%)",
+    );
   });
 });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { CheckOutput } from "#scripts/check-report.ts";
@@ -55,7 +56,7 @@ describe("unread-field check", () => {
     });
 
     expect(code).toBe(1);
-    expect(seen.errors[0]).toContain("new unread field [never read]");
+    assertStringIncludes(seen.errors[0] ?? "", "new unread field [never read]");
     expect(seen.errors.at(-1)).toBe(
       "\n1 unread-field issue(s) found. See scripts/unread-fields/README.md.",
     );
