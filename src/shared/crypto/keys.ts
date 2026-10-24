@@ -84,6 +84,17 @@ export const deriveKEKFromPassword = (
   passwordHash: PasswordHash,
 ): Promise<CryptoKey> => deriveKek(password, `kek-v2:${passwordHash}:`);
 
+/** The KEK for an owner account: the password-bound v2 scheme for an account
+ *  on v2, otherwise the legacy v1 scheme keyed by the stored hash. */
+export const deriveOwnerKek = (
+  password: string,
+  passwordHash: PasswordHash,
+  kekVersion: number,
+): Promise<CryptoKey> =>
+  kekVersion >= 2
+    ? deriveKEKFromPassword(password, passwordHash)
+    : deriveKEK(passwordHash);
+
 /**
  * =============================================================================
  * Symmetric Key Wrapping

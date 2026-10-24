@@ -96,6 +96,17 @@ export const importPublicKey = (jwkString: string): Promise<CryptoKey> =>
 export const importPrivateKey = (jwkString: string): Promise<CryptoKey> =>
   importRsaKey(jwkString, "decrypt");
 
+/** Decrypt the wrapped site private key (the RSA key that protects attendee
+ *  PII) with a DATA_KEY and import it. The session path and the migration
+ *  verifier both recover the private key this way. */
+export const privateKeyFromDataKey = async (
+  dataKey: CryptoKey,
+  wrappedPrivateKey: KeyEncrypted,
+): Promise<CryptoKey> => {
+  const privateKeyJwk = await decryptWithKey(wrappedPrivateKey, dataKey);
+  return importPrivateKey(privateKeyJwk);
+};
+
 /** Prefix tagging a hybrid (RSA+AES) ciphertext: owner-key activity-log
  * messages and attendee PII. Distinguishes them from env-key {@link
  * ENCRYPTION_PREFIX} values so a decrypt path can route by format. */
@@ -236,11 +247,7 @@ export const getPrivateKeyFromSession = async (
   // Unwrap DATA_KEY using session token
   const dataKey = await unwrapKeyWithToken(wrappedDataKey, sessionToken);
 
-  // Decrypt private key using DATA_KEY
-  const privateKeyJwk = await decryptWithKey(wrappedPrivateKey, dataKey);
-
-  // Import and return the private key
-  const key = await importPrivateKey(privateKeyJwk);
+  const key = await privateKeyFromDataKey(dataKey, wrappedPrivateKey);
 
   privateKeyCache.set(sessionToken, key);
   return key;

@@ -10,9 +10,12 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { decryptWithOwnerKey, HYBRID_PREFIX } from "#crypto/hybrid.ts";
-import { unwrapKey } from "#crypto/keys.ts";
-import { deriveOwnerKek, privateKeyFromDataKey } from "#crypto/owner-kek.ts";
+import {
+  decryptWithOwnerKey,
+  HYBRID_PREFIX,
+  privateKeyFromDataKey,
+} from "#crypto/hybrid.ts";
+import { deriveOwnerKek, unwrapKey } from "#crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { decryptPiiBlob } from "#db/attendees/pii.ts";
@@ -36,6 +39,18 @@ import type {
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 
 const DEFAULT_VERIFY_PAGE_SIZE = 500;
+
+/** The next page cursor. A NULL or missing primary key cannot order a next
+ *  page and no readiness rule can name the row, so the read throws. */
+const rowCursor = (row: Record<string, unknown>, pkColumn: string): InValue => {
+  const cursor = row[pkColumn];
+  if (cursor === null || cursor === undefined) {
+    throw new Error(
+      `NULL primary key in ${pkColumn}: the row cannot be ordered or named`,
+    );
+  }
+  return cursor;
+};
 
 /** Read every row of a table as keyset pages, so no single libsql response
  *  exceeds its payload cap. `whereClause` narrows the read (e.g. real-audience
@@ -63,9 +78,10 @@ const keysetRows = async <T>(
     );
     if (page.length === 0) break;
     rows.push(...page);
-    after = (page[page.length - 1] as Record<string, unknown>)[
-      pkColumn
-    ] as InValue;
+    after = rowCursor(
+      page[page.length - 1] as Record<string, unknown>,
+      pkColumn,
+    );
     if (page.length < pageSize) break;
   }
   return rows;

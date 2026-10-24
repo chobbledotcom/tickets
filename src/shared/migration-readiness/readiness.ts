@@ -55,12 +55,6 @@ export type AttendeePiiSource = {
   pii_blob: OwnerKeyEncrypted | "";
 };
 
-/** A `processed_payments` row that hand-offs a merged attendee's `payment_id`.
- *  Its `payment_session_id` is `legacy-merge:<source attendee id>`. Its
- *  `attendee_id` is the merge target. Its `payment_reference` is the source
- *  attendee's owner-key-encrypted `payment_id`. */
-export type MergeReferenceRow = ProcessedPaymentRow;
-
 /** One provider payment after grouping. The legacy tables key each payment by
  *  `payment_session_id`. A group is the processed row (if any) plus the
  *  checkout-stage row (if any) that share it. */
@@ -231,6 +225,7 @@ const stageProcessedMismatch = (
   if (
     processedAttendee === null ||
     !attendeeIds.has(processedAttendee) ||
+    !attendeeIds.has(stage.attendee_id) ||
     stage.attendee_id === processedAttendee
   ) {
     return null;
