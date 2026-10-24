@@ -121,6 +121,34 @@ describe("scanner offline sync", {
     );
   });
 
+  test("keeps the switch on and says so when the store refuses the change", async () => {
+    using _fetch = stubFetch(new Error("offline"));
+    const h = fresh({
+      onLine: false,
+      seed: (store) => store.setItem("scanner-offline-mode", "1"),
+    });
+
+    // The store refuses the removal: the switch stays armed, and the page
+    // says why nothing changed.
+    fullStore(h);
+    el(h.document, "scanner-offline-toggle").click();
+
+    await whenTextShows(
+      h.statusEl,
+      "Your change was not saved. Free up space on this device, then try again.",
+    );
+    expect(h.statusEl.className).toContain("scanner-status-error");
+    // The armed switch keeps its position: the mode stays stored, the
+    // banner stays up, and the switch reads as pressed.
+    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe("1");
+    expect(el(h.document, "scanner-offline-banner").className).not.toContain(
+      "hidden",
+    );
+    expect(
+      el(h.document, "scanner-offline-toggle").getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
   test("keeps a check-in the door did not answer and says so", async () => {
     using _fetch = stubFetch(new Error("offline"));
     const h = fresh(queueSeeded());
