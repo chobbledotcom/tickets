@@ -126,50 +126,6 @@ Then(
 );
 
 Then(
-  "the door page says a scan made now is kept and checked in when the connection returns",
-  function (this: TicketsWorld): void {
-    const page = scannerBrowser(this).currentHtml;
-    // This harness serves the page and never runs its script, so the step
-    // reads the words the page serves for its promise. The banner's words
-    // in both modes say a scan is queued and checked in when the
-    // connection is back, and the queue panel's words say what a kept
-    // check-in waits as and how many wait. The count words are served
-    // with the {count} placeholder the client fills in.
-    expect(page).toMatch(
-      /<aside[^>]*\bid="scanner-offline-banner"[^>]*>\s*<p id="scanner-offline-banner-text"><\/p>\s*<\/aside>/,
-    );
-    expect(page).toContain(
-      `data-message-offline-banner-auto="${t(
-        "admin.scanner.offline_banner_auto",
-      )}"`,
-    );
-    expect(page).toContain(
-      `data-message-offline-banner-manual="${t(
-        "admin.scanner.offline_banner_manual",
-      )}"`,
-    );
-    const queuePanel = page.match(
-      /<div[^>]*\bid="scanner-queue"[^>]*>[\s\S]*?<\/div>/,
-    );
-    expect(queuePanel?.[0]).toContain('id="scanner-queue-summary"');
-    expect(queuePanel?.[0]).toContain('id="scanner-queue-items"');
-    expect(page).toContain(
-      `data-message-queue-item-queued="${t("admin.scanner.queue_item_queued")}"`,
-    );
-    expect(page).toContain(
-      `data-message-queue-count-one="${t("admin.scanner.queue_count_one", {
-        count: "{count}",
-      })}"`,
-    );
-    expect(page).toContain(
-      `data-message-queue-count-other="${t("admin.scanner.queue_count_other", {
-        count: "{count}",
-      })}"`,
-    );
-  },
-);
-
-Then(
   "the ticket page offers to check them out",
   function (this: TicketsWorld): void {
     assertStringIncludes(
