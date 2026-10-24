@@ -111,31 +111,35 @@ Then(
 );
 
 Then(
-  "the door page offers an offline mode switch",
+  "the door page offers an offline mode switch that starts off",
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
     // This harness serves the page and never runs its script, so the step
-    // reads the served surface. The words for offline mode also stand in
-    // the manual banner message on the same page, so the step takes the
-    // label from the switch element itself.
+    // reads the switch the door worker sees: the site's own label, and
+    // the off state the page serves it in.
     const toggle = page.match(
-      /<button[^>]*\sid="scanner-offline-toggle"[^>]*>([^<]*)<\/button>/,
+      /<button([^>]*)\sid="scanner-offline-toggle"([^>]*)>([^<]*)<\/button>/,
     );
-    expect(toggle?.[1]?.trim()).toBe(t("admin.scanner.offline_mode"));
+    expect(toggle?.[3]?.trim()).toBe(t("admin.scanner.offline_mode"));
+    expect(toggle?.[0]).toContain('aria-pressed="false"');
   },
 );
 
 Then(
-  "the door page carries the words and the queue panel for scans made offline",
+  "the door page keeps a place that will list the queued check-ins",
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
     // This harness serves the page and never runs its script, so the step
-    // reads the served surface: the words the door sees for a kept scan
-    // and for each banner, and the panel that lists the kept scans.
-    assertStringIncludes(page, t("admin.scanner.offline_queued"));
-    assertStringIncludes(page, t("admin.scanner.offline_banner_auto"));
-    assertStringIncludes(page, t("admin.scanner.offline_banner_manual"));
-    assertStringIncludes(page, 'id="scanner-queue"');
+    // reads the promise the served page makes: the panel whose polite
+    // live region will carry the queued count, and the list the queued
+    // check-ins will fill once offline mode turns on.
+    const queue = page.match(
+      /<div class="hidden" id="scanner-queue">([\s\S]*?)<\/div>/,
+    );
+    expect(queue?.[1]).toContain(
+      '<p aria-live="polite" id="scanner-queue-summary"></p>',
+    );
+    expect(queue?.[1]).toContain('<ul id="scanner-queue-items"></ul>');
   },
 );
 
