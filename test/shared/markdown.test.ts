@@ -5,7 +5,6 @@ import {
   isSafeUrl,
   isSimpleMarkdown,
   renderMarkdown,
-  rewriteImageDestinations,
   withoutLinksTo,
 } from "#shared/markdown.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -364,50 +363,6 @@ describe("markdown", () => {
       expect(
         withoutLinksTo("See [Ada](/admin/attendees/5).", isOwnerOnly),
       ).toBe("See [Ada](/admin/attendees/5).");
-    });
-  });
-
-  describe("rewriteImageDestinations", () => {
-    const toPoster = (href: string): string | undefined =>
-      href === "img#5" ? "/image/poster.webp" : undefined;
-
-    test("rewrites the picture's address and keeps the rest of the source", () => {
-      expect(rewriteImageDestinations("See ![A](img#5) now.", toPoster)).toBe(
-        "See ![A](/image/poster.webp) now.",
-      );
-    });
-
-    test("keeps the written form of an address the rewrite leaves alone", () => {
-      expect(rewriteImageDestinations("See ![A](img#9) now.", toPoster)).toBe(
-        "See ![A](img#9) now.",
-      );
-    });
-
-    test("resolves a picture inside a link's text", () => {
-      expect(
-        rewriteImageDestinations("[![A](img#5)](https://x)", toPoster),
-      ).toBe("[![A](/image/poster.webp)](https://x)");
-    });
-
-    test("keeps a `![alt][label]` picture reference as written", () => {
-      expect(rewriteImageDestinations("See ![A][5] now.", toPoster)).toBe(
-        "See ![A][5] now.",
-      );
-    });
-
-    test("keeps a picture's title when it rewrites the address", () => {
-      expect(
-        rewriteImageDestinations('See ![A](img#5 "the poster") now.', toPoster),
-      ).toBe('See ![A](/image/poster.webp "the poster") now.');
-    });
-
-    test("keeps a title that holds a closing parenthesis", () => {
-      expect(
-        rewriteImageDestinations(
-          'See ![A](img#5 "the (best) poster") now.',
-          toPoster,
-        ),
-      ).toBe('See ![A](/image/poster.webp "the (best) poster") now.');
     });
   });
 

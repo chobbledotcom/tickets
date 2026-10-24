@@ -242,13 +242,14 @@ const leafTokens = (token: Token): Token[] => {
   return children.length > 0 ? children.flatMap(leafTokens) : [token];
 };
 
-/** The tail of an inline picture's source: `](`, the address as written, and
- * the optional title part. The spellings are the ones marked's own picture
- * rule reads. A quoted title can hold a closing parenthesis, so the match
- * runs to the source's end instead of the first one. */
-const IMAGE_DESTINATION_TAIL =
+/** The source of one inline picture, read the way marked reads it: the
+ * written alt text, `](`, the address, and the optional title part. The alt
+ * and title spellings are marked's own inline rules. A quoted title can hold
+ * a closing parenthesis, so the match runs to the source's end instead of
+ * the first one. */
+const IMAGE_SOURCE =
   // biome-ignore lint/suspicious/noControlCharactersInRegex: the control-character range is marked's own bare-address rule, which ends a bare address at the characters a URL never holds
-  /\]\((\s*)((?:<(?:\\.|[^\n<>\\])+>|[^ \t\n\x00-\x1f]*))(?:(?:[ \t]+(?:\n[ \t]*)?|\n[ \t]*)(?:"(?:\\"?|[^"\\])*"|'(?:\\'?|[^'\\])*'|\((?:\\\)?|[^)\\])*\)))?\s*\)$/;
+  /^!\[((?:\[(?:\\[\s\S]|[^[\]\\])*\]|\\[\s\S]|`+(?!`)[^`]*?`+(?!`)|``+(?=\])|[^[\]\\`])*)\]\((\s*)((?:<(?:\\.|[^\n<>\\])+>|[^ \t\n\x00-\x1f]*))(?:(?:[ \t]+(?:\n[ \t]*)?|\n[ \t]*)(?:"(?:\\"?|[^"\\])*"|'(?:\\'?|[^'\\])*'|\((?:\\\)?|[^)\\])*\)))?\s*\)$/;
 
 /** The address marked reads from an address as written: trimmed, angle
  * brackets off, backslash escapes on punctuation undone. The token's `href`
@@ -260,10 +261,9 @@ const markedHref = (dest: string): string => {
 };
 
 /** Replaces one picture's address inside the token's own source, and keeps
- * every other byte of that source, the title part included. The bytes it
- * replaces must read back as the token's own address. Any other shape, such
- * as a `![alt][label]` reference whose source does not end in parentheses,
- * keeps its written form. */
+ * every other byte of that source, the title part included. A source that
+ * does not end in the address's parentheses, such as a `![alt][label]`
+ * reference, keeps its written form. */
 const rewriteImageSource = (
   raw: string,
   href: string,
@@ -271,18 +271,21 @@ const rewriteImageSource = (
 ): string => {
   const url = toUrl(href);
   if (url === undefined) return raw;
-  const tail = IMAGE_DESTINATION_TAIL.exec(raw);
-  if (!tail) return raw;
-  const [, gap, dest] = tail;
-  // The whitespace and address groups always join the match.
+  const source = IMAGE_SOURCE.exec(raw);
+  if (!source) return raw;
+  const [, label, gap, dest] = source;
+  // The three groups always join the match, and the address must read back
+  // as the token's own address. A miss means this copy of marked's picture
+  // rule drifted from marked itself.
   assert(
-    gap !== undefined && dest !== undefined,
-    "The picture tail match lost its address",
+    label !== undefined &&
+      gap !== undefined &&
+      dest !== undefined &&
+      markedHref(dest) === href,
+    "The picture source match lost the token's address",
   );
-  if (markedHref(dest) !== href) return raw;
-  // `](` is two characters. The tail match holds the rest of the source, so
-  // the author's title part and closing parenthesis stay as written.
-  const start = tail.index + 2 + gap.length;
+  // `![` and `](` hold four characters around the label and the whitespace.
+  const start = 4 + label.length + gap.length;
   return `${raw.slice(0, start)}${url}${raw.slice(start + dest.length)}`;
 };
 
