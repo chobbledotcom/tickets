@@ -496,7 +496,7 @@ export type CollectionCache<T> = {
  * Create an in-memory collection cache with TTL.
  * Loads all items via fetchAll on first access or after invalidation/expiry,
  * then serves from memory until the TTL expires or invalidate() is called.
- * Accepts an optional clock function for testing.
+ * Takes the clock as an argument: pass nowMs, or a fake clock in a test.
  *
  * Uses a generation counter to prevent a race condition where a concurrent
  * fetchAll() that started before an invalidation could overwrite the cache
@@ -505,7 +505,7 @@ export type CollectionCache<T> = {
 export const collectionCache = <T>(
   fetchAll: () => Promise<T[]>,
   ttlMs: number,
-  now: () => number = Date.now,
+  now: () => number,
 ): CollectionCache<T> => {
   const [getState, setState] = lazyRef<{ items: T[] | null; time: number }>(
     () => ({ items: null, time: 0 }),
@@ -543,7 +543,7 @@ export type TtlCache<K, V> = {
 /**
  * Create a TTL (Time-To-Live) cache.
  * Entries expire after ttlMs milliseconds.
- * Accepts an optional clock function for testing.
+ * Takes the clock as an argument: pass nowMs, or a fake clock in a test.
  * Give maxEntries a value to bound the cache: storing a new key at the cap
  * drops the oldest-stored entry first. Bound any cache whose keys can be
  * chosen from outside (e.g. unknown session cookies), so a flood of unique
@@ -553,7 +553,7 @@ export type TtlCache<K, V> = {
  */
 export const ttlCache = <K, V>(
   ttlMs: number,
-  now: () => number = Date.now,
+  now: () => number,
   maxEntries?: number,
 ): TtlCache<K, V> => {
   const cache = new Map<K, { value: V; cachedAt: number }>();

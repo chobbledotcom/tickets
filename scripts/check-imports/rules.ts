@@ -14,6 +14,8 @@ export interface ImportLine {
   namesOnly: boolean;
   reExport: boolean;
   specifier: string;
+  /** The import loads nothing at run time: a `import type`/`export type`
+   * statement, or one whose every specifier carries an inline `type`. */
   typeOnly: boolean;
 }
 
@@ -106,7 +108,14 @@ const moduleLineFrom = (
         statement.specifiers.every(({ type }) => type === "ImportSpecifier"),
       reExport: false,
       specifier: statement.source.value,
-      typeOnly: statement.importKind === "type",
+      typeOnly:
+        statement.importKind === "type" ||
+        (statement.specifiers.length > 0 &&
+          statement.specifiers.every(
+            (specifier) =>
+              specifier.type === "ImportSpecifier" &&
+              specifier.importKind === "type",
+          )),
     };
   }
   if (
@@ -121,7 +130,11 @@ const moduleLineFrom = (
     namesOnly: false,
     reExport: true,
     specifier: statement.source.value,
-    typeOnly: statement.exportKind === "type",
+    typeOnly:
+      statement.exportKind === "type" ||
+      (statement.type === "ExportNamedDeclaration" &&
+        statement.specifiers.length > 0 &&
+        statement.specifiers.every(({ exportKind }) => exportKind === "type")),
   };
 };
 
