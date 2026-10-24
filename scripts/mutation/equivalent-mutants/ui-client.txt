@@ -186,3 +186,29 @@ src/ui/client/scanner.js::init~12c1xgq messageScanning→"" audited:1itkkge # th
 src/ui/client/scanner.js::init~12c1xgq Scanning...→"" audited:1itkkge # the camera page always renders data-message-scanning, so the fallback copy never shows
 src/ui/client/scanner.js::init.csrfToken~0ke2mq5 →"mutated" audited:1itkkge # the scanner page's headExtra always renders the csrf meta, so the empty fallback never fires
 
+# The offline door module — carve records, not equivalents. PR #2646's size
+# carve moved the door's reconnect-race and cache tests to the stacked branch
+# scanner-offline-door-race-suite, and those moved tests were the only killers
+# these mutants had in the module's targeted run over
+# test/ui/client/scanner-offline-ui/*.test.ts. Each died at the pre-carve head
+# 7a1790330 and survives at the carve head; the child's suite kills them
+# again, and the mutation:audit-equivalents --tests audit then prunes the
+# entry, because a killed mutant is not equivalent.
+src/ui/client/scanner-offline-ui.js::offlineScan~1j9x59i !→∅ audited:1oqyj87 # the missing-list guard's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::offlineScan.cache~13g8vid =→+= audited:1oqyj87 # the corrupt-cache reset's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::offlineScan~12escs7 !→∅ audited:1oqyj87 # the stale-cache guard's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::offlineScan~0xkfx1k !→∅ audited:1oqyj87 # the hash-membership guard's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::offlineScan~1svh62b &&→|| audited:1oqyj87 # the already-queued guard's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::offlineScan.queued~05x4rmf =→+= audited:1oqyj87 # the queued handle's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::offlineScan~0wfnnwo showStatus( statusEl, getMessage( messa…→(removed) audited:1oqyj87 # the queued-OK words' kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::renderQueuePanel~0s7y214 panel.list.replaceChildren();→(removed) audited:1oqyj87 # the row rebuild's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::syncQueue.syncRequested~0b6htuz true→false audited:1oqyj87 # the re-ask flag's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::syncQueue~0arhm2l ||→&& audited:1oqyj87 # the offline-or-empty guard's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::syncQueue~1nfyz8t continue;→(removed) audited:1oqyj87 # the settled-row skip's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::syncQueue~1inxcnn setSyncing(false);→(removed) audited:1oqyj87 # the sync release's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::syncQueue~16kgosa false→true audited:1oqyj87 # the sync release's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::syncQueue~0u0r8d3 syncQueue(csrfToken, statusEl, messages…→(removed) audited:1oqyj87 # the re-run ask's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::initOfflineScanner~1e8zfpf window.addEventListener("online", () =>…→(removed) audited:1oqyj87 # the online listener's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::initOfflineScanner~1hyiuui online→"" audited:1oqyj87 # the online event name's kill moved with the race tests
+src/ui/client/scanner-offline-ui.js::initOfflineScanner~0u0r8d3@2 syncQueue(csrfToken, statusEl, messages…→(removed) audited:1oqyj87 # the page-load sync's kill moved with the race tests
+
