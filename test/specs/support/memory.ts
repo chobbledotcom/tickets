@@ -34,6 +34,9 @@ export interface ThingsByKind {
   key: string;
   /** Something the site sells. */
   listing: Listing;
+  /** A picture the site holds, kept by the name the story calls it, so a
+   * message can name it and a later step can hold each page to its address. */
+  picture: { filename: string; id: number };
   /** The number the site filed something under, kept by the story's name
    * for it — a news post, a holiday, anything made through a form. */
   record: number;

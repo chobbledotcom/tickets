@@ -23,6 +23,7 @@ Feature: An owner writes to the people who booked
       Then the owner is shown the message before it goes
       And the owner is shown that it would reach 2 people
       And the site offers to send it for them
+      And nothing was written to anybody
 
     @case:writing.sending-writes-to-everyone-who-booked
     Scenario: Sending reaches everyone who booked
@@ -32,6 +33,56 @@ Feature: An owner writes to the people who booked
       When the owner sends it
       Then the owner is told it went to 2 people
       And it was written to everyone who booked onto "the Gig"
+
+  @rule:attendees.a-picture-in-the-message-shows-wherever-the-message-goes
+  Rule: A picture in the message shows wherever the message goes
+    A message can name a picture the site holds. The preview shows the
+    picture at its own address. Each copy the site sends carries the picture
+    from the site's own address. An email reader cannot follow an address
+    that starts with a slash. A web address that merely carries the
+    picture's number is not a picture. It keeps its own address in the draft
+    and in every copy. Words the owner wrote as code stay code in the draft
+    and in every copy.
+
+    @case:writing.the-preview-shows-the-picture
+    Scenario: The owner checks a message that carries a picture
+      Given the owner has an email provider of their own
+      And 2 people have booked onto "the Gig"
+      And the site holds a picture called "Poster"
+      When the owner writes to "the Gig" about the picture "Poster" saying "Come and see the poster."
+      Then the owner is shown the message before it goes, with the "Poster" picture in place of its reference
+      And the draft they can send themselves names the "Poster" picture at its address on the site
+      And nothing was written to anybody
+
+    @case:writing.every-copy-carries-the-picture-from-the-site
+    Scenario: The picture reaches the people the message went to
+      Given the owner has an email provider of their own
+      And 2 people have booked onto "the Gig"
+      And the site holds a picture called "Poster"
+      When the owner writes to "the Gig" about the picture "Poster" saying "Come and see the poster."
+      And the owner sends it
+      Then it was written to everyone who booked onto "the Gig"
+      And the copy for everyone who booked onto "the Gig" shows the "Poster" picture at its address on the site
+
+    @case:writing.a-web-address-that-names-a-picture-keeps-its-address
+    Scenario: A web address that carries a picture's number keeps its address
+      Given the owner has an email provider of their own
+      And 2 people have booked onto "the Gig"
+      And the site holds a picture called "Poster"
+      When the owner writes to "the Gig" about the picture "Poster" saying "Directions: [the hall's page](https://example.org/img#{the picture's number})."
+      Then the draft they can send themselves still links to "https://example.org/img#" with the "Poster" picture's number
+      When the owner sends it
+      Then the copy for everyone who booked onto "the Gig" still links to "https://example.org/img#" with the "Poster" picture's number
+
+    @case:writing.code-in-the-message-stays-code
+    Scenario: Code in the message arrives as the owner wrote it
+      Given the owner has an email provider of their own
+      And 2 people have booked onto "the Gig"
+      And the site holds a picture called "Poster"
+      When the owner writes to "the Gig" about the picture "Poster" saying "Write `![Poster](img#{the picture's number})` by hand."
+      Then the draft they can send themselves still shows "`![Poster](img#{the picture's number})`" as the owner wrote it, and the "Poster" picture at its address on the site
+      When the owner sends it
+      Then the copy for everyone who booked onto "the Gig" still shows "`![Poster](img#{the picture's number})`" as the owner wrote it, and the "Poster" picture at its address on the site
 
   @rule:attendees.the-site-only-sends-for-them-with-a-provider-of-their-own
   Rule: The site only sends for them with a provider of their own
