@@ -5,7 +5,7 @@
 // sanitizer. Solo, it dies with the isolate — the proven-safe historical mode.
 
 /**
- * The camera fakes' own refusals. A wait the page never satisfies names the
+ * The camera fakes' own behaviors. A wait the page never satisfies names the
  * key it waited for, so a broken page fails its test at once.
  */
 
@@ -26,5 +26,13 @@ describe("scanner camera fakes", {
     await expect(whenStoreHolds(h, "scanner-never")).rejects.toThrow(
       "The store never held scanner-never",
     );
+  });
+
+  test("returns the store's value when it already holds the key", async () => {
+    const h = fresh({
+      seed: (store) => store.setItem("scanner-holds", "the stored list"),
+    });
+
+    expect(await whenStoreHolds(h, "scanner-holds")).toBe("the stored list");
   });
 });
