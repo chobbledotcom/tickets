@@ -1,4 +1,5 @@
 import type { ResultSet } from "@libsql/client";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -143,13 +144,12 @@ describeWithEnv("backup", { db: true }, () => {
 
       // All tables present
       for (const table of SCHEMA_TABLE_NAMES) {
-        expect(Object.keys(files)).toContain(`${table}.sql`);
+        assertArrayIncludes(Object.keys(files), [`${table}.sql`]);
       }
 
       // Manifest has correct schema hash
-      const manifest: BackupManifest = JSON.parse(
-        new TextDecoder().decode(files["manifest.json"]!),
-      );
+      const manifestJson = new TextDecoder().decode(files["manifest.json"]!);
+      const manifest: BackupManifest = JSON.parse(manifestJson);
       expect(manifest.schemaHash).toBe(SCHEMA_HASH);
       expect(manifest.latestUpdate).toBe(LATEST_UPDATE);
       // A real instant, ISO-8601 formatted — not just any non-empty string.
@@ -157,9 +157,7 @@ describeWithEnv("backup", { db: true }, () => {
         manifest.timestamp,
       );
       expect(manifest.tables.listings).toBe(1);
-      expect(new TextDecoder().decode(files["manifest.json"]!)).toContain(
-        '\n  "latestUpdate"',
-      );
+      assertStringIncludes(manifestJson, '\n  "latestUpdate"');
       // ZIP method 8 is DEFLATE; method 0 would store every entry uncompressed.
       expect(new DataView(zipData.buffer).getUint16(8, true)).toBe(8);
     });

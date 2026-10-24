@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
@@ -85,7 +86,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     const expected = await withMessageGroups(["activity-log"], () =>
       t("admin.log.registration_delivery_failed"),
     );
-    expect(await activityMessages()).toContain(expected);
+    assertArrayIncludes(await activityMessages(), [expected]);
   });
 
   test("reports an unexpected failure from pending registration work", async () => {
@@ -96,8 +97,10 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     const logs = await registrationLogs(entries);
 
-    expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
-      "private",
+    assert(
+      !(expectOneError(logs, "E_REGISTRATION_DELIVERY") ?? "").includes(
+        "private",
+      ),
     );
   });
 
@@ -156,9 +159,12 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       const report = await requestErrorLogs(() =>
         reportRegistrationDeliveryError(true),
       );
-      expect(report).toContain("E_REGISTRATION_DELIVERY");
-      expect(report).toContain("E_DB_QUERY");
-      expect(report).toContain("Registration delivery failure activity write");
+      assertStringIncludes(report, "E_REGISTRATION_DELIVERY");
+      assertStringIncludes(report, "E_DB_QUERY");
+      assertStringIncludes(
+        report,
+        "Registration delivery failure activity write",
+      );
     } finally {
       await execute("DROP TRIGGER IF EXISTS reject_activity_log", []);
     }
@@ -208,8 +214,8 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       });
       // The delivery refusal is still reported, and the release failure is
       // reported with its name beside it.
-      expect(report).toContain("E_REGISTRATION_DELIVERY");
-      expect(report).toContain("A recovery's flag restore failed");
+      assertStringIncludes(report, "E_REGISTRATION_DELIVERY");
+      assertStringIncludes(report, "A recovery's flag restore failed");
       // The refused restore leaves the claimed flags at zero: the raised
       // values could not land, and the logged incident names the state.
       const row = await queryOne<{
@@ -238,8 +244,10 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       { displays, pricingByGroup: new Map() },
     );
 
-    expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
-      privateValue,
+    assert(
+      !(expectOneError(logs, "E_REGISTRATION_DELIVERY") ?? "").includes(
+        privateValue,
+      ),
     );
     await expectOneFailureActivity();
   });
@@ -261,9 +269,9 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       ),
     );
 
-    expect(await activityMessages()).toContain(
+    assertArrayIncludes(await activityMessages(), [
       "Registration notification delivery failed.",
-    );
+    ]);
   });
 
   test("records a refused sibling when another webhook throws", async () => {
@@ -316,11 +324,16 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
           ? body
           : new TextDecoder().decode(body as Uint8Array);
 
-      expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
-        privateValue,
+      assert(
+        !(expectOneError(logs, "E_REGISTRATION_DELIVERY") ?? "").includes(
+          privateValue,
+        ),
       );
-      expect(sentryBody).toContain("Registration notification delivery failed");
-      expect(sentryBody).not.toContain(privateValue);
+      assertStringIncludes(
+        sentryBody,
+        "Registration notification delivery failed",
+      );
+      assert(!sentryBody.includes(privateValue));
       expect(
         fetchSpy.calls.filter(({ args }) =>
           String(args[0]).includes("ntfy.example.test"),
@@ -410,7 +423,8 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     // The detail names the write that failed, so an operator can tell a
     // broken delivery write from every other database error.
-    expect(expectOneError(logs, "E_DB_QUERY")).toContain(
+    assertStringIncludes(
+      expectOneError(logs, "E_DB_QUERY") ?? "",
       "Registration delivery failure activity write",
     );
   });

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -199,20 +200,22 @@ describeWithEnv("accounting > mapRefund", { encryptionKey: true }, () => {
   });
 
   test("rejects an empty order", async () => {
-    expect(
+    assertStringIncludes(
       await rejectionMessage(
         mapRefund({ occurredAt: REFUND_AT, orderLegs: [] }),
       ),
-    ).toContain("no order legs");
+      "no order legs",
+    );
   });
 
   test("rejects legs spanning more than one event group", async () => {
     const a = await bookingOrder({ eventId: "a" });
     const b = await bookingOrder({ eventId: "b" });
-    expect(
+    assertStringIncludes(
       await rejectionMessage(
         mapRefund({ occurredAt: REFUND_AT, orderLegs: [...a, ...b] }),
       ),
-    ).toContain("more than one event group");
+      "more than one event group",
+    );
   });
 });

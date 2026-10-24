@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { mergePageImageUrls } from "#db/images.ts";
@@ -13,79 +14,79 @@ describe("markdown", () => {
   describe("renderMarkdown", () => {
     test("renders bold text", () => {
       const result = renderMarkdown("**bold**");
-      expect(result).toContain("<strong>bold</strong>");
+      assertStringIncludes(result, "<strong>bold</strong>");
     });
 
     test("renders italic text", () => {
       const result = renderMarkdown("*italic*");
-      expect(result).toContain("<em>italic</em>");
+      assertStringIncludes(result, "<em>italic</em>");
     });
 
     test("renders links", () => {
       const result = renderMarkdown("[click](https://example.com)");
-      expect(result).toContain('<a href="https://example.com">click</a>');
+      assertStringIncludes(result, '<a href="https://example.com">click</a>');
     });
 
     test("wraps text in paragraph tags", () => {
       const result = renderMarkdown("hello");
-      expect(result).toContain("<p>hello</p>");
+      assertStringIncludes(result, "<p>hello</p>");
     });
 
     test("renders multiple paragraphs", () => {
       const result = renderMarkdown("para1\n\npara2");
-      expect(result).toContain("<p>para1</p>");
-      expect(result).toContain("<p>para2</p>");
+      assertStringIncludes(result, "<p>para1</p>");
+      assertStringIncludes(result, "<p>para2</p>");
     });
 
     test("renders unordered lists", () => {
       const result = renderMarkdown("- item1\n- item2");
-      expect(result).toContain("<li>item1</li>");
-      expect(result).toContain("<li>item2</li>");
+      assertStringIncludes(result, "<li>item1</li>");
+      assertStringIncludes(result, "<li>item2</li>");
     });
 
     test("escapes raw HTML tags", () => {
       const result = renderMarkdown("<script>alert(1)</script>");
-      expect(result).not.toContain("<script>");
-      expect(result).toContain("&lt;script&gt;");
+      assert(!result.includes("<script>"));
+      assertStringIncludes(result, "&lt;script&gt;");
     });
 
     test("escapes inline HTML", () => {
       const result = renderMarkdown("text <b>bold</b> more");
-      expect(result).not.toContain("<b>");
-      expect(result).toContain("&lt;b&gt;");
+      assert(!result.includes("<b>"));
+      assertStringIncludes(result, "&lt;b&gt;");
     });
 
     test("strips javascript: URLs from links", () => {
       const result = renderMarkdown("[click](javascript:alert(1))");
-      expect(result).not.toContain("javascript:");
-      expect(result).toContain('<a href="">click</a>');
+      assert(!result.includes("javascript:"));
+      assertStringIncludes(result, '<a href="">click</a>');
     });
 
     test("strips javascript: URLs regardless of case", () => {
       const result = renderMarkdown("[click](JavaScript:alert(1))");
-      expect(result).not.toContain("avaScript:");
-      expect(result).toContain('<a href="">click</a>');
+      assert(!result.includes("avaScript:"));
+      assertStringIncludes(result, '<a href="">click</a>');
     });
 
     test("strips data: URLs from images", () => {
       const result = renderMarkdown("![x](data:text/html,<script>)");
-      expect(result).not.toContain("data:text/html");
-      expect(result).toContain('src=""');
+      assert(!result.includes("data:text/html"));
+      assertStringIncludes(result, 'src=""');
     });
 
     test("keeps safe https links", () => {
       const result = renderMarkdown("[ok](https://example.com)");
-      expect(result).toContain('<a href="https://example.com">ok</a>');
+      assertStringIncludes(result, '<a href="https://example.com">ok</a>');
     });
 
     test("keeps relative links", () => {
       const result = renderMarkdown("[home](/admin)");
-      expect(result).toContain('<a href="/admin">home</a>');
+      assertStringIncludes(result, '<a href="/admin">home</a>');
     });
 
     test("keeps mailto links", () => {
       const result = renderMarkdown("[mail](mailto:a@b.com)");
-      expect(result).toContain('<a href="mailto:a@b.com">mail</a>');
+      assertStringIncludes(result, '<a href="mailto:a@b.com">mail</a>');
     });
 
     test("renders an img#N reference with the mapped URL", () => {
@@ -93,14 +94,14 @@ describe("markdown", () => {
         "![poster](img#7)",
         new Map([[7, "/img/abc"]]),
       );
-      expect(result).toContain('<img src="/img/abc"');
-      expect(result).toContain('alt="poster"');
+      assertStringIncludes(result, '<img src="/img/abc"');
+      assertStringIncludes(result, 'alt="poster"');
     });
 
     test("renders an img#N reference with no table entry as an empty src", () => {
       const result = renderMarkdown("![poster](img#9)");
-      expect(result).toContain('src=""');
-      expect(result).toContain('alt="poster"');
+      assertStringIncludes(result, 'src=""');
+      assertStringIncludes(result, 'alt="poster"');
     });
 
     test("strips an img#N reference when the mapped URL is unsafe", () => {
@@ -108,8 +109,8 @@ describe("markdown", () => {
         "![poster](img#7)",
         new Map([[7, "javascript:alert(1)"]]),
       );
-      expect(result).not.toContain("javascript:");
-      expect(result).toContain("poster");
+      assert(!result.includes("javascript:"));
+      assertStringIncludes(result, "poster");
     });
   });
 
@@ -253,10 +254,10 @@ describe("markdown", () => {
         ].join("\n"),
       );
       const rendered = renderMarkdown(filtered);
-      expect(rendered).not.toContain('href="/admin/ledger');
-      expect(rendered).toContain('<a href="/admin/guide">guide</a>');
-      expect(rendered).toContain("<strong>Money links:</strong>");
-      expect(rendered).toContain("<em>formatting</em>");
+      assert(!rendered.includes('href="/admin/ledger'));
+      assertStringIncludes(rendered, '<a href="/admin/guide">guide</a>');
+      assertStringIncludes(rendered, "<strong>Money links:</strong>");
+      assertStringIncludes(rendered, "<em>formatting</em>");
     });
 
     test("demotes automatic links to a forbidden absolute prefix", () => {
@@ -372,7 +373,8 @@ describe("markdown", () => {
         "![Hero](img#7)",
         new Map([[7, "/image/3f2a9c1e-7b44-4c0d-8e19-a2b3c4d5e6f7.webp"]]),
       );
-      expect(result).toContain(
+      assertStringIncludes(
+        result,
         '<img src="/image/3f2a9c1e-7b44-4c0d-8e19-a2b3c4d5e6f7.webp" alt="Hero">',
       );
     });
@@ -382,14 +384,15 @@ describe("markdown", () => {
         "![Hero](img#7)",
         new Map([[9, "/image/other.webp"]]),
       );
-      expect(result).toContain('<img src="" alt="Hero">');
-      expect(result).not.toContain("/image/");
+      assertStringIncludes(result, '<img src="" alt="Hero">');
+      assert(!result.includes("/image/"));
     });
 
     test("resolves an img#id reference from the request's page-image table", async () => {
       await withRequestContext(() => {
         mergePageImageUrls(new Map([[7, "/image/hero.webp"]]));
-        expect(renderMarkdown("![Hero](img#7)")).toContain(
+        assertStringIncludes(
+          renderMarkdown("![Hero](img#7)"),
           '<img src="/image/hero.webp" alt="Hero">',
         );
       });
@@ -399,10 +402,12 @@ describe("markdown", () => {
       await withRequestContext(() => {
         mergePageImageUrls(new Map([[7, "/image/hero.webp"]]));
         mergePageImageUrls(new Map([[9, "/image/map.webp"]]));
-        expect(renderMarkdown("![Hero](img#7)")).toContain(
+        assertStringIncludes(
+          renderMarkdown("![Hero](img#7)"),
           '<img src="/image/hero.webp" alt="Hero">',
         );
-        expect(renderMarkdown("![Map](img#9)")).toContain(
+        assertStringIncludes(
+          renderMarkdown("![Map](img#9)"),
           '<img src="/image/map.webp" alt="Map">',
         );
       });
@@ -410,7 +415,8 @@ describe("markdown", () => {
 
     test("renders no image source before any page-image write", async () => {
       await withRequestContext(() => {
-        expect(renderMarkdown("![Hero](img#7)")).toContain(
+        assertStringIncludes(
+          renderMarkdown("![Hero](img#7)"),
           '<img src="" alt="Hero">',
         );
       });
@@ -418,27 +424,28 @@ describe("markdown", () => {
 
     test("keeps a page-image write outside a request a no-op", () => {
       mergePageImageUrls(new Map([[7, "/image/hero.webp"]]));
-      expect(renderMarkdown("![Hero](img#7)")).toContain(
+      assertStringIncludes(
+        renderMarkdown("![Hero](img#7)"),
         '<img src="" alt="Hero">',
       );
     });
 
     test("keeps a img#id link target as the author wrote it", () => {
       const result = renderMarkdown("[docs](img#7)");
-      expect(result).toContain('href="img#7"');
-      expect(result).not.toContain("/image/");
+      assertStringIncludes(result, 'href="img#7"');
+      assert(!result.includes("/image/"));
     });
 
     test("leaves img#id references inside code spans alone", () => {
       const result = renderMarkdown("`![Hero](img#7)`");
-      expect(result).toContain("<code>![Hero](img#7)</code>");
-      expect(result).not.toContain("/image/");
+      assertStringIncludes(result, "<code>![Hero](img#7)</code>");
+      assert(!result.includes("/image/"));
     });
 
     test("leaves plain img#text prose alone", () => {
       const result = renderMarkdown("see img#7 for the poster");
-      expect(result).toContain("<p>see img#7 for the poster</p>");
-      expect(result).not.toContain("/image/");
+      assertStringIncludes(result, "<p>see img#7 for the poster</p>");
+      assert(!result.includes("/image/"));
     });
   });
 });

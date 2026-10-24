@@ -1,3 +1,4 @@
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
@@ -27,8 +28,8 @@ describeWithEnv(
       const result = await denoDeployApi.getEnvVarNames("app_gn");
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.value).toContain("DB_URL");
-        expect(result.value).toContain("DB_TOKEN");
+        assertArrayIncludes(result.value, ["DB_URL"]);
+        assertArrayIncludes(result.value, ["DB_TOKEN"]);
         expect(result.value.length).toBe(2);
       }
     });
@@ -87,8 +88,8 @@ describeWithEnv(
       const result = await denoDeployApi.getEnvVarNames("app_bad");
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.error).toContain("Get app failed (404)");
-        expect(result.error).toContain("app not found");
+        assertStringIncludes(result.error, "Get app failed (404)");
+        assertStringIncludes(result.error, "app not found");
       }
     });
 
@@ -185,7 +186,7 @@ describeWithEnv(
       });
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.error).toContain("Set app env var failed (422)");
+        assertStringIncludes(result.error, "Set app env var failed (422)");
       }
     });
   },

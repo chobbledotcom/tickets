@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -98,7 +99,8 @@ describe("sumup createCheckout", () => {
       expect(capture.sent().description).toBe("Evt (x2)");
       expect(capture.sent().hosted_checkout).toEqual({ enabled: true });
       expect(capture.sent().merchant_code).toBe("MC123");
-      expect(String(capture.sent().redirect_url)).toContain(
+      assertStringIncludes(
+        String(capture.sent().redirect_url),
         `session_id=${result!.reference}`,
       );
       expect(capture.sent().return_url).toBe(

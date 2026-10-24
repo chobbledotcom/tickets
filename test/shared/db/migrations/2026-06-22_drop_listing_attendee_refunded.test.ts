@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -23,9 +24,9 @@ describeWithEnv(
   () => {
     test("drops the refunded column from listing_attendees", async () => {
       await seedPreDropLedgerColumns();
-      expect(await columnNames("listing_attendees")).toContain("refunded");
+      assertArrayIncludes(await columnNames("listing_attendees"), ["refunded"]);
       await runMigration();
-      expect(await columnNames("listing_attendees")).not.toContain("refunded");
+      assert(!(await columnNames("listing_attendees")).includes("refunded"));
     });
 
     test("preserves the existing booking rows it rebuilds", async () => {

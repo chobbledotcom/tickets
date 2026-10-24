@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -175,8 +176,9 @@ describe("payment provider registry", () => {
 
     test("declares a refund capability for every provider", () => {
       for (const id of PAYMENT_PROVIDER_IDS) {
-        expect(["keyed", "keyless"]).toContain(
-          PAYMENT_PROVIDERS[id].refundCapability,
+        assertArrayIncludes(
+          ["keyed", "keyless"],
+          [PAYMENT_PROVIDERS[id].refundCapability],
         );
       }
     });

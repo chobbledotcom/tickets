@@ -5,6 +5,7 @@
  * order of the values that fill them.
  */
 
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { defineReader, readStatement } from "#db/read.ts";
@@ -53,10 +54,10 @@ describe("readStatement", () => {
   test("omits every part the read does not ask for", () => {
     const { sql } = readStatement({ columns: "id", from: "listings" });
 
-    expect(sql).not.toContain("WHERE");
-    expect(sql).not.toContain("GROUP BY");
-    expect(sql).not.toContain("ORDER BY");
-    expect(sql).not.toContain("LIMIT");
+    assert(!sql.includes("WHERE"));
+    assert(!sql.includes("GROUP BY"));
+    assert(!sql.includes("ORDER BY"));
+    assert(!sql.includes("LIMIT"));
   });
 
   test("an empty filter list adds no WHERE", () => {
