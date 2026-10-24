@@ -8,6 +8,7 @@
 
 import { lazyRef, ttlCache } from "#fp";
 import { registerCache } from "#shared/cache-registry.ts";
+import { nowMs } from "#shared/now.ts";
 import {
   AES_KEY_BYTES,
   aesGcmDecryptBytes,
@@ -145,7 +146,10 @@ export const hybridEncrypt = async (
  * request window.
  */
 const HYBRID_DECRYPT_TTL_MS = 60_000;
-const hybridDecryptCache = ttlCache<string, string>(HYBRID_DECRYPT_TTL_MS);
+const hybridDecryptCache = ttlCache<string, string>(
+  HYBRID_DECRYPT_TTL_MS,
+  nowMs,
+);
 
 registerCache(() => ({
   entries: hybridDecryptCache.size(),
@@ -216,7 +220,7 @@ export const encryptWithOwnerKey = async (
  * Private key cache with TTL (10 seconds, matching session cache)
  * Avoids re-running the full unwrap chain (PBKDF2 + AES + RSA import) per request
  */
-const privateKeyCache = ttlCache<string, CryptoKey>(10_000);
+const privateKeyCache = ttlCache<string, CryptoKey>(10_000, nowMs);
 
 registerCache(() => ({ entries: privateKeyCache.size(), name: "privateKeys" }));
 
