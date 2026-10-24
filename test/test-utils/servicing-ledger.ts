@@ -4,7 +4,7 @@
  * `test/shared/db/attendees/servicing/`; the fixtures and assertions they all
  * lean on live here so no two files carry their own copy.
  */
-import { assertStringIncludes } from "@std/assert";
+import { assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { KIND } from "#accounting/kinds.ts";
 import { allTransfers } from "#accounting/queries.ts";
@@ -81,10 +81,9 @@ export const expectCostFormError = async (
   before: number,
 ): Promise<void> => {
   expect(response.status).toBe(302);
-  assertStringIncludes(
-    response.headers.get("location") ?? "",
-    `/admin/servicing/${servicingId}`,
-  );
+  const location = response.headers.get("location");
+  assertExists(location);
+  assertStringIncludes(location, `/admin/servicing/${servicingId}`);
   expectFlashError(response);
   expect((await allTransfers()).length).toBe(before);
 };

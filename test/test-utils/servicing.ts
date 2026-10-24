@@ -19,7 +19,7 @@
  * `src/shared/accounting/*`; see each test file's header for the contract.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { costAccount } from "#accounting/accounts.ts";
 import { accountBalance } from "#accounting/queries.ts";
@@ -297,7 +297,9 @@ export const expectServicingLink = (body: string, id: number): void => {
 /** Assert a POST response is a 302 redirect to a location containing `path`. */
 export const assertRedirectTo = (response: Response, path: string): void => {
   expect(response.status).toBe(302);
-  assertStringIncludes(response.headers.get("location") ?? "", path);
+  const location = response.headers.get("location");
+  assertExists(location);
+  assertStringIncludes(location, path);
 };
 
 /** Assert a 302 response's redirect pathname (ignoring flash query params)
