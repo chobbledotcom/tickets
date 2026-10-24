@@ -15,10 +15,8 @@
 // jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { Stub } from "@std/testing/mock";
 import {
   cameraFakes,
-  postedScanTokens,
   scanFirst,
   start,
   withEmptyCache,
@@ -28,7 +26,6 @@ import {
   fullStore,
   queuedItem,
   SCAN_PATH,
-  type ScannerGlobals,
   type ScannerHarness,
   storedQueue,
   TOKEN,
@@ -36,6 +33,14 @@ import {
   whenMessageShows,
   whenTextShows,
 } from "#test/ui/client/scanner/fixture.ts";
+import {
+  expectSyncSettled,
+  firstRow,
+  queuedItems,
+  queueSeeded,
+  rowWords,
+  settledCheckIn,
+} from "#test/ui/client/scanner/offline-door.ts";
 import { type FetchResponder, stubFetch } from "#test-utils/fetch-stub.ts";
 
 // jscpd:ignore-end
@@ -45,26 +50,6 @@ describe("scanner offline sync", {
   sanitizeResources: false,
 }, () => {
   const fresh = useScannerSuite();
-
-  /** The queue panel's first row, which every sync test's page carries. */
-  const firstRow = (h: ScannerHarness): Element => {
-    const row = el(h.document, "scanner-queue-items").children[0];
-    if (!row) throw new Error("The queue panel carries no first row");
-    return row;
-  };
-
-  /** Every row the queue panel carries, as the words it shows. */
-  const rowWords = (h: ScannerHarness): (string | null)[] =>
-    [...el(h.document, "scanner-queue-items").children].map(
-      (row) => row.textContent,
-    );
-
-  /** The page globals one queued check-in seeds, for the tests that replay
-   * the queue. */
-  const queueSeeded = (): ScannerGlobals => ({
-    seed: (store) =>
-      store.setItem("scanner-queue", JSON.stringify([queuedItem])),
-  });
 
   /** What one unsettled replay leaves: the still-queued warning, the row's
    * words, and the check-in back in the store. */
@@ -77,44 +62,6 @@ describe("scanner offline sync", {
     expect(firstRow(h).textContent).toBe("Not sent yet — still queued");
     expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
   };
-
-  /** What one settled sync leaves: the done words, the store empty, the
-   * panel count at zero, and the check-ins the door received, in order. */
-  const expectSyncSettled = async (
-    h: ScannerHarness,
-    wait: (target: HTMLElement, text: string) => Promise<void>,
-    fetchStub: Stub,
-    postedTokens: string[],
-  ): Promise<void> => {
-    await wait(h.statusEl, "Queued tickets are done.");
-    expect(storedQueue(h)).toBe("[]");
-    expect(el(h.document, "scanner-queue-summary").textContent).toBe(
-      "0 queued check-ins",
-    );
-    expect(postedScanTokens(fetchStub)).toEqual(postedTokens);
-  };
-
-  /** The queued check-ins one reload settles, oldest first. */
-  const queuedItems = (tokens: string[]): string =>
-    JSON.stringify(
-      tokens.map((token, index) => ({
-        queuedAt: index + 1,
-        scanPath: SCAN_PATH,
-        token,
-      })),
-    );
-
-  /** The door's answer one settled queue replay gets. A fresh response per
-   * call: the page load's cache refresh consumes the first one's body, and a
-   * reused body would fail the replay's read. */
-  const settledCheckIn = (): Response =>
-    Response.json({
-      listingName: "Standard",
-      name: "Ada",
-      quantity: 1,
-      status: "checked_in",
-      total: 1,
-    });
 
   /** Answers each replayed check-in with the answer its queued token maps
    * to, and the page's cache refresh with an empty list. */
