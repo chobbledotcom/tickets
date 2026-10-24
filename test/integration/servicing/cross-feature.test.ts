@@ -8,6 +8,7 @@
  * servicing create path skips each customer-only resolution.
  */
 // jscpd:ignore-start
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -67,7 +68,7 @@ describeWithEnv(
       });
       const { allTransfers } = await import("#accounting/queries.ts");
       const kinds = (await allTransfers()).map((t) => t.kind);
-      expect(kinds).not.toContain("modifier");
+      assert(!kinds.includes("modifier"));
       expect(id).toBeGreaterThan(0);
     });
 

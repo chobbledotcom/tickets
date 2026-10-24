@@ -15,6 +15,7 @@
  *     servicing rows.
  */
 // jscpd:ignore-start
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -73,8 +74,8 @@ describeWithEnv(
         sort: "newest",
       });
       const names = await decryptNames(page.rows);
-      expect(names).toContain(REAL_NAME);
-      expect(names).not.toContain(HOLD_NAME);
+      assertArrayIncludes(names, [REAL_NAME]);
+      assert(!names.includes(HOLD_NAME));
     });
 
     test("the dashboard 'newest attendees' feed excludes servicing", async () => {
@@ -86,9 +87,9 @@ describeWithEnv(
       );
       const newestRows = await getNewestAttendeesRaw(10);
       const ids = newestRows.map((a) => a.id);
-      expect(ids).toContain(newest.id);
+      assertArrayIncludes(ids, [newest.id]);
       const kinds = [...(await getAttendeeKindsByIds(ids)).values()];
-      expect(kinds).not.toContain(SERVICING_KIND);
+      assert(!kinds.includes(SERVICING_KIND));
     });
 
     test("bulk-email targets exclude servicing (all + per-listing)", async () => {
@@ -120,8 +121,8 @@ describeWithEnv(
       );
       const rows = body.trim().split("\n");
       expect(rows.length).toBe(2);
-      expect(body).toContain(REAL_NAME);
-      expect(body).not.toContain(HOLD_NAME);
+      assertStringIncludes(body, REAL_NAME);
+      assert(!body.includes(HOLD_NAME));
     });
 
     test("refund-all and check-in counts exclude servicing (no real line ⇒ no action)", async () => {

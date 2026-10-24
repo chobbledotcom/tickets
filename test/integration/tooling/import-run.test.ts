@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { runImport } from "#cli/import-run.ts";
@@ -217,8 +218,8 @@ describe("frontmatter import runner", () => {
       "POST /api/admin/listings",
     ]);
     const stampedFile = await Deno.readTextFile(`${dir}/src/products/tower.md`);
-    expect(stampedFile).toContain("tickets_id: 41");
-    expect(stampedFile).toContain("tickets_slug: tower-hire");
+    assertStringIncludes(stampedFile, "tickets_id: 41");
+    assertStringIncludes(stampedFile, "tickets_slug: tower-hire");
   });
 
   test("reruns without --update as reads only: every product skips", async () => {

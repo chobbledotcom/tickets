@@ -20,6 +20,7 @@
  *   - `#shared/db/attendees/kind.ts` exports `ATTENDEE_KIND` / `SERVICING_KIND`.
  */
 // jscpd:ignore-start
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -55,24 +56,24 @@ describe("servicing §1 — schema declares the kind column + index", () => {
     expect(kindCol).toBeDefined();
     const [, type] = kindCol!;
     expect(type).toMatch(/NOT NULL/);
-    expect(type).toContain(ATTENDEE_KIND);
+    assertStringIncludes(type, ATTENDEE_KIND);
     // Guards the wishful `/* NOT NULL */` comment hack: the invariant must be a
     // real constraint, not a comment, and the `IS NULL` escape (which left
     // NULL-kind rows that consumed capacity as neither attendee nor servicing)
     // must be gone from the CHECK.
-    expect(type).not.toContain("/* NOT NULL */");
-    expect(type).not.toContain("IS NULL");
+    assert(!type.includes("/* NOT NULL */"));
+    assert(!type.includes("IS NULL"));
   });
 
   test("the attendees schema declares idx_attendees_kind", () => {
     const names = (attendeesTable.indexes ?? []).map((i) => i.name);
-    expect(names).toContain("idx_attendees_kind");
+    assertArrayIncludes(names, ["idx_attendees_kind"]);
   });
 
   test("the kind column's allowed values are ATTENDEE_KIND and SERVICING_KIND only", () => {
     const [, type] = attendeesTable.columns.find(([n]) => n === "kind")!;
-    expect(type).toContain(ATTENDEE_KIND);
-    expect(type).toContain(SERVICING_KIND);
+    assertStringIncludes(type, ATTENDEE_KIND);
+    assertStringIncludes(type, SERVICING_KIND);
     expect(type).toMatch(/CHECK/i);
   });
 });
@@ -86,9 +87,9 @@ describe("servicing §1 — migration is registered and runs on an existing data
     const migration = MIGRATIONS.find((m) => m.id === MIGRATION_ID)!;
 
     test("kind column defaults existing attendees to ATTENDEE_KIND", async () => {
-      expect(await columnDefault()).toContain(ATTENDEE_KIND);
+      assertStringIncludes((await columnDefault()) ?? "", ATTENDEE_KIND);
       await migration.up();
-      expect(await columnDefault()).toContain(ATTENDEE_KIND);
+      assertStringIncludes((await columnDefault()) ?? "", ATTENDEE_KIND);
     });
 
     test("kind index is created by the migration (guards the requires.indexes omission)", async () => {
@@ -143,7 +144,7 @@ describe("servicing §1 — schema and migration stay in sync", () => {
       }
     ).requires;
     expect(requires?.columns?.kind).toBeDefined();
-    expect(requires?.indexes).toContain("idx_attendees_kind");
+    assertArrayIncludes(requires?.indexes ?? [], ["idx_attendees_kind"]);
   });
 });
 

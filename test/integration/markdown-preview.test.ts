@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -36,10 +37,13 @@ describeWithEnv("Markdown preview endpoint", { db: true }, () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("text/html");
+    assertStringIncludes(
+      response.headers.get("content-type") ?? "",
+      "text/html",
+    );
     const html = await response.text();
-    expect(html).toContain("<strong>bold</strong>");
-    expect(html).toContain("<em>italic</em>");
+    assertStringIncludes(html, "<strong>bold</strong>");
+    assertStringIncludes(html, "<em>italic</em>");
   });
 
   test("escapes raw script tags so they cannot execute", async () => {
@@ -52,8 +56,8 @@ describeWithEnv("Markdown preview endpoint", { db: true }, () => {
     });
 
     const html = await response.text();
-    expect(html).not.toContain("<script>");
-    expect(html).toContain("&lt;script&gt;");
+    assert(!html.includes("<script>"));
+    assertStringIncludes(html, "&lt;script&gt;");
   });
 
   test("strips javascript: URLs from rendered links", async () => {
@@ -66,8 +70,8 @@ describeWithEnv("Markdown preview endpoint", { db: true }, () => {
     });
 
     const html = await response.text();
-    expect(html).not.toContain("javascript:");
-    expect(html).toContain('<a href="">x</a>');
+    assert(!html.includes("javascript:"));
+    assertStringIncludes(html, '<a href="">x</a>');
   });
 
   test("redirects unauthenticated requests to the login page", async () => {
@@ -85,7 +89,7 @@ describeWithEnv("Markdown preview endpoint", { db: true }, () => {
     const response = await postPreview("**hi**", { cookie });
 
     expect(response.status).toBe(403);
-    expect(await response.text()).toContain("Invalid CSRF token");
+    assertStringIncludes(await response.text(), "Invalid CSRF token");
   });
 
   test("rejects requests with an invalid CSRF token", async () => {
@@ -109,7 +113,7 @@ describeWithEnv("Markdown preview endpoint", { db: true }, () => {
     });
 
     expect(response.status).toBe(413);
-    expect(await response.text()).toContain("Content too long");
+    assertStringIncludes(await response.text(), "Content too long");
   });
 
   test("renders an empty body as empty HTML", async () => {
