@@ -17,6 +17,20 @@ import { type Contracts, ContractsSchema, currentContracts } from "./dump.ts";
 const DUMP_DIR = join("scripts", "contract-drift");
 const DUMP_FILES = ["dump.ts", "dump-entry.ts"] as const;
 const WORKTREE_SUBDIR = "base";
+
+/** The dump child's whole environment, without DENO_COVERAGE_DIR. A
+ * coverage run puts that variable in every child, and a `deno run` child
+ * then writes coverage files of its own. The base worktree is gone before
+ * the coverage step reads the report, so the fetch of the dumped module
+ * fails. The dump is the same code the suite covers in process. `clearEnv`
+ * must carry this map, because a child otherwise merges the variable back
+ * from this process. */
+const dumpChildEnv = (): Record<string, string> => {
+  const env = { ...Deno.env.toObject() };
+  delete env.DENO_COVERAGE_DIR;
+  return env;
+};
+
 export interface DriftDeps {
   readonly copyDumpModule: (worktreeDir: string) => Promise<void>;
   readonly git: (args: readonly string[]) => Promise<CapturedOutput>;
@@ -54,7 +68,9 @@ export const defaultDriftDeps = (
       runCommand(
         ["deno", "run", "--no-check", join(DUMP_DIR, "dump-entry.ts")],
         {
+          clearEnv: true,
           cwd: worktreeDir,
+          env: dumpChildEnv(),
         },
       ),
   };

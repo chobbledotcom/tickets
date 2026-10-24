@@ -33,6 +33,32 @@ const failedRun = (stderr: string): CapturedOutput => ({
 });
 const NO_MAIN = failedRun("fatal: ambiguous argument 'origin/main'");
 
+/** The git calls the base resolution makes, one constant per command. */
+const MERGE_BASE = ["merge-base", "origin/main", "HEAD"];
+const FETCH_MAIN = ["fetch", "origin", "main:refs/remotes/origin/main"];
+const SHALLOW_CHECK = ["rev-parse", "--is-shallow-repository"];
+const FETCH_FULL_HISTORY = [
+  "fetch",
+  "--unshallow",
+  "origin",
+  "+refs/heads/*:refs/remotes/origin/*",
+];
+
+/** The calls a shallow checkout makes: the main fetch, then the full
+ * history fetch, with the merge base read again after each. */
+const FULL_HISTORY_CALLS = [
+  MERGE_BASE,
+  FETCH_MAIN,
+  MERGE_BASE,
+  SHALLOW_CHECK,
+  FETCH_FULL_HISTORY,
+  MERGE_BASE,
+];
+
+/** The error the base resolution throws when origin/main stays missing. */
+const NO_ORIGIN_MAIN =
+  "This checkout has no origin/main even after a fetch, so the base dump has no older tree to run in. Fetch origin/main or use a full checkout, then run the suite again";
+
 /** A git for the base tests. It records every call in `calls` and answers
  * from `answers`, keyed by the joined command. An unmatched command
  * throws, so an unexpected call fails the test loudly. */
@@ -108,7 +134,7 @@ describe("contract drift default dependencies", () => {
       }),
     });
     expect(await deps.mergeBase()).toBe(BASE_SHA);
-    expect(calls).toEqual([["merge-base", "origin/main", "HEAD"]]);
+    expect(calls).toEqual([MERGE_BASE]);
   });
 
   test("fetches main when the checkout holds no origin/main", async () => {
@@ -125,11 +151,7 @@ describe("contract drift default dependencies", () => {
       }),
     });
     expect(await deps.mergeBase()).toBe(BASE_SHA);
-    expect(calls).toEqual([
-      ["merge-base", "origin/main", "HEAD"],
-      ["fetch", "origin", "main:refs/remotes/origin/main"],
-      ["merge-base", "origin/main", "HEAD"],
-    ]);
+    expect(calls).toEqual([MERGE_BASE, FETCH_MAIN, MERGE_BASE]);
   });
 
   test("fetches the full history when main alone brings no origin/main", async () => {
@@ -148,14 +170,7 @@ describe("contract drift default dependencies", () => {
       }),
     });
     expect(await deps.mergeBase()).toBe(BASE_SHA);
-    expect(calls).toEqual([
-      ["merge-base", "origin/main", "HEAD"],
-      ["fetch", "origin", "main:refs/remotes/origin/main"],
-      ["merge-base", "origin/main", "HEAD"],
-      ["rev-parse", "--is-shallow-repository"],
-      ["fetch", "--unshallow", "origin", "+refs/heads/*:refs/remotes/origin/*"],
-      ["merge-base", "origin/main", "HEAD"],
-    ]);
+    expect(calls).toEqual(FULL_HISTORY_CALLS);
   });
 
   test("throws when a complete checkout still holds no origin/main", async () => {
@@ -167,17 +182,8 @@ describe("contract drift default dependencies", () => {
         "rev-parse --is-shallow-repository": () => okRun("false\n"),
       }),
     });
-    await assertRejects(
-      () => deps.mergeBase(),
-      Error,
-      "This checkout has no origin/main even after a fetch, so the base dump has no older tree to run in. Fetch origin/main or use a full checkout, then run the suite again",
-    );
-    expect(calls).toEqual([
-      ["merge-base", "origin/main", "HEAD"],
-      ["fetch", "origin", "main:refs/remotes/origin/main"],
-      ["merge-base", "origin/main", "HEAD"],
-      ["rev-parse", "--is-shallow-repository"],
-    ]);
+    await assertRejects(() => deps.mergeBase(), Error, NO_ORIGIN_MAIN);
+    expect(calls).toEqual([MERGE_BASE, FETCH_MAIN, MERGE_BASE, SHALLOW_CHECK]);
   });
 
   test("throws when the full history still holds no origin/main", async () => {
@@ -191,19 +197,8 @@ describe("contract drift default dependencies", () => {
         "rev-parse --is-shallow-repository": () => okRun("true\n"),
       }),
     });
-    await assertRejects(
-      () => deps.mergeBase(),
-      Error,
-      "This checkout has no origin/main even after a fetch, so the base dump has no older tree to run in. Fetch origin/main or use a full checkout, then run the suite again",
-    );
-    expect(calls).toEqual([
-      ["merge-base", "origin/main", "HEAD"],
-      ["fetch", "origin", "main:refs/remotes/origin/main"],
-      ["merge-base", "origin/main", "HEAD"],
-      ["rev-parse", "--is-shallow-repository"],
-      ["fetch", "--unshallow", "origin", "+refs/heads/*:refs/remotes/origin/*"],
-      ["merge-base", "origin/main", "HEAD"],
-    ]);
+    await assertRejects(() => deps.mergeBase(), Error, NO_ORIGIN_MAIN);
+    expect(calls).toEqual(FULL_HISTORY_CALLS);
   });
 
   test("dumps the head's contracts in process", async () => {
