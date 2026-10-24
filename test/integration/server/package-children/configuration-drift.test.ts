@@ -70,27 +70,25 @@ describeWithEnv("package child configuration drift", { db: true }, () => {
     });
     using mockRefund = stubRefundPayment("re_grown", 1000);
     using _retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1000,
-        currency: "gbp",
-        expires_at: 456,
-        id: "cs_pkg_grown",
-        metadata: signMeta(
-          {
-            email: "grown@example.com",
-            items: JSON.stringify([
-              { e: member.id, k: "p", p: 1000, q: 1, r: group.id },
-            ]),
-            name: "Grown Buyer",
-          },
-          1000,
-        ),
-        payment_intent: "pi_pkg_grown",
-        payment_status: "paid",
-        status: "complete",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
+      Promise.resolve(
+        stubCheckoutSession({
+          amount_total: 1000,
+          currency: "gbp",
+          id: "cs_pkg_grown",
+          metadata: signMeta(
+            {
+              email: "grown@example.com",
+              items: JSON.stringify([
+                { e: member.id, k: "p", p: 1000, q: 1, r: group.id },
+              ]),
+              name: "Grown Buyer",
+            },
+            1000,
+          ),
+          payment_intent: "pi_pkg_grown",
+          payment_status: "paid",
+        }),
+      ),
     );
 
     await listingChildren.setIds(member.id, [addon.id]);

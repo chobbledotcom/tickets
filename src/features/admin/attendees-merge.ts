@@ -40,9 +40,8 @@ import type {
 } from "#shared/merge/attendee-merge-types.ts";
 import type { ParamsRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { ContactInfo } from "#shared/types.ts";
 import { AttendeeMergePanel } from "#templates/admin/attendees/merge-panel.tsx";
-import type { Attendee } from "#types";
+import type { Attendee, ContactInfo } from "#types";
 
 /* jscpd:ignore-end */
 
@@ -75,7 +74,7 @@ const loadMergeSource = async (
   if (!raw) return null;
   // The token read selects only what the merge reads back: id, the queue
   // counters, bookings and the PII blob. Opening the blob directly skips the
-  // attendee-shaped decrypt, which would fabricate columns the read never
+  // attendee-shaped decrypt. That decrypt fabricates columns the read never
   // selected. paidListing stays false: no reader wants the source's payment
   // pointer — the target keeps its own.
   return {

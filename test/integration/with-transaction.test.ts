@@ -15,9 +15,9 @@ import {
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#db/query-log.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
-import { withRequestContext } from "#test-utils/request-context.ts";
 import { stubClient } from "#test-utils/db-helpers/result-set.ts";
 import { transactionStub } from "#test-utils/db-helpers/stub-transaction.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import {
   cleanupTestDbPath,
   createTrackedTestDbFile,

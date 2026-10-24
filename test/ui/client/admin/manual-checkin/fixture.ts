@@ -145,7 +145,7 @@ const setupManualCheckin = (
         bubbles: true,
         cancelable: true,
       });
-      form.dispatchEvent(event);
+      fireEvent(form, event);
       await waitUntilSettled(() => !submitButton.disabled, "the check-in");
       return event;
     },

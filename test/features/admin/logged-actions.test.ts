@@ -3,7 +3,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
 import { withTransaction } from "#db/client.ts";
-import type { OrderedCollection } from "#db/ordered-collection.ts";
 import {
   appendWithCreationLog,
   confirmDeleteWithLog,
@@ -35,7 +34,7 @@ describeWithEnv("admin > logged actions", { db: true }, () => {
       append: async ({ key }: { key: number }) => {
         appended.push(key);
       },
-    } as unknown as OrderedCollection<"id", undefined>;
+    };
 
     await withTransaction(async (tx) => {
       await appendWithCreationLog(order, "Question", "Postcode")(tx, 3);
@@ -51,7 +50,7 @@ describeWithEnv("admin > logged actions", { db: true }, () => {
   test("a rolled-back creation leaves no log line", async () => {
     const order = {
       append: async () => {},
-    } as unknown as OrderedCollection<"id", undefined>;
+    };
     // The deliberate throw rolls the transaction back: if the log write ran
     // outside the transaction, its row would survive and this test would fail.
     const rollback = new Error("rollback");

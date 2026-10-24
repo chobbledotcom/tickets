@@ -48,10 +48,7 @@ export const idle = async (fakes: CameraFakes, ms: number): Promise<void> => {
  * demand. The bundle reads these globals at call time, so installing them
  * after the page loads is enough. Disposing restores every one of them. */
 export const cameraFakes = (h: ScannerHarness) => {
-  const video = el(h.document, "scanner-video") as unknown as Record<
-    string,
-    unknown
-  >;
+  const video = h.video;
   let now = 1_000;
   let nextId = 1;
   let nextCode: { data: string } | null = null;
@@ -122,13 +119,13 @@ export const cameraFakes = (h: ScannerHarness) => {
     ],
   };
 
-  const setTimeoutFake = (fn: () => void, ms: number): number => {
+  const setTimeoutFake: typeof setTimeout = (fn, ms) => {
     const id = nextId++;
-    pending.set(id, { at: now + ms, fn });
+    pending.set(id, { at: now + (ms ?? 0), fn: fn as () => void });
     return id;
   };
-  const clearTimeoutFake = (id: number): void => {
-    pending.delete(id);
+  const clearTimeoutFake: typeof clearTimeout = (id) => {
+    if (id !== undefined) pending.delete(id);
   };
   const originalNow = Date.now;
   const jsqr = (): { data: string } | null => {
@@ -153,7 +150,7 @@ export const cameraFakes = (h: ScannerHarness) => {
   };
 
   const globals = globalThis as Record<string, unknown>;
-  const canvas = h.window.HTMLCanvasElement.prototype as unknown as {
+  const canvas = h.window.HTMLCanvasElement.prototype as {
     getContext: unknown;
   };
   const saved = {
@@ -167,17 +164,17 @@ export const cameraFakes = (h: ScannerHarness) => {
     // happy-dom pages carry none of the camera globals, so removing them
     // restores the page; the timer and clock globals always exist.
     canvas.getContext = saved.getContext;
-    video.play = saved.play as HTMLVideoElement["play"];
+    video.play = saved.play;
     globals.setTimeout = saved.setTimeout;
     globals.clearTimeout = saved.clearTimeout;
     Date.now = saved.now;
-    delete (navigator as unknown as Record<string, unknown>).mediaDevices;
-    delete (video as unknown as Record<string, unknown>).srcObject;
+    delete (navigator as { mediaDevices?: unknown }).mediaDevices;
+    delete (video as { srcObject?: unknown }).srcObject;
     delete globals.__scannerJsqr;
   };
 
-  globals.setTimeout = setTimeoutFake as unknown as typeof setTimeout;
-  globals.clearTimeout = clearTimeoutFake as unknown as typeof clearTimeout;
+  globals.setTimeout = setTimeoutFake;
+  globals.clearTimeout = clearTimeoutFake;
   Date.now = (): number => now;
   Object.defineProperty(navigator, "mediaDevices", {
     configurable: true,

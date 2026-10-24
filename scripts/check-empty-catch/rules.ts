@@ -16,7 +16,8 @@
 import { byLine } from "#scripts/check-report.ts";
 import type { PerFileFinding } from "#scripts/check-runner.ts";
 import { lineColumnAt } from "#scripts/line-column.ts";
-import { parseProgram, visitNodes } from "#scripts/parse-program.ts";
+import { parseProgram } from "#scripts/parse-program.ts";
+import { walkNodes } from "#scripts/walk-nodes.ts";
 /* jscpd:ignore-end */
 
 /** An empty catch the source says nothing about. */
@@ -141,7 +142,7 @@ const catchesInNode: Record<string, NodeCatches> = {
 export const findIssues = (file: string, source: string): EmptyCatchIssue[] => {
   const program = parseProgram(file, source);
   const issues: EmptyCatchIssue[] = [];
-  visitNodes(program, (node) => {
+  walkNodes(program, (node) => {
     const catches = catchesInNode[node.type as string];
     if (catches !== undefined) issues.push(...catches(source, node));
   });

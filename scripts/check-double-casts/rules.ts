@@ -18,7 +18,8 @@
 import { byLine } from "#scripts/check-report.ts";
 import type { PerFileFinding } from "#scripts/check-runner.ts";
 import { lineColumnAt } from "#scripts/line-column.ts";
-import { parseProgram, visitNodes } from "#scripts/parse-program.ts";
+import { parseProgram } from "#scripts/parse-program.ts";
+import { walkNodes } from "#scripts/walk-nodes.ts";
 /* jscpd:ignore-end */
 
 /** The count of double casts each accepted file carried when recorded. */
@@ -42,7 +43,7 @@ const isUnknownDoubleCast = (node: Record<string, unknown>): boolean => {
 /** Every `as unknown as` cast in one file's content, in source order. */
 const collectCasts = (file: string, content: string): number[] => {
   const starts: number[] = [];
-  visitNodes(parseProgram(file, content), (node) => {
+  walkNodes(parseProgram(file, content), (node) => {
     if (isUnknownDoubleCast(node)) starts.push(node.start as number);
   });
   return starts.sort((left, right) => left - right);

@@ -6,7 +6,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import type { FetchResult } from "#shared/fetch.ts";
-import type { SquareClient } from "#shared/square/client.ts";
 import {
   endSquareLink,
   squareLinkEndEventOf,
@@ -33,7 +32,7 @@ describe("endSquareLink", () => {
       () =>
         Promise.resolve({
           checkout: { paymentLinks: { cancel } },
-        } as unknown as SquareClient),
+        }),
       "plink",
     );
 

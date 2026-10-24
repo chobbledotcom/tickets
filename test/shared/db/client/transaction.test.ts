@@ -15,7 +15,10 @@ import {
   withSubrequestReserve,
 } from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { emptyResultSet, stubResultSet } from "#test-utils/db-helpers/result-set.ts";
+import {
+  emptyResultSet,
+  stubResultSet,
+} from "#test-utils/db-helpers/result-set.ts";
 import {
   stubTransaction,
   transactionStub,

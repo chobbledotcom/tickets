@@ -122,9 +122,7 @@ describe("manual check-in combobox", () => {
       "[data-attendee-id='11']",
     )!;
 
-    option.dispatchEvent(
-      new page.window.Event("click", { bubbles: true }) as unknown as Event,
-    );
+    fireEvent(option, new page.window.Event("click", { bubbles: true }));
 
     expect(page.attendeeIdInput.value).toBe("11");
     expect(page.input.value).toBe("Ada (2 tickets) — Camping · 12 Jun");

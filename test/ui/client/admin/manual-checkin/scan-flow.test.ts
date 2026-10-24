@@ -1,6 +1,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { fireEvent } from "#test-utils/happy-dom.ts";
 import { useManualCheckinPage, waitUntilSettled } from "./fixture.ts";
 
 describe("manual check-in scan answers", () => {
@@ -13,7 +14,7 @@ describe("manual check-in scan answers", () => {
     const page = setup();
     page.attendeeIdInput.value = attendeeId;
     const event = new page.window.Event("submit", { cancelable: true });
-    page.form.dispatchEvent(event as unknown as Event);
+    fireEvent(page.form, event);
     return page;
   };
 

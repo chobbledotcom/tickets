@@ -24,7 +24,11 @@
 import { expect } from "@std/expect";
 import { afterEach } from "@std/testing/bdd";
 import type { Stub } from "@std/testing/mock";
-import { Window } from "happy-dom";
+import {
+  HTMLElement as HappyHTMLElement,
+  type HTMLVideoElement as HappyHTMLVideoElement,
+  Window,
+} from "happy-dom";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { createGlobalStash } from "#test-utils/happy-dom.ts";
 import { rebrandedPage } from "#test-utils/rebrand-page.ts";
@@ -36,14 +40,14 @@ export interface ScannerModule {
     scanPath: string,
     token: string,
     csrfToken: string,
-    statusEl: HTMLElement,
-    messages: Record<string, string>,
+    statusEl: HappyHTMLElement,
+    messages: DOMStringMap,
   ) => Promise<void>;
   extractToken: (data: string) => string | null;
   handleResult: (
-    el: HTMLElement,
+    el: HappyHTMLElement,
     result: Record<string, unknown>,
-    messages: Record<string, string>,
+    messages: Record<string, string | undefined>,
   ) => void;
   postScan: (
     scanPath: string,
@@ -57,17 +61,17 @@ export interface ScannerModule {
 export interface ScannerHarness {
   cleanup(): Promise<void>;
   confirm: {
-    close: HTMLElement;
-    message: HTMLElement;
-    no: HTMLElement;
-    yes: HTMLElement;
+    close: HappyHTMLElement;
+    message: HappyHTMLElement;
+    no: HappyHTMLElement;
+    yes: HappyHTMLElement;
   };
   document: Window["document"];
-  messages: Record<string, string>;
+  messages: DOMStringMap;
   module: ScannerModule;
   restore: () => void;
-  statusEl: HTMLElement;
-  video: HTMLVideoElement;
+  statusEl: HappyHTMLElement;
+  video: HappyHTMLVideoElement;
   window: Window;
 }
 
@@ -163,10 +167,15 @@ export const REBRANDED_PAGE = rebrandedPage(SCANNER_PAGE, [
 
 /** One element of the installed scanner page by id — the fixture always
  * carries it, so a miss is a broken page, not an empty answer. */
-export const el = (document: Window["document"], id: string): HTMLElement => {
+export const el = (
+  document: Window["document"],
+  id: string,
+): HappyHTMLElement => {
   const found = document.getElementById(id);
-  if (!found) throw new Error(`The scanner page carries no ${id}`);
-  return found as unknown as HTMLElement;
+  if (!(found instanceof HappyHTMLElement)) {
+    throw new Error(`The scanner page carries no ${id}`);
+  }
+  return found;
 };
 
 /** Run the bundle again against the current page, the way a second script
@@ -186,8 +195,9 @@ export const useScanner = (page: string = SCANNER_PAGE): ScannerHarness => {
   const module = (globalThis as Record<string, unknown>)[
     MODULE_MARKER
   ] as ScannerModule;
-  const messages = el(document, "scanner-container")
-    .dataset as unknown as Record<string, string>;
+  const messages = el(document, "scanner-container").dataset;
+  const video = document.querySelector("video");
+  if (!video) throw new Error("The scanner page carries no scanner-video");
 
   return {
     cleanup: async (): Promise<void> => {
@@ -208,7 +218,7 @@ export const useScanner = (page: string = SCANNER_PAGE): ScannerHarness => {
       delete (globalThis as Record<string, unknown>)[MODULE_MARKER];
     },
     statusEl: el(document, "scanner-status"),
-    video: el(document, "scanner-video") as unknown as HTMLVideoElement,
+    video,
     window,
   };
 };
@@ -238,7 +248,7 @@ export const useScannerSuite = (
  * microtasks until the text appears needs no clock. The bound turns text
  * that never shows into a failed assertion rather than a hung test. */
 export const whenTextShows = async (
-  target: HTMLElement,
+  target: HappyHTMLElement,
   text: string,
 ): Promise<void> => {
   for (let hops = 0; hops < 100 && target.textContent !== text; hops++) {

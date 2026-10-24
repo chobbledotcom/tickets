@@ -111,10 +111,7 @@ export const packageChildSession = (
     ),
     payment_intent: intentId,
     payment_status: "paid",
-    status: "complete",
-  }) as unknown as Awaited<
-    ReturnType<typeof stripeApi.retrieveCheckoutSession>
-  >;
+  });
 
 /** Cap the two add-ons at two and one units. */
 export const capAddonsAtThree = async (

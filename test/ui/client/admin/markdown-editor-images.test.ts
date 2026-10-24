@@ -12,6 +12,7 @@ import type { Window } from "happy-dom";
 import { STATIC_ASSET_OUTFILES } from "#scripts/static-assets/outfiles.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { requireElement } from "#test-utils/happy-dom.ts";
 import { cleanup, enhanced, select } from "#test-utils/markdown-editor-dom.ts";
 
 afterEach(cleanup);
@@ -274,16 +275,14 @@ describe("the image dropdown toolbar control", () => {
     const panel = dropdownPanel(window);
     await untilReady(panel);
 
-    const option = panel.querySelector(
-      ".md-image-option",
-    ) as unknown as HTMLElement;
+    const option = panel.querySelector<HTMLElement>(".md-image-option")!;
     expect(option.textContent).toBe(unbrokenName);
     // The compiled stylesheet is what the browser downloads. Its wrap rule
     // must reach the option through the real cascade, not just exist in the
     // source.
     // happy-dom's Window type loses to the DOM lib here; the computed style
     // map is the read.
-    const happyWindow = window as unknown as {
+    const happyWindow = window as Window & {
       getComputedStyle: (element: unknown) => CSSStyleDeclaration;
     };
     expect(happyWindow.getComputedStyle(option).overflowWrap).toBe("anywhere");
@@ -361,11 +360,7 @@ describe("the image dropdown toolbar control", () => {
 });
 
 const toolbarImageButton = (window: Window) =>
-  window.document.querySelector(
-    ".md-toolbar-image",
-  ) as unknown as HTMLButtonElement & { click: () => void };
+  requireElement<HTMLButtonElement>(window.document, ".md-toolbar-image");
 
 const dropdownPanel = (window: Window) =>
-  window.document.querySelector(
-    ".md-image-dropdown",
-  ) as unknown as HTMLElement & { hidden: boolean };
+  requireElement<HTMLElement>(window.document, ".md-image-dropdown");
