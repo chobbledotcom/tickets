@@ -217,13 +217,11 @@ export const readerFor = <Row>(table: ReadableTable<Row>): TableReader<Row> => {
     }
     // A table's declared columns are exactly the keys of its row, and a table
     // with no columns cannot be declared — so this is the whole stored row.
-    return pick(table.columns as unknown as ColumnNames<Row>) as Rows<Row, Row>;
+    return pick(table.columns as ColumnNames<Row>) as Rows<Row, Row>;
   });
 
   // Every existence check reads the same one column, so the set is built once.
-  const key = once(() =>
-    pick([table.primaryKey] as unknown as ColumnNames<Row>),
-  );
+  const key = once(() => pick([table.primaryKey] as const));
 
   return {
     // Reading one row already caps the read at one, so this asks for nothing

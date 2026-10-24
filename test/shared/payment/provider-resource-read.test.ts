@@ -6,11 +6,11 @@ import type { ProviderRead } from "#payment/provider-read.ts";
 import {
   judgedBy,
   judgeThrough,
-  parsedBy,
   providerResourceReader,
   refuseUnless,
   refuseUnlessAll,
 } from "#payment/provider-resource-read.ts";
+import { parseOrNull } from "#shared/validation/parse.ts";
 
 type Account = { token: string };
 
@@ -144,7 +144,7 @@ describe("provider resource read", () => {
 
     const judge = judgeThrough({
       accept: (parsed: Parsed) => parsed.id,
-      parse: parsedBy(Schema),
+      parse: (answer: unknown) => parseOrNull(Schema, answer),
       rungs: [
         refuseUnlessAll<Parsed>("missing_documented_resource", [
           (parsed) => parsed.id !== undefined,
@@ -216,8 +216,8 @@ describe("provider resource read", () => {
     });
 
     test("reads an answer its schema rejects as no answer at all", () => {
-      expect(parsedBy(Schema)({ id: 7 })).toBe(null);
-      expect(parsedBy(Schema)({ id: "a" })).toEqual({ id: "a" });
+      expect(parseOrNull(Schema, { id: 7 })).toBe(null);
+      expect(parseOrNull(Schema, { id: "a" })).toEqual({ id: "a" });
     });
   });
 });

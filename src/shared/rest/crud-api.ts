@@ -101,9 +101,7 @@ export const defineCrudApi = <
   const lookup: (id: number) => Promise<FullRow | null> =
     config.lookup === undefined
       ? (id) =>
-          table.read.one(
-            byPrimaryKey(table, id),
-          ) as unknown as Promise<FullRow | null>
+          table.read.one(byPrimaryKey(table, id)) as Promise<FullRow | null>
       : config.lookup;
   // Reading a row back right after committing its write must hit the primary.
   // A lagging replica can return null, and the create/update path crashes on
@@ -113,7 +111,7 @@ export const defineCrudApi = <
     config.lookupAfterWrite === undefined
       ? // Present on every table that reaches the transactional write path (set
         // alongside insertStatement/updateStatement).
-        (id) => table.findByIdPrimary!(id) as unknown as Promise<FullRow | null>
+        (id) => table.findByIdPrimary!(id) as Promise<FullRow | null>
       : config.lookupAfterWrite;
 
   const responseRow = (
@@ -234,7 +232,7 @@ export const defineCrudApi = <
         checkTx: refusingCheckTx(config.checkTx, input),
         existingId,
         joinWrites,
-        plainWrite: () => plainWrite() as unknown as Promise<FullRow | null>,
+        plainWrite: () => plainWrite() as Promise<FullRow | null>,
         readBack: lookupAfterWrite,
         readState: config.readState,
         tableName: config.table.name,

@@ -14,6 +14,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { HTMLSelectElement as HappyHTMLSelectElement } from "happy-dom";
 import { showConfirm } from "#src/ui/client/confirm-dialog.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
@@ -223,7 +224,7 @@ describe("scanner confirmations", {
     }
     expect(quantity.classList.contains("hidden")).toBe(false);
     (
-      el(h.document, "scanner-quantity-select") as unknown as HTMLSelectElement
+      el(h.document, "scanner-quantity-select") as HappyHTMLSelectElement
     ).value = "2";
     el(h.document, "scanner-quantity-confirm").click();
     await done;

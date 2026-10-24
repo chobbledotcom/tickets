@@ -31,9 +31,7 @@ describe("fast byte-array comparison", () => {
   // The built-in refuses these too, by comparing "[object Uint8Array]" against
   // "[object Int8Array]". The fast path must not become more generous.
   test("two kinds holding the same numbers do not match", () => {
-    expect(bytes(1, 2)).not.toEqual(
-      Int8Array.from([1, 2]) as unknown as Uint8Array,
-    );
+    expect(bytes(1, 2)).not.toEqual(Int8Array.from([1, 2]));
   });
 
   // The built-in refuses these pairs as well, so answering `false` for them
@@ -44,13 +42,11 @@ describe("fast byte-array comparison", () => {
   });
 
   test("a Buffer does not match a byte array of the same numbers", () => {
-    expect(Buffer.from([1, 2]) as unknown as Uint8Array).not.toEqual(
-      bytes(1, 2),
-    );
+    expect(Buffer.from([1, 2])).not.toEqual(bytes(1, 2));
   });
 
   test("a byte array does not match a plain array of the same numbers", () => {
-    expect(bytes(1, 2)).not.toEqual([1, 2] as unknown as Uint8Array);
+    expect(bytes(1, 2)).not.toEqual([1, 2]);
   });
 
   // A view compares by the bytes it shows, not by the buffer it was cut from.
@@ -102,8 +98,7 @@ describe("fast byte-array comparison", () => {
   // trade rather than a surprise: telling these apart needs the `Object.keys`
   // call that makes the built-in slow in the first place.
   test("extra properties hung off a byte array are not compared", () => {
-    const labelled = (label: string) =>
-      Object.assign(bytes(1, 2), { label }) as unknown as Uint8Array;
+    const labelled = (label: string) => Object.assign(bytes(1, 2), { label });
 
     expect(labelled("a")).toEqual(labelled("b"));
   });

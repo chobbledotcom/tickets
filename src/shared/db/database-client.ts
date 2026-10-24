@@ -130,9 +130,14 @@ const readPipeline = async (
  *  fetch sees a request it understands. Forward the call arguments unchanged.
  *  `onDispatch` runs after every await, immediately before the boundary call,
  *  so a caller can reject work whose world moved on while the adapter
- *  suspended. */
+ *  suspended. The request enters through its own API: only these members
+ *  are read, so an engine request standing in for a native one needs no
+ *  more. */
 export const databaseFetch = async (
-  input: Request,
+  input: Pick<
+    Request,
+    "arrayBuffer" | "body" | "headers" | "method" | "signal" | "url"
+  >,
   init?: RequestInit,
   onDispatch?: () => void,
 ): Promise<Response> => {

@@ -6,8 +6,8 @@ import {
   PaymentUserError,
   packMetadata,
 } from "#shared/payment-helpers.ts";
-import type { SessionMetadata } from "#shared/payments.ts";
 import { expectThrows } from "#test-utils/assertions.ts";
+import { wireMetadata } from "#test-utils/payment-session.ts";
 
 describe("payment-helpers", () => {
   describe("enforceMetadataLimits", () => {
@@ -271,9 +271,7 @@ describe("payment-helpers", () => {
         name: "Al",
         phone: "555",
       });
-      const extracted = extractSessionMetadata(
-        wire as unknown as SessionMetadata,
-      );
+      const extracted = extractSessionMetadata(wireMetadata(wire));
       expect(extracted.phone).toBe("555");
       expect(extracted.date).toBe("2026-07-01");
       expect(extracted.modifiers).toBe('[{"i":1,"q":1}]');
@@ -281,12 +279,14 @@ describe("payment-helpers", () => {
     });
 
     test("a malformed `b` blob degrades packed fields to empty, never throws", () => {
-      const extracted = extractSessionMetadata({
-        b: "not json{",
-        email: "a@b.com",
-        items: "[]",
-        name: "Al",
-      } as unknown as SessionMetadata);
+      const extracted = extractSessionMetadata(
+        wireMetadata({
+          b: "not json{",
+          email: "a@b.com",
+          items: "[]",
+          name: "Al",
+        }),
+      );
       expect(extracted.phone).toBe("");
       expect(extracted.date).toBe("");
       expect(extracted.email).toBe("a@b.com");
@@ -294,21 +294,25 @@ describe("payment-helpers", () => {
 
     test("a non-object or null `b` is ignored", () => {
       for (const b of ["123", "null", '"a string"']) {
-        const extracted = extractSessionMetadata({
-          b,
-          items: "[]",
-          name: "Al",
-        } as unknown as SessionMetadata);
+        const extracted = extractSessionMetadata(
+          wireMetadata({
+            b,
+            items: "[]",
+            name: "Al",
+          }),
+        );
         expect(extracted.phone).toBe("");
       }
     });
 
     test("a non-string packed field is dropped, string siblings kept", () => {
-      const extracted = extractSessionMetadata({
-        b: '{"phone":123,"date":"2026-07-01"}',
-        items: "[]",
-        name: "Al",
-      } as unknown as SessionMetadata);
+      const extracted = extractSessionMetadata(
+        wireMetadata({
+          b: '{"phone":123,"date":"2026-07-01"}',
+          items: "[]",
+          name: "Al",
+        }),
+      );
       expect(extracted.phone).toBe("");
       expect(extracted.date).toBe("2026-07-01");
     });

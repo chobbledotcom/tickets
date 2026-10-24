@@ -11,8 +11,9 @@ import {
 } from "#shared/payment-helpers.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
-import type { CheckoutIntent, SessionMetadata } from "#shared/payments.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { wireMetadata } from "#test-utils/payment-session.ts";
 
 // The provider registry is the single source of the caps these tests exercise.
 const SQUARE_CAPS = PAYMENT_PROVIDERS.square.metadata;
@@ -52,8 +53,7 @@ describeWithEnv(
       // site_token_index is packed into `b` on the wire; the webhook recovers it
       // via extractSessionMetadata, so assert on that recovered value.
       expect(
-        extractSessionMetadata(metadata as unknown as SessionMetadata)
-          .site_token_index,
+        extractSessionMetadata(wireMetadata(metadata)).site_token_index,
       ).toBe(expected);
     });
 
@@ -108,9 +108,7 @@ describeWithEnv(
       expect("phone" in wire).toBe(false);
       expect(typeof wire.b).toBe("string");
 
-      const extracted = extractSessionMetadata(
-        wire as unknown as SessionMetadata,
-      );
+      const extracted = extractSessionMetadata(wireMetadata(wire));
       const dot = extracted.price_proof.indexOf(".");
       const signedTotal = Number(extracted.price_proof.slice(0, dot));
       const sig = extracted.price_proof.slice(dot + 1);
@@ -188,7 +186,7 @@ describeWithEnv(
       const { sig, total: signedTotal } = proofParts(metadata);
       expect(
         await verifyPrice(
-          extractSessionMetadata(metadata as unknown as SessionMetadata),
+          extractSessionMetadata(wireMetadata(metadata)),
           signedTotal,
           sig,
         ),
@@ -249,7 +247,7 @@ describeWithEnv(
       const { sig, total: signedTotal } = proofParts(metadata);
       expect(
         await verifyPrice(
-          extractSessionMetadata(wire as unknown as SessionMetadata),
+          extractSessionMetadata(wireMetadata(wire)),
           signedTotal,
           sig,
         ),
@@ -281,9 +279,7 @@ describeWithEnv(
       );
       expect(metadata.thank_you_url).toBe(url);
       const { sig, total: signedTotal } = proofParts(metadata);
-      const extracted = extractSessionMetadata(
-        metadata as unknown as SessionMetadata,
-      );
+      const extracted = extractSessionMetadata(wireMetadata(metadata));
       expect(extracted.thank_you_url).toBe(url);
       expect(await verifyPrice(extracted, signedTotal, sig)).toBe(true);
       // Stripe's larger cap also retains it.

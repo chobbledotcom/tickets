@@ -24,6 +24,7 @@ import {
   editorKeymap,
   serializeMarkdown,
 } from "#src/ui/client/admin/markdown-editor-setup.ts";
+import { fireEvent, requireElement } from "#test-utils/happy-dom.ts";
 import {
   cleanup,
   enhanced,
@@ -232,9 +233,10 @@ describe("enhanceMarkdownTextarea", () => {
     const window = installDom(
       '<textarea data-markdown-preview></textarea><div class="other"></div>',
     );
-    const textarea = window.document.querySelector(
+    const textarea = requireElement<HTMLTextAreaElement>(
+      window.document,
       "textarea",
-    ) as unknown as HTMLTextAreaElement;
+    );
     enhanceMarkdownTextarea(textarea);
     // The sibling was not mistaken for a footer strip: the toggle went after
     // the editor mount instead of inside the div.
@@ -266,9 +268,10 @@ describe("enhanceMarkdownTextarea", () => {
     const window = installDom(
       "<form><textarea data-markdown-preview>hello</textarea></form>",
     );
-    const textarea = window.document.querySelector(
+    const textarea = requireElement<HTMLTextAreaElement>(
+      window.document,
       "textarea",
-    ) as unknown as HTMLTextAreaElement;
+    );
     const handle = enhanceMarkdownTextarea(textarea);
     let formInputs = 0;
     window.document.querySelector("form")?.addEventListener("input", () => {
@@ -296,9 +299,10 @@ describe("enhanceMarkdownTextarea", () => {
 
   test("the toggle switches to the raw textarea and back", () => {
     const { textarea, window } = enhanced("hello", { footer: true });
-    const toggle = window.document.querySelector(
+    const toggle = requireElement<HTMLElement>(
+      window.document,
       ".md-editor-toggle",
-    ) as unknown as HTMLElement;
+    );
     const mount = window.document.querySelector(".md-editor");
 
     toggle.click();
@@ -337,18 +341,14 @@ describe("enhanceMarkdownTextarea", () => {
 
   test("rich mode stays an explicit toggle for non-round-tripping content", () => {
     const { handle, textarea, window } = enhanced("- one", { footer: true });
-    (
-      window.document.querySelector(".md-editor-toggle") as unknown as {
-        click: () => void;
-      }
-    ).click();
+    requireElement<HTMLElement>(window.document, ".md-editor-toggle").click();
     expect(textarea.classList.contains("md-editor-hidden")).toBe(true);
     expect(handle.view.state.doc.firstChild?.type.name).toBe("bullet_list");
   });
 
   test("reveals the textarea when a hidden required field blocks submit", () => {
     const { textarea, window } = enhanced("");
-    textarea.dispatchEvent(new window.Event("invalid") as unknown as Event);
+    fireEvent(textarea, new window.Event("invalid"));
     expect(textarea.classList.contains("md-editor-hidden")).toBe(false);
     expect(
       window.document
@@ -363,9 +363,10 @@ describe("markdown editor maxlength", () => {
     const window = installDom(
       `<textarea data-markdown-preview maxlength="${max}">${value}</textarea>`,
     );
-    const textarea = window.document.querySelector(
+    const textarea = requireElement<HTMLTextAreaElement>(
+      window.document,
       "textarea",
-    ) as unknown as HTMLTextAreaElement;
+    );
     return { handle: enhanceMarkdownTextarea(textarea), textarea, window };
   };
 
@@ -397,9 +398,10 @@ describe("markdown editor maxlength", () => {
 
   test("does not limit a field with no maxlength attribute", () => {
     const window = installDom("<textarea data-markdown-preview>hi</textarea>");
-    const textarea = window.document.querySelector(
+    const textarea = requireElement<HTMLTextAreaElement>(
+      window.document,
       "textarea",
-    ) as unknown as HTMLTextAreaElement;
+    );
     const handle = enhanceMarkdownTextarea(textarea);
     handle.view.dispatch(
       handle.view.state.tr.insertText("everything is allowed here", 3),

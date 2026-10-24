@@ -182,10 +182,9 @@ describe("database request conversion", () => {
     try {
       // The shape the bug erases: a spread caller's config leaves the key
       // present but undefined, a state Config's types cannot name.
-      const callerConfig = {
-        fetch: undefined,
-        url: "libsql://pipeline.test",
-      } as unknown as Config;
+      const callerConfig: Config = { url: "libsql://pipeline.test" };
+      const spreadCallerConfig = callerConfig as { fetch?: unknown };
+      spreadCallerConfig.fetch = undefined;
       const client = createDatabaseClient(callerConfig);
       await client.execute("SELECT 1");
       client.close();
@@ -322,7 +321,7 @@ describe("database request conversion", () => {
 
   test("runs the dispatch guard after every await, before the boundary", async () => {
     // The engine request is a stand-in whose body read the test gates: the
-    // adapter only reads url, method, headers, body, and arrayBuffer
+    // adapter reads url, method, headers, signal, body, and arrayBuffer
     // through the object's own API, which is exactly what this shape
     // provides.
     let releaseBody: (() => void) | undefined;
@@ -331,11 +330,12 @@ describe("database request conversion", () => {
         new Promise<ArrayBuffer>((resolve) => {
           releaseBody = () => resolve(new ArrayBuffer(0));
         }),
-      body: new Uint8Array(0),
+      body: new ReadableStream<Uint8Array<ArrayBuffer>>(),
       headers: new Headers({ "content-type": "application/json" }),
       method: "POST",
+      signal: new AbortController().signal,
       url: "https://pipeline.test/v2/pipeline",
-    } as unknown as Request; // the adapter's contract is the object's own API
+    };
     const boundary: { init: RequestInit | undefined }[] = [];
     let guardRan = false;
     let poolMoved = false;

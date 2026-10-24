@@ -72,7 +72,8 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
       const response = await adminGet(
         `/admin/attendees/${attendee.id}/actions?token=invalid-token`,
       );
-      await expectHtmlResponse(response, 200, "not found");
+      const html = await response.text();
+      expect(html).toContain(">Ticket token not found</div>");
     });
 
     test("shows error when token matches same attendee", async () => {
@@ -84,11 +85,8 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
           token,
         )}`,
       );
-      await expectHtmlResponse(
-        response,
-        200,
-        "Cannot merge an attendee with themselves",
-      );
+      const html = await response.text();
+      expect(html).toContain(">Cannot merge an attendee with themselves</div>");
     });
 
     test("shows merge preview when valid source token provided", async () => {

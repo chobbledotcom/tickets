@@ -8,7 +8,8 @@ import {
   toBookingItems,
   toModifierRefs,
 } from "#shared/payment-helpers.ts";
-import type { CheckoutIntent, SessionMetadata } from "#shared/payments.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
+import { wireMetadata } from "#test-utils/payment-session.ts";
 
 describe("payment-helpers", () => {
   describe("modifier metadata", () => {
@@ -40,9 +41,7 @@ describe("payment-helpers", () => {
         name: "Alice",
       });
       expect(JSON.parse(metadata.modifiers!)).toEqual([{ i: 7, q: 2 }]);
-      const extracted = extractSessionMetadata(
-        metadata as unknown as SessionMetadata,
-      );
+      const extracted = extractSessionMetadata(wireMetadata(metadata));
       expect(JSON.parse(extracted.modifiers)).toEqual([{ i: 7, q: 2 }]);
     });
 
@@ -55,10 +54,9 @@ describe("payment-helpers", () => {
         thankYouUrl: "https://example.com/thanks-parent",
       });
       expect(metadata.thank_you_url).toBe("https://example.com/thanks-parent");
-      expect(
-        extractSessionMetadata(metadata as unknown as SessionMetadata)
-          .thank_you_url,
-      ).toBe("https://example.com/thanks-parent");
+      expect(extractSessionMetadata(wireMetadata(metadata)).thank_you_url).toBe(
+        "https://example.com/thanks-parent",
+      );
     });
 
     test("buildMetadata omits modifiers when none apply", () => {
@@ -69,10 +67,7 @@ describe("payment-helpers", () => {
         name: "Alice",
       });
       expect(metadata.modifiers).toBeUndefined();
-      expect(
-        extractSessionMetadata(metadata as unknown as SessionMetadata)
-          .modifiers,
-      ).toBe("");
+      expect(extractSessionMetadata(wireMetadata(metadata)).modifiers).toBe("");
     });
 
     test("buildMetadata serializes allocations and round-trips them", () => {
@@ -86,10 +81,7 @@ describe("payment-helpers", () => {
       });
       expect(JSON.parse(metadata.allocations!)).toEqual(allocations);
       expect(
-        JSON.parse(
-          extractSessionMetadata(metadata as unknown as SessionMetadata)
-            .allocations,
-        ),
+        JSON.parse(extractSessionMetadata(wireMetadata(metadata)).allocations),
       ).toEqual(allocations);
     });
 
@@ -125,9 +117,7 @@ describe("payment-helpers", () => {
 
       expect(hasRequiredSessionMetadata(metadata)).toBe(true);
 
-      const extracted = extractSessionMetadata(
-        metadata as unknown as SessionMetadata,
-      );
+      const extracted = extractSessionMetadata(wireMetadata(metadata));
       expect(extracted.name).toBe("Alice");
       expect(extracted.email).toBe("alice@example.com");
       expect(extracted.phone).toBe("+1234567890");
@@ -171,9 +161,7 @@ describe("payment-helpers", () => {
 
       expect(hasRequiredSessionMetadata(metadata)).toBe(true);
 
-      const extracted = extractSessionMetadata(
-        metadata as unknown as SessionMetadata,
-      );
+      const extracted = extractSessionMetadata(wireMetadata(metadata));
       expect(extracted.name).toBe("Bob");
       expect(extracted.phone).toBe("+9876543210");
       expect(extracted.address).toBe("");
@@ -188,19 +176,19 @@ describe("payment-helpers", () => {
     });
 
     test("extractSessionMetadata preserves present fields and defaults absent ones", () => {
-      const withFields = extractSessionMetadata({
-        email: "alice@example.com",
-        items: "[]",
-        name: "Alice",
-        phone: "+1234567890",
-      } as SessionMetadata);
+      const withFields = extractSessionMetadata(
+        wireMetadata({
+          email: "alice@example.com",
+          items: "[]",
+          name: "Alice",
+          phone: "+1234567890",
+        }),
+      );
       expect(withFields.email).toBe("alice@example.com");
       expect(withFields.phone).toBe("+1234567890");
       expect(withFields.address).toBe("");
 
-      const minimal = extractSessionMetadata({
-        name: "Eve",
-      } as SessionMetadata);
+      const minimal = extractSessionMetadata(wireMetadata({ name: "Eve" }));
       expect(minimal.email).toBe("");
       expect(minimal.phone).toBe("");
       expect(minimal._origin).toBe("");
@@ -216,9 +204,7 @@ describe("payment-helpers", () => {
         special_instructions: "",
       });
 
-      const extracted = extractSessionMetadata(
-        metadata as unknown as SessionMetadata,
-      );
+      const extracted = extractSessionMetadata(wireMetadata(metadata));
       expect(extracted.phone).toBe("");
       expect(extracted.address).toBe("");
       expect(extracted.special_instructions).toBe("");
@@ -361,31 +347,33 @@ describe("payment-helpers", () => {
     });
 
     test("extractSessionMetadata round-trips day_count", () => {
-      const extracted = extractSessionMetadata({
-        day_count: "3",
-        email: "x@x.com",
-        items: "[]",
-        name: "X",
-      } as SessionMetadata);
+      const extracted = extractSessionMetadata(
+        wireMetadata({
+          day_count: "3",
+          email: "x@x.com",
+          items: "[]",
+          name: "X",
+        }),
+      );
       expect(extracted.day_count).toBe("3");
     });
 
     test("extractSessionMetadata surfaces site_token_index when present", () => {
-      const extracted = extractSessionMetadata({
-        email: "renew@example.com",
-        items: "[]",
-        name: "Renewer",
-        site_token_index: "hashed-index-value",
-      } as SessionMetadata);
+      const extracted = extractSessionMetadata(
+        wireMetadata({
+          email: "renew@example.com",
+          items: "[]",
+          name: "Renewer",
+          site_token_index: "hashed-index-value",
+        }),
+      );
       expect(extracted.site_token_index).toBe("hashed-index-value");
     });
 
     test("extractSessionMetadata defaults site_token_index to empty string", () => {
-      const extracted = extractSessionMetadata({
-        email: "x@x.com",
-        items: "[]",
-        name: "X",
-      } as SessionMetadata);
+      const extracted = extractSessionMetadata(
+        wireMetadata({ email: "x@x.com", items: "[]", name: "X" }),
+      );
       expect(extracted.site_token_index).toBe("");
     });
 

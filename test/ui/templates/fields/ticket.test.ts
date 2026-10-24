@@ -90,14 +90,16 @@ describe("getTicketFields — field composition", () => {
   });
 
   test("attaches the lookup panel to the address field only when a provider is set", () => {
-    const settingsAny = settings as unknown as Record<string, unknown>;
+    const patchable = settings as {
+      addressLookup: typeof settings.addressLookup;
+    };
     const original: typeof settings.addressLookup = settings.addressLookup;
     try {
-      settingsAny.addressLookup = { ...original, provider: "none" };
+      patchable.addressLookup = { ...original, provider: "none" };
       const plain = getTicketFields("address", false)[1]!;
       expect(plain.beforeHtml).toBeUndefined();
 
-      settingsAny.addressLookup = { ...original, provider: "easypostcodes" };
+      patchable.addressLookup = { ...original, provider: "easypostcodes" };
       const withPanel = getTicketFields("address", false)[1]!;
       expect(typeof withPanel.beforeHtml).toBe("string");
       assertStringIncludes(withPanel.beforeHtml ?? "", "<fieldset");
@@ -105,7 +107,7 @@ describe("getTicketFields — field composition", () => {
       const email = getTicketFields("email", false)[1]!;
       expect(email.beforeHtml).toBeUndefined();
     } finally {
-      settingsAny.addressLookup = original;
+      patchable.addressLookup = original;
     }
   });
 });

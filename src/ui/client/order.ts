@@ -424,13 +424,11 @@ class CartController {
 const init = (): void => {
   // The registry is keyed by tickets origin: duplicate tags for the SAME origin
   // reuse one controller, but two different ticket sites on one page each get
-  // their own cart (the contract is one cart per tickets origin).
-  const global = globalThis as unknown as Record<
-    string,
-    Record<string, unknown>
-  >;
-  const registry = global[REGISTRY_KEY] ?? {};
-  global[REGISTRY_KEY] = registry;
+  // their own cart (the contract is one cart per tickets origin). The key is a
+  // const, so the slot is read and written dynamically.
+  const registry: Record<string, unknown> =
+    Reflect.get(globalThis, REGISTRY_KEY) ?? {};
+  Reflect.set(globalThis, REGISTRY_KEY, registry);
   if (registry[CATALOG.origin]) {
     debugLog("already initialised for", CATALOG.origin);
     return;

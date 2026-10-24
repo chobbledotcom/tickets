@@ -14,6 +14,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 
 // jscpd:ignore-end
 
@@ -29,25 +30,23 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 500,
-          currency: "gbp",
-          expires_at: 456,
-          id: "cs_single_thankyou",
-          metadata: signMeta(
-            {
-              email: "single@example.com",
-              items: singleItem(listing.id, 1, 500),
-              name: "Single",
-            },
-            500,
-          ),
-          payment_intent: "pi_single_thankyou",
-          payment_status: "paid",
-          status: "complete",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
+        Promise.resolve(
+          stubCheckoutSession({
+            amount_total: 500,
+            currency: "gbp",
+            id: "cs_single_thankyou",
+            metadata: signMeta(
+              {
+                email: "single@example.com",
+                items: singleItem(listing.id, 1, 500),
+                name: "Single",
+              },
+              500,
+            ),
+            payment_intent: "pi_single_thankyou",
+            payment_status: "paid",
+          }),
+        ),
       );
 
       try {
@@ -85,30 +84,28 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 500,
-          currency: "gbp",
-          expires_at: 456,
-          id: "cs_hidden_pkg",
-          metadata: signedMeta(
-            {
-              email: "concealed@example.com",
-              // A package member carries its package edge tag (k:"p", r:group)
-              // so the webhook's tree revalidation resolves it as a package
-              // member rather than a standalone listing.
-              items: JSON.stringify([
-                { e: listing.id, k: "p", p: 500, q: 1, r: group.id },
-              ]),
-              name: "Concealed Buyer",
-            },
-            500,
-          ),
-          payment_intent: "pi_hidden_pkg",
-          payment_status: "paid",
-          status: "complete",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
+        Promise.resolve(
+          stubCheckoutSession({
+            amount_total: 500,
+            currency: "gbp",
+            id: "cs_hidden_pkg",
+            metadata: signedMeta(
+              {
+                email: "concealed@example.com",
+                // A package member carries its package edge tag (k:"p", r:group)
+                // so the webhook's tree revalidation resolves it as a package
+                // member rather than a standalone listing.
+                items: JSON.stringify([
+                  { e: listing.id, k: "p", p: 500, q: 1, r: group.id },
+                ]),
+                name: "Concealed Buyer",
+              },
+              500,
+            ),
+            payment_intent: "pi_hidden_pkg",
+            payment_status: "paid",
+          }),
+        ),
       );
 
       try {
@@ -143,29 +140,27 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 700,
-          currency: "gbp",
-          expires_at: 456,
-          id: "cs_hidden_replay",
-          metadata: signedMeta(
-            {
-              email: "replay@example.com",
-              // Package member tagged with its edge (k:"p", r:group) so the
-              // webhook's tree revalidation resolves it as a package member.
-              items: JSON.stringify([
-                { e: listing.id, k: "p", p: 700, q: 1, r: group.id },
-              ]),
-              name: "Replay Buyer",
-            },
-            700,
-          ),
-          payment_intent: "pi_hidden_replay",
-          payment_status: "paid",
-          status: "complete",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
+        Promise.resolve(
+          stubCheckoutSession({
+            amount_total: 700,
+            currency: "gbp",
+            id: "cs_hidden_replay",
+            metadata: signedMeta(
+              {
+                email: "replay@example.com",
+                // Package member tagged with its edge (k:"p", r:group) so the
+                // webhook's tree revalidation resolves it as a package member.
+                items: JSON.stringify([
+                  { e: listing.id, k: "p", p: 700, q: 1, r: group.id },
+                ]),
+                name: "Replay Buyer",
+              },
+              700,
+            ),
+            payment_intent: "pi_hidden_replay",
+            payment_status: "paid",
+          }),
+        ),
       );
 
       try {
@@ -200,25 +195,23 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          currency: "gbp",
-          expires_at: 456,
-          id: "cs_dupe_session",
-          metadata: signMeta(
-            {
-              email: "dupe@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "Dupe",
-            },
-            1000,
-          ),
-          payment_intent: "pi_dupe",
-          payment_status: "paid",
-          status: "complete",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
+        Promise.resolve(
+          stubCheckoutSession({
+            amount_total: 1000,
+            currency: "gbp",
+            id: "cs_dupe_session",
+            metadata: signMeta(
+              {
+                email: "dupe@example.com",
+                items: singleItem(listing.id, 1, 1000),
+                name: "Dupe",
+              },
+              1000,
+            ),
+            payment_intent: "pi_dupe",
+            payment_status: "paid",
+          }),
+        ),
       );
 
       try {
@@ -257,25 +250,23 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 800,
-          currency: "gbp",
-          expires_at: 456,
-          id: "cs_cart_single",
-          metadata: signMeta(
-            {
-              email: "cartsingle@example.com",
-              items: JSON.stringify([{ e: listing.id, p: 800, q: 1 }]),
-              name: "Cart Single Buyer",
-            },
-            800,
-          ),
-          payment_intent: "pi_cart_single",
-          payment_status: "paid",
-          status: "complete",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
+        Promise.resolve(
+          stubCheckoutSession({
+            amount_total: 800,
+            currency: "gbp",
+            id: "cs_cart_single",
+            metadata: signMeta(
+              {
+                email: "cartsingle@example.com",
+                items: JSON.stringify([{ e: listing.id, p: 800, q: 1 }]),
+                name: "Cart Single Buyer",
+              },
+              800,
+            ),
+            payment_intent: "pi_cart_single",
+            payment_status: "paid",
+          }),
+        ),
       );
 
       try {
@@ -320,28 +311,26 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1500,
-          currency: "gbp",
-          expires_at: 456,
-          id: "cs_multi_dupe",
-          metadata: signMeta(
-            {
-              email: "multireplay@example.com",
-              items: JSON.stringify([
-                { e: listing1.id, p: 500, q: 1 },
-                { e: listing2.id, p: 1000, q: 1 },
-              ]),
-              name: "Multi Replay",
-            },
-            1500,
-          ),
-          payment_intent: "pi_multi_dupe",
-          payment_status: "paid",
-          status: "complete",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
+        Promise.resolve(
+          stubCheckoutSession({
+            amount_total: 1500,
+            currency: "gbp",
+            id: "cs_multi_dupe",
+            metadata: signMeta(
+              {
+                email: "multireplay@example.com",
+                items: JSON.stringify([
+                  { e: listing1.id, p: 500, q: 1 },
+                  { e: listing2.id, p: 1000, q: 1 },
+                ]),
+                name: "Multi Replay",
+              },
+              1500,
+            ),
+            payment_intent: "pi_multi_dupe",
+            payment_status: "paid",
+          }),
+        ),
       );
 
       try {

@@ -52,7 +52,7 @@ src/ui/client/cart-dom.ts::buildButton.count%2etextContent~0nqcdm1  0 → "" aud
 
 # The widget owns this global registry: before init it is undefined, afterwards
 # it is an object. Both are mapped to the same object by these operators.
-src/ui/client/order.ts::init.registry~1udjxut  ?? → || audited:189c89x # registry is Record<string, unknown>|undefined
+src/ui/client/order.ts::init.registry~15huz79  ?? → ||  audited:1uojevh # registry is Record<string, unknown>|undefined
 
 # Dataset values are strings when present. At initial scan the selector requires
 # the attribute; after enhancement, an absent value and either fallback string
@@ -186,3 +186,22 @@ src/ui/client/scanner.js::init~12c1xgq messageScanning→"" audited:15l0fej # th
 src/ui/client/scanner.js::init~12c1xgq Scanning...→"" audited:15l0fej # the camera page always renders data-message-scanning, so the fallback copy never shows
 src/ui/client/scanner.js::init.csrfToken~0ke2mq5 →"mutated" audited:15l0fej # the scanner page's headExtra always renders the csrf meta, so the empty fallback never fires
 
+
+# --- External order widget additions (2026-10 sessions) -------------------------
+src/ui/client/order.ts::CartController.reconcile~0sfsfu1  <=→< audited:1uojevh # reconcile's only caller feeds it load()'s output, already filtered to integer quantities >= 1, so the quantity half of the drop condition is false for every reachable line
+src/ui/client/order.ts::CartController.reconcile~0sfsfu1  0→-1 audited:1uojevh # every line arrived with quantity >= 1 (isCartLine), so the <= 0 arm is false either way
+src/ui/client/order.ts::CartController.add.quantity~0o3iajo  1→-1 audited:1uojevh # every call site passes parseAddQuantity()'s positive integer, so add()'s default parameter never applies
+src/ui/client/order.ts::CartController.add.quantity~0o3iajo  1→2 audited:1uojevh # the default is unreachable: the one call site always passes a positive integer
+src/ui/client/order.ts::CartController.continueUrl~0mcdhcj  0→-1 audited:1uojevh # continueUrl is read only by buildContinue, which renderBody appends only when lines.length > 0
+src/ui/client/cart-dom.ts::buildStepper~0x8lb2z  0→-1  audited:1c9un2x # the remove button's setQuantity(slug, n) removes for any n <= 0
+src/ui/client/cart-dom.ts::buildButton.count%2etextContent~0nqcdm1  0→"0 mutated"  audited:1c9un2x # the constructor's render() rewrites the count text from the live total before anything reads it
+
+# --- Embed loader additions -----------------------------------------------------
+src/ui/client/embed.ts::initEmbed.iframe%2esrc~0smhe0c  =→+= audited:12lmnd9 # fresh iframe has no src attribute; the getter returns ""
+src/ui/client/embed.ts::initEmbed.parentScript%2esrc~0fzfrm7  =→+= audited:12lmnd9 # fresh script has no src attribute; the getter returns ""
+src/ui/client/embed.ts::initEmbed.iframe%2estyle%2eborder~0jzb6gh  =→+= audited:12lmnd9 # a fresh element's style declaration is empty, so "" + "none" === "none"
+src/ui/client/embed.ts::initEmbed.iframe%2estyle%2ewidth~1dq2brj  =→+= audited:12lmnd9 # a fresh element's style declaration is empty, so "" + "100%" === "100%"
+
+# --- Admin attendee merge additions ---------------------------------------------
+src/features/admin/attendees-merge.ts::loadMergeSource~1um054e  false→true audited:0z1zcf7 # decryptPiiBlob's paidListing arg only fills payment_id, and no merge reader reads the source's payment_id
+src/features/admin/attendees-merge.ts::oneChoiceOf~16ss0cv  ??→|| audited:0z1zcf7 # find returns a member of a non-empty known list or undefined; both fallbacks agree

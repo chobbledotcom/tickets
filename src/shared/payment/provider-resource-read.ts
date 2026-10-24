@@ -7,7 +7,6 @@
  * rather than one more arm.
  */
 
-import * as v from "valibot";
 import { askProvider } from "#payment/provider-call.ts";
 import { malformedProviderRead } from "#payment/provider-failures.ts";
 import type {
@@ -103,12 +102,3 @@ export const judgedBy = <Answer>(
     parse: (answer) => answer,
     rungs,
   });
-
-/** The `parse` step for a ladder whose parse is only its schema. A schema
- *  failure is the answer not matching its documented shape. */
-export const parsedBy =
-  <Parsed>(schema: v.BaseSchema<unknown, Parsed, v.BaseIssue<unknown>>) =>
-  (answer: unknown): Parsed | null => {
-    const parsed = v.safeParse(schema, answer);
-    return parsed.success ? parsed.output : null;
-  };

@@ -9,20 +9,22 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { webhookEvidenceThen } from "#e2e/cucumber/steps/webhook-evidence.ts";
-import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
+import {
+  type WebhookEvidenceWorld,
+  webhookEvidenceThen,
+} from "#e2e/cucumber/steps/webhook-evidence.ts";
 
 /** A world whose server log lives at logPath, recording the phases it is told. */
 const worldWithLog = (
   logPath: string,
-): { phases: string[]; world: LiveWorld } => {
+): { phases: string[]; world: WebhookEvidenceWorld } => {
   const phases: string[] = [];
   const world = {
     recordPhase: (phase: string) => {
       phases.push(phase);
     },
     resources: { server: { logPath } },
-  } as unknown as LiveWorld;
+  };
   return { phases, world };
 };
 

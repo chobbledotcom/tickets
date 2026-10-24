@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { fireEvent } from "#test-utils/happy-dom.ts";
 import {
   REBRANDED_FORM,
   useManualCheckinPage,
@@ -24,7 +25,7 @@ describe("manual check-in under the ticket-to-booking rebrand", () => {
     const page = setup();
     page.attendeeIdInput.value = "11";
     const event = new page.window.Event("submit", { cancelable: true });
-    page.form.dispatchEvent(event as unknown as Event);
+    fireEvent(page.form, event);
 
     const overlay = document.getElementById("scanner-quantity")!;
     await waitUntilSettled(

@@ -5,6 +5,7 @@ import { showConfirm } from "#src/ui/client/confirm-dialog.ts";
 import {
   createDomInstaller,
   type DomInstaller,
+  fireEvent,
 } from "#test-utils/happy-dom.ts";
 
 const CONFIRM_OVERLAY = `
@@ -31,9 +32,7 @@ describe("the door scan's confirm dialog", () => {
     return {
       overlay: document.getElementById("scanner-confirm")!,
       press: (key: string): void => {
-        document.dispatchEvent(
-          new window.KeyboardEvent("keydown", { key }) as unknown as Event,
-        );
+        fireEvent(document, new window.KeyboardEvent("keydown", { key }));
       },
       // The dialog opens on the promise hop after showConfirm, so the tests
       // await the question they asked for. The bound turns a dialog that

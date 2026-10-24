@@ -5,7 +5,6 @@
  */
 
 import { config } from "#e2e/config.ts";
-import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
 import { lastLoggedMatch } from "#e2e/providers/shared.ts";
 import { pollUntil } from "#e2e/util.ts";
 
@@ -36,13 +35,20 @@ const WEBHOOK_HELD = "is being processed elsewhere";
 const callbackLine = (outcome: string): string =>
   `\\[Webhook\\] Payment callback (${outcome})`;
 
+/** What the webhook evidence step needs from the world: the server log's
+ * path, and the journal that records the step's outcome. */
+export type WebhookEvidenceWorld = {
+  recordPhase: (phase: string) => void;
+  resources: { server: { logPath: string } };
+};
+
 /** Build the follow-up check that waits for the signed webhook's own log
  * line — never inferred from pages. The step's own outcome is preferred for
  * the whole window, so a race that is merely slow still proves the real
  * thing. */
 export const webhookEvidenceThen =
   (did: keyof typeof WEBHOOK_DID) =>
-  async (world: LiveWorld): Promise<void> => {
+  async (world: WebhookEvidenceWorld): Promise<void> => {
     const logPath = world.resources.server.logPath;
     const processed = await pollUntil(config.paymentConfirmTimeoutMs, () =>
       Promise.resolve(lastLoggedMatch(logPath, callbackLine(WEBHOOK_DID[did]))),

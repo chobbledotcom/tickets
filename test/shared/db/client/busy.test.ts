@@ -4,7 +4,10 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { DatabaseBusyError, execute, setDb } from "#db/client.ts";
 import { expectFullBackoffWalk } from "#test-utils/backoff-walk.ts";
-import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import {
+  emptyResultSet,
+  stubClient,
+} from "#test-utils/db-helpers/result-set.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 /**
@@ -22,7 +25,7 @@ import { withEnv } from "#test-utils/env.ts";
 describe("db > client write-lock retry", () => {
   const busyError = (): Error => new Error("SQLITE_BUSY: database is locked");
   const clientWith = (run: () => Promise<ResultSet>): Client =>
-    ({ execute: run }) as unknown as Client;
+    stubClient({ execute: run });
 
   afterEach(() => setDb(null));
 

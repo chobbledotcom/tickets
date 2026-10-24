@@ -19,7 +19,10 @@ import {
   SCHEMA_HASH,
 } from "#db/migrations.ts";
 import { expectFullBackoffWalk } from "#test-utils/backoff-walk.ts";
-import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import {
+  emptyResultSet,
+  stubClient,
+} from "#test-utils/db-helpers/result-set.ts";
 
 /**
  * The transient upstream retry: the libsql server itself occasionally answers
@@ -39,9 +42,9 @@ describe("db > client transient upstream retry", () => {
   const upstreamError = (status: number): LibsqlError =>
     new LibsqlError(`Server returned HTTP status ${status}`, "SERVER_ERROR");
   const clientWith = (run: () => Promise<ResultSet>): Client =>
-    ({ execute: run }) as unknown as Client;
+    stubClient({ execute: run });
   const clientWithBatch = (run: () => Promise<ResultSet[]>): Client =>
-    ({ batch: run }) as unknown as Client;
+    stubClient({ batch: run });
 
   afterEach(() => {
     invalidateInitDbCache();

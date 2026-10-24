@@ -13,6 +13,7 @@ import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 import {
   stubRefundPayment,
   stubRetrieveCheckoutSession,
@@ -193,22 +194,20 @@ describeWithEnv(
 
       // Mock empty items list (edge case where items parsed but empty after filtering)
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 0,
-          currency: "gbp",
-          expires_at: 456,
-          id: "cs_multi_empty_items",
-          metadata: {
-            email: "empty@example.com",
-            items: "[]", // Empty array
-            name: "Empty Items",
-          },
-          payment_intent: "pi_multi_empty",
-          payment_status: "paid",
-          status: "complete",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
+        Promise.resolve(
+          stubCheckoutSession({
+            amount_total: 0,
+            currency: "gbp",
+            id: "cs_multi_empty_items",
+            metadata: {
+              email: "empty@example.com",
+              items: "[]", // Empty array
+              name: "Empty Items",
+            },
+            payment_intent: "pi_multi_empty",
+            payment_status: "paid",
+          }),
+        ),
       );
 
       const mockRefund = stubRefundPayment();

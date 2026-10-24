@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
+import { HTMLButtonElement, type Window } from "happy-dom";
 import { initShareButtons } from "#src/ui/client/admin/share-button.ts";
 import { createDomInstaller } from "#test-utils/happy-dom.ts";
 
@@ -14,10 +15,20 @@ describe("share buttons", () => {
     await dom.cleanup();
     // The stubbed navigator capabilities are Deno globals; take them back off
     // so no neighbour reads a test's stub.
-    for (const name of ["share", "clipboard"]) {
-      delete (navigator as unknown as Record<string, unknown>)[name];
+    for (const name of ["share", "clipboard"] as const) {
+      delete (navigator as Record<"share" | "clipboard", unknown>)[name];
     }
   });
+
+  /** The wired share button — the page always carries it, so a miss is a
+   *  broken page, not an empty answer. */
+  const queryButton = (window: Window) => {
+    const found = window.document.querySelector("button[data-share-url]");
+    if (!(found instanceof HTMLButtonElement)) {
+      throw new Error("The share page carries no share button");
+    }
+    return found;
+  };
 
   /** One public URL row installed onto the DOM, the script wired, and the
    *  button handed back. The link shows the full URL, so a manual selection
@@ -35,16 +46,14 @@ describe("share buttons", () => {
       </span>
     `);
     initShareButtons();
-    const button = window.document.querySelector(
-      "button[data-share-url]",
-    ) as unknown as HTMLButtonElement;
+    const button = queryButton(window);
     return { button, window };
   };
 
   /** Stub one navigator capability, or remove it when the stub is null. */
   const stubNavigator = (name: "share" | "clipboard", value: unknown) => {
     if (value === null) {
-      delete (navigator as unknown as Record<string, unknown>)[name];
+      delete (navigator as Record<"share" | "clipboard", unknown>)[name];
       return;
     }
     Object.defineProperty(navigator, name, {
@@ -207,9 +216,7 @@ describe("share buttons", () => {
       '<button data-share-url="https://fair.example/ticket/sunday" type="button">Share</button>',
     );
     initShareButtons();
-    const button = window.document.querySelector(
-      "button[data-share-url]",
-    ) as unknown as HTMLButtonElement;
+    const button = queryButton(window);
     return { button, window };
   };
 

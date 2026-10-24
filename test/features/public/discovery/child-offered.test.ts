@@ -92,14 +92,8 @@ describeWithEnv("childOfferedOnDate", { db: true }, () => {
   test("a missing day count books the one-day span", () => {
     const child = dailyChild();
     // A null count is the date-less parent's entry: the child books one day.
-    expect(
-      childOfferedOnDate(
-        child,
-        [],
-        [null as unknown as number],
-        [today()],
-        today(),
-      ),
-    ).toBe(true);
+    expect(childOfferedOnDate(child, [], [null], [today()], today())).toBe(
+      true,
+    );
   });
 });

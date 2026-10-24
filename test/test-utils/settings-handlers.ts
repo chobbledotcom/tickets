@@ -1,9 +1,10 @@
-import { fn } from "@std/expect/fn";
 import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
+import type { MockOf } from "#test-utils/mock-fn.ts";
+import { mockFn } from "./mock-fn.ts";
 
 /** Build FormParams from a plain record of form fields. */
 export const formFrom = (data: Record<string, string>): FormParams =>
@@ -19,11 +20,11 @@ export const lastLogMessage = async (): Promise<string> => {
 };
 
 /** A fresh spy ErrorPageFn that renders `error: <msg>` as a bad request. */
-export const makeMockErrorPage = (): ErrorPageFn & ReturnType<typeof fn> =>
-  fn(
+export const makeMockErrorPage = (): MockOf<ErrorPageFn> =>
+  mockFn(
     (error: string, _formId?: string) =>
       new Response(`error: ${error}`, { status: 400 }),
-  ) as unknown as ErrorPageFn & ReturnType<typeof fn>;
+  );
 
 /** Invoke a settings handler with form `data` + `errorPage` and a null session. */
 export const runHandler = (

@@ -5,6 +5,7 @@ import type { stripeApi } from "#shared/stripe.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
+import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 import type { Group, ListingWithCount } from "#types";
 
 interface PackageWithChild {
@@ -88,7 +89,7 @@ export const packageChildSession = (
   sessionId: string,
   intentId: string,
 ): Awaited<ReturnType<typeof stripeApi.retrieveCheckoutSession>> =>
-  ({
+  stubCheckoutSession({
     amount_total: 1800,
     currency: "gbp",
     expires_at: 456,
@@ -110,10 +111,7 @@ export const packageChildSession = (
     ),
     payment_intent: intentId,
     payment_status: "paid",
-    status: "complete",
-  }) as unknown as Awaited<
-    ReturnType<typeof stripeApi.retrieveCheckoutSession>
-  >;
+  });
 
 /** Cap the two add-ons at two and one units. */
 export const capAddonsAtThree = async (

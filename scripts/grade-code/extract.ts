@@ -10,12 +10,9 @@ import { readComments } from "#scripts/check-comments/rules.ts";
 import { countLines } from "#scripts/check-file-lengths/rules.ts";
 import { topLevelImports } from "#scripts/check-imports/rules.ts";
 import { lineColumnAt } from "#scripts/line-column.ts";
-import {
-  type ParsedStatement,
-  parseProgram,
-  visitNodes,
-} from "#scripts/parse-program.ts";
+import { type ParsedStatement, parseProgram } from "#scripts/parse-program.ts";
 import { blankSpans, stringSpanTexts } from "#scripts/typescript-lex.ts";
+import { walkNodes } from "#scripts/walk-nodes.ts";
 
 /** Which tree a file sits in, because the rules that apply differ. */
 export type CodeKind = "template" | "client" | "feature" | "shared" | "other";
@@ -97,7 +94,7 @@ const assertionHits = (
 ): { assertions: LineHit[]; casts: LineHit[] } => {
   const assertions: LineHit[] = [];
   const casts: LineHit[] = [];
-  visitNodes(statements, (node) => {
+  walkNodes(statements, (node) => {
     if (node.type === "TSNonNullExpression") {
       assertions.push(hitAtIndex(content, node.start as number));
     }
@@ -350,7 +347,7 @@ const hrefTextOf = (
  * expression, nested braces included. */
 const jsxHrefs = (content: string, statements: ParsedStatement[]): string[] => {
   const hrefs: string[] = [];
-  visitNodes(statements, (node) => {
+  walkNodes(statements, (node) => {
     const href = hrefTextOf(content, node);
     if (href !== null) hrefs.push(href);
   });
@@ -360,7 +357,7 @@ const jsxHrefs = (content: string, statements: ParsedStatement[]): string[] => {
 /** Whether the parsed program renders JSX, so the copy questions apply. */
 const hasJsx = (statements: ParsedStatement[]): boolean => {
   let found = false;
-  visitNodes(statements, (node) => {
+  walkNodes(statements, (node) => {
     if (node.type === "JSXElement" || node.type === "JSXFragment") found = true;
   });
   return found;

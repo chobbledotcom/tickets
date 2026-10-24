@@ -9,8 +9,12 @@
  * HMAC input: "qr-book:{slug}:{payloadB64url}"
  */
 
+import * as v from "valibot";
+/* jscpd:ignore-start -- imports */
 import { defineSignedToken } from "#crypto/define-signed-token.ts";
 import { expiresIn } from "#shared/now.ts";
+import { parseOrNull } from "#shared/validation/parse.ts";
+/* jscpd:ignore-end */
 
 /** QR token expiry in seconds from generation */
 export const QR_TOKEN_MAX_AGE_S = 300;
@@ -29,18 +33,19 @@ export type QrBookPayload = {
   e: number;
 };
 
+const QrBookPayloadSchema = v.strictObject({
+  d: v.string(),
+  e: v.number(),
+  n: v.string(),
+  q: v.number(),
+  v: v.number(),
+});
+
 /** The QR scheme: HMAC message is keyed by the listing slug. */
 const qrToken = defineSignedToken<QrBookPayload, string>({
   maxAgeS: QR_TOKEN_MAX_AGE_S,
   message: (slug, encoded) => `qr-book:${slug}:${encoded}`,
-  parse: (parsed) =>
-    typeof parsed.n === "string" &&
-    typeof parsed.v === "number" &&
-    typeof parsed.q === "number" &&
-    typeof parsed.d === "string" &&
-    typeof parsed.e === "number"
-      ? (parsed as unknown as QrBookPayload)
-      : null,
+  parse: (raw) => parseOrNull(QrBookPayloadSchema, raw),
   prefix: "qr1.",
 });
 
