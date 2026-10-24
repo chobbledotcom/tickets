@@ -30,35 +30,6 @@ export const seedTicketCache = async (
   );
 };
 
-/** The held ticket digest: release opens the gate, and disposing restores
- * the platform's own sign. */
-export interface HeldTicketDigest {
-  release: () => void;
-  [Symbol.dispose]: () => void;
-}
-
-/** Holds the platform's ticket digest until the test opens the gate: the
- * scan's hmac then waits mid-flight, the way a slow device digests. Compute
- * every seed digest before the hold starts, or the seed waits on it too. */
-export const holdTicketDigest = (): HeldTicketDigest => {
-  const gate = Promise.withResolvers<void>();
-  const realSign = globalThis.crypto.subtle.sign.bind(globalThis.crypto.subtle);
-  globalThis.crypto.subtle.sign = (async (
-    algorithm: AlgorithmIdentifier,
-    key: CryptoKey,
-    data: BufferSource,
-  ) => {
-    await gate.promise;
-    return realSign(algorithm, key, data);
-  }) as typeof globalThis.crypto.subtle.sign;
-  return {
-    release: (): void => gate.resolve(),
-    [Symbol.dispose]: (): void => {
-      globalThis.crypto.subtle.sign = realSign;
-    },
-  };
-};
-
 /** Answers the page's cache request with an empty list, and hands every
  * check-in to the responder the test stages. */
 export const withEmptyCache =
@@ -135,21 +106,6 @@ export const scanNext = async (
 export const idle = async (fakes: CameraFakes, ms: number): Promise<void> => {
   fakes.advance(ms);
   await drain();
-};
-
-/** Seeds the door's cache with the token's digest, holds the platform's
- * digest so the scan waits mid-hmac, opens the camera, and decodes the
- * token once. The scan waits on the gate the test opens. */
-export const scanWaitingOnDigest = async (
-  h: ScannerHarness,
-  fakes: CameraFakes,
-  token: string,
-): Promise<HeldTicketDigest> => {
-  await seedTicketCache(h, token, Date.now());
-  const digest = holdTicketDigest();
-  await start(h);
-  await scanFirst(fakes, token);
-  return digest;
 };
 
 /** Every token the page posted to its scan endpoint, in the order the door
