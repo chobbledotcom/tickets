@@ -5,10 +5,8 @@ import { getAttendeeAnswersByQuestion } from "#db/questions/attendee-answers/rea
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import {
-  assignMergeAnswers,
-  mergePair,
-  mergePairWithQuestion,
-  submitMerge,
+  mergeWithAnswerConflict,
+  submitBookingDecision,
 } from "#test-utils/attendees/merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -31,40 +29,12 @@ const answerOf = async (
 ): Promise<number | undefined> =>
   (await getAttendeeAnswersByQuestion(attendeeId)).get(questionId)?.answerId;
 
-/** Set up a two-answer conflict (target holds the first, source the second),
- *  submit the merge with the given choice, and hand back what the log and the
- *  surviving answers now say. The source-named runs take the source's name so
- *  both arms of the merged-name decision stay pinned. */
-const runAnswerConflict = async (
-  questionText: string,
-  choice: "source" | "clear",
-  nameChoice: "source" | "target" = "target",
-) => {
-  const { a1, a2, listing1, q, sourceToken, target } =
-    await mergePairWithQuestion(questionText, ["first", "second"]);
-  await assignMergeAnswers(target.id, sourceToken, {
-    source: [a2!.id],
-    target: [a1.id],
-  });
-  const { response } = await submitMerge(target.id, sourceToken, {
-    [`answer_${q.id}`]: choice,
-    pii_name: nameChoice,
-  });
-  return { a1, a2, listing1, response, target };
-};
-
 describeWithEnv(
   "server (admin attendees) > merge decisions",
   { db: true },
   () => {
     test("a take_source booking decision replaces the target's row", async () => {
-      const { listing1, target, sourceToken } = await mergePair({
-        sameListing: true,
-      });
-
-      const { response } = await submitMerge(target.id, sourceToken, {
-        [`booking_${listing1.id}:null:0:0`]: "take_source",
-      });
+      const { listing1, response } = await submitBookingDecision("take_source");
       expect(response.status).toBe(302);
       // The flash is a short confirmation; the replaced count is log-only.
       expectFlash(response, "Merged John Smith into Jane Doe", true);
@@ -74,8 +44,9 @@ describeWithEnv(
     });
 
     test("a source answer decision takes the source's answer and logs it", async () => {
-      const { a2, listing1, response, target } = await runAnswerConflict(
+      const { a2, listing1, response, target } = await mergeWithAnswerConflict(
         "Size?",
+        ["first", "second"],
         "source",
         "source",
       );
@@ -90,8 +61,9 @@ describeWithEnv(
     });
 
     test("a clear answer decision drops the answer and logs it", async () => {
-      const { a1, listing1, response, target } = await runAnswerConflict(
+      const { a1, listing1, response, target } = await mergeWithAnswerConflict(
         "Diet?",
+        ["first", "second"],
         "clear",
         "target",
       );

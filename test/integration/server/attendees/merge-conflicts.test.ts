@@ -18,6 +18,7 @@ import {
   mergePair,
   mergePairWithQuestion,
   mergeWithAnswerConflict,
+  submitBookingDecision,
   submitMerge,
 } from "#test-utils/attendees/merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -56,7 +57,7 @@ describeWithEnv(
       });
 
       test("POST merge applies selected answer winners", async () => {
-        const response = await mergeWithAnswerConflict(
+        const { response } = await mergeWithAnswerConflict(
           "Size?",
           ["Small", "Large"],
           "source",
@@ -65,13 +66,7 @@ describeWithEnv(
       });
 
       test("POST merge reports skipped bookings in flash", async () => {
-        const { listing1, target, sourceToken } = await mergePair({
-          sameListing: true,
-        });
-
-        const { response } = await submitMerge(target.id, sourceToken, {
-          [`booking_${listing1.id}:null:0:0`]: "skip_source",
-        });
+        const { response } = await submitBookingDecision("skip_source");
         expect(response.status).toBe(302);
         expectFlash(
           response,

@@ -31,111 +31,106 @@ const piiOfToken = async (token: string) => {
 };
 
 /** The number of contact records stored for one contact hash. */
-const contactRows = (hash: string): Promise<number> =>
-  queryOne<{ n: number }>(
+const contactRows = async (hash: string): Promise<number> => {
+  const row = await queryOne<{ n: number }>(
     "SELECT COUNT(*) AS n FROM contact_preferences WHERE contact_hash = ?",
     [hash],
-  ).then((row) => row?.n ?? 0);
+  );
+  return row?.n ?? 0;
+};
 
 describeWithEnv(
   "server (admin attendees) > merge pinned location",
   { db: true },
   () => {
-    test("keeping the source address keeps the source's pin", async () => {
+    /** Merge a pair whose sides carry the given addresses and pins, keeping
+     *  `keep`'s address (the target by default), and return the surviving
+     *  lat/lng. The pin-follow scenarios all share this shape. */
+    const mergePins = async (opts: {
+      sourceAddress: string;
+      targetAddress: string;
+      sourcePin?: [string, string];
+      targetPin?: [string, string];
+      keep?: "source" | "target";
+    }): Promise<{ lat: string; lng: string }> => {
       const { source, sourceToken, target } = await mergePair({
-        source: { address: "1 Source Road" },
-        target: { address: "9 Target Road" },
+        source: { address: opts.sourceAddress },
+        target: { address: opts.targetAddress },
       });
-      await pinAttendee(source, "52.1", "-1.2");
-      await pinAttendee(target, "53.5", "0.1");
-
-      const { response } = await submitMerge(target.id, sourceToken, {
-        pii_address: "source",
-      });
+      if (opts.sourcePin) await pinAttendee(source, ...opts.sourcePin);
+      if (opts.targetPin) await pinAttendee(target, ...opts.targetPin);
+      const { response } = await submitMerge(
+        target.id,
+        sourceToken,
+        opts.keep === "source" ? { pii_address: "source" } : {},
+      );
       expectFlash(response, expect.stringContaining("Merged"), true);
+      return piiOfToken(target.ticket_token);
+    };
 
-      const pii = await piiOfToken(target.ticket_token);
+    test("keeping the source address keeps the source's pin", async () => {
+      const pii = await mergePins({
+        keep: "source",
+        sourceAddress: "1 Source Road",
+        sourcePin: ["52.1", "-1.2"],
+        targetAddress: "9 Target Road",
+        targetPin: ["53.5", "0.1"],
+      });
       expect(pii.lat).toBe("52.1");
       expect(pii.lng).toBe("-1.2");
     });
 
     test("an identical address keeps the other side's only pin (source kept)", async () => {
-      const { source, sourceToken, target } = await mergePair({
-        source: { address: "2 Same Road" },
-        target: { address: "2 Same Road" },
+      const pii = await mergePins({
+        keep: "source",
+        sourceAddress: "2 Same Road",
+        sourcePin: ["52.1", "-1.2"],
+        targetAddress: "2 Same Road",
       });
-      await pinAttendee(source, "52.1", "-1.2");
-
-      const { response } = await submitMerge(target.id, sourceToken, {
-        pii_address: "source",
-      });
-      expectFlash(response, expect.stringContaining("Merged"), true);
-
-      const pii = await piiOfToken(target.ticket_token);
       expect(pii.lat).toBe("52.1");
       expect(pii.lng).toBe("-1.2");
     });
 
     test("an identical address keeps the other side's only pin (target kept)", async () => {
-      const { source, sourceToken, target } = await mergePair({
-        source: { address: "3 Same Road" },
-        target: { address: "3 Same Road" },
+      const pii = await mergePins({
+        keep: "target",
+        sourceAddress: "3 Same Road",
+        sourcePin: ["52.1", "-1.2"],
+        targetAddress: "3 Same Road",
       });
-      await pinAttendee(source, "52.1", "-1.2");
-
-      const { response } = await submitMerge(target.id, sourceToken);
-      expectFlash(response, expect.stringContaining("Merged"), true);
-
-      const pii = await piiOfToken(target.ticket_token);
       expect(pii.lat).toBe("52.1");
       expect(pii.lng).toBe("-1.2");
     });
 
     test("keeping the target address keeps no pin when addresses differ", async () => {
-      const { source, sourceToken, target } = await mergePair({
-        source: { address: "1 Source Road" },
-        target: { address: "9 Target Road" },
+      const pii = await mergePins({
+        keep: "target",
+        sourceAddress: "1 Source Road",
+        sourcePin: ["52.1", "-1.2"],
+        targetAddress: "9 Target Road",
       });
-      await pinAttendee(source, "52.1", "-1.2");
-
-      const { response } = await submitMerge(target.id, sourceToken);
-      expectFlash(response, expect.stringContaining("Merged"), true);
-
-      const pii = await piiOfToken(target.ticket_token);
       expect(pii.lat).toBe("");
       expect(pii.lng).toBe("");
     });
 
     test("an identical address keeps the target's pin when the source is kept", async () => {
-      const { sourceToken, target } = await mergePair({
-        source: { address: "4 Same Road" },
-        target: { address: "4 Same Road" },
+      const pii = await mergePins({
+        keep: "source",
+        sourceAddress: "4 Same Road",
+        targetAddress: "4 Same Road",
+        targetPin: ["53.5", "0.1"],
       });
-      await pinAttendee(target, "53.5", "0.1");
-
-      const { response } = await submitMerge(target.id, sourceToken, {
-        pii_address: "source",
-      });
-      expectFlash(response, expect.stringContaining("Merged"), true);
-
-      const pii = await piiOfToken(target.ticket_token);
       expect(pii.lat).toBe("53.5");
       expect(pii.lng).toBe("0.1");
     });
 
     test("a half-set pin is not treated as pinned", async () => {
-      const { source, sourceToken, target } = await mergePair({
-        source: { address: "5 Same Road" },
-        target: { address: "5 Same Road" },
+      const pii = await mergePins({
+        keep: "source",
+        sourceAddress: "5 Same Road",
+        sourcePin: ["52.1", ""],
+        targetAddress: "5 Same Road",
       });
-      await pinAttendee(source, "52.1", "");
-
-      const { response } = await submitMerge(target.id, sourceToken, {
-        pii_address: "source",
-      });
-      expectFlash(response, expect.stringContaining("Merged"), true);
-
-      const pii = await piiOfToken(target.ticket_token);
       expect(pii.lat).toBe("");
       expect(pii.lng).toBe("");
     });
