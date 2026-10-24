@@ -7,14 +7,12 @@ import { defaultDriftDeps } from "#scripts/contract-drift/run.ts";
 import type { CapturedOutput } from "#scripts/process.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 
-/** One dump run must succeed and print the contracts of every machine. */
-const expectEveryMachineDumped = (dump: CapturedOutput): void => {
+/** The machine ids one dump run printed, after the run held the dump's
+ * shape. Sorted, so two runs compare as sets. */
+const dumpedMachines = (dump: CapturedOutput): string[] => {
   expect(dump.success).toBe(true);
-  const parsed = v.safeParse(ContractsSchema, JSON.parse(dump.stdout));
-  expect(parsed.success).toBe(true);
-  if (parsed.success) {
-    expect(Object.keys(parsed.output.machines)).toHaveLength(5);
-  }
+  const parsed = v.parse(ContractsSchema, JSON.parse(dump.stdout));
+  return Object.keys(parsed.machines).sort();
 };
 
 describe("contract drift default dependencies", () => {
@@ -39,22 +37,18 @@ describe("contract drift default dependencies", () => {
 
   test("runs the real dump entry and prints contracts", async () => {
     const deps = defaultDriftDeps();
-    expectEveryMachineDumped(await deps.runBaseDump(projectRoot));
+    expect(dumpedMachines(await deps.runBaseDump(projectRoot))).toHaveLength(5);
   });
 
-  test("runs the copied dump entry in a worktree one commit back", async () => {
+  test("runs the copied dump entry in a worktree at the merge base", async () => {
     const deps = defaultDriftDeps();
-    const parent = await deps.git([
-      "rev-parse",
-      "--verify",
-      "--quiet",
-      "HEAD~1",
-    ]);
-    if (!parent.success) {
-      console.log(
-        "skipped: this checkout holds no parent commit, so no older tree exists to run the dump against",
+    // The copied dump must run in a tree without this branch's helpers,
+    // so the worktree sits at the merge base.
+    const base = await deps.git(["merge-base", "origin/main", "HEAD"]);
+    if (!base.success) {
+      throw new Error(
+        "This checkout has no origin/main, so the base dump has no older tree to run in. Fetch origin/main or use a full checkout, then run the suite again",
       );
-      return;
     }
     const dir = await deps.makeTempDir();
     const worktree = `${dir}/base`;
@@ -63,12 +57,13 @@ describe("contract drift default dependencies", () => {
       "add",
       "--detach",
       worktree,
-      parent.stdout.trim(),
+      base.stdout.trim(),
     ]);
     expect(added.success).toBe(true);
     try {
+      const baseOwn = dumpedMachines(await deps.runBaseDump(worktree));
       await deps.copyDumpModule(worktree);
-      expectEveryMachineDumped(await deps.runBaseDump(worktree));
+      expect(dumpedMachines(await deps.runBaseDump(worktree))).toEqual(baseOwn);
     } finally {
       await deps.git(["worktree", "remove", "--force", worktree]);
       await deps.removeTree(dir);
