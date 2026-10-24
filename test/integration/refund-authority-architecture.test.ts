@@ -306,7 +306,6 @@ describe("provider-refund architecture", () => {
       "shared/db/migrations/2026-07-07_processed_payments_payment_reference.ts",
       "shared/db/migrations/schema/tables-attendees.ts",
       "shared/migration-readiness/readiness.ts",
-      "shared/migration-readiness/timestamps.ts",
     ]);
   });
 

@@ -5,12 +5,11 @@
  * model and an operator-readable verdict. They never touch the aggregate
  * payment runtime or the live provider and refund paths. Callers fetch the
  * rows and report decryption failures. These rules group and diagnose over
- * what was read. The timestamp conversion lives in `timestamps.ts`.
+ * what was read.
  */
 
 import { HYBRID_PREFIX } from "#crypto/hybrid.ts";
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
-import { convertAllTimestamps } from "#shared/migration-readiness/timestamps.ts";
 
 /** The session-id prefix marking a `processed_payments` row as an
  *  attendee-merge handoff of the source attendee's `payment_id`. */
@@ -86,7 +85,6 @@ export type ContradictionKind =
   | "undecryptable_ticket_tokens"
   | "undecryptable_failure_data"
   | "owner_key_unavailable"
-  | "unconvertible_timestamp"
   | "sumup_checkout_without_id"
   | "sumup_checkout_without_staging_ciphertext";
 
@@ -106,7 +104,6 @@ export type ReadinessCounts = {
   attendeePiiBlobs: number;
   mergeReferences: number;
   paymentGroups: number;
-  timestampConversions: number;
 };
 
 export type ReadinessReport = {
@@ -370,22 +367,16 @@ const ownerKeyContradictions = (input: DiagnoseInput): Contradiction[] => {
 };
 
 /** Turn one lossless read of the legacy payment sources into a readiness
- *  verdict. The data is `ready` only when every row is accounted for and
- *  every timestamp normalises. Every reference must point at a live attendee.
+ *  verdict. The data is `ready` only when every row is accounted for.
+ *  Every reference must point at a live attendee.
  *  The owner key must decrypt every PII blob and payment reference.
  *  Any single finding blocks the migration. The operator fixes it before a
  *  later release changes payment history. */
 export const diagnoseReadiness = (input: DiagnoseInput): ReadinessReport => {
   const groups = buildPaymentGroups(input.processed, input.stages);
-  const timestamp = convertAllTimestamps(
-    input.processed,
-    input.stages,
-    input.sumup,
-  );
   const contradictions: Contradiction[] = [
     ...groups.flatMap((group) => groupContradictions(input, group)),
     ...sumupContradictions(input.sumup),
-    ...timestamp.contradictions,
     ...ownerKeyContradictions(input),
     ...envCiphertextContradictions(input),
   ];
@@ -402,7 +393,6 @@ export const diagnoseReadiness = (input: DiagnoseInput): ReadinessReport => {
       paymentGroups: groups.length,
       processedPayments: input.processed.length,
       sumupCheckouts: input.sumup.length,
-      timestampConversions: timestamp.converted,
     },
     kind: contradictions.length === 0 ? "ready" : "blocked",
   };

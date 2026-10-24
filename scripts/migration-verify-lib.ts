@@ -3,9 +3,8 @@
  *
  * The read shell of the verifier: it fetches the legacy rows, enforces the
  * owner-key control for encrypted attendee PII, and prints the verdict. The
- * pure grouping and contradiction rules live in `readiness.ts`, the timestamp
- * conversion in `timestamps.ts`, and the production reader and owner-key
- * provider in `migration-verify-deps.ts`.
+ * pure grouping and contradiction rules live in `readiness.ts`, and the
+ * production reader and owner-key provider in `migration-verify-deps.ts`.
  */
 
 import { parseArgs } from "@std/cli/parse-args";
@@ -197,7 +196,7 @@ const printReport = (
     `Read ${c.processedPayments} processed payments, ` +
       `${c.checkoutStages} checkout stages, ${c.sumupCheckouts} sumup checkouts, ` +
       `${c.attendeePiiBlobs} attendee details, ${c.mergeReferences} merge references, ` +
-      `${c.paymentGroups} payment groups, ${c.timestampConversions} timestamps.`,
+      `${c.paymentGroups} payment groups.`,
   );
 };
 
