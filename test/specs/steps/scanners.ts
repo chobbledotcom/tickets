@@ -144,6 +144,27 @@ Then(
 );
 
 Then(
+  "the door page serves the words it shows when the connection drops and when offline mode is on",
+  function (this: TicketsWorld): void {
+    const page = scannerBrowser(this).currentHtml;
+    // The harness never runs the page's script, so the step reads the two
+    // banner wordings where the page serves them.
+    assertStringIncludes(
+      page,
+      `data-message-offline-banner-auto="${t(
+        "admin.scanner.offline_banner_auto",
+      )}"`,
+    );
+    assertStringIncludes(
+      page,
+      `data-message-offline-banner-manual="${t(
+        "admin.scanner.offline_banner_manual",
+      )}"`,
+    );
+  },
+);
+
+Then(
   "the ticket page offers to check them out",
   function (this: TicketsWorld): void {
     assertStringIncludes(

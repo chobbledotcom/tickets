@@ -82,7 +82,12 @@ Feature: An owner gives a door worker the scanner, and nothing else
   Rule: The door keeps working when the connection drops
     A hall can lose its connection, so the door page offers a switch that
     turns offline mode on, and the switch starts off. The page keeps a
-    place that will list the queued check-ins.
+    place that will list the queued check-ins. When the connection drops,
+    the page says "No connection. Scans are queued and checked in when you
+    are back online." With offline mode on, it says "Offline mode is on.
+    Scans are queued and checked in when you are back online." The switch
+    keeps the position it was left in, so the page comes back in the mode
+    the door left it in.
 
     @case:scanners.the-door-page-offers-offline-mode
     Scenario: The door page offers a switch for offline mode
@@ -91,6 +96,7 @@ Feature: An owner gives a door worker the scanner, and nothing else
       When Sam opens the Ceilidh door
       Then the door page offers an offline mode switch that starts off
       And the door page keeps a place that will list the queued check-ins
+      And the door page serves the words it shows when the connection drops and when offline mode is on
 
   @rule:access.a-scanner-reaches-nothing-else
   Rule: A scanner reaches nothing else
