@@ -239,3 +239,23 @@ export const attendeeExists = async (id: number): Promise<boolean> => {
 
 export const oldOrphanIso = (): string =>
   new Date(nowMs() - 365 * 24 * 60 * 60 * 1000).toISOString();
+
+export const insertScanOperation = async (
+  operationId: string,
+  createdIso: string,
+): Promise<void> => {
+  await getDb().execute({
+    args: [operationId, "a-token-digest", "[3]", 1, createdIso],
+    sql: "INSERT INTO processed_scan_operations (operation_id, token_hash, listing_ids, quantity, created) VALUES (?, ?, ?, ?, ?)",
+  });
+};
+
+export const scanOperationExists = async (
+  operationId: string,
+): Promise<boolean> => {
+  const { rows } = await getDb().execute({
+    args: [operationId],
+    sql: "SELECT 1 FROM processed_scan_operations WHERE operation_id = ?",
+  });
+  return rows.length > 0;
+};

@@ -92,5 +92,10 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-10-19_site_page_hidden",
     () => import("./2026-10-19_site_page_hidden.ts"),
   ),
+  // The door's replay ledger for queued offline check-in deliveries.
+  entry(
+    "2026-10-20_processed_scan_operations",
+    () => import("./2026-10-20_processed_scan_operations.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
