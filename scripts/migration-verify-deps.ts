@@ -40,11 +40,12 @@ import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 
 const DEFAULT_VERIFY_PAGE_SIZE = 500;
 
-/** The next page cursor. A NULL or missing primary key cannot order a next
- *  page and no readiness rule can name the row, so the read throws. */
+/** The next page cursor. Only a string or number primary key orders a next
+ *  page; a NULL or missing key cannot order one and no readiness rule can
+ *  name the row, so the read throws. */
 const rowCursor = (row: Record<string, unknown>, pkColumn: string): InValue => {
   const cursor = row[pkColumn];
-  if (cursor === null || cursor === undefined) {
+  if (typeof cursor !== "string" && typeof cursor !== "number") {
     throw new Error(
       `NULL primary key in ${pkColumn}: the row cannot be ordered or named`,
     );

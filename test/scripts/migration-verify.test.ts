@@ -108,12 +108,13 @@ test("a failed source read exits 2 and names the failure", async () => {
 });
 
 test("blocks when no owner key is available", async () => {
-  // No --owner, a blank --owner, and an empty password all leave the
-  // encrypted PII unverified. Encrypted charges alone block too.
+  // No --owner, a blank --owner, an empty password, and a cancelled prompt
+  // all leave the encrypted PII unverified. Encrypted charges alone block too.
   for (const over of [
     piiReader(),
     { ...piiReader(), args: ["--owner", "   "] },
     { ...piiReader(), args: ["--owner", "jo"], prompt: () => "" },
+    { ...piiReader(), args: ["--owner", "jo"] },
     chargesOnly(),
   ]) {
     const run = await drive(over);
@@ -179,14 +180,14 @@ describeWithEnv("migration-verify production wiring", { db: true }, () => {
     });
 
   test("the reader pages past the libsql response cap", async () => {
-    for (const id of [1, 2, 3, 4]) {
+    for (const id of [1, 2, 3, 4, 5]) {
       await seedAttendee(id, "blob");
       await seedStaged(`s-${id}`, id);
     }
     const reader = createMigrationVerifyReader(2);
     expect(
       (await reader.readProcessedPayments()).map((r) => r.payment_session_id),
-    ).toEqual(["s-1", "s-2", "s-3", "s-4"]);
+    ).toEqual(["s-1", "s-2", "s-3", "s-4", "s-5"]);
   });
 
   test("the reader rejects a NULL primary key", async () => {
