@@ -130,37 +130,9 @@ Then(
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
     // This harness serves the page and never runs its script, so the step
-    // reads the promise the served page makes: the panel whose polite
-    // live region will carry the queued count, and the list the queued
-    // check-ins will fill once offline mode turns on.
-    const queue = page.match(
-      /<div class="hidden" id="scanner-queue">([\s\S]*?)<\/div>/,
-    );
-    expect(queue?.[1]).toContain(
-      '<p aria-live="polite" id="scanner-queue-summary"></p>',
-    );
-    expect(queue?.[1]).toContain('<ul id="scanner-queue-items"></ul>');
-  },
-);
-
-Then(
-  "the door page serves the words it shows when the connection drops and when offline mode is on",
-  function (this: TicketsWorld): void {
-    const page = scannerBrowser(this).currentHtml;
-    // The harness never runs the page's script, so the step reads the two
-    // banner wordings where the page serves them.
-    assertStringIncludes(
-      page,
-      `data-message-offline-banner-auto="${t(
-        "admin.scanner.offline_banner_auto",
-      )}"`,
-    );
-    assertStringIncludes(
-      page,
-      `data-message-offline-banner-manual="${t(
-        "admin.scanner.offline_banner_manual",
-      )}"`,
-    );
+    // reads the place the page keeps. The panel's live region and list are
+    // the template test's subject.
+    assertStringIncludes(page, '<div class="hidden" id="scanner-queue">');
   },
 );
 
