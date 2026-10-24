@@ -17,6 +17,7 @@ import {
   extractContact,
   type TicketFormValues,
 } from "#templates/fields/ticket.ts";
+import { validateUsername } from "#templates/fields/validators.ts";
 import { byName, hasField } from "#test-utils/fields.ts";
 import { expectInvalid } from "#test-utils/validation.ts";
 import { AdminLevelSchema } from "#types";
@@ -151,6 +152,34 @@ describe("fields contracts", () => {
       const username = byName(getLoginForm().fields, "username");
       expect(username.minlength).toBe(1);
       expect(username.maxlength).toBe(MAX_INPUT_LENGTH);
+    });
+
+    test("the setup username field carries the client-side username constraints", () => {
+      const username = byName(getSetupForm().fields, "admin_username");
+      expect(username.minlength).toBe(1);
+      expect(username.maxlength).toBe(MAX_INPUT_LENGTH);
+      expect(username.pattern).toBe("[a-zA-Z0-9][a-zA-Z0-9_\\-]*");
+    });
+
+    test("the setup username pattern refuses exactly what validateUsername refuses", () => {
+      const username = byName(getSetupForm().fields, "admin_username");
+      const browser = new RegExp(`^(?:${username.pattern})$`, "v");
+      // Length stays with the minlength/maxlength attributes, so the samples
+      // keep inside 1-250 characters.
+      for (const value of [
+        "a",
+        "ab",
+        "Ab-9_z",
+        "a-_b",
+        "a".repeat(250),
+        "",
+        "user name",
+        "ab!",
+        "_ab",
+        "-ab",
+      ]) {
+        expect(browser.test(value)).toBe(validateUsername(value) === null);
+      }
     });
 
     test("the invite-user role is a required select", () => {

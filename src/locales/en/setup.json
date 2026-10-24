@@ -28,6 +28,7 @@
   "setup.complete.login_link": "Log in",
   "fields.setup.username": "Admin username *",
   "fields.setup.username_hint": "Letters, numbers, hyphens, underscores (1-250 characters)",
+  "fields.setup.username_title": "Letters, numbers, hyphens, and underscores only. Start with a letter or number.",
   "fields.setup.password": "Admin password *",
   "fields.setup.password_hint": "Minimum 8 characters",
   "fields.setup.confirm_password": "Confirm admin password *",
