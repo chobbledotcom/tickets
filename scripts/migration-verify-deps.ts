@@ -78,11 +78,15 @@ const keysetRows = async <T>(
       [...args, pageSize],
     );
     if (page.length === 0) break;
+    // NULL sorts before every non-NULL value, so a NULL primary key can sit
+    // in any row of the page, not only the last one. Name every row before
+    // the read keeps it, and advance past the page's last named row.
+    let cursor: InValue = null;
+    for (const row of page) {
+      cursor = rowCursor(row as Record<string, unknown>, pkColumn);
+    }
     rows.push(...page);
-    after = rowCursor(
-      page[page.length - 1] as Record<string, unknown>,
-      pkColumn,
-    );
+    after = cursor;
     if (page.length < pageSize) break;
   }
   return rows;

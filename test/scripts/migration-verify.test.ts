@@ -200,6 +200,19 @@ describeWithEnv("migration-verify production wiring", { db: true }, () => {
     ).rejects.toThrow("NULL primary key in payment_session_id");
   });
 
+  test("the reader rejects a NULL primary key beside named rows", async () => {
+    // NULL sorts before every named key, so it is never the page's last row.
+    await getDb().execute({
+      args: [at],
+      sql: "INSERT INTO processed_payments (attendee_id, processed_at) VALUES (1, ?)",
+    });
+    await seedStaged("s-1", 1);
+    await seedStaged("s-2", 2);
+    await expect(
+      createMigrationVerifyReader(2).readProcessedPayments(),
+    ).rejects.toThrow("NULL primary key in payment_session_id");
+  });
+
   test("derive returns null for every unavailable-key case", async () => {
     const ownerKey = createMigrationVerifyOwnerKey();
     expect(await ownerKey.derive("nobody", "pw")).toBeNull();
