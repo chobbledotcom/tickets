@@ -111,6 +111,35 @@ Then(
 );
 
 Then(
+  "the door page offers an offline mode switch",
+  function (this: TicketsWorld): void {
+    const page = scannerBrowser(this).currentHtml;
+    // This harness serves the page and never runs its script, so the step
+    // reads the served surface. The words for offline mode also stand in
+    // the manual banner message on the same page, so the step takes the
+    // label from the switch element itself.
+    const toggle = page.match(
+      /<button[^>]*\sid="scanner-offline-toggle"[^>]*>([^<]*)<\/button>/,
+    );
+    expect(toggle?.[1]?.trim()).toBe(t("admin.scanner.offline_mode"));
+  },
+);
+
+Then(
+  "the door page carries the words and the queue panel for scans made offline",
+  function (this: TicketsWorld): void {
+    const page = scannerBrowser(this).currentHtml;
+    // This harness serves the page and never runs its script, so the step
+    // reads the served surface: the words the door sees for a kept scan
+    // and for each banner, and the panel that lists the kept scans.
+    assertStringIncludes(page, t("admin.scanner.offline_queued"));
+    assertStringIncludes(page, t("admin.scanner.offline_banner_auto"));
+    assertStringIncludes(page, t("admin.scanner.offline_banner_manual"));
+    assertStringIncludes(page, 'id="scanner-queue"');
+  },
+);
+
+Then(
   "the ticket page offers to check them out",
   function (this: TicketsWorld): void {
     assertStringIncludes(

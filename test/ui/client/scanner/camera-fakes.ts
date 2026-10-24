@@ -1,12 +1,79 @@
 /// <reference lib="dom" />
 
-import { el, type ScannerHarness } from "./fixture.ts";
+import { expect } from "@std/expect";
+import type { Stub } from "@std/testing/mock";
+import type { HTMLElement as HappyHTMLElement } from "happy-dom";
+import { fromBase64Url } from "#crypto/utils.ts";
+import { hmacHex } from "#shared/sha256.ts";
+import type { FetchResponder } from "#test-utils/fetch-stub.ts";
+import { el, SCAN_PATH, type ScannerHarness } from "./fixture.ts";
 
 export type CameraFakes = ReturnType<typeof cameraFakes>;
 
 /** Drain the promise hops a stubbed fetch and a settled scan need. */
 export const drain = async (): Promise<void> => {
   for (let hop = 0; hop < 50; hop++) await Promise.resolve();
+};
+
+/** The page's own door key, as the fixture renders it. */
+export const doorKey = fromBase64Url("dGVzdC1kb296LWNhY2hlLWtleQ");
+
+/** The door's ticket cache, stamped by the clock the scan will read. The
+ * camera fakes own the clock, so the seed lands after they do. */
+export const seedTicketCache = async (
+  h: ScannerHarness,
+  token: string,
+  storedAt: number,
+): Promise<void> => {
+  h.window.localStorage.setItem(
+    `scanner-tickets-${SCAN_PATH}`,
+    JSON.stringify({ hashes: [await hmacHex(doorKey, token)], storedAt }),
+  );
+};
+
+/** Answers the page's cache request with an empty list, and hands every
+ * check-in to the responder the test stages. */
+export const withEmptyCache =
+  (checkIns: FetchResponder): FetchResponder =>
+  (url, init) =>
+    String(url).endsWith("-cache")
+      ? Response.json({ hashes: [] })
+      : checkIns(url, init);
+
+/** The real timer the camera fakes replace, captured at module load. */
+const realSetTimeout = globalThis.setTimeout;
+
+/** Waits for an element to carry the text over real event-loop turns: the
+ * offline digest runs on the platform's own crypto promise, which no
+ * microtask drain resolves. */
+export const whenStatusShows = async (
+  target: HappyHTMLElement,
+  text: string,
+): Promise<void> => {
+  for (let turns = 0; turns < 20 && target.textContent !== text; turns++) {
+    const { promise, resolve } = Promise.withResolvers<void>();
+    realSetTimeout(resolve, 0);
+    await promise;
+    for (let hops = 0; hops < 50; hops++) await Promise.resolve();
+  }
+  expect(target.textContent).toBe(text);
+};
+
+/** Waits for the store to hold the key over real event-loop turns: the
+ * page's own cache refresh runs on the platform's crypto promise, which
+ * no microtask drain resolves. */
+export const whenStoreHolds = async (
+  h: ScannerHarness,
+  key: string,
+): Promise<string> => {
+  for (let turns = 0; turns < 20; turns++) {
+    const stored = h.window.localStorage.getItem(key);
+    if (stored !== null) return stored;
+    const { promise, resolve } = Promise.withResolvers<void>();
+    realSetTimeout(resolve, 0);
+    await promise;
+  }
+  throw new Error(`The store never held ${key}`);
 };
 
 /** Press the start button and let the camera flow settle. */
@@ -41,6 +108,13 @@ export const idle = async (fakes: CameraFakes, ms: number): Promise<void> => {
   fakes.advance(ms);
   await drain();
 };
+
+/** Every token the page posted to its scan endpoint, in the order the door
+ * received them. */
+export const postedScanTokens = (fetchStub: Stub): string[] =>
+  fetchStub.calls
+    .filter((call) => String(call.args[0]) === SCAN_PATH)
+    .map((call) => JSON.parse(String(call.args[1]?.body)).token);
 
 /** The fakes one camera test runs against: a clock the test moves forward,
  * the timer queue the loop schedules onto, a canvas context recording its

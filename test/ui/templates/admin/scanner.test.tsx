@@ -173,6 +173,23 @@ describe("the admin scanner page template", () => {
     expect(times(html, "data-door-cache-key=")).toBe(1);
   });
 
+  test("hands the queue count to a polite live region", () => {
+    const html = adminScannerPage(
+      { name: "Doors" },
+      "/admin/groups/5/scan",
+      OWNER_SESSION,
+      [],
+      false,
+      DOOR_CACHE_KEY,
+    );
+
+    // The sync rewrites the count in place; the live region is the only
+    // announcement a screen reader gets, and it reads the count, not the
+    // whole panel.
+    expect(html).toContain('aria-live="polite"');
+    expect(times(html, "aria-live=")).toBe(1);
+  });
+
   test("one person still to arrive is named as one ticket, not none", () => {
     const html = adminScannerPage(
       { name: "Doors" },
@@ -295,6 +312,19 @@ describe("the admin scanner page template", () => {
       1,
     );
 
+    // The offline door's words, which the container carries once: the two
+    // banner wordings, a waiting row's words, and the count's plurals.
+    const carriedOnce = {
+      "offline-banner-auto": t("admin.scanner.offline_banner_auto"),
+      "offline-banner-manual": t("admin.scanner.offline_banner_manual"),
+      "queue-count-one": t("admin.scanner.queue_count_one", holes("count")),
+      "queue-count-other": t("admin.scanner.queue_count_other", holes("count")),
+      "queue-item-queued": t("admin.scanner.queue_item_queued"),
+    } as const;
+    for (const [attr, value] of Object.entries(carriedOnce)) {
+      carried(attr, value, 1);
+    }
+
     // The manual pick-up's own messages.
     carried(
       "ticket-option",
@@ -342,6 +372,13 @@ describe("the admin scanner page template", () => {
     expect(html).toContain('id="scanner-container"');
     expect(html).toContain('id="scanner-video"');
     expect(html).toContain('id="scanner-status"');
+    // The offline door: the banner the client raises and fills, and the
+    // queue panel it keeps the kept scans in.
+    expect(html).toContain('id="scanner-offline-banner"');
+    expect(html).toContain('id="scanner-offline-banner-text"');
+    expect(html).toContain('id="scanner-queue"');
+    expect(html).toContain('id="scanner-queue-summary"');
+    expect(html).toContain('id="scanner-queue-items"');
     expect(html).toContain('id="scanner-quantity-message"');
     expect(html).toContain('for="scanner-quantity-select"');
     expect(html).toContain('id="scanner-quantity-select"');
@@ -366,10 +403,11 @@ describe("the admin scanner page template", () => {
     expect(html).toContain('id="ticket-options"');
     expect(html).toContain('id="manual-checkin-status"');
     // Two hidden fields: the form's own code, and the chosen person's
-    // ticket; plus the three plainly hidden boxes the script reveals (the
-    // overlays carry their hidden state inside a two-class attribute).
+    // ticket; plus the five plainly hidden boxes the script reveals (the
+    // offline banner, the queue panel, and the overlays carry their hidden
+    // state inside a two-class attribute).
     expect(times(html, 'type="hidden"')).toBe(2);
-    expect(times(html, 'class="hidden"')).toBe(3);
+    expect(times(html, 'class="hidden"')).toBe(5);
 
     // The way out to the guide.
     expect(html).toContain('href="/admin/guide#checkin"');

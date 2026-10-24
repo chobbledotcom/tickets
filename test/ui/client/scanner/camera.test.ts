@@ -22,13 +22,26 @@ import {
   scanNext,
   start,
 } from "./camera-fakes.ts";
-import { el, evaluateBundle, useScannerSuite } from "./fixture.ts";
+import {
+  el,
+  evaluateBundle,
+  SCANNER_PAGE,
+  useScannerSuite,
+} from "./fixture.ts";
+
+/** The scanner page without its offline banner: a page the offline side
+ * cannot wire, whose camera must still come up. */
+const ONLINE_ONLY_PAGE = SCANNER_PAGE.replace(
+  / {4}<aside[\s\S]*?<\/aside>\n/,
+  "",
+);
 
 describe("scanner camera", {
   sanitizeOps: false,
   sanitizeResources: false,
 }, () => {
   const fresh = useScannerSuite();
+  const freshCameraOnly = useScannerSuite(ONLINE_ONLY_PAGE);
 
   /** A started camera whose every scan gets the same answer, with the
    * count of scans sent so far. Dispose the fetch stub with `using`. */
@@ -373,5 +386,20 @@ describe("scanner camera", {
       el(h.document, id).remove();
       expect(() => evaluateBundle()).not.toThrow();
     }
+  });
+
+  test("keeps the camera working when the offline side cannot wire", async () => {
+    const h = freshCameraOnly();
+    using fakes = cameraFakes(h);
+    fakes.ready(4);
+
+    await start(h);
+    await scanFirst(fakes, "tok12345");
+
+    // No fetch stub: the online POST fails, and its network-error words
+    // prove the scan took the online path the offline side must not take
+    // down.
+    await drain();
+    expect(h.statusEl.textContent).toBe("Network error");
   });
 });
