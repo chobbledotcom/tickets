@@ -4,8 +4,7 @@
 
 import "#src/ui/client/window-globals.ts";
 
-(() => {
-  const script = document.currentScript as HTMLScriptElement;
+export const initEmbed = (script: HTMLScriptElement): void => {
   const listings = script.dataset.listings!.split(/[+,]/);
   const origin = new URL(script.src).origin;
   const iframeSrc = `${origin}/ticket/${listings.join("+")}?iframe=true`;
@@ -47,4 +46,4 @@ import "#src/ui/client/window-globals.ts";
   };
 
   script.after(iframe, parentScript);
-})();
+};

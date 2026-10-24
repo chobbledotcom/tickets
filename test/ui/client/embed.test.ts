@@ -1,110 +1,86 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { initEmbed } from "#src/ui/client/embed.ts";
 import { createDomInstaller } from "#test-utils/happy-dom.ts";
 
 const { installDom, cleanup } = createDomInstaller();
 
-afterEach(async () => {
-  await cleanup();
-});
-
-/** Mount the embed loader's script tag and override `currentScript`, then run
- *  one fresh copy of the module. The loader is an import-time IIFE, so each
- *  scenario needs its own module instance — a static import would run it once
- *  per isolate and no test could observe a second run. A null title leaves the
- *  attribute off; an empty string sets it to nothing. */
-const runLoader = async (
-  caseKey: string,
-  listings: string,
-  title: string | null = null,
-): Promise<HTMLIFrameElement> => {
-  const script = document.createElement("script");
-  script.src = "https://tickets.test/embed.js";
-  script.dataset.listings = listings;
-  if (title !== null) script.dataset.title = title;
-  document.body.append(script);
-  Object.defineProperty(document, "currentScript", {
-    configurable: true,
-    get: () => script,
-  });
-  await import(`#src/ui/client/embed.ts?case=${caseKey}`);
-  return script.nextElementSibling as HTMLIFrameElement;
-};
-
 describe("embed loader", () => {
-  test("inserts a lazy ticket iframe and the resizer parent script", async () => {
+  afterEach(async () => {
+    await cleanup();
+  });
+
+  /** Mount an embed-loader script tag with the given attributes and run the
+   *  loader over it; returns the inserted iframe. */
+  const runLoader = (
+    listings: string,
+    title: string | null = null,
+  ): HTMLIFrameElement => {
+    const script = document.createElement("script");
+    script.src = "https://tickets.test/embed.js";
+    script.dataset.listings = listings;
+    if (title !== null) script.dataset.title = title;
+    document.body.append(script);
+    initEmbed(script);
+    return script.nextElementSibling as HTMLIFrameElement;
+  };
+
+  /** Install a resize spy, fire the loader copy's two load events in `order`,
+   *  and assert the resize waits for both and names the license once. */
+  const runLoads = (
+    iframe: HTMLIFrameElement,
+    order: "iframe-first" | "script-first",
+  ): void => {
+    const parentScript = iframe.nextElementSibling as HTMLScriptElement;
+    const resizeCalls: [unknown, HTMLIFrameElement][] = [];
+    window.iframeResize = ((options: unknown, target: HTMLIFrameElement) => {
+      resizeCalls.push([options, target]);
+    }) as typeof window.iframeResize;
+    const first = order === "iframe-first" ? iframe : parentScript;
+    const second = order === "iframe-first" ? parentScript : iframe;
+    first.onload?.(new Event("load"));
+    expect(resizeCalls).toEqual([]);
+    second.onload?.(new Event("load"));
+    expect(resizeCalls.length).toBe(1);
+    expect(resizeCalls[0]![0]).toEqual({ license: "GPLv3" });
+    expect(resizeCalls[0]![1]).toBe(iframe);
+  };
+
+  test("inserts a lazy ticket iframe and the resizer parent script", () => {
     installDom("");
-    const iframe = await runLoader("markup", "open,close", "Book a ticket");
+    const iframe = runLoader("open,close");
+    const parentScript = iframe.nextElementSibling as HTMLScriptElement;
 
     expect(iframe.src).toBe(
       "https://tickets.test/ticket/open+close?iframe=true",
     );
     expect(iframe.loading).toBe("lazy");
-    expect(iframe.getAttribute("title")).toBe("Book a ticket");
+    expect(iframe.getAttribute("title")).toBe("Tickets");
     expect(iframe.getAttribute("style")).toContain("border: none");
     expect(iframe.style.width).toBe("100%");
 
-    const parentScript = iframe.nextElementSibling as HTMLScriptElement;
     expect(parentScript.src).toBe(
       "https://tickets.test/iframe-resizer-parent.js",
     );
     expect(parentScript.async).toBe(true);
     expect(parentScript.fetchPriority).toBe("high");
+
+    // The resize fires only after both load events, and once — driven in the
+    // iframe-first order here, and mirrored below.
+    runLoads(iframe, "iframe-first");
   });
 
-  test("titles the iframe Tickets when no title is given", async () => {
+  test("keeps an explicitly empty title instead of the default", () => {
     installDom("");
-    const iframe = await runLoader("default-title", "open");
-
-    expect(iframe.getAttribute("title")).toBe("Tickets");
-  });
-
-  test("keeps an explicitly empty title instead of the default", async () => {
-    installDom("");
-    const iframe = await runLoader("empty-title", "open", "");
+    const iframe = runLoader("open", "");
 
     expect(iframe.getAttribute("title")).toBe("");
   });
 
-  test("resizes only once both the iframe and the parent script loaded", async () => {
+  test("resizes in the other load order too", () => {
     installDom("");
-    const iframe = await runLoader("iframe-first", "open");
-    const parentScript = iframe.nextElementSibling as HTMLScriptElement;
-    const resizeCalls: [Record<string, unknown>, HTMLIFrameElement][] = [];
-    window.iframeResize = ((
-      options: Record<string, unknown>,
-      target: HTMLIFrameElement,
-    ) => {
-      resizeCalls.push([options, target]);
-    }) as typeof window.iframeResize;
+    const iframe = runLoader("close");
 
-    iframe.onload?.(new Event("load"));
-    expect(resizeCalls).toEqual([]);
-
-    parentScript.onload?.(new Event("load"));
-    expect(resizeCalls.length).toBe(1);
-    expect(resizeCalls[0]![0]).toEqual({ license: "GPLv3" });
-    expect(resizeCalls[0]![1]).toBe(iframe);
-  });
-
-  test("resizes in the other load order too", async () => {
-    installDom("");
-    const iframe = await runLoader("script-first", "close");
-    const parentScript = iframe.nextElementSibling as HTMLScriptElement;
-    const resizeCalls: [Record<string, unknown>, HTMLIFrameElement][] = [];
-    window.iframeResize = ((
-      options: Record<string, unknown>,
-      target: HTMLIFrameElement,
-    ) => {
-      resizeCalls.push([options, target]);
-    }) as typeof window.iframeResize;
-
-    parentScript.onload?.(new Event("load"));
-    expect(resizeCalls).toEqual([]);
-
-    iframe.onload?.(new Event("load"));
-    expect(resizeCalls.length).toBe(1);
-    expect(resizeCalls[0]![0]).toEqual({ license: "GPLv3" });
-    expect(resizeCalls[0]![1]).toBe(iframe);
+    runLoads(iframe, "script-first");
   });
 });
