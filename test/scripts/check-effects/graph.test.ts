@@ -75,6 +75,33 @@ describe("module graph", () => {
     expect(graph.get("a.ts")).toEqual(["b.ts", "d.ts"]);
   });
 
+  test("drops inline type-only imports and re-exports, keeps the rest", () => {
+    const files = [
+      source(
+        "a.ts",
+        [
+          'import { type Y } from "./c.ts";',
+          'import { type Z, type W } from "./e.ts";',
+          'export { type V } from "./f.ts";',
+          'import "./side.ts";',
+          'import { type W, x } from "./b.ts";',
+          "",
+        ].join("\n"),
+      ),
+      source("b.ts", "export const x = 1;"),
+      source("c.ts", "export type Y = number;"),
+      source("side.ts", "export const side = 1;"),
+      source("e.ts", "export type Z = number;"),
+      source("f.ts", "export type V = number;"),
+    ];
+    const graph = moduleGraph(
+      files,
+      ALIASES,
+      walked(["a.ts", "b.ts", "c.ts", "side.ts", "e.ts", "f.ts"]),
+    );
+    expect(graph.get("a.ts")).toEqual(["side.ts", "b.ts"]);
+  });
+
   test("keeps literal dynamic imports and type-position ones never load", () => {
     const files = [
       source(
