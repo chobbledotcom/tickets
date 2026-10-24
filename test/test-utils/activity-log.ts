@@ -16,6 +16,8 @@
  * path, should import the real readers from `#shared/db/activity-log.ts`.
  */
 
+import { assertStringIncludes } from "@std/assert";
+import { expect } from "@std/expect";
 import { encrypt } from "#crypto/encryption.ts";
 import {
   type ActivityLogEntry,
@@ -27,7 +29,7 @@ import {
 } from "#db/activity-log.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { nowIso } from "#shared/now.ts";
-import { withTestSession } from "#test-utils/session.ts";
+import { adminGet, withTestSession } from "#test-utils/session.ts";
 
 export { logActivity } from "#db/activity-log.ts";
 
@@ -82,3 +84,45 @@ export const wasActivityLogged = async (message: string): Promise<boolean> =>
 /** The decrypted messages currently in the activity log, for "was it logged" asserts. */
 export const activityMessages = async (): Promise<string[]> =>
   (await getAllActivityLog()).map((entry) => entry.message);
+
+export const expectActivityLogShows = async (
+  name: string,
+  verb: string,
+): Promise<void> => {
+  const response = await adminGet("/admin/log");
+  const body = await response.text();
+  assertStringIncludes(body, name);
+  assertStringIncludes(body, verb);
+};
+
+const listingActivityLogHasMessage = async (
+  listingId: number,
+  substring: string,
+): Promise<boolean> => {
+  const entries = await getListingActivityLog(listingId);
+  return entries.some((entry) => entry.message.includes(substring));
+};
+
+type ListingActivityLogCheck = (
+  listingId: number,
+  substring: string,
+) => Promise<void>;
+
+/** Assert whether the listing's activity log holds an entry whose message
+ * includes `substring` — one check, specialised below into the "has it" and
+ * "has not" forms the tests read with. */
+const expectListingActivityLog =
+  (present: boolean) =>
+  async (listingId: number, substring: string): Promise<void> => {
+    expect(await listingActivityLogHasMessage(listingId, substring)).toBe(
+      present,
+    );
+  };
+
+/** Assert the listing's activity log has an entry whose message includes `substring`. */
+export const expectListingActivityLogContains: ListingActivityLogCheck =
+  expectListingActivityLog(true);
+
+/** Assert the listing's activity log has no entry whose message includes `substring`. */
+export const expectListingActivityLogLacks: ListingActivityLogCheck =
+  expectListingActivityLog(false);

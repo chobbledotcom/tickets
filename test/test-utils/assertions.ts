@@ -12,7 +12,6 @@ import {
   mockMultipartRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
-import { escapeForRegex } from "#test-utils/regex.ts";
 
 export const FLASH_TEST_ID = "t001";
 
@@ -41,143 +40,6 @@ export const expectAdminLoginSuccess = async (
     .getSetCookie()
     .find((c) => c.startsWith(`${getSessionCookieName()}=`));
   expect(sessionCookie).toBeDefined();
-};
-
-export const expectActivityLogShows = async (
-  name: string,
-  verb: string,
-): Promise<void> => {
-  const { adminGet } = await import("#test-utils/session.ts");
-  const response = await adminGet("/admin/log");
-  const body = await response.text();
-  assertStringIncludes(body, name);
-  assertStringIncludes(body, verb);
-};
-
-const listingActivityLogHasMessage = async (
-  listingId: number,
-  substring: string,
-): Promise<boolean> => {
-  const { getListingActivityLog } = await import("#test-utils/activity-log.ts");
-  const entries = await getListingActivityLog(listingId);
-  return entries.some((entry) => entry.message.includes(substring));
-};
-
-type ListingActivityLogCheck = (
-  listingId: number,
-  substring: string,
-) => Promise<void>;
-
-/** Assert whether the listing's activity log holds an entry whose message
- * includes `substring` — one check, specialised below into the "has it" and
- * "has not" forms the tests read with. */
-const expectListingActivityLog =
-  (present: boolean) =>
-  async (listingId: number, substring: string): Promise<void> => {
-    expect(await listingActivityLogHasMessage(listingId, substring)).toBe(
-      present,
-    );
-  };
-
-/** Assert the listing's activity log has an entry whose message includes `substring`. */
-export const expectListingActivityLogContains: ListingActivityLogCheck =
-  expectListingActivityLog(true);
-
-/** Assert the listing's activity log has no entry whose message includes `substring`. */
-export const expectListingActivityLogLacks: ListingActivityLogCheck =
-  expectListingActivityLog(false);
-
-export const expectTestAttendeeCsvColumns = (
-  row: string | undefined,
-  quantity = 1,
-): void => {
-  assertExists(row);
-  assertStringIncludes(row, "John Doe");
-  assertStringIncludes(row, "john@example.com");
-  assertStringIncludes(row, `,${quantity},`);
-};
-
-/** Asserts a response is a 200 CSV download with the standard
- *  Content-Disposition: attachment header, whose filename contains
- *  `filenameFragment` — the shared header contract behind every CSV export
- *  route (listing exports, calendar exports, etc). */
-export const expectCsvDownloadHeaders = (
-  response: Response,
-  filenameFragment: string,
-): void => {
-  expect(response.status).toBe(200);
-  expect(response.headers.get("content-type")).toBe("text/csv; charset=utf-8");
-  const disposition = response.headers.get("content-disposition");
-  assertExists(disposition);
-  assertStringIncludes(disposition, "attachment");
-  assertStringIncludes(disposition, filenameFragment);
-};
-
-/** Fetch a listing's CSV export as the given admin, assert 200, return the body. */
-export const fetchListingExportCsv = async (
-  listingId: number,
-  cookie: string,
-  query = "",
-): Promise<string> => {
-  const response = await awaitTestRequest(
-    `/admin/listing/${listingId}/export${query}`,
-    { cookie },
-  );
-  expect(response.status).toBe(200);
-  return await response.text();
-};
-
-export const expectJsonResponse =
-  <T = any>(status: number, assertions?: (body: T) => void) =>
-  async (response: Response): Promise<T> => {
-    expect(response.status).toBe(status);
-    const body = (await response.json()) as T;
-    assertions?.(body);
-    return body;
-  };
-
-export const assertJson = async <T = any>(
-  request: Promise<Response>,
-  status: number,
-  assertions?: (body: T) => void,
-): Promise<T> => {
-  const response = await request;
-  return expectJsonResponse<T>(status, assertions)(response);
-};
-
-/** PUT `{ name: "" }` to a JSON API entity endpoint and assert the standard
- *  400 "name cannot be empty" rejection. The PUT-name-empty validation is
- *  shared by every writable-named admin entity (holidays, groups, listings),
- *  so hoisting the assertion here keeps each api test focused on the
- *  behaviour specific to that resource. */
-export const expectRejectsEmptyName = async (path: string): Promise<void> => {
-  const { apiRequest } = await import("#test-utils/session.ts");
-  await assertJson(
-    apiRequest(path, { body: { name: "" }, method: "PUT" }),
-    400,
-    (body) => {
-      expect(body.error).toBe("name cannot be empty");
-    },
-  );
-};
-
-/** DELETE a named resource via the admin JSON API with a confirmation and
- *  assert the standard `{ status: "ok" }` 200 response. */
-export const assertApiDeleteOk = async (
-  url: string,
-  confirmationName: string,
-): Promise<void> => {
-  const { apiRequest } = await import("#test-utils/session.ts");
-  await assertJson(
-    apiRequest(url, {
-      body: { confirm_identifier: confirmationName },
-      method: "DELETE",
-    }),
-    200,
-    (body) => {
-      expect(body.status).toBe("ok");
-    },
-  );
 };
 
 export const assertFormRedirect = async (
@@ -212,22 +74,6 @@ export const expectHtmlContains = (
 ): string => {
   for (const s of substrings) assertStringIncludes(html, s);
   return html;
-};
-
-/** The one form control tag on a page with the given name — input, textarea,
- * or select — so a test can check the exact attributes a form serves
- * (default, bounds, required). */
-export const inputNamed = (html: string, name: string): string => {
-  // The lookahead keeps a longer tag like input-widget out, the whitespace
-  // before name= keeps a longer attribute like data-name out, and escaping
-  // keeps regex characters in a name literal.
-  const tag = html.match(
-    new RegExp(
-      `<(?:input|textarea|select)(?=\\s)[^>]*\\sname="${escapeForRegex(name)}"[^>]*>`,
-    ),
-  )?.[0];
-  if (!tag) throw new Error(`No control named ${name} on the page`);
-  return tag;
 };
 
 /**
@@ -277,21 +123,6 @@ export const expectHtmlResponse = async (
   ...substrings: string[]
 ): Promise<string> => expectHtml(response, { contains: substrings, status });
 
-/** Return the complete table row containing the given text. */
-export const tableRowContaining = (html: string, text: string): string => {
-  for (
-    let start = html.indexOf("<tr");
-    start >= 0;
-    start = html.indexOf("<tr", start + 1)
-  ) {
-    const end = html.indexOf("</tr>", start);
-    if (end === -1) break;
-    const row = html.slice(start, end + 5);
-    if (row.includes(text)) return row;
-  }
-  throw new Error(`No table row containing "${text}" found`);
-};
-
 /** Assert an HTTP response's body HTML. Works with any request method —
  *  `adminGet`, `handleRequest(mockRequest(...))`, direct handler calls —
  *  because it takes the `Response` itself. Supports optional status check,
@@ -309,22 +140,6 @@ export const expectHtml = async (
   expectHtmlContains(html, opts.contains ?? []);
   for (const s of opts.notContains ?? []) assert(!html.includes(s));
   return html;
-};
-
-// A booking's quantity cell only proves the bookings summary is right if it
-// sits in the same table row as its listing link — otherwise swapping two
-// bookings' quantities would still pass. The tempered `(?!</tr>)` keeps the
-// match inside one <tr>.
-export const expectListingRowQuantity = (
-  html: string,
-  listingId: number,
-  quantity: number,
-): void => {
-  expect(html).toMatch(
-    new RegExp(
-      `/admin/listing/${listingId}"(?:(?!</tr>)[\\s\\S])*?<td class="col-quantity">${quantity}</td>`,
-    ),
-  );
 };
 
 export const expectRedirect = (
@@ -595,26 +410,6 @@ export const expectHtmlEscaped = (html: string): void => {
   assertStringIncludes(html, "&lt;script&gt;");
 };
 
-export const matchGroup = (text: string, pattern: RegExp, group = 1): string =>
-  text.match(pattern)![group]!;
-
-/** Visible text labels of every `<option>` inside the `<select
- *  aria-label="…">` dropdown, in document order. Includes disabled and prompt
- *  options, so callers see exactly what the user sees — e.g. the "Select a
- *  date" clear option the date picker splices in between past and future
- *  dates. */
-export const selectOptionLabels = (
-  html: string,
-  ariaLabel: string,
-): (string | undefined)[] => {
-  const inner = html.match(
-    new RegExp(
-      `<select[^>]*aria-label="${escapeForRegex(ariaLabel)}"[^>]*>([\\s\\S]*?)<\\/select>`,
-    ),
-  )![1]!;
-  return [...inner.matchAll(/<option[^>]*>([^<]+)</g)].map((m) => m[1]);
-};
-
 interface TestRequiresAuthOptions {
   body?: Record<string, string>;
   method?: "GET" | "POST";
@@ -643,30 +438,6 @@ export const testRequiresAuth = (
       cleanup?.();
     }
   });
-};
-
-/** The rendered attendee-editor line index for a listing's row (its FIRST
- * line, or the line on `packageGroupId`'s path), scraped from the form's
- * hidden `line_listing_<i>` / `line_package_<i>` inputs. Null when the
- * listing has no rendered line on that path. */
-export const attendeeLineIndex = (
-  html: string,
-  listingId: number,
-  packageGroupId = 0,
-): string | null => {
-  const listingFields = html.matchAll(
-    /name="line_listing_(\d+)"[^>]*value="(\d+)"/g,
-  );
-  for (const match of listingFields) {
-    if (Number(match[2]) !== listingId) continue;
-    const index = match[1]!;
-    const packageField = new RegExp(
-      `name="line_package_${index}"[^>]*value="(\\d+)"`,
-    ).exec(html);
-    const lineGroup = packageField ? Number(packageField[1]) : 0;
-    if (lineGroup === packageGroupId) return index;
-  }
-  return null;
 };
 
 /** Assert each stored column value is an `enc:` ciphertext envelope (encrypted
