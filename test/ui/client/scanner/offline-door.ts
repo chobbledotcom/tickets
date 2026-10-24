@@ -9,6 +9,7 @@
 
 import { expect } from "@std/expect";
 import type { Stub } from "@std/testing/mock";
+import type { HTMLElement as HappyHTMLElement } from "happy-dom";
 import { postedScanTokens, whenStatusShows } from "./camera-fakes.ts";
 import {
   el,
@@ -48,7 +49,7 @@ export const expectOfflineRefusal = async (
 };
 
 /** The queue panel's first row, which every sync test's page carries. */
-export const firstRow = (h: ScannerHarness): Element => {
+export const firstRow = (h: ScannerHarness) => {
   const row = el(h.document, "scanner-queue-items").children[0];
   if (!row) throw new Error("The queue panel carries no first row");
   return row;
@@ -70,7 +71,7 @@ export const queueSeeded = (): ScannerGlobals => ({
  * panel count at zero, and the check-ins the door received, in order. */
 export const expectSyncSettled = async (
   h: ScannerHarness,
-  wait: (target: HTMLElement, text: string) => Promise<void>,
+  wait: (target: HappyHTMLElement, text: string) => Promise<void>,
   fetchStub: Stub,
   postedTokens: string[],
 ): Promise<void> => {

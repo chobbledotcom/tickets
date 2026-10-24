@@ -2,6 +2,7 @@
 
 import { expect } from "@std/expect";
 import type { Stub } from "@std/testing/mock";
+import type { HTMLElement as HappyHTMLElement } from "happy-dom";
 import { fromBase64Url } from "#crypto/utils.ts";
 import { hmacHex } from "#shared/sha256.ts";
 import type { FetchResponder } from "#test-utils/fetch-stub.ts";
@@ -46,7 +47,7 @@ const realSetTimeout = globalThis.setTimeout;
  * offline digest runs on the platform's own crypto promise, which no
  * microtask drain resolves. */
 export const whenStatusShows = async (
-  target: HTMLElement,
+  target: HappyHTMLElement,
   text: string,
 ): Promise<void> => {
   for (let turns = 0; turns < 20 && target.textContent !== text; turns++) {
