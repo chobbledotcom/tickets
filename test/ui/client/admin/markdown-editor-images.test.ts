@@ -4,6 +4,7 @@
  * a stubbed image-list endpoint, and the actual insert path.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, spy } from "@std/testing/mock";
@@ -161,14 +162,17 @@ describe("the image dropdown toolbar control", () => {
     const { handle, panel } = await openDropdown(new Error("storage down"));
 
     expect(panel.dataset.state).toBe("error");
-    expect(panel.textContent).toContain("Images are unavailable right now.");
+    assertStringIncludes(
+      panel.textContent,
+      "Images are unavailable right now.",
+    );
     handle.view.destroy();
   });
 
   test("shows a plain message when no images exist", async () => {
     const { handle, panel } = await openDropdown(json({ images: [] }));
 
-    expect(panel.textContent).toContain("No images uploaded yet.");
+    assertStringIncludes(panel.textContent, "No images uploaded yet.");
     handle.view.destroy();
   });
 
@@ -305,7 +309,10 @@ describe("the image dropdown toolbar control", () => {
     );
 
     expect(panel.dataset.state).toBe("error");
-    expect(panel.textContent).toContain("Images are unavailable right now.");
+    assertStringIncludes(
+      panel.textContent,
+      "Images are unavailable right now.",
+    );
     handle.view.destroy();
   });
 
@@ -352,7 +359,10 @@ describe("the image dropdown toolbar control", () => {
       toolbarImageButton(window).click();
       await untilReady(panel);
       expect(panel.dataset.state).toBe("error");
-      expect(panel.textContent).toContain("Images are unavailable right now.");
+      assertStringIncludes(
+        panel.textContent,
+        "Images are unavailable right now.",
+      );
       expect(panel.querySelector("button")).toBeNull();
       toolbarImageButton(window).click();
     }
