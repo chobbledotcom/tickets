@@ -126,6 +126,18 @@ Then(
 );
 
 Then(
+  "the door page carries the words for a scan made offline",
+  function (this: TicketsWorld): void {
+    const page = scannerBrowser(this).currentHtml;
+    // This harness serves the page and never runs its script, so the step
+    // reads the served surface: the promise the page will show a door
+    // worker for a kept scan, and the panel that lists the kept scans.
+    assertStringIncludes(page, t("admin.scanner.offline_queued"));
+    assertStringIncludes(page, 'id="scanner-queue"');
+  },
+);
+
+Then(
   "the ticket page offers to check them out",
   function (this: TicketsWorld): void {
     assertStringIncludes(
