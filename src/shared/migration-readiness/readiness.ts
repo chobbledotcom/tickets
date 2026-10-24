@@ -1,17 +1,11 @@
 /**
  * Read-only migration readiness for the legacy payment tables.
  *
- * The pure rules here turn the legacy reader rows (`processed_payments`,
- * `checkout_stages`, `sumup_checkouts`, attendee PII blobs, and attendee-merge
- * references) into one lossless migration model and an operator-readable
- * readiness verdict. They write nothing. They never touch the aggregate
- * payment runtime or the live provider and refund paths. They only describe
- * whether the historical data is safe to migrate in a later fleet-wide
- * release.
- *
- * This module is pure. Callers fetch the rows and report decryption
- * failures. These rules group and diagnose over what was read. The legacy
- * timestamp conversion lives in `timestamps.ts`.
+ * The pure rules here turn the legacy reader rows into one lossless migration
+ * model and an operator-readable verdict. They never touch the aggregate
+ * payment runtime or the live provider and refund paths. Callers fetch the
+ * rows and report decryption failures. These rules group and diagnose over
+ * what was read. The timestamp conversion lives in `timestamps.ts`.
  */
 
 import { HYBRID_PREFIX } from "#crypto/hybrid.ts";
