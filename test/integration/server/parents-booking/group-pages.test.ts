@@ -1,9 +1,13 @@
+/* jscpd:ignore-start -- imports */
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { makeParent, ticketGet } from "#test-utils/parents.ts";
+
+/* jscpd:ignore-end */
 
 describeWithEnv(
   "server > parents booking — group pages",
@@ -27,9 +31,9 @@ describeWithEnv(
       // appears in the parent's child block (here a sole child, auto-selected and
       // shown informationally); the child must NOT get its own standalone
       // quantity control (`quantity_<childId>`).
-      expect(body).toContain(`name="quantity_${parent.id}"`);
-      expect(body).toContain(`data-sole-child="${child.id}"`);
-      expect(body).not.toContain(`name="quantity_${child.id}"`);
+      assertStringIncludes(body, `name="quantity_${parent.id}"`);
+      assertStringIncludes(body, `data-sole-child="${child.id}"`);
+      assert(!body.includes(`name="quantity_${child.id}"`));
     });
 
     test("a group page cannot book the child alone", async () => {
@@ -63,8 +67,8 @@ describeWithEnv(
       const a = await createTestListing({ groupId: group.id, name: "A" });
       const b = await createTestListing({ groupId: group.id, name: "B" });
       const body = await (await ticketGet(group.slug)).text();
-      expect(body).toContain(`name="quantity_${a.id}"`);
-      expect(body).toContain(`name="quantity_${b.id}"`);
+      assertStringIncludes(body, `name="quantity_${a.id}"`);
+      assertStringIncludes(body, `name="quantity_${b.id}"`);
     });
 
     test("a group whose only member is a child returns 404", async () => {

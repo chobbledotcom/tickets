@@ -12,6 +12,8 @@
  * not count towards coverage and these routes have no other direct cover.
  */
 
+/* jscpd:ignore-start -- imports */
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -32,6 +34,8 @@ import {
   createTestManagerSession,
   testCookie,
 } from "#test-utils/session.ts";
+
+/* jscpd:ignore-end */
 
 const ADMIN_ENV = { ADMIN_EMAIL_ADDRESS: "host@support.test" };
 
@@ -60,7 +64,7 @@ describeWithEnv(
         // owns the other side of that branch — the link when they listen.
         const response = await adminGet("/admin/guide");
         const html = await response.text();
-        expect(html).toContain('href="/admin/support"');
+        assertStringIncludes(html, 'href="/admin/support"');
       });
 
       test("renders the host's SUPPORT_PAGE_TEXT as markdown", async () => {
@@ -72,8 +76,8 @@ describeWithEnv(
         });
         const response = await adminGet("/admin/support");
         const html = await response.text();
-        expect(html).toContain("<h1>Help Center</h1>");
-        expect(html).toContain("<p>Reach out anytime</p>");
+        assertStringIncludes(html, "<h1>Help Center</h1>");
+        assertStringIncludes(html, "<p>Reach out anytime</p>");
       });
 
       test("resolves the page text's img#N reference", async () => {
@@ -103,7 +107,8 @@ describeWithEnv(
           const emailCall = mock.emailCall();
           expect(emailCall?.body?.to).toEqual(["host@support.test"]);
           expect(emailCall?.body?.reply_to).toBe("owner@example.com");
-          expect(String(emailCall?.body?.subject)).toContain(
+          assertStringIncludes(
+            String(emailCall?.body?.subject),
             "Support message from Chobble Tickets site",
           );
         } finally {
@@ -136,7 +141,7 @@ describeWithEnv(
           // The nag branch of the page: rendered only when a submission was
           // recorded inside the nag window. The words before the bold time
           // value come from the catalog key support.last_submitted.
-          expect(html).toContain("You last submitted this form");
+          assertStringIncludes(html, "You last submitted this form");
         } finally {
           mock.restore();
         }
@@ -190,7 +195,7 @@ describeWithEnv(
           mockFormRequest("/admin/support", { message: "Help" }, cookie),
         );
         expect(response.status).toBe(403);
-        await expect(response.text()).resolves.toContain("Invalid CSRF token");
+        assertStringIncludes(await response.text(), "Invalid CSRF token");
       });
 
       test("is forbidden for a non-owner (manager) session", async () => {

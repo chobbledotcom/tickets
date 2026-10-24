@@ -2,6 +2,7 @@
  * Tests for ticket QR code route
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -16,7 +17,7 @@ describeWithEnv("ticket QR code", { db: true }, () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/svg+xml");
     const body = await response.text();
-    expect(body).toContain("<svg");
+    assertStringIncludes(body, "<svg");
     return body;
   };
 
@@ -36,8 +37,8 @@ describeWithEnv("ticket QR code", { db: true }, () => {
         mockRequest(`/ticket/${listing.slug}/qr`),
       );
       const body = await response.text();
-      expect(body).toContain("<svg");
-      expect(body).toContain("</svg>");
+      assertStringIncludes(body, "<svg");
+      assertStringIncludes(body, "</svg>");
     });
 
     test("returns 404 for non-existent listing", async () => {
@@ -75,7 +76,7 @@ describeWithEnv("ticket QR code", { db: true }, () => {
         mockRequest(`/ticket/${group.slug}/qr`),
       );
       const body = await expectQrCode(response);
-      expect(body).toContain("</svg>");
+      assertStringIncludes(body, "</svg>");
     });
 
     test("handleTicketQrGet returns QR code for group slug", async () => {
