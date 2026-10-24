@@ -1,4 +1,5 @@
 import { LibsqlError, type ResultSet, type Transaction } from "@libsql/client";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -257,7 +258,8 @@ describeWithEnv("db > client transaction", { db: true }, () => {
   test("writeRowInTransaction rejects an INSERT that returns no row", async () => {
     const { error, persistedIds } = await insertReturningRows([]);
 
-    expect(String(error)).toContain(
+    assertStringIncludes(
+      String(error),
       "did not return the id of the row it wrote",
     );
     expect(persistedIds).toEqual([]);
@@ -266,7 +268,8 @@ describeWithEnv("db > client transaction", { db: true }, () => {
   test("writeRowInTransaction rejects a returned row whose id is 0", async () => {
     const { error, persistedIds } = await insertReturningRows([{ id: 0 }]);
 
-    expect(String(error)).toContain(
+    assertStringIncludes(
+      String(error),
       "did not return the id of the row it wrote",
     );
     expect(persistedIds).toEqual([]);

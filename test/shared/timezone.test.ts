@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -139,8 +140,8 @@ describe("timezone", () => {
         "2026-01-15T14:30:00.000Z",
         "Europe/London",
       );
-      expect(result).toContain("Thursday 15 January 2026 at 14:30");
-      expect(result).toContain("GMT");
+      assertStringIncludes(result, "Thursday 15 January 2026 at 14:30");
+      assertStringIncludes(result, "GMT");
     });
 
     test("formats UTC datetime in London summer time (BST)", () => {
@@ -149,7 +150,7 @@ describe("timezone", () => {
         "2026-06-15T13:30:00.000Z",
         "Europe/London",
       );
-      expect(result).toContain("Monday 15 June 2026 at 14:30");
+      assertStringIncludes(result, "Monday 15 June 2026 at 14:30");
     });
 
     test("formats UTC datetime in Tokyo", () => {
@@ -158,13 +159,13 @@ describe("timezone", () => {
         "2026-06-15T05:30:00.000Z",
         "Asia/Tokyo",
       );
-      expect(result).toContain("Monday 15 June 2026 at 14:30");
+      assertStringIncludes(result, "Monday 15 June 2026 at 14:30");
     });
 
     test("pads single-digit hours and minutes", () => {
       const result = formatDatetimeInTz("2026-01-05T09:05:00.000Z", "UTC");
-      expect(result).toContain("Monday 5 January 2026 at 09:05");
-      expect(result).toContain("UTC");
+      assertStringIncludes(result, "Monday 5 January 2026 at 09:05");
+      assertStringIncludes(result, "UTC");
     });
   });
 

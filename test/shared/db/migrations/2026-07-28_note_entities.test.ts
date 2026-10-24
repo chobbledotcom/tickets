@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, getDb, queryAll } from "#db/client.ts";
@@ -88,7 +89,7 @@ describeWithEnv(
           type: "owner",
         },
       ]);
-      expect(await columnNames("system_notes")).not.toContain("attendee_id");
+      assert(!(await columnNames("system_notes")).includes("attendee_id"));
       expect(await indexExists("idx_system_notes_entity")).toBe(true);
       expect(await indexExists("idx_system_notes_attendee_id")).toBe(false);
     });
@@ -226,9 +227,9 @@ describeWithEnv(
 
       // The id is what the applied-marker is written under: a mismatch with the
       // registry would run the migration again on every boot.
-      expect(MIGRATION_IDS).toContain(id);
-      expect(description).toContain("entity_type");
-      expect(description).toContain("entity_id");
+      assertArrayIncludes(MIGRATION_IDS, [id]);
+      assertStringIncludes(description, "entity_type");
+      assertStringIncludes(description, "entity_id");
     });
 
     test("refuses a note about a kind of record it does not know", async () => {

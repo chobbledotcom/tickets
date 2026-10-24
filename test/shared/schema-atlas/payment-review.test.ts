@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { PAYMENT_REVIEW_RETIREMENT } from "#payment/review.ts";
@@ -84,8 +85,8 @@ describe("the payment review atlas", () => {
 
   test("every declared retirement evidence appears from both open and seen", () => {
     for (const evidence of Object.values(PAYMENT_REVIEW_RETIREMENT)) {
-      expect(edgeIds("open")).toContain(`${evidence}=>none`);
-      expect(edgeIds("seen")).toContain(`${evidence}=>none`);
+      assertArrayIncludes(edgeIds("open"), [`${evidence}=>none`]);
+      assertArrayIncludes(edgeIds("seen"), [`${evidence}=>none`]);
     }
   });
 });

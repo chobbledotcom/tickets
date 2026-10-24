@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { costAccount } from "#accounting/accounts.ts";
@@ -36,7 +37,8 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
       memo: "Boiler part",
       target_listing_id: String(listing.id),
     });
-    expect(response.headers.get("location")).toContain(
+    assertStringIncludes(
+      response.headers.get("location") ?? "",
       `/admin/servicing/${id}`,
     );
     expect(await listingCostOf(listing.id)).toBe(9000);
@@ -62,14 +64,14 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
       servicingId: id,
     });
     const body = await renderAdminPage(`/admin/servicing/${id}`);
-    expect(body).toContain("Service event costs");
-    expect(body).toContain(formatCurrency(9000));
-    expect(body).toContain("Boiler part");
-    expect(body).toContain(listing.name);
-    expect(body).toContain("Money out");
-    expect(body).toContain(`href="/admin/ledger?listing=${listing.id}"`);
-    expect(body).toContain("View money changes");
-    expect(body).toContain(`/admin/servicing/${id}/cost/`);
+    assertStringIncludes(body, "Service event costs");
+    assertStringIncludes(body, formatCurrency(9000));
+    assertStringIncludes(body, "Boiler part");
+    assertStringIncludes(body, listing.name);
+    assertStringIncludes(body, "Money out");
+    assertStringIncludes(body, `href="/admin/ledger?listing=${listing.id}"`);
+    assertStringIncludes(body, "View money changes");
+    assertStringIncludes(body, `/admin/servicing/${id}/cost/`);
   });
 
   test("shows managers the outgoing without a forbidden ledger link", async () => {
@@ -79,9 +81,9 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
       cookie: await createTestManagerSession(),
     });
     const body = await response.text();
-    expect(body).toContain(listing.name);
-    expect(body).not.toContain(`/admin/ledger?listing=${listing.id}`);
-    expect(body).not.toContain("View money changes");
+    assertStringIncludes(body, listing.name);
+    assert(!body.includes(`/admin/ledger?listing=${listing.id}`));
+    assert(!body.includes("View money changes"));
   });
 
   test("shows a deleted cost listing as plain text without a dead ledger link", async () => {
@@ -91,9 +93,9 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
 
     const body = await renderAdminPage(`/admin/servicing/${id}`);
 
-    expect(body).toContain("Deleted listing");
-    expect(body).not.toContain(`/admin/ledger?listing=${listing.id}`);
-    expect(body).not.toContain("View money changes");
+    assertStringIncludes(body, "Deleted listing");
+    assert(!body.includes(`/admin/ledger?listing=${listing.id}`));
+    assert(!body.includes("View money changes"));
   });
 
   test("getServicingCosts returns records in (occurred_at, transfer_id) order with each memo on its own row", async () => {
@@ -140,8 +142,8 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
     const memo = rows[0]?.memo;
     if (memo === null || memo === undefined)
       throw new Error("Missing stored memo");
-    expect(memo).not.toContain("Plumber Dave");
-    expect(memo).not.toContain("07700 900000");
-    expect(memo).not.toContain("Plumber Dave 07700 900000");
+    assert(!memo.includes("Plumber Dave"));
+    assert(!memo.includes("07700 900000"));
+    assert(!memo.includes("Plumber Dave 07700 900000"));
   });
 });

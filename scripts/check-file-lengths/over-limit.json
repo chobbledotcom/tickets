@@ -18,7 +18,6 @@
   "src/ui/static/style.scss": 3174,
   "src/ui/templates/admin/questions.tsx": 589,
   "test/features/admin/attendee-form-model.test.ts": 919,
-
   "test/features/admin/debug/server.test.ts": 667,
   "test/fp/collections.test.ts": 515,
   "test/integration/bunny-cdn/domain.test.ts": 581,
@@ -43,7 +42,7 @@
   "test/shared/db/client.test.ts": 579,
   "test/shared/db/groups.test.ts": 777,
   "test/shared/db/logistics-run-sheet.test.ts": 660,
-  "test/shared/db/migrations.test.ts": 643,
+  "test/shared/db/migrations.test.ts": 639,
   "test/shared/email.test.ts": 510,
   "test/shared/maintenance/runner.test.ts": 561,
   "test/shared/sentry.test.ts": 540,

@@ -1,4 +1,5 @@
 /* jscpd:ignore-start -- shared import block with rest.test.ts */
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -108,7 +109,7 @@ describeSquare(() => {
         paymentId: "pay_prod",
       });
 
-      expect(mockFetch.calls[0]!.args[0]).toContain("connect.squareup.com");
+      assertStringIncludes(mockFetch.calls[0]!.args[0], "connect.squareup.com");
     });
   });
 });

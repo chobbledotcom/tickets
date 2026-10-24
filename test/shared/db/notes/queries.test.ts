@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -127,14 +128,14 @@ describeWithEnv("db > notes", { db: true }, () => {
     // The symmetric encryption format is the enc:1: envelope, not the plaintext.
     const stored = await rawNote(attendeeId);
     expect(stored?.note.startsWith("enc:")).toBe(true);
-    expect(stored?.note).not.toContain("system secret");
+    assert(!stored?.note.includes("system secret"));
 
     const ownerAttendee = await makeAttendee("Owner Target");
     await createOwnerNote(attendeeNotes(ownerAttendee), "owner secret");
     const ownerStored = await rawNote(ownerAttendee);
     // The owner hybrid-RSA envelope is hyb:1:, again never the plaintext.
     expect(ownerStored?.note.startsWith("hyb:")).toBe(true);
-    expect(ownerStored?.note).not.toContain("owner secret");
+    assert(!ownerStored?.note.includes("owner secret"));
   });
 
   test("keeps only the first app-written note for one indexed name", async () => {

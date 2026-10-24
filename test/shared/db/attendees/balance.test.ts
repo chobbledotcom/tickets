@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
@@ -54,7 +55,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
     const log = await getAttendeeActivityLog(attendeeId);
     expect(log).toHaveLength(1);
-    expect(log[0]!.message).toContain("Reservation balance paid");
+    assertStringIncludes(log[0]!.message, "Reservation balance paid");
 
     const { rows } = await getDb().execute({
       args: [KIND.payment, String(attendeeId), 1500],
@@ -99,7 +100,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
     const row = await getProcessedPayment("balance-ref-ok");
     expect(row?.attendee_id).toBe(attendeeId);
-    expect(row?.payment_reference).not.toContain("pi_balance_ok");
+    assert(!row?.payment_reference.includes("pi_balance_ok"));
     await expectRefundReferences(attendeeId, ["pi_balance_ok"]);
   });
 
