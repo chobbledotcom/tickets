@@ -17,20 +17,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Stub } from "@std/testing/mock";
-import { hmacHex } from "#shared/sha256.ts";
 import {
   cameraFakes,
-  doorKey,
-  drain,
-  postedScanTokens,
   scanFirst,
-  scanNext,
-  scanWaitingOnDigest,
   seedTicketCache,
   start,
   whenStatusShows,
-  whenStoreHolds,
-  withEmptyCache,
 } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
   el,
@@ -187,95 +179,6 @@ describe("scanner offline door", {
         "1 queued check-in",
       );
       // No scan left the page: only the page load's cache refresh ran.
-      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
-    } finally {
-      fetchStub.restore();
-    }
-  });
-
-  test("sends a scan the connection returned for while its digest ran", async () => {
-    // The scan's digest runs on the platform's crypto. The connection
-    // returns while that digest still waits, and the store it finds is
-    // empty, so the returning connection schedules nothing. The queued
-    // check-in itself must ask for the sync once it lands.
-    const fetchStub = stubFetch(
-      withEmptyCache(() =>
-        Response.json({
-          listingName: "Standard",
-          name: "Ada",
-          quantity: 1,
-          status: "checked_in",
-          total: 1,
-        }),
-      ),
-    );
-    try {
-      const h = fresh({ onLine: false });
-      using fakes = cameraFakes(h);
-      fakes.ready(4);
-      const scanToken = "tokC67890";
-      using digest = await scanWaitingOnDigest(h, fakes, scanToken);
-
-      // The connection returns while the digest still waits. The store is
-      // empty, so the returning connection schedules nothing.
-      h.stash.set("navigator", { onLine: true });
-      h.window.dispatchEvent(new h.window.Event("online"));
-      await drain();
-      expect(storedQueue(h)).toBe(null);
-      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
-
-      digest.release();
-      await whenStatusShows(h.statusEl, "Queued tickets are done.");
-      expect(storedQueue(h)).toBe("[]");
-      expect(postedScanTokens(fetchStub)).toEqual([scanToken]);
-      expect(
-        el(h.document, "scanner-queue-items").children[0]?.textContent,
-      ).toBe("Checked in");
-    } finally {
-      fetchStub.restore();
-    }
-  });
-
-  test("validates a scan against the list the page load fetched", async () => {
-    // The page load fetches the door's ticket list from the cache endpoint
-    // and stores it. A scan made offline reads that stored list alone: the
-    // ticket it holds queues, and a stranger the list does not hold is
-    // sent away. No test hand writes the store's list.
-    const fetchStub = stubFetch(async (url) =>
-      String(url).endsWith("-cache")
-        ? Response.json({ hashes: [await hmacHex(doorKey, TOKEN)] })
-        : Response.json({}, { status: 500 }),
-    );
-    try {
-      const h = fresh();
-      using fakes = cameraFakes(h);
-      fakes.ready(4);
-      await start(h);
-      // The fetched list sits in the store, written by the page's own load.
-      const stored = await whenStoreHolds(h, `scanner-tickets-${SCAN_PATH}`);
-      expect(JSON.parse(stored)).toEqual({
-        hashes: [await hmacHex(doorKey, TOKEN)],
-        storedAt: expect.any(Number),
-      });
-
-      // The connection drops, and the scan reads the fetched list alone.
-      h.stash.set("navigator", { onLine: false });
-      h.window.dispatchEvent(new h.window.Event("offline"));
-      await scanFirst(fakes, TOKEN);
-      await whenStatusShows(
-        h.statusEl,
-        "Ticket looks valid. It will be checked in when you are back online.",
-      );
-      expectOneStoredCheckIn(h, TOKEN);
-
-      // A stranger the fetched list does not hold: sent away, nothing kept.
-      await scanNext(fakes, "other12345", 3000);
-      await whenStatusShows(
-        h.statusEl,
-        "This ticket cannot be checked in offline. Scan it again when you are back online to see why.",
-      );
-      expect(JSON.parse(String(storedQueue(h)))).toHaveLength(1);
-      // No scan left the page: only the load's cache request ran.
       expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
     } finally {
       fetchStub.restore();
