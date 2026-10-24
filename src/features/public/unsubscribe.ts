@@ -20,15 +20,14 @@ import {
   publicPageResponse,
   redirect,
 } from "#routes/response.ts";
+import { defineRoutes } from "#routes/router.ts";
 import { unsubscribePage } from "#templates/public/unsubscribe.tsx";
 
 const pagePath = (hash: string): string =>
   `/unsubscribe?email=${encodeURIComponent(hash)}`;
 
 /** GET /unsubscribe?email=<hash> — show current status and the toggle form. */
-export const handleUnsubscribeGet = async (
-  request: Request,
-): Promise<Response> => {
+const handleUnsubscribeGet = async (request: Request): Promise<Response> => {
   const flash = await flashForPage(request);
   const hash = new URL(request.url).searchParams.get("email");
   const unsubscribed = hash ? await isHashUnsubscribed(hash) : false;
@@ -44,7 +43,7 @@ export const handleUnsubscribeGet = async (
 };
 
 /** POST /unsubscribe — toggle subscription state for the link's hash. */
-export const handleUnsubscribePost = (request: Request): Promise<Response> =>
+const handleUnsubscribePost = (request: Request): Promise<Response> =>
   withCsrfForm(
     request,
     (message, status) =>
@@ -82,3 +81,9 @@ export const handleUnsubscribePost = (request: Request): Promise<Response> =>
       return infoRedirect(pagePath(hash), t("unsubscribe.unsubscribed_flash"));
     },
   );
+
+/** The GET/POST routes the unsubscribe link serves. */
+export const unsubscribeRoutes = defineRoutes({
+  "GET /unsubscribe": handleUnsubscribeGet,
+  "POST /unsubscribe": handleUnsubscribePost,
+});

@@ -73,17 +73,22 @@ type ManualEntrySpec = {
   readonly legs: (account: AccountRef) => TransferLegs;
 };
 
-/** Money arriving into the chosen account from a fixed source (WORLD for new
- *  money, WRITEOFF for money the business forgives). */
-const moneyInto =
-  (source: AccountRef) =>
-  (account: AccountRef): TransferLegs => ({ destination: account, source });
+/** A transfer between the chosen account and a fixed endpoint. The fixed side
+ *  is WORLD for new money or WRITEOFF when the business forgives or absorbs
+ *  it. */
+const transferWithFixedSide =
+  (fixedSide: "destination" | "source") =>
+  (endpoint: AccountRef) =>
+  (account: AccountRef): TransferLegs =>
+    fixedSide === "source"
+      ? { destination: account, source: endpoint }
+      : { destination: endpoint, source: account };
 
-/** Money leaving the chosen account to a fixed destination (WORLD when it
- *  leaves the business, WRITEOFF when the business absorbs it). */
-const moneyOutOf =
-  (destination: AccountRef) =>
-  (account: AccountRef): TransferLegs => ({ destination, source: account });
+/** Money arriving into the chosen account from a fixed source. */
+const moneyInto = transferWithFixedSide("source");
+
+/** Money leaving the chosen account to a fixed destination. */
+const moneyOutOf = transferWithFixedSide("destination");
 
 /**
  * One spec per entry type, keyed by the picklist so the Record is exhaustive by

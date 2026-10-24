@@ -109,12 +109,7 @@ export const squareLinkEndMoveTo = (
   from: SquareLinkEndNodeId,
   event: SquareLinkEndEventId,
 ): SquareLinkEndNodeId =>
-  moveOrRefuse(
-    LINK_END_MOVES_READER,
-    from,
-    event,
-    `A ${from} Square link end refuses ${event}`,
-  );
+  moveOrRefuse(LINK_END_MOVES_READER, from, event, "Square link end");
 
 /** Runs one event the way the sweep needs it: the real move, over the real
  * row shape. It lands on a row the real reader has to accept. */

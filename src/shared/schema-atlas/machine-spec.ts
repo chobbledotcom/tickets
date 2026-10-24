@@ -157,16 +157,17 @@ export const movesIn = <NodeId extends string, EventId extends string>(
 };
 
 /** Where one event moves a row, and the refusal when the table has no cell
- * for it. `refusal` names the row and the event in the operator's words. */
+ * for it. The refusal names the row and the event in the operator's words:
+ * "A <from> <domain> refuses <event>". */
 export const moveOrRefuse = <NodeId extends string, EventId extends string>(
   reader: MachineMovesReader<NodeId, EventId>,
   from: NodeId,
   event: EventId,
-  refusal: string,
+  domain: string,
 ): NodeId => {
   const to = reader.expected(from, event, "");
   if (to === "refused") {
-    throw new Error(refusal);
+    throw new Error(`A ${from} ${domain} refuses ${event}`);
   }
   return to;
 };

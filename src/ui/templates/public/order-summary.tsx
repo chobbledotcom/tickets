@@ -29,6 +29,10 @@ const summaryRowLabel = (lines: PricedLine[]): string => {
 /** One name/amount pair to render as a ticket row in the summary table. */
 type TicketRow = { label: string; amount: number };
 
+/** The summary rows for the given label/amount pairs, in the order given. */
+const summaryRows = (rows: TicketRow[]): JSX.Element[] =>
+  rows.map((row) => <SummaryRow amount={row.amount} label={row.label} />);
+
 /**
  * The ticket rows to show above the modifiers.
  *
@@ -84,20 +88,18 @@ export const orderSummary = (order: PricedOrder, isDeposit = false): string =>
     <div class="table-scroll">
       <table class="order-summary">
         <tbody>
-          {ticketRows(order.lines, isDeposit).map((row) => (
-            <SummaryRow amount={row.amount} label={row.label} />
-          ))}
-          {order.extras.map((extra) => (
-            <SummaryRow
-              amount={extra.amount * extra.quantity}
-              label={quantityLabel(extra.quantity, extra.name)}
-            />
-          ))}
-          {order.modifierApplications
-            .filter((app) => app.delta < 0)
-            .map((app) => (
-              <SummaryRow amount={app.delta} label={app.name} />
-            ))}
+          {summaryRows(ticketRows(order.lines, isDeposit))}
+          {summaryRows(
+            order.extras.map((extra) => ({
+              amount: extra.amount * extra.quantity,
+              label: quantityLabel(extra.quantity, extra.name),
+            })),
+          )}
+          {summaryRows(
+            order.modifierApplications
+              .filter((app) => app.delta < 0)
+              .map((app) => ({ amount: app.delta, label: app.name })),
+          )}
         </tbody>
         <tfoot>
           <SummaryRow

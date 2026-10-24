@@ -1,4 +1,5 @@
 import type { Child } from "#jsx/jsx-runtime.ts";
+import { joinedNonEmpty } from "#shared/joined-text.ts";
 
 type PageGroupProps = {
   as?: "article" | "div" | "section" | undefined;
@@ -13,9 +14,6 @@ type TitledArticleProps = {
   title: Child;
 };
 
-const groupClass = (base: string, className?: string): string =>
-  className ? `${base} ${className}` : base;
-
 const definePageGroup =
   (base: string) =>
   ({
@@ -24,7 +22,7 @@ const definePageGroup =
     className,
     id,
   }: PageGroupProps): JSX.Element => (
-    <Tag class={groupClass(base, className)} id={id}>
+    <Tag class={joinedNonEmpty(" ")([base, className])} id={id}>
       {children}
     </Tag>
   );

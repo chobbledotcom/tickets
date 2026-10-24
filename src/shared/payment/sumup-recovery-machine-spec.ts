@@ -154,12 +154,7 @@ export const recoveryMoveTo = (
   from: RecoveryNodeId,
   event: RecoveryEventId,
 ): RecoveryNodeId =>
-  moveOrRefuse(
-    RECOVERY_MOVES_READER,
-    from,
-    event,
-    `A ${from} SumUp checkout refuses ${event}`,
-  );
+  moveOrRefuse(RECOVERY_MOVES_READER, from, event, "SumUp checkout");
 
 /** The row one event leaves behind, rebuilt from the columns its `UPDATE`
  * sets. Going back through {@link recoveryNodeOf} is the point: an

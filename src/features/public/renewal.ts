@@ -9,6 +9,7 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#db/built-sites.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { defineRoutes } from "#routes/router.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { listingDateToCalendarDate } from "#shared/dates.ts";
 import { getQualifyingTierListings } from "#shared/renewal-tier.ts";
@@ -60,7 +61,8 @@ const handleRenewal = async (request: Request): Promise<Response> => {
   );
 };
 
-export {
-  handleRenewal as handleRenewalGet,
-  handleRenewal as handleRenewalPost,
-};
+/** The GET/POST routes the renewal link serves. */
+export const renewalRoutes = defineRoutes({
+  "GET /renew": handleRenewal,
+  "POST /renew": handleRenewal,
+});

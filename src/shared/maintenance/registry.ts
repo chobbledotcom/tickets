@@ -19,6 +19,18 @@ import {
 
 const FAILURE_RETRY_MS = 5 * 60 * 1000;
 
+/** A task runner that loads its work module on first run and asks for a
+ *  follow-up whenever the work reports more to do. */
+const followUpRunner =
+  <M>(load: () => Promise<M>, work: (module: M) => () => Promise<boolean>) =>
+  async ({
+    requestFollowUp,
+  }: {
+    requestFollowUp: () => void;
+  }): Promise<void> => {
+    if (await work(await load())()) requestFollowUp();
+  };
+
 /** A task check for work only a connected provider has: off until that
  * provider is set up, and free to declare while it is not. */
 const providerConfiguredCheck = (
@@ -107,12 +119,10 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     maxDatabaseCalls: 1 + SUMUP_RECOVERY_BATCH * 6,
     maxExternalCalls: SUMUP_RECOVERY_BATCH * 2,
     name: "sumup_checkout_recovery",
-    run: async ({ requestFollowUp }) => {
-      const { runSumupRecovery } = await import(
-        "#shared/sumup/recovery-run.ts"
-      );
-      if (await runSumupRecovery()) requestFollowUp();
-    },
+    run: followUpRunner(
+      () => import("#shared/sumup/recovery-run.ts"),
+      (m) => m.runSumupRecovery,
+    ),
     wakePolicy: "organic_safe",
   },
   {
@@ -131,14 +141,10 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     maxDatabaseCalls: 1 + SQUARE_LINK_EXPIRY_BATCH * 2,
     maxExternalCalls: SQUARE_LINK_EXPIRY_BATCH,
     name: "square_link_expiry",
-    run: async ({ requestFollowUp }) => {
-      // Loaded on first run, like every task's runner, so the registry stays
-      // cheap to load on cold starts.
-      const { runSquareLinkExpiry } = await import(
-        "#shared/square/link-expiry-run.ts"
-      );
-      if (await runSquareLinkExpiry()) requestFollowUp();
-    },
+    run: followUpRunner(
+      () => import("#shared/square/link-expiry-run.ts"),
+      (m) => m.runSquareLinkExpiry,
+    ),
     // Public traffic carries an external allowance of zero, so only
     // POST /scheduled can reach this task.
     wakePolicy: "scheduled_only",

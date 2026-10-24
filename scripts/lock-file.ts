@@ -44,6 +44,15 @@ const sameFileAt = async (
 };
 
 /**
+ * Hold the lock at `path` while `task` runs — the curried form of
+ * {@link withFileLock} for callers that bind one path.
+ */
+export const withLockAt =
+  (path: string) =>
+  <T>(task: () => Promise<T>): Promise<T> =>
+    withFileLock(path, task);
+
+/**
  * Hold the lock at `path` while `body` runs, waiting as long as it takes and
  * making the folder the lock lives in. A clear-up can take that folder away
  * mid-wait, leaving a lock with nothing pointing at it, so it makes the folder

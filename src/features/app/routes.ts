@@ -180,11 +180,7 @@ const PREFIX_LOADERS = {
   payment: lazyExport(() => import("#routes/api/webhooks.ts"), "routePayment"),
   renew: lazyRouter(
     () => import("#routes/public/renewal.ts"),
-    ({ handleRenewalGet, handleRenewalPost }) =>
-      defineRoutes({
-        "GET /renew": handleRenewalGet,
-        "POST /renew": handleRenewalPost,
-      }),
+    (m) => m.renewalRoutes,
   ),
   sms: lazyExport(
     () => import("#routes/api/sms-webhook.ts"),
@@ -194,11 +190,7 @@ const PREFIX_LOADERS = {
   ticket: ticketLoader,
   unsubscribe: lazyRouter(
     () => import("#routes/public/unsubscribe.ts"),
-    ({ handleUnsubscribeGet, handleUnsubscribePost }) =>
-      defineRoutes({
-        "GET /unsubscribe": handleUnsubscribeGet,
-        "POST /unsubscribe": handleUnsubscribePost,
-      }),
+    (m) => m.unsubscribeRoutes,
   ),
   v1: lazyExport(
     () => import("#routes/wallet/webservice.ts"),

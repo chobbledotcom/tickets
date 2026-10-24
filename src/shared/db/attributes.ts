@@ -159,29 +159,31 @@ const collectUniqueOptions = (
   return option && !acc.has(option.id) ? acc.set(option.id, option) : acc;
 };
 
+/** Restores every distinct row of one table and pairs it with its id. */
+const restoreEach =
+  <Row, Restored>(
+    unique: (
+      acc: Map<number, Row>,
+      row: JoinedAttributeRow,
+    ) => Map<number, Row>,
+    table: { fromDb: (row: Row) => Promise<Restored> },
+  ) =>
+  async (
+    rows: JoinedAttributeRow[],
+  ): Promise<(readonly [number, Restored])[]> =>
+    Promise.all(
+      map(
+        async ([id, row]: [number, Row]) =>
+          [id, await table.fromDb(row)] as const,
+      )([...reduce(unique, new Map<number, Row>())(rows)]),
+    );
+
 const decryptAttributeRows = async (
   rows: JoinedAttributeRow[],
 ): Promise<DecryptedAttributeRows> => {
   const [attributes, options] = await Promise.all([
-    Promise.all(
-      map(
-        async ([id, attribute]: [number, Attribute]) =>
-          [id, await attributesTable.fromDb(attribute)] as const,
-      )([
-        ...reduce(collectUniqueAttributes, new Map<number, Attribute>())(rows),
-      ]),
-    ),
-    Promise.all(
-      map(
-        async ([id, option]: [number, AttributeOption]) =>
-          [id, await attributeOptionsTable.fromDb(option)] as const,
-      )([
-        ...reduce(
-          collectUniqueOptions,
-          new Map<number, AttributeOption>(),
-        )(rows),
-      ]),
-    ),
+    restoreEach(collectUniqueAttributes, attributesTable)(rows),
+    restoreEach(collectUniqueOptions, attributeOptionsTable)(rows),
   ]);
   return {
     attributes: new Map(attributes),

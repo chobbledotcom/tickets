@@ -11,6 +11,7 @@
 
 import type { ReadColumn, TableSchema } from "#db/table.ts";
 import { mapParallel } from "#fp";
+import { joinedNonEmpty } from "#shared/joined-text.ts";
 
 type TableColumn<Row> = keyof Row & string;
 
@@ -111,16 +112,13 @@ export const chooseColumns = <Row, const Columns extends ColumnNames<Row>>(
   ): Promise<ChosenRow<Row, Columns>[]> =>
     mapParallel((row: StoredRowOf<Row, Columns>) => read(row))(rows);
 
-  const qualified = (column: string, alias?: string): string =>
-    alias ? `${alias}.${column}` : column;
-
   const columnsSql = (alias?: string): string =>
-    columns.map((column) => qualified(column, alias)).join(", ");
+    columns.map((column) => joinedNonEmpty(".")([alias, column])).join(", ");
 
   const readColumnsSql = (alias?: string): string =>
     columns.some((column) => column === table.primaryKey)
       ? columnsSql(alias)
-      : `${columnsSql(alias)}, ${qualified(table.primaryKey, alias)}`;
+      : `${columnsSql(alias)}, ${joinedNonEmpty(".")([alias, table.primaryKey])}`;
 
   return { columns, columnsSql, read, readAll, readColumnsSql };
 };

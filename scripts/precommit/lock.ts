@@ -1,5 +1,5 @@
 import { join } from "@std/path";
-import { withFileLock } from "#scripts/lock-file.ts";
+import { withLockAt } from "#scripts/lock-file.ts";
 
 export const precommitLockPath = (
   tempDirectory: string,
@@ -17,15 +17,10 @@ const currentUserId = (): number => {
   return uid;
 };
 
-export const precommitLockAt =
-  (path: string): (<T>(task: () => Promise<T>) => Promise<T>) =>
-  <T>(task: () => Promise<T>): Promise<T> =>
-    withFileLock(path, task);
-
 /** Prevent this user from running either precommit gate concurrently. */
 export const withPrecommitLock = async <T>(
   task: () => Promise<T>,
 ): Promise<T> =>
-  await precommitLockAt(
+  await withLockAt(
     precommitLockPath(Deno.env.get("TMPDIR") ?? "/tmp", currentUserId()),
   )(task);

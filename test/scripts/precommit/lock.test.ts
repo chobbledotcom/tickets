@@ -3,8 +3,8 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { removeIfPresent } from "#scripts/cleanup.ts";
+import { withLockAt } from "#scripts/lock-file.ts";
 import {
-  precommitLockAt,
   precommitLockPath,
   withPrecommitLock,
 } from "#scripts/precommit/lock.ts";
@@ -31,7 +31,7 @@ describe("precommit lock", () => {
 
   test("runs a task with the configured lock file", async () => {
     await expect(
-      precommitLockAt(LOCK_PATH)(() => Promise.resolve("checked")),
+      withLockAt(LOCK_PATH)(() => Promise.resolve("checked")),
     ).resolves.toBe("checked");
   });
 

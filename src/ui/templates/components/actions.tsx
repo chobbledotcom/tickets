@@ -105,15 +105,17 @@ export const SaveActions = ({ children }: { children?: Child }): SafeHtml => (
   </p>
 );
 
-/** The standard "Save changes" submit button used on admin edit pages. */
-export const SaveChangesButton = (): SafeHtml => (
-  <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
+/** The "Save" submit button with the page's wording. */
+const saveButtonWith = (label: string): SafeHtml => (
+  <SubmitButton icon="save">{label}</SubmitButton>
 );
 
+/** The standard "Save changes" submit button used on admin edit pages. */
+export const SaveChangesButton = (): SafeHtml =>
+  saveButtonWith(t("common.save_changes"));
+
 /** The "Save" submit button (shorter label than SaveChangesButton). */
-export const SaveButton = (): SafeHtml => (
-  <SubmitButton icon="save">{t("common.save")}</SubmitButton>
-);
+export const SaveButton = (): SafeHtml => saveButtonWith(t("common.save"));
 
 /**
  * Render `children` as an inert `<span>` or as an `<a>` link — one markup shape

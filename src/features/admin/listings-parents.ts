@@ -48,15 +48,24 @@ import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.
 import type { ListingParentsSection } from "#templates/admin/listings/types.ts";
 import type { ListingWithCount } from "#types";
 
-/** Error shown when the parent is itself offered as a child: single-level
- * nesting means it cannot also gate children. */
-const parentIsChildError = (parent: EdgeListing): string =>
-  t("listings_table.children_err_parent_is_child", { name: parent.name });
+/** The single-level nesting error, worded for the side that breaks the rule:
+ *  a parent cannot also gate children, a child cannot also be a parent. */
+const nestingError =
+  (
+    key:
+      | "listings_table.children_err_parent_is_child"
+      | "listings_table.children_err_child_is_parent",
+  ) =>
+  (listing: EdgeListing): string =>
+    t(key, { name: listing.name });
 
-/** Error shown when a chosen child is itself a parent: single-level nesting
- * means it cannot also be a child. */
-const childIsParentError = (child: EdgeListing): string =>
-  t("listings_table.children_err_child_is_parent", { name: child.name });
+const parentIsChildError = nestingError(
+  "listings_table.children_err_parent_is_child",
+);
+
+const childIsParentError = nestingError(
+  "listings_table.children_err_child_is_parent",
+);
 
 /** Why `candidate` cannot be a child of `parent` for the edit-page candidate
  * list, or null when allowed. This covers the synchronous structural and field

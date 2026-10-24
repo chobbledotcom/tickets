@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import * as v from "valibot";
-import { precommitLockAt } from "#scripts/precommit/lock.ts";
+import { withLockAt } from "#scripts/lock-file.ts";
 import { runChecksBeforePush } from "#scripts/precommit/run-order.ts";
 import { runWithPrecommitStatus } from "#scripts/precommit/status.ts";
 import {
@@ -171,7 +171,7 @@ describe("precommit status producer", () => {
   });
 
   test("keeps separate queued records while the real lock serialises checks", async () => {
-    const lock = precommitLockAt(join(directory, "checks.lock"));
+    const lock = withLockAt(join(directory, "checks.lock"));
     const entered = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
     const queued = Promise.withResolvers<void>();
