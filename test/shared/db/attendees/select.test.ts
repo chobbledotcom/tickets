@@ -314,8 +314,8 @@ describe("attendee filter and order SQL", () => {
 describe("attendee SELECT — exact generated SQL", () => {
   // These pin the whole generated string, not just fragments, so any mutation
   // to a column, separator, COALESCE wrapper, ledger subquery, WHERE clause,
-  // join keyword, or ORDER BY is caught — a `toContain` check can't see a
-  // dropped separator or an inserted token.
+  // join keyword, or ORDER BY is caught, down to a dropped separator or an
+  // inserted token.
 
   test("the full field set produces the exact column list (all three ledger subqueries inline)", () => {
     expect(attendeeColumns("inner", ATTENDEE_FIELDS, "attendee")).toBe(
