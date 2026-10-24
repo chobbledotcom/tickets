@@ -96,7 +96,7 @@ export const createMigrationVerifyReader = (
     ),
   readCheckoutStages: () =>
     keysetRows<CheckoutStageRow>(
-      "SELECT payment_session_id, attendee_id, provider, state, created_at FROM checkout_stages",
+      "SELECT payment_session_id, attendee_id, created_at FROM checkout_stages",
       null,
       "payment_session_id",
       pageSize,

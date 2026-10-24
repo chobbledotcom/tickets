@@ -33,46 +33,54 @@ for (const [key, value] of Object.entries(fileEnv)) {
 
 const DEFAULT_VERIFY_PAGE_SIZE = 500;
 
-/** Read one line from a non-terminal stdin (piped input never echoes). Returns
- *  null on EOF before any input, else the text up to the first newline. */
-const readPasswordLineFromStdin = (): string | null => {
-  const buf = new Uint8Array(1024);
-  const decoder = new TextDecoder();
-  let text = "";
+/** Read password bytes from stdin one byte at a time until Enter or end of
+ *  input. Returns the decoded text without the newline, or null when the
+ *  input ended before any byte, so the caller blocks on an empty read.
+ *  `onByte` sees every byte before it is collected; the raw-mode reader
+ *  catches Ctrl-C there. */
+const readPasswordBytes = (onByte: (byte: number) => void): string | null => {
+  const bytes: number[] = [];
+  const buf = new Uint8Array(1);
   for (;;) {
     const n = Deno.stdin.readSync(buf);
-    if (n === null) return text === "" ? null : text;
-    text += decoder.decode(buf.subarray(0, n));
-    if (text.includes("\n")) return text.slice(0, text.indexOf("\n"));
-    if (n === 0) return text === "" ? null : text;
+    const byte = n === null || n === 0 ? undefined : buf[0];
+    if (byte === undefined) {
+      return bytes.length === 0
+        ? null
+        : new TextDecoder().decode(Uint8Array.from(bytes));
+    }
+    onByte(byte);
+    if (byte === 13 || byte === 10) {
+      return new TextDecoder().decode(Uint8Array.from(bytes));
+    }
+    bytes.push(byte);
   }
 };
 
+/** Leave raw mode and print the newline the hidden Enter did not echo. */
+const restoreTerminal = (): void => {
+  Deno.stdin.setRaw(false);
+  Deno.stdout.writeSync(new TextEncoder().encode("\n"));
+};
+
+/** Read one line from non-terminal stdin (piped input never echoes). */
+const readPasswordLineFromStdin = (): string | null =>
+  readPasswordBytes(() => {});
+
 /** Read the owner password from the interactive terminal without echo: raw
  *  mode collects bytes until Enter. Ctrl-C restores the terminal and exits
- *  with code 130. Returns null on EOF. */
+ *  with code 130. */
 const readPasswordLineFromTerminal = (message: string): string | null => {
   Deno.stdout.writeSync(new TextEncoder().encode(message));
   Deno.stdin.setRaw(true);
   try {
-    const buf = new Uint8Array(1);
-    const bytes: number[] = [];
-    for (;;) {
-      const n = Deno.stdin.readSync(buf);
-      if (n === null) break;
-      const byte = buf[0];
-      if (byte === undefined) break;
-      if (byte === 3) {
-        Deno.stdin.setRaw(false);
-        Deno.stdout.writeSync(new TextEncoder().encode("\n"));
-        Deno.exit(130);
-      }
-      if (byte === 13 || byte === 10) break;
-      bytes.push(byte);
-    }
-    Deno.stdin.setRaw(false);
-    Deno.stdout.writeSync(new TextEncoder().encode("\n"));
-    return new TextDecoder().decode(Uint8Array.from(bytes));
+    const password = readPasswordBytes((byte) => {
+      if (byte !== 3) return;
+      restoreTerminal();
+      Deno.exit(130);
+    });
+    restoreTerminal();
+    return password;
   } catch (error) {
     Deno.stdin.setRaw(false);
     throw error;

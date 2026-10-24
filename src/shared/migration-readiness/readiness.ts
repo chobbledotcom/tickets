@@ -39,8 +39,6 @@ export type ProcessedPaymentRow = {
 export type CheckoutStageRow = {
   payment_session_id: string;
   attendee_id: number;
-  provider: string;
-  state: string;
   created_at: string;
 };
 
@@ -130,31 +128,28 @@ const hasEncryptedPaymentReference = (
 ): boolean =>
   processed.some((row) => row.payment_reference.startsWith(HYBRID_PREFIX));
 
-/** Fold rows that share `payment_session_id` into one group. The group keeps
- *  the order in which a session first appears. `field` names the side the
- *  rows fill. The cast bridges a correlation TypeScript cannot express for a
- *  generic indexed assignment. */
-const foldRowsIntoGroups = <Row extends { payment_session_id: string }>(
+/** Fold one row into its session group. The group keeps the order in which a
+ *  session first appears. `field` names the side the row fills. The cast
+ *  bridges a correlation TypeScript cannot express for the `field` write. */
+const foldRowIntoGroup = (
   bySession: Map<string, PaymentGroup>,
   order: string[],
   field: "processed" | "stage",
-  rows: readonly Row[],
+  sessionId: string,
+  row: ProcessedPaymentRow | CheckoutStageRow,
 ): void => {
-  for (const row of rows) {
-    const sessionId = row.payment_session_id;
-    const existing = bySession.get(sessionId);
-    if (existing) {
-      existing[field] = row as never;
-    } else {
-      order.push(sessionId);
-      const group: PaymentGroup = {
-        paymentSessionId: sessionId,
-        processed: null,
-        stage: null,
-      };
-      group[field] = row as never;
-      bySession.set(sessionId, group);
-    }
+  const existing = bySession.get(sessionId);
+  if (existing) {
+    existing[field] = row as never;
+  } else {
+    order.push(sessionId);
+    const group: PaymentGroup = {
+      paymentSessionId: sessionId,
+      processed: null,
+      stage: null,
+    };
+    group[field] = row as never;
+    bySession.set(sessionId, group);
   }
 };
 
@@ -167,8 +162,18 @@ export const buildPaymentGroups = (
 ): PaymentGroup[] => {
   const order: string[] = [];
   const bySession = new Map<string, PaymentGroup>();
-  foldRowsIntoGroups(bySession, order, "processed", processedRows);
-  foldRowsIntoGroups(bySession, order, "stage", stageRows);
+  for (const row of processedRows) {
+    foldRowIntoGroup(
+      bySession,
+      order,
+      "processed",
+      row.payment_session_id,
+      row,
+    );
+  }
+  for (const row of stageRows) {
+    foldRowIntoGroup(bySession, order, "stage", row.payment_session_id, row);
+  }
   return order.map((sessionId) => bySession.get(sessionId)!);
 };
 
@@ -251,10 +256,10 @@ const stageProcessedMismatch = (
  *  `applyAttendeeMerge` in the same batch, so no separate "source attendee"
  *  expectation exists. */
 const groupContradictions = (
+  input: DiagnoseInput,
   group: PaymentGroup,
-  attendeeIds: ReadonlySet<number>,
-  undecryptableFailureData: ReadonlySet<string>,
 ): Contradiction[] => {
+  const { attendeeIds, undecryptableFailureData } = input;
   const contradictions: Contradiction[] = [];
   if (group.stage) {
     if (!group.processed) {
@@ -286,16 +291,6 @@ const groupContradictions = (
   if (mismatch) contradictions.push(mismatch);
   return contradictions;
 };
-
-/** Fold each payment group's reference contradictions into one list. */
-const referenceContradictions = (
-  groups: readonly PaymentGroup[],
-  attendeeIds: ReadonlySet<number>,
-  undecryptableFailureData: ReadonlySet<string>,
-): Contradiction[] =>
-  groups.flatMap((group) =>
-    groupContradictions(group, attendeeIds, undecryptableFailureData),
-  );
 
 /** One contradiction per env-key-encrypted field the caller did not decrypt.
  *  For a terminal failure payload, the field also did not parse. */
@@ -388,11 +383,7 @@ export const diagnoseReadiness = (input: DiagnoseInput): ReadinessReport => {
     input.sumup,
   );
   const contradictions: Contradiction[] = [
-    ...referenceContradictions(
-      groups,
-      input.attendeeIds,
-      input.undecryptableFailureData,
-    ),
+    ...groups.flatMap((group) => groupContradictions(input, group)),
     ...sumupContradictions(input.sumup),
     ...timestamp.contradictions,
     ...ownerKeyContradictions(input),

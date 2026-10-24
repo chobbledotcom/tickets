@@ -177,8 +177,9 @@ const assessOwnerKey = async (
   };
 };
 
-/** Print the verdict: a readiness heading, then one line per contradiction —
- *  the kind and its non-secret detail (session id, attendee id, or count). */
+/** Print the verdict: a readiness heading, one line per contradiction —
+ *  the kind and its non-secret detail (session id, attendee id, or count) —
+ *  then the source counts, so the verdict names what it read. */
 const printReport = (
   stdout: (line: string) => void,
   report: ReadinessReport,
@@ -191,6 +192,13 @@ const printReport = (
   for (const { detail, kind } of report.contradictions) {
     stdout(`  - ${kind}: ${detail}`);
   }
+  const c = report.counts;
+  stdout(
+    `Read ${c.processedPayments} processed payments, ` +
+      `${c.checkoutStages} checkout stages, ${c.sumupCheckouts} sumup checkouts, ` +
+      `${c.attendeePiiBlobs} attendee details, ${c.mergeReferences} merge references, ` +
+      `${c.paymentGroups} payment groups, ${c.timestampConversions} timestamps.`,
+  );
 };
 
 /** Run the readiness verifier. Reads the legacy sources, enforces the
