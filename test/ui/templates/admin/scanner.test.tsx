@@ -312,6 +312,19 @@ describe("the admin scanner page template", () => {
       1,
     );
 
+    // The offline door's words, which the container carries once: the two
+    // banner wordings, a waiting row's words, and the count's plurals.
+    const carriedOnce = {
+      "offline-banner-auto": t("admin.scanner.offline_banner_auto"),
+      "offline-banner-manual": t("admin.scanner.offline_banner_manual"),
+      "queue-count-one": t("admin.scanner.queue_count_one", holes("count")),
+      "queue-count-other": t("admin.scanner.queue_count_other", holes("count")),
+      "queue-item-queued": t("admin.scanner.queue_item_queued"),
+    } as const;
+    for (const [attr, value] of Object.entries(carriedOnce)) {
+      carried(attr, value, 1);
+    }
+
     // The manual pick-up's own messages.
     carried(
       "ticket-option",
