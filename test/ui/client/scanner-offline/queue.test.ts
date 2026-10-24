@@ -27,12 +27,12 @@ import {
   el,
   SCAN_PATH,
   type ScannerHarness,
-  storedQueue,
   TOKEN,
   useScannerSuite,
 } from "#test/ui/client/scanner/fixture.ts";
 import {
   askedUrls,
+  expectOfflineRefusal,
   expectOneStoredCheckIn,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -95,14 +95,11 @@ describe("scanner offline queue", {
       const h = fresh({ onLine: false });
       // The cache holds another ticket's digest; the scanned one is a stranger.
       await scanOffline(h, TOKEN, { token: "other12345" });
-      await whenStatusShows(
-        h.statusEl,
+      await expectOfflineRefusal(
+        h,
+        fetchStub,
         "This ticket cannot be checked in offline. Scan it again when you are back online to see why.",
       );
-      expect(h.statusEl.className).toContain("scanner-status-error");
-      expect(storedQueue(h)).toBe(null);
-      // The refusal asked for nothing: only the page load's cache refresh ran.
-      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
     } finally {
       fetchStub.restore();
     }
@@ -115,13 +112,11 @@ describe("scanner offline queue", {
       // The store holds no ticket list, and the refresh that would fetch one
       // cannot run offline: the door learns why the scan is refused.
       await scanOffline(h, TOKEN, null);
-      await whenStatusShows(
-        h.statusEl,
+      await expectOfflineRefusal(
+        h,
+        fetchStub,
         "No offline ticket list yet. Go online and reload this page first.",
       );
-      expect(h.statusEl.className).toContain("scanner-status-error");
-      expect(storedQueue(h)).toBe(null);
-      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
     } finally {
       fetchStub.restore();
     }

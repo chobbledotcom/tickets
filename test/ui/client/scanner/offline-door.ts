@@ -9,7 +9,7 @@
 
 import { expect } from "@std/expect";
 import type { Stub } from "@std/testing/mock";
-import { postedScanTokens } from "./camera-fakes.ts";
+import { postedScanTokens, whenStatusShows } from "./camera-fakes.ts";
 import {
   el,
   queuedItem,
@@ -31,6 +31,20 @@ export const expectOneStoredCheckIn = (
   expect(JSON.parse(String(storedQueue(h)))).toEqual([
     { queuedAt: expect.any(Number), scanPath: SCAN_PATH, token },
   ]);
+};
+
+/** What one offline refusal leaves: the wording on the page, the error
+ * status, nothing stored, and no request beyond the page load's cache
+ * refresh. */
+export const expectOfflineRefusal = async (
+  h: ScannerHarness,
+  fetchStub: Stub,
+  message: string,
+): Promise<void> => {
+  await whenStatusShows(h.statusEl, message);
+  expect(h.statusEl.className).toContain("scanner-status-error");
+  expect(storedQueue(h)).toBe(null);
+  expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
 };
 
 /** The queue panel's first row, which every sync test's page carries. */
