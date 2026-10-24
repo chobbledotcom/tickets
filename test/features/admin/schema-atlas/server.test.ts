@@ -1,14 +1,12 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import {
   assertAdminHtml,
   cachedAdminPage,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { plantPaymentRow } from "#test-utils/joint-state.ts";
 import { plantSumupRecoveryRow } from "#test-utils/sumup.ts";
 
 describeWithEnv("server (admin schema map)", { db: true }, () => {
@@ -43,15 +41,6 @@ describeWithEnv("server (admin schema map)", { db: true }, () => {
         'id="schema-check"',
         "Live check",
         "All stored records fit the system rules.",
-      );
-    });
-
-    test("lists a stored impossible combination with its record id", async () => {
-      await plantPaymentRow("cs_atlas_seam", "ref_atlas_seam", CLAIM_MIRROR);
-      await assertAdminHtml(
-        "/admin/schema",
-        "A job holds this row, but its payment has no charge record.",
-        "<code>cs_atlas_seam</code>",
       );
     });
 

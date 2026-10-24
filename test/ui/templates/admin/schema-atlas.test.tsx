@@ -96,32 +96,6 @@ describe("the system map page", () => {
     expect(page).toContain("All stored records fit the system rules.");
   });
 
-  test("the live check lists each flagged record in plain words", () => {
-    const page = adminSchemaAtlasPage(
-      { adminLevel: "owner" },
-      "light",
-      [{ key: "armed_without_claim", recordId: "cs_seam" }],
-      NO_UNANSWERED,
-    );
-    expect(page).toContain(
-      "A refund is set to send, but no job holds this row. <code>cs_seam</code>",
-    );
-    expect(page).not.toContain("All stored records fit the system rules.");
-  });
-
-  test("the live check names a payment with no charge record", () => {
-    const page = adminSchemaAtlasPage(
-      { adminLevel: "owner" },
-      "light",
-      [{ key: "claim_without_charge", recordId: "cs_without_charge" }],
-      NO_UNANSWERED,
-    );
-    expect(page).toContain(
-      "A job holds this row, but its payment has no charge record. " +
-        "<code>cs_without_charge</code>",
-    );
-  });
-
   test("the live check names an unknown SumUp state", () => {
     const page = adminSchemaAtlasPage(
       { adminLevel: "owner" },

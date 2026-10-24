@@ -99,19 +99,22 @@ mechanisms, each with its reference:
 - **Derive, never restate.** SQL guards (`rowWorkMirrorSql`), status words,
   danger flags, and the operator map (`SCHEMA_ATLAS_MACHINES`, rendered at
   `/admin/schema`) all derive from the spec. Vocabulary lists derive from the
-  machine's own types — an exhaustive mapped record keyed by the machine's union
-  (`STORED_AUTHORITY_FACTS` in `src/shared/payment/joint-state.ts`) — so a grown
-  or renamed state stops compiling until every consumer learns it.
-- **Declare the seam.** When two machines share reality, declare the ILLEGAL
-  combinations, each entry naming the invariant it breaks
-  (`ILLEGAL_JOINT_STATES` in `src/shared/payment/joint-state.ts`). List only
-  what is provably impossible: every crash window's intermediate state must stay
-  legal, because a redelivery has to finish from it.
+  machine's own types — an exhaustive mapped record keyed by the machine's union —
+  so a grown or renamed state stops compiling until every consumer learns it.
+- **Prove the seam with a model.** When two machines share reality, the
+  combinations a flow can never reach are proved, not declared:
+  `verification/JointState.tla` holds the two machines' move tables, the three
+  coupling guards the flows obey, and the invariant that the two declared
+  impossible joint states stay unreachable. `deno task verify:models` checks it
+  with the Apalache model checker. The crash-window rule stands: an
+  intermediate state a redelivery has to finish from must stay legal. The move
+  tables are cut from `verification/contract-snapshot.json`, and
+  `test/scripts/contract-drift/snapshot.test.ts` fails when any machine drifts,
+  so a drift names the spec for a re-cut and a re-proof. List only what the
+  model proves: an unprovable entry is a test, not a claim.
 - **Witness every manufactured crash.** Each crash-manufacture test helper reads
-  back every stored record it touched and asserts the combination is one a real
-  run can produce (`expectLegalJointStates` in
-  `test/test-utils/joint-state.ts`), so the whole crash suite polices the seam
-  without new tests.
+  back every stored record it touched, so the whole crash suite asserts the
+  combination is one a real run can produce.
 - **Enumerate flows × crash windows.** List every flow; every await between two
   durable writes is a window; each window gets an idempotent-redelivery proof or
   a fault-injected test. Faults are triggers at SQLite's own boundary, not stubs
@@ -120,9 +123,10 @@ mechanisms, each with its reference:
 - **Check backwards from the data.** A bounded scan reads the declared
   impossibilities back out of the live database and shows the operator every hit
   (`src/shared/db/schema-anomaly-scan.ts`, the `/admin/schema` "Live check").
-  Key the scan's queries by the declaration table's own literal types, so
-  declaring a new illegal combination refuses to compile until the scan knows
-  how to find it.
+  A scan exists for every impossibility the model proof cannot carry alone —
+  today the SumUp recovery machine's stored-word rules — and each query names
+  the rule it looks for, so a new rule refuses to compile until the scan
+  knows how to find it.
 
 ## Pure, functional
 

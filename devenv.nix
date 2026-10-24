@@ -67,7 +67,12 @@ in
     packages =
       checkTools
       ++ lib.optionals (!config.container.isBuilding) (
-        [ pkgs.gh ] ++ lib.optionals browserTools [ pkgs.chromium ]
+        [
+          pkgs.gh
+          # The Quint proof of the payment seam runs Apalache on a JVM.
+          pkgs.jdk
+        ]
+        ++ lib.optionals browserTools [ pkgs.chromium ]
       );
 
     scripts.pc.exec = ''exec deno task precommit "$@"'';

@@ -23,11 +23,6 @@ import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { advanceSessionFailure } from "#db/processed-payments.ts";
 import { sortStrings, unique } from "#fp";
 import {
-  assertJointStateLegal,
-  authorityFactOf,
-  jointRowFactOf,
-} from "#payment/joint-state.ts";
-import {
   type PlaceholderRefund,
   placeholderRefund,
   placeholderRefundNote,
@@ -251,20 +246,6 @@ export const resumePlaceholderSession = async (
   const search = await findHeldAnchor(
     paidPaymentReferenceOf(session),
     session.id,
-  );
-  // A resume navigates a combination of machines a crash left behind, so
-  // prove the combination is one a flow can produce before acting on it.
-  assertJointStateLegal(
-    jointRowFactOf(
-      search.held !== null
-        ? { claim: search.held.claim, outcome: stored }
-        : { outcome: stored },
-      false,
-    ),
-    // A row whose reference carries no charge answers with a null name and
-    // becomes "absent" here. No rows at all means nothing to check.
-    search.rows.map((row) => authorityFactOf(row.refundStateName)),
-    `resume of session ${session.id}`,
   );
   if (search.held !== null) {
     const { claim, record } = search.held;

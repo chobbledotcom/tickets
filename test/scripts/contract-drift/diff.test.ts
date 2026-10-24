@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { driftLines, formatDrift } from "#scripts/contract-drift/diff.ts";
-import type {
-  DumpedJointState,
-  DumpedMachine,
-} from "#scripts/contract-drift/dump.ts";
+import type { DumpedMachine } from "#scripts/contract-drift/dump.ts";
 
 const machine = (over: Partial<DumpedMachine> = {}): DumpedMachine => ({
   edges: {},
@@ -19,16 +16,13 @@ const machine = (over: Partial<DumpedMachine> = {}): DumpedMachine => ({
 const movesBy = (actor: string, to: string): DumpedMachine =>
   machine({ edges: { a: [{ actor, event: "e", to }] } });
 
-const contracts = (
-  machines: Record<string, DumpedMachine>,
-  jointStates: DumpedJointState[] = [],
-) => ({ jointStates: jointStates, machines });
+const contracts = (machines: Record<string, DumpedMachine>) => ({
+  machines,
+});
 
 /** The drift lines between two versions of machine `m`. */
 const driftOf = (before: DumpedMachine, after: DumpedMachine): string[] =>
   driftLines(contracts({ m: before }), contracts({ m: after }));
-
-const armed: DumpedJointState = { authority: "send_armed", rows: ["claim"] };
 
 describe("contract drift lines", () => {
   test("reports nothing when the contracts match", () => {
@@ -100,17 +94,6 @@ describe("contract drift lines", () => {
     expect(
       driftOf(machine({ moneyEvents: ["e"] }), machine({ moneyEvents: ["f"] })),
     ).toEqual(["- stops moving money: m.e", "+ moves money: m.f"]);
-  });
-
-  test("reports joint invariants added and removed", () => {
-    const withArmed = contracts({ m: machine() }, [armed]);
-    const withoutArmed = contracts({ m: machine() });
-    expect(driftLines(withoutArmed, withArmed)).toEqual([
-      "+ joint invariant added: send_armed cannot sit on claim",
-    ]);
-    expect(driftLines(withArmed, withoutArmed)).toEqual([
-      "- joint invariant removed: send_armed cannot sit on claim",
-    ]);
   });
 });
 

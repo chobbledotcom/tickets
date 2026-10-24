@@ -1,15 +1,9 @@
-/** The semantic diff between two contract dumps: which machine moves,
- * money flags, and joint-state invariants changed. Pure data in, report
- * lines out, so the tests pin every change kind. */
+/** The semantic diff between two contract dumps: which machine moves and
+ * money flags changed. Pure data in, report lines out, so the tests pin
+ * every change kind. */
 
 import { unique } from "#fp";
-import {
-  type Contracts,
-  type DumpedJointState,
-  type DumpedMachine,
-  jointStateKey,
-  sortedStrings,
-} from "./dump.ts";
+import { type Contracts, type DumpedMachine, sortedStrings } from "./dump.ts";
 
 /** One event's row in one state: who fires it, and every node it can land
  * on (a split cell lands on more than one). */
@@ -18,12 +12,6 @@ type EdgeRow = { actor: string; targets: Set<string> };
 /** Which side of a pair a line reports: what the base had and this tree
  * lost, or the other way round. */
 type DriftSide = "-" | "+";
-
-/** The word each side's state and invariant lines carry. */
-const REMOVED_OR_ADDED: Readonly<Record<DriftSide, string>> = {
-  "-": "removed",
-  "+": "added",
-};
 
 /** The words each side's state line carries. */
 const STATE_WORD: Readonly<Record<DriftSide, string>> = {
@@ -182,19 +170,6 @@ const listDrift = (
   );
 };
 
-/** The lines for the declared seam. */
-const jointDrift = (
-  before: readonly DumpedJointState[],
-  after: readonly DumpedJointState[],
-): string[] =>
-  driftBetween(
-    before,
-    after,
-    jointStateKey,
-    (side, state) =>
-      `${side} joint invariant ${REMOVED_OR_ADDED[side]}: ${jointStateKey(state)}`,
-  );
-
 /** Every semantic change between two contract dumps, one line per change. */
 export const driftLines = (base: Contracts, head: Contracts): string[] => {
   const lines: string[] = [];
@@ -222,7 +197,6 @@ export const driftLines = (base: Contracts, head: Contracts): string[] => {
       ...listDrift(pair, (machine) => machine.moneyEvents, MONEY_WORD),
     );
   }
-  lines.push(...jointDrift(base.jointStates, head.jointStates));
   return lines;
 };
 

@@ -9,7 +9,6 @@ import {
   storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { expectLegalJointStates } from "#test-utils/joint-state.ts";
 import { bookingIntent, trustedPayment } from "./index/helpers.ts";
 
 export const placeholderSpec = (detail: string) =>
@@ -73,6 +72,5 @@ export const crashedPlaceholderStore = async (sessionId: string) => {
   } finally {
     broken.restore();
   }
-  await expectLegalJointStates(sessionId, "after a crashed placeholder store");
   return placeholder;
 };

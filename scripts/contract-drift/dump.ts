@@ -1,7 +1,7 @@
 /** The declared contracts this repository pins in code, as one plain JSON
- * shape: every state machine's states, moves, and money flags, plus the
- * joint-state seam. `deno task contract:diff` dumps this shape from the
- * head and from a base worktree, then reports the semantic changes.
+ * shape: every state machine's states, moves, and money flags. `deno task
+ * contract:diff` dumps this shape from the head and from a base worktree,
+ * then reports the semantic changes.
  *
  * This module also runs inside the base worktree, which holds an older
  * tree. The machine events load lazily, one per machine the LOCAL atlas
@@ -10,7 +10,6 @@
  * declarations and nothing from `#scripts`. */
 
 import * as v from "valibot";
-import { ILLEGAL_JOINT_STATES } from "#payment/joint-state.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import type { AtlasMachine } from "#shared/schema-atlas/types.ts";
 
@@ -32,24 +31,11 @@ export const DumpedMachineSchema = v.object({
 });
 export type DumpedMachine = v.InferOutput<typeof DumpedMachineSchema>;
 
-/** One entry of the declared seam: a joint state the flows say cannot
- * exist. */
-export const DumpedJointStateSchema = v.object({
-  authority: v.string(),
-  rows: v.array(v.string()),
-});
-export type DumpedJointState = v.InferOutput<typeof DumpedJointStateSchema>;
-
 /** Every declared contract in one shape, so two checkouts can diff. */
 export const ContractsSchema = v.object({
-  jointStates: v.array(DumpedJointStateSchema),
   machines: v.record(v.string(), DumpedMachineSchema),
 });
 export type Contracts = v.InferOutput<typeof ContractsSchema>;
-
-/** How one joint-state entry reads in a report. */
-export const jointStateKey = (state: DumpedJointState): string =>
-  `${state.authority} cannot sit on ${state.rows.join(", ")}`;
 
 /** The events whose label keys name a machine's edges, by machine id. */
 type MachineEvents = readonly {
@@ -141,12 +127,6 @@ export const contractsFromAtlas = async (
     dumped[machine.id] = dumpMachine(machine, await loadEvents(machine.id));
   }
   return {
-    jointStates: ILLEGAL_JOINT_STATES.map((entry) => ({
-      authority: entry.authority,
-      rows: sortedStrings(entry.rows),
-    })).sort((left, right) =>
-      jointStateKey(left).localeCompare(jointStateKey(right)),
-    ),
     machines: dumped,
   };
 };

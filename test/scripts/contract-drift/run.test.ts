@@ -28,10 +28,9 @@ const closed: DumpedMachine = {
 };
 const grown: DumpedMachine = { ...closed, states: ["a", "b"] };
 const baseDump: Contracts = {
-  jointStates: [],
   machines: { m: closed },
 };
-const headDump: Contracts = { jointStates: [], machines: { m: grown } };
+const headDump: Contracts = { machines: { m: grown } };
 
 interface FakeDeps {
   copyDirs: string[];

@@ -519,10 +519,13 @@ automatic.
   suite on the merged tree, then removes the worktree. The boss runs it
   before a pull request is ready. The head CI and this check must both pass
 - `deno task contract:diff [base]` — print the semantic drift of this
-  branch's declared contracts (machine moves, money flags, joint-state
-  invariants) against `base`, `origin/main` by default. Run `git fetch origin
+  branch's declared contracts (machine moves, money flags) against `base`,
+  `origin/main` by default. Run `git fetch origin
   main` first. Drift is a report, not a gate: paste it in the pull request
   description when the branch touches a machine spec
+- `deno task verify:models` — run the TLA+ proof of the payment seam
+  (`verification/JointState.tla`) with the Apalache model checker. Needs the
+  JDK from devenv and the Apalache distribution under `~/.quint`
 - `deno task grade:code [<file-or-dir>] [--csv <path>] [--no-jev]` — score
   source files against these rules. With no target, it grades every module under
   `src/`. `--no-jev` runs the mechanical checks only. A grade is advice, not a
