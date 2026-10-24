@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -196,7 +197,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             "Thank you for your order",
             "https://example.com/thanks-parent",
           );
-          expect(firstHtml).toContain("/t/");
+          assertStringIncludes(firstHtml, "/t/");
 
           // Reload hits the already-processed branch; the persisted token still
           // yields a non-null ticket URL and the parent's thank-you URL.
@@ -209,7 +210,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             "Thank you for your order",
             "https://example.com/thanks-parent",
           );
-          expect(reloadHtml).toContain("/t/");
+          assertStringIncludes(reloadHtml, "/t/");
         },
       );
     });

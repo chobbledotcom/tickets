@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -154,13 +155,14 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       // Re-rendered in place with an error, not redirected.
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("characters or fewer");
+      assertStringIncludes(html, "characters or fewer");
       // The note preview renders the saved-but-rejected note, and its image
       // reference resolves through the image-url table like the GET path's.
-      expect(html).toContain('class="contact-notes"');
+      assertStringIncludes(html, 'class="contact-notes"');
       // renderMarkdown percent-encodes the image URL, so the filename's space
       // renders as %20.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<img src="/image/${encodeURI(image.filename)}" alt="Note Poster">`,
       );
     });
@@ -191,7 +193,7 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       );
       // Re-rendered in place with an error, not redirected.
       expect(response.status).toBe(200);
-      expect(await response.text()).toContain("characters or fewer");
+      assertStringIncludes(await response.text(), "characters or fewer");
       // The rejected submission wrote nothing.
       expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(0);
     });

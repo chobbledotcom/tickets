@@ -13,6 +13,7 @@
  */
 
 // jscpd:ignore-start
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -83,7 +84,7 @@ describeWithEnv(
           200,
           "Registration closed.",
         );
-        expect(html).not.toContain("Continue");
+        assert(!html.includes("Continue"));
       });
 
       test("shows 'registration closed while you were submitting' on POST when closes_at is past", async () => {
@@ -116,8 +117,8 @@ describeWithEnv(
         );
         // The story owns the customer-facing claim; this owns the render
         // branch: a fully-closed page carries no booking controls at all.
-        expect(html).not.toContain("Continue");
-        expect(html).not.toContain(`name="quantity_${listing1.id}"`);
+        assert(!html.includes("Continue"));
+        assert(!html.includes(`name="quantity_${listing1.id}"`));
       });
 
       test("shows 'Registration Closed' label for individual closed listing in ticket", async () => {

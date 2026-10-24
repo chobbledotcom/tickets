@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -110,8 +111,8 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
         entry.message.includes("Signed payment's booking could not be read"),
       ),
     ).toBe(true);
-    expect(JSON.stringify(log)).not.toContain("cs_unreadable_booking");
-    expect(JSON.stringify(log)).not.toContain("unreadable@example.com");
+    assert(!JSON.stringify(log).includes("cs_unreadable_booking"));
+    assert(!JSON.stringify(log).includes("unreadable@example.com"));
   });
 
   test("webhook ignores unrecognized session via fallback retrieval path", async () => {
