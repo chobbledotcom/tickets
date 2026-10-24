@@ -29,7 +29,10 @@ import {
   TOKEN,
   useScannerSuite,
 } from "#test/ui/client/scanner/fixture.ts";
-import { askedUrls } from "#test/ui/client/scanner/offline-door.ts";
+import {
+  askedUrls,
+  expectOfflineRefusal,
+} from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 // jscpd:ignore-end
@@ -118,13 +121,11 @@ describe("scanner offline door", {
       const h = fresh({ onLine: false });
       fullStore(h);
       await scanOffline(h, TOKEN);
-      await whenStatusShows(
-        h.statusEl,
+      await expectOfflineRefusal(
+        h,
+        fetchStub,
         "This scan was not saved. Free up space on this device, then scan it again.",
       );
-      expect(h.statusEl.className).toContain("scanner-status-error");
-      expect(storedQueue(h)).toBe(null);
-      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
     } finally {
       fetchStub.restore();
     }
