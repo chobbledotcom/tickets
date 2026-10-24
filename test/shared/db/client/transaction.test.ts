@@ -1,4 +1,4 @@
-import { LibsqlError, type ResultSet, type Transaction } from "@libsql/client";
+import { LibsqlError, type ResultSet } from "@libsql/client";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
