@@ -203,6 +203,29 @@ describe("scanner offline races", {
     }
   });
 
+  test("queues nothing when the page holds no offline list", async () => {
+    // A scan made offline with no stored list has nothing that can vouch
+    // for the ticket. The page sends the door online to load one, and
+    // keeps no scan.
+    const h = fresh({ onLine: false });
+    using fakes = cameraFakes(h);
+    fakes.ready(4);
+
+    await start(h);
+    await scanFirst(fakes, TOKEN);
+    await whenStatusShows(
+      h.statusEl,
+      "No offline ticket list yet. Go online and reload this page first.",
+    );
+
+    // The panel carries no rows, and the wait for a queued check-in runs
+    // out and names the page: nothing was kept.
+    expect(() => firstRow(h)).toThrow("The queue panel carries no first row");
+    await expect(whenStoreHolds(h, "scanner-queue")).rejects.toThrow(
+      "The store never held scanner-queue",
+    );
+  });
+
   test("retries the queue when the connection returns during a sync", async () => {
     // The page-load sync waits on the door's answer. The connection drops
     // and returns while that answer is still pending, so the online ask
