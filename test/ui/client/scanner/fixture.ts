@@ -100,7 +100,7 @@ const runBundleOnce = (): void => {
 
 /** The scanner page's own markup, as the template renders it: the messages
  * the container carries, the camera, the status line, and the start button. */
-const SCANNER_PAGE = `
+export const SCANNER_PAGE = `
   <meta name="csrf-token" content="csrf-page-token" />
   <div
     data-message-already-checked-in="{name} already checked in for {listingName} ({tickets})"
