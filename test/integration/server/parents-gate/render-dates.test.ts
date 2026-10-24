@@ -11,7 +11,8 @@ import {
   createDailyTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { bookingPageHtml, makeParent } from "#test-utils/parents.ts";
+import { bookingPageHtml } from "#test-utils/parent-booking.ts";
+import { makeParent } from "#test-utils/parents.ts";
 import {
   firstBookableDate,
   makeDailyChildFilledOnDayA,

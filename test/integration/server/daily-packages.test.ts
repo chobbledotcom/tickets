@@ -262,7 +262,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
   });
 
   test("a customisable package prices each member's own day price, never base times days", async () => {
-    const { postCalculate } = await import("#test-utils/parents.ts");
+    const { postCalculate } = await import("#test-utils/parent-booking.ts");
     const group = await createTestGroup({
       isPackage: true,
       name: "Priced Flex",
@@ -311,7 +311,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
   };
 
   test("a per-day package override reprices that span, beating the member's own day price", async () => {
-    const { postCalculate } = await import("#test-utils/parents.ts");
+    const { postCalculate } = await import("#test-utils/parent-booking.ts");
     const { group } = await overriddenFlexPackage(
       "Override Flex",
       "override-flex",
@@ -329,7 +329,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
   });
 
   test("an explicit 0 per-day override makes that span free in the package", async () => {
-    const { postCalculate } = await import("#test-utils/parents.ts");
+    const { postCalculate } = await import("#test-utils/parent-booking.ts");
     const { group } = await overriddenFlexPackage("Free Span", "free-span", {
       dayPrices: { 2: 0 },
       price: null,
@@ -393,7 +393,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
   });
 
   test("a flat package override still wins over a per-day override", async () => {
-    const { postCalculate } = await import("#test-utils/parents.ts");
+    const { postCalculate } = await import("#test-utils/parent-booking.ts");
     const { group } = await overriddenFlexPackage("Flat Flex", "flat-flex", {
       dayPrices: { 2: 1500 },
       price: 500,

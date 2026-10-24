@@ -2,7 +2,6 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  attendeeLineIndex,
   expectHtmlResponse,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -13,6 +12,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { attendeeLineIndex } from "#test-utils/html-fragments.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(

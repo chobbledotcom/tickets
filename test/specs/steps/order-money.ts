@@ -12,7 +12,7 @@ import {
   placedOrder,
 } from "#test/specs/support/orders.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { attendeeLineIndex } from "#test-utils/assertions.ts";
+import { attendeeLineIndex } from "#test-utils/html-fragments.ts";
 import {
   expectStoredOrder,
   openEditorFromRoster,

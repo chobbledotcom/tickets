@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { expectReserved, postBooking } from "#test-utils/parents.ts";
+import { expectReserved, postBooking } from "#test-utils/parent-booking.ts";
 
 describeWithEnv(
   "server > parents booking — Stage B shared child",

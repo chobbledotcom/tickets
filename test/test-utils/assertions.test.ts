@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { inputNamed, tableRowContaining } from "#test-utils/assertions.ts";
+import { inputNamed, tableRowContaining } from "#test-utils/html-fragments.ts";
 
 describe("tableRowContaining", () => {
   test("rejects a table row without a closing tag", () => {

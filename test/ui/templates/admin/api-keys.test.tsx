@@ -10,9 +10,9 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
-import { tableRowContaining } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { tableRowContaining } from "#test-utils/html-fragments.ts";
 import { enableFeature } from "#test-utils/settings.ts";
 
 const API_KEY = {

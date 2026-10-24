@@ -6,7 +6,8 @@ import {
   bookableStartDates,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { apiBook, bookParentChild, makeParent } from "#test-utils/parents.ts";
+import { apiBook, bookParentChild } from "#test-utils/parent-booking.ts";
+import { makeParent } from "#test-utils/parents.ts";
 import { enablePublicApi } from "#test-utils/settings.ts";
 import type { Listing } from "#types";
 

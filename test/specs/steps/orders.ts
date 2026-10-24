@@ -12,8 +12,8 @@ import {
   placedOrder,
 } from "#test/specs/support/orders.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { attendeeLineIndex } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
+import { attendeeLineIndex } from "#test-utils/html-fragments.ts";
 import {
   lineCountFor,
   lineQty,

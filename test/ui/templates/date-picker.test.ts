@@ -7,7 +7,7 @@ import {
   type DatePickerProps,
   selectableDates,
 } from "#templates/date-picker.tsx";
-import { selectOptionLabels } from "#test-utils/assertions.ts";
+import { selectOptionLabels } from "#test-utils/html-fragments.ts";
 
 const baseProps: DatePickerProps = {
   ariaLabel: "Select a date",

@@ -8,7 +8,6 @@ import { loadExistingLines } from "#db/attendees/atomic-update.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
-import { attendeeLineIndex } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   type AttendeeLineInput,
@@ -20,6 +19,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { attendeeLineIndex } from "#test-utils/html-fragments.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import type { Group, Listing } from "#types";
 

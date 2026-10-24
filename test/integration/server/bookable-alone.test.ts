@@ -29,9 +29,9 @@ import { mockRequest } from "#test-utils/mocks.ts";
 import {
   apiGet,
   apiListingSlugs,
-  makeParent,
   publicBody,
-} from "#test-utils/parents.ts";
+} from "#test-utils/parent-booking.ts";
+import { makeParent } from "#test-utils/parents.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 

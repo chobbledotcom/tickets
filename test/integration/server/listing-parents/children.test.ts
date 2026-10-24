@@ -12,7 +12,7 @@ import {
   listingEditPageHtml,
   listingRosterPageHtml,
   postChildren,
-} from "#test-utils/parents.ts";
+} from "#test-utils/parent-booking.ts";
 import { beforeNextTransaction } from "#test-utils/record-queries.ts";
 
 /** The rendered edit-page HTML for the first attendee of a booking result. */

@@ -9,7 +9,7 @@ import {
 import { FormParams } from "#shared/form-data.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { builderForm } from "#templates/fields/builder.ts";
-import { inputNamed } from "#test-utils/assertions.ts";
+import { inputNamed } from "#test-utils/html-fragments.ts";
 
 const content = defineContentForms({
   createSlugFields: [contentSlugField()],

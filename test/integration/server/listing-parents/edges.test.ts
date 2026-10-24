@@ -15,7 +15,7 @@ import {
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { makeRenewalTier } from "#test-utils/listing-parents/helpers.ts";
-import { postChildren } from "#test-utils/parents.ts";
+import { postChildren } from "#test-utils/parent-booking.ts";
 
 type ListingConfig = Parameters<typeof createTestListing>[0];
 

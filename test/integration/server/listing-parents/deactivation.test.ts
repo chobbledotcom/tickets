@@ -12,7 +12,7 @@ import {
   soloChildAddOn,
 } from "#test-utils/listing-parents/helpers.ts";
 import { optInAddOnForListings } from "#test-utils/modifiers.ts";
-import { postChildren } from "#test-utils/parents.ts";
+import { postChildren } from "#test-utils/parent-booking.ts";
 import { adminFormPost, adminGet, apiRequest } from "#test-utils/session.ts";
 import type { Listing } from "#types";
 

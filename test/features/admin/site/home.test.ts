@@ -10,10 +10,10 @@ import {
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
-  inputNamed,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { inputNamed } from "#test-utils/html-fragments.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 

@@ -14,8 +14,8 @@
 
 import { assert } from "@std/assert";
 import { listingChildren } from "#db/listing-parents.ts";
-import type { Group, ListingWithCount } from "#types";
 import { testPageHtml } from "#test-utils/mocks.ts";
+import type { Group, ListingWithCount } from "#types";
 import { createTestAttendee } from "./db-helpers/attendees.ts";
 import { createTestGroup } from "./db-helpers/groups.ts";
 import {

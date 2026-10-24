@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_SEED_LISTINGS, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
 import { seedsForm } from "#templates/fields/seeds.ts";
-import { inputNamed } from "#test-utils/assertions.ts";
+import { inputNamed } from "#test-utils/html-fragments.ts";
 
 describe("seeds form", () => {
   test("offers the two number boxes between their bounds", () => {

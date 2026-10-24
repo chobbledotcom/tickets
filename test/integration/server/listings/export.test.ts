@@ -5,11 +5,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { testRequiresAuth } from "#test-utils/assertions.ts";
 import {
   expectCsvDownloadHeaders,
   fetchListingExportCsv,
-  testRequiresAuth,
-} from "#test-utils/assertions.ts";
+} from "#test-utils/csv.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

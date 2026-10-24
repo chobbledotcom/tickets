@@ -6,7 +6,8 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { listingChildren } from "#db/listing-parents.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { makeParent, publicBody } from "#test-utils/parents.ts";
+import { publicBody } from "#test-utils/parent-booking.ts";
+import { makeParent } from "#test-utils/parents.ts";
 
 /** A sold-out child (maxAttendees 1, one attendee) under a single parent. */
 export const setupSoldOutChild = async () => {

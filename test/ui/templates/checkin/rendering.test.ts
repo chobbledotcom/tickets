@@ -7,7 +7,6 @@ import {
   readTicketPage,
   setupCheckinTest,
 } from "#test/features/checkin/helpers.ts";
-import { tableRowContaining } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -17,6 +16,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { tableRowContaining } from "#test-utils/html-fragments.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 

@@ -7,11 +7,11 @@ import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
-  inputNamed,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { inputNamed } from "#test-utils/html-fragments.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 /* jscpd:ignore-end */

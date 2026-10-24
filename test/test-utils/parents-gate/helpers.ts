@@ -21,7 +21,8 @@ import {
   bookableStartDates,
   createDailyTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { bookingPageHtml, makeParent } from "#test-utils/parents.ts";
+import { bookingPageHtml } from "#test-utils/parent-booking.ts";
+import { makeParent } from "#test-utils/parents.ts";
 import type { Listing } from "#types";
 
 /** The first date a listing can be booked for — the common single-date need.

@@ -3,11 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import {
-  makeParent,
-  soldOutParentInGroup,
-  ticketGet,
-} from "#test-utils/parents.ts";
+import { ticketGet } from "#test-utils/parent-booking.ts";
+import { makeParent, soldOutParentInGroup } from "#test-utils/parents.ts";
 
 describeWithEnv(
   "server > parents booking — group QR",

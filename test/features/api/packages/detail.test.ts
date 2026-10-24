@@ -11,7 +11,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { apiGet } from "#test-utils/parents.ts";
+import { apiGet } from "#test-utils/parent-booking.ts";
 import {
   apiBookPackage,
   bookingRows,

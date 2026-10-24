@@ -3,13 +3,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
 import { handleRequest } from "#routes";
-import {
-  assertApiDeleteOk,
-  assertJson,
-  expectRejectsEmptyName,
-} from "#test-utils/assertions.ts";
+import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
+import { assertApiDeleteOk, expectRejectsEmptyName } from "#test-utils/json.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   apiRequest,

@@ -5,7 +5,6 @@ import { getDb } from "#db/client.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { getListingWithActivityLogOrNull } from "#test-utils/activity-log.ts";
-import { attendeeLineIndex } from "#test-utils/assertions.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { getTestDataKey, getTestPrivateKey } from "#test-utils/crypto.ts";
 import {
@@ -34,6 +33,7 @@ import {
   openAttendeeEditor,
   setupAndLogin,
 } from "#test-utils/e2e.ts";
+import { attendeeLineIndex } from "#test-utils/html-fragments.ts";
 import {
   setTestSession,
   TEST_ADMIN_PASSWORD,

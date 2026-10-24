@@ -10,7 +10,7 @@ import { invalidateListingsCache } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { invalidateUsersCache } from "#db/users.ts";
 import { invalidateCachesForTable } from "#shared/cache-registry.ts";
-import { attendeeLineIndex } from "#test-utils/assertions.ts";
+import { attendeeLineIndex } from "#test-utils/html-fragments.ts";
 import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,

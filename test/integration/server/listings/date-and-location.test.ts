@@ -2,11 +2,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
-import {
-  assertAdminHtml,
-  expectHtmlResponse,
-  fetchListingExportCsv,
-} from "#test-utils/assertions.ts";
+import { assertAdminHtml, expectHtmlResponse } from "#test-utils/assertions.ts";
+import { fetchListingExportCsv } from "#test-utils/csv.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import {

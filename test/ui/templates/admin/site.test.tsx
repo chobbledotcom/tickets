@@ -9,8 +9,8 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
-import { inputNamed } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { inputNamed } from "#test-utils/html-fragments.ts";
 import { enableFeature } from "#test-utils/settings.ts";
 
 describeWithEnv("site editor pages", { db: true }, () => {

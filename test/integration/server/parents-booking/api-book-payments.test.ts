@@ -7,9 +7,8 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { bookableStartDates } from "#test-utils/db-helpers/listings.ts";
+import { apiBook, bookParentChild } from "#test-utils/parent-booking.ts";
 import {
-  apiBook,
-  bookParentChild,
   makeCustomisableDailyParent,
   makeParent,
 } from "#test-utils/parents.ts";

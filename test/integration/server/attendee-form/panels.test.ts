@@ -4,10 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { CreateAttendeeResult } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { moveTickets } from "#db/attendees/update.ts";
-import {
-  expectHtmlResponse,
-  expectListingRowQuantity,
-} from "#test-utils/assertions.ts";
+import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { everydayDailyListing } from "#test-utils/attendee-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -16,6 +13,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { expectListingRowQuantity } from "#test-utils/html-fragments.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {

@@ -19,12 +19,12 @@ import {
   childField,
   expectRejectedBooking,
   expectReserved,
-  makeParent,
   parentField,
   postBooking,
   postCalculate,
   ticketPageStatus,
-} from "#test-utils/parents.ts";
+} from "#test-utils/parent-booking.ts";
+import { makeParent } from "#test-utils/parents.ts";
 import { firstBookableDate } from "#test-utils/parents-gate/helpers.ts";
 import type { Listing } from "#types";
 

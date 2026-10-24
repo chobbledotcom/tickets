@@ -13,10 +13,11 @@ import { writeUpdate } from "#routes/admin/api-site-pages.ts";
 import { publicNavModel } from "#routes/public/site-nav.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
-import { assertApiDeleteOk, assertJson } from "#test-utils/assertions.ts";
+import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+import { assertApiDeleteOk } from "#test-utils/json.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import {

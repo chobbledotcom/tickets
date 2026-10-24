@@ -8,9 +8,9 @@ import { seedsForm } from "#templates/fields/seeds.ts";
 import {
   expectFlashRedirect,
   expectHtmlContains,
-  inputNamed,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { inputNamed } from "#test-utils/html-fragments.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { postSeeds } from "#test-utils/seeds.ts";
 import { testCookie } from "#test-utils/session.ts";

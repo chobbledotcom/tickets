@@ -10,9 +10,9 @@ import {
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
-  inputNamed,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { inputNamed } from "#test-utils/html-fragments.ts";
 import {
   awaitTestRequest,
   installRecordingFetch,

@@ -12,10 +12,9 @@ import {
   bookParent,
   expectRejectedBooking,
   expectReserved,
-  makeParent,
-  makeTwoDefaultChildren,
   parentField,
-} from "#test-utils/parents.ts";
+} from "#test-utils/parent-booking.ts";
+import { makeParent, makeTwoDefaultChildren } from "#test-utils/parents.ts";
 
 // jscpd:ignore-end
 

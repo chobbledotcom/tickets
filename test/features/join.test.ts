@@ -9,11 +9,11 @@ import {
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirectWithFlash,
-  inputNamed,
 } from "#test-utils/assertions.ts";
 import { requireJoinCsrfToken, submitJoinForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestInvite } from "#test-utils/db-helpers/misc.ts";
+import { inputNamed } from "#test-utils/html-fragments.ts";
 import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,

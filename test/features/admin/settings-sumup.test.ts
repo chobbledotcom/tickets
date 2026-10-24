@@ -10,11 +10,11 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertJson,
   expectFlash,
-  inputNamed,
   redirectFormId,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { inputNamed } from "#test-utils/html-fragments.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 

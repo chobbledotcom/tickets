@@ -4,7 +4,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   expectHtmlResponse,
-  tableRowContaining,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { setupListingAndDirectAttendee } from "#test-utils/attendees/helpers.ts";
@@ -22,6 +21,7 @@ import {
   setPendingNotificationFlags,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { tableRowContaining } from "#test-utils/html-fragments.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end

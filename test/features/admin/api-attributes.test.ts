@@ -8,16 +8,13 @@ import {
   listingAttributeOptions,
 } from "#db/attributes.ts";
 import { handleRequest } from "#routes";
-import {
-  assertApiDeleteOk,
-  assertJson,
-  expectRejectsEmptyName,
-} from "#test-utils/assertions.ts";
+import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttribute,
   createTestAttributeOption,
 } from "#test-utils/db-helpers/attributes.ts";
+import { assertApiDeleteOk, expectRejectsEmptyName } from "#test-utils/json.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   apiRequest,

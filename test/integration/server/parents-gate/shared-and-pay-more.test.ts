@@ -10,10 +10,10 @@ import {
   childField,
   expectRejectedBooking,
   expectReserved,
-  makeParent,
   parentField,
   postCalculate,
-} from "#test-utils/parents.ts";
+} from "#test-utils/parent-booking.ts";
+import { makeParent } from "#test-utils/parents.ts";
 import type { Listing } from "#types";
 
 // jscpd:ignore-end

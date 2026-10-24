@@ -2,16 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getDb } from "#db/client.ts";
-import {
-  attendeeLineIndex,
-  expectHtmlResponse,
-} from "#test-utils/assertions.ts";
+import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   buildAttendeeEditForm,
   createTestAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { attendeeLineIndex } from "#test-utils/html-fragments.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 

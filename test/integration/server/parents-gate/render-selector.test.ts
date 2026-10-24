@@ -3,7 +3,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookingPageHtml, makeParent } from "#test-utils/parents.ts";
+import { bookingPageHtml } from "#test-utils/parent-booking.ts";
+import { makeParent } from "#test-utils/parents.ts";
 
 // jscpd:ignore-end
 

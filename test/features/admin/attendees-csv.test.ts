@@ -7,7 +7,7 @@ import {
   generateAttendeesCsv,
 } from "#routes/admin/attendees-csv.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
-import { expectTestAttendeeCsvColumns } from "#test-utils/assertions.ts";
+import { expectTestAttendeeCsvColumns } from "#test-utils/csv.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 import type { Attendee } from "#types";
 

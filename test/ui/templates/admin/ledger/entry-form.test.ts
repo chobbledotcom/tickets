@@ -11,7 +11,7 @@ import {
   type LedgerEntryAddOption,
   ledgerEntryForm,
 } from "#templates/admin/ledger/entry-form.ts";
-import { inputNamed } from "#test-utils/assertions.ts";
+import { inputNamed } from "#test-utils/html-fragments.ts";
 import { testWithSetting } from "#test-utils/settings.ts";
 
 describe("ledger entry forms", () => {

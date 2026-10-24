@@ -42,7 +42,8 @@ import {
   optInAddOnForListings,
   patchModifier,
 } from "#test-utils/modifiers.ts";
-import { makeParent, ticketPageStatus } from "#test-utils/parents.ts";
+import { ticketPageStatus } from "#test-utils/parent-booking.ts";
+import { makeParent } from "#test-utils/parents.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end

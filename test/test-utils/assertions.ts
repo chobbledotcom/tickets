@@ -42,6 +42,24 @@ export const expectAdminLoginSuccess = async (
   expect(sessionCookie).toBeDefined();
 };
 
+export const expectJsonResponse =
+  <T = any>(status: number, assertions?: (body: T) => void) =>
+  async (response: Response): Promise<T> => {
+    expect(response.status).toBe(status);
+    const body = (await response.json()) as T;
+    assertions?.(body);
+    return body;
+  };
+
+export const assertJson = async <T = any>(
+  request: Promise<Response>,
+  status: number,
+  assertions?: (body: T) => void,
+): Promise<T> => {
+  const response = await request;
+  return expectJsonResponse<T>(status, assertions)(response);
+};
+
 export const assertFormRedirect = async (
   path: string,
   data: Record<string, string>,

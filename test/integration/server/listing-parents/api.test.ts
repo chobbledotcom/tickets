@@ -12,7 +12,7 @@ import {
   linkedParentChild,
   parentAndChild,
 } from "#test-utils/listing-parents/helpers.ts";
-import { postChildren } from "#test-utils/parents.ts";
+import { postChildren } from "#test-utils/parent-booking.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
 /** A standard "Base unit" parent and a daily "Daily add-on" child — a daily

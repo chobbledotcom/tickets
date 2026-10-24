@@ -6,7 +6,7 @@ import { handleRequest } from "#routes";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createFlexPackage } from "#test-utils/packages.ts";
-import { apiGet } from "#test-utils/parents.ts";
+import { apiGet } from "#test-utils/parent-booking.ts";
 
 /** POST /api/packages/:slug/book with a minimal valid contact payload merged
  * with any extra body fields (quantity, date, dayCount, children). */

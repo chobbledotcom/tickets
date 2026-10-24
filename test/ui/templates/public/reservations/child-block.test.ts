@@ -17,10 +17,9 @@ import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   bookingPageHtml,
   childField,
-  makeParent,
-  makeTwoDefaultChildren,
   parentField,
-} from "#test-utils/parents.ts";
+} from "#test-utils/parent-booking.ts";
+import { makeParent, makeTwoDefaultChildren } from "#test-utils/parents.ts";
 import {
   selectOptionsFromHtml,
   selectOptionsHtml,

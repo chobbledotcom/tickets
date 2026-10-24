@@ -10,7 +10,7 @@ import {
   createTestListing,
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
-import { apiGet } from "#test-utils/parents.ts";
+import { apiGet } from "#test-utils/parent-booking.ts";
 import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
 import {
   apiBookPackage,

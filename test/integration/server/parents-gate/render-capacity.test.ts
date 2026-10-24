@@ -16,10 +16,9 @@ import {
   expectNoBooking,
   expectRejectedBooking,
   expectReserved,
-  makeParent,
-  makeRoomySharedChild,
   parentField,
-} from "#test-utils/parents.ts";
+} from "#test-utils/parent-booking.ts";
+import { makeParent, makeRoomySharedChild } from "#test-utils/parents.ts";
 import {
   expectRendersSoldOut,
   expectSelectOffers,

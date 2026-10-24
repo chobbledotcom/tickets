@@ -9,9 +9,9 @@ import {
   expectNoBooking,
   expectRejectedBooking,
   expectReserved,
-  makeParent,
   parentField,
-} from "#test-utils/parents.ts";
+} from "#test-utils/parent-booking.ts";
+import { makeParent } from "#test-utils/parents.ts";
 import { stubCheckoutIntent } from "#test-utils/parents-gate/helpers.ts";
 
 // jscpd:ignore-end

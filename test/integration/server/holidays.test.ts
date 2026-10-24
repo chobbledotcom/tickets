@@ -3,8 +3,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
+import { expectActivityLogShows } from "#test-utils/activity-log.ts";
 import {
-  expectActivityLogShows,
   expectFlash,
   expectHtmlResponse,
   testRequiresAuth,

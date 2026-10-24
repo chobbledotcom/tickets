@@ -32,7 +32,7 @@ import {
 import {
   expectListingActivityLogContains,
   expectListingActivityLogLacks,
-} from "#test-utils/assertions.ts";
+} from "#test-utils/activity-log.ts";
 import { twoGroupedListingsBookedOnAdjacentDays } from "#test-utils/db-helpers/grouped-days.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { expectStayCanBeBooked, expectStayRunsFor } from "./stays-booking.ts";

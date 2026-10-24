@@ -8,8 +8,8 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
-import { selectOptionLabels } from "#test-utils/assertions.ts";
 import { shownLineBookings } from "#test-utils/attendees/pair-bookings.ts";
+import { selectOptionLabels } from "#test-utils/html-fragments.ts";
 import {
   calendarAttendee,
   calendarDate,

@@ -104,7 +104,7 @@ describeWithEnv("package child availability", { db: true }, () => {
   });
 
   test("/calculate prices member lines × package count and the child mix exactly once", async () => {
-    const { postCalculate } = await import("#test-utils/parents.ts");
+    const { postCalculate } = await import("#test-utils/parent-booking.ts");
     const { child, childB, group, parent } = await packageWithChild(
       "Priced Kit",
       "priced-kit-pkg",

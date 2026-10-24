@@ -16,7 +16,6 @@ import {
   expectHtmlResponse,
   expectRedirect,
   expectStatus,
-  inputNamed,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -25,6 +24,7 @@ import {
   createTestAttributeWithOptions,
 } from "#test-utils/db-helpers/attributes.ts";
 import { withFailingOrderTrigger } from "#test-utils/db-helpers/failing-order.ts";
+import { inputNamed } from "#test-utils/html-fragments.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import {
   enableFeature,

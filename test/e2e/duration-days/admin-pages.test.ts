@@ -1,10 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
-import {
-  expectFlashRedirect,
-  expectListingActivityLogLacks,
-} from "#test-utils/assertions.ts";
+import { expectListingActivityLogLacks } from "#test-utils/activity-log.ts";
+import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {

@@ -17,7 +17,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingEdit } from "#test-utils/listing-parents/helpers.ts";
-import { postChildren } from "#test-utils/parents.ts";
+import { postChildren } from "#test-utils/parent-booking.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 describeWithEnv(

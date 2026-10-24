@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { apiKeyForm } from "#routes/admin/api-keys-form.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
-import { inputNamed } from "#test-utils/assertions.ts";
+import { inputNamed } from "#test-utils/html-fragments.ts";
 
 describe("API key form name box", () => {
   test("renders the shared single-line limit", () => {

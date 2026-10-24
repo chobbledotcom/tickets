@@ -25,7 +25,7 @@ import {
   optInAddOnForListings,
   patchModifier,
 } from "#test-utils/modifiers.ts";
-import { postChildren } from "#test-utils/parents.ts";
+import { postChildren } from "#test-utils/parent-booking.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv(

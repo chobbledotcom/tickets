@@ -6,7 +6,7 @@ import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { bookingPageHtml } from "#test-utils/parents.ts";
+import { bookingPageHtml } from "#test-utils/parent-booking.ts";
 import {
   apiRequest,
   createTestApiKeyToken,

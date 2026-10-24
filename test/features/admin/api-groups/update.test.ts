@@ -7,9 +7,10 @@ import { getDb } from "#db/client.ts";
 import { groups } from "#db/groups.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { assertJson, expectRejectsEmptyName } from "#test-utils/assertions.ts";
+import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { expectRejectsEmptyName } from "#test-utils/json.ts";
 import {
   apiRequest,
   createTestAgentSession,

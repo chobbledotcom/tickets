@@ -4,14 +4,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
-import {
-  assertAdminHtml,
-  assertJson,
-  expectRejectsEmptyName,
-} from "#test-utils/assertions.ts";
+import { assertAdminHtml, assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { expectRejectsEmptyName } from "#test-utils/json.ts";
 import { apiRequest, createTestApiKeyToken } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Listings", { db: true }, () => {

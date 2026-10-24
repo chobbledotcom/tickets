@@ -19,12 +19,8 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import {
-  makeParent,
-  makeRoomySharedChild,
-  publicBody,
-  ticketPageStatus,
-} from "#test-utils/parents.ts";
+import { publicBody, ticketPageStatus } from "#test-utils/parent-booking.ts";
+import { makeParent, makeRoomySharedChild } from "#test-utils/parents.ts";
 import {
   assertAddOnNote,
   assertBookable,

@@ -13,11 +13,11 @@ import {
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
-  inputNamed,
   parseFlashCookie,
 } from "#test-utils/assertions.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { inputNamed } from "#test-utils/html-fragments.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
