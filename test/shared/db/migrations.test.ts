@@ -129,6 +129,11 @@ describeWithEnv("db > migrations", { db: true }, () => {
       invalidateInitDbCache();
     };
 
+    /** The migration id is recorded in schema_migrations. */
+    const assertMigrationApplied = async (id: string): Promise<void> => {
+      assertArrayIncludes(await appliedMigrationIds(), [id]);
+    };
+
     const bootstrapSettingsTable = async (
       preInit?: () => Promise<unknown>,
     ): Promise<void> => {
@@ -223,9 +228,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
         "{{name}}, {{listings}}, {{email}}",
       );
       // ...it is now recorded in schema_migrations...
-      assertArrayIncludes(await appliedMigrationIds(), [
-        "2026-07-03_attendee_listings_tag",
-      ]);
+      await assertMigrationApplied("2026-07-03_attendee_listings_tag");
       // ...and the markers are refreshed to the current release.
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
@@ -245,9 +248,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       // and the marker is the current release's.
       const images = await getDb().execute("SELECT id FROM images");
       expect(images.rows.map((row) => row.id)).toEqual([]);
-      assertArrayIncludes(await appliedMigrationIds(), [
-        "2026-07-12_remove_broken_image_records",
-      ]);
+      await assertMigrationApplied("2026-07-12_remove_broken_image_records");
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
@@ -273,9 +274,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
         end_date: "2027-06-02",
         start_date: "2027-06-01",
       });
-      assertArrayIncludes(await appliedMigrationIds(), [
-        "2026-10-07_holiday_date_padding",
-      ]);
+      await assertMigrationApplied("2026-10-07_holiday_date_padding");
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
@@ -296,9 +295,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       expect(task.rows).toEqual([
         { checkpoint: ACTIVITY_LOG_BACKFILL_COMPLETE },
       ]);
-      assertArrayIncludes(await appliedMigrationIds(), [
-        "2026-07-21_activity_backfill_complete",
-      ]);
+      await assertMigrationApplied("2026-07-21_activity_backfill_complete");
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
@@ -331,9 +328,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       });
       expect(await settingsValueOrNull("has_logistics")).toBeNull();
       expect(await settingsValueOrNull("show_public_site")).toBeNull();
-      assertArrayIncludes(await appliedMigrationIds(), [
-        "2026-07-15_enabled_features",
-      ]);
+      await assertMigrationApplied("2026-07-15_enabled_features");
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
 

@@ -1,6 +1,7 @@
 /** The Square link-end machine on the schema page: pin its layout and the
  * one fact an operator acts on, whether the link can still take payment. */
 
+/* jscpd:ignore-start -- imports */
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
