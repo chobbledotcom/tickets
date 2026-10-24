@@ -1,16 +1,30 @@
+/* jscpd:ignore-start -- imports */
 import { filter, map, pipe, requiredMapValue, unique } from "#fp";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
-import { REFUND_NODES } from "#payment/refund-machine-spec.ts";
+import type {
+  RefundAuthorityState,
+  RefundRequestGeneration,
+} from "#payment/refund-authority-state.ts";
+import {
+  REFUND_EVENTS,
+  REFUND_NODES,
+  refundNodeOf,
+} from "#payment/refund-machine-spec.ts";
 import { ROW_NODES } from "#payment/row-machine-spec.ts";
 import {
   currentContracts,
   type DumpedMachine,
 } from "#scripts/contract-drift/dump.ts";
+import { tlaModule, tlaSet, tlaTuples } from "#scripts/verify-models/data.ts";
+import { attemptTransition } from "#shared/schema-atlas/types.ts";
+
+/* jscpd:ignore-end */
 
 type Move = readonly [source: string, event: string, target: string];
+type AuthorityMove = readonly [...Move, armed: boolean, requestKept: boolean];
 
 export interface PaymentModel {
-  readonly authorityMoves: readonly Move[];
+  readonly authorityMoves: readonly AuthorityMove[];
   readonly authorityStates: readonly string[];
   readonly claimedRows: readonly string[];
   readonly claimMirror: string;
@@ -18,13 +32,55 @@ export interface PaymentModel {
   readonly rowStart: string;
   readonly rowStates: readonly string[];
   readonly sendAuthorityNames: readonly string[];
-  readonly sendEvents: readonly string[];
 }
 
 const movesOf = (machine: DumpedMachine): Move[] =>
   Object.entries(machine.edges).flatMap(([source, edges]) =>
     edges.map((edge): Move => [source, edge.event, edge.to]),
   );
+
+const sameRequest = (
+  before: RefundRequestGeneration,
+  after: RefundRequestGeneration,
+): boolean =>
+  before.generation === after.generation &&
+  before.identityIndex === after.identityIndex &&
+  before.capability === after.capability &&
+  (before.capability !== "keyed" ||
+    (after.capability === "keyed" && before.replayUntil === after.replayUntil));
+
+const appendRefundMoves = (
+  node: string,
+  state: RefundAuthorityState,
+  authorityMoves: AuthorityMove[],
+  sendAuthorityNames: string[],
+): void => {
+  for (const event of REFUND_EVENTS) {
+    const next = attemptTransition(event.run, state);
+    if (next === null) continue;
+    authorityMoves.push([
+      node,
+      event.id,
+      refundNodeOf(next),
+      !event.movesMoney || next.kind === "send_armed",
+      !event.movesMoney || sameRequest(state.request, next.request),
+    ]);
+    if (event.movesMoney) sendAuthorityNames.push(next.kind);
+  }
+};
+
+const refundMoves = (start: string) => {
+  const authorityMoves: AuthorityMove[] = [
+    ["absent", "charge_created", start, true, true],
+  ];
+  const sendAuthorityNames: string[] = [];
+  for (const node of REFUND_NODES) {
+    for (const rep of node.reps) {
+      appendRefundMoves(node.id, rep.state, authorityMoves, sendAuthorityNames);
+    }
+  }
+  return { authorityMoves, sendAuthorityNames: unique(sendAuthorityNames) };
+};
 
 /** Run the production transitions. No stored copy supplies proof inputs. */
 export const paymentModel = async (): Promise<PaymentModel> => {
@@ -47,21 +103,7 @@ export const paymentModel = async (): Promise<PaymentModel> => {
     }),
     map((node) => node.id),
   )(ROW_NODES);
-  const authorityMoves: Move[] = [
-    ["absent", "charge_created", refund.start],
-    ...movesOf(refund),
-  ];
-  const sendTargets = pipe(
-    filter((move: Move) => refund.moneyEvents.includes(move[1])),
-    map((move) => move[2]),
-    unique,
-  )(authorityMoves);
-  const sendAuthorityNames = pipe(
-    filter((node: (typeof REFUND_NODES)[number]) =>
-      sendTargets.includes(node.id),
-    ),
-    map((node) => node.reps.map(({ state }) => state.kind)),
-  )(REFUND_NODES).flat();
+  const { authorityMoves, sendAuthorityNames } = refundMoves(refund.start);
   return {
     authorityMoves,
     authorityStates: ["absent", ...refund.states],
@@ -70,27 +112,16 @@ export const paymentModel = async (): Promise<PaymentModel> => {
     rowMoves: movesOf(row),
     rowStart: row.start,
     rowStates: row.states,
-    sendAuthorityNames: unique(sendAuthorityNames),
-    sendEvents: refund.moneyEvents,
+    sendAuthorityNames,
   };
 };
 
-/** Render only controlled state and event names from the production tables. */
-export const modelData = (model: PaymentModel): string => {
-  const set = (values: readonly string[]): string =>
-    `{${values.map((value) => JSON.stringify(value)).join(", ")}}`;
-  const moves = (values: readonly Move[]): string =>
-    `{\n${values.map((move) => `  <<${move.map((part) => JSON.stringify(part)).join(", ")}>>`).join(",\n")}\n}`;
-  return `---- MODULE JointStateData ----
-RowStates == ${set(model.rowStates)}
-AuthorityStates == ${set(model.authorityStates)}
-ClaimedRows == ${set(model.claimedRows)}
-SendEvents == ${set(model.sendEvents)}
-RowStart == ${JSON.stringify(model.rowStart)}
-\\* @type: Set(<<Str, Str, Str>>);
-RowMoves == ${moves(model.rowMoves)}
-\\* @type: Set(<<Str, Str, Str>>);
-AuthMoves == ${moves(model.authorityMoves)}
-====
-`;
-};
+export const modelData = (model: PaymentModel): string =>
+  tlaModule("JointStateData", [
+    `RowStates == ${tlaSet(model.rowStates)}`,
+    `AuthorityStates == ${tlaSet(model.authorityStates)}`,
+    `ClaimedRows == ${tlaSet(model.claimedRows)}`,
+    `RowStart == ${JSON.stringify(model.rowStart)}`,
+    `\\* @type: Set(<<Str, Str, Str>>);\nRowMoves == ${tlaTuples(model.rowMoves)}`,
+    `\\* @type: Set(<<Str, Str, Str, Bool, Bool>>);\nAuthMoves == ${tlaTuples(model.authorityMoves)}`,
+  ]);

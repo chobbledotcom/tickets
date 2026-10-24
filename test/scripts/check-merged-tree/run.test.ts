@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ParsedArgs } from "#scripts/check-merged-tree/args.ts";
@@ -90,9 +91,9 @@ const expectNoWorktree = (fake: {
 
 /** The verdict names the cleanup failure instead of a pass. */
 const expectCleanupFailure = (fake: { logs: string[] }): void => {
-  expect(fake.logs).toContain(
+  assertArrayIncludes(fake.logs, [
     "MERGED-TREE CHECK FAILED: the trial worktree could not be cleaned up",
-  );
+  ]);
   expect(
     fake.logs.some((line) => line.startsWith("MERGED-TREE CHECK PASSED")),
   ).toBe(false);
@@ -145,9 +146,9 @@ describe("merged-tree check runner", () => {
       program: "git",
     });
     expect(fake.removed).toEqual(["/tmp/merged-tree-fake"]);
-    expect(fake.logs).toContain(
+    assertArrayIncludes(fake.logs, [
       "MERGED-TREE CHECK PASSED: PR #2583 merges into main",
-    );
+    ]);
   });
 
   test("reports the conflicted paths when the merge fails", async () => {
@@ -173,14 +174,14 @@ describe("merged-tree check runner", () => {
     );
     expect(code).toBe(1);
     expect(fake.tasks).toEqual([]);
-    expect(fake.logs).toContain(
+    assertArrayIncludes(fake.logs, [
       "MERGED-TREE CHECK FAILED: feature does not merge cleanly into main",
-    );
-    expect(fake.logs).toContain(
+    ]);
+    assertArrayIncludes(fake.logs, [
       "CONFLICT (content): Merge conflict in src/a.ts",
-    );
-    expect(fake.logs).toContain("  conflicted: src/a.ts");
-    expect(fake.logs).toContain("  conflicted: src/b.ts");
+    ]);
+    assertArrayIncludes(fake.logs, ["  conflicted: src/a.ts"]);
+    assertArrayIncludes(fake.logs, ["  conflicted: src/b.ts"]);
     expect(fake.removed).toEqual(["/tmp/merged-tree-fake"]);
     expect(fake.calls).toContainEqual({
       args: ["worktree", "remove", "--force", "/tmp/merged-tree-fake"],
@@ -202,7 +203,7 @@ describe("merged-tree check runner", () => {
     });
     const code = await runMergedTreeCheck(prArgs, fake.deps);
     expect(code).toBe(1);
-    expect(fake.logs).toContain("error: could not apply the merge");
+    assertArrayIncludes(fake.logs, ["error: could not apply the merge"]);
     expect(fake.logs.some((line) => line.startsWith("  conflicted:"))).toBe(
       false,
     );
@@ -224,9 +225,9 @@ describe("merged-tree check runner", () => {
     expect(fake.tasks).toEqual([
       { cwd: "/tmp/merged-tree-fake", task: "typecheck" },
     ]);
-    expect(fake.logs).toContain(
+    assertArrayIncludes(fake.logs, [
       "MERGED-TREE CHECK FAILED: PR #2583 merges into main but typecheck fails on the merged tree",
-    );
+    ]);
     expect(fake.removed).toEqual(["/tmp/merged-tree-fake"]);
   });
 
@@ -237,9 +238,9 @@ describe("merged-tree check runner", () => {
       { cwd: "/tmp/merged-tree-fake", task: "typecheck" },
       { cwd: "/tmp/merged-tree-fake", task: "test" },
     ]);
-    expect(fake.logs).toContain(
+    assertArrayIncludes(fake.logs, [
       "MERGED-TREE CHECK FAILED: PR #2583 merges into main but test fails on the merged tree",
-    );
+    ]);
   });
 
   test("creates no worktree when the fetch fails", async () => {
@@ -256,10 +257,12 @@ describe("merged-tree check runner", () => {
     expect(code).toBe(3);
     expectNoWorktree(fake);
     expect(fake.removed).toEqual([]);
-    expect(fake.logs).toContain(
+    assertArrayIncludes(fake.logs, [
       "MERGED-TREE CHECK FAILED: cannot fetch PR #2583 or origin/main",
-    );
-    expect(fake.logs).toContain("fatal: could not read from remote repository");
+    ]);
+    assertArrayIncludes(fake.logs, [
+      "fatal: could not read from remote repository",
+    ]);
   });
 
   /** One ref does not resolve, so nothing runs and the diagnostic prints. */
@@ -271,10 +274,10 @@ describe("merged-tree check runner", () => {
     const code = await runMergedTreeCheck(prArgs, fake.deps);
     expect(code).toBe(3);
     expectNoWorktree(fake);
-    expect(fake.logs).toContain(
+    assertArrayIncludes(fake.logs, [
       "MERGED-TREE CHECK FAILED: cannot resolve PR #2583 against origin/main",
-    );
-    expect(fake.logs).toContain(diagnostic);
+    ]);
+    assertArrayIncludes(fake.logs, [diagnostic]);
   };
 
   test("creates no worktree when the head does not resolve", async () => {
@@ -369,9 +372,9 @@ describe("merged-tree check runner", () => {
           one.args[1] === "remove",
       ),
     ).toBe(false);
-    expect(fake.logs).toContain(
+    assertArrayIncludes(fake.logs, [
       "MERGED-TREE CHECK FAILED: cannot create the trial worktree for PR #2583 into main",
-    );
+    ]);
   });
 
   test("fails the check when the worktree removal fails", async () => {
@@ -384,9 +387,9 @@ describe("merged-tree check runner", () => {
     );
     const code = await runMergedTreeCheck(prArgs, fake.deps);
     expect(code).toBe(2);
-    expect(fake.logs).toContain(
+    assertArrayIncludes(fake.logs, [
       "warning: could not remove the worktree at /tmp/merged-tree-fake: fatal: dirty worktree. Run: git worktree prune",
-    );
+    ]);
     expectCleanupFailure(fake);
     expect(fake.removed).toEqual(["/tmp/merged-tree-fake"]);
   });
@@ -399,9 +402,9 @@ describe("merged-tree check runner", () => {
     });
     const code = await runMergedTreeCheck(prArgs, fake.deps);
     expect(code).toBe(2);
-    expect(fake.logs).toContain(
+    assertArrayIncludes(fake.logs, [
       "warning: could not remove the throwaway directory at /tmp/merged-tree-fake: disk refuses to let go of /tmp/merged-tree-fake",
-    );
+    ]);
     expectCleanupFailure(fake);
   });
 
@@ -409,9 +412,9 @@ describe("merged-tree check runner", () => {
     const fake = withRemoval(() => Promise.reject(new Error("spawn refused")));
     const code = await runMergedTreeCheck(prArgs, fake.deps);
     expect(code).toBe(2);
-    expect(fake.logs).toContain(
+    assertArrayIncludes(fake.logs, [
       "warning: could not remove the worktree at /tmp/merged-tree-fake: spawn refused. Run: git worktree prune",
-    );
+    ]);
     expectCleanupFailure(fake);
     expect(fake.removed).toEqual(["/tmp/merged-tree-fake"]);
   });
@@ -421,21 +424,21 @@ describe("merged-tree check runner", () => {
     fake.deps.removeTree = () => Promise.reject("not an error");
     const code = await runMergedTreeCheck(prArgs, fake.deps);
     expect(code).toBe(2);
-    expect(fake.logs).toContain(
+    assertArrayIncludes(fake.logs, [
       "warning: could not remove the worktree at /tmp/merged-tree-fake: git vanished. Run: git worktree prune",
-    );
-    expect(fake.logs).toContain(
+    ]);
+    assertArrayIncludes(fake.logs, [
       "warning: could not remove the throwaway directory at /tmp/merged-tree-fake: not an error",
-    );
+    ]);
   });
 
   test("reports a removal failure with no detail", async () => {
     const fake = withRemoval(() => Promise.resolve({ ...ok, success: false }));
     const code = await runMergedTreeCheck(prArgs, fake.deps);
     expect(code).toBe(2);
-    expect(fake.logs).toContain(
+    assertArrayIncludes(fake.logs, [
       "warning: could not remove the worktree at /tmp/merged-tree-fake. Run: git worktree prune",
-    );
+    ]);
   });
 
   test("cleans up and rethrows when the stripe-mock copy fails", async () => {

@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { assertAdminHtml, expectHtmlResponse } from "#test-utils/assertions.ts";
@@ -8,7 +8,7 @@ import { adminGet } from "#test-utils/session.ts";
 describeWithEnv("integration: header image in layout", { db: true }, () => {
   test("no header image rendered by default", async () => {
     const html = await assertAdminHtml("/admin/settings");
-    expect(html).not.toContain('class="header-image"');
+    assert(!html.includes('class="header-image"'));
   });
 
   test("header image rendered in page when set via DB", async () => {
@@ -28,6 +28,6 @@ describeWithEnv("integration: header image in layout", { db: true }, () => {
     await settings.update.headerImageUrl("");
 
     const html = await assertAdminHtml("/admin/settings");
-    expect(html).not.toContain('class="header-image"');
+    assert(!html.includes('class="header-image"'));
   });
 });

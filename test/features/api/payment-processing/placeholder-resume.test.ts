@@ -3,9 +3,10 @@
  * words — exactly once, from durable rows alone. */
 
 /* jscpd:ignore-start -- imports */
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { bookingEventGroup } from "#accounting/mappers.ts";
+import { bookingEventGroup, refundEventGroup } from "#accounting/mappers.ts";
 import { transfersByEventGroup } from "#accounting/queries.ts";
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
@@ -29,6 +30,7 @@ import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { checkPaymentSeam } from "#test-utils/payment-seam.ts";
 import {
   getProcessedPayment,
@@ -49,6 +51,7 @@ const REFUNDED_ANSWER =
 
 describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
   checkPaymentSeam();
+  const errors = setupErrorSpy();
 
   const heldAnchorRow = async () => {
     const row = await queryOne<{
@@ -220,6 +223,24 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
           error: pendingError,
           status: 200,
         });
+        const group = await bookingEventGroup(sessionId);
+        expect(
+          (await transfersByEventGroup(group)).map(({ amount }) => amount),
+        ).toEqual([placeholder.data.session.amountTotal]);
+        expect(
+          await transfersByEventGroup(await refundEventGroup(group)),
+        ).toEqual([]);
+        const note = requireValue(
+          await queryOne<{ note: EnvKeyEncrypted }>(
+            "SELECT note FROM system_notes WHERE entity_type = 'attendee'",
+          ),
+          "the refund recovery note is missing",
+        );
+        assertStringIncludes(
+          await decrypt(note.note),
+          "Its refund is tracked in Refund recovery.",
+        );
+        expect(errors.contains("Stored-but-unrefunded booking")).toBe(true);
         // The authority owns recovery after the anchor releases its claim.
         expect(
           await processPaymentSession(sessionId, placeholder.data),

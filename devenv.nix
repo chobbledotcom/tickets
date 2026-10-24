@@ -40,7 +40,7 @@ let
 
   precommitHook = pkgs.writeShellApplication {
     name = "tickets-precommit-hook";
-    runtimeInputs = [ deno ] ++ checkTools;
+    runtimeInputs = [ deno apalache ] ++ checkTools;
     text = builtins.readFile (
       pkgs.replaceVars ./scripts/devenv/precommit.sh {
         inherit runtimeSetup;

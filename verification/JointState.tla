@@ -1,9 +1,8 @@
 ----------------------------- MODULE JointState -----------------------------
 EXTENDS Integers, JointStateData
 
-\* Data comes from the real transition functions on every proof run.
-\* A row represents the active anchor for one payment reference.
-\* Refund work can outlive that row's short-lived claim.
+\* Data comes from real transitions on each proof run.
+\* Callbacks can refund before an attendee anchor exists.
 
 VARIABLES
   \* @type: Str;
@@ -13,17 +12,21 @@ VARIABLES
   \* @type: Bool;
   referencePresent,
   \* @type: Bool;
-  sendHeld
+  sendArmed,
+  \* @type: Bool;
+  requestKept
 
 TypeOK ==
   /\ row \in RowStates
   /\ auth \in AuthorityStates
   /\ referencePresent \in BOOLEAN
-  /\ sendHeld \in BOOLEAN
+  /\ sendArmed \in BOOLEAN
+  /\ requestKept \in BOOLEAN
 
 Safety ==
   /\ TypeOK
-  /\ sendHeld
+  /\ sendArmed
+  /\ requestKept
   /\ (row \in ClaimedRows => referencePresent)
   /\ (auth # "absent" => referencePresent)
 
@@ -31,35 +34,34 @@ Init ==
   /\ row = RowStart
   /\ auth = "absent"
   /\ referencePresent = FALSE
-  /\ sendHeld = TRUE
+  /\ sendArmed = TRUE
+  /\ requestKept = TRUE
 
 AttachReference ==
   /\ referencePresent' = TRUE
-  /\ UNCHANGED <<row, auth, sendHeld>>
+  /\ UNCHANGED <<row, auth, sendArmed, requestKept>>
 
-\* Admission needs an indexed payment reference, not a refund authority row.
+\* Claim admission requires an indexed reference. Database tests check this guard.
 RowStep ==
   \E m \in RowMoves :
     /\ m[1] = row
     /\ (m[3] \in ClaimedRows => referencePresent)
     /\ row' = m[3]
-    /\ UNCHANGED <<auth, referencePresent, sendHeld>>
+    /\ UNCHANGED <<auth, referencePresent, sendArmed, requestKept>>
 
-\* Every money-sending edge starts under a held claim.
+\* Safety observes real edge results. It does not filter out unsafe results.
 AuthStep ==
   \E m \in AuthMoves :
     /\ m[1] = auth
     /\ referencePresent
-    /\ (m[2] \in SendEvents => row \in ClaimedRows)
     /\ auth' = m[3]
+    /\ sendArmed' = (sendArmed /\ m[4])
+    /\ requestKept' = (requestKept /\ m[5])
     /\ UNCHANGED <<row, referencePresent>>
-    /\ sendHeld' = IF m[2] \in SendEvents
-                  THEN row \in ClaimedRows ELSE sendHeld
 
 Next == AttachReference \/ RowStep \/ AuthStep \/
-        UNCHANGED <<row, auth, referencePresent, sendHeld>>
+        UNCHANGED <<row, auth, referencePresent, sendArmed, requestKept>>
 
-\* Base case: Init implies Safety. Step: Safety and Next imply Safety'.
-\* Both checks together establish Safety for runs of any length.
+\* The base case and inductive step cover runs of any length.
 InductionStart == Safety
 =============================================================================

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -329,8 +330,8 @@ describe("sendBulkEmails", () => {
     try {
       await sendBulkEmails(postmark, payload(1));
       const logged = errorSpy.calls.map((c) => String(c.args[0])).join("\n");
-      expect(logged).toContain("E_EMAIL_SEND");
-      expect(logged).toContain("count=1");
+      assertStringIncludes(logged, "E_EMAIL_SEND");
+      assertStringIncludes(logged, "count=1");
     } finally {
       errorSpy.restore();
     }

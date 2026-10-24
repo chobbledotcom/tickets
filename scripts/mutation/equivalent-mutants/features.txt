@@ -333,3 +333,7 @@ src/features/admin/scan-answer.ts::resolveAttendeeName.fromEntry~1ssznli  0 → 
 src/features/admin/scan-decision.ts::decideScan.share~1r19kyt  ?? → || audited:0c3uwjf # count reaches decideScan only through isAdmitCount, a positive safe integer or undefined; the falsy 0 never occurs, so ?? and || agree
 src/features/admin/scanner.ts::optionDetails~079ewsj  ?? → || audited:12upmqx # the operand answers a stored listing name or undefined; "" is the fallback itself, so "" ?? "" === "" || ""
 src/features/admin/auth.ts::createLoginSession~11fciup  ?? → || audited:1k77c4b # returnPath answers null or a target whose decoded path starts with "/admin/", and that prefix makes every target truthy
+
+# Contact history editor (features/admin/contact-history.ts): the counter
+# fallback runs on a strict non-negative integer or null.
+src/features/admin/contact-history.ts::nonNegativeInt~1sju92h  ?? → || audited:0mx51nm # getOptionalInt answers a non-negative integer or null; its only falsy value is 0, which equals the 0 fallback, so 0 ?? 0 = 0 || 0

@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -153,8 +154,8 @@ describeWithEnv(
     describe("GET /favicon.ico", () => {
       test("returns SVG favicon", async () => {
         await expectStaticFile("/favicon.ico", "image/svg+xml", (svg) => {
-          expect(svg).toContain("<svg");
-          expect(svg).toContain("viewBox");
+          assertStringIncludes(svg, "<svg");
+          assertStringIncludes(svg, "viewBox");
         });
       });
 
@@ -170,8 +171,8 @@ describeWithEnv(
     describe("GET /icons.svg", () => {
       test("returns SVG icon sprite", async () => {
         await expectStaticFile("/icons.svg", "image/svg+xml", (svg) => {
-          expect(svg).toContain("<svg");
-          expect(svg).toContain('id="plus"');
+          assertStringIncludes(svg, "<svg");
+          assertStringIncludes(svg, 'id="plus"');
         });
       });
 
@@ -190,8 +191,8 @@ describeWithEnv(
           "/style.css",
           "text/css; charset=utf-8",
           (css) => {
-            expect(css).toContain(":root");
-            expect(css).toContain("--color-link");
+            assertStringIncludes(css, ":root");
+            assertStringIncludes(css, "--color-link");
           },
         );
       });
@@ -253,8 +254,8 @@ describeWithEnv(
           "/admin.js",
           "application/javascript; charset=utf-8",
           (js) => {
-            expect(js).toContain("data-select-on-click");
-            expect(js).toContain("data-nav-select");
+            assertStringIncludes(js, "data-select-on-click");
+            assertStringIncludes(js, "data-nav-select");
           },
         );
       });
@@ -297,7 +298,7 @@ describeWithEnv(
         const response = await handleRequest(mockRequest("/admin.js"));
         const js = await response.text();
         for (const marker of moduleMarkers) {
-          expect(js).toContain(marker);
+          assertStringIncludes(js, marker);
         }
       });
 
@@ -322,9 +323,9 @@ describeWithEnv(
       test("serves the scanner's service worker for fresh revalidation", async () => {
         const response = await awaitTestRequest("/admin/scanner-sw.js");
         expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toContain(
-          "application/javascript",
-        );
+        const contentType = response.headers.get("content-type");
+        assert(contentType !== null);
+        assertStringIncludes(contentType, "application/javascript");
         // A year-old cached worker would keep superseded offline behavior
         // running, so this one file revalidates instead of caching.
         expect(response.headers.get("cache-control")).toBe("no-cache");
@@ -336,7 +337,7 @@ describeWithEnv(
         await expectStaticFile(
           "/markdown-editor.js",
           "application/javascript; charset=utf-8",
-          (js) => expect(js).toContain("md-editor"),
+          (js) => assertStringIncludes(js, "md-editor"),
         );
         await expectLongCacheHeaders("/markdown-editor.js");
       });
@@ -347,7 +348,7 @@ describeWithEnv(
         await expectStaticFile(
           "/logistics-map.js",
           "application/javascript; charset=utf-8",
-          (js) => expect(js).toContain("logistics-map-pin"),
+          (js) => assertStringIncludes(js, "logistics-map-pin"),
         );
         await expectLongCacheHeaders("/logistics-map.js");
       });
@@ -356,7 +357,7 @@ describeWithEnv(
         await expectStaticFile(
           "/logistics-map.css",
           "text/css; charset=utf-8",
-          (css) => expect(css).toContain(".leaflet-pane"),
+          (css) => assertStringIncludes(css, ".leaflet-pane"),
         );
       });
     });

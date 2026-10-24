@@ -1,4 +1,4 @@
-// jscpd:ignore-start
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
@@ -136,8 +136,8 @@ describeWithEnv(
         // With multi-listing attendees, one attendee is linked to both listings.
         // Both listings' answers are stored on the same attendee.
         const answers = await getSharedAttendeeAnswers(listing1.id);
-        expect(answers).toContain(a1.id);
-        expect(answers).toContain(a2.id);
+        assertArrayIncludes(answers, [a1.id]);
+        assertArrayIncludes(answers, [a2.id]);
       });
 
       test("skips non-selected listings in listing answer map", async () => {

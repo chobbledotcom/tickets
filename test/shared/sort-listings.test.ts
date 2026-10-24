@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { Holiday } from "#db/holidays.ts";
@@ -341,6 +342,9 @@ describeWithEnv("loadSortedListings", { db: true }, () => {
     const created = await createTestListing({ name: "Unfiltered listing" });
 
     const { listings } = await loadSortedListings();
-    expect(listings.map((listing) => listing.id)).toContain(created.id);
+    assertArrayIncludes(
+      listings.map((listing) => listing.id),
+      [created.id],
+    );
   });
 });

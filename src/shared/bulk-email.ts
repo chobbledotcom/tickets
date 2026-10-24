@@ -11,6 +11,7 @@
 
 import { decryptPiiBlob } from "#db/attendees/pii.ts";
 import { hashEmail } from "#db/contact-preferences.ts";
+import type { ImageUrls } from "#db/images.ts";
 import {
   filter,
   flatMap,
@@ -38,6 +39,7 @@ import {
 } from "#shared/email/bulk.ts";
 import { cappedReply } from "#shared/email.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { rewriteImageDestinations } from "#shared/markdown.ts";
 import { nowMs } from "#shared/now.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 import { isRecord } from "#types";
@@ -144,6 +146,38 @@ const unsubscribeUrl = (hash: string): string =>
   `https://${getEffectiveDomain()}/unsubscribe?email=${encodeURIComponent(
     hash,
   )}`;
+
+/** The image-url table an email body needs: email clients cannot read
+ * root-relative sources, so every uid URL carries the site's origin. The
+ * loaders build every entry with getImageProxyUrl, so each URL is
+ * root-relative by construction. */
+export const absoluteEmailImageUrls = (imageUrls: ImageUrls): ImageUrls =>
+  new Map(
+    [...imageUrls].map(([id, url]) => [
+      id,
+      `https://${getEffectiveDomain()}${url}`,
+    ]),
+  );
+
+/** Replace a plain-text body's short-form image references
+ * (`![alt](img#N)`) with the absolute URLs from the table, the text
+ * counterpart of renderMarkdown's image resolution. The rewrite reads the
+ * same parse the render reads, so only a real reference carries it. A web
+ * address, a link or prose that merely names an image keeps its written
+ * form. A reference inside a code span or a fenced code block keeps its
+ * written form too. The reader reads that as code, and the HTML render
+ * shows it as code. The alt text keeps the escaped brackets the editor's
+ * serializer writes for a name that carries them. A reference the table
+ * lacks also keeps its written form: the image is gone, and the HTML render
+ * shows the alt text. */
+export const resolveImageReferences = (
+  text: string,
+  imageUrls: ImageUrls,
+): string =>
+  rewriteImageDestinations(text, (href) => {
+    const id = href.match(/^img#(\d+)$/)?.[1];
+    return id === undefined ? undefined : imageUrls.get(Number(id));
+  });
 
 const FOOTER_INTRO =
   "You're receiving this because you registered for one of our listings.";

@@ -1,4 +1,5 @@
 import { dirname, join } from "node:path";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { relativeToProject } from "#scripts/path.ts";
@@ -91,7 +92,7 @@ describe("what stripe-mock is fetched with", () => {
       (arg) => arg.startsWith("https://"),
     );
 
-    expect(url).toContain("_darwin_arm64.tar.gz");
+    assertStringIncludes(url ?? "", "_darwin_arm64.tar.gz");
   });
 
   test("names the release for an ordinary Linux machine", async () => {
@@ -99,15 +100,15 @@ describe("what stripe-mock is fetched with", () => {
       (arg) => arg.startsWith("https://"),
     );
 
-    expect(url).toContain("_linux_amd64.tar.gz");
+    assertStringIncludes(url ?? "", "_linux_amd64.tar.gz");
   });
 
   test("asks curl to work quietly, follow redirects, and hand the file back", async () => {
     const args = await curlArgsFor();
 
-    expect(args).toContain("-sL");
-    expect(args).toContain("-o");
-    expect(args).toContain("-");
+    assertArrayIncludes(args, ["-sL"]);
+    assertArrayIncludes(args, ["-o"]);
+    assertArrayIncludes(args, ["-"]);
   });
 
   test("puts the binary where everything else looks for it", async () => {

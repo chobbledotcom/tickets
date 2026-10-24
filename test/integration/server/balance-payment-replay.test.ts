@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -94,8 +95,9 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
         )
       ).get(attendeeId)!,
     );
-    expect(references.map((reference) => reference.reference)).toContain(
-      `pi_${sessionId}`,
+    assertArrayIncludes(
+      references.map((reference) => reference.reference),
+      [`pi_${sessionId}`],
     );
   });
 });

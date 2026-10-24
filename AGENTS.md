@@ -523,9 +523,9 @@ automatic.
   `origin/main` by default. Run `git fetch origin
   main` first. Drift is a report, not a gate: paste it in the pull request
   description when the branch touches a machine spec
-- `deno task verify:models` — run the TLA+ proof of the payment seam
-  (`verification/JointState.tla`) with the Apalache model checker. Needs the
-  JDK from devenv and the Apalache distribution under `~/.quint`
+- `deno task verify:models` — check the payment row/refund, SumUp recovery and
+  payment-review models under `verification/`. Devenv supplies pinned Apalache
+  and its Java runtime. CI and precommit run the same task
 - `deno task grade:code [<file-or-dir>] [--csv <path>] [--no-jev]` — score
   source files against these rules. With no target, it grades every module under
   `src/`. `--no-jev` runs the mechanical checks only. A grade is advice, not a

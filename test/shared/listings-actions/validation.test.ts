@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
@@ -88,7 +89,7 @@ describeWithEnv("validateListingInput boundaries", { db: true }, () => {
     const error = await validateListingInput(
       inputFor({ groupIds: [group.id], name: "Standard Candidate" }),
     );
-    expect(error).toContain("same type");
+    assertStringIncludes(error ?? "", "same type");
   });
 
   test("defaults an omitted customisable-days flag to false for group checks", async () => {

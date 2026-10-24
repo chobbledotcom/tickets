@@ -10,6 +10,7 @@
  * forcing the update itself to fail.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { invalidateUsersCache } from "#db/users.ts";
@@ -163,7 +164,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const sessionCookie = response.headers
         .getSetCookie()
         .find((c) => c.startsWith(`${getSessionCookieName()}=`));
-      expect(sessionCookie).toContain("Max-Age=0");
+      assertStringIncludes(sessionCookie ?? "", "Max-Age=0");
 
       // Changing the password deletes existing sessions; re-authenticate
       // with the new one so the owner-key log can be read back.

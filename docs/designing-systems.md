@@ -80,13 +80,9 @@ factory for that already. Use it — or extend it for every caller.
 
 ## Checked forwards and backwards
 
-A stateful lifecycle is declared as a machine, its combinations with other
-machines are declared as a seam, and both declarations are checked in both
-directions: forwards by tests that drive the real transitions and crash them
-mid-flight, backwards by reading the stored data and proving it fits. This was
-retrofitted onto the payment machines across three large PRs (#2065, #2079,
-#2084); a new lifecycle declares it with its first slice, when it is cheap. The
-mechanisms, each with its reference:
+Declare each stateful lifecycle as a machine. Use generated models to check
+transition safety. Use database tests and bounded scans to check stored facts.
+These checks serve different purposes.
 
 - **Declare the machine as data.** Nodes carrying representative states built
   through the production transitions, events, and an exhaustive moves table — a
@@ -101,32 +97,39 @@ mechanisms, each with its reference:
   `/admin/schema`) all derive from the spec. Vocabulary lists derive from the
   machine's own types — an exhaustive mapped record keyed by the machine's union —
   so a grown or renamed state stops compiling until every consumer learns it.
-- **Prove the seam with a model.** When two machines share reality, the
-  combinations a flow can never reach are proved, not declared:
-  `verification/JointState.tla` holds the two machines' move tables, the three
-  coupling guards the flows obey, and the invariant that the two declared
-  impossible joint states stay unreachable. `deno task verify:models` checks it
-  with the Apalache model checker. The crash-window rule stands: an
-  intermediate state a redelivery has to finish from must stay legal. The move
-  tables are cut from `verification/contract-snapshot.json`, and
-  `test/scripts/contract-drift/snapshot.test.ts` fails when any machine drifts,
-  so a drift names the spec for a re-cut and a re-proof. List only what the
-  model proves: an unprovable entry is a test, not a claim.
-- **Witness every manufactured crash.** Each crash-manufacture test helper reads
-  back every stored record it touched, so the whole crash suite asserts the
-  combination is one a real run can produce.
+- **Check machine safety with models.** `deno task verify:models` executes the
+  production transitions and generates model inputs for Apalache. There is no
+  stored copy of the move tables. Each model checks its initial state and an
+  unrestricted inductive step. These checks establish model safety for any run
+  length:
+  - `verification/JointState.tla` checks the indexed-reference claim guard and
+    the actual refund money-edge results. A money edge must arm a durable
+    authority and preserve its request.
+  - `verification/SumupRecovery.tla` checks that records with unaccounted money
+    cannot be pruned. Risky records retain a check path. Paid and terminal
+    evidence cannot move backwards.
+  - `verification/PaymentReview.tla` keeps the reason in each review state.
+    Acknowledgement preserves the case. Only matching evidence retires it.
+    Review events do not move money.
+  The models trust representative coverage and event annotations. Claim
+  admission remains a model assumption. Mirror tests and database tests check
+  these inputs and boundaries. Model safety does not prove SQL atomicity,
+  provider truth or eventual task execution. After a model change, corrupt an
+  emitted edge. Confirm that the checker reports a counterexample.
+- **Observe real writes.** `test/test-utils/payment-seam.ts` records claim and
+  refund-arm facts through test-only database triggers. A later settlement
+  cannot erase a recorded violation. The observer checks the authority revision
+  and request identity at arm time. Callback refunds can precede an attendee
+  anchor. Keep the schema, permission, concurrency, provider and crash tests.
 - **Enumerate flows × crash windows.** List every flow; every await between two
   durable writes is a window; each window gets an idempotent-redelivery proof or
   a fault-injected test. Faults are triggers at SQLite's own boundary, not stubs
   (`test/test-utils/db-fault.ts`), so the failing write rolls back exactly as
   production would.
-- **Check backwards from the data.** A bounded scan reads the declared
-  impossibilities back out of the live database and shows the operator every hit
+- **Check stored data separately.** A bounded scan reads SumUp state, checkout-id
+  and clock rules from the live database. It shows each fault to the operator
   (`src/shared/db/schema-anomaly-scan.ts`, the `/admin/schema` "Live check").
-  A scan exists for every impossibility the model proof cannot carry alone —
-  today the SumUp recovery machine's stored-word rules — and each query names
-  the rule it looks for, so a new rule refuses to compile until the scan
-  knows how to find it.
+  A proof over valid transitions does not detect corrupt stored records.
 
 ## Pure, functional
 

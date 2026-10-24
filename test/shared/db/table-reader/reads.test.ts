@@ -4,6 +4,7 @@
  * filters, so an ordinary single-table read needs no SQL of its own.
  */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, resultRows } from "#db/client.ts";
@@ -76,7 +77,7 @@ describeWithEnv("db > table reader > reads", { db: true }, () => {
 
       // Only the selected columns count — the filter names the key too.
       const sql = getQueryLog()[0]?.sql ?? "";
-      expect(sql.slice(0, sql.indexOf(" FROM "))).toContain("listing.id");
+      assertStringIncludes(sql.slice(0, sql.indexOf(" FROM ")), "listing.id");
       expect(rows).toEqual([{ name: "Keyed" }]);
     });
   });

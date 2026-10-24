@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
@@ -126,12 +127,13 @@ describeEmailRenderer(() => {
         .date_range_label;
 
     test("date_range_label: single-day daily booking formats as a date", async () => {
-      expect(
+      assertStringIncludes(
         await dateRangeLabelFor(
           { duration_days: 1, listing_type: "daily" },
           { date: "2026-04-15" },
         ),
-      ).toContain("15 April");
+        "15 April",
+      );
     });
 
     test("date_range_label: multi-day booking uses en dash", async () => {

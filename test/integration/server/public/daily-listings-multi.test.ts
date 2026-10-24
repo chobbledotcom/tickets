@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
@@ -128,7 +129,7 @@ describeWithEnv(
           `/ticket/${listing1.slug}+${listing2.slug}`,
           "Monday",
         );
-        expect(html).not.toContain("Tuesday");
+        assert(!html.includes("Tuesday"));
       });
     });
 
@@ -202,8 +203,8 @@ describeWithEnv(
           `/ticket/${listing1.slug}+${listing2.slug}`,
           "Friendly One",
         );
-        expect(html).not.toContain("Book them separately");
-        expect(html).not.toContain("has no dates available");
+        assert(!html.includes("Book them separately"));
+        assert(!html.includes("has no dates available"));
       });
     });
   },

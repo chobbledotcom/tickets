@@ -1,4 +1,5 @@
 /* jscpd:ignore-start -- imports */
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeTables } from "#db/migrations/schema/tables-attendees.ts";
@@ -24,7 +25,10 @@ describe("attendee schema tables", () => {
     // before the migration derives them, so it has to be the start node.
     const declared = columnNamed("sumup_checkouts", "recovery_state");
     expect(declared).toBe("TEXT NOT NULL DEFAULT 'staged'");
-    expect(RECOVERY_NODES.map((node) => node.id)).toContain("staged");
+    assertArrayIncludes(
+      RECOVERY_NODES.map((node) => node.id),
+      ["staged"],
+    );
   });
 
   test("lets a checkout have no next check at all", () => {

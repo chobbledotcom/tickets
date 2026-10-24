@@ -175,7 +175,10 @@ describe("admin field schemas", () => {
         hint: "Letters, numbers, hyphens, underscores (1-250 characters)",
         label: "Admin username *",
         name: "admin_username",
+        pattern: "[a-zA-Z0-9][a-zA-Z0-9_\\-]*",
         required: true,
+        title:
+          "Letters, numbers, hyphens, and underscores only. Start with a letter or number.",
         type: "text",
       },
       {

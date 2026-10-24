@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { isAllowedEvidenceRequest } from "#scripts/specs/evidence/browser.ts";
@@ -273,7 +274,7 @@ describe("Cucumber evidence capture", () => {
     ]);
     expect(calls.captures[0]?.page).toBe(calls.page);
     expect(calls.continued).toEqual(["http://127.0.0.1:4321/icons.svg"]);
-    expect(calls.css[0]).toContain("--test-colour: blue");
+    assertStringIncludes(calls.css[0] ?? "", "--test-colour: blue");
     expect(calls.attachments).toEqual([
       {
         bytes: new Uint8Array([1, 2, 3]),

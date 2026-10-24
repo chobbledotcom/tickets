@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 // jscpd:ignore-end
@@ -48,9 +49,9 @@ describeWithEnv(
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await response.text();
         expect(response.status).toBe(200);
-        expect(html).toContain('class="active" href="/admin/attendees"');
-        expect(html).not.toContain('href="/admin/attendees/new"');
-        expect(html).not.toContain("admin-subnav");
+        assertStringIncludes(html, 'class="active" href="/admin/attendees"');
+        assert(!html.includes('href="/admin/attendees/new"'));
+        assert(!html.includes("admin-subnav"));
       });
 
       test("the attendee page hides the add-note link in read-only mode", async () => {
@@ -61,9 +62,9 @@ describeWithEnv(
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         expect(response.status).toBe(200);
         const html = await response.text();
-        expect(html).toContain("Attendee: John Doe");
-        expect(html).not.toContain(
-          `/admin/attendee/${attendee.id}/note?return_url=`,
+        assertStringIncludes(html, "Attendee: John Doe");
+        assert(
+          !html.includes(`/admin/attendee/${attendee.id}/note?return_url=`),
         );
       });
 
@@ -78,10 +79,11 @@ describeWithEnv(
         const html = await (
           await adminGet(`/admin/attendees/${attendee.id}`)
         ).text();
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `<img src="/image/${image.filename}" alt="BannerPoster">`,
         );
-        expect(html).not.toContain("img#");
+        assert(!html.includes("img#"));
       });
 
       test("resolves the contact record's note images in the stats / notes panel", async () => {
@@ -102,10 +104,11 @@ describeWithEnv(
         const html = await (
           await adminGet(`/admin/attendees/${attendee.id}`)
         ).text();
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `<img src="/image/${image.filename}" alt="RecordPoster">`,
         );
-        expect(html).not.toContain("img#");
+        assert(!html.includes("img#"));
       });
 
       test("shows edit form with prefilled attendee data", async () => {
@@ -181,9 +184,9 @@ describeWithEnv(
           "Save Attendee",
         );
         // Listing link table shows the listing
-        expect(html).toContain("Edit Page Listing");
+        assertStringIncludes(html, "Edit Page Listing");
         // The editor renders a quantity box per listing
-        expect(html).toContain("qty_");
+        assertStringIncludes(html, "qty_");
       });
 
       test("edit page shows checked-in badge for checked-in attendee", async () => {
@@ -225,7 +228,7 @@ describeWithEnv(
           "Daily Dates Listing",
         );
         // The shared start date is seeded from the daily booking.
-        expect(html).toContain('value="2026-04-07"');
+        assertStringIncludes(html, 'value="2026-04-07"');
       });
 
       test("includes active listings in add-to-listing selector", async () => {

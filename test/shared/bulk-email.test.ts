@@ -1,6 +1,10 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { summarizeProviderResponse } from "#shared/bulk-email.ts";
+import {
+  resolveImageReferences,
+  summarizeProviderResponse,
+} from "#shared/bulk-email.ts";
 import type {
   BatchMessageOutcome,
   BulkBatchResponse,
@@ -61,10 +65,10 @@ describe("summarizeProviderResponse", () => {
   test("truncates an over-long reply", () => {
     const long = "x".repeat(1000);
     const summary = summarizeProviderResponse([reply(200, long)]);
-    expect(summary).toContain("...");
+    assertStringIncludes(summary, "...");
     // Capped well below the raw body, which is never echoed in full.
     expect(summary.length).toBeLessThan(long.length);
-    expect(summary).not.toContain(long);
+    assert(!summary.includes(long));
   });
 
   test("names the messages an accepted batch refused anyway", () => {
@@ -83,7 +87,7 @@ describe("summarizeProviderResponse", () => {
   });
 
   test("counts one refused message in the singular", () => {
-    expect(
+    assertStringIncludes(
       summarizeProviderResponse([
         reply(200, "[]", {
           reasons: ["Inactive recipient"],
@@ -91,7 +95,8 @@ describe("summarizeProviderResponse", () => {
           unconfirmed: 0,
         }),
       ]),
-    ).toContain("It refused 1 message.");
+      "It refused 1 message.",
+    );
   });
 
   test("still gives the refused count when no reason came back", () => {
@@ -143,12 +148,12 @@ describe("summarizeProviderResponse", () => {
       reply(200, "[]", { reasons: [], refused: 0, unconfirmed: 1 }),
     ]);
 
-    expect(summary).toContain("It did not confirm 1 message.");
-    expect(summary).not.toContain("refused");
+    assertStringIncludes(summary, "It did not confirm 1 message.");
+    assert(!summary.includes("refused"));
   });
 
   test("separates two different refusal reasons", () => {
-    expect(
+    assertStringIncludes(
       summarizeProviderResponse([
         reply(200, "[]", {
           reasons: ["Inactive recipient", "Hard bounce"],
@@ -156,7 +161,8 @@ describe("summarizeProviderResponse", () => {
           unconfirmed: 0,
         }),
       ]),
-    ).toContain("It refused 2 messages. Inactive recipient; Hard bounce.");
+      "It refused 2 messages. Inactive recipient; Hard bounce.",
+    );
   });
 
   test("caps an over-long list of refusal reasons", () => {
@@ -165,8 +171,105 @@ describe("summarizeProviderResponse", () => {
       reply(200, "[]", { reasons, refused: 40, unconfirmed: 0 }),
     ]);
 
-    expect(summary).toContain("It refused 40 messages.");
-    expect(summary).toContain("...");
-    expect(summary).not.toContain(reasons.join("; "));
+    assertStringIncludes(summary, "It refused 40 messages.");
+    assertStringIncludes(summary, "...");
+    assert(!summary.includes(reasons.join("; ")));
+  });
+});
+
+describe("resolveImageReferences", () => {
+  const urls = new Map([[5, "https://tickets.example/image/poster.webp"]]);
+
+  test("replaces every reference the table holds with its address on the site", () => {
+    expect(
+      resolveImageReferences(
+        "See ![Poster](img#5) and ![Poster](img#5).",
+        urls,
+      ),
+    ).toBe(
+      "See ![Poster](https://tickets.example/image/poster.webp) and ![Poster](https://tickets.example/image/poster.webp).",
+    );
+  });
+
+  test("resolves a reference whose alt text escapes its brackets", () => {
+    expect(resolveImageReferences("![Poster \\[blue\\]](img#5)", urls)).toBe(
+      "![Poster \\[blue\\]](https://tickets.example/image/poster.webp)",
+    );
+  });
+
+  test("resolves a titled reference and keeps its title", () => {
+    expect(
+      resolveImageReferences(
+        'Poster: ![Poster](img#5 "our (best) poster")',
+        urls,
+      ),
+    ).toBe(
+      'Poster: ![Poster](https://tickets.example/image/poster.webp "our (best) poster")',
+    );
+  });
+
+  test("keeps the written form of a reference the table lacks", () => {
+    expect(resolveImageReferences("See ![Poster](img#7).", urls)).toBe(
+      "See ![Poster](img#7).",
+    );
+  });
+
+  test("keeps a web address that merely names an image", () => {
+    expect(
+      resolveImageReferences(
+        "Directions: [the hall's page](https://example.org/img#5). See ![Poster](img#5).",
+        urls,
+      ),
+    ).toBe(
+      "Directions: [the hall's page](https://example.org/img#5). See ![Poster](https://tickets.example/image/poster.webp).",
+    );
+  });
+
+  test("keeps the written form of a picture whose address is a web address", () => {
+    expect(
+      resolveImageReferences(
+        "Poster: ![hall](https://files.example/hall.webp). See ![Poster](img#5).",
+        urls,
+      ),
+    ).toBe(
+      "Poster: ![hall](https://files.example/hall.webp). See ![Poster](https://tickets.example/image/poster.webp).",
+    );
+  });
+
+  test("keeps prose that merely names an image", () => {
+    expect(
+      resolveImageReferences("Poster is picture img#5 on the wall.", urls),
+    ).toBe("Poster is picture img#5 on the wall.");
+  });
+
+  test("keeps the written form when an escaped bracket closes the alt text", () => {
+    expect(resolveImageReferences("![a\\](img#5)", urls)).toBe("![a\\](img#5)");
+  });
+
+  test("leaves a long run of backslashes after ![ alone", () => {
+    const body = `![${"\\".repeat(10_000)}`;
+    expect(resolveImageReferences(body, urls)).toBe(body);
+  });
+
+  test("keeps a reference inside a code span written as code", () => {
+    expect(resolveImageReferences("`![Poster](img#5)`", urls)).toBe(
+      "`![Poster](img#5)`",
+    );
+  });
+
+  test("keeps a reference inside a fenced code block written as code", () => {
+    const body = "```\n![Poster](img#5)\n```";
+    expect(resolveImageReferences(body, urls)).toBe(body);
+  });
+
+  test("keeps code as code and resolves the picture beside it", () => {
+    expect(
+      resolveImageReferences(
+        "Write `![Poster](img#5)` by hand: ![Poster](img#5).",
+        urls,
+      ),
+    ).toBe(
+      "Write `![Poster](img#5)` by hand: ![Poster](https://tickets.example/image/poster.webp).",
+    );
   });
 });

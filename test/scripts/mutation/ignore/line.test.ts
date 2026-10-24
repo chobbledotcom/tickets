@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -18,32 +19,33 @@ describe("writing a mutant key onto one line", () => {
     mutantKey(file, { ...mutant(1), newOperator: '""', operator });
 
   test("escapes a comment mark, which would start the reason early", () => {
-    expect(keyFor("a#b")).toContain(" a%23b→");
+    assertStringIncludes(keyFor("a#b"), " a%23b→");
   });
 
   test("escapes a newline, which would end the line outright", () => {
-    expect(keyFor("a\nb")).toContain(" a%0ab→");
+    assertStringIncludes(keyFor("a\nb"), " a%0ab→");
   });
 
   test("escapes a percent, so an escape cannot be forged", () => {
-    expect(keyFor("a%23b")).toContain(" a%2523b→");
+    assertStringIncludes(keyFor("a%23b"), " a%2523b→");
   });
 
   test("escapes a leading space the arrow's spacing would eat", () => {
-    expect(keyFor(" ab")).toContain(" %20ab→");
+    assertStringIncludes(keyFor(" ab"), " %20ab→");
   });
 
   test('escapes a trailing space, so "; " and ";" differ', () => {
     expect(keyFor("; ")).not.toBe(keyFor(";"));
-    expect(keyFor("; ")).toContain(" ;%20→");
+    assertStringIncludes(keyFor("; "), " ;%20→");
   });
 
   test("escapes a carriage return, which ends the line just as a newline does", () => {
-    expect(keyFor("a\rb")).toContain(" a%0db\u2192");
+    assertStringIncludes(keyFor("a\rb"), " a%0db\u2192");
   });
 
   test("escapes an arrow, which would read as the one splitting from and to", () => {
-    expect(keyFor("left \u2192 right")).toContain(
+    assertStringIncludes(
+      keyFor("left \u2192 right"),
       " left %e2%86%92 right\u2192",
     );
   });
@@ -151,11 +153,12 @@ describe("writing a mutant key onto one line", () => {
 
   test("tells a leading tab from a leading space", () => {
     expect(keyFor("\tab")).not.toBe(keyFor(" ab"));
-    expect(keyFor("\tab")).toContain(" %09ab\u2192");
+    assertStringIncludes(keyFor("\tab"), " %09ab\u2192");
   });
 
   test("leaves an interior space alone, so a statement reads as itself", () => {
-    expect(keyFor("applyFlash(request); ok()")).toContain(
+    assertStringIncludes(
+      keyFor("applyFlash(request); ok()"),
       " applyFlash(request); ok()→",
     );
   });

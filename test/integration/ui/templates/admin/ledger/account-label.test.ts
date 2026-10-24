@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { account } from "#shared/ledger/account.ts";
@@ -21,12 +22,12 @@ describe("money account labels", () => {
       names(),
       "dual",
     );
-    expect(html).toContain("Card / bank");
-    expect(html).toContain("Booking fees");
-    expect(html).toContain("Corrections");
-    expect(html).not.toContain("/admin/ledger/external/");
-    expect(html).not.toContain("/admin/ledger/fee_income/");
-    expect(html).not.toContain("/admin/ledger/writeoff/");
+    assertStringIncludes(html, "Card / bank");
+    assertStringIncludes(html, "Booking fees");
+    assertStringIncludes(html, "Corrections");
+    assert(!html.includes("/admin/ledger/external/"));
+    assert(!html.includes("/admin/ledger/fee_income/"));
+    assert(!html.includes("/admin/ledger/writeoff/"));
   });
 
   test("links each existing row-backed account by name", () => {
@@ -49,13 +50,18 @@ describe("money account labels", () => {
       refs,
       "dual",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<a href="/admin/ledger/attendee/7">Ada Lovelace</a>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<a href="/admin/ledger?listing=3">Summer Concert</a>',
     );
-    expect(html).toContain('<a href="/admin/ledger/modifier/5">Early bird</a>');
+    assertStringIncludes(
+      html,
+      '<a href="/admin/ledger/modifier/5">Early bird</a>',
+    );
   });
 
   test("throws when an account type has no presentation", () => {
@@ -83,10 +89,10 @@ describe("money account labels", () => {
       names(),
       "dual",
     );
-    expect(html).toContain("Attendee #42");
-    expect(html).toContain("Listing #9");
-    expect(html).toContain("Modifier #8");
-    expect(html).not.toContain("/admin/ledger/attendee/42");
-    expect(html).not.toContain("/admin/ledger/modifier/8");
+    assertStringIncludes(html, "Attendee #42");
+    assertStringIncludes(html, "Listing #9");
+    assertStringIncludes(html, "Modifier #8");
+    assert(!html.includes("/admin/ledger/attendee/42"));
+    assert(!html.includes("/admin/ledger/modifier/8"));
   });
 });

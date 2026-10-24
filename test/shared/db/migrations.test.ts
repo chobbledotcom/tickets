@@ -4,6 +4,7 @@ import {
   type ResultSet,
   type TransactionMode,
 } from "@libsql/client";
+import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -128,6 +129,11 @@ describeWithEnv("db > migrations", { db: true }, () => {
       invalidateInitDbCache();
     };
 
+    /** The migration id is recorded in schema_migrations. */
+    const assertMigrationApplied = async (id: string): Promise<void> => {
+      assertArrayIncludes(await appliedMigrationIds(), [id]);
+    };
+
     const bootstrapSettingsTable = async (
       preInit?: () => Promise<unknown>,
     ): Promise<void> => {
@@ -222,9 +228,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
         "{{name}}, {{listings}}, {{email}}",
       );
       // ...it is now recorded in schema_migrations...
-      expect(await appliedMigrationIds()).toContain(
-        "2026-07-03_attendee_listings_tag",
-      );
+      await assertMigrationApplied("2026-07-03_attendee_listings_tag");
       // ...and the markers are refreshed to the current release.
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
@@ -244,9 +248,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       // and the marker is the current release's.
       const images = await getDb().execute("SELECT id FROM images");
       expect(images.rows.map((row) => row.id)).toEqual([]);
-      expect(await appliedMigrationIds()).toContain(
-        "2026-07-12_remove_broken_image_records",
-      );
+      await assertMigrationApplied("2026-07-12_remove_broken_image_records");
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
@@ -272,9 +274,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
         end_date: "2027-06-02",
         start_date: "2027-06-01",
       });
-      expect(await appliedMigrationIds()).toContain(
-        "2026-10-07_holiday_date_padding",
-      );
+      await assertMigrationApplied("2026-10-07_holiday_date_padding");
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
@@ -295,9 +295,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       expect(task.rows).toEqual([
         { checkpoint: ACTIVITY_LOG_BACKFILL_COMPLETE },
       ]);
-      expect(await appliedMigrationIds()).toContain(
-        "2026-07-21_activity_backfill_complete",
-      );
+      await assertMigrationApplied("2026-07-21_activity_backfill_complete");
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
@@ -330,9 +328,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       });
       expect(await settingsValueOrNull("has_logistics")).toBeNull();
       expect(await settingsValueOrNull("show_public_site")).toBeNull();
-      expect(await appliedMigrationIds()).toContain(
-        "2026-07-15_enabled_features",
-      );
+      await assertMigrationApplied("2026-07-15_enabled_features");
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
@@ -386,7 +382,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
         const partial = await appliedMigrationIds();
         expect(partial.length).toBeGreaterThan(0);
         expect(partial.length).toBeLessThan(MIGRATION_IDS.length);
-        expect(partial).not.toContain(crashing.id);
+        assert(!partial.includes(crashing.id));
         expect(await settingsValueOrNull("db_schema_hash")).toBe("stale");
         expect(await settingsValueOrNull("migration_lock")).toBeNull();
       } finally {
@@ -483,7 +479,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       try {
         const error = await initDb().catch((e: unknown) => e);
         expect(error).not.toBeInstanceOf(MissingSettingsTableError);
-        expect(String(error)).toContain("no such table: user_settings");
+        assertStringIncludes(String(error), "no such table: user_settings");
       } finally {
         setDb(null);
       }

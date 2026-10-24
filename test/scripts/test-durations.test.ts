@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -305,7 +306,8 @@ describe("formatSlowTestsReport", () => {
     const durations: TestDuration[] = [
       { durationMs: 1000, file: "", name: "x" },
     ];
-    expect(formatSlowTestsReport(durations, 999)).toContain(
+    assertStringIncludes(
+      formatSlowTestsReport(durations, 999),
       "Slow tests (>999ms)",
     );
   });

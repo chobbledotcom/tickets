@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
@@ -34,8 +35,8 @@ const postSettings = async (
 const expectMaskedAt = async (path: string, secret: string): Promise<void> => {
   const response = await adminGet(path);
   const html = await response.text();
-  expect(html).toContain(MASK_SENTINEL);
-  expect(html).not.toContain(secret);
+  assertStringIncludes(html, MASK_SENTINEL);
+  assert(!html.includes(secret));
 };
 
 /** Assert a redirect with the "unchanged" flash (a preserved secret). */

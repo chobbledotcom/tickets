@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -55,9 +56,9 @@ describe("the kinds of column a payment record is built from", () => {
   test("an owner-only value must carry the public-key envelope", () => {
     const rule = ownerEncryptedPaymentColumn("provider_reference");
 
-    expect(rule).toContain("provider_reference GLOB 'hyb:1:?*:?*:?*'");
-    expect(rule).toContain("provider_reference NOT GLOB 'hyb:1:*:*:*:*'");
-    expect(rule).toContain("typeof(provider_reference) = 'text'");
+    assertStringIncludes(rule, "provider_reference GLOB 'hyb:1:?*:?*:?*'");
+    assertStringIncludes(rule, "provider_reference NOT GLOB 'hyb:1:*:*:*:*'");
+    assertStringIncludes(rule, "typeof(provider_reference) = 'text'");
   });
 
   test("every record says when it was made and last touched", () => {

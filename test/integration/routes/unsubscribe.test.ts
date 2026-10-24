@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryOne } from "#db/client.ts";
@@ -110,8 +111,8 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
         200,
         t("unsubscribe.unsubscribed_flash"),
       );
-      expect(html).toContain('class="info"');
-      expect(html).not.toContain('class="success"');
+      assertStringIncludes(html, 'class="info"');
+      assert(!html.includes('class="success"'));
     });
 
     test("resubscribes the hash and confirms with a success flash", async () => {
@@ -134,8 +135,8 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
         200,
         t("unsubscribe.resubscribed_flash"),
       );
-      expect(html).toContain('class="success"');
-      expect(html).not.toContain('class="info"');
+      assertStringIncludes(html, 'class="success"');
+      assert(!html.includes('class="info"'));
     });
 
     test("forgetting deletes the contact row outright", async () => {

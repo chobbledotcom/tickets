@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -17,7 +18,7 @@ describe("precommit test output", () => {
 
   test("keeps a section that starts with either summary table row", () => {
     for (const row of ["FAILED | file", "ok   | file"]) {
-      expect(filterTestOutput(`${row}\ncontext`, "")).toContain("context");
+      assertStringIncludes(filterTestOutput(`${row}\ncontext`, ""), "context");
     }
   });
 

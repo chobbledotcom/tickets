@@ -1,4 +1,4 @@
-import { assertThrows } from "@std/assert";
+import { assert, assertThrows } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -80,7 +80,7 @@ describe("running one provider's checkout calls", () => {
       reason: "provider_error",
       statusCode: 409,
     });
-    expect(closedError.message).not.toContain("private.person@example.com");
+    assert(!closedError.message.includes("private.person@example.com"));
   });
 
   test("lets a bug of ours keep travelling instead of blaming the provider", () => {

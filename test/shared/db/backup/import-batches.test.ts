@@ -1,4 +1,5 @@
 import type { InStatement, TransactionMode } from "@libsql/client";
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -80,11 +81,15 @@ describeWithEnv("backup import batches", { db: true }, () => {
       settingsDump(["v"]),
     );
 
-    expect(schemaObjects).toContain("idx_listings_slug_index");
-    expect(schemaObjects).toContain("trg_attendee_answers_validate_insert");
-    expect(schemaObjects).not.toContain("idx_maintenance_tasks_due");
-    expect(schemaObjects).not.toContain(
-      "trg_listing_attendees_aggregates_insert",
+    assertArrayIncludes(schemaObjects ?? [], ["idx_listings_slug_index"]);
+    assertArrayIncludes(schemaObjects ?? [], [
+      "trg_attendee_answers_validate_insert",
+    ]);
+    assert(!(schemaObjects ?? []).includes("idx_maintenance_tasks_due"));
+    assert(
+      !(schemaObjects ?? []).includes(
+        "trg_listing_attendees_aggregates_insert",
+      ),
     );
     await verifyCurrentAppSchema();
   });

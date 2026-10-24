@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -256,7 +257,7 @@ describe("product catalog", () => {
         "z",
       ]);
       // Each file carries the exact text it was parsed from.
-      expect(catalog[0]!.text).toContain("options:");
+      assertStringIncludes(catalog[0]!.text, "options:");
     } finally {
       await Deno.remove(dir, { recursive: true });
     }

@@ -1,6 +1,7 @@
 /** Direct tests for turso-api.ts — the replies the client refuses and the
  *  cleanup it runs when a created database turns out unusable. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Stub } from "@std/testing/mock";
@@ -57,7 +58,7 @@ const expectCreateRefusal = async (
     async () => {
       const result = await client().createDatabase(createRequest);
       expect(result.ok, name).toBe(false);
-      if (!result.ok) expect(result.error).toContain(part);
+      if (!result.ok) assertStringIncludes(result.error, part);
       const deletes = deleteCalls(fetchStub);
       if (rest.length === 0) {
         expect(deletes, "the database must stay").toEqual([]);

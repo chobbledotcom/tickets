@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -79,7 +80,8 @@ describeWithEnv(
           expect(json.processed).toBe(false);
           // The capacity reason now lives in the note; the customer sees the
           // generic saved-details message.
-          expect(json.error).toContain("saved your details");
+          assert(typeof json.error === "string");
+          assertStringIncludes(json.error, "saved your details");
         },
       );
 

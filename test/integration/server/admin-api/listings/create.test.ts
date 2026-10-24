@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -144,7 +145,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toContain("Webhook URL");
+          assertStringIncludes(body.error, "Webhook URL");
         },
       );
     });
@@ -317,7 +318,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toContain("Maximum price");
+          assertStringIncludes(body.error, "Maximum price");
         },
       );
     });

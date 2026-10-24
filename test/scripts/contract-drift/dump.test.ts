@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -99,10 +100,12 @@ describe("contract dump", () => {
   test("keeps every edge inside its machine's states", async () => {
     for (const machine of Object.values((await currentContracts()).machines)) {
       for (const [from, edges] of Object.entries(machine.edges)) {
-        expect(machine.states, `edges from ${from}`).toContain(from);
+        assertArrayIncludes(machine.states, [from], `edges from ${from}`);
         for (const edge of edges) {
-          expect(machine.states, `${from} --${edge.event}-->`).toContain(
-            edge.to,
+          assertArrayIncludes(
+            machine.states,
+            [edge.to],
+            `${from} --${edge.event}-->`,
           );
         }
       }

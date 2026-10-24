@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -29,8 +30,8 @@ describeWithEnv(
 
       const columns = await getDb().execute("PRAGMA table_info(built_sites)");
       const names = columns.rows.map((row) => String(row.name));
-      expect(names).not.toContain("last_pruned");
-      expect(names).toContain("site_data_revision");
+      assert(!names.includes("last_pruned"));
+      assertArrayIncludes(names, ["site_data_revision"]);
     });
   },
 );

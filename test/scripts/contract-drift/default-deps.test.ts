@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
@@ -10,7 +11,7 @@ describe("contract drift default dependencies", () => {
     const deps = defaultDriftDeps();
     const result = await deps.git(["--version"]);
     expect(result.success).toBe(true);
-    expect(result.stdout).toContain("git version");
+    assertStringIncludes(result.stdout, "git version");
   });
 
   test("copies the dump module into a fresh directory", async () => {

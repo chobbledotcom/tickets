@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -98,9 +99,9 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
       "updated_at",
       "observed_at",
     ]);
-    expect(insert).toContain("ON CONFLICT DO UPDATE");
-    expect(insert).toContain("RETURNING id, provider, reference_index");
-    expect(insert).not.toContain("INSERT OR IGNORE");
+    assertStringIncludes(insert, "ON CONFLICT DO UPDATE");
+    assertStringIncludes(insert, "RETURNING id, provider, reference_index");
+    assert(!insert.includes("INSERT OR IGNORE"));
     expect(insert.match(/\?/gu)?.length).toBe(16);
     expect(queries.filter((sql) => sql.includes("payment_charges"))).toEqual([
       insert,
@@ -279,8 +280,8 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
       state: { kind: "send_armed" },
     });
     expect(queries.sql).toHaveLength(1);
-    expect(queries.sql[0]).toContain("UPDATE payment_charges");
-    expect(queries.sql[0]).not.toContain("SELECT");
+    assertStringIncludes(queries.sql[0] ?? "", "UPDATE payment_charges");
+    assert(!(queries.sql[0] ?? "").includes("SELECT"));
     expect(
       await transitionRefundAuthority(row, 31, gbp(0), (state) =>
         armRefundSend(state, 31, 50),

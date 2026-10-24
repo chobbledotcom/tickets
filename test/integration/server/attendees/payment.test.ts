@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -62,7 +63,7 @@ describeWithEnv(
           "pi_test_123",
           "Not refunded",
         );
-        expect(html).not.toContain("Refresh payment status");
+        assert(!html.includes("Refresh payment status"));
       });
 
       test("does not guess a provider for an untagged payment id", async () => {
@@ -87,8 +88,8 @@ describeWithEnv(
             200,
             "pi_untagged_123",
           );
-          expect(html).not.toContain("https://me.sumup.com");
-          expect(html).not.toContain('target="_blank"');
+          assert(!html.includes("https://me.sumup.com"));
+          assert(!html.includes('target="_blank"'));
         } finally {
           settings.clearTestOverrides();
         }
@@ -130,8 +131,8 @@ describeWithEnv(
         const html = await response.text();
         expect(response.status).toBe(200);
         // Both badges render, separated by the space between them.
-        expect(html).toContain("Checked in");
-        expect(html).toContain("Refunded");
+        assertStringIncludes(html, "Checked in");
+        assertStringIncludes(html, "Refunded");
       });
 
       test("shows success message when flash cookie present", async () => {
@@ -153,7 +154,7 @@ describeWithEnv(
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         expect(response.status).toBe(200);
         const html = await response.text();
-        expect(html).not.toContain("Payment Details");
+        assert(!html.includes("Payment Details"));
       });
     });
 
@@ -241,7 +242,8 @@ describeWithEnv(
           true,
         );
         expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toContain(
+        assertStringIncludes(
+          response.headers.get("location") ?? "",
           `/admin/attendees/${attendee.id}`,
         );
         expectFlash(response, expect.stringContaining("refunded"));
@@ -294,7 +296,8 @@ describeWithEnv(
         );
         const { response } = await refreshPaymentAsStripe(attendee.id, false);
         expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toContain(
+        assertStringIncludes(
+          response.headers.get("location") ?? "",
           `/admin/attendees/${attendee.id}`,
         );
         expectFlash(response, expect.stringContaining("up to date"));

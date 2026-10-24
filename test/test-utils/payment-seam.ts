@@ -6,42 +6,58 @@ import { paymentModel } from "#scripts/verify-models/model.ts";
 export const observePaymentSeam = async (): Promise<() => Promise<void>> => {
   const model = await paymentModel();
   const sqlWord = (word: string): string => `'${word.replaceAll("'", "''")}'`;
-  const claim = sqlWord(model.claimMirror);
+  const sameRequest = [
+    "capability",
+    "generation",
+    "identityIndex",
+    "replayUntil",
+  ]
+    .map(
+      (field) => `json_extract(OLD.refund_state, '$.request.${field}') IS
+      json_extract(NEW.refund_state, '$.request.${field}')`,
+    )
+    .join(" AND ");
+  const claimLegal = "NEW.payment_reference_index != ''";
   const rules = [
     {
       column: "refund_state",
       identity: "NEW.reference_index",
-      legal: `EXISTS (
-        SELECT 1 FROM processed_payments AS payment
-         WHERE payment.payment_reference_index = NEW.reference_index
-           AND payment.protected_state = ${claim}
-      )`,
+      legal: {
+        INSERT: "0",
+        UPDATE: `NEW.refund_state_name = 'send_armed'
+          AND NEW.reference_index != ''
+          AND NEW.reference_index = OLD.reference_index
+          AND NEW.refund_revision = OLD.refund_revision + 1
+          AND ${sameRequest}`,
+      },
       name: "send",
       table: "payment_charges",
       when: `NEW.refund_state_name IN (${model.sendAuthorityNames.map(sqlWord).join(", ")})`,
     },
     {
-      column: "protected_state",
+      column: "protected_state, payment_reference_index",
       identity: "NEW.payment_session_id",
-      legal: "NEW.payment_reference_index != ''",
+      legal: { INSERT: claimLegal, UPDATE: claimLegal },
       name: "claim",
       table: "processed_payments",
-      when: `NEW.protected_state = ${claim}`,
+      when: `NEW.protected_state = ${sqlWord(model.claimMirror)}`,
     },
   ];
   await execute(`CREATE TABLE test_payment_edges (
-    edge TEXT NOT NULL, identity TEXT NOT NULL, guard_held INTEGER NOT NULL
+    edge TEXT NOT NULL, identity TEXT NOT NULL, guard_ok INTEGER NOT NULL
   )`);
   const triggers: string[] = [];
   for (const rule of rules) {
-    for (const event of ["INSERT", `UPDATE OF ${rule.column}`]) {
+    for (const event of ["INSERT", "UPDATE"] as const) {
       const name = `test_payment_edge_${triggers.length}`;
+      const operation =
+        event === "INSERT" ? event : `${event} OF ${rule.column}`;
       await execute(`CREATE TRIGGER ${name}
-        AFTER ${event} ON ${rule.table}
+        AFTER ${operation} ON ${rule.table}
         WHEN ${rule.when}
         BEGIN
-          INSERT INTO test_payment_edges (edge, identity, guard_held)
-          SELECT ${sqlWord(rule.name)}, ${rule.identity}, ${rule.legal};
+          INSERT INTO test_payment_edges (edge, identity, guard_ok)
+          SELECT ${sqlWord(rule.name)}, ${rule.identity}, ${rule.legal[event]};
         END`);
       triggers.push(name);
     }
@@ -51,10 +67,10 @@ export const observePaymentSeam = async (): Promise<() => Promise<void>> => {
       const edges = await queryAll<{
         edge: string;
         identity: string;
-        guard_held: number;
-      }>("SELECT edge, identity, guard_held FROM test_payment_edges");
+        guard_ok: number;
+      }>("SELECT edge, identity, guard_ok FROM test_payment_edges");
       for (const edge of edges) {
-        if (edge.guard_held !== 1) {
+        if (edge.guard_ok !== 1) {
           throw new Error(
             `Payment ${edge.edge} guard failed for ${edge.identity}`,
           );
