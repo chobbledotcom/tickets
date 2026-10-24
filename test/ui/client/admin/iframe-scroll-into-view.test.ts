@@ -6,23 +6,23 @@ import { createDomInstaller } from "#test-utils/happy-dom.ts";
 
 const { installDom, cleanup } = createDomInstaller();
 
-afterEach(async () => {
-  delete window.parentIframe;
-  await cleanup();
-});
-
-/** Install the parent handle the child bundle creates, recording scrolls. */
-const installParentIframe = (): [number, number][] => {
-  const calls: [number, number][] = [];
-  window.parentIframe = {
-    scrollToOffset: (x: number, y: number) => {
-      calls.push([x, y]);
-    },
-  } as iframeResizer.IFramePage;
-  return calls;
-};
-
 describe("iframe scroll into view", () => {
+  afterEach(async () => {
+    delete window.parentIframe;
+    await cleanup();
+  });
+
+  /** Install the parent handle the child bundle creates, recording scrolls. */
+  const installParentIframe = (): [number, number][] => {
+    const calls: [number, number][] = [];
+    window.parentIframe = {
+      scrollToOffset: (x: number, y: number) => {
+        calls.push([x, y]);
+      },
+    } as iframeResizer.IFramePage;
+    return calls;
+  };
+
   test("scrolls the parent to the iframe's top-left corner", () => {
     installDom("<div data-scroll-into-view></div>");
     const calls = installParentIframe();
