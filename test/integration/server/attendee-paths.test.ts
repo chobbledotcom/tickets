@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#accounting/accounts.ts";
@@ -190,10 +191,10 @@ describeWithEnv(
       expect(standaloneIndex).not.toBeNull();
       expect(packageIndex).not.toBeNull();
       expect(standaloneIndex).not.toBe(packageIndex);
-      expect(html).toContain("via Render Kit");
+      assertStringIncludes(html, "via Render Kit");
       // The blank package-path lines sit behind their pure-CSS toggle.
-      expect(html).toContain('class="package-paths-toggle"');
-      expect(html).toContain("attendee-line-package-blank");
+      assertStringIncludes(html, 'class="package-paths-toggle"');
+      assertStringIncludes(html, "attendee-line-package-blank");
     });
 
     test("each path's quantity saves independently", async () => {
@@ -290,7 +291,7 @@ describeWithEnv(
       const html = await (
         await adminGet(`/admin/attendees/${attendeeId}/edit`)
       ).text();
-      expect(html).toContain(`via deleted package #${group.id}`);
+      assertStringIncludes(html, `via deleted package #${group.id}`);
     });
 
     test("a folded add-on row is labelled under its parent", async () => {
@@ -312,7 +313,7 @@ describeWithEnv(
       });
       expect(made.success).toBe(true);
       const html = await firstAttendeeEditHtml(made);
-      expect(html).toContain("add-on under Addon Parent");
+      assertStringIncludes(html, "add-on under Addon Parent");
     });
 
     test("an add-on row under a deleted parent is labelled by the parent's id", async () => {
@@ -338,7 +339,7 @@ describeWithEnv(
       await deleteListing(parent.id);
 
       const html = await firstAttendeeEditHtml(made);
-      expect(html).toContain(`add-on under ${parent.id}`);
+      assertStringIncludes(html, `add-on under ${parent.id}`);
     });
 
     test("an inactive unbooked package member offers no blank path line", async () => {

@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { makeImage } from "#test-utils/admin-images.ts";
@@ -50,10 +51,11 @@ describeWithEnv(
         const html = await (
           await adminGet(`/admin/attendees/${attendee.id}/edit`)
         ).text();
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `<img src="/image/${image.filename}" alt="SizePoster">`,
         );
-        expect(html).not.toContain("img#");
+        assert(!html.includes("img#"));
       });
 
       test("pre-selects existing answer on edit page", async () => {
@@ -67,7 +69,8 @@ describeWithEnv(
         const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
         const html = await response.text();
         // The radio for the previously-saved answer is pre-checked.
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `<input checked name="question_${q.id}" type="radio" value="${a1.id}">`,
         );
       });
@@ -82,7 +85,7 @@ describeWithEnv(
         );
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await response.text();
-        expect(html).not.toContain("custom-question");
+        assert(!html.includes("custom-question"));
       });
 
       test("saves selected answer on edit", async () => {
