@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { join } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
@@ -125,7 +126,10 @@ describe("comment language check shell", () => {
     );
 
     expect(code).toBe(0);
-    expect(run.logs[0]).toContain("holds no comment-language finding");
+    assertStringIncludes(
+      run.logs[0] ?? "",
+      "holds no comment-language finding",
+    );
   });
 
   test("a fallen count asks for --update and fails until it is recorded", async () => {

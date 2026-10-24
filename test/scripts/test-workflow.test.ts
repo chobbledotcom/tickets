@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 
 const TEST_WORKFLOW_PATH = ".github/workflows/test.yml";
@@ -20,7 +20,8 @@ describe("Test workflow triggers", () => {
     // A queue branch arrives as a push, so without this the suite runs once
     // for `push` and again for `merge_group`. A stalled duplicate once timed
     // the queue out an hour after the real run had passed.
-    expect(triggers(await readWorkflow())).toContain(
+    assertStringIncludes(
+      triggers(await readWorkflow()),
       'branches-ignore: [main, "gh-readonly-queue/**"]',
     );
   });
@@ -30,10 +31,10 @@ describe("Test workflow triggers", () => {
     // not wait for them today. See issue #2295. Once they are required, a queue
     // branch with no `merge_group` run reports nothing, and the queue waits for
     // a check that never arrives.
-    expect(triggers(await readWorkflow())).toContain("merge_group:");
+    assertStringIncludes(triggers(await readWorkflow()), "merge_group:");
   });
 
   test("still runs on every branch a person pushes", async () => {
-    expect(triggers(await readWorkflow())).toContain("push:");
+    assertStringIncludes(triggers(await readWorkflow()), "push:");
   });
 });

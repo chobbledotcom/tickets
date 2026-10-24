@@ -1,3 +1,4 @@
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { fieldsOf, pathsOf } from "./fields-of-source.ts";
@@ -28,8 +29,10 @@ export type UsesTheClass = CarriesParameterFields;
       ),
     );
 
-    expect(paths).toContain("UsesTheClass.heldByAParameter.insideAParameter");
-    expect(paths).not.toContain("UsesTheClass.hiddenByAParameter");
+    assertArrayIncludes(paths, [
+      "UsesTheClass.heldByAParameter.insideAParameter",
+    ]);
+    assert(!paths.includes("UsesTheClass.hiddenByAParameter"));
     expect(paths).toEqual([
       "UsesTheClass.heldByAParameter",
       "UsesTheClass.heldByAParameter.insideAParameter",
@@ -49,9 +52,9 @@ export class HoldsAMadeClass {
       ),
     );
 
-    expect(paths).toContain(
+    assertArrayIncludes(paths, [
       'typeof HoldsAMadeClass.made["new ()"].result.configured.insideTheProperty',
-    );
+    ]);
   });
 
   test("walks a static made inside an already-static holder", async () => {
@@ -67,6 +70,6 @@ export class HoldsAMadeClass {
       ),
     );
 
-    expect(paths).toContain("typeof HoldsAMadeClass.made.builtOn");
+    assertArrayIncludes(paths, ["typeof HoldsAMadeClass.made.builtOn"]);
   });
 });

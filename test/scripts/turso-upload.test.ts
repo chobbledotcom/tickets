@@ -1,4 +1,4 @@
-import { assertInstanceOf } from "@std/assert";
+import { assertInstanceOf, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -84,7 +84,7 @@ describe("Turso upload lifecycle", () => {
     schedule(work.resolve, 0);
     const error = await outcome;
     assertInstanceOf(error, Error);
-    expect(error.message).toContain("Stalled upload");
+    assertStringIncludes(error.message, "Stalled upload");
     expect(time.now).toBe(0);
   });
 

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { proseBlocks } from "#scripts/check-ste/prose.ts";
@@ -52,7 +53,7 @@ describe("check-ste rules", () => {
     test("keeps reading an indented line that continues a paragraph", () => {
       const content = "Text\n    Should this continue?\n";
       expect(rulesOn(content)).toEqual(["banned-modal"]);
-      expect(proseBlocks(content)[0]?.text).toContain("Should");
+      assertStringIncludes(proseBlocks(content)[0]?.text ?? "", "Should");
     });
 
     test("keeps reading an indented line that continues a list item", () => {

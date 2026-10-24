@@ -1,5 +1,6 @@
 /** Direct tests for cleanup error aggregation and precedence. */
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { attemptEveryCleanup, cleanupErrorForScenario } from "#e2e/cleanup.ts";
@@ -53,8 +54,8 @@ describe("attempting every cleanup", () => {
       },
     ]);
     expect(outcome.errors).toHaveLength(1);
-    expect(outcome.errors[0]?.message).toContain("string-throw");
-    expect(outcome.errors[0]?.message).toContain("not an Error");
+    assertStringIncludes(outcome.errors[0]?.message ?? "", "string-throw");
+    assertStringIncludes(outcome.errors[0]?.message ?? "", "not an Error");
   });
 });
 

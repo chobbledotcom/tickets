@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -78,19 +79,21 @@ describe("the terminal mutation report", () => {
   test("formats phase timing work when all mutants are ignored", () => {
     const terminal = formatSummaryLines(timingSummary("ignored")).join("\n");
 
-    expect(terminal).toContain("phase timings (cumulative elapsed):");
-    expect(terminal).toContain("direct-tests: 10ms in 1 run(s)");
+    assertStringIncludes(terminal, "phase timings (cumulative elapsed):");
+    assertStringIncludes(terminal, "direct-tests: 10ms in 1 run(s)");
   });
 
   test("formats inconclusive and all-ignored terminal summaries", () => {
-    expect(formatSummaryLines(summarize([])).join("\n")).toContain(
+    assertStringIncludes(
+      formatSummaryLines(summarize([])).join("\n"),
       "INCONCLUSIVE",
     );
-    expect(
+    assertStringIncludes(
       formatSummaryLines(
         summarize([fakeResult("ignored", 4, "??", "||")]),
       ).join("\n"),
-    ).toContain("suppressed as known-equivalent");
+      "suppressed as known-equivalent",
+    );
   });
 
   test("formats detected terminal summaries with ignored counts", () => {
@@ -101,8 +104,8 @@ describe("the terminal mutation report", () => {
       ]),
     ).join("\n");
 
-    expect(lines).toContain("ignored:");
-    expect(lines).toContain("All mutants were detected");
-    expect(lines).toContain("1 suppressed as known-equivalent");
+    assertStringIncludes(lines, "ignored:");
+    assertStringIncludes(lines, "All mutants were detected");
+    assertStringIncludes(lines, "1 suppressed as known-equivalent");
   });
 });

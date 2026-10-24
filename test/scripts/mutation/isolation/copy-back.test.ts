@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { runInSnapshot } from "#scripts/mutation/isolation.ts";
@@ -38,7 +39,7 @@ describe("keeping a snapshot run's file edits", () => {
       const run = await runKeeper(root, REWRITE_KEPT);
 
       expect(run.result).toBe(0);
-      expect(run.logs).toContain(`Updated ${KEPT}`);
+      assertArrayIncludes(run.logs, [`Updated ${KEPT}`]);
       expect(await Deno.readTextFile(join(root, KEPT))).toBe("first\n");
     });
   });
@@ -61,7 +62,8 @@ ${REWRITE_KEPT}`;
       const run = await runKeeper(root, changeItMidRun);
 
       expect(run.result).toBe(1);
-      expect(run.errors.join("\n")).toContain(
+      assertStringIncludes(
+        run.errors.join("\n"),
         `${KEPT} changed while the isolated run was going`,
       );
       expect(await Deno.readTextFile(join(root, KEPT))).toBe(
