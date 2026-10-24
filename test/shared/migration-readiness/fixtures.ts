@@ -23,7 +23,6 @@ export const envEnc = (s: string): EnvKeyEncrypted => s as EnvKeyEncrypted;
 
 export const stage = (over: Partial<CheckoutStageRow>): CheckoutStageRow => ({
   attendee_id: 1,
-  created_at: "2026-01-01T00:00:00.000Z",
   payment_session_id: "sess-1",
   ...over,
 });
@@ -35,8 +34,6 @@ export const processed = (
   failure_data: "",
   payment_reference: "",
   payment_session_id: "sess-1",
-  processed_at: "2026-01-01T00:00:00.000Z",
-  provider_refunded_at: "",
   ticket_tokens: "",
   ...over,
 });
@@ -44,7 +41,6 @@ export const processed = (
 export const sumupCheckout = (
   over: Partial<SumupCheckoutRow>,
 ): SumupCheckoutRow => ({
-  created_at: "2026-01-01T00:00:00.000Z",
   metadata: "encrypted-metadata",
   reference_index: "idx-1",
   sumup_id: "su-1",
@@ -58,7 +54,7 @@ export const goodInput = (
   attendeeIds: new Set([1]),
   attendees: [{ id: 1, pii_blob: enc("hyb:1:x") }],
   ownerKeyAvailable: true,
-  processed: [processed({ provider_refunded_at: "2026-01-02T00:00:00.000Z" })],
+  processed: [processed({})],
   stages: [stage({})],
   sumup: [sumupCheckout({})],
   undecryptableFailureData: new Set(),

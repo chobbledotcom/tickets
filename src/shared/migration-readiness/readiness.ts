@@ -21,9 +21,7 @@ export const LEGACY_MERGE_SESSION_PREFIX = "legacy-merge:";
 export type ProcessedPaymentRow = {
   payment_session_id: string;
   attendee_id: number | null;
-  processed_at: string;
   payment_reference: OwnerKeyEncrypted | "";
-  provider_refunded_at: string;
   /** Encrypted "+"-joined ticket tokens, "" while none are stored. The
    *  redirect/webhook replay decrypts this field, so the verifier checks it. */
   ticket_tokens: EnvKeyEncrypted | "";
@@ -38,7 +36,6 @@ export type ProcessedPaymentRow = {
 export type CheckoutStageRow = {
   payment_session_id: string;
   attendee_id: number;
-  created_at: string;
 };
 
 /** One row of the legacy `sumup_checkouts` staging table. The booking
@@ -48,7 +45,6 @@ export type CheckoutStageRow = {
 export type SumupCheckoutRow = {
   reference_index: string;
   sumup_id: string;
-  created_at: string;
   wrapped_key: string;
   metadata: string;
 };
