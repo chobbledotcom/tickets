@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
