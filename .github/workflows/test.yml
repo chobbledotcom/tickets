@@ -109,6 +109,9 @@ jobs:
       - name: Check for import cycles
         run: deno task cycles
 
+      - name: Prove payment seam safety
+        run: deno task verify:models
+
       - name: Build edge bundle
         run: deno task build:edge
 

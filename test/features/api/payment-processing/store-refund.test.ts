@@ -28,6 +28,7 @@ import {
   getAttendeesRaw,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { checkPaymentSeam } from "#test-utils/payment-seam.ts";
 import { withRefundLedgerFault } from "#test-utils/refund-ledger-fault.ts";
 import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
 import { adminGet } from "#test-utils/session.ts";
@@ -41,6 +42,8 @@ import {
 } from "./store-refund-helpers.ts";
 
 describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
+  checkPaymentSeam();
+
   describe("when the money could be sent back", () => {
     test("fences the placeholder from merging until its refund record is complete", async () => {
       let attendeeId = 0;

@@ -34,6 +34,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { singleItem } from "#test-utils/factories.ts";
+import { checkPaymentSeam } from "#test-utils/payment-seam.ts";
 import { withRefundLedgerFault } from "#test-utils/refund-ledger-fault.ts";
 import {
   expectOnePairOfLegs,
@@ -46,6 +47,8 @@ import {
 setupTestEncryptionKey();
 
 describeWithEnv("placeholder money completion", { db: true }, () => {
+  checkPaymentSeam();
+
   const CAPTURED = 620;
 
   const storedNote = (): Promise<{

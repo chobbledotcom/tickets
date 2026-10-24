@@ -26,6 +26,7 @@ import {
   getCompleteRefundPaymentReferencesForAttendee,
   markProviderRefundsReturned,
 } from "#test-utils/payment-references.ts";
+import { checkPaymentSeam } from "#test-utils/payment-seam.ts";
 import {
   bookedWithPayment,
   taggedPaymentReference,
@@ -36,6 +37,8 @@ describeWithEnv(
   "db > taking a payment claim",
   { db: true, encryptionKey: true },
   () => {
+    checkPaymentSeam();
+
     describe("claiming", () => {
       test("an unclaimed attendee's rows are claimed", async () => {
         const attendeeId = await bookedWithPayment("sess-a", "pi_a");

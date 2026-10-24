@@ -29,6 +29,7 @@ import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { checkPaymentSeam } from "#test-utils/payment-seam.ts";
 import {
   getProcessedPayment,
   taggedPaymentReference,
@@ -47,6 +48,8 @@ const REFUNDED_ANSWER =
   "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.";
 
 describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
+  checkPaymentSeam();
+
   const heldAnchorRow = async () => {
     const row = await queryOne<{
       failure_data: EnvKeyEncrypted | "";
@@ -151,6 +154,18 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
       status: 200,
       success: false,
     });
+    // The session outcome is final before another delivery can repair it.
+    // The separate attendee anchor has already released its claim.
+    const record = requireValue(
+      await getProcessedPayment(sessionId),
+      "the resumed session outcome is missing",
+    );
+    expect(await parseSessionFailure(record.failure_data)).toEqual({
+      completion: { code: "capacity_full" },
+      error: REFUNDED_ANSWER,
+      refunded: true,
+      status: 200,
+    });
     await expectOnePairOfLegs(sessionId);
     expect(await chargeState()).toEqual({
       refund_local_state: "recorded",
@@ -167,6 +182,55 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
       success: false,
     });
     expect(await noteCount()).toBe(1);
+  });
+
+  test("an uncertain refund releases the anchor while its authority stays observing", async () => {
+    const sessionId = "cs_resume_uncertain";
+    const placeholder = await crashedPlaceholderStore(sessionId);
+    expect(await anchorMirror()).toBe("claim");
+    const pendingError = `${REFUNDED_ANSWER} Your refund is being arranged — please contact us if it does not arrive.`;
+
+    await withRefundMock(
+      () => Promise.resolve({ kind: "uncertain", reason: "network_error" }),
+      async (mockRefund) => {
+        expect(
+          await processPaymentSession(sessionId, placeholder.data),
+        ).toEqual({
+          detail: `Resumed after a crashed delivery of session ${sessionId}`,
+          error: pendingError,
+          status: 200,
+          success: false,
+        });
+        expect(await chargeState()).toEqual({
+          refund_local_state: "not_due",
+          refund_state_name: "observing",
+        });
+        expect(await anchorMirror()).toBe("");
+        const search = await findHeldAnchor(
+          paidPaymentReferenceOf(placeholder.data.session),
+          sessionId,
+        );
+        expect(search.held).toBeNull();
+        const record = requireValue(
+          await getProcessedPayment(sessionId),
+          "the pending session outcome is missing",
+        );
+        expect(await parseSessionFailure(record.failure_data)).toEqual({
+          completion: { code: "capacity_full" },
+          error: pendingError,
+          status: 200,
+        });
+        // The authority owns recovery after the anchor releases its claim.
+        expect(
+          await processPaymentSession(sessionId, placeholder.data),
+        ).toEqual({
+          error: pendingError,
+          status: 200,
+          success: false,
+        });
+        expect(mockRefund.calls).toHaveLength(1);
+      },
+    );
   });
 
   test("a redelivery lets go of a claim whose money work all landed", async () => {

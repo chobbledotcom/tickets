@@ -6,6 +6,7 @@ import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withSessionFailureFault } from "#test-utils/db-fault.ts";
+import { checkPaymentSeam } from "#test-utils/payment-seam.ts";
 import {
   expectSessionFailed,
   getProcessedPayment,
@@ -30,6 +31,8 @@ const balanceData = (
   );
 
 describeWithEnv("payment processing balance outcomes", { db: true }, () => {
+  checkPaymentSeam();
+
   test("settles the exact balance and finalizes the payment", async () => {
     const { attendeeId, listingId } = await createReservedAttendee(1500);
     const id = "cs_direct_balance";
