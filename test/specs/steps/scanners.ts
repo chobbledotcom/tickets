@@ -126,13 +126,15 @@ Then(
 );
 
 Then(
-  "the door page carries the words for a scan made offline",
+  "the door page carries the words and the queue panel for scans made offline",
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
     // This harness serves the page and never runs its script, so the step
-    // reads the served surface: the promise the page will show a door
-    // worker for a kept scan, and the panel that lists the kept scans.
+    // reads the served surface: the words the door sees for a kept scan
+    // and for each banner, and the panel that lists the kept scans.
     assertStringIncludes(page, t("admin.scanner.offline_queued"));
+    assertStringIncludes(page, t("admin.scanner.offline_banner_auto"));
+    assertStringIncludes(page, t("admin.scanner.offline_banner_manual"));
     assertStringIncludes(page, 'id="scanner-queue"');
   },
 );
