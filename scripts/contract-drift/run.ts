@@ -106,7 +106,7 @@ const mergeBaseWithMain = async (deps: DriftDeps): Promise<string> => {
   }
   if (!base.success) {
     throw new Error(
-      "This checkout has no origin/main even after a fetch, so the base dump has no older tree to run in. Fetch origin/main or use a full checkout, then run the suite again",
+      "This checkout has no origin/main even after a fetch, so the base dump has no older tree to run in. Fetch origin/main or use a full checkout, then run the command again",
     );
   }
   return base.stdout.trim();

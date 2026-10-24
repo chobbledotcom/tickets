@@ -57,7 +57,7 @@ const FULL_HISTORY_CALLS = [
 
 /** The error the base resolution throws when origin/main stays missing. */
 const NO_ORIGIN_MAIN =
-  "This checkout has no origin/main even after a fetch, so the base dump has no older tree to run in. Fetch origin/main or use a full checkout, then run the suite again";
+  "This checkout has no origin/main even after a fetch, so the base dump has no older tree to run in. Fetch origin/main or use a full checkout, then run the command again";
 
 /** A git for the base tests. It records every call in `calls` and answers
  * from `answers`, keyed by the joined command. An unmatched command
