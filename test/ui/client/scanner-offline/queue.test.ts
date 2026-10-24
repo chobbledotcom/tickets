@@ -16,7 +16,6 @@
 // jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { Stub } from "@std/testing/mock";
 import {
   cameraFakes,
   scanFirst,
@@ -34,6 +33,10 @@ import {
   TOKEN,
   useScannerSuite,
 } from "#test/ui/client/scanner/fixture.ts";
+import {
+  askedUrls,
+  expectOneStoredCheckIn,
+} from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 // jscpd:ignore-end
@@ -43,17 +46,6 @@ describe("scanner offline door", {
   sanitizeResources: false,
 }, () => {
   const fresh = useScannerSuite();
-
-  /** Every fetch the page made, as the urls it asked for. */
-  const askedUrls = (fetchStub: Stub): string[] =>
-    fetchStub.calls.map((call) => String(call.args[0]));
-
-  /** The store holds exactly one queued check-in, the token the page kept. */
-  const expectOneStoredCheckIn = (h: ScannerHarness, token: string): void => {
-    expect(JSON.parse(String(storedQueue(h)))).toEqual([
-      { queuedAt: expect.any(Number), scanPath: SCAN_PATH, token },
-    ]);
-  };
 
   /** What the page shows and keeps when the store refuses a switch
    * change: the refusal words, and every surface as it was. */
