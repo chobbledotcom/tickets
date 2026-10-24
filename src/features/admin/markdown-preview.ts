@@ -4,12 +4,13 @@ import { defineRoutes } from "#routes/router.ts";
  * Markdown preview endpoint.
  *
  * POST /admin/markdown-preview renders a markdown body to safe HTML for the
- * in-editor preview dialog. Content roles (owner/manager/editor) can open it,
- * because editors edit markdown fields on listings and the site pages. The
- * withAuth form gate adds CSRF protection, so the rendered fragment cannot be
- * triggered cross-site. The renderMarkdown call strips raw HTML and unsafe
- * URLs. The returned fragment is safe to inject client-side. It renders only
- * the supplied content — no stored data — so widening the role leaks nothing.
+ * preview dialog. Content roles (owner/manager/editor) can open it, because
+ * editors edit markdown fields on listings and site pages. The withAuth form
+ * gate adds CSRF protection, so the rendered fragment cannot be triggered
+ * cross-site. The renderMarkdown call strips raw HTML and unsafe URLs, so the
+ * fragment is safe to inject. The only stored data the handler reads is the
+ * public URL of an image whose id the supplied content names. No other stored
+ * data is read or returned, so a wider role leaks only those URLs.
  */
 
 import { addPageImageUrls } from "#db/images.ts";
