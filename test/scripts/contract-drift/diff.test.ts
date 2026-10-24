@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { driftLines, formatDrift } from "#scripts/contract-drift/diff.ts";
 import type {
+  DumpedDeclaredMoves,
   DumpedJointState,
   DumpedMachine,
 } from "#scripts/contract-drift/dump.ts";
@@ -18,6 +19,10 @@ const machine = (over: Partial<DumpedMachine> = {}): DumpedMachine => ({
  * node `to`. */
 const movesBy = (actor: string, to: string): DumpedMachine =>
   machine({ edges: { a: [{ actor, event: "e", to }] } });
+
+/** One machine that declares the given table beside its (empty) edges. */
+const withTable = (declaredMoves: DumpedDeclaredMoves): DumpedMachine =>
+  machine({ declaredMoves });
 
 const contracts = (
   machines: Record<string, DumpedMachine>,
@@ -102,6 +107,71 @@ describe("contract drift lines", () => {
     ).toEqual(["- stops moving money: m.e", "+ moves money: m.f"]);
   });
 
+  test("reports a declared table added and removed", () => {
+    const table = withTable({ a: { e: "b" } });
+    expect(driftOf(machine(), table)).toEqual([
+      "+ declared moves table added: m",
+    ]);
+    expect(driftOf(table, machine())).toEqual([
+      "- declared moves table removed: m",
+    ]);
+  });
+
+  test("reports a node the head table drops, cell by cell", () => {
+    expect(
+      driftOf(
+        withTable({ a: { e: "b" }, gone: { f: "c" } }),
+        withTable({ a: { e: "b" } }),
+      ),
+    ).toEqual(["- declared move refused: m.gone --f--> c"]);
+  });
+
+  test("reports a node only the head table has, cell by cell", () => {
+    expect(
+      driftOf(
+        withTable({ a: { e: "b" } }),
+        withTable({ a: { e: "b" }, fresh: { g: "c" } }),
+      ),
+    ).toEqual(["+ declared move allowed: m.fresh --g--> c"]);
+  });
+
+  test("reports a declared cell allowed and refused", () => {
+    const before = withTable({ a: { e: "b" } });
+    const after = withTable({ a: { e: "b", f: "c" } });
+    expect(driftOf(before, after)).toEqual([
+      "+ declared move allowed: m.a --f--> c",
+    ]);
+    expect(driftOf(after, before)).toEqual([
+      "- declared move refused: m.a --f--> c",
+    ]);
+  });
+
+  test("reports a retargeted declared cell", () => {
+    expect(
+      driftOf(withTable({ a: { e: "b" } }), withTable({ a: { e: "c" } })),
+    ).toEqual(["~ declared move retargeted: m.a --e--> now c (was b)"]);
+  });
+
+  test("reports a changed split cell with its shapes", () => {
+    expect(
+      driftOf(
+        withTable({ a: { e: { perRep: { keyed: "b" } } } }),
+        withTable({ a: { e: { perRep: { keyed: "c", keyless: "b" } } } }),
+      ),
+    ).toEqual([
+      "~ declared move retargeted: m.a --e--> now perRep {keyed: c, keyless: b} (was perRep {keyed: b})",
+    ]);
+  });
+
+  test("reports nothing when the declared tables match", () => {
+    expect(
+      driftOf(
+        withTable({ a: { e: { perRep: { keyed: "b" } } } }),
+        withTable({ a: { e: { perRep: { keyed: "b" } } } }),
+      ),
+    ).toEqual([]);
+  });
+
   test("reports joint invariants added and removed", () => {
     const withArmed = contracts({ m: machine() }, [armed]);
     const withoutArmed = contracts({ m: machine() });
@@ -123,6 +193,25 @@ describe("contract drift report", () => {
         "origin/main",
       ),
     ).toBe("No contract drift against origin/main.");
+  });
+
+  test("prints declared moves between the executed ones and the money flags", () => {
+    const before = {
+      ...movesBy("system", "b"),
+      declaredMoves: { a: { e: "b" } },
+    };
+    const after = {
+      ...movesBy("system", "c"),
+      declaredMoves: { a: { e: "d" } },
+    };
+    expect(
+      formatDrift(contracts({ m: before }), contracts({ m: after }), "x"),
+    ).toBe(
+      "Contract drift against x: 3 change(s)\n\n" +
+        "- move refused: m.a --e--> b\n" +
+        "+ move allowed: m.a --e--> c\n" +
+        "~ declared move retargeted: m.a --e--> now d (was b)",
+    );
   });
 
   test("prints the header and every change", () => {

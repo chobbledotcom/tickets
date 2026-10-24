@@ -5,8 +5,10 @@
 import { unique } from "#fp";
 import {
   type Contracts,
+  type DumpedDeclaredMoves,
   type DumpedJointState,
   type DumpedMachine,
+  type DumpedMoveCell,
   jointStateKey,
   sortedStrings,
 } from "./dump.ts";
@@ -148,10 +150,18 @@ const driftBetween = <Item>(
   ];
 };
 
+/** One machine's drift for one field: both sides read the same field, and
+ * the field's own differ compares them. */
+const fieldDrift =
+  <View>(
+    viewOf: (machine: DumpedMachine) => View,
+    drift: (before: View, after: View, id: string) => string[],
+  ) =>
+  ({ after, before, id }: MachinePair): string[] =>
+    drift(viewOf(before), viewOf(after), id);
+
 /** The lines for one machine's moves. */
-const edgeDrift = ({ after, before, id }: MachinePair): string[] => {
-  const rowsBefore = edgeRows(before);
-  const rowsAfter = edgeRows(after);
+const edgeDrift = fieldDrift(edgeRows, (rowsBefore, rowsAfter, id) => {
   const froms = sortedStrings([
     ...unique([...rowsBefore.keys(), ...rowsAfter.keys()]),
   ]);
@@ -166,7 +176,96 @@ const edgeDrift = ({ after, before, id }: MachinePair): string[] => {
     );
   }
   return lines;
+});
+
+/** The lines for the cells two present tables hold: each node in key
+ * order, then within a node the base table's cells first (each refusal
+ * and retarget), then the head table's new cells (each allowance). The
+ * dump sorts both tables' keys. */
+const cellDrift = (
+  id: string,
+  beforeTable: DumpedDeclaredMoves,
+  afterTable: DumpedDeclaredMoves,
+): string[] => {
+  const lines: string[] = [];
+  const nodes = sortedStrings(
+    unique([...Object.keys(beforeTable), ...Object.keys(afterTable)]),
+  );
+  for (const node of nodes) {
+    const beforeCells = beforeTable[node];
+    const afterCells = afterTable[node];
+    const where = `${id}.${node}`;
+    for (const [event, beforeCell] of Object.entries(beforeCells ?? {})) {
+      const line = declaredCellDrift(
+        where,
+        event,
+        beforeCell,
+        afterCells?.[event],
+      );
+      if (line !== undefined) lines.push(line);
+    }
+    for (const [event, afterCell] of Object.entries(afterCells ?? {})) {
+      if (beforeCells?.[event] !== undefined) continue;
+      lines.push(allowedCellLine(where, event, afterCell));
+    }
+  }
+  return lines;
 };
+
+/** The lines for one machine's declared table: the table itself appearing
+ * or leaving, then each cell that changed. */
+const declaredDrift = fieldDrift(
+  (machine) => machine.declaredMoves,
+  (beforeTable, afterTable, id) => {
+    if (beforeTable === undefined && afterTable === undefined) return [];
+    if (beforeTable === undefined) {
+      return [`+ declared moves table added: ${id}`];
+    }
+    if (afterTable === undefined) {
+      return [`- declared moves table removed: ${id}`];
+    }
+    return cellDrift(id, beforeTable, afterTable);
+  },
+);
+
+/** How one declared cell reads in a report: a plain cell names its landing
+ * node; a split names the node each stored shape lands on. */
+const cellWord = (cell: DumpedMoveCell): string => {
+  if (typeof cell === "string") return cell;
+  const shapes = Object.entries(cell.perRep)
+    .map(([shape, to]) => `${shape}: ${to}`)
+    .sort()
+    .join(", ");
+  return `perRep {${shapes}}`;
+};
+
+/** The line one cell the base table holds earns, or undefined when the
+ * cell stayed: a cell the head table dropped is a refused move, and a
+ * cell the head table moved names its retarget. */
+const declaredCellDrift = (
+  where: string,
+  event: string,
+  beforeCell: DumpedMoveCell,
+  afterCell: DumpedMoveCell | undefined,
+): string | undefined => {
+  const route = `${where} --${event}-->`;
+  if (afterCell === undefined) {
+    return `- declared move refused: ${route} ${cellWord(beforeCell)}`;
+  }
+  const was = cellWord(beforeCell);
+  const now = cellWord(afterCell);
+  if (was === now) return;
+  return `~ declared move retargeted: ${route} now ${now} (was ${was})`;
+};
+
+/** The line one cell only the head table holds earns. */
+const allowedCellLine = (
+  where: string,
+  event: string,
+  afterCell: DumpedMoveCell,
+): string =>
+  `+ declared move allowed: ${where} --${event}--> ${cellWord(afterCell)}`;
+
 /** The lines for one string list both machines hold, worded by `word`. */
 const listDrift = (
   pair: MachinePair,
@@ -218,6 +317,7 @@ export const driftLines = (base: Contracts, head: Contracts): string[] => {
       lines.push(`~ start moved: ${id}.${after.start} (was ${before.start})`);
     }
     lines.push(...edgeDrift(pair));
+    lines.push(...declaredDrift(pair));
     lines.push(
       ...listDrift(pair, (machine) => machine.moneyEvents, MONEY_WORD),
     );

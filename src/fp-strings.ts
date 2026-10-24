@@ -17,6 +17,13 @@ export const sortedByString =
         : valueFrom(a).localeCompare(valueFrom(b)),
     )(items);
 
+/** The key-value pairs in key order, the order sortedStrings gives. The
+ * keys come from one record, so no two of them compare equal. */
+export const sortedPairs = <Value>(
+  pairs: [string, Value][],
+): [string, Value][] =>
+  pairs.toSorted(([left], [right]) => (left < right ? -1 : 1));
+
 /** Whether a text has any one of the `pieces` according to `matches` — the
  * shared walk behind the string affix checks below. */
 const textHasAny =

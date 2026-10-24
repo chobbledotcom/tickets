@@ -75,6 +75,11 @@ const fakeDeps = (
     },
     headContracts: () => Promise.resolve(overrides.head ?? headDump),
     makeTempDir: () => Promise.resolve("/tmp/drift-fake"),
+    mergeBase: () => {
+      throw new Error(
+        "The runner reads the base ref as held and never resolves a merge base",
+      );
+    },
     output: {
       log: (line) => seen.logs.push(line),
       logError: (line) => seen.errors.push(line),
