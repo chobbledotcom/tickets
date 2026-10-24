@@ -1,9 +1,4 @@
-import {
-  deriveKEK,
-  deriveKEKFromPassword,
-  unwrapKey,
-  wrapKeyWithToken,
-} from "#crypto/keys.ts";
+import { deriveOwnerKek, unwrapKey, wrapKeyWithToken } from "#crypto/keys.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
 import { clearLoginAttempts, loginLimiter } from "#db/login-attempts.ts";
 import { createSession, deleteSession } from "#db/sessions.ts";
@@ -159,13 +154,8 @@ const handleAdminLogin = async (
   // the only thing that makes either unwrap succeed.
   let dataKey: CryptoKey;
   try {
-    dataKey =
-      user.kek_version >= 2
-        ? await unwrapKey(
-            user.wrapped_data_key,
-            await deriveKEKFromPassword(password, passwordHash),
-          )
-        : await unwrapKey(user.wrapped_data_key, await deriveKEK(passwordHash));
+    const kek = await deriveOwnerKek(password, passwordHash, user.kek_version);
+    dataKey = await unwrapKey(user.wrapped_data_key, kek);
   } catch {
     // KEK mismatch. This cannot happen when password verification passed.
     return failedCredentialsRedirect();
