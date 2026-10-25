@@ -84,7 +84,9 @@ Feature: An owner gives a door worker the scanner, and nothing else
     labelled "Offline mode" that starts off. The page keeps a place that
     will list the queued check-ins. A scan made offline asks how many
     people it checks in, and the page says when a queued check-in admits
-    more people than the booking had left.
+    more people than the booking had left. The booking carries a note
+    about that, and the organiser reads the note on the listing's Overview
+    and its roster.
 
     @case:scanners.the-door-page-offers-offline-mode
     Scenario: The door page offers a switch for offline mode
@@ -108,6 +110,38 @@ Feature: An owner gives a door worker the scanner, and nothing else
       Then the door says Cara was already checked in
       When Sam reads the QR on Cara's ticket
       Then the ticket page says 2 of 3 are checked in
+
+    @case:scanners.a-queued-check-in-naming-too-many-alerts-the-door
+    Scenario: A queued check-in naming more people than are left alerts the door
+      Given Cara has a ticket for 3 places at the Ceilidh
+      And Sam is signed in as a scanner
+      When Sam opens the Ceilidh door
+      And Sam queues a check-in for 2 of Cara's places at the Ceilidh door
+      And the organiser has checked in 2 of Cara's tickets at the Ceilidh door
+      When the connection returns and the door sends the queued check-in
+      Then the door says the check-in named 2, admitted 1, and the booking holds 3 places
+      When Sam reads the QR on Cara's ticket
+      Then the ticket page says all 3 places are checked in
+      When the door sends the same queued check-in again
+      Then the door gives the same numbers and admits nobody more
+      When Sam reads the QR on Cara's ticket
+      And the ticket page says all 3 places are checked in
+
+    @case:scanners.the-over-admission-note-reaches-the-organiser
+    Scenario: The organiser reads the note an over-admitted check-in left
+      Given Cara has a ticket for 3 places at the Ceilidh
+      And Sam is signed in as a scanner
+      When Sam opens the Ceilidh door
+      And Sam queues a check-in for 2 of Cara's places at the Ceilidh door
+      And the organiser has checked in 2 of Cara's tickets at the Ceilidh door
+      When the connection returns and the door sends the queued check-in
+      When the organiser opens the Ceilidh's overview
+      Then the notes panel shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
+      When the organiser opens the Ceilidh's roster
+      Then the notes panel shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
+      When the door sends the same queued check-in again
+      When the organiser opens the Ceilidh's overview
+      Then the notes panel shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
 
   @rule:access.a-scanner-reaches-nothing-else
   Rule: A scanner reaches nothing else

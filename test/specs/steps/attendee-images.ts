@@ -9,7 +9,6 @@ import type { TicketsWorld } from "#test/specs/support/world.ts";
 // jscpd:ignore-end
 
 import {
-  NOTE_LISTING,
   noteDeletePath,
   notedAboutWithPicture,
   pictureTag,
@@ -50,21 +49,21 @@ When(
 );
 
 When(
-  "the organiser opens the listing's overview",
-  async function (this: TicketsWorld): Promise<void> {
+  "the organiser opens the {word}'s overview",
+  async function (this: TicketsWorld, listing: string): Promise<void> {
     await openAdminPage(
       this,
-      `/admin/listing/${listingIdNamed(this, NOTE_LISTING)}`,
+      `/admin/listing/${listingIdNamed(this, listing)}`,
     );
   },
 );
 
 When(
-  "the organiser opens the listing's roster",
-  async function (this: TicketsWorld): Promise<void> {
+  "the organiser opens the {word}'s roster",
+  async function (this: TicketsWorld, listing: string): Promise<void> {
     await openAdminPage(
       this,
-      `/admin/listing/${listingIdNamed(this, NOTE_LISTING)}/attendees`,
+      `/admin/listing/${listingIdNamed(this, listing)}/attendees`,
     );
   },
 );

@@ -136,6 +136,17 @@ export const admissionAnswer = async (
   });
 };
 
+/** The words an over-admission note carries: what the delivery named, what
+ * its landing admitted, and what the booking holds. */
+export const overAdmissionNoteText = (
+  named: number,
+  admitted: number,
+  bought: number,
+): string =>
+  admitted === 0
+    ? `An offline door check-in named ${named} people, and none could be checked in. The booking holds ${bought} places.`
+    : `An offline door check-in named ${named} people, and ${admitted} of them could be checked in. The booking holds ${bought} places.`;
+
 /** The once-only note an over-admitted delivery leaves on the booking: the
  * numbers the door picked against what the booking held. The delivery's
  * own pair names the note, so a replay writes nothing. */

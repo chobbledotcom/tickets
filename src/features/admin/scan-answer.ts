@@ -55,6 +55,7 @@ import {
   lineTickets,
   listingNamesOf,
   noteOverAdmission,
+  overAdmissionNoteText,
   scanBody,
   wrongListingResponse,
 } from "./scan-reply.ts";
@@ -176,7 +177,11 @@ const performCheckIns = async (
           await noteOverAdmission(
             attendeeId,
             delivery,
-            `An offline door check-in named ${overNamed.named} people, and ${ticketCount(moved)} of them could be checked in. The booking holds ${overNamed.bought} places.`,
+            overAdmissionNoteText(
+              overNamed.named,
+              ticketCount(moved),
+              overNamed.bought,
+            ),
             tx,
           );
         }
@@ -278,7 +283,7 @@ const scanDecisionResponse = async (
       await noteOverAdmission(
         decision.live[0]!.attendee.id,
         delivery,
-        `An offline door check-in named ${named} people, and none could be checked in. The booking holds ${bought} places.`,
+        overAdmissionNoteText(named, 0, bought),
       );
       return jsonResponse({
         ...scanBody(

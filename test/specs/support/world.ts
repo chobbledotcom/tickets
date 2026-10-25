@@ -188,6 +188,9 @@ export interface TicketsWorld extends World, EvidencePages {
   orderSent?: BookingAttempt;
   otherBuyerQuestions?: { id: number; text: string }[];
   placeholderId?: number;
+  /** The answer the door held before its latest send, so a step can hold a
+   * resend beside the landing it repeated. */
+  previousDoorAnswer?: DoorAnswer;
   providerCharges: Map<string, ChargeMoney>;
   /** What the email provider answers in this story, when it is not the
    * ordinary "it took the message" — a refusal, or a network failure. */
