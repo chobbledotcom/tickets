@@ -9,7 +9,8 @@ import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 
 /** One listing's share of one admission: the rows the scan admits there, and
  * how many tickets it admits on them. The count is never more than those
- * rows owe. */
+ * rows owe. A parent row and its folded child row sit on different listings,
+ * so one admission never counts them as one person twice. */
 export type ScanUnit = { rows: TokenEntry[]; tickets: number };
 
 /** What one scan decided. An admit's `remaining` is every ticket the
@@ -23,16 +24,18 @@ export type ScanDecision =
   | { kind: "wrong_listing" }
   | { kind: "not_found" };
 
-/** All of one ticket's rows on one listing, in booking order — one
- * admission unit. A booking's rows on one listing are one person's places
- * there. A parent row and its folded child row sit on different listings, so
- * one admission at a time never counts them as one person twice. */
-export const rowsByListing = (rows: readonly TokenEntry[]): TokenEntry[][] => [
-  ...groupToMap(
-    (row: TokenEntry) => row.listing.id,
-    (row: TokenEntry) => row,
-  )(rows).values(),
-];
+/** One ticket's lines grouped by listing, in booking order, with the
+ * listings that owe no place dropped. A listing whose lines all sit fully
+ * checked in keeps its place in the order. A one-listing-per-scan door then
+ * lands on the listing after it, never past it. */
+export const owingListings = <Row>(
+  lines: readonly Row[],
+  listingIdOf: (row: Row) => number,
+  remainingOf: (row: Row) => number,
+): Row[][] =>
+  [...groupToMap(listingIdOf, (row: Row) => row)(lines).values()].filter(
+    (rows) => rows.some((row) => remainingOf(row) > 0),
+  );
 
 /** What a door asks a scan to decide: the ticket's rows, the listings the
  * door admits, and the door staff's let-them-in-anyway choice. `force` only
@@ -103,8 +106,10 @@ export const decideScan = (
   if ("failure" in pool) return { kind: pool.failure };
   const live = pool.rows.filter((entry) => !entry.attendee.refunded);
   if (live.length === 0) return { kind: "refunded" };
-  const owed = rowsByListing(live).filter((rows) =>
-    rows.some((entry) => remainingTickets(entry.attendee) > 0),
+  const owed = owingListings(
+    live,
+    (entry) => entry.listing.id,
+    (entry) => remainingTickets(entry.attendee),
   );
   if (owed.length === 0) return { kind: "already_checked_in", live };
   const admitted = scanAdmits(pool.widened, checkInEveryListing, owed);

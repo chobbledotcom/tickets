@@ -26,7 +26,7 @@ import {
   type ScanScope,
   scopeAttendees,
 } from "./scan-answer.ts";
-import { scanAdmits } from "./scan-decision.ts";
+import { owingListings, scanAdmits } from "./scan-decision.ts";
 /* jscpd:ignore-end */
 
 /** The name a door's cache key derives from: the door's kind and id. The
@@ -82,23 +82,20 @@ export const ticketCacheForScope = async (
   for (const lines of rowsByAttendee.values()) {
     // One line that can still admit admits the person, so any of the
     // person's tickets at this door goes in the list.
-    const owing = lines.filter(
-      (row) =>
-        remainingTickets(row) > 0 && !row.refunded && hasTicketQuantity(row),
-    );
-    if (owing.length === 0) continue;
+    const live = lines.filter((row) => !row.refunded && hasTicketQuantity(row));
+    // The scan groups every line it can see before it drops the listings
+    // that owe nothing. The count therefore names the listing that scan
+    // lands on, even when an earlier line on it sits fully checked in.
+    const owed = owingListings(live, (row) => row.listing_id, remainingTickets);
+    if (owed.length === 0) continue;
     // What one scan admits, by the scan's own rule: the first listing
     // still owing places, or every one when this door checks them all in.
-    const admitted = scanAdmits(false, scope.checkInEveryListing, [
-      ...groupToMap(
-        (row: DecryptedAttendeeRow<Attendee>) => row.listing_id,
-        (row: DecryptedAttendeeRow<Attendee>) => row,
-      )(owing).values(),
-    ]);
-    const owed = sumOf((owedLines: readonly DecryptedAttendeeRow<Attendee>[]) =>
-      sumOf(remainingTickets)(owedLines),
+    const admitted = scanAdmits(false, scope.checkInEveryListing, owed);
+    const places = sumOf(
+      (owedLines: readonly DecryptedAttendeeRow<Attendee>[]) =>
+        sumOf(remainingTickets)(owedLines),
     )(admitted);
-    for (const row of lines) owedByToken.set(row.ticket_token, owed);
+    for (const row of lines) owedByToken.set(row.ticket_token, places);
   }
   // One key import serves every digest. A per-digest import repeats the
   // same work for each token. Each batch pairs its digests with the owed

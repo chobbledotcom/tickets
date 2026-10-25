@@ -5,10 +5,11 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { remainingTickets } from "#booking/remaining-tickets.ts";
 import {
   decideScan,
+  owingListings,
   quantityAdmission,
-  rowsByListing,
   type ScanDecision,
 } from "#routes/admin/scan-decision.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
@@ -70,12 +71,13 @@ const scanAt = (
     controls.count,
   );
 
-/** The expected admit when every covered row owes exactly one ticket. */
+/** The expected admit when every covered row owes exactly one ticket. One
+ * row per listing, so the units are that row alone. */
 const admitsOne = (rows: readonly TokenEntry[], remaining: number) => ({
   kind: "admit",
   remaining,
   rows: [...rows],
-  units: rowsByListing(rows).map((unit) => ({ rows: unit, tickets: 1 })),
+  units: rows.map((row) => ({ rows: [row], tickets: 1 })),
 });
 
 describe("decideScan", () => {
@@ -251,14 +253,44 @@ describe("decideScan", () => {
   });
 });
 
-describe("rowsByListing", () => {
-  test("groups a ticket's rows by listing, keeping booking order", () => {
-    const rows = [standard(), society(), standard({ checked: true }), guest()];
-    expect(rowsByListing(rows)).toEqual([
+describe("owingListings", () => {
+  const oweByListing = (rows: readonly TokenEntry[]) =>
+    owingListings(
+      rows,
+      (row) => row.listing.id,
+      (row) => remainingTickets(row.attendee),
+    );
+
+  test("keeps booking order and drops the listings that owe no place", () => {
+    const rows = [
+      standard(),
+      society({ checked: true }),
+      standard({ checked: true }),
+      guest(),
+    ];
+    expect(oweByListing(rows)).toEqual([
       [standard(), standard({ checked: true })],
-      [society()],
       [guest()],
     ]);
+  });
+
+  test("a fully checked-in line keeps its listing's place in the order", () => {
+    // The second listing's line starts between the first listing's two
+    // lines. The first listing still owes on its later line, so it stays
+    // first and a one-listing-per-scan door lands there.
+    const rows = [
+      standard({ checked: true }),
+      society(),
+      standard({ quantity: 3 }),
+    ];
+    expect(oweByListing(rows)).toEqual([
+      [standard({ checked: true }), standard({ quantity: 3 })],
+      [society()],
+    ]);
+  });
+
+  test("answers no listings for no lines, so the token leaves the set", () => {
+    expect(oweByListing([])).toEqual([]);
   });
 });
 

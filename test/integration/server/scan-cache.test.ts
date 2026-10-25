@@ -15,8 +15,11 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { execute } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import { doorCacheName, pageDoorCacheKey } from "#routes/admin/scan-cache.ts";
+import { addDays } from "#shared/dates.ts";
 import { hmacHex } from "#shared/sha256.ts";
+import { todayInTz } from "#shared/timezone.ts";
 import { assertJson } from "#test-utils/assertions.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createMultiBookingAttendee,
@@ -197,6 +200,65 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       "hana@example.com",
     );
     expect(body.entries).toEqual([{ hash: digest, tickets: 5 }]);
+  });
+
+  test("names the first listing's places when an earlier line on it is fully checked in", async () => {
+    // One person holds two lines on the first listing and one line on the
+    // second. The first listing's early line is fully checked in, and the
+    // second listing's line starts between the first listing's two lines.
+    // One scan at this door still lands on the first listing, so the saved
+    // count names that listing's remaining places, not the second listing's.
+    const group = await createTestGroup({
+      name: "Order Barn",
+      scanChecksInAllListings: false,
+    });
+    const west = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: `Order Barn West ${group.id}`,
+    });
+    const east = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: `Order Barn East ${group.id}`,
+    });
+    // Each line books its own day, so the read's start order is a fact: the
+    // first listing's early line, the second listing's line, then the first
+    // listing's later line.
+    const bookingDay = (offset: number) =>
+      addDays(testDate(todayInTz("UTC")), 2 + offset);
+    const result = await attendeesApi.createAttendeeAtomic({
+      bookings: [
+        { date: bookingDay(0), listingId: west.id, quantity: 2 },
+        { date: bookingDay(1), listingId: east.id, quantity: 4 },
+        { date: bookingDay(2), listingId: west.id, quantity: 3 },
+      ],
+      email: "ivy@example.com",
+      name: "Ivy Reed",
+    });
+    if (!result.success) {
+      throw new Error(`booking for Ivy failed: ${result.reason}`);
+    }
+    const attendee = result.attendees[0]!;
+    // The early line on the first listing holds no places the door can
+    // still admit: both of its places are checked in.
+    await execute(
+      "UPDATE listing_attendees SET checked_in = quantity WHERE attendee_id = ? AND quantity = 2",
+      [attendee.id],
+    );
+    const body = await assertJson(
+      authedGet(`/admin/groups/${group.id}/scan-cache`),
+      200,
+    );
+    expect(body.entries).toEqual([
+      {
+        hash: await doorDigest(
+          doorCacheName("group", group.id),
+          attendee.ticket_token,
+        ),
+        tickets: 3,
+      },
+    ]);
   });
 
   test("leaves a checked-in ticket out of the set", async () => {
