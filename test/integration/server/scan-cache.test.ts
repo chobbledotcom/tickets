@@ -11,6 +11,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
+import { generateTicketToken } from "#crypto/utils.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { execute } from "#db/client.ts";
 import { handleRequest } from "#routes";
@@ -69,52 +70,66 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
   });
 
   test("saves the set in digest order, not booking order", async () => {
-    const listing = await createTestListing();
-    const door = doorCacheName("listing", listing.id);
-    // Fixed tokens in the shape a real token carries, so the test knows each
-    // digest before it books anyone.
-    const tokenA = "5AF00DBEE5";
-    const tokenB = "C0FFEE1234";
-    const digestA = await doorDigest(door, tokenA);
-    const digestB = await doorDigest(door, tokenB);
-    const [lesserToken, greaterToken] =
-      digestA < digestB ? [tokenA, tokenB] : [tokenB, tokenA];
-    const [lesserDigest, greaterDigest] =
-      digestA < digestB ? [digestA, digestB] : [digestB, digestA];
-    const bookToken = async (name: string, token: string) => {
-      const result = await attendeesApi.createAttendeeAtomic({
-        bookings: [{ listingId: listing.id, quantity: 1 }],
-        email: `${name.toLowerCase().replace(/\s+/g, "-")}@example.com`,
-        name,
-        ticketToken: token,
-      });
-      if (!result.success) {
-        throw new Error(`booking for ${name} failed: ${result.reason}`);
-      }
-      return result.attendees[0]!;
+    // Two doors whose tickets book on different days: one door's early day
+    // holds the lesser digest, the other's the greater. The read meets one
+    // pair already in digest order and one it must turn around, so the
+    // served order is the digest order whichever way the days and the
+    // digests meet.
+    const doorWith = async (
+      earlyDayHoldsGreater: boolean,
+      people: [string, string],
+    ) => {
+      const listing = await createTestListing();
+      const door = doorCacheName("listing", listing.id);
+      // Tokens in the shape a real ticket carries, one fresh pair per door,
+      // so the site's one-ticket-token rule never meets the same pair twice.
+      const tokenA = generateTicketToken();
+      const tokenB = generateTicketToken();
+      const digestA = await doorDigest(door, tokenA);
+      const digestB = await doorDigest(door, tokenB);
+      const [lesserToken, greaterToken] =
+        digestA < digestB ? [tokenA, tokenB] : [tokenB, tokenA];
+      const [lesserDigest, greaterDigest] =
+        digestA < digestB ? [digestA, digestB] : [digestB, digestA];
+      const bookToken = async (day: number, name: string, token: string) => {
+        const result = await attendeesApi.createAttendeeAtomic({
+          bookings: [
+            {
+              date: addDays(testDate(todayInTz("UTC")), day),
+              listingId: listing.id,
+              quantity: 1,
+            },
+          ],
+          email: `${name.toLowerCase().replace(/\s+/g, "-")}@example.com`,
+          name,
+          ticketToken: token,
+        });
+        if (!result.success) {
+          throw new Error(`booking for ${name} failed: ${result.reason}`);
+        }
+      };
+      const [earlyToken, lateToken] = earlyDayHoldsGreater
+        ? [greaterToken, lesserToken]
+        : [lesserToken, greaterToken];
+      await bookToken(2, people[0]!, earlyToken);
+      await bookToken(3, people[1]!, lateToken);
+      return { greaterDigest, lesserDigest, listing };
     };
-    // The cache read serves bookings newest first. The greater digest books
-    // last, so the sort meets a pair it must turn around.
-    const olderBooking = await bookToken("Eve Ash", lesserToken);
-    await bookToken("Finn Ash", greaterToken);
-    // The two bookings can share one clock millisecond. This pins the first
-    // booking as the older one, so the read order is a fact, not a race.
-    await execute("UPDATE attendees SET created = ? WHERE id = ?", [
-      "2000-01-01T00:00:00.000Z",
-      olderBooking.id,
-    ]);
-
-    expect(
-      await assertJson(
-        authedGet(`/admin/listing/${listing.id}/scan-cache`),
-        200,
-      ),
-    ).toEqual({
-      entries: [
-        { hash: lesserDigest, tickets: 1 },
-        { hash: greaterDigest, tickets: 1 },
-      ],
-    });
+    const earlyLesser = await doorWith(false, ["Eve Ash", "Finn Ash"]);
+    const earlyGreater = await doorWith(true, ["Gail Ash", "Hugo Ash"]);
+    for (const built of [earlyLesser, earlyGreater]) {
+      expect(
+        await assertJson(
+          authedGet(`/admin/listing/${built.listing.id}/scan-cache`),
+          200,
+        ),
+      ).toEqual({
+        entries: [
+          { hash: built.lesserDigest, tickets: 1 },
+          { hash: built.greaterDigest, tickets: 1 },
+        ],
+      });
+    }
   });
 
   test("carries the places each booking still owes the door", async () => {
