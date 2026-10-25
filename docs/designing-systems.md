@@ -116,6 +116,8 @@ These checks serve different purposes.
   these inputs and boundaries. Model safety does not prove SQL atomicity,
   provider truth or eventual task execution. After a model change, corrupt an
   emitted edge. Confirm that the checker reports a counterexample.
+  Direct generator tests keep unsafe results visible as false facts. SumUp
+  extraction stops if a declared transition fails.
 - **Observe real writes.** `test/test-utils/payment-seam.ts` records claim and
   refund-arm facts through test-only database triggers. A later settlement
   cannot erase a recorded violation. The observer checks the authority revision
