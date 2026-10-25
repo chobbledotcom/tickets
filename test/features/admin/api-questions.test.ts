@@ -328,6 +328,39 @@ describeWithEnv("Admin API - Questions", { db: true }, () => {
       );
     });
 
+    test("returns the form's own refusal for an unknown display type", async () => {
+      const created = await questionsApi().create({
+        display_type: "radio",
+        text: "Typed how?",
+      });
+
+      await assertJson(
+        apiRequest(`/api/admin/questions/${created.question.id}`, {
+          body: { display_type: "dropdown" },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "Display as must be radio buttons, a select box, or free text",
+          );
+        },
+      );
+    });
+
+    test("returns error when assign_all is not a boolean", async () => {
+      await assertJson(
+        apiRequest("/api/admin/questions", {
+          body: { assign_all: "yes", display_type: "radio", text: "Bool?" },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("assign_all must be a boolean");
+        },
+      );
+    });
+
     test("returns 404 for a non-existent question", async () => {
       await assertJson(
         apiRequest("/api/admin/questions/99999", {

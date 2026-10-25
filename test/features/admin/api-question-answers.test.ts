@@ -97,6 +97,21 @@ describeWithEnv("Admin API - Question answers", { db: true }, () => {
       );
     });
 
+    test("refuses an answer past the form's input cap", async () => {
+      const question = await createQuestion("Too Long");
+
+      await expectAdminApiError(
+        adminApiChildCreate(
+          adminApiTestTransport,
+          questions,
+          "answers",
+          question.id,
+          { text: "x".repeat(251) },
+        ),
+        "Answer text must be 250 characters or fewer (status 400)",
+      );
+    });
+
     test("returns 404 for a non-existent question", async () => {
       await expectAdminApiError(
         adminApiChildCreate(
