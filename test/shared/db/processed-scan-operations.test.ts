@@ -98,6 +98,29 @@ describeWithEnv("the scan delivery ledger", { db: true }, () => {
     });
   });
 
+  test("keeps the claim's quantity when the write moves nothing", async () => {
+    // A racing door took every ticket before the write ran, so the write
+    // moved nothing. The record keeps the quantity the delivery claimed,
+    // and the retry answers that claim.
+    const guard = scanOperationGuard({
+      listingIds: [3],
+      operationId: "op-ledger-8",
+      quantity: 4,
+      tokenHash: "digest-i",
+    });
+    await withTransaction(async (tx) => {
+      expect(await guard.reserve(tx)).toBe(true);
+      await guard.settle!(
+        [{ attendeeId: 1, count: 0, listingId: 3, owedAfter: 0 }],
+        tx,
+      );
+    });
+    expect(await deliveredScanOperation("op-ledger-8", "digest-i")).toEqual({
+      listingIds: [3],
+      quantity: 4,
+    });
+  });
+
   test("keeps the row free of tokens and guest details", async () => {
     await withTransaction((tx) =>
       claimScanOperation(delivery("op-ledger-5", "digest-f"))(tx),
