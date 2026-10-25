@@ -65,14 +65,27 @@ const typed = { args: [first.name, second.name], sql: namesSql };`,
     ).toEqual([]);
   });
 
-  test("stays quiet on an allowed prefix", () => {
+  test("stays quiet on the allowed file", () => {
     expect(
       findRepeatedBinds(
         "shared/accounting/queries.ts",
         "const statement = { args: [type, ...ids, type, ...ids], sql: q };",
-        ["shared/accounting/"],
+        ["shared/accounting/queries.ts"],
       ),
     ).toEqual([]);
+  });
+
+  test("fires on a lookalike sibling of the allowed file", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/accounting/queries.ts.extra",
+        "const statement = { args: [type, ...ids, type, ...ids], sql: q };",
+        ["shared/accounting/queries.ts"],
+      ),
+    ).toEqual([
+      "shared/accounting/queries.ts.extra:1: binds type more than once; numberedStatement binds it once and reuses the token",
+      "shared/accounting/queries.ts.extra:1: binds ids more than once; numberedStatement binds it once and reuses the token",
+    ]);
   });
 
   test("stays quiet on a repeat inside the allowed declaration", () => {
