@@ -7,7 +7,11 @@ import { expect } from "@std/expect";
 
 import { t } from "#i18n";
 import { overAdmissionNoteText } from "#routes/admin/scan-reply.ts";
-import { regionFrom } from "#test/specs/support/attendee-images.ts";
+import {
+  NOTES_BLOCK,
+  NOTES_SUMMARY,
+  regionFrom,
+} from "#test/specs/support/attendee-images.ts";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
 import { ticketOf } from "#test/specs/support/door.ts";
 import { privatePagePath } from "#test/specs/support/editors.ts";
@@ -243,6 +247,28 @@ Then(
   },
 );
 
+/** The over-admission note appears once in the region the organiser reads it
+ * in. The notes summary names the booking the note sits on; the person's own
+ * page does not, so only the summary step asks for the name. */
+const notesRegionShowsOneNote = (
+  html: string,
+  openMarker: string,
+  tag: string,
+  named: number,
+  admitted: number,
+  bought: number,
+  guest?: string,
+): void => {
+  const region = regionFrom(html, openMarker, tag);
+  expect(region).not.toBe("");
+  if (guest !== undefined) {
+    expect(region).toContain(guest);
+  }
+  expect(
+    region.split(overAdmissionNoteText(named, admitted, bought)),
+  ).toHaveLength(2);
+};
+
 Then(
   "the notes panel shows one note for {word} saying the check-in named {int}, admitted {int}, and the booking holds {int} places",
   function (
@@ -254,16 +280,35 @@ Then(
   ): void {
     // The organiser reads the note inside the notes summary's own region,
     // grouped under the booking it is on, and the region holds it once.
-    const region = regionFrom(
+    notesRegionShowsOneNote(
       scenarioBrowser(this).currentHtml,
-      "attendee-notes-summary",
+      NOTES_SUMMARY,
       "details",
+      named,
+      admitted,
+      bought,
+      guest,
     );
-    expect(region).not.toBe("");
-    expect(region).toContain(guest);
-    expect(
-      region.split(overAdmissionNoteText(named, admitted, bought)),
-    ).toHaveLength(2);
+  },
+);
+
+Then(
+  "the notes block above the tabs shows one note for {word} saying the check-in named {int}, admitted {int}, and the booking holds {int} places",
+  function (
+    this: TicketsWorld,
+    _guest: string,
+    named: number,
+    admitted: number,
+    bought: number,
+  ): void {
+    notesRegionShowsOneNote(
+      scenarioBrowser(this).currentHtml,
+      NOTES_BLOCK,
+      "section",
+      named,
+      admitted,
+      bought,
+    );
   },
 );
 

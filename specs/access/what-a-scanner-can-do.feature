@@ -85,8 +85,9 @@ Feature: An owner gives a door worker the scanner, and nothing else
     will list the queued check-ins. A scan made offline asks how many
     people it checks in, and the page says when a queued check-in admits
     more people than the booking had left. The booking carries a note
-    about that, and the organiser reads the note on the listing's Overview
-    and its roster.
+    about that. The organiser reads the note on the listing's Overview,
+    its roster, the person's own page, and the Attendees page filtered
+    to the group.
 
     @case:scanners.the-door-page-offers-offline-mode
     Scenario: The door page offers a switch for offline mode
@@ -125,7 +126,7 @@ Feature: An owner gives a door worker the scanner, and nothing else
       When the door sends the same queued check-in again
       Then the door gives the same numbers and admits nobody more
       When Sam reads the QR on Cara's ticket
-      And the ticket page says all 3 places are checked in
+      Then the ticket page says all 3 places are checked in
 
     @case:scanners.the-over-admission-note-reaches-the-organiser
     Scenario: The organiser reads the note an over-admitted check-in left
@@ -140,13 +141,17 @@ Feature: An owner gives a door worker the scanner, and nothing else
       Then the notes panel shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
       When the organiser opens the Ceilidh's roster
       Then the notes panel shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
-      When the organiser opens the group's people list
+      When the organiser opens the Attendees page filtered to the group
       Then the notes panel shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
+      When the organiser opens Cara's page
+      Then the notes block above the tabs shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
       When the door sends the same queued check-in again
       When the organiser opens the Ceilidh's overview
       Then the notes panel shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
-      When the organiser opens the group's people list
+      When the organiser opens the Attendees page filtered to the group
       Then the notes panel shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
+      When the organiser opens Cara's page
+      Then the notes block above the tabs shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
 
   @rule:access.a-scanner-reaches-nothing-else
   Rule: A scanner reaches nothing else

@@ -11,6 +11,8 @@ import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 import { setListingGroups } from "#db/groups.ts";
 import {
+  NOTES_BLOCK,
+  NOTES_SUMMARY,
   noteDeletePath,
   notedAboutWithPicture,
   pictureTag,
@@ -18,34 +20,38 @@ import {
 } from "#test/specs/support/attendee-images.ts";
 import { findOrCreateGroup, groupNamed } from "#test/specs/support/groups.ts";
 
-/** The group the people-list steps share. Every scenario starts from an
- * empty database, so one fixed name carries nothing over. */
+/** The group the Attendees-page steps filter by. Every scenario starts from
+ * an empty database, so one fixed name carries nothing over. */
 const PEOPLE_LIST_GROUP = "Door groups";
 
 Given(
   "the {word} is in a group",
   async function (this: TicketsWorld, listing: string): Promise<void> {
-    // The group's people list filters bookings by group membership, so the
-    // story puts the listing in one group before anybody opens that list.
+    // The Attendees page filtered to the group lists the people booked on
+    // the group's listings, so the story puts the listing in one group
+    // before anybody opens that page.
     const group = await findOrCreateGroup(PEOPLE_LIST_GROUP);
     await setListingGroups(listingIdNamed(this, listing), [group.id]);
   },
 );
 
 When(
-  "the organiser opens the group's people list",
+  "the organiser opens the Attendees page filtered to the group",
   async function (this: TicketsWorld): Promise<void> {
     const group = await groupNamed(PEOPLE_LIST_GROUP);
     await openAdminPage(this, `/admin/attendees?group=${group.id}`);
   },
 );
 
-/** The notes block on the person's page: every note, oldest first, right
- * above the tab strip. */
-const NOTES_BLOCK = '<section class="attendee-notes">';
-/** The expandable notes summary above the attendees list and the listing's
- * panels. */
-const NOTES_SUMMARY = "attendee-notes-summary";
+When(
+  "the organiser opens {word}'s page",
+  async function (this: TicketsWorld, who: string): Promise<void> {
+    await openAdminPage(
+      this,
+      `/admin/attendees/${this.things.require("record", who)}`,
+    );
+  },
+);
 
 Given(
   "the organiser noted about {word} {string} with a picture called {string}",
@@ -56,13 +62,6 @@ Given(
     name: string,
   ): Promise<void> {
     await notedAboutWithPicture(this, who, noteText, name);
-  },
-);
-
-When(
-  "the organiser opens {word}'s page",
-  async function (this: TicketsWorld, _who: string): Promise<void> {
-    await openAdminPage(this, `/admin/attendees/${this.attendeeId}`);
   },
 );
 
