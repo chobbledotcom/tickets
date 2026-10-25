@@ -107,16 +107,18 @@ export const postedDeliveryHashes = (fetchStub: Stub): string[] =>
 /** The queued check-ins one reload settles, oldest first: each names the
  * digest its scan stored, the delivery id it answers by, and the people it
  * admits. */
-export const queuedItems = (tokens: string[]): Promise<string> =>
-  Promise.all(
-    tokens.map(async (token, index) => ({
-      operationId: `018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b3${index}`,
-      quantity: 1,
-      queuedAt: index + 1,
-      scanPath: SCAN_PATH,
-      tokenHash: await digestOf(token),
-    })),
-  ).then(JSON.stringify);
+export const queuedItems = async (tokens: string[]): Promise<string> =>
+  JSON.stringify(
+    await Promise.all(
+      tokens.map(async (token, index) => ({
+        operationId: `018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b3${index}`,
+        quantity: 1,
+        queuedAt: index + 1,
+        scanPath: SCAN_PATH,
+        tokenHash: await digestOf(token),
+      })),
+    ),
+  );
 
 /** The door's answer one settled queue replay gets. A fresh response per
  * call: the page load's cache refresh consumes the first one's body, and a

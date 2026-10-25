@@ -1,4 +1,5 @@
 import type { SiteDataBlob } from "#db/built-sites/blob.ts";
+import type { TicketCacheEntry } from "#routes/admin/scan-cache.ts";
 import type { PublicListing } from "#routes/api/public-listing.ts";
 import type { Step } from "#scripts/unread-fields/fields/steps.ts";
 import {
@@ -82,6 +83,19 @@ const sumupCheckoutRequests = exemptFieldsAt<SumupCheckoutRequest>(
   merchant_code: "exempt",
   redirect_url: "exempt",
   return_url: "exempt",
+});
+
+const ticketCacheEntries = exemptFieldsAt<TicketCacheEntry>(
+  "src/features/admin/scan-cache.ts",
+  [{ name: "TicketCacheEntry" }],
+  {
+    evidence:
+      "jsonResponse serialises the entries into the scan-cache GET body; the scanner page's hand-written browser JS (scanner-offline.js, scanner-offline-ui.js) validates and reads tickets for the offline quantity ask",
+    kind: "external-output",
+  },
+)({
+  hash: "check",
+  tickets: "exempt",
 });
 
 const sumupHostedCheckout: FindingExemption = {
@@ -451,6 +465,7 @@ export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
   ...settingsPageStates,
   ...siteDataBlobs,
   ...sumupCheckoutRequests,
+  ...ticketCacheEntries,
   ...webhookPayloads,
   groupScanChecksInAllListings,
   groupShowHiddenListings,
