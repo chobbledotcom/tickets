@@ -132,6 +132,24 @@ describe("hand-numbered tokens", () => {
     );
   });
 
+  test("stays quiet on a data string that follows an sql argument", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        'const line = format(sql, "Row ?1 is missing");',
+      ),
+    ).toEqual([]);
+  });
+
+  test("stays quiet on a property whose name ends in sql", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        'const s = { tsql: "?1" };',
+      ),
+    ).toEqual([]);
+  });
+
   test("fires on an sql property whose value sits on the next line", () => {
     expect(
       findHandNumberedSql(

@@ -378,6 +378,7 @@ const interpolationStringSpans = (
 const followsSqlProperty = (blanked: string, at: number): boolean => {
   let cursor = at;
   while (cursor > 0 && /\s/.test(blanked[cursor - 1] as string)) cursor -= 1;
+  if (blanked[cursor - 1] !== ":") return false;
   if (cursor < 4) return false;
   const word = blanked.slice(cursor - 4, cursor - 1);
   if (word !== "sql") return false;
