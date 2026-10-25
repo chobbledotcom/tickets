@@ -187,30 +187,53 @@ const expectMergeAnswer = async (
 
 /** Set up a merge pair with a two-answer question, assign target=a1/source=a2
  *  (the conflict), submit the merge with the given answer `choice`
- *  ("source"/"clear"/"target"), and assert the expected outcome. The Size,
- *  Diet, and Shirt merge-conflict tests all share this exact shape. Returns the
- *  response so a caller can add extra assertions (e.g. flash). */
+ *  ("source"/"clear"/"target"), and assert the expected outcome. `nameChoice`
+ *  decides the merged person's name (post the source's name to pin the
+ *  name-decision wording). The Size, Diet, and Shirt merge-conflict tests all
+ *  share this exact shape. Returns the response, the surviving target, and the
+ *  pair's pieces so a caller can add extra assertions (e.g. the activity log). */
 export const mergeWithAnswerConflict = async (
   questionText: string,
   answerTexts: [string, string],
   choice: "source" | "clear" | "target",
-): Promise<Response> => {
-  const { q, a1, a2, target, sourceToken } = await mergePairWithQuestion(
-    questionText,
-    answerTexts,
-  );
+  nameChoice: "source" | "target" = "target",
+): Promise<{
+  a1: Answer;
+  a2: Answer | undefined;
+  listing1: Listing;
+  response: Response;
+  target: Attendee;
+}> => {
+  const { q, a1, a2, listing1, target, sourceToken } =
+    await mergePairWithQuestion(questionText, answerTexts);
   await assignMergeAnswers(target.id, sourceToken, {
     source: [a2!.id],
     target: [a1.id],
   });
   const { response } = await submitMerge(target.id, sourceToken, {
     [`answer_${q.id}`]: choice,
+    pii_name: nameChoice,
   });
   expect(response.status).toBe(302);
   const expected =
     choice === "source" ? a2!.id : choice === "target" ? a1.id : undefined;
   await expectMergeAnswer(target.id, q.id, expected);
-  return response;
+  return { a1, a2, listing1, response, target };
+};
+
+/** A same-listing merge pair with one booking decision posted for its single
+ *  conflict slot, and the surviving target. The booking flash/log tests share
+ *  this shape; the caller asserts the outcome's wording. */
+export const submitBookingDecision = async (
+  bookingChoice: string,
+): Promise<{ listing1: Listing; response: Response; target: Attendee }> => {
+  const { listing1, target, sourceToken } = await mergePair({
+    sameListing: true,
+  });
+  const { response } = await submitMerge(target.id, sourceToken, {
+    [`booking_${listing1.id}:null:0:0`]: bookingChoice,
+  });
+  return { listing1, response, target };
 };
 
 /** Set up a merge pair with a one-answer question, assign the answer to only

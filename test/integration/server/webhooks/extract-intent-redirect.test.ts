@@ -13,6 +13,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
 // jscpd:ignore-end
@@ -25,22 +26,20 @@ describeWithEnv(
       await setupStripe();
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          currency: "gbp",
-          expires_at: 456,
-          id: "cs_no_items",
-          metadata: {
-            email: "john@example.com",
-            name: "John",
-            // items intentionally omitted — should cause an error
-          },
-          payment_intent: "pi_no_items",
-          payment_status: "paid",
-          status: "complete",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
+        Promise.resolve(
+          stubCheckoutSession({
+            amount_total: 1000,
+            currency: "gbp",
+            id: "cs_no_items",
+            metadata: {
+              email: "john@example.com",
+              name: "John",
+              // items intentionally omitted — should cause an error
+            },
+            payment_intent: "pi_no_items",
+            payment_status: "paid",
+          }),
+        ),
       );
 
       try {
@@ -173,23 +172,21 @@ describeWithEnv(
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          currency: "gbp",
-          expires_at: 456,
-          id: "cs_foreign_site_token",
-          metadata: {
-            email: "renew@example.com",
-            items: singleItem(tier.id, 1, 1000),
-            name: "Renewer",
-            site_token_index: "foreign-token-index",
-          },
-          payment_intent: "pi_foreign_site_token",
-          payment_status: "paid",
-          status: "complete",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
+        Promise.resolve(
+          stubCheckoutSession({
+            amount_total: 1000,
+            currency: "gbp",
+            id: "cs_foreign_site_token",
+            metadata: {
+              email: "renew@example.com",
+              items: singleItem(tier.id, 1, 1000),
+              name: "Renewer",
+              site_token_index: "foreign-token-index",
+            },
+            payment_intent: "pi_foreign_site_token",
+            payment_status: "paid",
+          }),
+        ),
       );
 
       try {

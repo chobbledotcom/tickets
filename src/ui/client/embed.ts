@@ -2,8 +2,9 @@
 /// <reference lib="dom.iterable" />
 /** Embed loader: creates an iframe and wires iframe-resizer. */
 
-(() => {
-  const script = document.currentScript as HTMLScriptElement;
+import "#src/ui/client/window-globals.ts";
+
+export const initEmbed = (script: HTMLScriptElement): void => {
   const listings = script.dataset.listings!.split(/[+,]/);
   const origin = new URL(script.src).origin;
   const iframeSrc = `${origin}/ticket/${listings.join("+")}?iframe=true`;
@@ -26,17 +27,7 @@
 
   const initResize = () => {
     if (!scriptLoaded || !iframeLoaded) return;
-    const iframeResize = (
-      window as unknown as {
-        iframeResize: (
-          options: {
-            license: string;
-          },
-          target: HTMLIFrameElement,
-        ) => void;
-      }
-    ).iframeResize;
-    iframeResize(
+    window.iframeResize(
       {
         license: "GPLv3",
       },
@@ -55,4 +46,4 @@
   };
 
   script.after(iframe, parentScript);
-})();
+};

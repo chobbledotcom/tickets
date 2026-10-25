@@ -2,7 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { createMutantTestState } from "#scripts/mutation/test-state.ts";
-import { captureCommands } from "#test-utils/command-capture.ts";
+import {
+  captureCommands,
+  stubDenoCommand,
+} from "#test-utils/command-capture.ts";
 import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 
 describe("mutant test state", () => {
@@ -94,10 +97,7 @@ describe("mutant test state", () => {
       removed.push(options ? { options, path } : { path });
       return Promise.resolve();
     });
-    const commandNamespace = Deno as unknown as {
-      Command: typeof captured.Command;
-    };
-    using _command = stub(commandNamespace, "Command", captured.Command);
+    using _command = stubDenoCommand(captured.Command);
     const result = await createMutantTestState(
       { KEEP: "yes", [TEST_STATE_DIR_ENV]: "/stale" },
       new AbortController().signal,

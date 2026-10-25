@@ -13,7 +13,7 @@ import {
   enhanceMarkdownTextarea,
   type MarkdownEditorHandle,
 } from "#src/ui/client/admin/markdown-editor.ts";
-import { createDomInstaller } from "#test-utils/happy-dom.ts";
+import { createDomInstaller, requireElement } from "#test-utils/happy-dom.ts";
 
 export const { installDom, cleanup } = createDomInstaller([
   "navigator",
@@ -42,9 +42,10 @@ export const enhanced = (
       TEXTAREA.replace("%s", value) +
       (options.footer ? FOOTER : ""),
   );
-  const textarea = window.document.querySelector(
+  const textarea = requireElement<HTMLTextAreaElement>(
+    window.document,
     "textarea",
-  ) as unknown as HTMLTextAreaElement;
+  );
   return { handle: enhanceMarkdownTextarea(textarea), textarea, window };
 };
 
@@ -56,13 +57,8 @@ export const select = (view: EditorView, from: number, to = from): void => {
 };
 
 /** The toolbar button carrying the `md-toolbar-<key>` modifier class. */
-export const toolbarButton = (
-  window: Window,
-  key: string,
-): HTMLButtonElement & { click: () => void } =>
-  window.document.querySelector(
-    `.md-toolbar-${key}`,
-  ) as unknown as HTMLButtonElement & { click: () => void };
+export const toolbarButton = (window: Window, key: string): HTMLButtonElement =>
+  requireElement<HTMLButtonElement>(window.document, `.md-toolbar-${key}`);
 
 export const isActive = (button: HTMLButtonElement): boolean =>
   button.classList.contains("md-toolbar-button-active");
@@ -72,7 +68,7 @@ export const setPrompt = (
   window: Window,
   fn: (message?: string) => string | null,
 ): void => {
-  (window as unknown as { prompt: typeof fn }).prompt = fn;
+  Object.assign(window, { prompt: fn });
 };
 
 /** Assert the contenteditable surface, not a toolbar button, holds focus. */

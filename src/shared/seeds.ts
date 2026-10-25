@@ -79,34 +79,25 @@ const prepareListing = async (
     DEMO_LISTING_LOCATIONS[index % DEMO_LISTING_LOCATIONS.length]!;
   const created = nowIso();
 
-  const encryptBatch = <const T extends readonly string[]>(...values: T) =>
-    Promise.all(map(encrypt)(values as unknown as string[])) as Promise<{
-      [K in keyof T]: string;
-    }>;
-  const [encName, encSlug, encDesc, encLoc] = await encryptBatch(
-    name,
-    slug,
-    description,
-    location,
-  );
-  const [
-    encDate,
-    encThankYou,
-    encWebhook,
-    encClosesAt,
-    encAttachmentUrl,
-    encAttachmentName,
-  ] = await encryptBatch("", "", "", "", "", "");
+  const [encName, encSlug, encDesc, encLoc] = await Promise.all([
+    encrypt(name),
+    encrypt(slug),
+    encrypt(description),
+    encrypt(location),
+  ]);
+  // The six remaining fields all seed the empty string, so one ciphertext
+  // serves them all — each decrypts to "" exactly as before.
+  const empty = await encrypt("");
 
   return insert("listings", {
     active: 1,
-    attachment_name: encAttachmentName,
-    attachment_url: encAttachmentUrl,
+    attachment_name: empty,
+    attachment_url: empty,
     bookable_days: JSON.stringify(VALID_DAY_NAMES),
-    closes_at: encClosesAt,
+    closes_at: empty,
     created,
     customisable_days: customisable ? 1 : 0,
-    date: encDate,
+    date: empty,
     description: encDesc,
     fields: "email",
     listing_type: "standard",
@@ -119,9 +110,9 @@ const prepareListing = async (
     non_transferable: 0,
     slug: encSlug,
     slug_index: slugIndex,
-    thank_you_url: encThankYou,
+    thank_you_url: empty,
     unit_price: unitPrice,
-    webhook_url: encWebhook,
+    webhook_url: empty,
   });
 };
 

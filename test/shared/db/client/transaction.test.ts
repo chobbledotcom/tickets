@@ -1,4 +1,4 @@
-import { LibsqlError, type ResultSet, type Transaction } from "@libsql/client";
+import { LibsqlError, type ResultSet } from "@libsql/client";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
@@ -15,8 +15,14 @@ import {
   withSubrequestReserve,
 } from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
-import { stubTransaction } from "#test-utils/db-helpers/stub-transaction.ts";
+import {
+  emptyResultSet,
+  stubResultSet,
+} from "#test-utils/db-helpers/result-set.ts";
+import {
+  stubTransaction,
+  transactionStub,
+} from "#test-utils/db-helpers/stub-transaction.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 /**
@@ -174,10 +180,12 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     });
     using _txStub = stub(getDb(), "transaction", () => {
       events.push("begin");
-      return Promise.resolve({
-        commit: () => Promise.resolve(),
-        rollback: () => Promise.resolve(),
-      } as unknown as Transaction);
+      return Promise.resolve(
+        transactionStub({
+          commit: () => Promise.resolve(),
+          rollback: () => Promise.resolve(),
+        }),
+      );
     });
     const first = withTransaction(async () => {
       events.push("first work");
@@ -211,7 +219,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     using _txStub = stubTransaction({
       commit: () => Promise.resolve(),
       execute: () =>
-        Promise.resolve({ lastInsertRowid: 42n } as unknown as ResultSet),
+        Promise.resolve({ ...emptyResultSet(), lastInsertRowid: 42n }),
       rollback: () => Promise.resolve(),
     });
     const id = await writeRowInTransaction(
@@ -229,12 +237,12 @@ describeWithEnv("db > client transaction", { db: true }, () => {
   /** Run an INSERT through writeRowInTransaction against a driver whose
    *  RETURNING gives back `rows`, recording the ids persist saw. */
   const insertReturningRows = async (
-    rows: unknown[],
+    rows: Record<string, unknown>[],
   ): Promise<{ persistedIds: number[]; error: unknown }> => {
     const persistedIds: number[] = [];
     using _txStub = stubTransaction({
       commit: () => Promise.resolve(),
-      execute: () => Promise.resolve({ rows } as unknown as ResultSet),
+      execute: () => Promise.resolve(stubResultSet(rows)),
       rollback: () => Promise.resolve(),
     });
     try {

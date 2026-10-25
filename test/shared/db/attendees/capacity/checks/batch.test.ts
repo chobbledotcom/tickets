@@ -24,7 +24,10 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import {
+  emptyResultSet,
+  stubResultSet,
+} from "#test-utils/db-helpers/result-set.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
@@ -375,17 +378,9 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     // with the sold-out form error — so a replica that has not replayed a
     // cancellation yet must not decide the verdict. Every preflight read
     // pins to the primary, which a write-mode batch names.
-    const resultSet = (rows: unknown[]): ResultSet =>
-      ({
-        columns: [],
-        columnTypes: [],
-        lastInsertRowid: undefined,
-        rows,
-        rowsAffected: 0,
-      }) as unknown as ResultSet;
     const answerFor = (sql: string): ResultSet => {
       if (sql.includes("FROM listings AS listing")) {
-        return resultSet([
+        return stubResultSet([
           {
             attendee_count: 0,
             id: 501,
@@ -395,7 +390,7 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
         ]);
       }
       if (sql.includes("group_listings")) return emptyResultSet();
-      return resultSet([{ fits: 1 }]);
+      return stubResultSet([{ fits: 1 }]);
     };
     const modes: string[] = [];
     using _env = withEnv({ DB_URL: "http://primary.example" });

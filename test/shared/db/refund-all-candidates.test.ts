@@ -23,7 +23,10 @@ import {
   createPaidAttendeeWithoutLedger,
   createPaidTestAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
-import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import {
+  emptyResultSet,
+  stubClient,
+} from "#test-utils/db-helpers/result-set.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import {
   CLAIM_MIRROR,
@@ -75,7 +78,7 @@ const expectLegacyRefundAllBlocked = async (
 };
 
 const databaseReturning = (results: ResultSet[]): Client =>
-  ({ batch: () => Promise.resolve(results) }) as unknown as Client;
+  stubClient({ batch: () => Promise.resolve(results) });
 
 const resultWithRows = (rows: ResultSet["rows"]): ResultSet => ({
   ...emptyResultSet(),

@@ -5,7 +5,6 @@ import {
   extractSessionMetadata,
   PaymentUserError,
 } from "#shared/payment-helpers.ts";
-import type { SessionMetadata } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
 import {
@@ -13,6 +12,7 @@ import {
   expectSameThrown,
 } from "#test-utils/checkout-failure.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
+import { wireMetadata } from "#test-utils/payment-session.ts";
 import {
   configureSquare,
   expectNoLink,
@@ -133,7 +133,7 @@ describeSquare(() => {
 
           // Verify multi-intent metadata (small fields packed into `b`).
           const metadata = extractSessionMetadata(
-            args.order.metadata as unknown as SessionMetadata,
+            wireMetadata(args.order.metadata),
           );
           expect(metadata.name).toBe("Alice Wonder");
           expect(metadata.email).toBe("alice@example.com");

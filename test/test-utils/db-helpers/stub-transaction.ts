@@ -15,6 +15,12 @@ import { getDb } from "#db/client.ts";
 export const stubTransaction = (
   tx: Partial<Transaction>,
 ): Stub<Client, Parameters<Client["transaction"]>, Promise<Transaction>> =>
-  stub(getDb(), "transaction", () =>
-    Promise.resolve(tx as unknown as Transaction),
-  );
+  stub(getDb(), "transaction", () => Promise.resolve(tx as Transaction));
+
+/**
+ * A Transaction object for tests that drive begin/commit/rollback by hand —
+ * name only the members the exercised path calls. The one unsafe cast lives
+ * here, not at every call site.
+ */
+export const transactionStub = (members: Partial<Transaction>): Transaction =>
+  members as Transaction;

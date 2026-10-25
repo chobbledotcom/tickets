@@ -1,4 +1,3 @@
-import type { ResultSet } from "@libsql/client";
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -33,6 +32,7 @@ import {
   createTestListing,
   storedListingNames,
 } from "#test-utils/db-helpers/listings.ts";
+import { stubResultSet } from "#test-utils/db-helpers/result-set.ts";
 
 /** backupBudget under a request-style allowance of `total` calls. */
 const budgetWithAllowance = (total: number) =>
@@ -426,12 +426,10 @@ describeWithEnv("backup", { db: true }, () => {
       // The exact read initDb's state check issues; nothing else matches it.
       const isMarkerRead = (sql: string): boolean =>
         sql.includes("IN ('latest_db_update', 'db_schema_hash')");
-      const staleMarkers = {
-        rows: [
-          { key: "latest_db_update", value: LATEST_UPDATE },
-          { key: "db_schema_hash", value: SCHEMA_HASH },
-        ],
-      } as unknown as ResultSet;
+      const staleMarkers = stubResultSet([
+        { key: "latest_db_update", value: LATEST_UPDATE },
+        { key: "db_schema_hash", value: SCHEMA_HASH },
+      ]);
       const executeStub = stub(client, "execute", ((
         stmt: string | { sql: string },
       ) =>
@@ -463,18 +461,18 @@ describeWithEnv("backup", { db: true }, () => {
       // The full pre-wipe schema, exactly as a lagging snapshot would report
       // it: every table with all its columns, every index, every trigger.
       const preWipeSnapshot = [
-        {
-          rows: SCHEMA.flatMap(([tbl, table]) =>
+        stubResultSet(
+          SCHEMA.flatMap(([tbl, table]) =>
             table.columns.map(([col]) => ({ col, tbl })),
           ),
-        },
-        {
-          rows: SCHEMA.flatMap(([, table]) =>
+        ),
+        stubResultSet(
+          SCHEMA.flatMap(([, table]) =>
             (table.indexes ?? []).map((index) => ({ name: index.name })),
           ),
-        },
-        { rows: TRIGGERS.map((trigger) => ({ name: trigger.name })) },
-      ] as unknown as ResultSet[];
+        ),
+        stubResultSet(TRIGGERS.map((trigger) => ({ name: trigger.name }))),
+      ];
       const isSnapshotRead = (
         stmts: Array<string | { sql: string }>,
       ): boolean =>

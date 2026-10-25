@@ -643,6 +643,10 @@ interface StoredJsonContext {
   context: string;
 }
 
+/** A column default as a spreadable fragment, absent when there is none. */
+const optionalDefault = <T>(make: (() => T) | undefined) =>
+  make ? { default: make } : {};
+
 interface StoredJsonColumnConfig<T> extends StoredJsonContext {
   default?: () => T;
 }
@@ -668,31 +672,27 @@ export const col = {
       write: (v: boolean) => (v ? 1 : 0),
     }),
 
-  /** Column with type conversion between app and DB representations */
   converted: <App>(config: {
     default?: () => App;
-    write: (v: App) => InValue;
-    read: (raw: InValue, rowId?: unknown) => App;
+    write: ColumnTransform<App, InValue>;
+    read: (raw: InValue, rowId?: unknown) => Promise<App> | App;
   }): ColumnDef<App> => ({
-    default: config.default,
+    ...optionalDefault(config.default),
     read: config.read as (v: App) => App,
     write: config.write as (v: App) => App,
   }),
 
   /** Column whose stored form is a sealed (encrypted) string: `encrypt` seals
-   * the app value on write, `decrypt` opens the raw stored value on read. The
-   * `as Stored` cast is THE sanctioned read boundary for declaratively
-   * encrypted columns — the raw DB string re-enters the typed world here,
-   * asserted to be the sealed kind the column's declared `encrypt` produces
-   * (see src/shared/crypto/sealed.ts). */
+   * on write, `decrypt` opens on read. The `as Stored` cast is THE sanctioned
+   * read boundary for the raw DB string (see src/shared/crypto/sealed.ts). */
   encrypted: <T extends string, Stored extends string>(
     encrypt: ColumnTransform<T, Stored>,
     decrypt: ColumnTransform<Stored, T>,
   ): ColumnDef<T> =>
-    ({
-      read: (raw: string) => decrypt(raw as Stored),
+    col.converted<T>({
+      read: (raw: InValue) => decrypt(raw as Stored),
       write: encrypt,
-    }) as unknown as ColumnDef<T>,
+    }),
 
   /** Wrap an existing encrypted column def to pass through null values */
   encryptedNullable: <T extends {}>(
@@ -729,7 +729,7 @@ export const col = {
       );
     }
     return col.converted<v.InferOutput<TSchema>>({
-      ...(config.default ? { default: config.default } : {}),
+      ...optionalDefault(config.default),
       ...transforms,
     });
   },

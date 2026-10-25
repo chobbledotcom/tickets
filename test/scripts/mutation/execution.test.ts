@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { TEST_FILE_BATCH_SIZE } from "#scripts/mutation/batch.ts";
 import {
   type BatchRunResult,
@@ -13,7 +12,10 @@ import {
 } from "#scripts/mutation/execution.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { stripeMockPortFromEnv } from "#scripts/stripe-mock.ts";
-import { captureCommands } from "#test-utils/command-capture.ts";
+import {
+  captureCommands,
+  stubDenoCommand,
+} from "#test-utils/command-capture.ts";
 import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 
 const config = {
@@ -41,10 +43,7 @@ const runCapturedMutation = async (
   result: Awaited<ReturnType<typeof runTests>>;
 }> => {
   const captured = captureCommands(output);
-  const commandNamespace = Deno as unknown as {
-    Command: typeof captured.Command;
-  };
-  using _command = stub(commandNamespace, "Command", captured.Command);
+  using _command = stubDenoCommand(captured.Command);
   const result = await runTests(
     { ...config, testFiles: mixedMutationFiles },
     new AbortController().signal,
@@ -179,10 +178,7 @@ describe("mutation test execution", () => {
 
   test("runs the default Deno test command with the mutation flags", async () => {
     const captured = captureCommands();
-    const commandNamespace = Deno as unknown as {
-      Command: typeof captured.Command;
-    };
-    using _command = stub(commandNamespace, "Command", captured.Command);
+    using _command = stubDenoCommand(captured.Command);
     expect((await runTests(config, new AbortController().signal)).outcome).toBe(
       "passed",
     );

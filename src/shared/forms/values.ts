@@ -36,10 +36,7 @@ export const entityToFieldValues = <T>(
         entity && formatter
           ? formatter(entity)
           : entity
-            ? valueForField(
-                field,
-                (entity as unknown as Record<string, unknown>)[field.name],
-              )
+            ? valueForField(field, entity[field.name as keyof T])
             : "";
       return [field.name, value];
     }),

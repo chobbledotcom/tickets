@@ -283,7 +283,7 @@ export const createTestNameFilter = (
   }
   // Deno's types mark `test` read-only; the runtime property is writable,
   // which is what lets the patch intercept registrations in this isolate.
-  (Deno as unknown as { test: typeof Deno.test }).test = patched;
+  (Deno as { test: typeof Deno.test }).test = patched;
 
   // `only`/`ignore`/`skip` keep std's behavior: their registrations still
   // pass the patch, which drops plain unmatched tests.

@@ -7,6 +7,7 @@ import {
   stopProcess,
   stopProcessNow,
 } from "#scripts/process.ts";
+import { stubChildProcess } from "#test-utils/command-capture.ts";
 import { tempDir } from "#test-utils/files.ts";
 
 const stopped = (code = 0): Deno.CommandStatus => ({
@@ -32,7 +33,7 @@ const fakeChild = (
   });
   const finish = (status = stopped()) => resolveStatus(status);
   const fail = (error = new Error("stopped")) => rejectStatus(error);
-  const child = {
+  const child = stubChildProcess({
     kill: (signal?: Deno.Signal) => {
       calls.push(signal);
       onKill(signal, finish, fail);
@@ -41,7 +42,7 @@ const fakeChild = (
       refed = true;
     },
     status,
-  } as unknown as Deno.ChildProcess;
+  });
 
   return { calls, child, refed: () => refed };
 };
@@ -125,13 +126,13 @@ describe("script process helpers", () => {
 
   test("still closes resources when the graceful signal fails", async () => {
     let closed = false;
-    const child = {
+    const child = stubChildProcess({
       kill: () => {
         throw new Error("already stopped");
       },
       ref: () => {},
       status: Promise.resolve(stopped()),
-    } as unknown as Deno.ChildProcess;
+    });
 
     await stopProcess(child, 50, () => {
       closed = true;
@@ -142,11 +143,11 @@ describe("script process helpers", () => {
   });
 
   test("ignores already-stopped children in immediate stop", () => {
-    const child = {
+    const child = stubChildProcess({
       kill: () => {
         throw new Error("already stopped");
       },
-    } as unknown as Deno.ChildProcess;
+    });
 
     expect(() => stopProcessNow(child)).not.toThrow();
   });

@@ -1,7 +1,8 @@
-import type { Client, ResultSet } from "@libsql/client";
+import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { FakeTime } from "@std/testing/time";
 import { execute, setDb } from "#db/client.ts";
+import { stubClient } from "#test-utils/db-helpers/result-set.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 /** Walk one backoff wait: the attempt count holds until the wait's final
@@ -33,12 +34,14 @@ export const expectFullBackoffWalk = async (options: {
   using _env = withEnv({ DB_URL: options.dbUrl });
   using time = new FakeTime();
   let attempts = 0;
-  setDb({
-    execute: (): Promise<ResultSet> => {
-      attempts++;
-      return Promise.reject(options.failsWith());
-    },
-  } as unknown as Client);
+  setDb(
+    stubClient({
+      execute: (): Promise<ResultSet> => {
+        attempts++;
+        return Promise.reject(options.failsWith());
+      },
+    }),
+  );
   try {
     const done = options.outcome(execute(options.sql));
     await time.tickAsync(0);

@@ -3,12 +3,21 @@
  * page, and its "Total income earned" row parsed to minor units.
  */
 
-import type { BrowserSession } from "./browser.ts";
+/** What the ledger reader needs from the session: a page whose locators
+ * report how many matched and what text they carry. */
+type LedgerSession = {
+  page: {
+    locator: (selector: string) => {
+      count: () => Promise<number>;
+      innerText: () => Promise<string>;
+    };
+  };
+};
 
 /** The listing income ledger's text on the CURRENT admin listing page, or
  * null when no income was recognised (the section does not render). */
 export const incomeLedgerText = async (
-  session: BrowserSession,
+  session: LedgerSession,
 ): Promise<string | null> => {
   const ledger = session.page.locator("#income-ledger");
   return (await ledger.count()) === 0 ? null : await ledger.innerText();

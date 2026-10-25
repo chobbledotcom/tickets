@@ -86,6 +86,9 @@ jobs:
       - name: Check for empty catch blocks
         run: deno task check:empty-catch
 
+      - name: Check for double casts
+        run: deno task check:double-casts
+
       - name: Check file line counts
         run: deno task check:file-lengths
 

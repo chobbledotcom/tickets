@@ -16,7 +16,12 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { el, useScannerSuite } from "./scanner/fixture.ts";
+import {
+  el,
+  SCANNER_PAGE,
+  useScanner,
+  useScannerSuite,
+} from "./scanner/fixture.ts";
 
 describe("scanner bundle", {
   sanitizeOps: false,
@@ -48,6 +53,13 @@ describe("scanner bundle", {
     const h = fresh();
     expect(() => el(h.document, "scanner-page-does-not-carry-this")).toThrow(
       "The scanner page carries no scanner-page-does-not-carry-this",
+    );
+  });
+
+  test("a page without the camera element is a broken page, not a working scan", () => {
+    const page = SCANNER_PAGE.replace(/<video[^>]*><\/video>/, "");
+    expect(() => useScanner(page)).toThrow(
+      "The scanner page carries no scanner-video",
     );
   });
 

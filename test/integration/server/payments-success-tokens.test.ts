@@ -14,6 +14,7 @@ import { withEnv } from "#test-utils/env.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 
 /* jscpd:ignore-end */
 
@@ -57,25 +58,23 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 500,
-          currency: "gbp",
-          expires_at: 456,
-          id: "cs_token_verify",
-          metadata: signMeta(
-            {
-              email: "verify@example.com",
-              items: singleItem(listing.id, 1, 500),
-              name: "Token Verify",
-            },
-            500,
-          ),
-          payment_intent: "pi_token_verify",
-          payment_status: "paid",
-          status: "complete",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
+        Promise.resolve(
+          stubCheckoutSession({
+            amount_total: 500,
+            currency: "gbp",
+            id: "cs_token_verify",
+            metadata: signMeta(
+              {
+                email: "verify@example.com",
+                items: singleItem(listing.id, 1, 500),
+                name: "Token Verify",
+              },
+              500,
+            ),
+            payment_intent: "pi_token_verify",
+            payment_status: "paid",
+          }),
+        ),
       );
 
       try {

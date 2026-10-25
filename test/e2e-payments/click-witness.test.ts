@@ -7,12 +7,15 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { Locator } from "playwright";
-import { armWitnessedAttempt, interactable } from "#e2e/click-witness.ts";
+import {
+  armWitnessedAttempt,
+  interactable,
+  type WitnessControl,
+} from "#e2e/click-witness.ts";
 
-/** The page-side shape the witness stamps onto a control. */
+/** The fake page element the witness arms: the listener it registers is kept
+ * so the test can simulate the visitor's click. */
 type FakeElement = {
-  seen?: boolean;
   clickListeners: (() => void)[];
   addEventListener: (type: string, listener: () => void) => void;
 };
@@ -39,10 +42,10 @@ const scriptedLocator = (
   steps: readonly { fail?: boolean }[],
   visible = true,
   enabled = true,
-): Locator => {
+): WitnessControl => {
   const queue = [...steps];
   return {
-    evaluate: (fn: (el: unknown) => unknown) => {
+    evaluate: <R>(fn: (el: unknown) => R | Promise<R>) => {
       const step = queue.shift();
       if (step === undefined || step.fail) {
         return Promise.reject(new Error("the document is gone"));
@@ -51,7 +54,7 @@ const scriptedLocator = (
     },
     isEnabled: () => Promise.resolve(enabled),
     isVisible: () => Promise.resolve(visible),
-  } as unknown as Locator;
+  };
 };
 
 describe("interactable", () => {

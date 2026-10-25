@@ -1,5 +1,8 @@
 import type { ProviderRead } from "#payment/provider-read.ts";
-import type { StripeExpandedPaymentIntent } from "#shared/stripe/schemas.ts";
+import type {
+  StripeCheckoutSession,
+  StripeExpandedPaymentIntent,
+} from "#shared/stripe/schemas.ts";
 import { stripeRefund } from "#test-utils/stripe/fixtures.ts";
 
 const checkout = {
@@ -14,6 +17,16 @@ const checkout = {
   status: "complete",
   url: "https://checkout.stripe.com/c/pay/cs_1",
 };
+
+/**
+ * A checkout session as `retrieveCheckoutSession` hands it back. Stripe's real
+ * response carries every field; a test names only the ones its exercised path
+ * reads, so an omitted field stays absent at runtime exactly as the raw stub
+ * did. The one unsafe cast lives here, not at every call site.
+ */
+export const stubCheckoutSession = (
+  fields: Partial<StripeCheckoutSession>,
+): StripeCheckoutSession => ({ ...fields }) as StripeCheckoutSession;
 
 /** A Stripe payment intent whose charge states its money, as the refund guard
  *  reads it. `returned` says how much has already gone back. */

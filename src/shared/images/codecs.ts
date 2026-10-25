@@ -57,7 +57,7 @@ const ensureCodecs = onceSuccessful(async () => {
     webpDecInit(webpDecMod),
     webpEncInit(webpEncMod),
   ]);
-  return { decode: DECODERS, encode: webpEncode };
+  return { decode: DECODERS, encode: encodeWebpPixels };
 });
 
 /** Decoder per accepted MIME type — exhaustive, so a new format is a compile error. */
@@ -69,6 +69,13 @@ const DECODERS: Record<
   "image/png": pngDecode,
   "image/webp": webpDecode,
 };
+
+/** jSquash types its encoder against the full DOM `ImageData` but only ever
+ * reads the pixels `RawImage` carries, so pin that honest shape once here. */
+const encodeWebpPixels = webpEncode as (
+  image: RawImage,
+  options?: { quality?: number },
+) => Promise<ArrayBuffer>;
 
 /** Decode encoded image bytes of the given MIME type into RGBA pixels.
  *
@@ -95,9 +102,5 @@ export const encodeWebp = async (
   quality: number,
 ): Promise<Uint8Array> => {
   const codecs = await ensureCodecs();
-  // jSquash types the input as a full DOM `ImageData`; the encoder only reads
-  // `data`/`width`/`height`, which `RawImage` supplies.
-  return new Uint8Array(
-    await codecs.encode(image as unknown as ImageData, { quality }),
-  );
+  return new Uint8Array(await codecs.encode(image, { quality }));
 };

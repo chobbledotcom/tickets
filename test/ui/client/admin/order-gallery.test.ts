@@ -14,6 +14,8 @@ import { initOrderGallery } from "#src/ui/client/admin/order-gallery.ts";
 import {
   createDomInstaller,
   createGlobalStash,
+  fireEvent,
+  requireElement,
 } from "#test-utils/happy-dom.ts";
 
 type CardState = { state: string; label: string };
@@ -78,39 +80,29 @@ const harness = (html = GALLERY_HTML) => {
   const document = window.document;
   return {
     boxFor: (name: string) =>
-      document.querySelector(`input[name="${name}"]`) as unknown as {
-        checked: boolean;
-        disabled: boolean;
-        dispatchEvent: (event: unknown) => void;
-      },
+      requireElement<HTMLInputElement>(document, `input[name="${name}"]`),
     cardFor: (key: string) =>
-      document.querySelector(`[data-order-key="${key}"]`) as unknown as {
-        dataset: Record<string, string | undefined>;
-        querySelector: (sel: string) => { textContent: string } | null;
-      },
+      requireElement<HTMLElement>(document, `[data-order-key="${key}"]`),
     changeField: (selector: string) => {
-      const field = document.querySelector(selector) as unknown as {
-        dispatchEvent: (event: unknown) => void;
-      };
-      field.dispatchEvent(new window.Event("change", { bubbles: true }));
+      fireEvent(
+        requireElement<HTMLElement>(document, selector),
+        new window.Event("change", { bubbles: true }),
+      );
     },
-    dateWrap: document.querySelector("[data-order-date]") as unknown as {
-      classList: { contains: (cls: string) => boolean };
-    },
-    orderField: document.querySelector('input[name="order"]') as unknown as {
-      value: string;
-    },
+    dateWrap: requireElement<HTMLElement>(document, "[data-order-date]"),
+    orderField: requireElement<HTMLInputElement>(
+      document,
+      'input[name="order"]',
+    ),
     requests,
     responses,
     tick: (name: string, checked: boolean) => {
-      const box = document.querySelector(
+      const box = requireElement<HTMLInputElement>(
+        document,
         `input[name="${name}"]`,
-      ) as unknown as {
-        checked: boolean;
-        dispatchEvent: (event: unknown) => void;
-      };
+      );
       box.checked = checked;
-      box.dispatchEvent(new window.Event("change", { bubbles: true }));
+      fireEvent(box, new window.Event("change", { bubbles: true }));
     },
   };
 };

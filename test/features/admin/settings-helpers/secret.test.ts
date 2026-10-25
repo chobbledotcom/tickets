@@ -10,6 +10,7 @@ import {
 } from "#routes/admin/settings-helpers.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { mockFn } from "#test-utils/mock-fn.ts";
 import {
   formFrom,
   lastLogMessage,
@@ -66,11 +67,7 @@ describe("processSecretField", () => {
 });
 
 describe("saveSecret", () => {
-  const updateSpy = () =>
-    fn((_value: string) => Promise.resolve()) as unknown as ((
-      value: string,
-    ) => Promise<void>) &
-      ReturnType<typeof fn>;
+  const updateSpy = () => mockFn((_value: string) => Promise.resolve());
 
   test("saves a provided secret", async () => {
     const update = updateSpy();

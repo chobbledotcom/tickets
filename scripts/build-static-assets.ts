@@ -106,7 +106,7 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
   ),
   browserBundle(
     "Embed",
-    "./src/ui/client/embed.ts",
+    "./src/ui/client/embed-main.ts",
     STATIC_ASSET_OUTFILES.embed,
   ),
   browserBundle(

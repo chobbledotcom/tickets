@@ -10,6 +10,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 
 // jscpd:ignore-end
 
@@ -32,25 +33,23 @@ const followPaymentRedirectAndGetAttendees = async (
   listingId: number,
 ) => {
   const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-    Promise.resolve({
-      amount_total: session.amountTotal,
-      currency: "gbp",
-      expires_at: 456,
-      id: session.sessionId,
-      metadata: signMeta(
-        webhookMeta({
-          email: session.email,
-          items: session.items,
-          name: session.name,
-        }),
-        session.amountTotal,
-      ),
-      payment_intent: session.paymentIntent,
-      payment_status: "paid",
-      status: "complete",
-    } as unknown as Awaited<
-      ReturnType<typeof stripeApi.retrieveCheckoutSession>
-    >),
+    Promise.resolve(
+      stubCheckoutSession({
+        amount_total: session.amountTotal,
+        currency: "gbp",
+        id: session.sessionId,
+        metadata: signMeta(
+          webhookMeta({
+            email: session.email,
+            items: session.items,
+            name: session.name,
+          }),
+          session.amountTotal,
+        ),
+        payment_intent: session.paymentIntent,
+        payment_status: "paid",
+      }),
+    ),
   );
 
   try {

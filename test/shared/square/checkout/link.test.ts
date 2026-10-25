@@ -6,7 +6,6 @@ import { hmacHash } from "#crypto/hashing.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { queryOne } from "#db/client.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
-import type { SessionMetadata } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
 import { squareLinkEndsAt } from "#shared/square/checkout.ts";
 import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
@@ -14,6 +13,7 @@ import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { testListing } from "#test-utils/factories.ts";
+import { wireMetadata } from "#test-utils/payment-session.ts";
 import {
   configureSquare,
   expectNoLink,
@@ -130,7 +130,7 @@ describeSquare(() => {
           // Verify metadata includes intent fields. Small fields (phone, …) are
           // packed into `b` on the wire, so decode the way the webhook does.
           const metadata = extractSessionMetadata(
-            args.order.metadata as unknown as SessionMetadata,
+            wireMetadata(args.order.metadata),
           );
           expect(metadata.name).toBe("Jane Smith");
           expect(metadata.email).toBe("jane@example.com");

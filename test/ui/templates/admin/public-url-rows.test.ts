@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { PublicUrlRows } from "#templates/admin/public-url-rows.tsx";
-import { createDomInstaller } from "#test-utils/happy-dom.ts";
+import { createDomInstaller, requireElement } from "#test-utils/happy-dom.ts";
 
 const availableRows = (): string =>
   String(
@@ -76,12 +76,14 @@ describe("the Public URL rows", () => {
    * Embed label handed back. */
   const setupToggle = () => {
     const window = dom.installDom(availableRows());
-    const toggle = window.document.getElementById(
-      "embed-toggle-7",
-    ) as unknown as HTMLInputElement;
-    const embed = window.document.querySelector(
+    const toggle = requireElement<HTMLInputElement>(
+      window.document,
+      "#embed-toggle-7",
+    );
+    const embed = requireElement<HTMLLabelElement>(
+      window.document,
       'label[for="embed-toggle-7"]',
-    ) as unknown as HTMLLabelElement;
+    );
     return { embed, toggle, window };
   };
 

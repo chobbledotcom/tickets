@@ -20,6 +20,7 @@ import {
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 import {
   checkoutSessionEvent,
   expectWebhookProcessed,
@@ -129,25 +130,23 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
     await reserveSessionFn("cs_multi_concurrent");
 
     const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 500,
-        currency: "gbp",
-        expires_at: 456,
-        id: "cs_multi_concurrent",
-        metadata: signMeta(
-          webhookMeta({
-            email: "concurrent@example.com",
-            items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-            name: "Concurrent",
-          }),
-          500,
-        ),
-        payment_intent: "pi_multi_concurrent",
-        payment_status: "paid",
-        status: "complete",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
+      Promise.resolve(
+        stubCheckoutSession({
+          amount_total: 500,
+          currency: "gbp",
+          id: "cs_multi_concurrent",
+          metadata: signMeta(
+            webhookMeta({
+              email: "concurrent@example.com",
+              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+              name: "Concurrent",
+            }),
+            500,
+          ),
+          payment_intent: "pi_multi_concurrent",
+          payment_status: "paid",
+        }),
+      ),
     );
 
     try {
@@ -175,25 +174,23 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
     await reserveSessionFn("cs_single_concurrent");
 
     const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1000,
-        currency: "gbp",
-        expires_at: 456,
-        id: "cs_single_concurrent",
-        metadata: signMeta(
-          webhookMeta({
-            email: "concurrent@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "Concurrent",
-          }),
-          1000,
-        ),
-        payment_intent: "pi_single_concurrent",
-        payment_status: "paid",
-        status: "complete",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
+      Promise.resolve(
+        stubCheckoutSession({
+          amount_total: 1000,
+          currency: "gbp",
+          id: "cs_single_concurrent",
+          metadata: signMeta(
+            webhookMeta({
+              email: "concurrent@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "Concurrent",
+            }),
+            1000,
+          ),
+          payment_intent: "pi_single_concurrent",
+          payment_status: "paid",
+        }),
+      ),
     );
 
     try {

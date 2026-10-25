@@ -11,6 +11,10 @@ import {
   type MutationRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
 import { captureConsole } from "#test/scripts/mutation/isolation-helpers.ts";
+import {
+  stubChildProcess,
+  stubDenoCommand,
+} from "#test-utils/command-capture.ts";
 
 const wait = async (milliseconds: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -160,10 +164,6 @@ export const recordKillCalls = (calls: KillCall[]): Disposable =>
     calls.push({ pid, signal });
   }) as typeof Deno.kill);
 
-/** `Deno.Command` is a class, so stubbing it needs a looser view of `Deno`. */
-type DenoCommandShim = { Command: (...args: unknown[]) => unknown };
-const denoCommand = Deno as unknown as DenoCommandShim;
-
 /**
  * Hand out the given child instead of starting a real one, recording the
  * options each start was asked for.
@@ -173,7 +173,7 @@ export const stubCommand = (
   starts: Deno.CommandOptions[] = [],
   onStart: () => void = () => {},
 ): Disposable =>
-  stub(denoCommand, "Command", (...args: unknown[]) => {
+  stubDenoCommand((...args: unknown[]) => {
     const [, options] = args as [unknown, Deno.CommandOptions];
     starts.push(options);
     onStart();
@@ -182,10 +182,10 @@ export const stubCommand = (
 
 /** A child that has already finished with the given exit code. */
 export const finishedChild = (pid: number, code = 0): Deno.ChildProcess =>
-  ({
+  stubChildProcess({
     pid,
     status: Promise.resolve({ code, signal: null, success: code === 0 }),
-  }) as unknown as Deno.ChildProcess;
+  });
 
 export const controlledChild = (
   pid: number,
@@ -199,12 +199,12 @@ export const controlledChild = (
 } => {
   const { promise: status, resolve: resolveStatus } =
     Promise.withResolvers<Deno.CommandStatus>();
-  const child = {
+  const child = stubChildProcess({
     kill: (signal?: Deno.Signal) => onKill(signal, resolveStatus),
     pid,
     ref: () => {},
     status,
-  } as unknown as Deno.ChildProcess;
+  });
 
   return { child, finish: resolveStatus };
 };

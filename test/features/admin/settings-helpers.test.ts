@@ -4,7 +4,6 @@
  */
 
 import { expect } from "@std/expect";
-import { fn } from "@std/expect/fn";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import {
@@ -22,6 +21,7 @@ import {
   redirectFormId,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { type MockOf, mockFn } from "#test-utils/mock-fn.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 import {
@@ -34,10 +34,9 @@ const FORM_ID = "settings-email";
 const LENGTH_ERROR = `API Key must be ${MAX_INPUT_LENGTH} characters or fewer`;
 
 /** A `save` spy a handler config can take, with its calls still readable. */
-type SaveSpy = ReturnType<typeof fn> & ((value: string) => Promise<void>);
+type SaveSpy = MockOf<(value: string) => Promise<void>>;
 
-const makeSave = (): SaveSpy =>
-  fn(() => Promise.resolve()) as unknown as SaveSpy;
+const makeSave = (): SaveSpy => mockFn(() => Promise.resolve());
 
 /** One handler config: the email API key field, saved by the given spy. */
 const emailKeyConfig = (saveFn: SaveSpy): SettingsHandlerConfig<string> => ({
@@ -69,7 +68,7 @@ const KEY_SAVERS: [
 ];
 
 describeWithEnv("settings form helpers", { db: true }, () => {
-  let errorPage: ErrorPageFn & ReturnType<typeof fn>;
+  let errorPage: MockOf<ErrorPageFn>;
 
   beforeEach(() => {
     errorPage = makeMockErrorPage();

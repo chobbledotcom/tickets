@@ -8,25 +8,32 @@ import {
   parseNameFilter,
 } from "#test-utils/test-name-filter.ts";
 
-interface FakeStep {
-  fn?: (t: Deno.TestContext) => unknown;
-  name: string;
-}
-
-/** The fake context carries deno's TestContext shape plus a step that takes
- * the fake's minimal step definition, so one type serves both sides. */
-type FakeContext = Deno.TestContext & {
-  step: (step: FakeStep) => Promise<void>;
+/** A context that records every step it entered, running the step's body.
+ * It carries the members of Deno's TestContext the fake runners read, so
+ * the fake suites register without a cast. */
+const fakeContext = (entered: string[]): Deno.TestContext => {
+  // Deno's step takes three argument shapes; one union parameter answers
+  // all of them, so the fake context is a TestContext without a cast.
+  const step = async (
+    stepOrName:
+      | string
+      | Deno.TestStepDefinition
+      | ((t: Deno.TestContext) => void | Promise<void>),
+    maybeFn?: (t: Deno.TestContext) => void | Promise<void>,
+  ): Promise<boolean> => {
+    const name = typeof stepOrName === "string" ? stepOrName : stepOrName.name;
+    const body =
+      typeof stepOrName === "string"
+        ? maybeFn
+        : typeof stepOrName === "function"
+          ? stepOrName
+          : stepOrName.fn;
+    entered.push(name);
+    await body?.(fakeContext(entered));
+    return true;
+  };
+  return { name: "fake context", origin: "fake", step };
 };
-
-/** A context that records every step it entered, running the step's body. */
-const fakeContext = (entered: string[]): FakeContext =>
-  ({
-    step: async (step: FakeStep) => {
-      entered.push(step.name);
-      await step.fn?.(fakeContext(entered));
-    },
-  }) as unknown as FakeContext;
 
 /** The piece of std's bdd contract the filter leans on: a describe body runs
  * synchronously, a top-level suite registers one definition after its body,
@@ -34,48 +41,57 @@ const fakeContext = (entered: string[]): FakeContext =>
  * the hidden "global" suite that later top-level its join. */
 const fakeBdd = (): BddFunctions => {
   const runSteps =
-    (steps: FakeStep[]) =>
-    async (t: FakeContext): Promise<void> => {
+    (steps: Deno.TestStepDefinition[]) =>
+    async (t: Deno.TestContext): Promise<void> => {
       // A suite runner reads the context it was handed before it steps; the
       // read drives the filtered context's property forwarding.
       void t.name;
       for (const step of steps) await t.step(step);
     };
-  /** Adapts a fake runner to the `Deno.test` definition shape. */
-  const denoFn =
-    (fn: (t: FakeContext) => unknown) =>
-    (t: Deno.TestContext): Promise<void> =>
-      fn(t as unknown as FakeContext) as Promise<void>;
+  // std's describe takes several argument shapes; the fake reads the two
+  // the tests write: a named suite with a body, or a bare body for an
+  // anonymous suite.
+  const suiteNameAndBody = (
+    args: Parameters<BddFunctions["describe"]>,
+  ): { body: () => void; name: string } => {
+    const [first, second] = args;
+    const body =
+      typeof first === "function"
+        ? first
+        : typeof second === "function"
+          ? second
+          : undefined;
+    if (body === undefined) {
+      throw new Error("the fake describe registers a body");
+    }
+    return { body, name: typeof first === "string" ? first : "" };
+  };
   const registerSuite = (
-    nameOrBody: string | (() => void),
-    maybeBody?: () => void,
+    ...args: Parameters<BddFunctions["describe"]>
   ): void => {
-    // std's describe carries a name; a bare-function suite is the anonymous
-    // shape the filter must still keep-able-track.
-    const fn = maybeBody ?? (nameOrBody as () => void);
-    const suiteName = maybeBody === undefined ? "" : (nameOrBody as string);
-    const suite: FakeStep[] = [];
+    const { body, name: suiteName } = suiteNameAndBody(args);
+    const suite: Deno.TestStepDefinition[] = [];
     const parent = current;
-    if (parent === undefined) {
+    // While the body runs, nested registrations become steps of this suite;
+    // afterwards the previous suite takes the registrations back.
+    const runBody = (): void => {
       current = suite;
       try {
-        fn();
-      } finally {
-        current = undefined;
-      }
-      Deno.test({ fn: denoFn(runSteps(suite)), name: suiteName });
-    } else {
-      parent.push({ fn: denoFn(runSteps(suite)), name: suiteName });
-      current = suite;
-      try {
-        fn();
+        body();
       } finally {
         current = parent;
       }
+    };
+    if (parent === undefined) {
+      runBody();
+      Deno.test({ fn: runSteps(suite), name: suiteName });
+    } else {
+      parent.push({ fn: runSteps(suite), name: suiteName });
+      runBody();
     }
   };
-  let current: FakeStep[] | undefined;
-  const globalSteps: FakeStep[] = [];
+  let current: Deno.TestStepDefinition[] | undefined;
+  const globalSteps: Deno.TestStepDefinition[] = [];
   const bdd = {
     afterAll: (() => {}) as BddFunctions["afterAll"],
     afterEach: (() => {}) as BddFunctions["afterEach"],
@@ -86,7 +102,7 @@ const fakeBdd = (): BddFunctions => {
         Deno.test({
           fn: (t: Deno.TestContext): Promise<void> => {
             fn();
-            return runSteps(globalSteps)(t as unknown as FakeContext);
+            return runSteps(globalSteps)(t);
           },
           name: "global",
         });
@@ -96,7 +112,7 @@ const fakeBdd = (): BddFunctions => {
     beforeEach: ((fn: () => void) => {
       bdd.beforeAll(fn);
     }) as BddFunctions["beforeEach"],
-    describe: registerSuite as unknown as BddFunctions["describe"],
+    describe: registerSuite as BddFunctions["describe"],
     it: ((name: string, fn: () => void) => {
       if (current === undefined) Deno.test({ fn, name });
       else current.push({ fn, name });
@@ -115,7 +131,7 @@ const [getRestoreTest, setRestoreTest] = lazyRef<(() => void) | undefined>(
 /** Deno's types mark `test` read-only, but the runtime property is writable;
  * this named const is how a test patches and later restores registration. */
 const setDenoTest = (value: typeof Deno.test): void => {
-  const writableTest = Deno as unknown as { test: typeof Deno.test };
+  const writableTest = Deno as { test: typeof Deno.test };
   writableTest.test = value;
 };
 
@@ -132,9 +148,9 @@ const installFilter = (
   spec: string,
 ): { filtered: FilteredBdd; captured: RegistrationArgs[] } => {
   const captured: RegistrationArgs[] = [];
-  const realTest = ((...args: unknown[]) => {
+  const realTest = ((...args: Parameters<typeof Deno.test>) => {
     captured.push(args);
-  }) as unknown as typeof Deno.test;
+  }) as typeof Deno.test;
   const originalTest = Deno.test;
   setRestoreTest(() => setDenoTest(originalTest));
   return {
@@ -148,8 +164,10 @@ type RegistrationArgs = readonly unknown[];
 const registeredName = (args: RegistrationArgs): string =>
   typeof args[0] === "string" ? args[0] : (args[0] as { name: string }).name;
 
-const registeredFn = (args: RegistrationArgs): ((t: FakeContext) => unknown) =>
-  (args[0] as { fn?: (t: FakeContext) => unknown }).fn!;
+const registeredFn = (
+  args: RegistrationArgs,
+): ((t: Deno.TestContext) => unknown) =>
+  (args[0] as { fn?: (t: Deno.TestContext) => unknown }).fn!;
 
 const names = (captured: readonly RegistrationArgs[]): string[] =>
   captured.map(registeredName);

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { fireEvent } from "#test-utils/happy-dom.ts";
 import {
   type ManualCheckinPage,
   useManualCheckinPage,
@@ -110,10 +111,11 @@ describe("manual check-in ID verification", () => {
     await dismissedPromptSkips((page) =>
       // The dialog listens on the installed window's document, so the event
       // must come from that window's own KeyboardEvent.
-      document.dispatchEvent(
+      fireEvent(
+        document,
         new page.window.KeyboardEvent("keydown", {
           key: "Escape",
-        }) as unknown as Event,
+        }),
       ),
     );
   });

@@ -6,20 +6,20 @@
  * gate on it.
  */
 
-import type { Locator } from "playwright";
-
 /** Whether the control can honestly be acted on at all. */
-export const interactable = async (locator: Locator): Promise<boolean> =>
-  (await locator.isVisible()) && (await locator.isEnabled());
+export const interactable = async (control: WitnessControl): Promise<boolean> =>
+  (await control.isVisible()) && (await control.isEnabled());
 
 /** The page-side shape the click witness stamps onto a control. */
-type Witnessed = {
-  __e2eClickSeen?: boolean;
-  addEventListener: (
-    type: string,
-    listener: () => void,
-    options: { capture: boolean; once: boolean },
-  ) => void;
+type WitnessedElement = HTMLElement & { __e2eClickSeen?: boolean };
+
+/** What the witness needs from a control: whether it can be acted on, and a
+ * way to run a page-side function against the matched element. The element
+ * reaches the page-side function untyped, so the witness narrows it once. */
+export type WitnessControl = {
+  isEnabled: () => Promise<boolean>;
+  isVisible: () => Promise<boolean>;
+  evaluate: <R>(fn: (element: unknown) => R | Promise<R>) => Promise<R>;
 };
 
 /** Arm a page-side click witness on the control. The returned question is
@@ -27,11 +27,11 @@ type Witnessed = {
  * (the element or its document is already gone, which navigation after a
  * dispatched submission causes) says yes, never "safe to replay". */
 const armClickWitness = async (
-  control: Locator,
+  control: WitnessControl,
 ): Promise<() => Promise<boolean>> => {
   const armed = await control
     .evaluate((element) => {
-      const witnessed = element as unknown as Witnessed;
+      const witnessed = element as WitnessedElement;
       witnessed.__e2eClickSeen = false;
       witnessed.addEventListener(
         "click",
@@ -47,8 +47,7 @@ const armClickWitness = async (
     armed
       ? control
           .evaluate(
-            (element) =>
-              (element as unknown as Witnessed).__e2eClickSeen !== false,
+            (element) => (element as WitnessedElement).__e2eClickSeen !== false,
           )
           .catch(() => true)
       : Promise.resolve(true);
@@ -61,7 +60,7 @@ const armClickWitness = async (
  * a dispatched submission would act twice, and a second POST on a live
  * refund form moves real money. */
 export const armWitnessedAttempt = async (
-  control: Locator,
+  control: WitnessControl,
 ): Promise<(ordinary: () => Promise<void>) => Promise<boolean>> => {
   const mayHaveDispatched = await armClickWitness(control);
   return async (ordinary) => {

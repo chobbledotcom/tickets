@@ -12,14 +12,22 @@
 
 import type { SquareLinkEndEventId } from "#payment/square-link-end-machine-spec.ts";
 import type { FetchResult } from "#shared/fetch.ts";
-import type { GetSquareClient } from "#shared/square/client.ts";
+import type { SquareClient } from "#shared/square/client.ts";
+
+/** The one Square client method ending a payment link asks for, named through
+ * the real client type so the field stays a read. */
+type LinkEndSquareClient = {
+  checkout: {
+    paymentLinks: Pick<SquareClient["checkout"]["paymentLinks"], "cancel">;
+  };
+};
 
 /** Ask Square to end one payment link. The answer is the whole HTTP result,
  * because the classifier reads the status and the refusal words itself. The
  * task runs only where Square is configured, so a missing client is raised,
  * not worked around. */
 export const endSquareLink = async (
-  getClient: GetSquareClient,
+  getClient: () => Promise<LinkEndSquareClient | null>,
   linkId: string,
 ): Promise<FetchResult> => {
   const client = await getClient();

@@ -1430,7 +1430,7 @@
   "src/shared/db/table.ts": {
     "wordy": 10,
     "banned-modal": 6,
-    "long-sentence": 10,
+    "long-sentence": 9,
     "semicolon": 3,
     "contraction": 1
   },
@@ -1573,7 +1573,7 @@
   },
   "src/shared/images/codecs.ts": {
     "long-sentence": 2,
-    "semicolon": 2
+    "semicolon": 1
   },
   "src/shared/images/formats.ts": {
     "banned-modal": 1

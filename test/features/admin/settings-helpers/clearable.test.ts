@@ -1,5 +1,4 @@
 import { expect } from "@std/expect";
-import { fn } from "@std/expect/fn";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import {
   clearableFieldHandler,
@@ -7,6 +6,7 @@ import {
 } from "#routes/admin/settings-helpers.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { type MockOf, mockFn } from "#test-utils/mock-fn.ts";
 import {
   lastLogMessage,
   makeMockErrorPage,
@@ -17,7 +17,7 @@ import {
 const makeClearable = (
   overrides: Partial<Parameters<typeof clearableFieldHandler>[0]> = {},
 ) => {
-  const saveFn = fn(() => Promise.resolve());
+  const saveFn = mockFn(() => Promise.resolve());
   const handler = clearableFieldHandler({
     field: "email",
     formId: "settings-email",
@@ -30,7 +30,7 @@ const makeClearable = (
 };
 
 describeWithEnv("clearableFieldHandler", { db: true }, () => {
-  let mockErrorPage: ErrorPageFn & ReturnType<typeof fn>;
+  let mockErrorPage: MockOf<ErrorPageFn>;
 
   beforeEach(() => {
     mockErrorPage = makeMockErrorPage();
@@ -87,9 +87,7 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
 
   test("skips validator for empty value even when validate is provided", async () => {
     // Clearing always succeeds regardless of the validator
-    const validateFn = fn(
-      (_v: string) => "Should not be called",
-    ) as unknown as ((value: string) => string | null) & ReturnType<typeof fn>;
+    const validateFn = mockFn((_v: string) => "Should not be called");
     const { handler } = makeClearable({ validate: validateFn });
     const res = await runHandler(handler, { email: "" }, mockErrorPage);
 

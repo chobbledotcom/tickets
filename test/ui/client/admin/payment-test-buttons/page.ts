@@ -13,18 +13,11 @@ import { initPaymentTestButtons } from "#src/ui/client/admin/payment-test-button
 import {
   createDomInstaller,
   createGlobalStash,
+  requireElement,
 } from "#test-utils/happy-dom.ts";
 
 /** The words the settings page puts on the button. */
 export const SAVE_LABEL = "Test connection";
-
-/** The parts of a DOM element these tests read. */
-export type PageElement = {
-  classList: { contains: (name: string) => boolean };
-  click: () => void;
-  disabled: boolean;
-  textContent: string;
-};
 
 /** One scripted answer: what the endpoint says, or how it fails, and an
  * optional gate for reading the page while the request is still out. */
@@ -40,8 +33,8 @@ export type Script = readonly [Reply, ...Reply[]];
 
 export type Page = {
   asked: { body: string; url: string }[];
-  button: PageElement;
-  result: PageElement;
+  button: HTMLButtonElement;
+  result: HTMLElement;
 };
 
 /** One provider's credentials form as the settings page renders it, with
@@ -101,8 +94,8 @@ export const usePaymentButtonPage = (): {
       return { json: () => Promise.resolve(reply.data) };
     });
     initPaymentTestButtons();
-    const find = (id: string): PageElement =>
-      window.document.getElementById(id) as unknown as PageElement;
+    const find = (id: string): HTMLButtonElement =>
+      requireElement<HTMLButtonElement>(window.document, `#${id}`);
     return {
       asked,
       button: find(`${provider}-test-btn`),

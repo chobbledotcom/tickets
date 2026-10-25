@@ -5,13 +5,13 @@ import type {
 } from "#payment/provider-read.ts";
 import {
   judgeThrough,
-  parsedBy,
   type Rung,
   refuseUnless,
   refuseUnlessAll,
 } from "#payment/provider-resource-read.ts";
 import { sumupPaymentFields } from "#shared/sumup/wire.ts";
 import { optionalRecordList } from "#shared/validation/list.ts";
+import { parseOrNull } from "#shared/validation/parse.ts";
 
 /** One SumUp transaction's charge and refund money in provider major units. */
 export type SumupTransactionMoney = {
@@ -128,6 +128,6 @@ export const readSumupTransaction = (
         status: event.status,
       })),
     }),
-    parse: parsedBy(TransactionSchema),
+    parse: (answer: unknown) => parseOrNull(TransactionSchema, answer),
     rungs: TRANSACTION_RUNGS(facts),
   })(body);

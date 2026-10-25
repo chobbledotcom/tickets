@@ -7,22 +7,20 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { BrowserSession } from "#e2e/browser.ts";
 import {
   incomeLedgerText,
   totalIncomeEarnedMinor,
 } from "#e2e/income-ledger.ts";
 
 /** A session whose page carries one locator: no ledger, or this text. */
-const sessionWithLedger = (count: number, text: string): BrowserSession =>
-  ({
-    page: {
-      locator: () => ({
-        count: () => Promise.resolve(count),
-        innerText: () => Promise.resolve(text),
-      }),
-    },
-  }) as unknown as BrowserSession;
+const sessionWithLedger = (count: number, text: string) => ({
+  page: {
+    locator: () => ({
+      count: () => Promise.resolve(count),
+      innerText: () => Promise.resolve(text),
+    }),
+  },
+});
 
 describe("incomeLedgerText", () => {
   test("returns null when the ledger section does not render", async () => {
