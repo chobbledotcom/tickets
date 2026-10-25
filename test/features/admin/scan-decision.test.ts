@@ -5,7 +5,12 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { decideScan, rowsByListing } from "#routes/admin/scan-decision.ts";
+import {
+  decideScan,
+  exactQuantityAdmission,
+  rowsByListing,
+  type ScanDecision,
+} from "#routes/admin/scan-decision.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { testTokenEntry } from "#test-utils/factories.ts";
 
@@ -254,5 +259,58 @@ describe("rowsByListing", () => {
       [society()],
       [guest()],
     ]);
+  });
+});
+
+describe("exactQuantityAdmission", () => {
+  /** The fixture decision, narrowed to the admit the controls produce. */
+  const admit = (decision: ScanDecision) => {
+    if (decision.kind !== "admit")
+      throw new Error("the fixture controls admit");
+    return decision;
+  };
+  const four = standard({ quantity: 4 });
+  const two = society({ quantity: 2 });
+  // The decision a delivery naming five places reaches: the same quantity
+  // pick the queued check-in carries.
+  const covered = admit(scanAt([four, two], { checkEvery: true, count: 5 }));
+
+  test("fills the listings in booking order to exactly the delivery's quantity", () => {
+    // A party spans two listings and owes six places; a delivery that names
+    // five admits four at the first listing and one at the next.
+    expect(exactQuantityAdmission(covered, 5)).toEqual({
+      ...covered,
+      remaining: 1,
+      rows: [four, two],
+      units: [
+        { rows: [four], tickets: 4 },
+        { rows: [two], tickets: 1 },
+      ],
+    });
+  });
+
+  test("stops at the delivery's quantity and drops the listings it never reaches", () => {
+    expect(exactQuantityAdmission(covered, 1)).toEqual({
+      ...covered,
+      remaining: 5,
+      rows: [four],
+      units: [{ rows: [four], tickets: 1 }],
+    });
+  });
+
+  test("refuses a quantity the covered listings cannot supply", () => {
+    // The delivery names more people than the booking still holds. The
+    // server refuses it instead of admitting fewer than the delivery named.
+    expect(exactQuantityAdmission(covered, 7)).toBeNull();
+  });
+
+  test("one place of a party plans one ticket on the first listing", () => {
+    const three = standard({ quantity: 3 });
+    const one = admit(scanAt([three], { count: 3 }));
+    expect(exactQuantityAdmission(one, 1)).toEqual({
+      ...one,
+      remaining: 2,
+      units: [{ rows: [three], tickets: 1 }],
+    });
   });
 });

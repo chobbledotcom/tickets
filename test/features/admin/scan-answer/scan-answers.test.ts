@@ -5,12 +5,18 @@
  *
  * The walk itself and its guards have their own suites beside this one;
  * this one owns the odd answers: a token nothing holds, an orphaned line,
- * and a site whose key cannot be unwrapped.
+ * a site whose key cannot be unwrapped, and the answer an admission gives
+ * when another door took its tickets first.
  */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { withTransaction } from "#db/client.ts";
+import { claimScanOperation } from "#db/processed-scan-operations.ts";
 import { settings } from "#db/settings.ts";
+import { admissionAnswer } from "#routes/admin/scan-answer.ts";
+import type { ScanDecision } from "#routes/admin/scan-decision.ts";
+import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { groupDoor, scanAtDoor } from "#test/features/admin/scanner/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -21,6 +27,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { testTokenEntry } from "#test-utils/factories.ts";
 import { refundThroughLedger } from "#test-utils/ledger.ts";
 import { insertSecondBookingRow } from "#test-utils/logistics.ts";
 
@@ -289,6 +296,135 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
         }
         settings.invalidateCache();
       }
+    });
+  });
+});
+
+/** One booking row on the door's Standard listing, holding `quantity`
+ * places with `checkedIn` already admitted. */
+const standardRow = (quantity: number, checkedIn = 0): TokenEntry =>
+  testTokenEntry({
+    attendee: {
+      checked_in: checkedIn,
+      id: 7,
+      quantity,
+      refunded: false,
+    },
+    listing: {
+      id: 1,
+      name: "Standard",
+      non_transferable: false,
+      purchase_only: false,
+    },
+  });
+
+/** One booking row on the door's Society listing, for an entry the
+ * delivery's claim does not name. */
+const societyRow = (): TokenEntry =>
+  testTokenEntry({
+    attendee: { checked_in: 0, id: 7, quantity: 1, refunded: false },
+    listing: {
+      id: 2,
+      name: "Society",
+      non_transferable: false,
+      purchase_only: false,
+    },
+  });
+
+/** A full admit decision over the given rows, the shape the write's
+ * answer reads. */
+const admitOf = (
+  rows: readonly TokenEntry[],
+): Extract<ScanDecision, { kind: "admit" }> => ({
+  kind: "admit",
+  remaining: 0,
+  rows: [...rows],
+  units: [{ rows: [...rows], tickets: 1 }],
+});
+
+describeWithEnv("the answer for one admission's write", { db: true }, () => {
+  test("a write that took nothing answers already checked in over the planned rows", async () => {
+    // Another door took every ticket between the decision and the write.
+    const answer = await admissionAnswer(
+      admitOf([standardRow(1)]),
+      [standardRow(1)],
+      "Cara",
+      undefined,
+      { admitted: 0, remaining: 0 },
+    );
+
+    expect(await answer.json()).toEqual({
+      listingName: "Standard",
+      name: "Cara",
+      quantity: 1,
+      status: "already_checked_in",
+      total: 1,
+    });
+  });
+
+  test("a drained delivery answers the tier and quantity its own claim stored", async () => {
+    // The delivery claimed its tier inside the write that moved nothing.
+    // The answer reads that claim, so the device reads the tier and the
+    // quantity the first send put in — never a fresh decision's pick — and
+    // the person the claim does not name drops out of the answer.
+    await withTransaction((tx) =>
+      claimScanOperation({
+        listingIds: [1],
+        operationId: "op-drained-1",
+        quantity: 2,
+        tokenHash: "digest-drained-1",
+      })(tx),
+    );
+
+    const answer = await admissionAnswer(
+      admitOf([standardRow(3)]),
+      [standardRow(3), societyRow()],
+      "Cara",
+      { operationId: "op-drained-1", tokenHash: "digest-drained-1" },
+      { admitted: 0, remaining: 0 },
+    );
+
+    expect(await answer.json()).toEqual({
+      listingName: "Standard",
+      name: "Cara",
+      quantity: 2,
+      status: "already_checked_in",
+      total: 3,
+    });
+  });
+
+  test("a drained delivery whose ledger row is gone fails loudly", async () => {
+    // The admission stores the pair before any drained answer reads it, so
+    // a missing row is a broken invariant, not an answer.
+    await expect(
+      admissionAnswer(
+        admitOf([standardRow(1)]),
+        [standardRow(1)],
+        "Cara",
+        { operationId: "op-drained-2", tokenHash: "digest-drained-2" },
+        { admitted: 0, remaining: 0 },
+      ),
+    ).rejects.toThrow(
+      "A claimed scan delivery's ledger row went missing before its answer",
+    );
+  });
+
+  test("a write that took tickets answers checked in with what remains", async () => {
+    const answer = await admissionAnswer(
+      admitOf([standardRow(3)]),
+      [standardRow(3)],
+      "Cara",
+      undefined,
+      { admitted: 1, remaining: 2 },
+    );
+
+    expect(await answer.json()).toEqual({
+      listingName: "Standard",
+      name: "Cara",
+      quantity: 1,
+      remaining: 2,
+      status: "checked_in",
+      total: 3,
     });
   });
 });

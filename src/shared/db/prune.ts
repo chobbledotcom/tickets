@@ -14,6 +14,7 @@ import {
   type SqlParameter,
 } from "#db/numbered-statement.ts";
 import { orphanIdsBatch } from "#db/orphan-attendees.ts";
+import { PRUNE_SCAN_OPERATIONS_RETENTION_MS } from "#db/processed-scan-operations.ts";
 import { settings } from "#db/settings.ts";
 import {
   refundAuthorityPrunableSql,
@@ -185,6 +186,14 @@ const pruneStatements = (): PruneStatement[] => [
     "contact_preferences",
     (bind) =>
       `unsubscribed = 0 AND last_activity < ${bind(nowMs() - PRUNE_CONTACTS_RETENTION_MS)}`,
+  ),
+  // A replay ledger row guards one offline delivery's retry, and a device
+  // only retries while its saved cache is valid. Past the retention window
+  // no retry can still admit, so the row — and the digest it holds — goes.
+  boundedDelete(
+    "processed_scan_operations",
+    (bind) =>
+      `created < ${bind(isoBefore(PRUNE_SCAN_OPERATIONS_RETENTION_MS))}`,
   ),
 ];
 

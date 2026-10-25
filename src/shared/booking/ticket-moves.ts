@@ -4,7 +4,7 @@
 
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
-import { requiredMapValue, sumOf } from "#fp";
+import { filter, requiredMapValue, sumOf } from "#fp";
 
 /** Admitting fills lines up to their quantity, releasing empties them. */
 export type TicketDirection = "admit" | "release";
@@ -132,3 +132,9 @@ export const spreadTicketMoves = (
 export const ticketCount: (moves: Iterable<TicketMove>) => number = sumOf(
   (move: TicketMove) => move.count,
 );
+
+/** The moves that really moved some tickets: the ones a door logs an
+ * activity row for, and the ones a door's records read back. */
+export const movesThatMoved: (
+  moves: readonly TicketMoveAnswer[],
+) => readonly TicketMoveAnswer[] = filter((move) => move.count > 0);
