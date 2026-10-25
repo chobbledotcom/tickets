@@ -5,16 +5,20 @@
  * beside the `args` object forms.
  */
 
+import { skipComment } from "#scripts/typescript-lex.ts";
 import {
   firstArgumentComma,
   matchingBracket,
+  pastSpaces,
+  pastTypeArguments,
 } from "#test/scripts/code-quality/brackets.ts";
 
 /** The SQL query and write helpers whose second call argument carries a
  * statement's bind list. `execute` also matches member calls (`tx.execute`);
  * the type arguments a generic call carries sit between the name and the
- * argument list. */
-const SQL_HELPERS = new Set([
+ * argument list. The parity test beside this module holds the set against
+ * the client module's exports. */
+export const SQL_HELPERS = new Set([
   "execute",
   "executeReturningRow",
   "executeWithoutCacheInvalidation",
@@ -52,28 +56,35 @@ const secondCallArgument = (
     : { array: { close: arrayClose, open: arrayOpen }, kind: "array" };
 };
 
-/** The first index at or after `at` whose character is not whitespace. */
-const pastSpaces = (blanked: string, at: number): number => {
-  let cursor = at;
-  while (cursor < blanked.length && /\s/.test(blanked[cursor] as string)) {
-    cursor += 1;
+/** The first index at or after `at` that is neither whitespace nor a
+ * comment: where the call's first argument starts. The walk reads
+ * `content`, where the comments still show. */
+const pastBlanks = (content: string, at: number): number => {
+  let cursor = pastSpaces(content, at);
+  for (;;) {
+    const after = skipComment(content, cursor);
+    if (after === cursor) return cursor;
+    cursor = pastSpaces(content, after);
   }
-  return cursor;
 };
 
-/** The index just past one balanced `<…>` type-argument group starting at
- * `at`, or `at` itself when no group starts there. */
-const pastTypeArguments = (blanked: string, at: number): number => {
-  if (blanked[at] !== "<") return at;
-  let depth = 0;
-  for (let cursor = at; cursor < blanked.length; cursor++) {
-    if (blanked[cursor] === "<") depth += 1;
-    if (blanked[cursor] === ">") {
-      depth -= 1;
-      if (depth === 0) return cursor + 1;
+/** Where each SQL helper call's statement text begins: the string or
+ * template literal that opens the call's first argument, or nothing when the
+ * call passes an expression there. `blanked` names the real calls; the
+ * opening character is read from `content` at the same index, where the
+ * quotes still show. */
+export const sqlTextArgumentStarts = (
+  content: string,
+  blanked: string,
+): Set<number> => {
+  const starts = new Set<number>();
+  for (const name of SQL_HELPERS) {
+    for (const { open } of callOpens(blanked, name)) {
+      const at = pastBlanks(content, open + 1);
+      if ("\"'`".includes(content[at] ?? "")) starts.add(at);
     }
   }
-  return at;
+  return starts;
 };
 
 /** The index of the `(` that opens a call's argument list after `at`, past

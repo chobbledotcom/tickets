@@ -84,4 +84,64 @@ describe("hand-numbered tokens", () => {
       ),
     ).toEqual([]);
   });
+
+  test("fires on a quoted statement a SQL helper call carries", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        'await execute("DELETE FROM t WHERE parent_id = ?1 OR child_id = ?1", [id]);',
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
+  test("fires on an sql property whose value sits on the next line", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        'const statement = {\n  args: [id],\n  sql:\n    "DELETE FROM t WHERE id = ?1",\n};',
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:4: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
+  test("fires on SQL text a template variable holds", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        "const sql = `SELECT ?1 FROM t WHERE x = ?`;",
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
+  test("stays quiet on a string that is not SQL text", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        'const message = "Choose option ?1 to continue";',
+      ),
+    ).toEqual([]);
+  });
+
+  test("stays quiet on a string a helper call binds rather than runs", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        'await execute(writeSql, ["option ?1"]);',
+      ),
+    ).toEqual([]);
+  });
+
+  test("stays quiet on a quoted statement a variable holds", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        'const sql = "DELETE FROM t WHERE id = ?1";\nawait execute(sql, [id]);',
+      ),
+    ).toEqual([]);
+  });
 });

@@ -13,7 +13,10 @@ import {
   lexicalSpans,
 } from "#scripts/typescript-lex.ts";
 import { matchingBracket } from "#test/scripts/code-quality/brackets.ts";
-import { argumentUses } from "#test/scripts/code-quality/helper-binds.ts";
+import {
+  argumentUses,
+  sqlTextArgumentStarts,
+} from "#test/scripts/code-quality/helper-binds.ts";
 
 /** The one file whose own job is to emit `?N` tokens. */
 const NUMBERED_STATEMENT_PATH = "shared/db/numbered-statement.ts";
@@ -288,7 +291,7 @@ export const findRepeatedBinds = (
   const exempt = (at: number): boolean =>
     allowed.some((entry) => {
       const separator = entry.lastIndexOf(":");
-      if (separator < 0) return relativePath.startsWith(entry);
+      if (separator < 0) return relativePath === entry;
       if (!relativePath.startsWith(entry.slice(0, separator))) return false;
       const [start, end] = declarationSpan(blanked, entry.slice(separator + 1));
       return start >= 0 && at >= start && at < end;
@@ -368,17 +371,36 @@ const interpolationStringSpans = (
   return spans;
 };
 
+/** Whether the code before `at` ends in an `sql:` property: the string at
+ * `at` is a statement's SQL text, as the `{ sql, args }` object form writes
+ * it. The walk reads the blanked text, where only real code shows, and stops
+ * on the colon the property ends with. */
+const followsSqlProperty = (blanked: string, at: number): boolean => {
+  let cursor = at;
+  while (cursor > 0 && /\s/.test(blanked[cursor - 1] as string)) cursor -= 1;
+  return (
+    cursor >= 4 &&
+    blanked.slice(cursor - 4, cursor - 1) === "sql" &&
+    !/[A-Za-z0-9_$]/.test(blanked[cursor - 5] ?? "")
+  );
+};
+
 /** The hand-numbered `?N` tokens of one source file. The numbered binder is
  * the only writer of `?N` tokens, so SQL text never spells one itself; the
  * prose comments that kept such numbering honest are comments, which the
- * string-span walk never reads. A template's SQL text is checked with its
- * interpolations blanked, and each interpolation's own string spans — the
- * conditional fragments an assembly writes — are checked in their place. */
+ * string-span walk never reads. The walk judges SQL text only: a template
+ * literal, an `sql:` property's string, or the statement string a SQL helper
+ * call carries. Every other string is prose, and the walk skips it. A
+ * template's SQL text is checked with its interpolations blanked, and each
+ * interpolation's own string spans — the conditional fragments an assembly
+ * writes — are checked in their place. */
 export const findHandNumberedSql = (
   relativePath: string,
   content: string,
 ): string[] => {
   if (relativePath === NUMBERED_STATEMENT_PATH) return [];
+  const blanked = blankSpans(content, true);
+  const statementStringStarts = sqlTextArgumentStarts(content, blanked);
   const violations: string[] = [];
   const check = (start: number, end: number): void => {
     const text = content.slice(start, end);
@@ -392,8 +414,14 @@ export const findHandNumberedSql = (
       check(span.start, span.end);
     }
   };
+  const isSqlText = (at: number): boolean =>
+    content[at] === "`" ||
+    statementStringStarts.has(at) ||
+    followsSqlProperty(blanked, at);
   for (const span of lexicalSpans(content)) {
-    if (span.kind === "string") check(span.start, span.end);
+    if (span.kind === "string" && isSqlText(span.start)) {
+      check(span.start, span.end);
+    }
   }
   return violations;
 };
