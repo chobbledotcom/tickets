@@ -299,12 +299,14 @@ describe("provider-refund architecture", () => {
     ]);
   });
 
-  test("only immutable schema history names the legacy returned-payment column", async () => {
+  test("only immutable schema history and the migration readiness verifier name the legacy returned-payment column", async () => {
     expect(
       pathsContaining(await sourceFiles(), /provider_refunded_at/),
     ).toEqual([
       "shared/db/migrations/2026-07-07_processed_payments_payment_reference.ts",
       "shared/db/migrations/schema/tables-attendees.ts",
+      "shared/migration-readiness/readiness.ts",
+      "shared/migration-readiness/timestamps.ts",
     ]);
   });
 

@@ -5,11 +5,12 @@
  * model and an operator-readable verdict. They never touch the aggregate
  * payment runtime or the live provider and refund paths. Callers fetch the
  * rows and report decryption failures. These rules group and diagnose over
- * what was read.
+ * what was read. The timestamp conversion lives in `timestamps.ts`.
  */
 
 import { HYBRID_PREFIX } from "#crypto/hybrid.ts";
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { convertAllTimestamps } from "#shared/migration-readiness/timestamps.ts";
 
 /** The session-id prefix marking a `processed_payments` row as an
  *  attendee-merge handoff of the source attendee's `payment_id`. */
@@ -21,7 +22,9 @@ export const LEGACY_MERGE_SESSION_PREFIX = "legacy-merge:";
 export type ProcessedPaymentRow = {
   payment_session_id: string;
   attendee_id: number | null;
+  processed_at: string;
   payment_reference: OwnerKeyEncrypted | "";
+  provider_refunded_at: string;
   /** Encrypted "+"-joined ticket tokens, "" while none are stored. The
    *  redirect/webhook replay decrypts this field, so the verifier checks it. */
   ticket_tokens: EnvKeyEncrypted | "";
@@ -36,6 +39,7 @@ export type ProcessedPaymentRow = {
 export type CheckoutStageRow = {
   payment_session_id: string;
   attendee_id: number;
+  created_at: string;
 };
 
 /** One row of the legacy `sumup_checkouts` staging table. The booking
@@ -45,6 +49,7 @@ export type CheckoutStageRow = {
 export type SumupCheckoutRow = {
   reference_index: string;
   sumup_id: string;
+  created_at: string;
   wrapped_key: string;
   metadata: string;
 };
@@ -75,6 +80,7 @@ export type ContradictionKind =
   | "undecryptable_ticket_tokens"
   | "undecryptable_failure_data"
   | "owner_key_unavailable"
+  | "unconvertible_timestamp"
   | "sumup_checkout_without_id"
   | "sumup_checkout_without_staging_ciphertext";
 
@@ -94,6 +100,7 @@ export type ReadinessCounts = {
   attendeePiiBlobs: number;
   mergeReferences: number;
   paymentGroups: number;
+  timestampConversions: number;
 };
 
 export type ReadinessReport = {
@@ -358,16 +365,22 @@ const ownerKeyContradictions = (input: DiagnoseInput): Contradiction[] => {
 };
 
 /** Turn one lossless read of the legacy payment sources into a readiness
- *  verdict. The data is `ready` only when every row is accounted for.
- *  Every reference must point at a live attendee.
+ *  verdict. The data is `ready` only when every row is accounted for and
+ *  every timestamp normalises. Every reference must point at a live attendee.
  *  The owner key must decrypt every PII blob and payment reference.
  *  Any single finding blocks the migration. The operator fixes it before a
  *  later release changes payment history. */
 export const diagnoseReadiness = (input: DiagnoseInput): ReadinessReport => {
   const groups = buildPaymentGroups(input.processed, input.stages);
+  const timestamp = convertAllTimestamps(
+    input.processed,
+    input.stages,
+    input.sumup,
+  );
   const contradictions: Contradiction[] = [
     ...groups.flatMap((group) => groupContradictions(input, group)),
     ...sumupContradictions(input.sumup),
+    ...timestamp.contradictions,
     ...ownerKeyContradictions(input),
     ...envCiphertextContradictions(input),
   ];
@@ -384,6 +397,7 @@ export const diagnoseReadiness = (input: DiagnoseInput): ReadinessReport => {
       paymentGroups: groups.length,
       processedPayments: input.processed.length,
       sumupCheckouts: input.sumup.length,
+      timestampConversions: timestamp.converted,
     },
     kind: contradictions.length === 0 ? "ready" : "blocked",
   };

@@ -117,21 +117,21 @@ export const createMigrationVerifyReader = (
     ),
   readCheckoutStages: () =>
     keysetRows<CheckoutStageRow>(
-      "SELECT payment_session_id, attendee_id FROM checkout_stages",
+      "SELECT payment_session_id, attendee_id, created_at FROM checkout_stages",
       null,
       "payment_session_id",
       pageSize,
     ),
   readProcessedPayments: () =>
     keysetRows<ProcessedPaymentRow>(
-      "SELECT payment_session_id, attendee_id, ticket_tokens, payment_reference, failure_data FROM processed_payments",
+      "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, payment_reference, provider_refunded_at, failure_data FROM processed_payments",
       null,
       "payment_session_id",
       pageSize,
     ),
   readSumupCheckouts: () =>
     keysetRows<SumupCheckoutRow>(
-      "SELECT reference_index, sumup_id, wrapped_key, metadata FROM sumup_checkouts",
+      "SELECT reference_index, sumup_id, wrapped_key, metadata, created_at FROM sumup_checkouts",
       null,
       "reference_index",
       pageSize,

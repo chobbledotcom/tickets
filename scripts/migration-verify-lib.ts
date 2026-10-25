@@ -3,13 +3,15 @@
  *
  * The read shell of the verifier: it fetches the legacy rows, enforces the
  * owner-key control for encrypted attendee PII, and prints the verdict. The
- * pure grouping and contradiction rules live in `readiness.ts`, and the
- * production reader and owner-key provider in `migration-verify-deps.ts`.
+ * pure grouping and contradiction rules live in `readiness.ts`, the timestamp
+ * conversion in `timestamps.ts`, and the production reader and owner-key
+ * provider in `migration-verify-deps.ts`.
  */
 
 import { parseArgs } from "@std/cli/parse-args";
 import type { ScriptIo } from "#scripts/script-runner.ts";
 import { envCiphertextFailures } from "#shared/migration-readiness/env-ciphertext.ts";
+import { formatReport } from "#shared/migration-readiness/format.ts";
 import {
   type AttendeePiiSource,
   type CheckoutStageRow,
@@ -176,28 +178,14 @@ const assessOwnerKey = async (
   };
 };
 
-/** Print the verdict: a readiness heading, one line per contradiction —
- *  the kind and its non-secret detail (session id, attendee id, or count) —
+/** Print the verdict the formatter wrote: a readiness heading, one block
+ *  per contradiction — what it means, the evidence, the suggested action —
  *  then the source counts, so the verdict names what it read. */
 const printReport = (
   stdout: (line: string) => void,
   report: ReadinessReport,
 ): void => {
-  stdout(
-    report.kind === "ready"
-      ? "Payment migration readiness: ready"
-      : `Payment migration readiness: BLOCKED — ${report.contradictions.length} contradiction(s)`,
-  );
-  for (const { detail, kind } of report.contradictions) {
-    stdout(`  - ${kind}: ${detail}`);
-  }
-  const c = report.counts;
-  stdout(
-    `Read ${c.processedPayments} processed payments, ` +
-      `${c.checkoutStages} checkout stages, ${c.sumupCheckouts} sumup checkouts, ` +
-      `${c.attendeePiiBlobs} attendee details, ${c.mergeReferences} merge references, ` +
-      `${c.paymentGroups} payment groups.`,
-  );
+  for (const line of formatReport(report)) stdout(line);
 };
 
 /** Run the readiness verifier. Reads the legacy sources, enforces the
