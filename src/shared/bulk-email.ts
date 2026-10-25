@@ -167,7 +167,10 @@ export const absoluteEmailImageUrls = (imageUrls: ImageUrls): ImageUrls =>
  * the rewrite. A web address, a link or prose that merely names an image
  * keeps its written form. A reference inside a code span or a fenced code
  * block keeps its written form. The reader reads it as code, and so does
- * the HTML render. The alt text keeps the escaped brackets the editor's
+ * the HTML render. A picture inside a table cell that holds an escaped
+ * pipe also keeps its written form. The cell rewrite cannot locate the
+ * cell's source, so it skips the cell, and the HTML render resolves the
+ * picture there. The alt text keeps the escaped brackets the editor's
  * serializer writes for a name that carries them. A reference the table
  * lacks also keeps its written form: the image is gone, and the HTML
  * render shows the alt text. */
