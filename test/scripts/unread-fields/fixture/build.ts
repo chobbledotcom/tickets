@@ -3,6 +3,7 @@ import type { Finding } from "#scripts/unread-fields/findings.ts";
 import { scanUnreadFields } from "#scripts/unread-fields/scan.ts";
 import { REACHING } from "./reaching.ts";
 import { READERS } from "./readers.ts";
+import { alone } from "./shapes/defaulted.ts";
 import { SHAPES } from "./shapes.ts";
 
 /**
@@ -52,6 +53,10 @@ export type { Gone } from "./nowhere.ts";
 `,
 
   "src/consume.ts": READERS,
+
+  // A module whose only export is an unnamed class. Its field has no reader,
+  // so the scan reports it under the default slot the module exports it by.
+  "src/defaulted.ts": alone,
 
   // Reached by a directory import. The compiler finds it only when the host
   // says truthfully that "src/inner.ts" is not a file.

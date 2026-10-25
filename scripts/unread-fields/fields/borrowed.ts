@@ -58,7 +58,9 @@ export const borrowedFields = (
   if (!inheritsFrom(shape)) {
     return { onItsValues: [], onTheClass: [], signatures: [] };
   }
-  const type = checker.getTypeAtLocation(shape.name);
+  // The declaration, not the name: an unnamed class has no name node, and
+  // both give the same type.
+  const type = checker.getTypeAtLocation(shape);
   const onItsValues = fieldsFrom(checker, type, shape);
   const signatures = partsOf(type).flatMap((part) =>
     writtenSignatures(checker, part),
