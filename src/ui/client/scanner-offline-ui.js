@@ -423,10 +423,11 @@ export const initOfflineScanner = ({
   settleDelivery,
   statusEl,
 }) => {
+  /** The page's one element for `id`, or a hard stop when the page lacks it. */
   const lookup = (id) => {
     const found = document.getElementById(id);
-    if (!found) throw new Error(`The scanner page carries no ${id}`);
-    return found;
+    if (found) return found;
+    throw new Error(`The scanner page carries no ${id}`);
   };
   const panel = {
     container: lookup("scanner-queue"),
