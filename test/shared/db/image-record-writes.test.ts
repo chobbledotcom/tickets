@@ -6,6 +6,7 @@ import { getDb } from "#db/client.ts";
 import {
   deleteImageRecord,
   getImageById,
+  type ImageInput,
   imageUrlsFor,
   insertImageRecord,
   updateImageRecord,
@@ -72,6 +73,14 @@ describeWithEnv("db > image record writes", { db: true }, () => {
     await expect(updateImageRecord(image.id, {})).rejects.toThrow(
       "names no column to write",
     );
+
+    // A partial whose every value is undefined reaches the same guard when a
+    // caller casts around the compiler. It must refuse here, not wipe the
+    // row's stored fields.
+    const wiped: Record<string, string | undefined> = { name: undefined };
+    await expect(
+      updateImageRecord(image.id, wiped as Partial<ImageInput>),
+    ).rejects.toThrow("names no column to write");
   });
 
   test("looks up exactly the ids the texts reference", async () => {

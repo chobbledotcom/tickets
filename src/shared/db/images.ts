@@ -450,13 +450,13 @@ export const insertImageRecord = async (input: ImageInput): Promise<Image> =>
 
 /** Update one image record's metadata. Returns null when the id names no
  * row. The update takes its SET clause from the provided columns alone. An
- * input that names no column throws here instead of failing at the
- * database. */
+ * input with no defined value names no column to write: it throws here
+ * instead of wiping a stored field or failing at the database. */
 export const updateImageRecord = async (
   id: number,
   input: Partial<ImageInput>,
 ): Promise<Image | null> => {
-  if (Object.keys(input).length === 0) {
+  if (Object.values(input).every((value) => value === undefined)) {
     throw new Error(`Image ${id} update names no column to write`);
   }
   return withImageVersionBump((transaction) =>
