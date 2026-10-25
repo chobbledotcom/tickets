@@ -133,15 +133,32 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("does not show success on non-matching forms", async () => {
+      const flashMessage = "Business email updated";
+      const targetFormId = "settings-business-email";
       const html = await expectSettingsFormFlash(
         "/admin/settings",
-        "settings-business-email",
-        "Business email updated",
+        targetFormId,
+        flashMessage,
       );
-      // The theme form should not contain the success message
-      const themeFormMatch = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
-      assert(themeFormMatch);
-      assert(!themeFormMatch[0].includes("Business email updated"));
+      // The flash belongs to the form the ?form= parameter names. Every other
+      // form on the page must stay free of it, and it must render exactly
+      // once, so the page banner does not repeat it.
+      const formIds = [...html.matchAll(/<form\b[^>]*\sid="([^"]+)"/g)].map(
+        (tag) => tag[1],
+      );
+      const otherFormIds = formIds.filter((id) => id !== targetFormId);
+      expect(otherFormIds.length).toBeGreaterThan(0);
+      for (const id of otherFormIds) {
+        const start = html.indexOf(`id="${id}"`);
+        const close = html.indexOf("</form>", start);
+        assert(close !== -1, `The ${id} form does not close on the page.`);
+        const formHtml = html.slice(start, close + "</form>".length);
+        assert(
+          !formHtml.includes(flashMessage),
+          `The ${id} form shows the success message meant for the ${targetFormId} form.`,
+        );
+      }
+      expect(html.split(flashMessage).length - 1).toBe(1);
     });
 
     test("does not render the country form (locale is write-once, set at /setup)", async () => {
