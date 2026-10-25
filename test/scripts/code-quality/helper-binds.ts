@@ -13,6 +13,10 @@ import {
   pastSpaces,
   pastTypeArguments,
 } from "#test/scripts/code-quality/brackets.ts";
+import {
+  type Block,
+  visibleDeclaration,
+} from "#test/scripts/code-quality/scopes.ts";
 
 /** The SQL query and write helpers whose second call argument carries a
  * statement's bind list. `execute` also matches member calls (`tx.execute`);
@@ -137,6 +141,42 @@ export const sqlConstantUses = (blanked: string): SqlUse[] => {
   }
   return uses;
 };
+
+/** Every `const`/`let` declaration position of one file, by name. The
+ *  annotation a declaration may carry ends at its `=`, so one match covers
+ *  one declaration and a match never spans two statements. */
+const NAME_DECLARATION =
+  /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;{}]*?)?=/g;
+
+export const nameDeclarations = (
+  blanked: string,
+): Map<string, { start: number }[]> => {
+  const declarations = new Map<string, { start: number }[]>();
+  for (const match of [...blanked.matchAll(NAME_DECLARATION)]) {
+    const name = match[1] as string;
+    const starts = declarations.get(name) ?? [];
+    starts.push({ start: match.index });
+    declarations.set(name, starts);
+  }
+  return declarations;
+};
+
+/** The declaration positions the file's SQL helper calls receive: the
+ *  binding visible at a call is the constant whose string spans count as
+ *  SQL text. A bare name without a visible declaration names nothing. */
+export const sqlCarryingStarts = (
+  blanked: string,
+  blocks: Block[],
+  declarations: Map<string, { start: number }[]>,
+): Set<number> => {
+  const carrying = new Set<number>();
+  for (const { at, name } of sqlConstantUses(blanked)) {
+    const visible = visibleDeclaration(blocks, declarations.get(name), at);
+    if (visible !== undefined) carrying.add(visible.start);
+  }
+  return carrying;
+};
+
 /** The positions where a statement receives its bind list: an `args: name`
  * property, the `args` shorthand in an object literal, and the second
  * argument of a SQL helper call — a bare name or an inline array. */

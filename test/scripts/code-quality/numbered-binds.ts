@@ -15,9 +15,14 @@ import {
 import { matchingBracket } from "#test/scripts/code-quality/brackets.ts";
 import {
   argumentUses,
+  nameDeclarations,
+  sqlCarryingStarts,
   sqlTextArgumentStarts,
-  sqlConstantUses,
 } from "#test/scripts/code-quality/helper-binds.ts";
+import {
+  matchedBlocks,
+  visibleDeclaration,
+} from "#test/scripts/code-quality/scopes.ts";
 
 /** The one file whose own job is to emit `?N` tokens. */
 const NUMBERED_STATEMENT_PATH = "shared/db/numbered-statement.ts";
@@ -224,92 +229,6 @@ const localArrayLiterals = (blanked: string): Map<string, LocalArray[]> => {
     literals.set(name, spans);
   }
   return literals;
-};
-
-/** One matched `{`…`}` pair of the blanked text. Strings, comments, and
- * regular expressions arrive pre-blanked, so no phantom brace pairs. */
-type Block = { close: number; open: number };
-
-/** Every matched brace pair of one file, in source order. */
-const matchedBlocks = (blanked: string): Block[] => {
-  const blocks: Block[] = [];
-  const opens: number[] = [];
-  for (let at = 0; at < blanked.length; at++) {
-    if (blanked[at] === "{") opens.push(at);
-    if (blanked[at] === "}") {
-      const open = opens.pop();
-      if (open !== undefined) blocks.push({ close: at, open });
-    }
-  }
-  return blocks;
-};
-
-/** The innermost block that holds `at`, or undefined for the file itself.
- * Blocks arrive in the order their `}` closes, so the innermost block that
- * holds a position is the first one that holds it. */
-const innermostBlockAt = (blocks: Block[], at: number): Block | undefined =>
-  blocks.find((block) => block.open < at && at < block.close);
-
-/** The one declaration of a name that reaches a use at `at`: the innermost
- * scope that declares the name wins, and inside it the declaration that
- * precedes the use. A declaration in an unrelated scope never reaches the
- * use, and a same-scope declaration after the use shadows it to nothing. */
-const visibleDeclaration = <Declaration extends { start: number }>(
-  blocks: Block[],
-  declarations: readonly Declaration[] | undefined,
-  at: number,
-): Declaration | undefined => {
-  if (declarations === undefined) return;
-  const scopes = [
-    ...blocks
-      .filter((block) => block.open < at && at < block.close)
-      .sort((one, other) => other.open - one.open),
-    undefined,
-  ];
-  for (const scope of scopes) {
-    const inScope = declarations.filter(
-      (declaration) => innermostBlockAt(blocks, declaration.start) === scope,
-    );
-    if (inScope.length > 0) {
-      return inScope.filter((declaration) => declaration.start < at).at(-1);
-    }
-  }
-  return;
-};
-
-/** Every `const`/`let` declaration position of one file, by name. The
- *  annotation a declaration may carry ends at its `=`, so one match covers
- *  one declaration and a match never spans two statements. */
-const NAME_DECLARATION =
-  /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;{}]*?)?=/g;
-
-const nameDeclarations = (
-  blanked: string,
-): Map<string, { start: number }[]> => {
-  const declarations = new Map<string, { start: number }[]>();
-  for (const match of [...blanked.matchAll(NAME_DECLARATION)]) {
-    const name = match[1] as string;
-    const starts = declarations.get(name) ?? [];
-    starts.push({ start: match.index });
-    declarations.set(name, starts);
-  }
-  return declarations;
-};
-
-/** The declaration positions the file's SQL helper calls receive: the
- *  binding visible at a call is the constant whose string spans count as
- *  SQL text. A bare name without a visible declaration names nothing. */
-const sqlCarryingStarts = (
-  blanked: string,
-  blocks: Block[],
-  declarations: Map<string, { start: number }[]>,
-): Set<number> => {
-  const carrying = new Set<number>();
-  for (const { at, name } of sqlConstantUses(blanked)) {
-    const visible = visibleDeclaration(blocks, declarations.get(name), at);
-    if (visible !== undefined) carrying.add(visible.start);
-  }
-  return carrying;
 };
 
 /** One args array a statement binds: where the array sits, the line it is

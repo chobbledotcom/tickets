@@ -4,7 +4,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { blankSpans } from "#scripts/typescript-lex.ts";
 import { matchingBracket } from "#test/scripts/code-quality/brackets.ts";
-import { SQL_HELPERS, sqlConstantUses } from "#test/scripts/code-quality/helper-binds.ts";
+import {
+  SQL_HELPERS,
+  sqlConstantUses,
+} from "#test/scripts/code-quality/helper-binds.ts";
 import { REPO_ROOT } from "#test/scripts/code-quality/scan-context.ts";
 
 /**
