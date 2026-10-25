@@ -127,11 +127,17 @@ type ImageDestination = (href: string) => string | undefined;
 const linkMatches = (matcher: LinkMatcher, href: string): boolean =>
   typeof matcher === "string" ? href.startsWith(matcher) : matcher(href);
 
-/** Runs one rewrite pass over the whole lexed source. */
+/** Runs one rewrite pass over the whole lexed source. The rewrite locates
+ * each top-level token raw in the source and keeps the bytes between the
+ * matches. A container rewrite keeps the bytes between its children the
+ * same way. Marked consumes a repeated definition and pushes no token for
+ * it, so the token raws do not cover the whole source. A raw that no
+ * longer locates falls into a gap, so the rewrite keeps every byte of the
+ * source. */
 const rewriteLexedSource = (
   markdown: string,
   rewrites: TokenRewrites,
-): string => rewriteTokens(Lexer.lex(markdown), rewrites);
+): string => rewriteChildren(markdown, Lexer.lex(markdown), rewrites, false);
 
 /** Replace each markdown link whose target matches `matcher` with its plain
  * text. Used to strip links the viewer isn't allowed to open (e.g. owner-only
@@ -438,8 +444,3 @@ const rewriteToken = (token: Token, rewrites: TokenRewrites): string => {
   }
   return token.raw;
 };
-
-const rewriteTokens = (
-  tokens: readonly Token[],
-  rewrites: TokenRewrites,
-): string => tokens.map((token) => rewriteToken(token, rewrites)).join("");
