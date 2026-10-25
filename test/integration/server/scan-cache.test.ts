@@ -11,6 +11,8 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { execute } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import { doorCacheName, pageDoorCacheKey } from "#routes/admin/scan-cache.ts";
 import { hmacHex } from "#shared/sha256.ts";
@@ -59,6 +61,55 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       )
         .sort()
         .map((hash) => ({ hash, tickets: 1 })),
+    });
+  });
+
+  test("saves the set in digest order, not booking order", async () => {
+    const listing = await createTestListing();
+    const door = doorCacheName("listing", listing.id);
+    // Fixed tokens in the shape a real token carries, so the test knows each
+    // digest before it books anyone.
+    const tokenA = "5AF00DBEE5";
+    const tokenB = "C0FFEE1234";
+    const digestA = await doorDigest(door, tokenA);
+    const digestB = await doorDigest(door, tokenB);
+    const [lesserToken, greaterToken] =
+      digestA < digestB ? [tokenA, tokenB] : [tokenB, tokenA];
+    const [lesserDigest, greaterDigest] =
+      digestA < digestB ? [digestA, digestB] : [digestB, digestA];
+    const bookToken = async (name: string, token: string) => {
+      const result = await attendeesApi.createAttendeeAtomic({
+        bookings: [{ listingId: listing.id, quantity: 1 }],
+        email: `${name.toLowerCase().replace(/\s+/g, "-")}@example.com`,
+        name,
+        ticketToken: token,
+      });
+      if (!result.success) {
+        throw new Error(`booking for ${name} failed: ${result.reason}`);
+      }
+      return result.attendees[0]!;
+    };
+    // The cache read serves bookings newest first. The greater digest books
+    // last, so the sort meets a pair it must turn around.
+    const olderBooking = await bookToken("Eve Ash", lesserToken);
+    await bookToken("Finn Ash", greaterToken);
+    // The two bookings can share one clock millisecond. This pins the first
+    // booking as the older one, so the read order is a fact, not a race.
+    await execute("UPDATE attendees SET created = ? WHERE id = ?", [
+      "2000-01-01T00:00:00.000Z",
+      olderBooking.id,
+    ]);
+
+    expect(
+      await assertJson(
+        authedGet(`/admin/listing/${listing.id}/scan-cache`),
+        200,
+      ),
+    ).toEqual({
+      entries: [
+        { hash: lesserDigest, tickets: 1 },
+        { hash: greaterDigest, tickets: 1 },
+      ],
     });
   });
 
