@@ -197,6 +197,20 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     }
   });
 
+  test("the footer's img#N reference resolves on the check-in and join-complete pages", async () => {
+    const image = await makeImage("FooterVisit");
+    await settings.update.siteFooter(`Soon.![FooterVisit](img#${image.id})`);
+    const { token } = await createTestAttendeeWithToken("Ada", "a@t.test");
+    for (const path of [`/checkin/${token}`, "/join/complete"]) {
+      const html = await expectHtmlResponse(
+        await handleRequest(mockRequest(path)),
+        200,
+        `<img src="/image/${image.filename}" alt="FooterVisit">`,
+      );
+      assert(!html.includes("img#"));
+    }
+  });
+
   test("the footer's img#N reference resolves on the balance pages", async () => {
     await enablePublicSite();
     const image = await makeImage("FooterBalance");

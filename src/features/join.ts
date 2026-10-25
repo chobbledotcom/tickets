@@ -13,7 +13,6 @@ import {
 import { t } from "#i18n";
 import {
   errorRedirect,
-  htmlResponse,
   publicPageResponse,
   redirect,
 } from "#routes/response.ts";
@@ -167,7 +166,8 @@ const handleJoinPost = joinRoute((request, code, user) =>
 /**
  * Handle GET /join/complete - password set confirmation page
  */
-const handleJoinComplete = (): Response => htmlResponse(joinCompletePage());
+const handleJoinComplete = (): Promise<Response> =>
+  publicPageResponse(joinCompletePage);
 
 /** Join routes */
 const joinRoutes = defineRoutes({

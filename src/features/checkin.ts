@@ -28,6 +28,7 @@ import { authFailure } from "#routes/auth-failures.ts";
 import {
   htmlResponse,
   notFoundResponse,
+  publicPageResponse,
   redirectResponse,
 } from "#routes/response.ts";
 import {
@@ -171,7 +172,7 @@ const withLookup = async (
 const handleCheckinGet: TokenMethodHandler = (request, tokens) =>
   withLookup(tokens, async (entries) => {
     const session = await getAuthenticatedSession(request);
-    if (!session) return htmlResponse(checkinPublicPage());
+    if (!session) return publicPageResponse(checkinPublicPage);
 
     const visibleEntries = await entriesVisibleToSession(session, entries);
     // Door roles may toggle check-in; only staff may follow the attendee and
