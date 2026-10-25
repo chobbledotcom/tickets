@@ -3,9 +3,11 @@ import { join } from "node:path";
 import { projectRoot } from "#scripts/project-root.ts";
 import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
 import { reviewModelData } from "#scripts/verify-models/review.ts";
+import { squareModelData } from "#scripts/verify-models/square.ts";
 import { sumupModelData } from "#scripts/verify-models/sumup.ts";
 
 const models = [
+  { data: squareModelData, module: "SquareLinkEnd" },
   { data: sumupModelData, module: "SumupRecovery" },
   { data: reviewModelData, module: "PaymentReview" },
   { data: async () => modelData(await paymentModel()), module: "JointState" },

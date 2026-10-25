@@ -1,4 +1,6 @@
-type TlaAtom = string | boolean;
+export type TlaAtom = string | boolean;
+
+export type ModelDataSource = () => Promise<string>;
 
 const atom = (value: TlaAtom): string =>
   typeof value === "boolean"

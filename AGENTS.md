@@ -525,9 +525,14 @@ automatic.
   Run `git fetch origin main` first for a current explicit base. Drift is a
   report, not a gate: paste it in the pull request
   description when the branch touches a machine spec
-- `deno task verify:models` — check the payment row/refund, SumUp recovery and
-  payment-review models under `verification/`. Devenv supplies pinned Apalache
-  and its Java runtime. CI and precommit run the same task
+- `deno task verify:models` — check safety models under `verification/`:
+  - payment row/refund
+  - SumUp recovery
+  - payment review
+  - Square link expiry
+
+  Devenv supplies pinned Apalache and its Java runtime. CI and precommit run the
+  same task
 - `deno task grade:code [<file-or-dir>] [--csv <path>] [--no-jev]` — score
   source files against these rules. With no target, it grades every module under
   `src/`. `--no-jev` runs the mechanical checks only. A grade is advice, not a

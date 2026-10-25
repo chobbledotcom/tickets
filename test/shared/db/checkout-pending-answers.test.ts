@@ -6,6 +6,7 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import {
   dropCheckoutAnswersStatement,
@@ -27,6 +28,9 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 /** The row's lookup key, the way the module itself computes it. */
 const sessionIndexOf = (sessionId: string): Promise<string> =>
   hmacHash(sessionId);
+
+const requiredSquareRetentionMs =
+  SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS;
 
 describeWithEnv("checkout pending answers", { db: true }, () => {
   test("stages sealed rows and reads them back by session id", async () => {
@@ -164,8 +168,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     const pastSquareLifetime = new Date(
       nowMs() -
         PRUNE_PAYMENTS_RETENTION_MS -
-        SQUARE_NATIVE_LIFETIME_MS -
-        WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS -
+        requiredSquareRetentionMs -
         60_000,
     ).toISOString();
     await execute(
@@ -193,12 +196,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     await execute(
       "UPDATE square_link_ends SET created_at = ? WHERE session_index = ?",
       [
-        new Date(
-          nowMs() -
-            SQUARE_NATIVE_LIFETIME_MS -
-            WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS -
-            60_000,
-        ).toISOString(),
+        new Date(nowMs() - requiredSquareRetentionMs - 60_000).toISOString(),
         await sessionIndexOf("cs_handle_old"),
       ],
     );
@@ -218,4 +216,54 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
       ),
     ).not.toBeNull();
   });
+  for (const [position, ageOffset, kept] of [
+    ["before", -1, true],
+    ["at", 0, true],
+    ["after", 1, false],
+  ] as const) {
+    test(`handles and answers respect the strict Square retention cutoff ${position} its boundary`, async () => {
+      const clock = nowMs();
+      using _clock = stub(Date, "now", () => clock);
+      const createdAt = new Date(
+        clock - requiredSquareRetentionMs - ageOffset,
+      ).toISOString();
+      const linkEndsAt = new Date(
+        clock - requiredSquareRetentionMs,
+      ).toISOString();
+      for (const state of ["pending", "ending"] as const) {
+        const session = `sq_boundary_${position}_${state}`;
+        const index = await sessionIndexOf(session);
+        await stageCheckoutAnswers(
+          session,
+          { "7": "Keep my answers" },
+          linkEndsAt,
+        );
+        await stageSquareLinkEnd(session, `link_${session}`, linkEndsAt);
+        await execute(
+          "UPDATE checkout_pending_answers SET created_at = ? WHERE session_index = ?",
+          [createdAt, index],
+        );
+        await execute(
+          "UPDATE square_link_ends SET created_at = ?, state = ? WHERE session_index = ?",
+          [createdAt, state, index],
+        );
+      }
+
+      await runDatabasePruning();
+      const expectedAnswers = kept
+        ? new Map([[7, "Keep my answers"]])
+        : new Map();
+
+      for (const state of ["pending", "ending"] as const) {
+        const session = `sq_boundary_${position}_${state}`;
+        expect(
+          await queryOne(
+            "SELECT state FROM square_link_ends WHERE session_index = ?",
+            [await sessionIndexOf(session)],
+          ),
+        ).toEqual(kept ? { state } : null);
+        expect(await readCheckoutAnswers(session)).toEqual(expectedAnswers);
+      }
+    });
+  }
 });

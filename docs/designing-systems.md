@@ -111,13 +111,17 @@ These checks serve different purposes.
   - `verification/PaymentReview.tla` keeps the reason in each review state.
     Acknowledgement preserves the case. Only matching evidence retires it.
     Review events do not move money.
-  The models trust representative coverage and event annotations. Claim
+  - `verification/SquareLinkEnd.tla` keeps cancel handles while links can accept
+    payment. Inconclusive replies and expired leases retain retry work. Native
+    expiry and the webhook window bound age pruning.
+  The models trust representative coverage and event annotations.
+  The Square model also trusts the configured provider lifetime. Claim
   admission remains a model assumption. Mirror tests and database tests check
   these inputs and boundaries. Model safety does not prove SQL atomicity,
   provider truth or eventual task execution. After a model change, corrupt an
   emitted edge. Confirm that the checker reports a counterexample.
-  Direct generator tests keep unsafe results visible as false facts. SumUp
-  extraction stops if a declared transition fails.
+  Direct generator tests keep unsafe outcomes visible. SumUp and Square
+  extraction stop if a declared transition fails.
 - **Observe real writes.** `test/test-utils/payment-seam.ts` records claim and
   refund-arm facts through test-only database triggers. A later settlement
   cannot erase a recorded violation. The observer checks the authority revision

@@ -7,7 +7,12 @@ import {
   type ReviewSlot,
   reviewNodeOf,
 } from "#payment/review-machine-spec.ts";
-import { tlaModule, tlaSet, tlaTuples } from "#scripts/verify-models/data.ts";
+import {
+  type ModelDataSource,
+  tlaModule,
+  tlaSet,
+  tlaTuples,
+} from "#scripts/verify-models/data.ts";
 import { attemptTransition } from "#shared/schema-atlas/types.ts";
 
 /* jscpd:ignore-end */
@@ -64,7 +69,7 @@ const eventFact = (event: ReviewMachineEvent): EventFact => {
  * UUIDs are abstracted only after comparing the actual before/after values.
  * This is the review slot: wrong-reason settlement no-ops on payment rows
  * remain separate production behavior, covered by their direct row tests. */
-export const reviewModelData = async (): Promise<string> => {
+export const reviewModelData: ModelDataSource = async () => {
   const nodes = new Map<string, NodeFact>();
   const attempts: Attempt[] = [];
   for (const node of REVIEW_NODES) {
