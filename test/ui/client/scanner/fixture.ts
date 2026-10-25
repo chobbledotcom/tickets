@@ -146,6 +146,7 @@ export const SCANNER_PAGE = `
     data-message-queue-count-other="{count} queued check-ins"
     data-message-queue-item-already="Was already checked in"
     data-message-queue-item-checked-in="Checked in"
+    data-message-queue-item-expired="This queued check-in is too old to send. Scan the ticket again while you are online."
     data-message-queue-item-not-checked-in="Not checked in"
     data-message-queue-item-over-admitted="Alert: {name} — this check-in was for {named}, but the booking only had {admitted} left. The booking holds {bought} in total."
     data-message-queue-item-queued="Waiting — will be checked in when online"
@@ -164,6 +165,7 @@ export const SCANNER_PAGE = `
     data-message-ticket-count-other="{count} tickets"
     data-message-verify-id-confirm="Does their ID match &quot;{name}&quot;?"
     data-message-wrong-listing-confirm="{name} is registered for &quot;{listingName}&quot;, not this listing. Check in anyway?"
+    data-scan-operation-retention-days="7"
     id="scanner-container"
   >
     <aside class="hidden" id="scanner-offline-banner" role="status">
@@ -215,6 +217,14 @@ export const REBRANDED_PAGE = rebrandedPage(SCANNER_PAGE, [
     'data-message-not-found="Booking not found"',
   ],
 ]);
+
+/** The page variant a template that renders no replay window would serve:
+ * the client cannot bound its replay window, so the offline side degrades
+ * to the online-only scanner. */
+export const SCANNER_PAGE_WITHOUT_REPLAY_WINDOW = SCANNER_PAGE.replace(
+  '\n    data-scan-operation-retention-days="7"',
+  "",
+);
 
 /** One element of the installed scanner page by id — the fixture always
  * carries it, so a miss is a broken page, not an empty answer. */
@@ -337,11 +347,12 @@ export const DOOR_KEY = fromBase64Url("dGVzdC1kb296LWNhY2hlLWtleQ");
 
 /** The queued check-in one reload would restore: the digest the door's
  * list holds for the token one scan carries, the delivery id it answers
- * by, and the one person it admits. */
+ * by, and the one person it admits. The check-in went in a moment ago, so
+ * the door's replay window still covers it. */
 export const queuedItem = {
   operationId: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b30",
   quantity: 1,
-  queuedAt: 1,
+  queuedAt: Date.now() - 1000,
   scanPath: SCAN_PATH,
   tokenHash: await hmacHex(DOOR_KEY, TOKEN),
 };

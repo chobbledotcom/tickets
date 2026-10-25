@@ -14,6 +14,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   cameraFakes,
+  postedScanBodies,
   scanFirst,
   seedTicketCache,
   start,
@@ -24,6 +25,7 @@ import {
   fullStore,
   queuedItem,
   SCAN_PATH,
+  SCANNER_PAGE_WITHOUT_REPLAY_WINDOW,
   type ScannerHarness,
   storedQueue,
   TOKEN,
@@ -126,6 +128,41 @@ describe("scanner offline door", {
         fetchStub,
         "This scan was not saved. Free up space on this device, then scan it again.",
       );
+    } finally {
+      fetchStub.restore();
+    }
+  });
+});
+
+describe("scanner offline door on a page without the replay window", {
+  sanitizeOps: false,
+  sanitizeResources: false,
+}, () => {
+  const fresh = useScannerSuite(SCANNER_PAGE_WITHOUT_REPLAY_WINDOW);
+
+  test("scans online only when the page carries no replay window", async () => {
+    // The client bounds its replay window by the count the page carries.
+    // Without it the offline side is absent furniture: the scan goes
+    // online, the way the page worked before the offline side existed.
+    const fetchStub = stubFetch(() =>
+      Response.json({
+        listingName: "Standard",
+        name: "Ada",
+        quantity: 1,
+        status: "checked_in",
+        total: 1,
+      }),
+    );
+    try {
+      const h = fresh({ onLine: false });
+      using fakes = cameraFakes(h);
+      fakes.ready(4);
+      await start(h);
+      await scanFirst(fakes, TOKEN);
+
+      // The check-in went out as a live scan, and nothing was queued.
+      expect(postedScanBodies(fetchStub)).toEqual([{ token: TOKEN }]);
+      expect(storedQueue(h)).toBe(null);
     } finally {
       fetchStub.restore();
     }

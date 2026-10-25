@@ -106,14 +106,15 @@ export const postedDeliveryHashes = (fetchStub: Stub): string[] =>
 
 /** The queued check-ins one reload settles, oldest first: each names the
  * digest its scan stored, the delivery id it answers by, and the people it
- * admits. */
+ * admits. Each went in a second apart, so the door's replay window still
+ * covers them all. */
 export const queuedItems = async (tokens: string[]): Promise<string> =>
   JSON.stringify(
     await Promise.all(
       tokens.map(async (token, index) => ({
         operationId: `018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b3${index}`,
         quantity: 1,
-        queuedAt: index + 1,
+        queuedAt: Date.now() - (tokens.length - index) * 1000,
         scanPath: SCAN_PATH,
         tokenHash: await digestOf(token),
       })),

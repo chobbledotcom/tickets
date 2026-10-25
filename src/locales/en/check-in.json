@@ -61,6 +61,8 @@
   "admin.scanner.queue_item_refunded": "Refunded — not checked in",
   "admin.scanner.queue_item_not_checked_in": "Not checked in",
   "admin.scanner.queue_item_still_queued": "Not sent yet — still queued",
+  "admin.scanner.queue_item_expired":
+    "This queued check-in is too old to send. Scan the ticket again while you are online.",
   "admin.scanner.verify_id_note": " — verify their ID",
   "admin.scanner.scan_checks_in_all_listings_warning": "Scanning a ticket in this group will check in ALL of the attendee's booked listings in that group",
   "admin.scanner.doors_title": "Scanner doors",

@@ -195,6 +195,13 @@ export const sameQueuedCheckIn = (one, two) =>
 export const queueHolds = (item) =>
   readQueue().some((queued) => sameQueuedCheckIn(queued, item));
 
+/** Whether a queued check-in grew older than the door's replay window.
+ * The window is how long the server keeps one delivery's replay record.
+ * Past it the server cannot tell a resend from a first send. The page
+ * must not send the check-in again: a resend admits twice. */
+export const deliveryExpired = (item, replayWindowMs) =>
+  Date.now() - item.queuedAt >= replayWindowMs;
+
 /** Drop one settled item from the queue. */
 export const dropFromQueue = (item) =>
   writeQueue(readQueue().filter((queued) => !sameQueuedCheckIn(queued, item)));

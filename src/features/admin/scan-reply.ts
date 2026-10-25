@@ -67,9 +67,9 @@ export const wrongListingResponse = (
 };
 
 /** Answer a delivery the ledger already took. The rows are the ones the
- * delivery admitted. The quantity is what that admission took: what the
- * first send's answer said. A fresh decision picks nothing here, and no
- * prompt the first send passed comes back. A delivery that named more
+ * delivery's admission planned. The quantity is what that admission took:
+ * what the first send's answer said. A fresh decision picks nothing here,
+ * and no prompt the first send passed comes back. A delivery that named more
  * people than its landing admitted still answers the numbers. The first
  * send's answer can get lost before it reaches the door, and this retry
  * is the answer the door reads. */

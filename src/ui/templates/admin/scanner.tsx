@@ -144,6 +144,7 @@ const offlineMessageAttrs = (): Record<string, string> => ({
   "data-message-queue-item-checked-in": t(
     "admin.scanner.queue_item_checked_in",
   ),
+  "data-message-queue-item-expired": t("admin.scanner.queue_item_expired"),
   "data-message-queue-item-not-checked-in": t(
     "admin.scanner.queue_item_not_checked_in",
   ),
@@ -220,7 +221,9 @@ const scannerShell = (
  * `checksInEveryListing`, so door staff are warned what one scan will do.
  * `doorCacheKey` is the door's offline cache key, base64url: the device
  * digests a scanned token under it. The cache response itself never
- * carries the key.
+ * carries the key. `scanOperationRetentionDays` is the door's replay
+ * window in days: how long the server keeps one queued check-in's
+ * delivery record. The client sends no queued check-in older than it.
  */
 export const adminScannerPage = (
   subject: { name: string },
@@ -229,6 +232,7 @@ export const adminScannerPage = (
   uncheckedIn: TicketOption[] = [],
   checksInEveryListing = false,
   doorCacheKey: string,
+  scanOperationRetentionDays: number,
 ): string => {
   const messageTemplates = scannerMessages();
 
@@ -254,6 +258,9 @@ export const adminScannerPage = (
           data-message-wrong-listing-confirm={
             messageTemplates.wrongListingConfirm
           }
+          data-scan-operation-retention-days={String(
+            scanOperationRetentionDays,
+          )}
           {...offlineMessageAttrs()}
           id="scanner-container"
         >

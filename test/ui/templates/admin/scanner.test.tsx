@@ -20,6 +20,9 @@ const times = (html: string, fragment: string): number =>
 /** The door cache key one test page carries, as the handler would pass it. */
 const DOOR_CACHE_KEY = "test-door-cache-key";
 
+/** The replay window one test page carries, as the handler would pass it. */
+const RETENTION_DAYS = 7;
+
 describe("the admin scanner page template", () => {
   beforeAll(setupAdminPageTest);
 
@@ -31,6 +34,7 @@ describe("the admin scanner page template", () => {
       [],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     expect(html).toContain("<title>Scanner: Doors</title>");
@@ -50,6 +54,7 @@ describe("the admin scanner page template", () => {
       ],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     expect(html).toContain("2 tickets available");
@@ -80,6 +85,7 @@ describe("the admin scanner page template", () => {
       ],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     // Same name and the same number of places: only the day, and on a
@@ -109,6 +115,7 @@ describe("the admin scanner page template", () => {
       ],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     expect(html).toContain('data-detail="Camping, 12 Jun"');
@@ -129,6 +136,7 @@ describe("the admin scanner page template", () => {
       ],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     expect(html).toContain('data-name="Ada &amp; Bo"');
@@ -147,6 +155,7 @@ describe("the admin scanner page template", () => {
       [],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     expect(html).toContain("No tickets to check in");
@@ -160,12 +169,31 @@ describe("the admin scanner page template", () => {
       [],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     // The device digests a scan under this key. The page is the only
     // response that carries it, and it carries it once.
     expect(html).toContain('data-door-cache-key="test-door-cache-key"');
     expect(times(html, "data-door-cache-key=")).toBe(1);
+  });
+
+  test("carries the door's replay window for the device, once", () => {
+    const html = adminScannerPage(
+      { name: "Doors" },
+      "/admin/groups/5/scan",
+      OWNER_SESSION,
+      [],
+      false,
+      DOOR_CACHE_KEY,
+      RETENTION_DAYS,
+    );
+
+    // The client sends no queued check-in older than this window: past it
+    // the server's replay record is gone. The page is the only response
+    // that carries it, and it carries it once.
+    expect(html).toContain('data-scan-operation-retention-days="7"');
+    expect(times(html, "data-scan-operation-retention-days=")).toBe(1);
   });
 
   test("hands the queue count to a polite live region", () => {
@@ -176,6 +204,7 @@ describe("the admin scanner page template", () => {
       [],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     // The sync rewrites the count in place; the live region is the only
@@ -193,6 +222,7 @@ describe("the admin scanner page template", () => {
       [{ attendeeId: 41, details: [], name: "Ada", quantity: 1 }],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     expect(html).toContain("1 ticket available");
@@ -208,6 +238,7 @@ describe("the admin scanner page template", () => {
       [],
       true,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
     expect(warned).toContain('role="alert"');
     expect(warned).toContain(
@@ -224,6 +255,7 @@ describe("the admin scanner page template", () => {
       [],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
     expect(quiet).not.toContain("Scanning a ticket in this group");
   });
@@ -236,6 +268,7 @@ describe("the admin scanner page template", () => {
       [],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     /** One message the scanner script reads, with the exact holes the page
@@ -318,6 +351,7 @@ describe("the admin scanner page template", () => {
       "offline-quantity-ask": t("admin.scanner.offline_quantity_ask"),
       "queue-count-one": t("admin.scanner.queue_count_one", holes("count")),
       "queue-count-other": t("admin.scanner.queue_count_other", holes("count")),
+      "queue-item-expired": t("admin.scanner.queue_item_expired"),
       "queue-item-over-admitted": t(
         "admin.scanner.queue_item_over_admitted",
         holes("admitted", "bought", "name", "named"),
@@ -353,6 +387,7 @@ describe("the admin scanner page template", () => {
       [],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
     // The two asks the door puts before it admits: a forced or ID-checked
     // check-in, and how many tickets a multi-place booking admits.

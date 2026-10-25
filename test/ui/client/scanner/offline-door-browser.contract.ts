@@ -28,6 +28,7 @@ import {
 import { type Browser, chromium, type Page } from "playwright";
 import { encode } from "uqr";
 import { fromBase64Url } from "#crypto/utils.ts";
+import { PRUNE_SCAN_OPERATIONS_RETENTION_DAYS } from "#db/processed-scan-operations.ts";
 import { ensureMessageGroups, t } from "#i18n";
 import { doorCacheName, pageDoorCacheKey } from "#routes/admin/scan-cache.ts";
 import { browserLaunchOptions } from "#scripts/browser-options.ts";
@@ -114,6 +115,7 @@ describe("the offline door on the served scanner page", () => {
       [],
       false,
       pageDoorCacheKey(DOOR),
+      PRUNE_SCAN_OPERATIONS_RETENTION_DAYS,
     );
 
     browser = await chromium.launch(

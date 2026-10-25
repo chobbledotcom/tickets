@@ -38,6 +38,7 @@ import {
   digestOf,
   expectSyncSettled,
   firstRow,
+  postedDeliveryHashes,
   queuedItems,
   queueSeeded,
   rowWords,
@@ -387,5 +388,48 @@ describe("scanner offline sync", {
     ]);
     // The alert row stands out among the settled rows.
     expect(firstRow(h).className).toBe("scanner-queue-alert");
+  });
+
+  test("sends nothing for a check-in past the door's replay window", async () => {
+    // The server keeps one delivery's replay record for the window the page
+    // carries. Past it a resend cannot be told from a first send, so the
+    // page sends nothing, drops the check-in, and tells the door to scan
+    // the ticket again. The check-in beside it is still inside the window,
+    // and the door sends it.
+    const stale = {
+      ...queuedItem,
+      operationId: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b90",
+      queuedAt: Date.now() - 8 * 24 * 60 * 60 * 1000,
+    };
+    const fetchStub = stubFetch(
+      await answerEachToken({
+        [TOKEN]: {
+          listingName: "Standard",
+          name: "Ada",
+          quantity: 1,
+          status: "checked_in",
+          total: 1,
+        },
+      }),
+    );
+    try {
+      const h = fresh({
+        seed: (store) =>
+          store.setItem("scanner-queue", JSON.stringify([stale, queuedItem])),
+      });
+
+      await whenTextShows(h.statusEl, "Queued tickets are done.");
+      // The stale row's words tell the door what to do; the fresh row
+      // carries its answer. The store holds neither.
+      expect(rowWords(h)).toEqual([
+        "This queued check-in is too old to send. Scan the ticket again while you are online.",
+        "Checked in",
+      ]);
+      expect(storedQueue(h)).toBe("[]");
+      // One delivery left the page: the fresh check-in's own.
+      expect(postedDeliveryHashes(fetchStub)).toEqual([await digestOf(TOKEN)]);
+    } finally {
+      fetchStub.restore();
+    }
   });
 });
