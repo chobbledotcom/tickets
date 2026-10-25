@@ -59,13 +59,18 @@ export const htmlResponse: EncodedResponse = encodedResponse("text/html");
 /**
  * Respond with a rendered public page. The page renders the site footer, so
  * the footer's img#N references resolve like the page's own before the page
- * renders. The lookup no-ops outside a request.
+ * renders. The lookup no-ops outside a request. A failed lookup still renders
+ * the page: an unresolved img#N falls back to its alt text.
  */
 export const publicPageResponse = async (
   renderPage: () => string,
   status = 200,
 ): Promise<Response> => {
-  await addPageImageUrls([settings.siteFooter]);
+  try {
+    await addPageImageUrls([settings.siteFooter]);
+  } catch {
+    // The database is unavailable. The footer shows its alt text instead.
+  }
   return htmlResponse(renderPage(), status);
 };
 
@@ -83,7 +88,7 @@ export const notFoundResponse = (): Promise<Response> =>
 export const rateLimitedResponse = (): Promise<Response> =>
   publicPageResponse(rateLimitedPage, 429);
 
-type RequestErrorResponse = (method: string) => Response;
+type RequestErrorResponse = (method: string) => Promise<Response>;
 
 // A refresh loads the URL as GET. It cannot preserve a submitted form.
 const requestErrorResponse =
@@ -91,9 +96,12 @@ const requestErrorResponse =
     page: (autoRefresh: boolean) => string,
     retryAfterSeconds: number,
   ): RequestErrorResponse =>
-  (method) =>
+  async (method) =>
     withHeaders(
-      htmlResponse(page(method === "GET" || method === "HEAD"), 503),
+      await publicPageResponse(
+        () => page(method === "GET" || method === "HEAD"),
+        503,
+      ),
       { "retry-after": `${retryAfterSeconds}` },
     );
 
@@ -110,8 +118,8 @@ export const databaseBusyResponse: RequestErrorResponse = requestErrorResponse(
  * been set up yet. 503 like temporaryErrorResponse, but without the
  * auto-refresh — the state only changes once someone completes /setup.
  */
-export const siteNotActivatedResponse = (): Response =>
-  htmlResponse(siteNotActivatedPage(), 503);
+export const siteNotActivatedResponse = (): Promise<Response> =>
+  publicPageResponse(siteNotActivatedPage, 503);
 
 /**
  * Create "migration in progress" response, shown while another isolate runs a
@@ -119,8 +127,8 @@ export const siteNotActivatedResponse = (): Response =>
  * temporaryErrorResponse, but with a message that explains the wait instead of
  * presenting it as an error.
  */
-export const migrationInProgressResponse = (): Response =>
-  withHeaders(htmlResponse(migrationInProgressPage(), 503), {
+export const migrationInProgressResponse = async (): Promise<Response> =>
+  withHeaders(await publicPageResponse(migrationInProgressPage, 503), {
     "retry-after": `${MIGRATION_IN_PROGRESS_REFRESH_SECONDS}`,
   });
 

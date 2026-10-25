@@ -90,7 +90,7 @@ const handleRequestInternal = defineAppRoute(
     if (!(await settings.setup.isComplete())) {
       return isSetupPath(path)
         ? redirectResponse("/setup")
-        : siteNotActivatedResponse();
+        : await siteNotActivatedResponse();
     }
 
     return routeMainApp({ method, path, request });
@@ -106,10 +106,10 @@ const initializeDatabaseForPath = async (
     return null;
   } catch (error) {
     if (error instanceof MissingSettingsTableError) {
-      return siteNotActivatedResponse();
+      return await siteNotActivatedResponse();
     }
     if (error instanceof MigrationInProgressError) {
-      return migrationInProgressResponse();
+      return await migrationInProgressResponse();
     }
     throw error;
   }
@@ -189,18 +189,18 @@ const routeAndFinalize = async (
   return applySecurityHeaders(response, path);
 };
 
-const handleRoutingError = (
+const handleRoutingError = async (
   error: unknown,
   method: string,
   path: string,
-): Response => {
+): Promise<Response> => {
   if (error instanceof DatabaseBusyError) {
     logError({
       code: ErrorCode.DB_BUSY,
       detail: formatRequestError(method, path, error),
       error,
     });
-    return databaseBusyResponse(method);
+    return await databaseBusyResponse(method);
   }
 
   logError({
@@ -218,7 +218,7 @@ const handleRoutingError = (
   if (error instanceof SessionKeyError) {
     return redirectResponse("/admin", clearSessionCookie());
   }
-  return temporaryErrorResponse(method);
+  return await temporaryErrorResponse(method);
 };
 
 /** Run the application request pipeline. */
@@ -283,7 +283,7 @@ const processRequest = async (request: Request): Promise<Response> => {
     );
     assertSettingsReadsDeclared(`${method} ${path}`);
   } catch (error) {
-    response = finish(handleRoutingError(error, method, path));
+    response = finish(await handleRoutingError(error, method, path));
   }
   await runOrganicMaintenanceAfterResponse(method, path, response);
   return response;

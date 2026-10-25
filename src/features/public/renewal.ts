@@ -8,7 +8,7 @@
 
 import { hmacHash } from "#crypto/hashing.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#db/built-sites.ts";
-import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { notFoundResponse, publicPageResponse } from "#routes/response.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { listingDateToCalendarDate } from "#shared/dates.ts";
 import { getQualifyingTierListings } from "#shared/renewal-tier.ts";
@@ -35,7 +35,7 @@ const handleRenewal = async (request: Request): Promise<Response> => {
   const tiers = await getQualifyingTierListings();
   if (tiers.length === 0) {
     return applyNoindex(
-      htmlResponse(renewalErrorPage({ siteName: site.name })),
+      await publicPageResponse(() => renewalErrorPage({ siteName: site.name })),
     );
   }
 
