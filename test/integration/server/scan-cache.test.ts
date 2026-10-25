@@ -19,6 +19,7 @@ import { hmacHex } from "#shared/sha256.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  createMultiBookingAttendee,
   createTestAttendeeDirect,
   createTestAttendeeWithToken,
 } from "#test-utils/db-helpers/attendees.ts";
@@ -130,6 +131,72 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
         tickets: 3,
       },
     ]);
+  });
+
+  /** One two-listing group door with one person holding two places at the
+   * first listing and three at the second. Answers the door's saved list
+   * and the digest it holds for the person's token. */
+  const twoListingDoorCache = async (
+    groupName: string,
+    scanChecksInAllListings: boolean,
+    guest: string,
+    email: string,
+  ) => {
+    const group = await createTestGroup({
+      name: groupName,
+      scanChecksInAllListings,
+    });
+    const west = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: `${groupName} West ${group.id}`,
+    });
+    const east = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: `${groupName} East ${group.id}`,
+    });
+    const attendee = await createMultiBookingAttendee(guest, email, [
+      { listingId: west.id, quantity: 2 },
+      { listingId: east.id, quantity: 3 },
+    ]);
+    const body = await assertJson(
+      authedGet(`/admin/groups/${group.id}/scan-cache`),
+      200,
+    );
+    return {
+      attendee,
+      body,
+      digest: await doorDigest(
+        doorCacheName("group", group.id),
+        attendee.ticket_token,
+      ),
+    };
+  };
+
+  test("bounds a multi-listing booking at a one-listing-per-scan door to the first listing's places", async () => {
+    // Each scan at this door checks in one listing at a time, so one scan
+    // admits only the first listing's places. The saved list bounds the
+    // door's ask at those places, so the delivery it names lands whole.
+    const { body, digest } = await twoListingDoorCache(
+      "Bound Barn",
+      false,
+      "Gus Reed",
+      "gus@example.com",
+    );
+    expect(body.entries).toEqual([{ hash: digest, tickets: 2 }]);
+  });
+
+  test("keeps a multi-listing booking's whole total at a check-every-listing door", async () => {
+    // One scan at this door checks in every listing the ticket holds, so
+    // the saved list keeps the booking's whole total as the ask's bound.
+    const { body, digest } = await twoListingDoorCache(
+      "Whole Barn",
+      true,
+      "Hana Reed",
+      "hana@example.com",
+    );
+    expect(body.entries).toEqual([{ hash: digest, tickets: 5 }]);
   });
 
   test("leaves a checked-in ticket out of the set", async () => {

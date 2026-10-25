@@ -240,10 +240,10 @@ export const offlineScan = async (
     return;
   }
   // The door picks how many people this check-in admits, offline as
-  // online. The stored list bounds the pick at what the booking owed when
-  // it was built. The server answers what it can still supply, and says so
-  // when another door took some first. A booking that owed one place when
-  // the list was built admits it without an ask.
+  // online. The stored list bounds the pick at what one scan at this door
+  // admits. The server answers what it can still supply, and says so when
+  // another door took some first. A booking whose one-scan count is one
+  // place admits it without an ask.
   const quantity =
     entry.tickets > 1
       ? await showQuantitySelect(

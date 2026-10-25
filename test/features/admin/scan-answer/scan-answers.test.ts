@@ -346,10 +346,12 @@ describeWithEnv("the answer for one admission's write", { db: true }, () => {
   test("a write that took nothing answers already checked in over the planned rows", async () => {
     // Another door took every ticket between the decision and the write.
     const answer = await admissionAnswer(
-      admitOf([standardRow(1)]),
-      [standardRow(1)],
+      {
+        allEntries: [standardRow(1)],
+        decision: admitOf([standardRow(1)]),
+        delivery: undefined,
+      },
       "Cara",
-      undefined,
       { admitted: 0, remaining: 0 },
     );
 
@@ -377,10 +379,15 @@ describeWithEnv("the answer for one admission's write", { db: true }, () => {
     );
 
     const answer = await admissionAnswer(
-      admitOf([standardRow(3)]),
-      [standardRow(3), societyRow()],
+      {
+        allEntries: [standardRow(3), societyRow()],
+        decision: admitOf([standardRow(3)]),
+        delivery: {
+          operationId: "op-drained-1",
+          tokenHash: "digest-drained-1",
+        },
+      },
       "Cara",
-      { operationId: "op-drained-1", tokenHash: "digest-drained-1" },
       { admitted: 0, remaining: 0 },
     );
 
@@ -409,14 +416,16 @@ describeWithEnv("the answer for one admission's write", { db: true }, () => {
     );
 
     const answer = await admissionAnswer(
-      admitOf([standardRow(3)]),
-      [standardRow(3), societyRow()],
-      "Cara",
       {
-        operationId: "op-over-admitted-1",
-        quantity: 5,
-        tokenHash: "digest-over-admitted-1",
+        allEntries: [standardRow(3), societyRow()],
+        decision: admitOf([standardRow(3)]),
+        delivery: {
+          operationId: "op-over-admitted-1",
+          quantity: 5,
+          tokenHash: "digest-over-admitted-1",
+        },
       },
+      "Cara",
       { admitted: 0, remaining: 0 },
     );
 
@@ -435,10 +444,15 @@ describeWithEnv("the answer for one admission's write", { db: true }, () => {
     // a missing row is a broken invariant, not an answer.
     await expect(
       admissionAnswer(
-        admitOf([standardRow(1)]),
-        [standardRow(1)],
+        {
+          allEntries: [standardRow(1)],
+          decision: admitOf([standardRow(1)]),
+          delivery: {
+            operationId: "op-drained-2",
+            tokenHash: "digest-drained-2",
+          },
+        },
         "Cara",
-        { operationId: "op-drained-2", tokenHash: "digest-drained-2" },
         { admitted: 0, remaining: 0 },
       ),
     ).rejects.toThrow(
@@ -448,10 +462,12 @@ describeWithEnv("the answer for one admission's write", { db: true }, () => {
 
   test("a write that took tickets answers checked in with what remains", async () => {
     const answer = await admissionAnswer(
-      admitOf([standardRow(3)]),
-      [standardRow(3)],
+      {
+        allEntries: [standardRow(3)],
+        decision: admitOf([standardRow(3)]),
+        delivery: undefined,
+      },
       "Cara",
-      undefined,
       { admitted: 1, remaining: 2 },
     );
 

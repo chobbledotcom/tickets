@@ -103,19 +103,27 @@ export const acknowledgedAnswer = (
 export const bookingHoldings = (allEntries: readonly TokenEntry[]): number =>
   lineTickets(allEntries.filter((entry) => !entry.attendee.refunded));
 
+/** What one admission's write and its answer both read: the planned
+ * decision, the person's whole booking, and the queued delivery riding
+ * the write. */
+export type AdmissionWrite = {
+  allEntries: readonly TokenEntry[];
+  decision: Extract<ScanDecision, { kind: "admit" }>;
+  delivery: QueuedDelivery | undefined;
+};
+
 /** The JSON answer for one landed admission. Another door can take every
  * ticket this scan planned to admit between the decision and the write.
  * A queued delivery's pair is stored either way, so the drained case
  * answers what that delivery admits — its own claim, or the winner's. A
  * live scan answers that the person is already in. A delivery whose pick
- * ran past the booking answers the numbers, so the door can alert. */
+ * ran past its landing answers the numbers, so the door can alert. The
+ * landing falls short of the pick when the plan itself fell short, or
+ * when a racing door took tickets first. */
 export const admissionAnswer = async (
-  decision: Extract<ScanDecision, { kind: "admit" }>,
-  allEntries: readonly TokenEntry[],
+  { allEntries, decision, delivery }: AdmissionWrite,
   attendeeName: string,
-  delivery: QueuedDelivery | undefined,
   took: { admitted: number; remaining: number },
-  overNamed?: { bought: number; named: number },
 ): Promise<Response> => {
   if (took.admitted === 0) {
     return delivery
@@ -127,12 +135,18 @@ export const admissionAnswer = async (
         )
       : alreadyCheckedIn(decision.rows, attendeeName);
   }
+  const named = delivery?.quantity;
   return jsonResponse({
     ...scanBody(decision.rows, attendeeName, "checked_in", took.admitted),
     remaining: took.remaining,
-    ...(overNamed && {
-      overAdmission: { admitted: took.admitted, ...overNamed },
-    }),
+    ...(named !== undefined &&
+      took.admitted < named && {
+        overAdmission: {
+          admitted: took.admitted,
+          bought: bookingHoldings(allEntries),
+          named,
+        },
+      }),
   });
 };
 

@@ -70,11 +70,11 @@ const scanPool = ({
 /** The listings a scan admits from those that still owe tickets. Every one
  * for a group door that checks in all its listings, and otherwise the first.
  * Every later door of a several-listing ticket still has something to admit. */
-const scanAdmits = (
+export const scanAdmits = <Row>(
   widened: boolean,
   checkInEveryListing: boolean,
-  owed: readonly TokenEntry[][],
-): TokenEntry[][] => (checkInEveryListing && !widened ? [...owed] : [owed[0]!]);
+  owed: readonly Row[][],
+): Row[][] => (checkInEveryListing && !widened ? [...owed] : [owed[0]!]);
 
 /** The tickets one listing's rows still owe the door. */
 const owedTickets = sumOf((row: TokenEntry) => remainingTickets(row.attendee));

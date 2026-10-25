@@ -15,6 +15,7 @@ import {
 } from "#test/features/admin/scan-answer/support.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withConcurrentDoorDrain } from "#test-utils/db-fault.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -248,6 +249,118 @@ describeWithEnv(
         { checked_in: 4 },
         { checked_in: 1 },
       ]);
+    });
+
+    test("a one-listing-per-scan door admits one listing's places per delivery and says so when asked for more", async () => {
+      // Each scan at this door checks in one listing at a time. The saved
+      // list bounds the door's ask at the first listing's places, so the
+      // delivery naming that bound checks them in and alerts nobody. The
+      // second listing's places wait for their own scan.
+      const group = await createTestGroup({ name: "Bound Door Hall" });
+      const standard = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: `Bound Standard ${group.id}`,
+      });
+      const society = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: `Bound Society ${group.id}`,
+      });
+      const attendee = await createMultiBookingAttendee(
+        "Ula",
+        "ula@example.com",
+        [
+          { listingId: standard.id, quantity: 2 },
+          { listingId: society.id, quantity: 3 },
+        ],
+      );
+
+      const answer = await deliverDigest(
+        group.id,
+        attendee.ticket_token,
+        "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b30",
+        2,
+      );
+      expect(answer.json.status).toBe("checked_in");
+      expect(answer.json.quantity).toBe(2);
+      expect(answer.json.remaining).toBe(3);
+      expect(answer.json.overAdmission).toBeUndefined();
+      expect(await storedCheckinRows(attendee.id)).toEqual([
+        { checked_in: 2 },
+        { checked_in: 0 },
+      ]);
+      expect(await getNoteRows("attendee", [attendee.id])).toHaveLength(0);
+
+      // A delivery naming the booking's whole five names more than one
+      // scan admits: the answer says the true numbers, and the booking
+      // carries the note once.
+      const overNamed = await deliverDigest(
+        group.id,
+        attendee.ticket_token,
+        "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b31",
+        5,
+      );
+      expect(overNamed.json.status).toBe("checked_in");
+      expect(overNamed.json.quantity).toBe(3);
+      expect(overNamed.json.overAdmission).toEqual({
+        admitted: 3,
+        bought: 5,
+        named: 5,
+      });
+      expect(await overAdmissionNote(attendee.id)).toBe(
+        "An offline door check-in named 5 people, and 3 of them could be checked in. The booking holds 5 places.",
+      );
+      expect(await storedCheckinRows(attendee.id)).toEqual([
+        { checked_in: 2 },
+        { checked_in: 3 },
+      ]);
+    });
+
+    test("a delivery a concurrent door shortens still alerts with the true numbers", async () => {
+      // The delivery names three, the plan covers all three, and another
+      // door takes one place between the decision and the write. The
+      // landing admits two, so the answer and the note say the numbers,
+      // and the door is never left reading a plain checked-in.
+      const { door, attendee } = await partyOfThree();
+
+      const answer = await withConcurrentDoorDrain(
+        attendee.id,
+        door.members[0]!.id,
+        () =>
+          deliverDigest(
+            door.group.id,
+            attendee.ticket_token,
+            "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b32",
+            3,
+          ),
+      );
+      expect(answer.json.status).toBe("checked_in");
+      expect(answer.json.quantity).toBe(2);
+      expect(answer.json.overAdmission).toEqual({
+        admitted: 2,
+        bought: 3,
+        named: 3,
+      });
+      expect(await overAdmissionNote(attendee.id)).toBe(
+        "An offline door check-in named 3 people, and 2 of them could be checked in. The booking holds 3 places.",
+      );
+
+      // The resend answers the landing its delivery settled to, says the
+      // numbers again, and lands no second note.
+      const retry = await deliverDigest(
+        door.group.id,
+        attendee.ticket_token,
+        "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b32",
+        3,
+      );
+      expect(retry.json.status).toBe("already_checked_in");
+      expect(retry.json.overAdmission).toEqual({
+        admitted: 2,
+        bought: 3,
+        named: 3,
+      });
+      expect(await getNoteRows("attendee", [attendee.id])).toHaveLength(1);
     });
   },
 );

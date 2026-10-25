@@ -13,6 +13,7 @@ import {
   type DecryptedAttendeeRow,
   decryptAttendees,
 } from "#db/attendees/pii.ts";
+import type { AttendeeOrder } from "#db/attendees/select.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { getListingsByGroupId } from "#db/groups.ts";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
@@ -48,6 +49,7 @@ import {
   queuedDelivery,
 } from "./scan-delivery.ts";
 import {
+  type AdmissionWrite,
   acknowledgedAnswer,
   admissionAnswer,
   alreadyCheckedIn,
@@ -76,12 +78,14 @@ export const listingScope = (listingId: number): ScanScope => ({
 
 /** The door scope's decrypted attendee lines, in one read. The scanner page
  * and the offline ticket cache both need every line the door's listings
- * hold. */
+ * hold. The order defaults to the roster's newest-first. A caller that
+ * groups the lines per booking names its own. */
 export const scopeAttendees = async (
   scope: ScanScope,
+  order: AttendeeOrder = "created_desc",
 ): Promise<DecryptedAttendeeRow<Attendee>[]> =>
   decryptAttendees(
-    await getAttendeesByListingIds([...scope.listingIds]),
+    await getAttendeesByListingIds([...scope.listingIds], false, order),
     await requireRequestPrivateKey(),
   );
 
@@ -135,11 +139,11 @@ const resolveAttendeeName = async (
  * admission planned. A replay then reserves and moves nothing. A door
  * race that drained tickets settles the stored admission to what the
  * move really took, so the retry's answer mirrors the first send's. */
-const performCheckIns = async (
-  decision: Extract<ScanDecision, { kind: "admit" }>,
-  delivery?: QueuedDelivery,
-  overNamed?: { bought: number; named: number },
-): Promise<{ admitted: number; remaining: number }> => {
+const performCheckIns = async ({
+  allEntries,
+  decision,
+  delivery,
+}: AdmissionWrite): Promise<{ admitted: number; remaining: number }> => {
   const attendeeId = decision.rows[0]!.attendee.id;
   const listingOf = (unit: ScanUnit) => unit.rows[0]!.listing;
   const listingNames = new Map(
@@ -171,19 +175,25 @@ const performCheckIns = async (
       reserve: ledger.reserve,
       settle: async (moved, tx) => {
         await ledger.settle?.(moved, tx);
-        // The pick ran past the booking: the note carries the numbers on
-        // the booking, once per delivery, where staff can act on them.
-        if (overNamed && delivery) {
-          await noteOverAdmission(
-            attendeeId,
-            delivery,
-            overAdmissionNoteText(
-              overNamed.named,
-              ticketCount(moved),
-              overNamed.bought,
-            ),
-            tx,
-          );
+        // A delivery that named a count can land short of it: its plan
+        // fell below the pick, or another door took tickets first. The
+        // note carries the numbers on the booking, once per delivery,
+        // where staff can act on them.
+        if (delivery && delivery.quantity !== undefined) {
+          const named = delivery.quantity;
+          const admitted = ticketCount(moved);
+          if (planned < named || (0 < admitted && admitted < named)) {
+            await noteOverAdmission(
+              attendeeId,
+              delivery,
+              overAdmissionNoteText(
+                named,
+                admitted,
+                bookingHoldings(allEntries),
+              ),
+              tx,
+            );
+          }
         }
       },
     },
@@ -321,22 +331,8 @@ const scanDecisionResponse = async (
         delivery?.quantity === undefined
           ? decision
           : quantityAdmission(decision, delivery.quantity);
-      const overNamed =
-        delivery?.quantity !== undefined &&
-        unitTickets(decision.units) < delivery.quantity
-          ? {
-              bought: bookingHoldings(allEntries),
-              named: delivery.quantity,
-            }
-          : undefined;
-      return admissionAnswer(
-        exact,
-        allEntries,
-        attendeeName,
-        delivery,
-        await performCheckIns(exact, delivery, overNamed),
-        overNamed,
-      );
+      const write: AdmissionWrite = { allEntries, decision: exact, delivery };
+      return admissionAnswer(write, attendeeName, await performCheckIns(write));
     }
   }
 };

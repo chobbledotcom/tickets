@@ -72,6 +72,31 @@ export const withRefundConfirmationFault = <T>(
     body,
   );
 
+const CONCURRENT_DOOR_DRAIN = "test_concurrent_door_drain";
+
+/** One place at the named booking line checks in the moment a queued
+ * delivery's pair is reserved — the write another door commits between
+ * the scan's decision and its admission, inside the delivery's own
+ * transaction. The admission then caps at what the line still owes. */
+export const withConcurrentDoorDrain = <T>(
+  attendeeId: number,
+  listingId: number,
+  body: () => Promise<T>,
+): Promise<T> =>
+  withDbFault(
+    `CREATE TRIGGER ${CONCURRENT_DOOR_DRAIN}
+      AFTER INSERT ON processed_scan_operations
+      BEGIN
+        UPDATE listing_attendees
+        SET checked_in = checked_in + 1
+        WHERE attendee_id = ${attendeeId}
+          AND listing_id = ${listingId}
+          AND checked_in < quantity;
+      END`,
+    CONCURRENT_DOOR_DRAIN,
+    body,
+  );
+
 /** Point one attendee's booking at a listing that no longer resolves, so a
  * token scan of it finds the attendee but no listing to name for the line. */
 export const orphanAttendeeBooking = async (token: string): Promise<void> => {

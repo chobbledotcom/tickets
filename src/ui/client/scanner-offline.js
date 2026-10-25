@@ -13,7 +13,7 @@ const MODE_KEY = "scanner-offline-mode";
 const SCANNER_SW_PATH = "/admin/scanner-sw.js";
 
 /** Whether a value is the stored list: one entry per ticket digest, with
- * the places its booking still owed when the list was built. */
+ * the places one scan at its door admits of the ticket's booking. */
 const isCacheList = (value) =>
   Array.isArray(value) &&
   value.every(

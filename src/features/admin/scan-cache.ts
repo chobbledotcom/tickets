@@ -26,6 +26,7 @@ import {
   type ScanScope,
   scopeAttendees,
 } from "./scan-answer.ts";
+import { scanAdmits } from "./scan-decision.ts";
 /* jscpd:ignore-end */
 
 /** The name a door's cache key derives from: the door's kind and id. The
@@ -45,10 +46,10 @@ export const pageDoorCacheKey = (door: string): string =>
  * build does not start every digest at the same time. */
 const DIGEST_BATCH = 100;
 
-/** One saved ticket's keyed digest and the places its booking still owed at
- * this door when the list was built. The offline quantity ask reads the
- * count. The server answers what the booking can still supply when the
- * check-in lands. */
+/** One saved ticket's keyed digest and the places one scan at this door
+ * admits of its booking. The offline quantity ask reads the count and
+ * bounds its pick at it. The server answers what the booking can still
+ * supply when the check-in lands. */
 export type TicketCacheEntry = { hash: string; tickets: number };
 
 /** Puts one door's cache rows in digest order, so every device saves the
@@ -59,18 +60,20 @@ const byDigest = (one: TicketCacheEntry, two: TicketCacheEntry): number => {
 };
 
 /** The keyed digests of one door's admittable ticket tokens, each with the
- * places its booking still owes on the door's listings. A token belongs in
- * the list when its attendee holds at least one line on the door's listings
- * that still owes a ticket. That line must not be refunded, must carry
- * ticket quantity, and is what a scan admits. Every token the loaded lines
- * carry joins the list. One token resolves the attendee's whole booking. So
- * any of the person's tickets admits them at this door the same way, and
- * each carries the same owed count. */
+ * places one scan at this door admits of the token's booking. A token
+ * belongs in the list when its attendee holds at least one line on the
+ * door's listings that still owes a ticket. That line must not be refunded,
+ * must carry ticket quantity, and is what a scan admits. Every token the
+ * loaded lines carry joins the list. One token resolves the attendee's whole
+ * booking. So any of the person's tickets admits them at this door the same
+ * way, and each carries the same count. */
 export const ticketCacheForScope = async (
   scope: ScanScope,
   doorKey: Uint8Array,
 ): Promise<TicketCacheEntry[]> => {
-  const rows = await scopeAttendees(scope);
+  // Booking order — the (start, listing) order the scan's own decision
+  // groups a booking's lines by — so the count names what that scan admits.
+  const rows = await scopeAttendees(scope, "start_then_listing");
   const rowsByAttendee = groupToMap(
     (row: DecryptedAttendeeRow<Attendee>) => row.id,
     (row: DecryptedAttendeeRow<Attendee>) => row,
@@ -84,7 +87,17 @@ export const ticketCacheForScope = async (
         remainingTickets(row) > 0 && !row.refunded && hasTicketQuantity(row),
     );
     if (owing.length === 0) continue;
-    const owed = sumOf(remainingTickets)(owing);
+    // What one scan admits, by the scan's own rule: the first listing
+    // still owing places, or every one when this door checks them all in.
+    const admitted = scanAdmits(false, scope.checkInEveryListing, [
+      ...groupToMap(
+        (row: DecryptedAttendeeRow<Attendee>) => row.listing_id,
+        (row: DecryptedAttendeeRow<Attendee>) => row,
+      )(owing).values(),
+    ]);
+    const owed = sumOf((owedLines: readonly DecryptedAttendeeRow<Attendee>[]) =>
+      sumOf(remainingTickets)(owedLines),
+    )(admitted);
     for (const row of lines) owedByToken.set(row.ticket_token, owed);
   }
   // One key import serves every digest. A per-digest import repeats the
