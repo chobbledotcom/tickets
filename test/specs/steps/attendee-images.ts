@@ -6,22 +6,52 @@ import { t } from "#i18n";
 import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+
 // jscpd:ignore-end
 
+import { setListingGroups } from "#db/groups.ts";
 import {
-  NOTE_LISTING,
+  NOTES_BLOCK,
+  NOTES_SUMMARY,
   noteDeletePath,
   notedAboutWithPicture,
   pictureTag,
   regionShowsPicture,
 } from "#test/specs/support/attendee-images.ts";
+import { findOrCreateGroup, groupNamed } from "#test/specs/support/groups.ts";
 
-/** The notes block on the person's page: every note, oldest first, right
- * above the tab strip. */
-const NOTES_BLOCK = '<section class="attendee-notes">';
-/** The expandable notes summary above the attendees list and the listing's
- * panels. */
-const NOTES_SUMMARY = "attendee-notes-summary";
+/** The group the Attendees-page steps filter by. Every scenario starts from
+ * an empty database, so one fixed name carries nothing over. */
+const PEOPLE_LIST_GROUP = "Door groups";
+
+Given(
+  "the {word} is in a group",
+  async function (this: TicketsWorld, listing: string): Promise<void> {
+    // The Attendees page filtered to the group lists the people booked on
+    // the group's listings, so the story puts the listing in one group
+    // before anybody opens that page.
+    const group = await findOrCreateGroup(PEOPLE_LIST_GROUP);
+    await setListingGroups(listingIdNamed(this, listing), [group.id]);
+  },
+);
+
+When(
+  "the organiser opens the Attendees page filtered to the group",
+  async function (this: TicketsWorld): Promise<void> {
+    const group = await groupNamed(PEOPLE_LIST_GROUP);
+    await openAdminPage(this, `/admin/attendees?group=${group.id}`);
+  },
+);
+
+When(
+  "the organiser opens {word}'s page",
+  async function (this: TicketsWorld, who: string): Promise<void> {
+    await openAdminPage(
+      this,
+      `/admin/attendees/${this.things.require("record", who)}`,
+    );
+  },
+);
 
 Given(
   "the organiser noted about {word} {string} with a picture called {string}",
@@ -36,13 +66,6 @@ Given(
 );
 
 When(
-  "the organiser opens {word}'s page",
-  async function (this: TicketsWorld, _who: string): Promise<void> {
-    await openAdminPage(this, `/admin/attendees/${this.attendeeId}`);
-  },
-);
-
-When(
   "the organiser opens the Attendees page",
   async function (this: TicketsWorld): Promise<void> {
     await openAdminPage(this, "/admin/attendees");
@@ -50,21 +73,21 @@ When(
 );
 
 When(
-  "the organiser opens the listing's overview",
-  async function (this: TicketsWorld): Promise<void> {
+  "the organiser opens the {word}'s overview",
+  async function (this: TicketsWorld, listing: string): Promise<void> {
     await openAdminPage(
       this,
-      `/admin/listing/${listingIdNamed(this, NOTE_LISTING)}`,
+      `/admin/listing/${listingIdNamed(this, listing)}`,
     );
   },
 );
 
 When(
-  "the organiser opens the listing's roster",
-  async function (this: TicketsWorld): Promise<void> {
+  "the organiser opens the {word}'s roster",
+  async function (this: TicketsWorld, listing: string): Promise<void> {
     await openAdminPage(
       this,
-      `/admin/listing/${listingIdNamed(this, NOTE_LISTING)}/attendees`,
+      `/admin/listing/${listingIdNamed(this, listing)}/attendees`,
     );
   },
 );

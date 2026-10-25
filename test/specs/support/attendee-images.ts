@@ -40,11 +40,22 @@ export const pictureTag = (world: TicketsWorld): string => {
   return `<img src="/image/${encodeURI(image.filename)}" alt="${image.alt}">`;
 };
 
+/** The notes block on the person's page: every note, oldest first, right
+ * above the tab strip. */
+export const NOTES_BLOCK = '<section class="attendee-notes">';
+/** The expandable notes summary above the attendees list and the listing's
+ * panels. */
+export const NOTES_SUMMARY = "attendee-notes-summary";
+
 /** The page region one opening marker opens. The marker can sit inside the
  * opening tag's attributes, so the scan starts at the `<tag` that holds it.
  * One pass over that tag's open and close tokens counts the nesting, so a
  * region that holds children does not end at a child's close. */
-const regionFrom = (html: string, openMarker: string, tag: string): string => {
+export const regionFrom = (
+  html: string,
+  openMarker: string,
+  tag: string,
+): string => {
   const markerAt = html.indexOf(openMarker);
   if (markerAt < 0) return "";
   const openTag = `<${tag}`;
@@ -122,6 +133,7 @@ export const typedNoteWithPicture = async (
   );
   const picture = await uploadsAPicture(world, name);
   world.attendeeId = attendee.id;
+  world.things.remember("record", who, attendee.id);
   world.things.remember("listing", NOTE_LISTING, listing);
   const typed = `${wordsBefore} ![${name}](img#${picture.id})`;
   return { attendeeId: attendee.id, picture, typed };

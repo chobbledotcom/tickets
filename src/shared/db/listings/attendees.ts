@@ -3,6 +3,7 @@
 import type { ResultSet } from "@libsql/client";
 import {
   ATTENDEE_FIELDS,
+  type AttendeeOrder,
   type AttendeeWhere,
   attendeeBatchStatement,
   getAttendees,
@@ -75,12 +76,16 @@ export const getDailyListingAttendeeDates = async (): Promise<string[]> => {
   return sortStrings(unique(dates));
 };
 
-/** Booking rows in the roster's order, each row's badge scoped to its own
- * booking. The daily-range and the listing-filtered reads share the shape. */
-const bookingScopedAttendeeRows = (where: AttendeeWhere): Promise<Attendee[]> =>
+/** Booking rows in the given order — the roster's newest-first unless the
+ * caller names another. The daily-range and the listing-filtered reads
+ * share the shape. */
+const bookingScopedAttendeeRows = (
+  where: AttendeeWhere,
+  order: AttendeeOrder = "created_desc",
+): Promise<Attendee[]> =>
   getAttendees({
     fields: ATTENDEE_FIELDS,
-    order: "created_desc",
+    order,
     owedScope: "booking",
     where,
   });
@@ -126,14 +131,18 @@ const attendeeKindFilter = (
 export const getAttendeesByListingIds = (
   listingIds: number[],
   filter: boolean | ListingAttendeeFilter = false,
+  order: AttendeeOrder = "created_desc",
 ): Promise<Attendee[]> => {
   if (listingIds.length === 0) return Promise.resolve([]);
   const { activeOnly, kindScope } = listingAttendeeFilter(filter);
-  return bookingScopedAttendeeRows({
-    kind: attendeeKindFilter(kindScope),
-    listingIds,
-    realLinesOnly: activeOnly,
-  });
+  return bookingScopedAttendeeRows(
+    {
+      kind: attendeeKindFilter(kindScope),
+      listingIds,
+      realLinesOnly: activeOnly,
+    },
+    order,
+  );
 };
 
 export type ListingWithAttendeeRaw = {

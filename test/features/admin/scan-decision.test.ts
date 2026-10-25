@@ -5,10 +5,11 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { remainingTickets } from "#booking/remaining-tickets.ts";
 import {
   decideScan,
-  exactQuantityAdmission,
-  rowsByListing,
+  owingListings,
+  quantityAdmission,
   type ScanDecision,
 } from "#routes/admin/scan-decision.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
@@ -70,12 +71,13 @@ const scanAt = (
     controls.count,
   );
 
-/** The expected admit when every covered row owes exactly one ticket. */
+/** The expected admit when every covered row owes exactly one ticket. One
+ * row per listing, so the units are that row alone. */
 const admitsOne = (rows: readonly TokenEntry[], remaining: number) => ({
   kind: "admit",
   remaining,
   rows: [...rows],
-  units: rowsByListing(rows).map((unit) => ({ rows: unit, tickets: 1 })),
+  units: rows.map((row) => ({ rows: [row], tickets: 1 })),
 });
 
 describe("decideScan", () => {
@@ -251,18 +253,48 @@ describe("decideScan", () => {
   });
 });
 
-describe("rowsByListing", () => {
-  test("groups a ticket's rows by listing, keeping booking order", () => {
-    const rows = [standard(), society(), standard({ checked: true }), guest()];
-    expect(rowsByListing(rows)).toEqual([
+describe("owingListings", () => {
+  const oweByListing = (rows: readonly TokenEntry[]) =>
+    owingListings(
+      rows,
+      (row) => row.listing.id,
+      (row) => remainingTickets(row.attendee),
+    );
+
+  test("keeps booking order and drops the listings that owe no place", () => {
+    const rows = [
+      standard(),
+      society({ checked: true }),
+      standard({ checked: true }),
+      guest(),
+    ];
+    expect(oweByListing(rows)).toEqual([
       [standard(), standard({ checked: true })],
-      [society()],
       [guest()],
     ]);
   });
+
+  test("a fully checked-in line keeps its listing's place in the order", () => {
+    // The second listing's line starts between the first listing's two
+    // lines. The first listing still owes on its later line, so it stays
+    // first and a one-listing-per-scan door lands there.
+    const rows = [
+      standard({ checked: true }),
+      society(),
+      standard({ quantity: 3 }),
+    ];
+    expect(oweByListing(rows)).toEqual([
+      [standard({ checked: true }), standard({ quantity: 3 })],
+      [society()],
+    ]);
+  });
+
+  test("answers no listings for no lines, so the token leaves the set", () => {
+    expect(oweByListing([])).toEqual([]);
+  });
 });
 
-describe("exactQuantityAdmission", () => {
+describe("quantityAdmission", () => {
   /** The fixture decision, narrowed to the admit the controls produce. */
   const admit = (decision: ScanDecision) => {
     if (decision.kind !== "admit")
@@ -278,7 +310,7 @@ describe("exactQuantityAdmission", () => {
   test("fills the listings in booking order to exactly the delivery's quantity", () => {
     // A party spans two listings and owes six places; a delivery that names
     // five admits four at the first listing and one at the next.
-    expect(exactQuantityAdmission(covered, 5)).toEqual({
+    expect(quantityAdmission(covered, 5)).toEqual({
       ...covered,
       remaining: 1,
       rows: [four, two],
@@ -290,7 +322,7 @@ describe("exactQuantityAdmission", () => {
   });
 
   test("stops at the delivery's quantity and drops the listings it never reaches", () => {
-    expect(exactQuantityAdmission(covered, 1)).toEqual({
+    expect(quantityAdmission(covered, 1)).toEqual({
       ...covered,
       remaining: 5,
       rows: [four],
@@ -298,16 +330,25 @@ describe("exactQuantityAdmission", () => {
     });
   });
 
-  test("refuses a quantity the covered listings cannot supply", () => {
+  test("takes what the covered listings owe when the pick runs past them", () => {
     // The delivery names more people than the booking still holds. The
-    // server refuses it instead of admitting fewer than the delivery named.
-    expect(exactQuantityAdmission(covered, 7)).toBeNull();
+    // plan takes the whole party, and the answer says the numbers so the
+    // door can alert — the delivery is capped, never refused.
+    expect(quantityAdmission(covered, 7)).toEqual({
+      ...covered,
+      remaining: 0,
+      rows: [four, two],
+      units: [
+        { rows: [four], tickets: 4 },
+        { rows: [two], tickets: 2 },
+      ],
+    });
   });
 
   test("one place of a party plans one ticket on the first listing", () => {
     const three = standard({ quantity: 3 });
     const one = admit(scanAt([three], { count: 3 }));
-    expect(exactQuantityAdmission(one, 1)).toEqual({
+    expect(quantityAdmission(one, 1)).toEqual({
       ...one,
       remaining: 2,
       units: [{ rows: [three], tickets: 1 }],

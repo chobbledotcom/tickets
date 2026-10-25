@@ -9,7 +9,8 @@ import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 
 /** One listing's share of one admission: the rows the scan admits there, and
  * how many tickets it admits on them. The count is never more than those
- * rows owe. */
+ * rows owe. A parent row and its folded child row sit on different listings,
+ * so one admission never counts them as one person twice. */
 export type ScanUnit = { rows: TokenEntry[]; tickets: number };
 
 /** What one scan decided. An admit's `remaining` is every ticket the
@@ -23,16 +24,18 @@ export type ScanDecision =
   | { kind: "wrong_listing" }
   | { kind: "not_found" };
 
-/** All of one ticket's rows on one listing, in booking order — one
- * admission unit. A booking's rows on one listing are one person's places
- * there. A parent row and its folded child row sit on different listings, so
- * one admission at a time never counts them as one person twice. */
-export const rowsByListing = (rows: readonly TokenEntry[]): TokenEntry[][] => [
-  ...groupToMap(
-    (row: TokenEntry) => row.listing.id,
-    (row: TokenEntry) => row,
-  )(rows).values(),
-];
+/** One ticket's lines grouped by listing, in booking order, with the
+ * listings that owe no place dropped. A listing whose lines all sit fully
+ * checked in keeps its place in the order. A one-listing-per-scan door then
+ * lands on the listing after it, never past it. */
+export const owingListings = <Row>(
+  lines: readonly Row[],
+  listingIdOf: (row: Row) => number,
+  remainingOf: (row: Row) => number,
+): Row[][] =>
+  [...groupToMap(listingIdOf, (row: Row) => row)(lines).values()].filter(
+    (rows) => rows.some((row) => remainingOf(row) > 0),
+  );
 
 /** What a door asks a scan to decide: the ticket's rows, the listings the
  * door admits, and the door staff's let-them-in-anyway choice. `force` only
@@ -70,11 +73,11 @@ const scanPool = ({
 /** The listings a scan admits from those that still owe tickets. Every one
  * for a group door that checks in all its listings, and otherwise the first.
  * Every later door of a several-listing ticket still has something to admit. */
-const scanAdmits = (
+export const scanAdmits = <Row>(
   widened: boolean,
   checkInEveryListing: boolean,
-  owed: readonly TokenEntry[][],
-): TokenEntry[][] => (checkInEveryListing && !widened ? [...owed] : [owed[0]!]);
+  owed: readonly Row[][],
+): Row[][] => (checkInEveryListing && !widened ? [...owed] : [owed[0]!]);
 
 /** The tickets one listing's rows still owe the door. */
 const owedTickets = sumOf((row: TokenEntry) => remainingTickets(row.attendee));
@@ -103,8 +106,10 @@ export const decideScan = (
   if ("failure" in pool) return { kind: pool.failure };
   const live = pool.rows.filter((entry) => !entry.attendee.refunded);
   if (live.length === 0) return { kind: "refunded" };
-  const owed = rowsByListing(live).filter((rows) =>
-    rows.some((entry) => remainingTickets(entry.attendee) > 0),
+  const owed = owingListings(
+    live,
+    (entry) => entry.listing.id,
+    (entry) => remainingTickets(entry.attendee),
   );
   if (owed.length === 0) return { kind: "already_checked_in", live };
   const admitted = scanAdmits(pool.widened, checkInEveryListing, owed);
@@ -131,24 +136,23 @@ export const decideScan = (
   };
 };
 
-/** A queued delivery's exact share of one admit decision. Fill the
- * decision's units in booking order until exactly `quantity` places are
- * planned. Each listing caps at what it still owes. Null when the scan's
- * listings cannot supply that many — the delivery is refused, not capped.
- * A live scan's quantity pick caps per listing instead. Only a queued
- * delivery admits an exact count. */
-export const exactQuantityAdmission = (
+/** A queued delivery's share of one admit decision. Fill the decision's
+ * units in booking order until the pick is met or the listings run out.
+ * Each listing caps at what it still owes. The plan therefore never
+ * exceeds the pick, and it can fall short of it. The answer then reports
+ * the shortfall. A live scan's quantity pick caps per listing instead.
+ * Only a queued delivery admits an exact count. */
+export const quantityAdmission = (
   decision: Extract<ScanDecision, { kind: "admit" }>,
   quantity: number,
-): Extract<ScanDecision, { kind: "admit" }> | null => {
+): Extract<ScanDecision, { kind: "admit" }> => {
   const planned: ScanUnit[] = [];
-  const left = decision.units.reduce((remaining: number, unit) => {
+  decision.units.reduce((remaining: number, unit) => {
     if (remaining <= 0) return remaining;
     const take = Math.min(unit.tickets, remaining);
     planned.push({ rows: unit.rows, tickets: take });
     return remaining - take;
   }, quantity);
-  if (left > 0) return null;
   return {
     ...decision,
     remaining:
