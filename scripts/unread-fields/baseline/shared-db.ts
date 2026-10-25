@@ -154,8 +154,8 @@ export const SHARED_DB_BASELINE: readonly FindingIdentity[] = [
     "sort_order",
   ]),
   ...identitiesAt([
-    ["src/shared/db/question-types.ts", [{ name: "Question" }]],
-  ])(["assign_all"]),
+    ["src/shared/db/questions/tables.ts", [{ name: "QuestionInput" }]],
+  ])(["assignAll", "displayType", "text"]),
   ...identitiesAt([
     [
       "src/shared/db/refund-all-candidates.ts",

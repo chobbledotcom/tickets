@@ -90,10 +90,10 @@ const handleOptionCreate: RouteHandlerFn = (request, params) =>
 /** PUT /api/admin/attributes/:attributeId/options/:optionId */
 const handleOptionUpdate = optionSurface.textUpdate(
   withRequiredText,
-  (attribute, option, text) =>
-    renameAttributeOptionWithLog(attribute, option, text).then(() =>
-      attributeResponse(attribute.id),
-    ),
+  async (attribute, option, text) => {
+    await renameAttributeOptionWithLog(attribute, option, text);
+    return attributeResponse(attribute.id);
+  },
 );
 
 /** DELETE /api/admin/attributes/:attributeId/options/:optionId */

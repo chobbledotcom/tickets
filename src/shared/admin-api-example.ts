@@ -26,7 +26,6 @@ import type {
 import {
   ADMIN_API_RESOURCES,
   type AdminApiOptionBody,
-  adminApiIdParam,
 } from "#shared/admin-api-resources.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
@@ -34,6 +33,7 @@ import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { DeleteBody } from "#shared/rest/crud-parsers.ts";
 import type { AdminListing } from "#types";
 import {
+  childDocBase,
   crudDocs,
   type EndpointDoc,
   json,
@@ -256,11 +256,8 @@ const LISTING_DEFAULT_DAYS_AFTER =
 
 /** The documented path of one attribute-option route: the parent's id param
  *  and the child segment both come from the resource table. */
-const attributeOptionBase = (): string => {
-  const entry = ADMIN_API_RESOURCES.attributes;
-  const child = entry.children.options;
-  return `/api/admin/${entry.path}/:${adminApiIdParam(entry.label)}/${child.path}`;
-};
+const attributeOptionBase = (): string =>
+  childDocBase(ADMIN_API_RESOURCES.attributes, "options");
 
 /** The documented path of one listing custom route. */
 const listingCustom = (

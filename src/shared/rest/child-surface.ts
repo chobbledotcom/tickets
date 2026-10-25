@@ -20,13 +20,6 @@ import {
 
 /** The write routes one child surface answers. */
 export type ApiChildSurface<Parent, Child extends { id: number }> = {
-  /** The parent-then-child load for an update or a delete. It answers 404
-   *  for an unknown parent or a child of another parent. */
-  child: (
-    request: Request,
-    params: RouteParams,
-    handler: RowBodyHandler<{ child: Child; parent: Parent }>,
-  ) => Promise<Response>;
   /** One child row's confirmed-delete route. The confirmation must match
    *  the child's display text. The delete answers the shared plain ok. */
   confirmedDelete: (
@@ -71,11 +64,11 @@ export const apiChildSurface = <Parent, Child extends { id: number }>(config: {
     params,
     handler,
   ) => gate(request, params[config.parentIdParam] as number, handler);
-  const child: ApiChildSurface<Parent, Child>["child"] = (
-    request,
-    params,
-    handler,
-  ) =>
+  const child = (
+    request: Request,
+    params: RouteParams,
+    handler: RowBodyHandler<{ child: Child; parent: Parent }>,
+  ): Promise<Response> =>
     parent(request, params, (row, body) => {
       const childId = params[config.childIdParam] as number;
       const childRow = byId(config.childrenOf(row)).get(childId);
@@ -87,7 +80,6 @@ export const apiChildSurface = <Parent, Child extends { id: number }>(config: {
       return handler({ child: childRow, parent: row }, body);
     });
   return {
-    child,
     confirmedDelete: (textOf, label, destroy) => (request, params) =>
       child(request, params, async ({ child: gone, parent }, body) => {
         const error = verifyIdentifierOrJsonError(

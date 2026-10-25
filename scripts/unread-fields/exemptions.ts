@@ -284,12 +284,6 @@ const bodyFieldExemptions: readonly [
 ][] = [
   [
     "src/features/admin/api-attributes.ts",
-    [{ name: "AttributeOptionBody" }],
-    ["text"],
-    "the attribute option create and update routes",
-  ],
-  [
-    "src/features/admin/api-attributes.ts",
     [{ name: "CreateAttributeBody" }],
     ["name"],
     "toAttributeInput on a create body",

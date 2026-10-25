@@ -173,27 +173,24 @@ const questionResponse = async (
 /** POST /api/admin/questions/:questionId/answers */
 const handleAnswerCreate: RouteHandlerFn = (request, params) =>
   answerSurface.parent(request, params, (question, body) =>
-    withAnswerText(body, (text) => {
+    withAnswerText(body, async (text) => {
       // Free-text questions collect a typed value, never an answer id, so
       // the request is refused with the same message the HTML form answers.
       if (question.display_type === "free_text") {
-        return Promise.resolve(
-          apiErrorResponse(t("questions.answers.free_text_no_options")),
-        );
+        return apiErrorResponse(t("questions.answers.free_text_no_options"));
       }
-      return addAnswerWithLog(question.id, text).then(() =>
-        questionResponse(question.id, 201),
-      );
+      await addAnswerWithLog(question.id, text);
+      return questionResponse(question.id, 201);
     }),
   );
 
 /** PUT /api/admin/questions/:questionId/answers/:answerId */
 const handleAnswerUpdate = answerSurface.textUpdate(
   withAnswerText,
-  (question, answer, text) =>
-    updateAnswerWithLog(question, answer, { text }).then(() =>
-      questionResponse(question.id),
-    ),
+  async (question, answer, text) => {
+    await updateAnswerWithLog(question, answer, { text });
+    return questionResponse(question.id);
+  },
 );
 
 /** DELETE /api/admin/questions/:questionId/answers/:answerId */

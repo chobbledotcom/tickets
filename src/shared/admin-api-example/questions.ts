@@ -12,7 +12,12 @@ import {
   type AdminApiUpdateQuestionBody,
 } from "#shared/admin-api-resources.ts";
 import type { DeleteBody } from "#shared/rest/crud-parsers.ts";
-import { crudDocs, type EndpointDoc, json } from "./endpoint-doc.ts";
+import {
+  childDocBase,
+  crudDocs,
+  type EndpointDoc,
+  json,
+} from "./endpoint-doc.ts";
 
 // jscpd:ignore-end
 
@@ -76,11 +81,8 @@ const ADMIN_API_EXAMPLE_ANSWER_RENAMED = {
 
 /** The documented path of one answer write route: the parent's id param and
  *  the child segment both come from the resource table. */
-const questionAnswerBase = (): string => {
-  const entry = ADMIN_API_RESOURCES.questions;
-  const child = entry.children.answers;
-  return `/api/admin/${entry.path}/:${entry.label.toLowerCase()}/${child.path}`;
-};
+const questionAnswerBase = (): string =>
+  childDocBase(ADMIN_API_RESOURCES.questions, "answers");
 
 export const QUESTION_ENDPOINTS: EndpointDoc[] = [
   ...crudDocs({
