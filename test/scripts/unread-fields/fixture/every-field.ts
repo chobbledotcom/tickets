@@ -278,6 +278,8 @@ export const EVERY_FIELD: readonly string[] = [
   "WrittenThroughParens.filledBehindACast",
   "WrittenThroughParens.filledBehindSatisfies",
   "WrittenThroughParens.filledInsideParens",
+  "default.handedOver",
+  "default.silent",
   "typeof BothSides.heldByTheClass",
   "typeof HasAStatic.passedDownToItsChildren",
   "typeof HasAStaticAndAccessors.madeOnTheClass",

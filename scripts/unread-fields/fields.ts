@@ -10,6 +10,7 @@ import {
   isNegativeNumericName,
 } from "./fields/names.ts";
 import {
+  DEFAULT_REACH,
   exportedShapes,
   inheritedTypesOf,
   type Shape,
@@ -119,13 +120,15 @@ const createExportedTargetLookup = (
 const shapeTarget =
   (checker: ts.TypeChecker): ShapeTarget =>
   (shape) =>
-    standsFor(
-      checker,
-      answered(
-        checker.getSymbolAtLocation(shape.name),
-        `shape ${shape.name.text}`,
-      ),
-    );
+    "symbol" in shape
+      ? shape.symbol
+      : standsFor(
+          checker,
+          answered(
+            checker.getSymbolAtLocation(shape.name),
+            `shape ${shape.name.text}`,
+          ),
+        );
 
 const belongsToAnotherExport = (
   walk: ExportWalk,
@@ -221,7 +224,9 @@ const visitBorrowedSignatures = (
 };
 
 const visitShape = (walk: ExportWalk, shape: Shape): void => {
-  const owner: Step[] = [{ name: shape.name.text }];
+  const owner: Step[] = [
+    shape.name ? { name: shape.name.text } : { way: DEFAULT_REACH },
+  ];
   const target = walk.targetOfShape(shape);
   const state: WalkState = {
     activeReferences: new Set(),

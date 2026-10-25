@@ -5,17 +5,26 @@
 import ts from "typescript";
 import { unique } from "#fp";
 
-/** A named declaration whose fields the scan can look up. The name is
- * required, because every lookup starts from it. */
-export type Shape = (
+/** A named declaration whose fields the scan can look up. Every lookup
+ * starts from the name. */
+export type NamedShape = (
   | ts.ClassDeclaration
   | ts.InterfaceDeclaration
   | ts.TypeAliasDeclaration
 ) & { name: ts.Identifier };
 
+/** A shape the scan walks: a named one, or an unnamed class reached through
+ * the module's default export, whose symbol the export list hands over. */
+export type Shape = NamedShape | (ts.ClassDeclaration & { symbol: ts.Symbol });
+
+/** How a reader reaches an unnamed class. The module's default export is the
+ * one slot that holds it, and an import may call it anything. */
+export const DEFAULT_REACH = "default";
+
 /** A class counts, because `SafeHtml.html` is reached like any other field.
- * An unnamed one cannot be looked up, so it is left out. */
-export const isShape = (node: ts.Node): node is Shape =>
+ * The guard names only the shapes that carry their own name; the walk meets
+ * an unnamed class through the export list instead. */
+export const isShape = (node: ts.Node): node is NamedShape =>
   ts.isInterfaceDeclaration(node) ||
   ts.isTypeAliasDeclaration(node) ||
   (ts.isClassDeclaration(node) && node.name !== undefined);
@@ -57,7 +66,15 @@ export const exportedShapes = (
     const symbol = standsFor(checker, exported);
     for (const declaration of declaredIn(symbol, file)) {
       if (isShape(declaration)) shapes.push(declaration);
-      else if (ts.isModuleDeclaration(declaration)) {
+      else if (ts.isClassDeclaration(declaration)) {
+        // The export list is where an unnamed class's symbol comes from; the
+        // declaration has no name to look it up by.
+        const unnamed = declaration as ts.ClassDeclaration & {
+          symbol: ts.Symbol;
+        };
+        unnamed.symbol = symbol;
+        shapes.push(unnamed);
+      } else if (ts.isModuleDeclaration(declaration)) {
         shapes.push(...exportedShapes(checker, symbol, file, seen));
       }
     }
