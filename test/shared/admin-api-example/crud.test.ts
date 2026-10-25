@@ -295,6 +295,27 @@ describe("documented admin CRUD endpoints", () => {
     }
   });
 
+  test("the question answer delete example confirms an answer the example question carries", () => {
+    // The real route refuses a delete whose confirm_identifier is not that
+    // answer's text, so the documented pair must agree with the example
+    // question's answer list.
+    const answers = JSON.parse(
+      documented(ADMIN_API_ENDPOINTS, "GET", "/api/admin/questions/:questionId")
+        .response,
+    ).question.answers as { text: string }[];
+    const del = JSON.parse(
+      documented(
+        ADMIN_API_ENDPOINTS,
+        "DELETE",
+        "/api/admin/questions/:questionId/answers/:answerId",
+      ).request!,
+    ) as { confirm_identifier: string };
+
+    expect(
+      answers.some((answer) => answer.text === del.confirm_identifier),
+    ).toBe(true);
+  });
+
   test("the documented example bodies say what they mean", () => {
     const listingCreate = JSON.parse(
       documented(ADMIN_API_ENDPOINTS, "POST", "/api/admin/listings").request!,
