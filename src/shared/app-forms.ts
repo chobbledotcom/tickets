@@ -235,8 +235,9 @@ type PublicFormRouteConfig<TValues, TParams> = {
 };
 
 /** Render a public page that carries a form: sign a CSRF token for it, pick
- * up any flashed message, and return the page HTML. The page renders the site
- * footer, so the footer's images resolve like every other public page's. The
+ * up any flashed message, and return the page HTML. The join page renders the
+ * site footer, so its images resolve like every other public page's. The
+ * demo-reset page renders no footer and gains nothing from the lookup. The
  * GET-side partner of {@link createFormRoute} (the join and demo-reset pages
  * use both). */
 export const publicFormPage = async (

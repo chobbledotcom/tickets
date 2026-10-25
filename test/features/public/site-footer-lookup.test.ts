@@ -53,8 +53,9 @@ describeWithEnv(
         `Visit us.![FooterQuery](img#${image.id})`,
       );
       const sqls = await withRecordedSql(() => assertPublicHtml("/"));
-      // The resolution test above proves the page consumed the lookup; this one
-      // proves the recorder sees the images read that the tests below exclude.
+      // The resolution tests in site-footer.test.ts prove the page consumed
+      // the lookup. This one proves the recorder sees the images read that
+      // the tests below exclude.
       expect(sqls.some((sql) => sql.includes("FROM images"))).toBe(true);
     });
 
