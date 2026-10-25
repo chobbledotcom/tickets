@@ -6,7 +6,6 @@
 
 import {
   type Attribute,
-  type AttributeOption,
   type AttributeWithOptions,
   attributesOrder,
   attributesTable,
@@ -15,25 +14,22 @@ import {
   getAttributeWithOptions,
   getAttributeWithOptionsOnPrimary,
 } from "#db/attributes.ts";
-import type { TxScope } from "#db/client.ts";
-import { byId } from "#fp";
 import {
   addAttributeOptionWithLog,
   deleteAttributeOptionWithLog,
   renameAttributeOptionWithLog,
 } from "#routes/admin/attributes.ts";
-import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
-import { apiErrorResponse } from "#routes/api/cors.ts";
 import { OWNER_API } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import { apiChildSurface } from "#shared/rest/child-surface.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
-  apiEntityGate,
-  requireEntityName,
-  requireStrings,
+  requireEntityField,
+  withRequiredText,
 } from "#shared/rest/crud-parsers.ts";
+import { appendOnCreate } from "#shared/rest/crud-side-effects.ts";
 import { okResult, type Result } from "#shared/result.ts";
 
 /** JSON body accepted by POST /api/admin/attributes */
@@ -42,10 +38,8 @@ export type CreateAttributeBody = { name: string };
 /** JSON body accepted by PUT /api/admin/attributes/:attributeId */
 export type UpdateAttributeBody = { name?: string };
 
-/** JSON body accepted by POST and PUT on an attribute option */
-export type AttributeOptionBody = { text: string };
-
-// DELETE /api/admin/attributes/:attributeId and
+// The body a POST or PUT on an attribute option accepts is the table's
+// AdminApiOptionBody. DELETE /api/admin/attributes/:attributeId and
 // DELETE /api/admin/attributes/:attributeId/options/:optionId take the shared
 // DeleteBody the crud-parsers module exports.
 
@@ -56,74 +50,23 @@ const toAttributeInput = (
   body: Record<string, unknown>,
   existing: Attribute | null,
 ): Result<{ name: string }> => {
-  const name = requireEntityName(body, existing?.name ?? null);
+  const name = requireEntityField(body, "name", existing?.name ?? null);
   return name.ok ? okResult({ name: name.value }) : name;
 };
 
-/** The attribute write's only side effect: appending the order entry on create,
- * inside the row write's transaction, so an attribute never exists unplaced.
- * Renames leave the order alone. */
-const orderAppend = {
-  persist: async (
-    transaction: TxScope,
-    id: number,
-    appendOrder: boolean,
-    _state: null,
-  ) => {
-    if (appendOrder) {
-      await attributesOrder.append({ key: id, transaction });
-    }
-  },
-  validate: async (
-    _input: { name: string },
-    _body: Record<string, unknown>,
-    existing: Attribute | null,
-  ) => okResult(existing === null),
-};
-
-type AttributeOptionParams = { attributeId: number; optionId: number };
-
-/** The gate the option write routes load their attribute through. The importer
- * creates an attribute and immediately posts its first option. The read pins
- * to the primary: a lagging replica must not 404 the row the create just
- * made. */
-const attributeGateForWrite = apiEntityGate(
-  getAttributeWithOptionsOnPrimary,
-  "Attribute",
-  OWNER_API,
-);
-
-/** Load one attribute with its options, then one of its options. 404 for an
- * unknown attribute or an option that belongs to another attribute. */
-const withAttributeOption = (
-  request: Request,
-  params: AttributeOptionParams,
-  handler: (
-    context: { attribute: AttributeWithOptions; option: AttributeOption },
-    body: Record<string, unknown>,
-  ) => Promise<Response>,
-): Promise<Response> =>
-  attributeGateForWrite(
-    request,
-    params.attributeId,
-    async (attribute, body) => {
-      const option = byId(attribute.options).get(params.optionId);
-      if (!option) return apiErrorResponse("Attribute option not found", 404);
-      return handler({ attribute, option }, body);
-    },
-  );
-
-/** Parse the body's option text, or answer the standard 400. `run` receives
- * the text. */
-const withOptionText = (
-  body: Record<string, unknown>,
-  run: (text: string) => Promise<Response>,
-): Promise<Response> => {
-  const parsed = requireStrings(body, ["text"]);
-  return parsed.ok
-    ? run(parsed.value.text)
-    : Promise.resolve(apiErrorResponse(parsed.error));
-};
+/** The option write routes' parent-and-child gate. The importer creates an
+ *  attribute and immediately posts its first option, so the parent read pins
+ *  to the primary. A lagging replica must not 404 the row the create just
+ *  made. */
+const optionSurface = apiChildSurface({
+  childIdParam: "optionId",
+  childLabel: "Attribute option",
+  childrenOf: (attribute: AttributeWithOptions) => attribute.options,
+  lookup: getAttributeWithOptionsOnPrimary,
+  parentIdParam: "attributeId",
+  parentLabel: "Attribute",
+  policy: OWNER_API,
+});
 
 /** The write response: the written attribute re-read from the primary. */
 const attributeResponse = async (
@@ -137,44 +80,28 @@ const attributeResponse = async (
 
 /** POST /api/admin/attributes/:attributeId/options */
 const handleOptionCreate: RouteHandlerFn = (request, params) =>
-  attributeGateForWrite(
-    request,
-    params.attributeId as number,
-    (attribute, body) =>
-      withOptionText(body, async (text) => {
-        await addAttributeOptionWithLog(attribute, text);
-        return attributeResponse(attribute.id, 201);
-      }),
+  optionSurface.parent(request, params, (attribute, body) =>
+    withRequiredText(body, async (text) => {
+      await addAttributeOptionWithLog(attribute, text);
+      return attributeResponse(attribute.id, 201);
+    }),
   );
 
 /** PUT /api/admin/attributes/:attributeId/options/:optionId */
-const handleOptionUpdate: RouteHandlerFn = (request, params) =>
-  withAttributeOption(
-    request,
-    params as AttributeOptionParams,
-    ({ attribute, option }, body) =>
-      withOptionText(body, async (text) => {
-        await renameAttributeOptionWithLog(attribute, option, text);
-        return attributeResponse(attribute.id);
-      }),
-  );
+const handleOptionUpdate = optionSurface.textUpdate(
+  withRequiredText,
+  (attribute, option, text) =>
+    renameAttributeOptionWithLog(attribute, option, text).then(() =>
+      attributeResponse(attribute.id),
+    ),
+);
 
 /** DELETE /api/admin/attributes/:attributeId/options/:optionId */
-const handleOptionDelete: RouteHandlerFn = (request, params) =>
-  withAttributeOption(
-    request,
-    params as AttributeOptionParams,
-    async ({ attribute, option }, body) => {
-      const error = verifyIdentifierOrJsonError(
-        option.text,
-        body.confirm_identifier,
-        "Option text",
-      );
-      if (error) return apiErrorResponse(error);
-      await deleteAttributeOptionWithLog(attribute, option);
-      return jsonResponse({ status: "ok" });
-    },
-  );
+const handleOptionDelete = optionSurface.confirmedDelete(
+  (option) => option.text,
+  "Option text",
+  (attribute, option) => deleteAttributeOptionWithLog(attribute, option),
+);
 
 export const attributeApiRoutes = defineCrudApi<
   typeof ADMIN_API_RESOURCES.attributes,
@@ -199,7 +126,7 @@ export const attributeApiRoutes = defineCrudApi<
   nameField: "name",
   onDelete: (id) => deleteAttribute(Number(id)),
   policy: OWNER_API,
-  sideEffect: orderAppend,
+  sideEffect: appendOnCreate(attributesOrder),
   table: attributesTable,
   toCreateInput: (body) => toAttributeInput(body, null),
   toUpdateInput: toAttributeInput,

@@ -60,6 +60,53 @@ export type QuestionIdParams = { id: number };
 
 export const redirectToQuestion = redirectToDetail("/admin/questions");
 
+/** Insert an answer and place it in its question's order, atomically. */
+const addAnswerRow = insertScopedOrderedRow(answersTable, answersOrder);
+
+/** Add one answer to a question, in its order, and log it. The one add the
+ *  HTML route and the JSON API route share. */
+export const addAnswerWithLog = async (
+  questionId: number,
+  text: string,
+): Promise<void> => {
+  await addAnswerRow(
+    questionId,
+    { questionId, sortOrder: 0, text },
+    (transaction) =>
+      logActivity(
+        `Answer '${text}' added to question ${questionId}`,
+        undefined,
+        undefined,
+        transaction,
+      ),
+  );
+};
+
+/** Update one answer's text, and its active flag where the caller sets it,
+ *  then log it. The one update the HTML route and the JSON API route share. */
+export const updateAnswerWithLog = async (
+  question: QuestionWithAnswers,
+  answer: Answer,
+  patch: { active?: boolean; text: string },
+): Promise<void> => {
+  await answersTable.update(answer.id, patch);
+  await logActivity(
+    `Answer '${patch.text}' updated in question ${question.id}`,
+  );
+};
+
+/** Delete one answer and its dependent attendee answers, then log it against
+ *  its question. The one delete the HTML route and the JSON API route share. */
+export const deleteAnswerWithLog = async (
+  question: QuestionWithAnswers,
+  answer: Answer,
+): Promise<void> => {
+  await deleteAnswer(answer.id);
+  await logActivity(
+    `Answer '${answer.text}' deleted from question ${question.id}`,
+  );
+};
+
 /** Handle POST /admin/questions/:id/answers (add answer) */
 export const handleAddAnswer: ParamsRoute<QuestionIdParams> =
   createAuthedFormRoute<{ text: string }, QuestionIdParams>({
@@ -81,17 +128,7 @@ export const handleAddAnswer: ParamsRoute<QuestionIdParams> =
       // One transaction: an answer must never exist without its place in the
       // order or its log line. The inserted sortOrder is a placeholder the
       // append overwrites before anything can read it.
-      await addAnswerRow(
-        params.id,
-        { questionId: params.id, sortOrder: 0, text },
-        (transaction) =>
-          logActivity(
-            `Answer '${text}' added to question ${params.id}`,
-            undefined,
-            undefined,
-            transaction,
-          ),
-      );
+      await addAnswerWithLog(params.id, text);
       return redirect(
         `/admin/questions/${params.id}`,
         t("questions.answer_added"),
@@ -99,9 +136,6 @@ export const handleAddAnswer: ParamsRoute<QuestionIdParams> =
       );
     },
   });
-
-/** Insert an answer and place it in its question's order, atomically. */
-const addAnswerRow = insertScopedOrderedRow(answersTable, answersOrder);
 
 type AnswerRouteParams = { id: number; answerId: number };
 type AnswerContext = { question: QuestionWithAnswers; answer: Answer };
@@ -153,10 +187,7 @@ export const handleDeleteAnswerPost: ParamsRoute<AnswerRouteParams> =
     mismatchRedirect: (_, { id, answerId }) =>
       `/admin/questions/${id}/answers/${answerId}/delete`,
     onConfirm: async ({ context: { answer, question } }) => {
-      await deleteAnswer(answer.id);
-      await logActivity(
-        `Answer '${answer.text}' deleted from question ${question.id}`,
-      );
+      await deleteAnswerWithLog(question, answer);
       return redirect(
         `/admin/questions/${question.id}`,
         t("questions.answer_deleted"),
@@ -229,7 +260,7 @@ export const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
       if (!aggregates.ok) {
         return errorRedirect(editAnswerPath(params), aggregates.error);
       }
-      await answersTable.update(answer.id, {
+      await updateAnswerWithLog(question, answer, {
         active: form.get("active") === "on",
         text,
       });
@@ -237,7 +268,6 @@ export const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
       if (aggregates.input) {
         await answerAggregates.update(answer.id, aggregates.input);
       }
-      await logActivity(`Answer '${text}' updated in question ${question.id}`);
       return redirect(
         `/admin/questions/${question.id}`,
         t("questions.answer_updated"),

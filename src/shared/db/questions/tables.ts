@@ -21,7 +21,8 @@ const questionIdAndSortOrder = {
   sort_order: col.simple<number>(),
 };
 
-type QuestionInput = {
+/** The writable fields one question row write carries. */
+export type QuestionInput = {
   assignAll?: boolean;
   displayType: QuestionDisplayType;
   text: string;

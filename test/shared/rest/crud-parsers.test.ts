@@ -12,7 +12,7 @@ import {
   parseOptionalArray,
   parseUpdateSlug,
   requireDateString,
-  requireEntityName,
+  requireEntityField,
   requireStrings,
   withApiEntity,
 } from "#shared/rest/crud-parsers.ts";
@@ -109,34 +109,43 @@ test("parseUpdateSlug keeps the existing slug when none is submitted", async () 
   ).toEqual({ slug: "old-slug", slugIndex: "index:old-slug" });
 });
 
-test("requireEntityName trims the submitted name", () => {
-  expect(requireEntityName({ name: " Updated " }, "Original")).toEqual({
-    ok: true,
-    value: "Updated",
-  });
+test("requireEntityField trims the submitted name", () => {
+  expect(requireEntityField({ name: " Updated " }, "name", "Original")).toEqual(
+    {
+      ok: true,
+      value: "Updated",
+    },
+  );
 });
 
-test("requireEntityName falls back to the existing name when omitted", () => {
-  expect(requireEntityName({}, "Original")).toEqual({
+test("requireEntityField falls back to the stored value when omitted", () => {
+  expect(requireEntityField({}, "name", "Original")).toEqual({
     ok: true,
     value: "Original",
   });
 });
 
-test("requireEntityName rejects an empty name", () => {
-  expect(requireEntityName({ name: "" }, "Original")).toEqual({
+test("requireEntityField rejects an empty value", () => {
+  expect(requireEntityField({ name: "" }, "name", "Original")).toEqual({
     error: "name cannot be empty",
     ok: false,
   });
 });
 
-test("requireEntityName rejects a non-string name", () => {
-  expect(requireEntityName({ name: 123 }, "Original")).toEqual({
+test("requireEntityField rejects a non-string value", () => {
+  expect(requireEntityField({ name: 123 }, "name", "Original")).toEqual({
     error: "name must be a string",
     ok: false,
   });
-  expect(requireEntityName({ name: null }, "Original")).toEqual({
+  expect(requireEntityField({ name: null }, "name", "Original")).toEqual({
     error: "name must be a string",
+    ok: false,
+  });
+});
+
+test("requireEntityField names the field it reads", () => {
+  expect(requireEntityField({}, "text", null)).toEqual({
+    error: "text is required",
     ok: false,
   });
 });

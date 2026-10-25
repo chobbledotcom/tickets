@@ -58,6 +58,7 @@ export const question = (): QuestionWithAnswers => ({
     { active: true, id: 61, question_id: 6, sort_order: 1, text: "Vegan" },
     { active: true, id: 62, question_id: 6, sort_order: 2, text: "Standard" },
   ],
+  assign_all: false,
   display_type: "radio",
   id: 6,
   text: "Meal preference",

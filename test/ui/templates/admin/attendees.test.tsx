@@ -44,6 +44,7 @@ describe("EditQuestions", () => {
               text: "Blue",
             },
           ],
+          assign_all: false,
           display_type: displayType,
           id: 1,
           text: "Colour?",
@@ -90,6 +91,7 @@ describe("EditQuestions", () => {
               text: "Small",
             },
           ],
+          assign_all: false,
           display_type: "radio",
           id: 1,
           text: "Size?",
@@ -123,6 +125,7 @@ describe("EditQuestions", () => {
               text: "Large",
             },
           ],
+          assign_all: false,
           display_type: "select",
           id: 1,
           text: "Size?",
@@ -142,6 +145,7 @@ describe("EditQuestions", () => {
       [
         {
           answers: [],
+          assign_all: false,
           display_type: "free_text",
           id: 1,
           text: "Anything else?",
@@ -158,7 +162,13 @@ describe("EditQuestions", () => {
 
   test("renders an empty text input when no free-text answer is saved", () => {
     const html = render([
-      { answers: [], display_type: "free_text", id: 7, text: "Anything else?" },
+      {
+        answers: [],
+        assign_all: false,
+        display_type: "free_text",
+        id: 7,
+        text: "Anything else?",
+      },
     ]);
 
     expect(html).toContain('name="question_7" type="text" value=""');
@@ -169,6 +179,7 @@ describe("EditQuestions", () => {
       [
         {
           answers: [],
+          assign_all: false,
           display_type: "free_text",
           id: 1,
           text: "Tell us **more**",
@@ -196,6 +207,7 @@ describe("EditQuestions", () => {
               text: "Red",
             },
           ],
+          assign_all: false,
           display_type: "select",
           id: 1,
           text: "Pick [a colour](https://example.com)",
@@ -223,6 +235,7 @@ describe("EditQuestions", () => {
               text: "Red",
             },
           ],
+          assign_all: false,
           display_type: "radio",
           id: 1,
           text: "# Heading\n\nPick a colour",
@@ -242,6 +255,7 @@ describe("EditQuestions", () => {
   test("shows the answer at booking under a changed question only", () => {
     const question = (id: number): QuestionWithAnswers => ({
       answers: [],
+      assign_all: false,
       display_type: "free_text",
       id,
       text: `Question ${id}`,

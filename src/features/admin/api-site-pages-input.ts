@@ -14,7 +14,10 @@ import {
 import type { SitePageWriteInput } from "#db/site-pages.ts";
 import { t } from "#i18n";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
-import { requireEntityName } from "#shared/rest/crud-parsers.ts";
+import {
+  optionalBoolean,
+  requireEntityField,
+} from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isReservedSlug, wouldCreateCycle } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
@@ -94,19 +97,6 @@ const optionalTextField = (
     return okResult(value);
   });
 
-/** The Hidden box: the form posts "1" or nothing, the API takes a real
- *  boolean. Absent keeps the stored value. A create defaults to visible, the
- *  column default the unchecked box stores. */
-const optionalHidden = (
-  body: Record<string, unknown>,
-  stored: boolean,
-): Result<boolean> => {
-  const raw = body.hidden;
-  if (raw === undefined) return okResult(stored);
-  if (typeof raw !== "boolean") return errorResult("hidden must be a boolean");
-  return okResult(raw);
-};
-
 /** The slug: absent keeps the stored one. A supplied value normalises and
  *  validates through the same rule the form's slug field runs, then the
  *  reserved-word check the form's handler runs. The write itself refuses a
@@ -132,17 +122,13 @@ const optionalSlug = (body: Record<string, unknown>, stored: string) =>
     return okResult(slug);
   });
 
-/** The shared input mapping for a page create or update: the same fields, the
- *  same rules and the same messages on both surfaces. `existing` is null on a
- *  create, where every absent field takes the form's own default. */
-export const toPageWrite = (
+/** The page name's read: the shared entity field rule, then the form's
+ *  length cap with the form's own words. */
+const pageName = (
   body: Record<string, unknown>,
-  existing: SitePage | null,
-): Result<SitePageWriteInput> => {
-  const stored = storedText(existing);
-  const name = requireEntityName(body, existing?.name ?? null);
-  // The form's name field refuses a value past its cap. The API refuses the
-  // same value with the same words.
+  stored: string | null,
+): Result<string> => {
+  const name = requireEntityField(body, "name", stored);
   if (name.ok && name.value.length > MAX_INPUT_LENGTH) {
     return errorResult(
       t("fields.validation.max_length", {
@@ -151,7 +137,19 @@ export const toPageWrite = (
       }),
     );
   }
-  const hidden = optionalHidden(body, existing?.hidden ?? false);
+  return name;
+};
+
+/** The shared input mapping for a page create or update: the same fields,
+ *  the same rules and the same messages on both surfaces. `existing` is null
+ *  on a create, where every absent field takes the form's own default. */
+export const toPageWrite = (
+  body: Record<string, unknown>,
+  existing: SitePage | null,
+): Result<SitePageWriteInput> => {
+  const stored = storedText(existing);
+  const name = pageName(body, existing?.name ?? null);
+  const hidden = optionalBoolean(body, "hidden", existing?.hidden ?? false);
   const slug = optionalSlug(body, existing?.slug ?? "");
   const textFields = ["content", "meta_description", "meta_title"] as const;
   const text: Record<(typeof textFields)[number], string> = {

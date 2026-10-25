@@ -5,16 +5,16 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getAttributeWithOptions } from "#db/attributes.ts";
 import { getDb } from "#db/client.ts";
-import {
-  AdminApiError,
-  adminApiChildCreate,
-} from "#shared/admin-api-client.ts";
+import { adminApiChildCreate } from "#shared/admin-api-client.ts";
 import {
   ADMIN_API_RESOURCES,
   type AdminApiAttribute,
 } from "#shared/admin-api-resources.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
-import { adminApiTestTransport } from "#test-utils/admin-api-transport.ts";
+import {
+  adminApiTestTransport,
+  expectAdminApiError,
+} from "#test-utils/admin-api-transport.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttribute,
@@ -95,27 +95,27 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
     test("returns error when text is missing", async () => {
       const attribute = await createTestAttribute("No Text");
 
-      const failure = await adminApiChildCreate(
-        adminApiTestTransport,
-        attributes,
-        "options",
-        attribute.id,
-        {},
-      ).catch((error: unknown) => error);
-      expect(failure).toBeInstanceOf(AdminApiError);
-      expect((failure as Error).message).toBe("text is required (status 400)");
+      await expectAdminApiError(
+        adminApiChildCreate(
+          adminApiTestTransport,
+          attributes,
+          "options",
+          attribute.id,
+          {},
+        ),
+        "text is required (status 400)",
+      );
     });
 
     test("returns 404 for a non-existent attribute", async () => {
-      const failure = await adminApiChildCreate(
-        adminApiTestTransport,
-        attributes,
-        "options",
-        99999,
-        { text: "Nope" },
-      ).catch((error: unknown) => error);
-      expect(failure).toBeInstanceOf(AdminApiError);
-      expect((failure as Error).message).toBe(
+      await expectAdminApiError(
+        adminApiChildCreate(
+          adminApiTestTransport,
+          attributes,
+          "options",
+          99999,
+          { text: "Nope" },
+        ),
         "Attribute not found (status 404)",
       );
     });

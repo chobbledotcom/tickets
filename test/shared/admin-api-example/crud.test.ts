@@ -148,36 +148,43 @@ describe("documented admin CRUD endpoints", () => {
   });
 
   /** The example a resource's endpoints show, paired with the delete body a
-   * caller would have to send for it. */
+   *  caller would have to send for it. A question's display name is its
+   *  text, so the field the confirmation names follows the resource. */
   const documentedResources = (): {
     del: { confirm_identifier: string };
-    example: { id: number; name: string };
+    example: { id: number };
+    name: string;
     create: Record<string, unknown>;
     createResponse: Record<string, unknown>;
     update: Record<string, unknown>;
     updateResponse: Record<string, unknown>;
   }[] =>
-    ["attributes", "listings", "groups", "holidays"].map((plural) => {
-      const singular = plural.slice(0, -1);
-      const forPath = (method: string, suffix: string) =>
-        documented(
-          ADMIN_API_ENDPOINTS,
-          method,
-          `/api/admin/${plural}${suffix}`,
-        );
-      return {
-        create: JSON.parse(forPath("POST", "").request!),
-        createResponse: JSON.parse(forPath("POST", "").response)[singular],
-        del: JSON.parse(forPath("DELETE", `/:${singular}Id`).request!),
-        example: JSON.parse(forPath("GET", `/:${singular}Id`).response)[
+    ["attributes", "listings", "groups", "holidays", "questions"].map(
+      (plural) => {
+        const singular = plural.slice(0, -1);
+        const displayField = plural === "questions" ? "text" : "name";
+        const forPath = (method: string, suffix: string) =>
+          documented(
+            ADMIN_API_ENDPOINTS,
+            method,
+            `/api/admin/${plural}${suffix}`,
+          );
+        const example = JSON.parse(forPath("GET", `/:${singular}Id`).response)[
           singular
-        ],
-        update: JSON.parse(forPath("PUT", `/:${singular}Id`).request!),
-        updateResponse: JSON.parse(forPath("PUT", `/:${singular}Id`).response)[
-          singular
-        ],
-      };
-    });
+        ];
+        return {
+          create: JSON.parse(forPath("POST", "").request!),
+          createResponse: JSON.parse(forPath("POST", "").response)[singular],
+          del: JSON.parse(forPath("DELETE", `/:${singular}Id`).request!),
+          example,
+          name: example[displayField],
+          update: JSON.parse(forPath("PUT", `/:${singular}Id`).request!),
+          updateResponse: JSON.parse(
+            forPath("PUT", `/:${singular}Id`).response,
+          )[singular],
+        };
+      },
+    );
 
   test("a create answers with the record as it was just stored", () => {
     for (const { create, createResponse, example } of documentedResources()) {
@@ -251,6 +258,7 @@ describe("documented admin CRUD endpoints", () => {
       ["attendees"],
       ["group"],
       ["holiday"],
+      ["question"],
       ["page"],
     ]);
   });
@@ -260,7 +268,7 @@ describe("documented admin CRUD endpoints", () => {
       (e: EndpointDoc) => e.method === "DELETE",
     );
 
-    expect(deletes.length).toBe(6);
+    expect(deletes.length).toBe(8);
     for (const endpoint of deletes) {
       expect(JSON.parse(endpoint.response)).toEqual({ status: "ok" });
     }
@@ -282,8 +290,8 @@ describe("documented admin CRUD endpoints", () => {
   test("a delete example confirms the exact name of the thing it deletes", () => {
     // The real endpoints refuse a delete whose confirm_identifier is not the
     // stored name, so a documented pair that disagreed would be rejected.
-    for (const { del, example } of documentedResources()) {
-      expect(del.confirm_identifier).toBe(example.name);
+    for (const { del, name } of documentedResources()) {
+      expect(del.confirm_identifier).toBe(name);
     }
   });
 
@@ -328,8 +336,8 @@ describe("documented admin CRUD endpoints", () => {
   });
 
   test("every documented example is a real, named, stored record", () => {
-    for (const { example } of documentedResources()) {
-      expect(isBlank(example.name)).toBe(false);
+    for (const { example, name } of documentedResources()) {
+      expect(isBlank(name)).toBe(false);
       // An id addresses a stored row and goes straight into a URL, so a
       // fractional one could never name the documented record.
       expect(Number.isSafeInteger(example.id)).toBe(true);

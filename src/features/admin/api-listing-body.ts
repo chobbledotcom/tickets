@@ -23,7 +23,7 @@ import {
 import {
   bodyNumber,
   parseOptionalArray,
-  requireEntityName,
+  requireEntityField,
 } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 // jscpd:ignore-end
@@ -268,7 +268,7 @@ export const bodyToUpdateInput = async (
 ): Promise<Result<ListingInput>> => {
   const stored = await getStoredListingWithCount(resolved.id);
   const existing = stored === null ? resolved : stored;
-  const parsedName = requireEntityName(body, existing.name);
+  const parsedName = requireEntityField(body, "name", existing.name);
   if (!parsedName.ok) return parsedName;
 
   return withParsedJoinIds(session, body, async (joinIds) => {

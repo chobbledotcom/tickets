@@ -8,7 +8,6 @@
 
 import { type AdminApiAttendee, toAdminListing } from "#routes/admin/api.ts";
 import type {
-  AttributeOptionBody,
   CreateAttributeBody,
   UpdateAttributeBody,
 } from "#routes/admin/api-attributes.ts";
@@ -26,6 +25,7 @@ import type {
 } from "#routes/admin/api-listing-body.ts";
 import {
   ADMIN_API_RESOURCES,
+  type AdminApiOptionBody,
   adminApiIdParam,
 } from "#shared/admin-api-resources.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
@@ -38,6 +38,7 @@ import {
   type EndpointDoc,
   json,
 } from "./admin-api-example/endpoint-doc.ts";
+import { QUESTION_ENDPOINTS } from "./admin-api-example/questions.ts";
 import { SITE_PAGE_ENDPOINTS } from "./admin-api-example/site-pages.ts";
 
 /** The running totals a listing carries. Only a booking can move them, so a
@@ -186,11 +187,11 @@ const ADMIN_API_ATTRIBUTE_DELETE_BODY = {
 
 const ADMIN_API_ATTRIBUTE_OPTION_CREATE_BODY = {
   text: "Medium",
-} satisfies AttributeOptionBody;
+} satisfies AdminApiOptionBody;
 
 const ADMIN_API_ATTRIBUTE_OPTION_UPDATE_BODY = {
   text: "Very hard",
-} satisfies AttributeOptionBody;
+} satisfies AdminApiOptionBody;
 
 const ADMIN_API_ATTRIBUTE_OPTION_DELETE_BODY = {
   confirm_identifier: "Hard",
@@ -400,5 +401,6 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     singular: "holiday",
     updateBody: ADMIN_API_HOLIDAY_UPDATE_BODY,
   }),
+  ...QUESTION_ENDPOINTS,
   ...SITE_PAGE_ENDPOINTS,
 ];

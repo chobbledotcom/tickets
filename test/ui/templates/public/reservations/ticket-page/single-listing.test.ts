@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { buildTicketListing } from "#booking/model.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import { fieldsApi } from "#templates/fields/ticket.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
@@ -31,18 +32,7 @@ describe("ticketPage (single listing)", () => {
       dates?: string[];
       terms?: string | null;
       baseUrl?: string;
-      questions?: {
-        display_type: "radio" | "select";
-        id: number;
-        text: string;
-        answers: {
-          active: boolean;
-          id: number;
-          question_id: number;
-          text: string;
-          sort_order: number;
-        }[];
-      }[];
+      questions?: QuestionWithAnswers[];
     },
   ) => {
     const props = {
@@ -284,6 +274,7 @@ describe("ticketPage (single listing)", () => {
             text: "Large",
           },
         ],
+        assign_all: false,
         display_type: "radio" as const,
         id: 1,
         text: "Size?",
