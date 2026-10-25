@@ -3,9 +3,8 @@
  * substrings, table rows, form controls, select options — plus the whole-page
  * fetches (admin page, public page, cookie-carried request) behind them.
  *
- * `session.ts` is imported on first call, never statically: it pulls the whole
- * app (`#routes`) in, and this module sits in the module graph of every test
- * file.
+ * `session.ts` is imported on first call, never statically: a static import
+ * would load it into every test file that imports this module.
  */
 
 import { assert, assertStringIncludes } from "@std/assert";

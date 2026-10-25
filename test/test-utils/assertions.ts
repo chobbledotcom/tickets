@@ -4,8 +4,8 @@
  * both re-exported here so tests keep one import path.
  *
  * `session.ts` and the DB query modules are imported on first call, never
- * statically: session.ts pulls the whole app (`#routes`) in, and this module
- * sits in the module graph of every test file.
+ * statically: a static import would load them into every test file that
+ * imports this module.
  */
 
 import { assertExists, assertStringIncludes } from "@std/assert";

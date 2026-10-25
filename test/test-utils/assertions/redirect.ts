@@ -3,9 +3,8 @@
  * travels with it, and what the destination page renders once the redirect is
  * followed.
  *
- * `session.ts` is imported on first call, never statically: it pulls the whole
- * app (`#routes`) in, and this module sits in the module graph of every test
- * file.
+ * `session.ts` is imported on first call, never statically: a static import
+ * would load it into every test file that imports this module.
  */
 
 import { assertExists, assertStringIncludes } from "@std/assert";

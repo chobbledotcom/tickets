@@ -16,14 +16,7 @@ import type { Listing } from "#types";
 import { expectAttendeeCounts, expectFlash } from "./assertions.ts";
 import { enablePublicSite } from "./settings.ts";
 
-export {
-  makeCustomisableDailyParent,
-  makeParent,
-  makeParentWithDeactivatedChild,
-  makeRoomySharedChild,
-  makeTwoDefaultChildren,
-  soldOutParentInGroup,
-} from "./parents-scenario.ts";
+export * from "./parents-scenario.ts";
 
 // ---------------------------------------------------------------------------
 // HTTP request helpers (one definition, shared by every parent suite)
