@@ -6,12 +6,12 @@
  * here too; display order always comes from the question's own sort_order.
  */
 
-import { queryAll, type SqlStatement } from "#db/client.ts";
+import { queryAll, queryAllPrimary, type SqlStatement } from "#db/client.ts";
 import { linkTableSide } from "#db/link-table.ts";
 import { numberedListStatement } from "#db/numbered-statement.ts";
 import type { Answer, QuestionWithAnswers } from "#db/question-types.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
-import { readRows } from "#db/read.ts";
+import { readRows, readStatement } from "#db/read.ts";
 import { equals, type WhereClause } from "#db/where-clauses.ts";
 import { filter, map, mapParallel, reduce } from "#fp";
 
@@ -219,12 +219,33 @@ export const getQuestionsWithListingIds = async (
   return { questionListingMap, questions };
 };
 
-/** Get question with answers by ID */
-export const getQuestionWithAnswers = async (
-  id: number,
-): Promise<QuestionWithAnswers | null> => {
-  const rows = await fetchQuestions(equals("question.id", id));
-  if (rows.length === 0) return null;
-  // rows is non-empty so groupJoinedRows always returns at least one entry
-  return (await groupJoinedRows(rows))[0]!;
+/** The joined question rows for one id, on the replica (normal reads) or the
+ *  primary (read-your-writes after a write). */
+const questionRows = (id: number, primary: boolean) => {
+  const read = {
+    columns: QA_COLS,
+    from: QA_JOIN,
+    order: QUESTION_ORDER,
+    where: equals("question.id", id),
+  };
+  return primary
+    ? queryAllPrimary<JoinedRow>(readStatement(read))
+    : readRows<JoinedRow>(read);
 };
+
+const questionWithAnswers =
+  (primary: boolean) =>
+  async (id: number): Promise<QuestionWithAnswers | null> => {
+    const rows = await questionRows(id, primary);
+    if (rows.length === 0) return null;
+    // rows is non-empty so groupJoinedRows always returns at least one entry
+    return (await groupJoinedRows(rows))[0]!;
+  };
+
+/** Get question with answers by ID. A replica can serve it. */
+export const getQuestionWithAnswers = questionWithAnswers(false);
+
+/** The same read pinned to the primary. A write sequence that creates a
+ *  question and then its first answer cannot miss the row the create just
+ *  made. */
+export const getQuestionWithAnswersOnPrimary = questionWithAnswers(true);

@@ -37,9 +37,9 @@ export interface Question {
 
 /** An answer option for a question */
 export interface Answer {
-  /** Deactivated answers are hidden on the public booking form; the admin edit
-   * form still shows one an attendee already selected so it isn't silently
-   * dropped on the next save. */
+  /** Deactivated answers are hidden on the public booking form. The admin
+   * edit form still shows one an attendee already selected, so it isn't
+   * silently dropped on the next save. */
   active: boolean;
   id: number;
   question_id: number;
@@ -47,10 +47,10 @@ export interface Answer {
   text: string; // encrypted
 }
 
-/** Question with its answer options (decrypted) */
-export type QuestionWithAnswers = Omit<Question, "assign_all"> & {
+/** Question with its answer options (decrypted). Every read carries
+ *  `assign_all`; a hand-built row says which switch state it stands for. */
+export type QuestionWithAnswers = Question & {
   answers: Answer[];
-  assign_all?: boolean;
 };
 
 /** One question on one attendee: its wording and answer now and at booking.

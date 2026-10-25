@@ -23,6 +23,7 @@ import { mapById, requiredMapValue } from "#fp";
 import { attributeApiRoutes } from "#routes/admin/api-attributes.ts";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
+import { questionApiRoutes } from "#routes/admin/api-questions.ts";
 import { sitePageApiRoutes } from "#routes/admin/api-site-pages.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
@@ -252,6 +253,7 @@ export const adminApiRoutes = {
   ...attributeApiRoutes,
   ...holidayApiRoutes,
   ...groupApiRoutes,
+  ...questionApiRoutes,
   ...listingApiRoutes,
   ...sitePageApiRoutes,
 };

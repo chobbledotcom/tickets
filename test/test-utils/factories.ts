@@ -192,6 +192,7 @@ export const testRadioQuestion = (
     sort_order,
     text: answerText,
   })),
+  assign_all: false,
   display_type: "radio",
   id,
   text,
@@ -235,6 +236,7 @@ export const testQuestion = (
   overrides: Partial<QuestionWithAnswers> = {},
 ): QuestionWithAnswers => ({
   answers: [],
+  assign_all: false,
   display_type: "radio",
   id: 1,
   text: "Question?",

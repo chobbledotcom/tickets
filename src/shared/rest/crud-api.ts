@@ -73,7 +73,7 @@ const addChildRoutes = (
 
 export const defineCrudApi = <
   Entry extends AdminApiResource,
-  Row extends { id: number; name: string },
+  Row extends { id: number },
   Input,
   FullRow extends Row = Row,
   Prepared = void,
@@ -138,10 +138,12 @@ export const defineCrudApi = <
     return responseRow(row, session, extraById);
   };
 
-  /** Log create/update, optionally linking to the row's id as listing_id */
-  const logAction = (action: string, row: Row): Promise<unknown> =>
+  /** Log create/update, optionally linking to the row's id as listing_id.
+   *  The message names the row by the resource's display field, which is
+   *  `name` on most tables and `text` on the questions. */
+  const logAction = (action: string, row: FullRow): Promise<unknown> =>
     logActivity(
-      `${singular} '${row.name}' ${action}`,
+      `${singular} '${row[nameField]}' ${action}`,
       config.linkActivityToRow ? row : undefined,
     );
 
@@ -343,7 +345,7 @@ export const defineCrudApi = <
     } else {
       await table.deleteById(existing.id);
     }
-    await logActivity(`${singular} '${existing.name}' deleted`);
+    await logActivity(`${singular} '${existing[nameField]}' deleted`);
     return jsonResponse({ status: "ok" });
   }, deletePolicy);
 

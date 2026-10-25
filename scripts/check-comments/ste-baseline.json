@@ -1254,9 +1254,8 @@
     "semicolon": 2
   },
   "src/shared/db/question-types.ts": {
-    "semicolon": 1,
-    "long-sentence": 1,
     "contraction": 1,
+    "semicolon": 1,
     "present-perfect": 1
   },
   "src/shared/db/questions/aggregates.ts": {

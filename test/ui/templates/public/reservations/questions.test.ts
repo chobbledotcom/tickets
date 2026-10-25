@@ -60,6 +60,7 @@ describe("renderQuestions", () => {
         answers: [
           { active: false, id: 10, question_id: 1, sort_order: 0, text: "Red" },
         ],
+        assign_all: false,
         display_type: "radio" as const,
         id: 1,
         text: "Favourite colour?",
@@ -82,6 +83,7 @@ describe("renderQuestions", () => {
             text: "Blue",
           },
         ],
+        assign_all: false,
         display_type: "radio" as const,
         id: 1,
         text: "Favourite colour?",
@@ -114,6 +116,7 @@ describe("renderQuestions", () => {
     const questions: QuestionWithAnswers[] = [
       {
         answers: [],
+        assign_all: false,
         display_type: "free_text" as const,
         id: 1,
         text: "Your name?",
@@ -141,6 +144,7 @@ describe("renderQuestions", () => {
       return renderQuestions([
         {
           answers: [],
+          assign_all: false,
           display_type: "free_text" as const,
           id: 1,
           text: "Your name?",
@@ -174,6 +178,7 @@ describe("renderQuestions", () => {
         answers: [
           { active: true, id: 10, question_id: 1, sort_order: 0, text: "S&M" },
         ],
+        assign_all: false,
         display_type: "radio" as const,
         id: 1,
         text: "What <b>size</b>?",
@@ -205,6 +210,7 @@ describe("renderQuestions", () => {
         answers: [
           { active: true, id: 10, question_id: 1, sort_order: 0, text: "A1" },
         ],
+        assign_all: false,
         display_type: "radio" as const,
         id: 1,
         text: "Q1",
@@ -220,6 +226,7 @@ describe("renderQuestions", () => {
     const html = renderQuestions([
       {
         answers: [],
+        assign_all: false,
         display_type: "free_text" as const,
         id: 1,
         text: "Your name?",
@@ -235,6 +242,7 @@ describe("renderQuestions", () => {
     const html = renderQuestions([
       {
         answers: [],
+        assign_all: false,
         display_type: "free_text" as const,
         id: 1,
         text: "Tell us **more** about yourself",
@@ -261,6 +269,7 @@ describe("renderQuestions", () => {
         answers: [
           { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
         ],
+        assign_all: false,
         display_type: "select" as const,
         id: 1,
         text: "Choose [a colour](https://example.com)",
@@ -286,6 +295,7 @@ describe("renderQuestions", () => {
         answers: [
           { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
         ],
+        assign_all: false,
         display_type: "radio" as const,
         id: 1,
         text: "# Heading\n\nPick a colour",

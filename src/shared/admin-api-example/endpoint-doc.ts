@@ -19,6 +19,19 @@ export type EndpointDoc = {
 /** Example bodies are read on a page, so they stay indented. */
 export const json = (data: unknown): string => JSON.stringify(data, null, 2);
 
+/** The documented base path of one child write route: the parent's id param
+ *  and the child segment both come from the resource table. */
+export const childDocBase = <
+  E extends AdminApiResource,
+  Children extends NonNullable<E["children"]>,
+>(
+  entry: E & { children: Children },
+  childKey: keyof Children & string,
+): string => {
+  const child = entry.children[childKey];
+  return `/api/admin/${entry.path}/:${adminApiIdParam(entry.label)}/${child.path}`;
+};
+
 /** The five standard admin-CRUD doc entries for a resource. The paths and the
  *  id param come from the resource table, so the docs cannot disagree with
  *  the server about them. Descriptions are passed in, because they carry
