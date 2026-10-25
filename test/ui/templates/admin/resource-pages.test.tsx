@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { escapeHtml } from "#jsx/escape-html.ts";
@@ -112,8 +113,8 @@ describe("admin resource page factory", () => {
     // hidden keys, filters), so an empty key would break those silently.
     expect(column.key).toBe("name");
     const cell = String(column.cell(entity, undefined, 0, [entity]));
-    expect(cell).toContain("/edit/17");
-    expect(cell).toContain("Widget &amp; One");
+    assertStringIncludes(cell, "/edit/17");
+    assertStringIncludes(cell, "Widget &amp; One");
   });
 
   test("renders the synthetic list schema and writable row link", () => {
@@ -124,24 +125,29 @@ describe("admin resource page factory", () => {
       "Widgets loaded.",
     );
 
-    expect(html).toContain("Could not load widgets.");
-    expect(html).toContain("Widgets loaded.");
-    expect(html).toContain(
+    assertStringIncludes(html, "Could not load widgets.");
+    assertStringIncludes(html, "Widgets loaded.");
+    assertStringIncludes(
+      html,
       '<p data-list-intro="true">Manage synthetic widgets.</p>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<th class="col-reorder">Order</th><th>Name</th><th>Code</th>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<a href="/admin/widgets/17/edit">Widget &amp; One</a>',
     );
-    expect(html).toContain("<td>W-17</td>");
-    expect(html).toContain('action="/admin/widgets/17/move-down"');
-    expect(html).toContain('action="/admin/widgets/18/move-up"');
-    expect(html).toContain(
+    assertStringIncludes(html, "<td>W-17</td>");
+    assertStringIncludes(html, 'action="/admin/widgets/17/move-down"');
+    assertStringIncludes(html, 'action="/admin/widgets/18/move-up"');
+    assertStringIncludes(
+      html,
       '<a href="/admin/widgets/new">Add synthetic widget</a>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<p data-guide-footer="true">Synthetic widget guide</p>',
     );
   });
@@ -149,33 +155,34 @@ describe("admin resource page factory", () => {
   test("renders the configured empty state instead of a table", () => {
     const html = listPage([], false);
 
-    expect(html).toContain("<p>No synthetic widgets.</p>");
-    expect(html).not.toContain("<table");
-    expect(html).not.toContain("W-17");
+    assertStringIncludes(html, "<p>No synthetic widgets.</p>");
+    assert(!html.includes("<table"));
+    assert(!html.includes("W-17"));
   });
 
   test("turns the name into text and hides actions in read-only mode", () => {
     const html = listPage([entity], true);
 
-    expect(html).toContain("<span>Widget &amp; One</span>");
-    expect(html).not.toContain('href="/admin/widgets/17/edit"');
-    expect(html).not.toContain('href="/admin/widgets/new"');
-    expect(html).not.toContain('class="col-reorder"');
-    expect(html).not.toContain("/move-");
-    expect(html).toContain("Synthetic widget guide");
+    assertStringIncludes(html, "<span>Widget &amp; One</span>");
+    assert(!html.includes('href="/admin/widgets/17/edit"'));
+    assert(!html.includes('href="/admin/widgets/new"'));
+    assert(!html.includes('class="col-reorder"'));
+    assert(!html.includes("/move-"));
+    assertStringIncludes(html, "Synthetic widget guide");
   });
 
   test("renders the create form from the synthetic field callback", () => {
     const html = pages.newPage(OWNER_SESSION, "Widget name is required.");
 
-    expect(html).toContain('action="/admin/widgets"');
-    expect(html).toContain("Widget name is required.");
-    expect(html).toContain("<h1>Add synthetic widget</h1>");
-    expect(html).toContain(
+    assertStringIncludes(html, 'action="/admin/widgets"');
+    assertStringIncludes(html, "Widget name is required.");
+    assertStringIncludes(html, "<h1>Add synthetic widget</h1>");
+    assertStringIncludes(
+      html,
       '<input name="widget_name" type="text" value="new widget">',
     );
-    expect(html).toContain("Create synthetic widget");
-    expect(html).toContain("/icons.svg#plus");
+    assertStringIncludes(html, "Create synthetic widget");
+    assertStringIncludes(html, "/icons.svg#plus");
   });
 
   test("renders every configured delete detail and the dangerous submit", () => {
@@ -185,20 +192,23 @@ describe("admin resource page factory", () => {
       "Widget did not match.",
     );
 
-    expect(html).toContain('action="/admin/widgets/17/delete"');
-    expect(html).toContain("Widget did not match.");
-    expect(html).toContain("<h1>Delete synthetic widget</h1>");
-    expect(html).toContain(
+    assertStringIncludes(html, 'action="/admin/widgets/17/delete"');
+    assertStringIncludes(html, "Widget did not match.");
+    assertStringIncludes(html, "<h1>Delete synthetic widget</h1>");
+    assertStringIncludes(
+      html,
       'Type the status name "Widget &amp; One" to confirm deletion:',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "Type the post name &quot;Widget &amp; One&quot; to confirm deletion.",
     );
-    expect(html).toContain('<p data-delete-extra="true">Code: W-17</p>');
-    expect(html).toContain(
+    assertStringIncludes(html, '<p data-delete-extra="true">Code: W-17</p>');
+    assertStringIncludes(
+      html,
       'name="confirm_identifier" placeholder="Widget &amp; One" required',
     );
-    expect(html).toContain('<button class="danger" type="submit">');
-    expect(html).toContain("Delete synthetic widget");
+    assertStringIncludes(html, '<button class="danger" type="submit">');
+    assertStringIncludes(html, "Delete synthetic widget");
   });
 });

@@ -51,10 +51,79 @@ describe("rewriteImageDestinations", () => {
     );
   });
 
-  test("keeps a defined `![alt][label]` picture reference as written", () => {
+  test("resolves a defined reference-style picture and its definition", () => {
     expect(rewriteImageDestinations("![A][5]\n\n[5]: img#5", toPoster)).toBe(
-      "![A][5]\n\n[5]: img#5",
+      "![A](/image/poster.webp)\n\n[5]: /image/poster.webp",
     );
+  });
+
+  test("resolves a reference-style picture the prose surrounds", () => {
+    expect(
+      rewriteImageDestinations("See ![A][5] now.\n\n[5]: img#5", toPoster),
+    ).toBe("See ![A](/image/poster.webp) now.\n\n[5]: /image/poster.webp");
+  });
+
+  test("resolves a collapsed reference-style picture", () => {
+    expect(rewriteImageDestinations("![A][]\n\n[A]: img#5", toPoster)).toBe(
+      "![A](/image/poster.webp)\n\n[A]: /image/poster.webp",
+    );
+  });
+
+  test("resolves a bare reference-style picture", () => {
+    expect(rewriteImageDestinations("![A]\n\n[A]: img#5", toPoster)).toBe(
+      "![A](/image/poster.webp)\n\n[A]: /image/poster.webp",
+    );
+  });
+
+  test("resolves a reference-style picture whose alt escapes its brackets", () => {
+    expect(rewriteImageDestinations("![A\\]][5]\n\n[5]: img#5", toPoster)).toBe(
+      "![A\\]](/image/poster.webp)\n\n[5]: /image/poster.webp",
+    );
+  });
+
+  test("keeps a definition's title when it resolves the address", () => {
+    expect(
+      rewriteImageDestinations('![A][5]\n\n[5]: img#5 "the poster"', toPoster),
+    ).toBe('![A](/image/poster.webp)\n\n[5]: /image/poster.webp "the poster"');
+  });
+
+  test("reads a definition's address written in angle brackets", () => {
+    expect(rewriteImageDestinations("![A][5]\n\n[5]: <img#5>", toPoster)).toBe(
+      "![A](/image/poster.webp)\n\n[5]: /image/poster.webp",
+    );
+  });
+
+  test("keeps a definition whose address the rewrite leaves alone", () => {
+    expect(rewriteImageDestinations("![A][9]\n\n[9]: img#9", toPoster)).toBe(
+      "![A][9]\n\n[9]: img#9",
+    );
+  });
+
+  test("keeps a definition whose address is a web address", () => {
+    expect(
+      rewriteImageDestinations(
+        "![A][hall]\n\n[hall]: https://files.example/hall.webp",
+        toPoster,
+      ),
+    ).toBe("![A][hall]\n\n[hall]: https://files.example/hall.webp");
+  });
+
+  test("resolves a reference-style picture inside a link's text", () => {
+    expect(
+      rewriteImageDestinations("[![A][5]](https://x)\n\n[5]: img#5", toPoster),
+    ).toBe("[![A](/image/poster.webp)](https://x)\n\n[5]: /image/poster.webp");
+  });
+
+  test("resolves a picture inside a multi-line blockquote", () => {
+    expect(rewriteImageDestinations("> ![A](img#5)\n>\n> text", toPoster)).toBe(
+      "> ![A](/image/poster.webp)\n>\n> text",
+    );
+  });
+
+  test("resolves a reference-style picture inside a multi-line blockquote", () => {
+    expect(
+      rewriteImageDestinations("> ![A][5]\n>\n> [5]: img#5", toPoster),
+    ).toBe("> ![A](/image/poster.webp)\n>\n> [5]: /image/poster.webp");
   });
 
   test("resolves a picture whose alt text ends in an escaped bracket", () => {

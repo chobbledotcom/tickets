@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -103,10 +104,10 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).toContain(`name="quantity_${parent.id}"`);
+      assertStringIncludes(html, `name="quantity_${parent.id}"`);
       // The sole child is offered informationally (auto-selected), so it appears
       // in the child block but posts no `child_qty_*` field.
-      expect(html).toContain(`data-sole-child="${child.id}"`);
+      assertStringIncludes(html, `data-sole-child="${child.id}"`);
     });
 
     test("a shared capped group caps the parent quantity selector by floor(remaining / units)", async () => {
@@ -230,8 +231,8 @@ describeWithEnv(
       const { parent } = await makeRoomySharedChild();
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html).not.toContain("Sorry, this listing is full.");
-      expect(html).toContain(`name="quantity_${parent.id}"`);
+      assert(!html.includes("Sorry, this listing is full."));
+      assertStringIncludes(html, `name="quantity_${parent.id}"`);
     });
 
     test("two children sharing one capped group but differing OTHER memberships cap by that group", async () => {
@@ -281,7 +282,7 @@ describeWithEnv(
 
       const html = await expectRendersSoldOut(parent.slug, parent.id);
       // No quantity selector / child selector is rendered for the parent.
-      expect(html).not.toContain(`name="child_qty_${parent.id}_`);
+      assert(!html.includes(`name="child_qty_${parent.id}_`));
     });
   },
 );

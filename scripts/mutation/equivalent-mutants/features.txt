@@ -141,7 +141,7 @@ src/features/api/folded-booking.ts::processParentApiBooking.built.dayCount~1moog
 
 # question answers (features/admin/questions/answers.ts) — the ordered-insert
 # placeholder and a throw-only label that can never throw.
-src/features/admin/questions/answers.ts::handleAddAnswer.onValid.sortOrder~1g336tf  0 → 1 audited:0i1vbsl # the inserted sortOrder is a placeholder: insertScopedOrderedRow runs order.append in the same transaction, and append sets sort_order from MAX over siblings that explicitly exclude the row itself, then overwrites it unconditionally before commit — the placeholder value is never read by anything
+src/features/admin/questions/answers.ts::addAnswerWithLog.sortOrder~1g336tf  0 → 1 audited:0i1vbsl # the inserted sortOrder is a placeholder: insertScopedOrderedRow runs order.append in the same transaction, and append sets sort_order from MAX over siblings that explicitly exclude the row itself, then overwrites it unconditionally before commit — the placeholder value is never read by anything
 src/features/admin/questions/forms.ts::questionTextForm.fields.options~0y51s1u  Display as → "" audited:1prcbvl # requireChoiceOptions reads its label only in its two throw paths: an empty options list, or a value failing an invalid-rule. QUESTION_DISPLAY_TYPES is a non-empty picklist constant and requireChoiceOptions carries no invalid rule, so neither throw is reachable and the label is never read
 
 # Cart package resolution (features/public/groups.ts): map lookups whose key is

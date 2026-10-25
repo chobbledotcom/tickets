@@ -130,30 +130,29 @@ export type FieldRefusal = (
   body: Record<string, unknown>,
 ) => Result<never> | null;
 
-/** Refuse a supplied non-string name with the field-named message. */
-const refuseNonStringName: FieldRefusal = (body) => {
-  if (body.name === undefined || typeof body.name === "string") return null;
-  return errorResult("name must be a string");
-};
-
-/** Read the required name for one entity write. A supplied name must be a
- *  string: anything else is refused with the field-named message instead of
- *  coerced into stored text. An update without a supplied name keeps the
- *  stored one, and the resolved name must be non-empty. */
-export const requireEntityName = (
+/** Read one entity text field for a write. A supplied non-string is refused
+ *  with the field-named message instead of coerced into stored text. An
+ *  update without a supplied value keeps the stored one, and the resolved
+ *  value must be non-empty. */
+export const requireEntityField = <Field extends string>(
   body: Record<string, unknown>,
+  field: Field,
   existing: string | null,
 ): Result<string> => {
-  const refusal = refuseNonStringName(body);
-  if (refusal) return refusal;
-  if (existing !== null) {
-    // The non-string refusal above has run, so a present name is a string.
-    const supplied = typeof body.name === "string" ? body.name : undefined;
-    const name = supplied === undefined ? existing : supplied.trim();
-    return name === "" ? errorResult("name cannot be empty") : okResult(name);
+  const raw = body[field];
+  if (raw !== undefined && typeof raw !== "string") {
+    return errorResult(`${field} must be a string`);
   }
-  const name = requireStrings(body, ["name"]);
-  return name.ok ? okResult(name.value.name) : name;
+  if (existing !== null) {
+    // The non-string refusal above has run, so a present value is a string.
+    const value = typeof raw === "string" ? raw : existing;
+    const trimmed = value.trim();
+    return trimmed === ""
+      ? errorResult(`${field} cannot be empty`)
+      : okResult(trimmed);
+  }
+  const required = requireStrings(body, [field]);
+  return required.ok ? okResult(required.value[field]) : required;
 };
 
 /** Combine the two date results of one range in field order: the start date
@@ -190,6 +189,42 @@ export const bodyNumber = (
   key: string,
   fallback: number,
 ): number => (typeof body[key] === "number" ? body[key] : fallback);
+
+/**
+ * Read one optional boolean switch from a JSON body. The form posts a
+ * checkbox, the API takes a real boolean. Absent keeps the stored value. A
+ * supplied non-boolean is refused with the field-named message.
+ */
+export const optionalBoolean = (
+  body: Record<string, unknown>,
+  field: string,
+  stored: boolean,
+): Result<boolean> => {
+  const raw = body[field];
+  if (raw === undefined) return okResult(stored);
+  if (typeof raw !== "boolean") {
+    return errorResult(`${field} must be a boolean`);
+  }
+  return okResult(raw);
+};
+
+/** The shape the required-text readers share: the raw body in, one run with
+ *  the cleaned text. */
+export type RequiredTextReader = (
+  body: Record<string, unknown>,
+  run: (text: string) => Promise<Response>,
+) => Promise<Response>;
+
+/**
+ * Read one child write's required `text` field, or answer the standard 400.
+ * `run` receives the text.
+ */
+export const withRequiredText: RequiredTextReader = (body, run) => {
+  const parsed = requireStrings(body, ["text"]);
+  return parsed.ok
+    ? run(parsed.value.text)
+    : Promise.resolve(apiErrorResponse(parsed.error));
+};
 
 /**
  * Parse an optional JSON-array field with partial-update semantics, failing

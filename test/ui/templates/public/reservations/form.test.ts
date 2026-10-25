@@ -154,12 +154,13 @@ describe("ticketPage — fields & form", () => {
         answers: [
           {
             active: true,
-            id: 10,
+            id: 51,
             question_id: 5,
             sort_order: 0,
             text: "Small",
           },
         ],
+        assign_all: false,
         display_type: "radio" as const,
         id: 5,
         text: "Size?",

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
@@ -49,33 +50,40 @@ describe("AvailabilityChecker", () => {
       "2027-03-14",
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<form action="/admin/attendees/new" class="selectable-form" method="get">',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="start_date" type="hidden" value="2027-03-14">',
     );
-    expect(html).toContain('<table class="availability-table">');
+    assertStringIncludes(html, '<table class="availability-table">');
     expect(html.indexOf(">Alpha</a>")).toBeLessThan(html.indexOf(">Bravo</a>"));
     expect(html.indexOf(">Bravo</a>")).toBeLessThan(html.indexOf(">Zulu</a>"));
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input aria-label="Select Alpha" class="order-select" id="select_10" name="select_10" type="checkbox" value="1">',
     );
-    expect(html).toContain('<label class="row-select">');
-    expect(html).toContain(
+    assertStringIncludes(html, '<label class="row-select">');
+    assertStringIncludes(
+      html,
       '<span aria-hidden="true" class="row-select-tick"></span>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<th><span class="visually-hidden">Select</span></th>',
     );
-    expect(html).toContain('<td class="col-quantity">3/5</td>');
-    expect(html).toContain('<td class="col-quantity">1/2</td>');
-    expect(html).toContain('<td class="col-quantity danger">0/4</td>');
-    expect(html).toContain('<td class="col-amount">Free</td>');
-    expect(html).toContain(
+    assertStringIncludes(html, '<td class="col-quantity">3/5</td>');
+    assertStringIncludes(html, '<td class="col-quantity">1/2</td>');
+    assertStringIncludes(html, '<td class="col-quantity danger">0/4</td>');
+    assertStringIncludes(html, '<td class="col-amount">Free</td>');
+    assertStringIncludes(
+      html,
       `<td class="col-amount">From ${formatCurrency(1)}</td>`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<td class="col-amount">${formatCurrency(1250)}</td>`,
     );
   });
@@ -95,16 +103,19 @@ describe("AvailabilityChecker", () => {
       null,
     );
 
-    expect(html).not.toContain('name="start_date"');
-    expect(html).toContain('<div class="order-actions">');
-    expect(html).toContain('<button class="order-cart" type="submit">');
-    expect(html).toContain(
+    assert(!html.includes('name="start_date"'));
+    assertStringIncludes(html, '<div class="order-actions">');
+    assertStringIncludes(html, '<button class="order-cart" type="submit">');
+    assertStringIncludes(
+      html,
       '<button class="order-cart" formaction="/admin/servicing/new" type="submit">',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<span class="order-cart-label">Create Attendee</span>',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<span class="order-cart-label">Create Service Event</span>',
     );
     expect(html.match(/class="order-cart-count"/g)).toHaveLength(2);

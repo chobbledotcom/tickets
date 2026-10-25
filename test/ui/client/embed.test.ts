@@ -1,3 +1,4 @@
+import { assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { initEmbed } from "#src/ui/client/embed.ts";
@@ -56,7 +57,9 @@ describe("embed loader", () => {
     );
     expect(iframe.loading).toBe("lazy");
     expect(iframe.getAttribute("title")).toBe("Tickets");
-    expect(iframe.getAttribute("style")).toContain("border: none");
+    const style = iframe.getAttribute("style");
+    assertExists(style);
+    assertStringIncludes(style, "border: none");
     expect(iframe.style.width).toBe("100%");
 
     expect(parentScript.src).toBe(

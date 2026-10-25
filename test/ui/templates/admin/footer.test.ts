@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { enableFooterDebug } from "#db/query-log.ts";
@@ -45,14 +46,14 @@ describe("admin footer templates", () => {
 
     test("renders summary with render time", () => {
       const html = renderDebug({ renderTimeMs: 42.7 });
-      expect(html).toContain("43ms");
+      assertStringIncludes(html, "43ms");
     });
 
     test("wraps content in a details/summary element", () => {
-      expect(bareHtml).toContain("<details");
-      expect(bareHtml).toContain("<summary>");
-      expect(bareHtml).toContain("</summary>");
-      expect(bareHtml).toContain("</details>");
+      assertStringIncludes(bareHtml, "<details");
+      assertStringIncludes(bareHtml, "<summary>");
+      assertStringIncludes(bareHtml, "</summary>");
+      assertStringIncludes(bareHtml, "</details>");
     });
 
     test("lists each query with its duration", () => {
@@ -67,10 +68,10 @@ describe("admin footer templates", () => {
         ],
         renderTimeMs: 20,
       });
-      expect(html).toContain("SELECT * FROM listings");
-      expect(html).toContain("5.2ms");
-      expect(html).toContain("SELECT * FROM users WHERE id = ?");
-      expect(html).toContain("3.1ms");
+      assertStringIncludes(html, "SELECT * FROM listings");
+      assertStringIncludes(html, "5.2ms");
+      assertStringIncludes(html, "SELECT * FROM users WHERE id = ?");
+      assertStringIncludes(html, "3.1ms");
     });
 
     test("escapes HTML in SQL strings", () => {
@@ -85,13 +86,13 @@ describe("admin footer templates", () => {
 
     test("renders empty query list gracefully", () => {
       const html = renderDebug({ renderTimeMs: 5 });
-      expect(html).toContain("0 queries");
-      expect(html).not.toContain("SQL queries");
+      assertStringIncludes(html, "0 queries");
+      assert(!html.includes("SQL queries"));
     });
 
     test("summary SQL time is the wall-clock union, not the sum of durations", () => {
       // Two sequential (disjoint) queries: union 10+15 = 25ms.
-      expect(sequentialHtml).toContain("2 queries 25ms");
+      assertStringIncludes(sequentialHtml, "2 queries 25ms");
     });
 
     test("summary counts concurrent queries' overlap only once", () => {
@@ -104,7 +105,7 @@ describe("admin footer templates", () => {
         ],
         renderTimeMs: 50,
       });
-      expect(html).toContain("2 queries 15ms");
+      assertStringIncludes(html, "2 queries 15ms");
     });
 
     test("shows singular query for single query", () => {
@@ -112,7 +113,7 @@ describe("admin footer templates", () => {
         queries: [{ durationMs: 5, sql: "SELECT 1", startedAtMs: 0 }],
         renderTimeMs: 20,
       });
-      expect(html).toContain("1 query 5ms");
+      assertStringIncludes(html, "1 query 5ms");
     });
 
     test("breakdown splits render into wall-clock sql and other", () => {
@@ -124,30 +125,30 @@ describe("admin footer templates", () => {
         ],
         renderTimeMs: 100,
       });
-      expect(html).toContain("sql 50.0ms");
-      expect(html).toContain("other 50.0ms");
+      assertStringIncludes(html, "sql 50.0ms");
+      assertStringIncludes(html, "other 50.0ms");
     });
 
     test("breakdown keeps other non-negative when queries overlap", () => {
       // Durations sum to 60ms but only 35ms of wall-clock ([0,35]); without the
       // union, other would be render − 60 = −10ms. With it, other is 5ms.
-      expect(overlappingHtml).toContain("sql 35.0ms");
-      expect(overlappingHtml).toContain("other 5.0ms");
+      assertStringIncludes(overlappingHtml, "sql 35.0ms");
+      assertStringIncludes(overlappingHtml, "other 5.0ms");
     });
 
     test("reports total query work and the parallel factor", () => {
       // 60ms of work folded into 35ms wall-clock → 60/35 ≈ 1.7×.
-      expect(overlappingHtml).toContain("60.0ms work across 2 queries");
-      expect(overlappingHtml).toContain("1.7&times; parallel");
+      assertStringIncludes(overlappingHtml, "60.0ms work across 2 queries");
+      assertStringIncludes(overlappingHtml, "1.7&times; parallel");
     });
 
     test("reports a 1.0x parallel factor for sequential queries", () => {
-      expect(sequentialHtml).toContain("25.0ms work across 2 queries");
-      expect(sequentialHtml).toContain("1.0&times; parallel");
+      assertStringIncludes(sequentialHtml, "25.0ms work across 2 queries");
+      assertStringIncludes(sequentialHtml, "1.0&times; parallel");
     });
 
     test("omits the SQL work line when there are no queries", () => {
-      expect(bareHtml).not.toContain("parallel");
+      assert(!bareHtml.includes("parallel"));
     });
 
     test("shows cache stats section", () => {
@@ -158,9 +159,9 @@ describe("admin footer templates", () => {
         ],
         renderTimeMs: 10,
       });
-      expect(html).toContain("Caches (2)");
-      expect(html).toContain("sessions: 3");
-      expect(html).toContain("decrypt: 150/10000");
+      assertStringIncludes(html, "Caches (2)");
+      assertStringIncludes(html, "sessions: 3");
+      assertStringIncludes(html, "decrypt: 150/10000");
     });
 
     test("shows total cached entries in summary", () => {
@@ -171,11 +172,11 @@ describe("admin footer templates", () => {
         ],
         renderTimeMs: 10,
       });
-      expect(html).toContain("15 cached");
+      assertStringIncludes(html, "15 cached");
     });
 
     test("omits cache section when no caches registered", () => {
-      expect(bareHtml).not.toContain("Caches");
+      assert(!bareHtml.includes("Caches"));
     });
 
     test("escapes HTML in cache names", () => {
@@ -191,57 +192,62 @@ describe("admin footer templates", () => {
         renderTimeMs: 10,
         uptimeSeconds: 1234.7,
       });
-      expect(html).toContain("up 1235s");
+      assertStringIncludes(html, "up 1235s");
     });
   });
 
   describe("adminFooterHtml", () => {
     test("renders a footer with the admin-footer class", () => {
       const html = adminFooterHtml(null, "owner");
-      expect(html).toContain('<footer class="admin-footer">');
-      expect(html).toContain("</footer>");
+      assertStringIncludes(html, '<footer class="admin-footer">');
+      assertStringIncludes(html, "</footer>");
     });
 
     test("links to the GitHub repo", () => {
       const html = adminFooterHtml(null, "owner");
-      expect(html).toContain('href="https://github.com/chobbledotcom/tickets"');
-      expect(html).toContain("Chobble Tickets</a>");
+      assertStringIncludes(
+        html,
+        'href="https://github.com/chobbledotcom/tickets"',
+      );
+      assertStringIncludes(html, "Chobble Tickets</a>");
     });
 
     test("wraps the Chobble link in a span so it doesn't stretch the row", () => {
       const html = adminFooterHtml(null, "owner");
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         '<span class="admin-footer-brand"><a href="https://github.com/chobbledotcom/tickets">Chobble Tickets</a></span>',
       );
     });
 
     test("staff see log, guide, and logout links separated by dots", () => {
       const html = adminFooterHtml(null, "owner");
-      expect(html).toContain('<div class="admin-footer-links">');
-      expect(html).toContain(
+      assertStringIncludes(html, '<div class="admin-footer-links">');
+      assertStringIncludes(
+        html,
         '<a href="/admin/log">Log</a> &middot; <a href="/admin/guide">Guide</a> &middot; <a href="/admin/logout">Log out</a>',
       );
-      expect(html).not.toContain('action="/admin/logout"');
-      expect(html).not.toContain("#log-out");
+      assert(!html.includes('action="/admin/logout"'));
+      assert(!html.includes("#log-out"));
     });
 
     test("editors get only logout (log and guide are staff-only)", () => {
       const html = adminFooterHtml(null, "editor");
-      expect(html).not.toContain('href="/admin/log"');
-      expect(html).not.toContain('href="/admin/guide"');
-      expect(html).toContain('<a href="/admin/logout">Log out</a>');
+      assert(!html.includes('href="/admin/log"'));
+      assert(!html.includes('href="/admin/guide"'));
+      assertStringIncludes(html, '<a href="/admin/logout">Log out</a>');
     });
 
     test("delivery agents get only logout (no log or guide they can't open)", () => {
       const html = adminFooterHtml(null, "agent");
-      expect(html).not.toContain('href="/admin/log"');
-      expect(html).not.toContain('href="/admin/guide"');
-      expect(html).toContain('<a href="/admin/logout">Log out</a>');
+      assert(!html.includes('href="/admin/log"'));
+      assert(!html.includes('href="/admin/guide"'));
+      assertStringIncludes(html, '<a href="/admin/logout">Log out</a>');
     });
 
     test("omits the debug menu when no debug data is supplied", () => {
       const html = adminFooterHtml(null, "owner");
-      expect(html).not.toContain("debug-menu");
+      assert(!html.includes("debug-menu"));
     });
 
     test("includes the debug menu when debug data is supplied", () => {
@@ -254,8 +260,8 @@ describe("admin footer templates", () => {
         },
         "owner",
       );
-      expect(html).toContain("debug-menu");
-      expect(html).toContain("12ms");
+      assertStringIncludes(html, "debug-menu");
+      assertStringIncludes(html, "12ms");
     });
   });
 
@@ -270,14 +276,14 @@ describe("admin footer templates", () => {
       await withRequestContext(async () => {
         markAdminFooter("owner");
         const html = renderAdminFooter();
-        expect(html).toContain('<footer class="admin-footer">');
-        expect(html).toContain('<a href="/admin/logout">Log out</a>');
+        assertStringIncludes(html, '<footer class="admin-footer">');
+        assertStringIncludes(html, '<a href="/admin/logout">Log out</a>');
         // The exact role passed to markAdminFooter drives the gated links: a staff
         // role gets the staff-only log/guide links (proves the stored role is used
         // verbatim, not mangled).
-        expect(html).toContain('<a href="/admin/log">Log</a>');
-        expect(html).toContain('<a href="/admin/guide">Guide</a>');
-        expect(html).not.toContain("debug-menu");
+        assertStringIncludes(html, '<a href="/admin/log">Log</a>');
+        assertStringIncludes(html, '<a href="/admin/guide">Guide</a>');
+        assert(!html.includes("debug-menu"));
       });
     });
 
@@ -285,9 +291,9 @@ describe("admin footer templates", () => {
       await withRequestContext(async () => {
         markAdminFooter("editor");
         const html = renderAdminFooter();
-        expect(html).toContain('<a href="/admin/logout">Log out</a>');
-        expect(html).not.toContain('href="/admin/log"');
-        expect(html).not.toContain('href="/admin/guide"');
+        assertStringIncludes(html, '<a href="/admin/logout">Log out</a>');
+        assert(!html.includes('href="/admin/log"'));
+        assert(!html.includes('href="/admin/guide"'));
       });
     });
 
@@ -304,7 +310,7 @@ describe("admin footer templates", () => {
         enableFooterDebug();
         markAdminFooter("owner");
         const html = renderAdminFooter();
-        expect(html).toContain("debug-menu");
+        assertStringIncludes(html, "debug-menu");
         expect(html).toMatch(/up \d+s/);
       });
     });

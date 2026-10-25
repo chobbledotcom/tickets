@@ -28,6 +28,35 @@ const writeCommand = (args: string[]) =>
     { kind: "write" }
   >;
 
+/** The describe shape of one child whose three writes carry only the shared
+ *  required text and the delete confirmation. */
+const textChildDoc = (idParam: string, path: string) => ({
+  idParam,
+  path,
+  verbs: {
+    create: {
+      body: {
+        fields: [{ name: "text", required: true, type: "string" }],
+        kind: "fields",
+      },
+    },
+    delete: {
+      body: {
+        fields: [
+          { name: "confirm_identifier", required: true, type: "string" },
+        ],
+        kind: "fields",
+      },
+    },
+    update: {
+      body: {
+        fields: [{ name: "text", required: true, type: "string" }],
+        kind: "fields",
+      },
+    },
+  },
+});
+
 describe("CLI describe", () => {
   test("answers one JSON-shaped document with every resource, verb, child, and route", () => {
     const doc = describeEntries(Object.entries(ADMIN_API_RESOURCES));
@@ -36,6 +65,7 @@ describe("CLI describe", () => {
       "groups",
       "holidays",
       "listings",
+      "questions",
       "site-pages",
     ]);
     const attributes = doc.resources.attributes!;
@@ -54,35 +84,35 @@ describe("CLI describe", () => {
         kind: "fields",
       },
     });
-    expect(attributes.children.options).toEqual({
-      idParam: "optionId",
-      path: "options",
-      verbs: {
-        create: {
-          body: {
-            fields: [{ name: "text", required: true, type: "string" }],
-            kind: "fields",
-          },
-        },
-        delete: {
-          body: {
-            fields: [
-              { name: "confirm_identifier", required: true, type: "string" },
-            ],
-            kind: "fields",
-          },
-        },
-        update: {
-          body: {
-            fields: [{ name: "text", required: true, type: "string" }],
-            kind: "fields",
-          },
-        },
-      },
-    });
+    expect(attributes.children.options).toEqual(
+      textChildDoc("optionId", "options"),
+    );
     expect(doc.resources.listings!.verbs.create).toEqual({
       body: { kind: "server" },
     });
+    expect(doc.resources.questions!.label).toBe("Question");
+    expect(doc.resources.questions!.verbs.create).toEqual({
+      body: {
+        fields: [
+          { name: "assign_all", required: false, type: "boolean" },
+          // The walker answers "unknown" for a picklist rather than guess.
+          { name: "display_type", required: true, type: "unknown" },
+          { name: "text", required: true, type: "string" },
+        ],
+        kind: "fields",
+      },
+    });
+    expect(doc.resources.questions!.verbs.delete).toEqual({
+      body: {
+        fields: [
+          { name: "confirm_identifier", required: true, type: "string" },
+        ],
+        kind: "fields",
+      },
+    });
+    expect(doc.resources.questions!.children.answers).toEqual(
+      textChildDoc("answerId", "answers"),
+    );
     expect(doc.resources.listings!.customRoutes).toEqual({
       attendees: { method: "GET", subpath: ":listingId/attendees" },
       deactivate: { method: "POST", subpath: ":listingId/deactivate" },

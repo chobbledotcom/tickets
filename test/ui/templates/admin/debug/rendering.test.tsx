@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -28,15 +29,15 @@ const expectBadgeRow = (
 ): void => {
   const values = rowValues(html, rowLabel);
   expect(values).toHaveLength(1);
-  expect(values[0]).toContain(`class="badge-${variant}"`);
-  expect(values[0]).toContain(`>${badgeLabel}</span>`);
+  assertStringIncludes(values[0] ?? "", `class="badge-${variant}"`);
+  assertStringIncludes(values[0] ?? "", `>${badgeLabel}</span>`);
 };
 
 describe("admin debug template rendering", () => {
   test("keeps the debug navigation and every section heading", () => {
     const html = adminDebugPage(debugOwnerSession, makeDebugState());
 
-    expect(html).toContain('href="/admin/debug"');
+    assertStringIncludes(html, 'href="/admin/debug"');
     // An independent literal list — deliberately not derived from the
     // template's own section table, so a dropped or renamed section fails
     // here instead of shifting both sides in lockstep.
@@ -225,7 +226,7 @@ describe("admin debug template rendering", () => {
       "2.5%",
     ];
 
-    for (const value of values) expect(html).toContain(value);
+    for (const value of values) assertStringIncludes(html, value);
     expect(rowValues(html, t("debug.field.os_architecture"))).toEqual([
       "os-marker / arch-marker",
     ]);
@@ -233,10 +234,10 @@ describe("admin debug template rendering", () => {
     expectBadgeRow(html, t("debug.field.public_api"), "ok", "Enabled");
     expectBadgeRow(html, t("debug.field.contact_form"), "ok", "Enabled");
     expectBadgeRow(html, t("debug.field.schema_status"), "ok", "Up to date");
-    expect(html).toContain(`action="/admin/debug/sentry"`);
-    expect(html).toContain(`class="inline"`);
-    expect(html).toContain(`id="${SENTRY_TEST_FORM_ID}"`);
-    expect(html).toContain(`>${t("debug.test_sentry")}</button>`);
+    assertStringIncludes(html, `action="/admin/debug/sentry"`);
+    assertStringIncludes(html, `class="inline"`);
+    assertStringIncludes(html, `id="${SENTRY_TEST_FORM_ID}"`);
+    assertStringIncludes(html, `>${t("debug.test_sentry")}</button>`);
   });
 
   test("renders the disabled site and database states", () => {
@@ -317,12 +318,13 @@ describe("admin debug template rendering", () => {
       }),
     );
 
-    expect(html).toContain("<td><span>100B</span></td>");
-    expect(html).toContain(
+    assertStringIncludes(html, "<td><span>100B</span></td>");
+    assertStringIncludes(
+      html,
       `<td><strong>200B ${t("debug.overridden")}</strong></td>`,
     );
-    expect(html).toContain("DEFAULT_LIMIT");
-    expect(html).toContain("OVERRIDDEN_LIMIT");
+    assertStringIncludes(html, "DEFAULT_LIMIT");
+    assertStringIncludes(html, "OVERRIDDEN_LIMIT");
   });
 
   test("uses the stable Sentry test form id", () => {

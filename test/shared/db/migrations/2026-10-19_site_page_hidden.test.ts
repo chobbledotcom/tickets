@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, getDb } from "#db/client.ts";
@@ -62,9 +63,9 @@ describeWithEnv("db > migrations > site page hidden", { db: true }, () => {
     await initDb();
 
     expect(await getSitePageById(page.id)).toEqual(page);
-    expect(await appliedMigrationIds()).toContain(
+    assertArrayIncludes(await appliedMigrationIds(), [
       "2026-10-19_site_page_hidden",
-    );
+    ]);
     expect(await settingsValueOrNull("db_schema_hash")).toBe(SCHEMA_HASH);
   });
 });

@@ -11,6 +11,8 @@
 
 import * as v from "valibot";
 
+import { QuestionDisplayTypeSchema } from "#db/question-types.ts";
+
 /* ===========================================================================
  * Row schemas — the shapes the JSON API answers with. The client validates
  * the fields its callers read. The server owns the rest of each row, so the
@@ -24,18 +26,36 @@ const IdNameRow = {
   name: v.string(),
 };
 
-/** One attribute option as the admin API answers with it. */
-const AttributeOptionRowSchema = v.looseObject({
+/** The id-and-text pair a choice option row and a question row both carry. */
+const IdTextRow = {
   id: v.number(),
   text: v.string(),
-});
+};
+
+/** One choice option as the admin API answers with it: the server-owned id
+ *  and its text. An attribute's options and a question's answers both read
+ *  back in this shape. */
+const OptionRowSchema = v.looseObject({ ...IdTextRow });
 
 export const AttributeRowSchema = v.looseObject({
   ...IdNameRow,
-  options: v.array(AttributeOptionRowSchema),
+  options: v.array(OptionRowSchema),
 });
 
 export type AdminApiAttribute = v.InferOutput<typeof AttributeRowSchema>;
+
+/** One question as the admin API answers with it: the decrypted text, the
+ *  display type, the assign-all switch, and its answers in display order.
+ *  A question's display name is its text, so the row carries no separate
+ *  name. */
+export const QuestionRowSchema = v.looseObject({
+  answers: v.array(OptionRowSchema),
+  assign_all: v.boolean(),
+  display_type: QuestionDisplayTypeSchema,
+  ...IdTextRow,
+});
+
+export type AdminApiQuestion = v.InferOutput<typeof QuestionRowSchema>;
 
 export const GroupRowSchema = v.looseObject({
   ...IdNameRow,
@@ -137,11 +157,34 @@ export type AdminApiUpdateAttributeBody = v.InferOutput<
   typeof UpdateAttributeBodySchema
 >;
 
-/** One attribute option's write body. The server parses the same shape for
- *  the option's create and its update. */
-export const AttributeOptionBodySchema = v.object({ text: v.string() });
-export type AdminApiAttributeOptionBody = v.InferOutput<
-  typeof AttributeOptionBodySchema
+/** One choice option's write body, on the attribute-option and answer
+ *  surfaces alike. The server parses the same shape for the option's create
+ *  and its update. */
+export const OptionBodySchema = v.object({ text: v.string() });
+export type AdminApiOptionBody = v.InferOutput<typeof OptionBodySchema>;
+
+/** The body a question create carries: the text and the display type are
+ *  required, the same two fields the question form requires. The assign-all
+ *  switch is optional and defaults to off. */
+export const CreateQuestionBodySchema = v.object({
+  assign_all: v.optional(v.boolean()),
+  display_type: QuestionDisplayTypeSchema,
+  text: v.string(),
+});
+export type AdminApiCreateQuestionBody = v.InferOutput<
+  typeof CreateQuestionBodySchema
+>;
+
+/** The body a question update carries: every writable field optional. */
+export const UpdateQuestionBodySchema = v.partial(
+  v.object({
+    assign_all: v.boolean(),
+    display_type: QuestionDisplayTypeSchema,
+    text: v.string(),
+  }),
+);
+export type AdminApiUpdateQuestionBody = v.InferOutput<
+  typeof UpdateQuestionBodySchema
 >;
 
 /* ===========================================================================
@@ -210,7 +253,7 @@ export const ADMIN_API_RESOURCES = {
   attributes: {
     children: {
       options: {
-        bodySchema: AttributeOptionBodySchema,
+        bodySchema: OptionBodySchema,
         idParam: "optionId",
         path: "options",
         responseSchema: attributeEnvelope,
@@ -262,6 +305,22 @@ export const ADMIN_API_RESOURCES = {
     }),
     path: "listings",
     singleSchema: v.looseObject({ listing: ListingRowSchema }),
+  },
+  questions: {
+    children: {
+      answers: {
+        bodySchema: OptionBodySchema,
+        idParam: "answerId",
+        path: "answers",
+        responseSchema: v.looseObject({ question: QuestionRowSchema }),
+      },
+    },
+    createBodySchema: CreateQuestionBodySchema,
+    label: "Question",
+    listSchema: v.looseObject({ questions: v.array(QuestionRowSchema) }),
+    path: "questions",
+    singleSchema: v.looseObject({ question: QuestionRowSchema }),
+    updateBodySchema: UpdateQuestionBodySchema,
   },
   "site-pages": {
     createBodySchema: CreateSitePageBodySchema,

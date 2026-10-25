@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { RESTORE_USAGE } from "#scripts/restore-lib.ts";
@@ -68,5 +69,5 @@ test("default restore dependencies read the requested backup path", async () => 
   );
 
   expect(result).toBe(1);
-  expect(stderr[0]).toContain(`Could not read ${path}`);
+  assertStringIncludes(stderr[0] ?? "", `Could not read ${path}`);
 });

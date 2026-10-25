@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
@@ -32,8 +33,8 @@ describeWithEnv(
     const expectSetupEmailBody = async (setupUrl: string) => {
       await assignAndNotifyBuiltSites([siteEntry()]);
       const body = JSON.parse(suite.fetchStub.calls[0]!.args[1].body);
-      expect(body.html).toContain(`href="${setupUrl}"`);
-      expect(body.text).toContain(setupUrl);
+      assertStringIncludes(body.html, `href="${setupUrl}"`);
+      assertStringIncludes(body.text, setupUrl);
       return body;
     };
 
@@ -102,8 +103,8 @@ describeWithEnv(
         expect(assigned.assignedListingId).toBe(1);
         const body = JSON.parse(suite.fetchStub.calls[0]!.args[1].body);
         expect(body.subject).toBe("Your new site is ready");
-        expect(body.html).toContain("12 Month Plan + 3 Month Plan");
-        expect(body.html).toContain("https://a.test.net/setup/");
+        assertStringIncludes(body.html, "12 Month Plan + 3 Month Plan");
+        assertStringIncludes(body.html, "https://a.test.net/setup/");
       });
 
       test("a no-quantity plan line beside a booked one adds no site and no months", async () => {
@@ -158,10 +159,13 @@ describeWithEnv(
           const body = warningEmailBody();
           expect(body.subject).toBe("A site plan sold with no site available");
           expect(body.to).toEqual(["biz@example.com"]);
-          expect(body.html).toContain(
+          assert(typeof body.html === "string");
+          assertStringIncludes(
+            body.html,
             "Test Listing — Jane Doe (jane@example.com)",
           );
-          expect(body.text).toContain("/admin/built-sites");
+          assert(typeof body.text === "string");
+          assertStringIncludes(body.text, "/admin/built-sites");
           expect(
             errorSpy.calls.some((c) =>
               String(c.args[0]).includes(ErrorCode.SITE_ASSIGNMENT),
@@ -181,11 +185,12 @@ describeWithEnv(
           siteEntry({ attendeeId: 12, listingName: "Second Plan" }),
         ]);
         const body = warningEmailBody();
+        assert(typeof body.html === "string");
         for (const buyer of [
           "Test Listing — Jane Doe (jane@example.com)",
           "Second Plan — Jane Doe (jane@example.com)",
         ]) {
-          expect(body.html).toContain(buyer);
+          assertStringIncludes(body.html, buyer);
         }
       });
 
@@ -239,7 +244,7 @@ describeWithEnv(
 
         expect(suite.fetchStub.calls.length).toBe(1);
         const body = JSON.parse(suite.fetchStub.calls[0]!.args[1].body);
-        expect(body.subject).toContain("2 new sites");
+        assertStringIncludes(body.subject, "2 new sites");
       });
 
       test("sends email with singular subject for one site", async () => {
@@ -254,7 +259,7 @@ describeWithEnv(
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
 
         const body = await expectSetupEmailBody("https://a.test.net/setup/");
-        expect(body.html).toContain("activate your site");
+        assertStringIncludes(body.html, "activate your site");
       });
 
       test("email setup link keeps the scheme when the site URL already has one", async () => {

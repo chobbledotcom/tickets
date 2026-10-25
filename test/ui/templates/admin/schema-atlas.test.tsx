@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups, t } from "#i18n";
@@ -18,16 +19,17 @@ describe("the system map page", () => {
   });
 
   test("renders under the settings nav with its own title", () => {
-    expect(html()).toContain("<h1>System map</h1>");
-    expect(html()).toContain('href="/admin/schema"');
+    assertStringIncludes(html(), "<h1>System map</h1>");
+    assertStringIncludes(html(), 'href="/admin/schema"');
   });
 
   test("the legend names each actor with its own colour class", () => {
     const page = html();
     expect(page).toMatch(/<div class="prose">\s*<p class="schema-legend">/);
-    expect(page).toContain("</strong> <span");
+    assertStringIncludes(page, "</strong> <span");
     for (const actor of ["system", "provider", "owner"]) {
-      expect(page).toContain(
+      assertStringIncludes(
+        page,
         `class="schema-actor schema-actor-${actor}">${t(`schema.legend.${actor}`)}`,
       );
     }
@@ -38,14 +40,14 @@ describe("the system map page", () => {
   test("every atlas label resolves to catalog copy, not to a raw key", () => {
     const page = html();
     for (const machine of SCHEMA_ATLAS_MACHINES) {
-      expect(page).not.toContain(machine.titleKey);
-      expect(page).toContain(t(machine.titleKey));
+      assert(!page.includes(machine.titleKey));
+      assertStringIncludes(page, t(machine.titleKey));
       for (const state of machine.states) {
-        expect(page).not.toContain(`>${state.labelKey}<`);
-        expect(page).toContain(t(state.labelKey));
-        expect(page).toContain(t(state.detailKey));
+        assert(!page.includes(`>${state.labelKey}<`));
+        assertStringIncludes(page, t(state.labelKey));
+        assertStringIncludes(page, t(state.detailKey));
         for (const edge of state.edges) {
-          expect(page).toContain(t(edge.labelKey));
+          assertStringIncludes(page, t(edge.labelKey));
         }
       }
     }
@@ -54,22 +56,22 @@ describe("the system map page", () => {
   test("the static list answers the map question for a partial return", () => {
     const page = html();
     // The one-exit owner decision, in plain words, with its way forward.
-    expect(page).toContain("Your decision needed: some money is back");
-    expect(page).toContain("You confirm the money came back → Money back");
+    assertStringIncludes(page, "Your decision needed: some money is back");
+    assertStringIncludes(page, "You confirm the money came back → Money back");
     // A terminal state says so.
-    expect(page).toContain("Recorded: done");
-    expect(page).toContain("Nothing. This state is an ending.");
+    assertStringIncludes(page, "Recorded: done");
+    assertStringIncludes(page, "Nothing. This state is an ending.");
   });
 
   test("marks the start states and carries each machine's section", () => {
     const page = html();
-    expect(page).toContain("Ready to send · where every record starts");
-    expect(page).toContain('id="refund"');
-    expect(page).toContain('id="review"');
-    expect(page).toContain('id="row"');
-    expect(page).toContain("A refund at the payment provider");
-    expect(page).toContain("A payment row kept for review");
-    expect(page).toContain("One payment row's held work");
+    assertStringIncludes(page, "Ready to send · where every record starts");
+    assertStringIncludes(page, 'id="refund"');
+    assertStringIncludes(page, 'id="review"');
+    assertStringIncludes(page, 'id="row"');
+    assertStringIncludes(page, "A refund at the payment provider");
+    assertStringIncludes(page, "A payment row kept for review");
+    assertStringIncludes(page, "One payment row's held work");
   });
 
   test("keeps every static and interactive schema hook", () => {
@@ -92,8 +94,8 @@ describe("the system map page", () => {
 
   test("the live check answers clean when the scan found nothing", () => {
     const page = html();
-    expect(page).toContain('id="schema-check"');
-    expect(page).toContain("All stored records fit the system rules.");
+    assertStringIncludes(page, 'id="schema-check"');
+    assertStringIncludes(page, "All stored records fit the system rules.");
   });
 
   test("the live check names an unknown SumUp state", () => {
@@ -109,10 +111,14 @@ describe("the system map page", () => {
       ],
       NO_UNANSWERED,
     );
-    expect(page).toContain(
+    assertStringIncludes(
+      page,
       "A SumUp recovery record has a state this site does not know.",
     );
-    expect(page).toContain("<code>idx_unknown</code> <code>abandoned</code>");
+    assertStringIncludes(
+      page,
+      "<code>idx_unknown</code> <code>abandoned</code>",
+    );
   });
 
   test("the live check names a SumUp checkout id mismatch", () => {
@@ -128,10 +134,11 @@ describe("the system map page", () => {
       ],
       NO_UNANSWERED,
     );
-    expect(page).toContain(
+    assertStringIncludes(
+      page,
       "A SumUp recovery record's state and checkout ID do not match.",
     );
-    expect(page).toContain("<code>idx_mismatch</code> <code>staged</code>");
+    assertStringIncludes(page, "<code>idx_mismatch</code> <code>staged</code>");
   });
 
   test("the live check names a SumUp check time mismatch", () => {
@@ -147,17 +154,18 @@ describe("the system map page", () => {
       ],
       NO_UNANSWERED,
     );
-    expect(page).toContain(
+    assertStringIncludes(
+      page,
       "A SumUp recovery record's state and next check time do not match.",
     );
-    expect(page).toContain("<code>idx_clock</code> <code>waiting</code>");
+    assertStringIncludes(page, "<code>idx_clock</code> <code>waiting</code>");
   });
 
   test("the unanswered section answers clean when nothing is waiting", () => {
     const page = html();
-    expect(page).toContain('id="schema-unanswered"');
-    expect(page).toContain("Money nobody has answered for");
-    expect(page).toContain("No SumUp checkout needs your attention.");
+    assertStringIncludes(page, 'id="schema-unanswered"');
+    assertStringIncludes(page, "Money nobody has answered for");
+    assertStringIncludes(page, "No SumUp checkout needs your attention.");
   });
 
   test("the unanswered section counts and lists the oldest rows", () => {
@@ -171,11 +179,11 @@ describe("the system map page", () => {
       ],
       total: 3,
     });
-    expect(page).toContain("3 checkouts need an answer.");
-    expect(page).toContain("Showing the oldest 1.");
-    expect(page).toContain("Money not accounted for");
-    expect(page).toContain("<code>idx_owed_row</code>");
-    expect(page).not.toContain("No SumUp checkout needs your attention.");
+    assertStringIncludes(page, "3 checkouts need an answer.");
+    assertStringIncludes(page, "Showing the oldest 1.");
+    assertStringIncludes(page, "Money not accounted for");
+    assertStringIncludes(page, "<code>idx_owed_row</code>");
+    assert(!page.includes("No SumUp checkout needs your attention."));
   });
 
   test("the unanswered section falls back to the stored time on clock skew", () => {
@@ -194,7 +202,8 @@ describe("the system map page", () => {
     });
     // The exact joined row: label, separator, stored time, then the code —
     // deterministic here because the fallback shows the raw stored time.
-    expect(page).toContain(
+    assertStringIncludes(
+      page,
       "Money not accounted for · 2999-01-01T00:00:00.000Z " +
         "<code>idx_skewed_row</code>",
     );
@@ -211,10 +220,10 @@ describe("the system map page", () => {
       ],
       total: 1,
     });
-    expect(page).toContain("1 checkout needs an answer.");
-    expect(page).not.toContain("Showing the oldest");
-    expect(page).toContain("Waiting for an answer");
-    expect(page).toContain("<code>idx_waiting_row</code>");
+    assertStringIncludes(page, "1 checkout needs an answer.");
+    assert(!page.includes("Showing the oldest"));
+    assertStringIncludes(page, "Waiting for an answer");
+    assertStringIncludes(page, "<code>idx_waiting_row</code>");
   });
 
   test("embeds the resolved diagram data as safe JSON", () => {
@@ -223,7 +232,7 @@ describe("the system map page", () => {
     const end = page.indexOf("</script>", start);
     expect(start).toBeGreaterThan(-1);
     const body = page.slice(page.indexOf(">", start) + 1, end);
-    expect(body).not.toContain("<");
+    assert(!body.includes("<"));
     const parsed = JSON.parse(body) as {
       machines: {
         states: {

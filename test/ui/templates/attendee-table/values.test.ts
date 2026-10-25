@@ -237,11 +237,18 @@ const questions: QuestionWithAnswers[] = [
       { active: true, id: 11, question_id: 1, sort_order: 0, text: "Vegan" },
       { active: true, id: 12, question_id: 1, sort_order: 1, text: "None" },
     ],
+    assign_all: false,
     display_type: "radio",
     id: 1,
     text: "Dietary needs",
   },
-  { answers: [], display_type: "free_text", id: 2, text: "Notes" },
+  {
+    answers: [],
+    assign_all: false,
+    display_type: "free_text",
+    id: 2,
+    text: "Notes",
+  },
 ];
 
 describe("buildAnswerMaps", () => {

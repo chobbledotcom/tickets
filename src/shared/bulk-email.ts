@@ -161,15 +161,16 @@ export const absoluteEmailImageUrls = (imageUrls: ImageUrls): ImageUrls =>
 
 /** Replace a plain-text body's short-form image references
  * (`![alt](img#N)`) with the absolute URLs from the table, the text
- * counterpart of renderMarkdown's image resolution. The rewrite reads the
- * same parse the render reads, so only a real reference carries it. A web
- * address, a link or prose that merely names an image keeps its written
- * form. A reference inside a code span or a fenced code block keeps its
- * written form too. The reader reads that as code, and the HTML render
- * shows it as code. The alt text keeps the escaped brackets the editor's
- * serializer writes for a name that carries them. A reference the table
- * lacks also keeps its written form: the image is gone, and the HTML render
- * shows the alt text. */
+ * counterpart of renderMarkdown's image resolution. A reference-style
+ * picture (`![alt][name]` with `[name]: img#N`) resolves the same way, and
+ * its definition's address resolves with it. Only a real reference carries
+ * the rewrite. A web address, a link or prose that merely names an image
+ * keeps its written form. A reference inside a code span or a fenced code
+ * block keeps its written form. A picture in a table cell that holds an
+ * escaped pipe keeps its written form too. The table rewrite skips that
+ * cell, and the HTML render resolves the picture. The alt text keeps the
+ * escapes a bracketed name carries. A reference the table lacks keeps its
+ * written form: the HTML render shows the alt text. */
 export const resolveImageReferences = (
   text: string,
   imageUrls: ImageUrls,

@@ -18,6 +18,7 @@ const question = (
     sort_order: i,
     text: a.text,
   })),
+  assign_all: false,
   display_type: "radio",
   id,
   text,
@@ -35,6 +36,7 @@ const DIET_Q = question(2, "Dietary Requirements", [
 
 const NOTES_Q: QuestionWithAnswers = {
   answers: [],
+  assign_all: false,
   display_type: "free_text",
   id: 3,
   text: "Notes",

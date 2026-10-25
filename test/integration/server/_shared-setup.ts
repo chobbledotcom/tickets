@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -28,7 +29,7 @@ export const bookPaidReservation = async (
     const response = await handleRequest(
       mockRequest(`/payment/success?session_id=${sessionId}`),
     );
-    expect([200, 302, 303]).toContain(response.status);
+    assertArrayIncludes([200, 302, 303], [response.status]);
     return await latestAttendee();
   } finally {
     session.restore();

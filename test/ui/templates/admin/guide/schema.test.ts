@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unique } from "#fp";
@@ -114,7 +115,8 @@ describe("guide schema", () => {
   });
 
   test("a faq entry renders its id as the anchor on its details element", () => {
-    expect(String(Faq({ id: "embed_booking_form" }))).toContain(
+    assertStringIncludes(
+      String(Faq({ id: "embed_booking_form" })),
       '<details id="embed_booking_form">',
     );
   });

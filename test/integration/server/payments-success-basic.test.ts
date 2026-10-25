@@ -24,6 +24,8 @@ import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 
 /* jscpd:ignore-end */
 
+/* jscpd:ignore-end */
+
 /** Assert every package member's most recent booking landed on `date` and
  *  carries the package's group id — the shared check for a dated package
  *  purchase, whether its per-day prices are plain or customised. */

@@ -8,7 +8,6 @@
 
 import { type AdminApiAttendee, toAdminListing } from "#routes/admin/api.ts";
 import type {
-  AttributeOptionBody,
   CreateAttributeBody,
   UpdateAttributeBody,
 } from "#routes/admin/api-attributes.ts";
@@ -26,7 +25,7 @@ import type {
 } from "#routes/admin/api-listing-body.ts";
 import {
   ADMIN_API_RESOURCES,
-  adminApiIdParam,
+  type AdminApiOptionBody,
 } from "#shared/admin-api-resources.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
@@ -34,10 +33,12 @@ import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { DeleteBody } from "#shared/rest/crud-parsers.ts";
 import type { AdminListing } from "#types";
 import {
+  childDocBase,
   crudDocs,
   type EndpointDoc,
   json,
 } from "./admin-api-example/endpoint-doc.ts";
+import { QUESTION_ENDPOINTS } from "./admin-api-example/questions.ts";
 import { SITE_PAGE_ENDPOINTS } from "./admin-api-example/site-pages.ts";
 
 /** The running totals a listing carries. Only a booking can move them, so a
@@ -186,11 +187,11 @@ const ADMIN_API_ATTRIBUTE_DELETE_BODY = {
 
 const ADMIN_API_ATTRIBUTE_OPTION_CREATE_BODY = {
   text: "Medium",
-} satisfies AttributeOptionBody;
+} satisfies AdminApiOptionBody;
 
 const ADMIN_API_ATTRIBUTE_OPTION_UPDATE_BODY = {
   text: "Very hard",
-} satisfies AttributeOptionBody;
+} satisfies AdminApiOptionBody;
 
 const ADMIN_API_ATTRIBUTE_OPTION_DELETE_BODY = {
   confirm_identifier: "Hard",
@@ -255,11 +256,8 @@ const LISTING_DEFAULT_DAYS_AFTER =
 
 /** The documented path of one attribute-option route: the parent's id param
  *  and the child segment both come from the resource table. */
-const attributeOptionBase = (): string => {
-  const entry = ADMIN_API_RESOURCES.attributes;
-  const child = entry.children.options;
-  return `/api/admin/${entry.path}/:${adminApiIdParam(entry.label)}/${child.path}`;
-};
+const attributeOptionBase = (): string =>
+  childDocBase(ADMIN_API_RESOURCES.attributes, "options");
 
 /** The documented path of one listing custom route. */
 const listingCustom = (
@@ -400,5 +398,6 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     singular: "holiday",
     updateBody: ADMIN_API_HOLIDAY_UPDATE_BODY,
   }),
+  ...QUESTION_ENDPOINTS,
   ...SITE_PAGE_ENDPOINTS,
 ];

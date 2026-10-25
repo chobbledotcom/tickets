@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -71,7 +72,7 @@ describeWithEnv(
           method: "PUT",
         }),
         400,
-        (json) => expect(json.error).toContain("Race extra"),
+        (json) => assertStringIncludes(json.error, "Race extra"),
       );
 
       expect(await listingChildren.getIds(parent.id)).toEqual([]);
@@ -150,7 +151,7 @@ describeWithEnv(
 
       const res = await postListingEdit(parent.id, { groupId: 0 });
       expect(res.status).toBe(400);
-      expect(await res.text()).toContain("Group extra");
+      assertStringIncludes(await res.text(), "Group extra");
       expect(await listingGroups.getIds(parent.id)).toEqual([group.id]);
     });
 
@@ -191,7 +192,7 @@ describeWithEnv(
 
       const res = await postListingEdit(child.id, { groupId: group.id });
       expect(res.status).toBe(400);
-      expect(await res.text()).toContain("Group extra");
+      assertStringIncludes(await res.text(), "Group extra");
       expect(await listingGroups.getIds(child.id)).toEqual([]);
     });
 
@@ -254,7 +255,7 @@ describeWithEnv(
         }),
         400,
         (json) => {
-          expect(json.error).toContain("Group extra");
+          assertStringIncludes(json.error, "Group extra");
         },
       );
       // Neither the group move nor the edge change is partially applied; the

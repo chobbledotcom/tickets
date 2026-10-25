@@ -1,4 +1,5 @@
 import type { InStatement } from "@libsql/client";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -201,7 +202,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
           503,
           "This site has not been activated yet",
         );
-        expect(html).not.toContain('http-equiv="refresh"');
+        assert(!html.includes('http-equiv="refresh"'));
 
         expect(await settingsTableExists()).toBe(false);
       });
@@ -250,7 +251,10 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const response = await handleRequest(mockRequest("/style.css"));
 
         expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toContain("text/css");
+        assertStringIncludes(
+          response.headers.get("content-type") ?? "",
+          "text/css",
+        );
         expect(await settingsTableExists()).toBe(false);
       });
 
@@ -260,8 +264,13 @@ describeWithEnv("server (setup)", { db: true }, () => {
         // the browser's strict MIME check.
         const response = await handleRequest(mockRequest("/custom.css"));
 
-        expect(response.headers.get("content-type")).toContain("text/css");
-        expect(response.headers.get("content-type")).not.toContain("text/html");
+        assertStringIncludes(
+          response.headers.get("content-type") ?? "",
+          "text/css",
+        );
+        assert(
+          !(response.headers.get("content-type") ?? "").includes("text/html"),
+        );
         expect(await response.text()).toBe("");
       });
 
@@ -278,7 +287,10 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
           const response = await handleRequest(mockRequest("/style.css"));
           expect(response.status).toBe(200);
-          expect(response.headers.get("content-type")).toContain("text/css");
+          assertStringIncludes(
+            response.headers.get("content-type") ?? "",
+            "text/css",
+          );
         } finally {
           executeStub.restore();
         }

@@ -37,6 +37,7 @@ const question = (
             text: "Answer",
           },
         ],
+  assign_all: false,
   display_type,
   id,
   text: `Question ${id}`,
@@ -142,6 +143,7 @@ describe("ticket form answer grouping", () => {
       answers: [
         { active: false, id: 10, question_id: 1, sort_order: 0, text: "Gone" },
       ],
+      assign_all: false,
       display_type: "radio",
       id: 1,
       text: "Q1",

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { ActivityLogEntry } from "#db/activity-log.ts";
@@ -38,10 +39,10 @@ describe("attendee summary section", () => {
     const html = renderDetail(
       testAttendee({ name: "Jane Doe", ticket_token: "tok-123" }),
     );
-    expect(html).toContain('<th scope="row">Name</th>');
-    expect(html).toContain("Jane Doe");
-    expect(html).toContain(`https://${ALLOWED_DOMAIN}/t/tok-123`);
-    expect(html).toContain("Registered");
+    assertStringIncludes(html, '<th scope="row">Name</th>');
+    assertStringIncludes(html, "Jane Doe");
+    assertStringIncludes(html, `https://${ALLOWED_DOMAIN}/t/tok-123`);
+    assertStringIncludes(html, "Registered");
   });
 
   test("shows the no-quantity indicator instead of a dead ticket link for a ghost-only attendee", () => {
@@ -52,38 +53,38 @@ describe("attendee summary section", () => {
       "44",
       false,
     );
-    expect(html).not.toContain("/t/tok-ghost");
-    expect(html).toContain("No quantity");
+    assert(!html.includes("/t/tok-ghost"));
+    assertStringIncludes(html, "No quantity");
   });
 
   test("renders email as a mailto link when present", () => {
     const html = renderDetail(testAttendee({ email: "jane@example.com" }));
-    expect(html).toContain('href="mailto:jane@example.com"');
+    assertStringIncludes(html, 'href="mailto:jane@example.com"');
   });
 
   test("omits the email row when there is no email", () => {
     const html = renderDetail(testAttendee({ email: "" }));
-    expect(html).not.toContain('<th scope="row">Email</th>');
+    assert(!html.includes('<th scope="row">Email</th>'));
   });
 
   test("shows the phone number with small tel and whatsapp links", () => {
     const html = renderDetail(testAttendee({ phone: "07700 900000" }));
-    expect(html).toContain("07700 900000");
-    expect(html).toContain('<a href="tel:+447700900000">tel</a>');
-    expect(html).toContain("https://wa.me/447700900000");
-    expect(html).toContain("<small>");
+    assertStringIncludes(html, "07700 900000");
+    assertStringIncludes(html, '<a href="tel:+447700900000">tel</a>');
+    assertStringIncludes(html, "https://wa.me/447700900000");
+    assertStringIncludes(html, "<small>");
   });
 
   test("normalises the phone with the given dialling code", () => {
     const html = renderDetail(testAttendee({ phone: "0234 567 8900" }), "1");
-    expect(html).toContain('href="tel:+12345678900"');
-    expect(html).toContain("https://wa.me/12345678900");
+    assertStringIncludes(html, 'href="tel:+12345678900"');
+    assertStringIncludes(html, "https://wa.me/12345678900");
   });
 
   test("omits the phone row when there is no phone", () => {
     const html = renderDetail(testAttendee({ phone: "" }));
-    expect(html).not.toContain('<th scope="row">Phone</th>');
-    expect(html).not.toContain("tel:");
+    assert(!html.includes('<th scope="row">Phone</th>'));
+    assert(!html.includes("tel:"));
   });
 
   test("preserves line breaks for address and special instructions", () => {
@@ -93,9 +94,9 @@ describe("attendee summary section", () => {
         special_instructions: "Step free\nNut allergy",
       }),
     );
-    expect(html).toContain("white-space:pre-wrap");
-    expect(html).toContain("1 High St\nTownsville");
-    expect(html).toContain("Step free\nNut allergy");
+    assertStringIncludes(html, "white-space:pre-wrap");
+    assertStringIncludes(html, "1 High St\nTownsville");
+    assertStringIncludes(html, "Step free\nNut allergy");
   });
 });
 
@@ -111,32 +112,34 @@ describe("BookingStatusBadges", () => {
     const html = String(
       BookingStatusBadges({ checkedIn: 1, quantity: 1, refunded: false }),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<div class="muted small"><span class="badge">Checked in</span></div>',
     );
-    expect(html).not.toContain("Refunded");
+    assert(!html.includes("Refunded"));
   });
 
   test("names the count a part booking admitted", () => {
     const html = String(
       BookingStatusBadges({ checkedIn: 2, quantity: 3, refunded: false }),
     );
-    expect(html).toContain("Checked in (2 of 3)");
+    assertStringIncludes(html, "Checked in (2 of 3)");
   });
 
   test("renders a danger badge when refunded", () => {
     const html = String(
       BookingStatusBadges({ checkedIn: 0, quantity: 1, refunded: true }),
     );
-    expect(html).toContain('<span class="badge danger">Refunded</span>');
-    expect(html).not.toContain("Checked in");
+    assertStringIncludes(html, '<span class="badge danger">Refunded</span>');
+    assert(!html.includes("Checked in"));
   });
 
   test("renders both badges when checked in and refunded", () => {
     const html = String(
       BookingStatusBadges({ checkedIn: 1, quantity: 1, refunded: true }),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<span class="badge">Checked in</span> <span class="badge danger">Refunded</span>',
     );
   });
@@ -172,11 +175,11 @@ describe("attendee activity section", () => {
     const html = String(
       renderSection({ entries, kind: "activity", viewAllHref: null }),
     );
-    expect(html).toContain("Attendee 'Jane Doe' updated");
-    expect(html).toContain("<th>Time</th>");
-    expect(html).toContain("<th>Activity</th>");
+    assertStringIncludes(html, "Attendee 'Jane Doe' updated");
+    assertStringIncludes(html, "<th>Time</th>");
+    assertStringIncludes(html, "<th>Activity</th>");
     // The full tab has no preview link.
-    expect(html).not.toContain("View all activity");
+    assert(!html.includes("View all activity"));
   });
 
   test("a preview links through to the full Activity tab", () => {
@@ -187,14 +190,14 @@ describe("attendee activity section", () => {
         viewAllHref: "/admin/attendees/7/activity",
       }),
     );
-    expect(html).toContain('href="/admin/attendees/7/activity"');
-    expect(html).toContain("View all activity");
+    assertStringIncludes(html, 'href="/admin/attendees/7/activity"');
+    assertStringIncludes(html, "View all activity");
   });
 
   test("shows the empty state when the attendee has no log entries", () => {
     const html = String(
       renderSection({ entries: [], kind: "activity", viewAllHref: null }),
     );
-    expect(html).toContain("No activity recorded yet");
+    assertStringIncludes(html, "No activity recorded yet");
   });
 });

@@ -4,7 +4,11 @@
  * and the status back to the client, which validates the envelope.
  */
 
-import type { AdminApiResponse } from "#shared/admin-api-client.ts";
+import { expect } from "@std/expect";
+import {
+  AdminApiError,
+  type AdminApiResponse,
+} from "#shared/admin-api-client.ts";
 import { apiRequest } from "./session.ts";
 
 export const adminApiTestTransport = async (options: {
@@ -23,4 +27,16 @@ export const adminApiTestTransport = async (options: {
     data: JSON.parse(text) as unknown,
     status: response.status,
   };
+};
+
+/** Run one admin API call, and assert it fails with the AdminApiError whose
+ *  message the caller names — the client's "<server message> (status <n>)"
+ *  shape. */
+export const expectAdminApiError = async (
+  call: Promise<unknown>,
+  message: string,
+): Promise<void> => {
+  const failure = await call.catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(AdminApiError);
+  expect((failure as Error).message).toBe(message);
 };

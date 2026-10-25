@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type {
@@ -19,6 +20,7 @@ const questions: QuestionWithAnswers[] = [
       { active: true, id: 10, question_id: 1, sort_order: 0, text: "Small" },
       { active: true, id: 11, question_id: 1, sort_order: 1, text: "Large" },
     ],
+    assign_all: false,
     display_type: "radio",
     id: 1,
     text: "Shirt size?",
@@ -27,11 +29,18 @@ const questions: QuestionWithAnswers[] = [
     answers: [
       { active: true, id: 20, question_id: 2, sort_order: 0, text: "Vegan" },
     ],
+    assign_all: false,
     display_type: "radio",
     id: 2,
     text: "Meal?",
   },
-  { answers: [], display_type: "free_text", id: 3, text: "Allergies?" },
+  {
+    answers: [],
+    assign_all: false,
+    display_type: "free_text",
+    id: 3,
+    text: "Allergies?",
+  },
 ];
 
 const selected = (
@@ -288,13 +297,15 @@ describe("AttendeeAnswersTable", () => {
         }),
       ),
     );
-    expect(html).toContain("Answers");
-    expect(html).toContain("Shirt size?");
-    expect(html).toContain(">Small<br>");
-    expect(html).toContain(
+    assertStringIncludes(html, "Answers");
+    assertStringIncludes(html, "Shirt size?");
+    assertStringIncludes(html, ">Small<br>");
+    assertStringIncludes(
+      html,
       "<small>Changed. At booking: &quot;Large&quot;.</small>",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<small>Warning: This answer changes the price. The price was not updated.</small>",
     );
   });

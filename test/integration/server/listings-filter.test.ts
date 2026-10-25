@@ -9,7 +9,7 @@
  * organiser narrows a long list down to what they are looking for".
  */
 
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
@@ -42,9 +42,9 @@ describeWithEnv("listings type filter", { db: true }, () => {
       });
       const response = await adminGet("/admin?type=purchase-only");
       const html = await response.text();
-      expect(html).toContain(`href="/admin/listing/${merch.id}"`);
-      expect(html).not.toContain(`href="/admin/listing/${standard.id}"`);
-      expect(html).toContain("No check-in");
+      assertStringIncludes(html, `href="/admin/listing/${merch.id}"`);
+      assert(!html.includes(`href="/admin/listing/${standard.id}"`));
+      assertStringIncludes(html, "No check-in");
     });
 
     test("treats an unknown type as 'all'", async () => {
@@ -52,9 +52,9 @@ describeWithEnv("listings type filter", { db: true }, () => {
       const daily = await createTestListing({ name: "Daily One", ...DAILY });
       const response = await adminGet("/admin?type=bogus");
       const html = await response.text();
-      expect(html).toContain(`href="/admin/listing/${standard.id}"`);
-      expect(html).toContain(`href="/admin/listing/${daily.id}"`);
-      expect(html).toContain("<strong><u>All</u></strong>");
+      assertStringIncludes(html, `href="/admin/listing/${standard.id}"`);
+      assertStringIncludes(html, `href="/admin/listing/${daily.id}"`);
+      assertStringIncludes(html, "<strong><u>All</u></strong>");
     });
 
     // Only reading the link itself tells this apart: dropping the kind from a
@@ -75,7 +75,10 @@ describeWithEnv("listings type filter", { db: true }, () => {
         }`,
       );
 
-      expect(await response.text()).toContain(`href="/admin/?type=daily">All`);
+      assertStringIncludes(
+        await response.text(),
+        `href="/admin/?type=daily">All`,
+      );
     });
   });
 
@@ -109,8 +112,8 @@ describeWithEnv("listings type filter", { db: true }, () => {
       );
       const html = await response.text();
 
-      expect(html).toContain(`href="/admin/listing/${shown.id}"`);
-      expect(html).not.toContain(`href="/admin/listing/${hidden.id}"`);
+      assertStringIncludes(html, `href="/admin/listing/${shown.id}"`);
+      assert(!html.includes(`href="/admin/listing/${hidden.id}"`));
     });
 
     test("CSV export link carries the active attribute filter", async () => {
@@ -127,7 +130,7 @@ describeWithEnv("listings type filter", { db: true }, () => {
       const filterParam = `attribute_${difficulty.id}=${
         difficulty.options[0]!.id
       }`;
-      expect(html).toContain(`href="/admin/listings/csv?${filterParam}"`);
+      assertStringIncludes(html, `href="/admin/listings/csv?${filterParam}"`);
     });
 
     test("CSV export respects attribute filter", async () => {
@@ -145,8 +148,8 @@ describeWithEnv("listings type filter", { db: true }, () => {
       );
       const csv = await response.text();
 
-      expect(csv).toContain("CSV Shown");
-      expect(csv).not.toContain("CSV Hidden");
+      assertStringIncludes(csv, "CSV Shown");
+      assert(!csv.includes("CSV Hidden"));
     });
   });
 
@@ -170,7 +173,7 @@ describeWithEnv("listings type filter", { db: true }, () => {
         "Difficulty",
         "Easy",
       );
-      expect(html).not.toContain("Showing:");
+      assert(!html.includes("Showing:"));
     });
 
     test("shows selected listing attributes on a single ticket page", async () => {

@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
@@ -67,7 +67,7 @@ describeWithEnv(
           mockRequest(`/admin/listing/${listing.id}`, { headers: { cookie } }),
         );
         const html = await response.text();
-        expect(html).not.toContain("image was not uploaded");
+        assert(!html.includes("image was not uploaded"));
       });
     });
   },

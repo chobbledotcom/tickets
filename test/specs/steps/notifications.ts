@@ -4,8 +4,9 @@
  * dashboard, and on the merge screen.
  */
 
-// jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
+// jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
@@ -52,14 +53,14 @@ const ticketOwing = (email: number, webhooks: number) =>
 /** What one person's list row says about one notice. */
 const listSays = (notice: () => string) =>
   function (this: TicketsWorld, who: string): void {
-    expect(rowOnTheList(this, who)).toContain(notice());
+    assertStringIncludes(rowOnTheList(this, who), notice());
   };
 
 /** What one person's own page says about one notice. The page the story
  * opened is already that person's, so the step only reads it. */
 const ownPageSays = (notice: () => string) =>
   function (this: TicketsWorld, _who: string): void {
-    expect(pageSeen(this)).toContain(notice());
+    assertStringIncludes(pageSeen(this), notice());
   };
 
 /** The admin page the story opens, read whole and carried for the steps that
@@ -188,7 +189,7 @@ Then(
   function (this: TicketsWorld, who: string): void {
     // The pill carries its own leading space. Read the space off the rendered
     // row, where a screen reader or a copy meets it.
-    expect(rowOnTheList(this, who)).toContain(`${who}</a> <span`);
+    assertStringIncludes(rowOnTheList(this, who), `${who}</a> <span`);
   },
 );
 
@@ -201,8 +202,8 @@ Then(
   "the list says {word}'s email and webhooks never went out",
   function (this: TicketsWorld, who: string): void {
     const row = rowOnTheList(this, who);
-    expect(row).toContain(emailNotice());
-    expect(row).toContain(webhooksNotice());
+    assertStringIncludes(row, emailNotice());
+    assertStringIncludes(row, webhooksNotice());
   },
 );
 
@@ -210,15 +211,15 @@ Then(
   "the list says nothing about {word}'s sends",
   function (this: TicketsWorld, who: string): void {
     const row = rowOnTheList(this, who);
-    expect(row).not.toContain(emailNotice());
-    expect(row).not.toContain(webhooksNotice());
+    assert(!row.includes(emailNotice()));
+    assert(!row.includes(webhooksNotice()));
   },
 );
 
 Then(
   "the list says nothing about {word}'s email",
   function (this: TicketsWorld, who: string): void {
-    expect(rowOnTheList(this, who)).not.toContain(emailNotice());
+    assert(!rowOnTheList(this, who).includes(emailNotice()));
   },
 );
 
@@ -235,15 +236,16 @@ Then(
 Then(
   "{word}'s own page says nothing about their sends",
   function (this: TicketsWorld, _who: string): void {
-    expect(pageSeen(this)).not.toContain(emailNotice());
-    expect(pageSeen(this)).not.toContain(webhooksNotice());
+    assert(!pageSeen(this).includes(emailNotice()));
+    assert(!pageSeen(this).includes(webhooksNotice()));
   },
 );
 
 Then(
   "the dashboard counts {int} attendee(s) with unsent notifications",
   function (this: TicketsWorld, count: number): void {
-    expect(pageSeen(this)).toContain(
+    assertStringIncludes(
+      pageSeen(this),
       t("admin.dashboard.pending_notifications", { count }),
     );
   },
@@ -256,8 +258,10 @@ Then(
     // print — one attendee, several, and the zero it must never print —
     // stays absent.
     for (const count of [0, 1, 2]) {
-      expect(pageSeen(this)).not.toContain(
-        t("admin.dashboard.pending_notifications", { count }),
+      assert(
+        !pageSeen(this).includes(
+          t("admin.dashboard.pending_notifications", { count }),
+        ),
       );
     }
   },
@@ -269,8 +273,8 @@ Then(
     const { kept } = mergeSections(
       requiredWorldValue(this.mergePreviewHtml, "the merge screen"),
     );
-    expect(kept).toContain(emailNotice());
-    expect(kept).not.toContain(webhooksNotice());
+    assertStringIncludes(kept, emailNotice());
+    assert(!kept.includes(webhooksNotice()));
   },
 );
 
@@ -280,8 +284,8 @@ Then(
     const { duplicate } = mergeSections(
       requiredWorldValue(this.mergePreviewHtml, "the merge screen"),
     );
-    expect(duplicate).toContain(webhooksNotice());
-    expect(duplicate).not.toContain(emailNotice());
+    assertStringIncludes(duplicate, webhooksNotice());
+    assert(!duplicate.includes(emailNotice()));
   },
 );
 
@@ -292,8 +296,8 @@ Then(
       requiredWorldValue(this.mergePreviewHtml, "the merge screen"),
     );
     for (const section of [kept, duplicate]) {
-      expect(section).not.toContain(emailNotice());
-      expect(section).not.toContain(webhooksNotice());
+      assert(!section.includes(emailNotice()));
+      assert(!section.includes(webhooksNotice()));
     }
   },
 );

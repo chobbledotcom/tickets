@@ -13,7 +13,7 @@ import { defineCrudApi } from "#shared/rest/crud-api.ts";
 // jscpd:ignore-start
 import {
   type FieldRefusal,
-  requireEntityName,
+  requireEntityField,
 } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 // jscpd:ignore-end
@@ -50,7 +50,7 @@ const holidayInputFrom = (
 ): Result<HolidayInput> => {
   const guard = refuseInvalidFieldValue(body);
   if (guard) return guard;
-  const name = requireEntityName(body, existing?.name ?? null);
+  const name = requireEntityField(body, "name", existing?.name ?? null);
   if (!name.ok) return name;
   const dates = readDates(body, existing);
   if (!dates.ok) return dates;

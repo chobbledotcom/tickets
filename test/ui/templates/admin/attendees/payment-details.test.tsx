@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
@@ -45,12 +46,12 @@ describe("attendee payment details panel", () => {
         showBalanceLink: false,
       }),
     );
-    expect(html).toContain('<div class="prose"><h3>Payment Details</h3>');
-    expect(html).toContain("<strong>Payment ID:</strong> pi_123");
-    expect(html).toContain("<strong>Amount Paid:</strong> £15");
-    expect(html).toContain("<strong>Refund Status:</strong> Not refunded");
+    assertStringIncludes(html, '<div class="prose"><h3>Payment Details</h3>');
+    assertStringIncludes(html, "<strong>Payment ID:</strong> pi_123");
+    assertStringIncludes(html, "<strong>Amount Paid:</strong> £15");
+    assertStringIncludes(html, "<strong>Refund Status:</strong> Not refunded");
     // A fully paid attendee shows no outstanding balance line.
-    expect(html).not.toContain("Balance outstanding");
+    assert(!html.includes("Balance outstanding"));
   });
 
   test("a hex-looking price parses as decimal, so nothing was paid", () => {
@@ -62,8 +63,8 @@ describe("attendee payment details panel", () => {
         showBalanceLink: false,
       }),
     );
-    expect(html).toContain("Payment ID");
-    expect(html).not.toContain("Amount Paid");
+    assertStringIncludes(html, "Payment ID");
+    assert(!html.includes("Amount Paid"));
     // One minor unit still counts as paid.
     const penny = String(
       PaymentDetails({
@@ -72,7 +73,7 @@ describe("attendee payment details panel", () => {
         showBalanceLink: false,
       }),
     );
-    expect(penny).toContain("Amount Paid:");
+    assertStringIncludes(penny, "Amount Paid:");
   });
 
   test("the refunded state shows the refund badge", () => {
@@ -83,8 +84,8 @@ describe("attendee payment details panel", () => {
         showBalanceLink: false,
       }),
     );
-    expect(html).toContain("Refunded");
-    expect(html).not.toContain("Not refunded");
+    assertStringIncludes(html, "Refunded");
+    assert(!html.includes("Not refunded"));
   });
 
   test("an outstanding balance links the ledger only for permitted viewers", () => {
@@ -99,8 +100,9 @@ describe("attendee payment details panel", () => {
         showBalanceLink: true,
       }),
     );
-    expect(linked).toContain("Balance outstanding:</strong> £4 — <a href=");
-    expect(linked).toContain(
+    assertStringIncludes(linked, "Balance outstanding:</strong> £4 — <a href=");
+    assertStringIncludes(
+      linked,
       '<a href="/admin/attendees/1/ledger">View money changes and payment link</a>',
     );
 
@@ -111,8 +113,8 @@ describe("attendee payment details panel", () => {
         showBalanceLink: false,
       }),
     );
-    expect(unlinked).toContain("Balance outstanding");
-    expect(unlinked).not.toContain("/ledger");
+    assertStringIncludes(unlinked, "Balance outstanding");
+    assert(!unlinked.includes("/ledger"));
 
     // One minor unit still counts as outstanding.
     const penny = String(
@@ -125,7 +127,7 @@ describe("attendee payment details panel", () => {
         showBalanceLink: false,
       }),
     );
-    expect(penny).toContain("Balance outstanding");
+    assertStringIncludes(penny, "Balance outstanding");
   });
 
   test("a refresh control offers the refresh form or names the failure", () => {
@@ -139,11 +141,12 @@ describe("attendee payment details panel", () => {
         showBalanceLink: false,
       }),
     );
-    expect(refreshable).toContain('class="inline"');
-    expect(refreshable).toContain(
+    assertStringIncludes(refreshable, 'class="inline"');
+    assertStringIncludes(
+      refreshable,
       'action="/admin/attendees/1/refresh-payment"',
     );
-    expect(refreshable).toContain("Refresh payment status");
+    assertStringIncludes(refreshable, "Refresh payment status");
 
     const failed = String(
       PaymentDetails({
@@ -152,8 +155,8 @@ describe("attendee payment details panel", () => {
         showBalanceLink: false,
       }),
     );
-    expect(failed).toContain("Provider is unreachable.");
-    expect(failed).not.toContain("refresh-payment");
+    assertStringIncludes(failed, "Provider is unreachable.");
+    assert(!failed.includes("refresh-payment"));
   });
 });
 
@@ -167,15 +170,16 @@ describe("attendee refund confirmation pages", () => {
       { attendee: testAttendee({ payment_id: "pi_2", price_paid: "0x1A" }) },
       OWNER_SESSION,
     );
-    expect(html).toContain("Refund Attendee: John Doe");
-    expect(html).toContain('action="/admin/attendees/1/refund"');
-    expect(html).toContain(
+    assertStringIncludes(html, "Refund Attendee: John Doe");
+    assertStringIncludes(html, 'action="/admin/attendees/1/refund"');
+    assertStringIncludes(
+      html,
       "This will issue a full refund for this attendee's payment",
     );
-    expect(html).toContain("<strong>Warning:</strong>");
-    expect(html).not.toContain("<strong>Amount Paid:</strong>");
+    assertStringIncludes(html, "<strong>Warning:</strong>");
+    assert(!html.includes("<strong>Amount Paid:</strong>"));
     // The refund confirm sits under the Home nav, not a section's.
-    expect(html).toContain('<a class="active" href="/admin/"');
+    assertStringIncludes(html, '<a class="active" href="/admin/"');
   });
 
   test("the blocked refund page keeps the facts but sends nothing", () => {
@@ -183,12 +187,12 @@ describe("attendee refund confirmation pages", () => {
       { attendee: testAttendee({ payment_id: "pi_3", price_paid: "700" }) },
       OWNER_SESSION,
     );
-    expect(blocked).toContain("Refund Attendee: John Doe");
-    expect(blocked).toContain("<strong>Amount Paid:</strong> £7");
-    expect(blocked).toContain("Attendee Details");
+    assertStringIncludes(blocked, "Refund Attendee: John Doe");
+    assertStringIncludes(blocked, "<strong>Amount Paid:</strong> £7");
+    assertStringIncludes(blocked, "Attendee Details");
     // A disabled confirm page sends nothing: no form and no submit control.
-    expect(blocked).not.toContain("<form");
-    expect(blocked).not.toContain('type="submit"');
+    assert(!blocked.includes("<form"));
+    assert(!blocked.includes('type="submit"'));
   });
 
   test("the payment-review page carries its identity and confirm word", () => {
@@ -199,13 +203,13 @@ describe("attendee refund confirmation pages", () => {
       },
       OWNER_SESSION,
     );
-    expect(html).toContain('action="/admin/attendees/1/payment-review"');
-    expect(html).toContain("review_identity");
-    expect(html).toContain("case-88");
-    expect(html).toContain("type their name");
+    assertStringIncludes(html, 'action="/admin/attendees/1/payment-review"');
+    assertStringIncludes(html, "review_identity");
+    assertStringIncludes(html, "case-88");
+    assertStringIncludes(html, "type their name");
     // The review page's details stay payment-blind: no amount line, even
     // though this attendee paid.
-    expect(html).not.toContain("<strong>Amount Paid:</strong>");
+    assert(!html.includes("<strong>Amount Paid:</strong>"));
   });
 
   test("the resend-notification page is safe, paid-aware, and explains itself", () => {
@@ -217,16 +221,20 @@ describe("attendee refund confirmation pages", () => {
       },
       OWNER_SESSION,
     );
-    expect(html).toContain("Re-send Notification: John Doe");
-    expect(html).toContain('action="/admin/attendees/1/resend-notification"');
-    expect(html).toContain(
+    assertStringIncludes(html, "Re-send Notification: John Doe");
+    assertStringIncludes(
+      html,
+      'action="/admin/attendees/1/resend-notification"',
+    );
+    assertStringIncludes(
+      html,
       "This will re-send the registration notification for this attendee.",
     );
-    expect(html).toContain("<strong>Note:</strong>");
+    assertStringIncludes(html, "<strong>Note:</strong>");
     // One minor unit still shows as paid on the details block.
-    expect(html).toContain("<strong>Amount Paid:</strong>");
+    assertStringIncludes(html, "<strong>Amount Paid:</strong>");
     // Re-sending is not a destructive action: no danger styling anywhere.
-    expect(html).not.toContain('class="danger"');
+    assert(!html.includes('class="danger"'));
   });
 
   test("the refund-all page warns per the count and the blocker's reason", () => {
@@ -241,22 +249,26 @@ describe("attendee refund confirmation pages", () => {
       },
       OWNER_SESSION,
     );
-    expect(blocked).toContain("Refund All: Camp");
-    expect(blocked).toContain(
+    assertStringIncludes(blocked, "Refund All: Camp");
+    assertStringIncludes(
+      blocked,
       "This will issue a full refund for all 3 attendee(s)",
     );
-    expect(blocked).toContain("Two attendees still have payments in flight.");
-    expect(blocked).toContain("Try again later.");
+    assertStringIncludes(
+      blocked,
+      "Two attendees still have payments in flight.",
+    );
+    assertStringIncludes(blocked, "Try again later.");
 
     const ready = adminRefundAllAttendeesPage(
       listing,
       { count: 2, flash: undefined, kind: "available" },
       OWNER_SESSION,
     );
-    expect(ready).toContain("all 2 attendee(s)");
-    expect(ready).toContain('action="/admin/listing/5/refund-all"');
-    expect(ready).toContain('<a class="active" href="/admin/"');
-    expect(ready).not.toContain("payments in flight");
-    expect(ready).not.toContain("Try again later.");
+    assertStringIncludes(ready, "all 2 attendee(s)");
+    assertStringIncludes(ready, 'action="/admin/listing/5/refund-all"');
+    assertStringIncludes(ready, '<a class="active" href="/admin/"');
+    assert(!ready.includes("payments in flight"));
+    assert(!ready.includes("Try again later."));
   });
 });

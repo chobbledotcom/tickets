@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
-import { expect } from "@std/expect";
+import { assert } from "@std/assert";
 import { pageShowsPicture } from "#test/specs/support/attendee-images.ts";
 import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
 import { keepSiteForReadingOnly } from "#test/specs/support/features.ts";
@@ -42,8 +42,8 @@ Then(
 Then(
   "the message panel offers no way to edit the message",
   function (this: TicketsWorld): void {
-    expect(scenarioBrowser(this).currentHtml).not.toContain(
-      'name="support_message"',
+    assert(
+      !scenarioBrowser(this).currentHtml.includes('name="support_message"'),
     );
   },
 );

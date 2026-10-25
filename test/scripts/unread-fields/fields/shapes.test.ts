@@ -60,6 +60,18 @@ describe("what the scan counts as a shape", () => {
     expect(verdictOf("Answerer", "readsLikeAField")).toBe("never read");
   });
 
+  test("reports the field of a class the module exports with no name", () => {
+    // The class carries no name to look up, so the report reaches it through
+    // the module's default export.
+    expect(verdictOf("default", "silent")).toBe("never read");
+  });
+
+  test("counts an importer read of the anonymous class field", () => {
+    // The importer reaches the same class through the name it gives the
+    // default import, and the read keeps the field out of the report.
+    expect(verdictOf("default", "handedOver")).toBe("read");
+  });
+
   test("leaves out a method the class keeps to itself", () => {
     expect(verdictOf("Answerer", "keptInside")).toBeUndefined();
   });

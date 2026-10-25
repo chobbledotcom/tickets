@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
@@ -199,7 +200,7 @@ describeWithEnv(
           expect(afterRace.readOnlyFrom).not.toBe("");
           expect(recorder.pushedUrls.length).toBeGreaterThanOrEqual(1);
           for (const pushed of recorder.pushedUrls) {
-            expect(pushed).toContain(afterRace.renewalToken!);
+            assertStringIncludes(pushed, afterRace.renewalToken!);
           }
         } finally {
           recorder.stub.restore();

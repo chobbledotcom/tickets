@@ -6,6 +6,7 @@
 
 // jscpd:ignore-start
 
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { showsPicture } from "#test/specs/support/picture-assertions.ts";
 import {
@@ -100,7 +101,7 @@ const readShowsPictureIn =
   (pictureShows: (world: TicketsWorld, html: string) => void) =>
   (world: TicketsWorld, browser: TestBrowser, words: string): void => {
     expect(browser.answered).toBe(200);
-    expect(browser.pageText).toContain(words);
+    assertStringIncludes(browser.pageText, words);
     pictureShows(world, browser.currentHtml);
   };
 

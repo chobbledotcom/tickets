@@ -271,19 +271,21 @@ describeWithEnv("route responses", { db: true }, () => {
       ["OPTIONS", false],
     ] as const) {
       test(`applies the temporary error refresh policy for ${method}`, async () => {
-        await expectTemporaryError(autoRefresh)(temporaryErrorResponse(method));
+        await expectTemporaryError(autoRefresh)(
+          await temporaryErrorResponse(method),
+        );
       });
     }
 
     test("reloads a busy database page only for a safe request", async () => {
       const retry = await expectHtmlResponse(
-        databaseBusyResponse("GET"),
+        await databaseBusyResponse("GET"),
         503,
         "The database is too busy.",
         'http-equiv="refresh"',
       );
       const noRetry = await expectHtmlResponse(
-        databaseBusyResponse("POST"),
+        await databaseBusyResponse("POST"),
         503,
         "Please go back and try again",
       );
@@ -293,7 +295,7 @@ describeWithEnv("route responses", { db: true }, () => {
 
     test("renders the not-activated page without reloading", async () => {
       const html = await expectHtmlResponse(
-        siteNotActivatedResponse(),
+        await siteNotActivatedResponse(),
         503,
         "This site has not been activated yet",
       );
@@ -302,7 +304,7 @@ describeWithEnv("route responses", { db: true }, () => {
 
     test("renders the migration page with reloading", async () => {
       const html = await expectHtmlResponse(
-        migrationInProgressResponse(),
+        await migrationInProgressResponse(),
         503,
         "Update In Progress",
         "backing up and updating the database",
@@ -311,27 +313,31 @@ describeWithEnv("route responses", { db: true }, () => {
       assert(!html.includes("Temporary error"));
     });
 
-    test("sets Retry-After to the page refresh interval on temporary errors", () => {
-      expect(temporaryErrorResponse("GET").headers.get("retry-after")).toBe(
-        "2",
-      );
-      expect(temporaryErrorResponse("POST").headers.get("retry-after")).toBe(
-        "2",
-      );
+    test("sets Retry-After to the page refresh interval on temporary errors", async () => {
+      expect(
+        (await temporaryErrorResponse("GET")).headers.get("retry-after"),
+      ).toBe("2");
+      expect(
+        (await temporaryErrorResponse("POST")).headers.get("retry-after"),
+      ).toBe("2");
     });
 
-    test("sets Retry-After on the busy database response", () => {
-      expect(databaseBusyResponse("GET").headers.get("retry-after")).toBe("2");
+    test("sets Retry-After on the busy database response", async () => {
+      expect(
+        (await databaseBusyResponse("GET")).headers.get("retry-after"),
+      ).toBe("2");
     });
 
-    test("sets Retry-After to the migration refresh interval", () => {
-      expect(migrationInProgressResponse().headers.get("retry-after")).toBe(
-        "5",
-      );
+    test("sets Retry-After to the migration refresh interval", async () => {
+      expect(
+        (await migrationInProgressResponse()).headers.get("retry-after"),
+      ).toBe("5");
     });
 
-    test("sends no Retry-After while the site is not activated", () => {
-      expect(siteNotActivatedResponse().headers.get("retry-after")).toBeNull();
+    test("sends no Retry-After while the site is not activated", async () => {
+      expect(
+        (await siteNotActivatedResponse()).headers.get("retry-after"),
+      ).toBeNull();
     });
 
     test("sends no Retry-After on the token rate-limit page", async () => {

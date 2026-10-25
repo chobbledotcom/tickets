@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
@@ -132,7 +133,7 @@ const expectSavedAndRefunded = () =>
     200,
     (json) => {
       expect(json.processed).toBe(false);
-      expect(json.error).toContain("saved your details");
+      assertStringIncludes(json.error, "saved your details");
     },
   );
 

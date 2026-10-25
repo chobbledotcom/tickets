@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { bulkEmailTemplateDeletePage } from "#templates/admin/bulk-email.tsx";
 import {
@@ -14,14 +14,16 @@ describe("bulkEmailTemplateDeletePage", () => {
   test("renders the heading, intro, and prompt for the named template", () => {
     const html = bulkEmailTemplateDeletePage(template, OWNER_SESSION);
 
-    expect(html).toContain('action="/admin/emails/templates/9/delete"');
-    expect(html).toContain("<h1>Delete template</h1>");
-    expect(html).toContain(
+    assertStringIncludes(html, 'action="/admin/emails/templates/9/delete"');
+    assertStringIncludes(html, "<h1>Delete template</h1>");
+    assertStringIncludes(
+      html,
       "Are you sure you want to delete the saved template with subject:",
     );
-    expect(html).toContain("<strong>March offers &amp; news</strong>");
-    expect(html).toContain("<p>Type the template subject to confirm:</p>");
-    expect(html).toContain(
+    assertStringIncludes(html, "<strong>March offers &amp; news</strong>");
+    assertStringIncludes(html, "<p>Type the template subject to confirm:</p>");
+    assertStringIncludes(
+      html,
       'name="confirm_identifier" placeholder="March offers &amp; news" required',
     );
   });
@@ -29,9 +31,9 @@ describe("bulkEmailTemplateDeletePage", () => {
   test("renders a dangerous submit button", () => {
     const html = bulkEmailTemplateDeletePage(template, OWNER_SESSION);
 
-    expect(html).toContain('<button class="danger" type="submit">');
-    expect(html).toContain("/icons.svg#trash-2");
-    expect(html).toContain("Delete template");
+    assertStringIncludes(html, '<button class="danger" type="submit">');
+    assertStringIncludes(html, "/icons.svg#trash-2");
+    assertStringIncludes(html, "Delete template");
   });
 
   test("renders a rejected-submit error", () => {
@@ -41,6 +43,6 @@ describe("bulkEmailTemplateDeletePage", () => {
       "Template subject does not match.",
     );
 
-    expect(html).toContain("Template subject does not match.");
+    assertStringIncludes(html, "Template subject does not match.");
   });
 });

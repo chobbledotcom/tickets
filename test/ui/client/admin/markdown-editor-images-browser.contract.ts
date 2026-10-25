@@ -12,18 +12,17 @@
  * (it needs Chromium and the built bundles).
  */
 
+import { assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
-import { afterAll, beforeAll, it as test } from "@std/testing/bdd";
-import { type Browser, chromium, type Locator, type Page } from "playwright";
+import { it as test } from "@std/testing/bdd";
+import type { Locator, Page } from "playwright";
 import { ensureMessageGroups, t } from "#i18n";
 import { MESSAGE_GROUPS } from "#locales/manifest.ts";
-import { browserLaunchOptions } from "#scripts/browser-options.ts";
-import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
-import { defineLoopbackServer } from "#scripts/specs/evidence/server.ts";
-import { denoServeHandler } from "#src/serve-app.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { testCookie } from "#test-utils/session.ts";
+import {
+  describeWithBrowser,
+  withSignedInPage,
+} from "#test-utils/browser-contract.ts";
 
 // The page editor renders catalog copy, so the contract needs the full
 // message catalog whether or not the shared preload ran first.
@@ -37,55 +36,14 @@ const CONTENT_BOX = 'textarea[name="content"]';
 const EMPTY_MESSAGE = "No images uploaded yet.";
 const UNAVAILABLE_MESSAGE = "Images are unavailable right now.";
 
-describeWithEnv(
+describeWithBrowser(
   "the image dropdown at the served page editor",
   { db: true, storage: "cdn" },
-  () => {
-    let closeSuite: () => Promise<void>;
-    let baseUrl: string;
-    let browser: Browser;
-
-    beforeAll(async () => {
-      const server = defineLoopbackServer(denoServeHandler)();
-      baseUrl = server.baseUrl;
-      browser = await chromium.launch(
-        browserLaunchOptions(true, await chromiumExecutable()),
-      );
-      closeSuite = async () => {
-        await browser.close();
-        await server.close();
-      };
-    });
-
-    afterAll(() => closeSuite());
-
-    /** A fresh signed-in context on the app's own address, closed with the test.
-     * Reduced motion skips the app's cross-document view transition, whose
-     * cross-fade keeps a freshly loaded page's elements unstable for clicks. */
-    const withPage = async <T>(run: (page: Page) => Promise<T>): Promise<T> => {
-      const context = await browser.newContext({
-        baseURL: baseUrl,
-        reducedMotion: "reduce",
-      });
-      const [pair] = (await testCookie()).split(";", 1);
-      const splitAt = pair?.indexOf("=") ?? -1;
-      if (pair === undefined || splitAt < 1 || splitAt === pair.length - 1) {
-        throw new Error("The test owner cookie is malformed");
-      }
-      await context.addCookies([
-        {
-          name: pair.slice(0, splitAt),
-          url: baseUrl,
-          value: pair.slice(splitAt + 1),
-        },
-      ]);
-      const page = await context.newPage();
-      try {
-        return await run(page);
-      } finally {
-        await context.close();
-      }
-    };
+  (contract) => {
+    /** The shared signed-in page, bound to the contract's browser and
+     * address. */
+    const withPage = async <T>(run: (page: Page) => Promise<T>): Promise<T> =>
+      withSignedInPage(contract.browser, contract.baseUrl, run);
 
     /** The new-page form with its rich editor mounted. */
     const openPageEditor = async (page: Page): Promise<void> => {
@@ -216,7 +174,7 @@ describeWithEnv(
         // The save lands on the page's own edit form, so the box there shows
         // what the save stored.
         const reference = `![Harbour](img#${harbour.id})`;
-        expect(await contentValue(page)).toContain(reference);
+        assertStringIncludes(await contentValue(page), reference);
 
         // Reopening goes through the owner's list, the way the owner reaches
         // it: the row's link names the page's own edit form, and the story
@@ -228,8 +186,8 @@ describeWithEnv(
         const wayIn = await row.getAttribute("href");
         if (wayIn === null) throw new Error("the list offered no way in");
         await page.goto(wayIn);
-        expect(await contentValue(page)).toContain(reference);
-        expect(await contentValue(page)).toContain("Take the coast road.");
+        assertStringIncludes(await contentValue(page), reference);
+        assertStringIncludes(await contentValue(page), "Take the coast road.");
       });
     });
 
@@ -305,7 +263,7 @@ describeWithEnv(
           EMPTY_MESSAGE,
         );
 
-        expect(note).toContain(EMPTY_MESSAGE);
+        assertStringIncludes(note, EMPTY_MESSAGE);
         expect(await panel.locator(OPTION).count()).toBe(0);
         expect(content).toBe("Unchanged words.");
       });
@@ -319,7 +277,7 @@ describeWithEnv(
           UNAVAILABLE_MESSAGE,
         );
 
-        expect(note).toContain(UNAVAILABLE_MESSAGE);
+        assertStringIncludes(note, UNAVAILABLE_MESSAGE);
         expect(await panel.locator(OPTION).count()).toBe(0);
         expect(content).toBe("Unchanged words.");
       });
@@ -341,7 +299,9 @@ describeWithEnv(
           .locator(NOTE)
           .filter({ hasText: UNAVAILABLE_MESSAGE })
           .waitFor();
-        expect(await panel.textContent()).toContain(UNAVAILABLE_MESSAGE);
+        const panelText = await panel.textContent();
+        assertExists(panelText);
+        assertStringIncludes(panelText, UNAVAILABLE_MESSAGE);
 
         // Shut and reopen: a failed load is never cached, so the second open
         // asks the route again and the real answer arrives.

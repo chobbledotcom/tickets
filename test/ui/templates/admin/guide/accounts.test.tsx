@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -57,51 +58,59 @@ describe("accounts guide schema", () => {
       html.indexOf(t("guide.q.invite_admin")),
     );
     // What the role is for, and the line past which it cannot go.
-    expect(answer).toContain(t("guide.a.scanner_role"));
-    expect(answer).toContain("<strong>Scanners</strong>");
+    assertStringIncludes(answer, t("guide.a.scanner_role"));
+    assertStringIncludes(answer, "<strong>Scanners</strong>");
   });
 
   test("renders the webhook answer with its developer framing", () => {
     const html = String(renderGuideSections([sectionById("webhooks")]));
-    expect(html).toContain("sent as JSON — a text shape");
+    assertStringIncludes(html, "sent as JSON — a text shape");
     // A re-send with no stored contact history reports "unknown".
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<code>unknown</code> means no stored contact history",
     );
   });
 
   test("renders the lockout answer with the attempt count and the minutes", () => {
     const html = String(renderGuideSections([sectionById("login")]));
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `After <strong>${MAX_LOGIN_ATTEMPTS} wrong tries</strong>`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `blocked for <strong>${durationWords(LOGIN_LOCKOUT_MS / 1000)}</strong>`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "Because there is <strong>no password recovery</strong>",
     );
-    expect(html).toContain("(see <strong>Data &amp; privacy</strong>)");
+    assertStringIncludes(html, "(see <strong>Data &amp; privacy</strong>)");
   });
 
   test("states the session length the site actually uses", () => {
     const html = String(renderGuideSections([sectionById("login")]));
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `Sessions expire after ${durationWords(SESSION_MAX_AGE_S)}.`,
     );
   });
 
   test("states the login security lengths the site actually uses", () => {
     const html = String(renderGuideSections([sectionById("login-security")]));
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `blocked from logging in for <strong>${durationWords(
         LOGIN_LOCKOUT_MS / 1000,
       )}</strong>`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `Wait ${durationWords(LOGIN_LOCKOUT_MS / 1000)} and try again`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `expires after <strong>${durationWords(SESSION_MAX_AGE_S)}</strong>`,
     );
   });

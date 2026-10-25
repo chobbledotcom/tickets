@@ -50,11 +50,15 @@ const checkCells = (
   events: ReadonlySet<string>,
 ): void => {
   for (const [from, cells] of Object.entries(machine.declaredMoves ?? {})) {
-    expect(machine.states, `cells from ${from}`).toContain(from);
+    assertArrayIncludes(machine.states, [from], `cells from ${from}`);
     for (const [event, cell] of Object.entries(cells)) {
-      expect([...events], `${from} --${event}-->`).toContain(event);
+      assertArrayIncludes([...events], [event], `${from} --${event}-->`);
       for (const to of targetsOf(cell)) {
-        expect(machine.states, `${from} --${event}--> ${to}`).toContain(to);
+        assertArrayIncludes(
+          machine.states,
+          [to],
+          `${from} --${event}--> ${to}`,
+        );
       }
     }
   }

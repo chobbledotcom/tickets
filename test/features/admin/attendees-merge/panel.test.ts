@@ -73,7 +73,7 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         `/admin/attendees/${attendee.id}/actions?token=invalid-token`,
       );
       const html = await response.text();
-      expect(html).toContain(">Ticket token not found</div>");
+      assertStringIncludes(html, ">Ticket token not found</div>");
     });
 
     test("shows error when token matches same attendee", async () => {
@@ -86,7 +86,10 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         )}`,
       );
       const html = await response.text();
-      expect(html).toContain(">Cannot merge an attendee with themselves</div>");
+      assertStringIncludes(
+        html,
+        ">Cannot merge an attendee with themselves</div>",
+      );
     });
 
     test("shows merge preview when valid source token provided", async () => {

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -46,17 +47,21 @@ test("ExpectedActualNotice renders the wrapper, badge and first item", () => {
     items: [item({ actual: "4", expected: "3", label: "Total" })],
   })!.toString();
 
-  expect(html).toContain('class="expected-actual-notice"');
-  expect(html).toContain('role="alert"');
-  expect(html).toContain('class="badge-alert"');
+  assertStringIncludes(html, 'class="expected-actual-notice"');
+  assertStringIncludes(html, 'role="alert"');
+  assertStringIncludes(html, 'class="badge-alert"');
   // Default badge label and title come from i18n.
-  expect(html).toContain(">Mismatch</span>");
-  expect(html).toContain("Stored total mismatch");
+  assertStringIncludes(html, ">Mismatch</span>");
+  assertStringIncludes(html, "Stored total mismatch");
   // Summary spells out the first item with the surrounding spacing preserved.
-  expect(html).toContain(
+  assertStringIncludes(
+    html,
     "<strong>Total</strong>: expected <strong>3</strong>, got <strong>4</strong>.",
   );
-  expect(html).toContain("The stored value does not match the expected value.");
+  assertStringIncludes(
+    html,
+    "The stored value does not match the expected value.",
+  );
 });
 
 test("ExpectedActualNotice omits the extra summary text for a single item", () => {
@@ -65,7 +70,7 @@ test("ExpectedActualNotice omits the extra summary text for a single item", () =
     items: [item()],
   })!.toString();
 
-  expect(html).not.toContain("more)");
+  assert(!html.includes("more)"));
   // Single item: exactly one list entry.
   expect(html.match(/<li>/g)?.length).toBe(1);
 });
@@ -81,22 +86,24 @@ test("ExpectedActualNotice appends the pluralised extra count for many items", (
   })!.toString();
 
   // count = items.length - 1 = 2 → "(+2 more)".
-  expect(html).toContain("(+2 more)");
-  expect(html).not.toContain("(+3 more)");
-  expect(html).not.toContain("(+1 more)");
+  assertStringIncludes(html, "(+2 more)");
+  assert(!html.includes("(+3 more)"));
+  assert(!html.includes("(+1 more)"));
   // Only the first item drives the summary line, so scope the check to the
   // <summary> to make sure a later item can't satisfy it.
-  const summary = html.match(/<summary>[\s\S]*?<\/summary>/)?.[0];
-  expect(summary).toContain("<strong>Total</strong>: expected");
-  expect(summary).not.toContain("<strong>Subtotal</strong>");
-  expect(summary).not.toContain("<strong>Tax</strong>");
+  const summary = html.match(/<summary>[\s\S]*?<\/summary>/)?.[0] ?? "";
+  assertStringIncludes(summary, "<strong>Total</strong>: expected");
+  assert(!summary.includes("<strong>Subtotal</strong>"));
+  assert(!summary.includes("<strong>Tax</strong>"));
   // The full list renders every item, spacing between the labels and values
   // included.
   expect(html.match(/<li>/g)?.length).toBe(3);
-  expect(html).toContain(
+  assertStringIncludes(
+    html,
     "<strong>Subtotal</strong>: expected <strong>3</strong>, got <strong>4</strong>",
   );
-  expect(html).toContain(
+  assertStringIncludes(
+    html,
     "<strong>Tax</strong>: expected <strong>3</strong>, got <strong>4</strong>",
   );
 });
@@ -109,10 +116,10 @@ test("ExpectedActualNotice honours explicit badge and title overrides", () => {
     title: "Custom title",
   })!.toString();
 
-  expect(html).toContain(">Custom badge</span>");
-  expect(html).toContain("Custom title");
-  expect(html).not.toContain("Mismatch");
-  expect(html).not.toContain("Stored total mismatch");
+  assertStringIncludes(html, ">Custom badge</span>");
+  assertStringIncludes(html, "Custom title");
+  assert(!html.includes("Mismatch"));
+  assert(!html.includes("Stored total mismatch"));
 });
 
 test("ExpectedActualNotice keeps empty-string overrides instead of the defaults", () => {
@@ -125,10 +132,10 @@ test("ExpectedActualNotice keeps empty-string overrides instead of the defaults"
 
   // `??` keeps the empty strings; `||` would fall back to the i18n defaults.
   // Assert the overrides are rendered as empty elements, not merely omitted.
-  expect(html).toContain('<span class="badge-alert"></span>');
-  expect(html).toContain("<div><p></p><p>explanation</p>");
-  expect(html).not.toContain("Mismatch");
-  expect(html).not.toContain("Stored total mismatch");
+  assertStringIncludes(html, '<span class="badge-alert"></span>');
+  assertStringIncludes(html, "<div><p></p><p>explanation</p>");
+  assert(!html.includes("Mismatch"));
+  assert(!html.includes("Stored total mismatch"));
 });
 
 test("ExpectedActualNotice renders the action link only when both parts are set", () => {
@@ -138,27 +145,27 @@ test("ExpectedActualNotice renders the action link only when both parts are set"
     explanation: "explanation",
     items: [item()],
   })!.toString();
-  expect(withLink).toContain('<a href="/fix">Fix it</a>');
+  assertStringIncludes(withLink, '<a href="/fix">Fix it</a>');
 
   const hrefOnly = ExpectedActualNotice({
     actionHref: "/fix",
     explanation: "explanation",
     items: [item()],
   })!.toString();
-  expect(hrefOnly).not.toContain("<a href=");
+  assert(!hrefOnly.includes("<a href="));
 
   const labelOnly = ExpectedActualNotice({
     actionLabel: "Fix it",
     explanation: "explanation",
     items: [item()],
   })!.toString();
-  expect(labelOnly).not.toContain("<a href=");
+  assert(!labelOnly.includes("<a href="));
 
   const neither = ExpectedActualNotice({
     explanation: "explanation",
     items: [item()],
   })!.toString();
-  expect(neither).not.toContain("<a href=");
+  assert(!neither.includes("<a href="));
 });
 
 test("ExpectedActualTableRow returns null when there are no mismatches", () => {

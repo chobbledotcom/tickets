@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
@@ -18,12 +19,14 @@ describe("ListingGroupSelect", () => {
         selectedGroupIds: [],
       }),
     );
-    expect(html).toContain('<fieldset class="checkboxes">');
-    expect(html).toContain("<legend>Group</legend>");
-    expect(html).toContain(
+    assertStringIncludes(html, '<fieldset class="checkboxes">');
+    assertStringIncludes(html, "<legend>Group</legend>");
+    assertStringIncludes(
+      html,
       '<input name="group_ids" type="checkbox" value="3"> Weekend',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="group_ids" type="checkbox" value="9"> Christmas Bundle',
     );
   });
@@ -38,10 +41,12 @@ describe("ListingGroupSelect", () => {
         selectedGroupIds: [9],
       }),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input name="group_ids" type="checkbox" value="3"> Weekend',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<input checked name="group_ids" type="checkbox" value="9"> Weekend',
     );
   });

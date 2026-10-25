@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   API_BOOK_FREE_EXAMPLE_JSON,
@@ -19,12 +19,20 @@ const shown = (code: string): string => code.replaceAll('"', "&quot;");
 describe("guide integrations section", () => {
   test("the booking example answers are labelled and code-fenced", () => {
     const html = String(renderGuideSections(integrationsSections()));
-    expect(html).toContain("<p><strong>Free listing response:</strong></p>");
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
+      "<p><strong>Free listing response:</strong></p>",
+    );
+    assertStringIncludes(
+      html,
       `<pre><code>${shown(API_BOOK_FREE_EXAMPLE_JSON)}</code></pre>`,
     );
-    expect(html).toContain("<p><strong>Paid listing response:</strong></p>");
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
+      "<p><strong>Paid listing response:</strong></p>",
+    );
+    assertStringIncludes(
+      html,
       `<pre><code>${shown(API_BOOK_PAID_EXAMPLE_JSON)}</code></pre>`,
     );
   });
@@ -36,18 +44,20 @@ describe("guide integrations section", () => {
         json: API_BOOK_FREE_EXAMPLE_JSON,
       }),
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<pre><code>${shown(API_BOOK_FREE_EXAMPLE_JSON)}</code></pre>`,
     );
-    expect(html).toContain("smallest currency unit (e.g. pence for GBP");
-    expect(html).toContain("Amounts include the booking fee.");
+    assertStringIncludes(html, "smallest currency unit (e.g. pence for GBP");
+    assertStringIncludes(html, "Amounts include the booking fee.");
   });
 
   test("ExampleCode pairs a bold label with its code block", () => {
     const html = String(
       <ExampleCode code='{"a":1}' label="Free listing response:" />,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<p><strong>Free listing response:</strong></p><pre><code>${shown('{"a":1}')}</code></pre>`,
     );
   });
@@ -55,46 +65,59 @@ describe("guide integrations section", () => {
   test("the guide's links, anchors, and inline-code joins stay intact", () => {
     const html = String(renderGuideSections(integrationsSections()));
     // Links the sections are reachable through.
-    expect(html).toContain('<a href="https://sms-gate.app">');
-    expect(html).toContain('<a href="https://mobilizon.org/">');
-    expect(html).toContain('<a href="https://import.mobilizon.fr/">');
-    expect(html).toContain(
+    assertStringIncludes(html, '<a href="https://sms-gate.app">');
+    assertStringIncludes(html, '<a href="https://mobilizon.org/">');
+    assertStringIncludes(html, '<a href="https://import.mobilizon.fr/">');
+    assertStringIncludes(
+      html,
       '<a href="/admin/settings-advanced#settings-sms-gateway">',
     );
-    expect(html).toContain('<a href="/admin/log">');
+    assertStringIncludes(html, '<a href="/admin/log">');
     // The anchor ids the guide's own footer deep-links use.
-    expect(html).toContain('<h3 id="sms">');
-    expect(html).toContain('<h3 id="api">');
-    expect(html).toContain('<h3 id="admin-api">');
+    assertStringIncludes(html, '<h3 id="sms">');
+    assertStringIncludes(html, '<h3 id="api">');
+    assertStringIncludes(html, '<h3 id="admin-api">');
     // The joins between prose and its inline code: exactly one space each.
-    expect(html).toContain("the public importer at <a href=");
-    expect(html).toContain("Enter your calendar feed address: <code>https://");
-    expect(html).toContain("works with the free <a href=");
-    expect(html).toContain(
+    assertStringIncludes(html, "the public importer at <a href=");
+    assertStringIncludes(
+      html,
+      "Enter your calendar feed address: <code>https://",
+    );
+    assertStringIncludes(html, "works with the free <a href=");
+    assertStringIncludes(
+      html,
       "Message text and phone numbers are <strong>end-to-end",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "shows you a <strong>username and password</strong>",
     );
-    expect(html).toContain("recorded in the <a href=");
-    expect(html).toContain(
+    assertStringIncludes(html, "recorded in the <a href=");
+    assertStringIncludes(
+      html,
       "The starting address is your own site address (for example <code>https://",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "Returns <code>{ &quot;error&quot;: &quot;Listing not found&quot; }</code> with status 404",
     );
     // The app link join: the link text and the following word share one space.
-    expect(html).toContain(">SMS Gateway for Android</a> app: install the app");
+    assertStringIncludes(
+      html,
+      ">SMS Gateway for Android</a> app: install the app",
+    );
     // The settings link begins its list item with one space after "In".
-    expect(html).toContain("In <a href=");
+    assertStringIncludes(html, "In <a href=");
     // The wrapped availability code block joins its dash with one space too.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "date=YYYY-MM-DD</code> — check whether places are free",
     );
     // The daily-listing parameter note joins its inline code the same way.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "For daily listings, add <code>&amp;date=YYYY-MM-DD</code> to check",
     );
-    expect(html).toContain("(use a date from <code>availableDates</code>)");
+    assertStringIncludes(html, "(use a date from <code>availableDates</code>)");
   });
 });

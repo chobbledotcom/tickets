@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { SystemNote } from "#db/notes/types.ts";
@@ -29,12 +30,13 @@ describe("AttendeeNotesSection", () => {
 
   test("renders a system note as a red alert with its markdown link", () => {
     const html = String(<AttendeeNotesSection isOwner notes={[note()]} />);
-    expect(html).toContain("system-note-alert");
-    expect(html).toContain('role="alert"');
+    assertStringIncludes(html, "system-note-alert");
+    assertStringIncludes(html, 'role="alert"');
     // The markdown body is rendered — for an OWNER the ledger link survives.
-    expect(html).toContain('href="/admin/ledger?attendee=5"');
+    assertStringIncludes(html, 'href="/admin/ledger?attendee=5"');
     // The × opens the are-you-sure delete page, returning to the attendee page.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "/admin/attendee/5/note/1/delete?return_url=%2Fadmin%2Fattendees%2F5",
     );
   });
@@ -45,8 +47,8 @@ describe("AttendeeNotesSection", () => {
     );
     // The words stay, the owner-only link goes — a rendered link is a promise
     // that it works, and only owners may open the ledger pages.
-    expect(html).toContain("see the ledger");
-    expect(html).not.toContain('href="/admin/ledger?attendee=5"');
+    assertStringIncludes(html, "see the ledger");
+    assert(!html.includes('href="/admin/ledger?attendee=5"'));
   });
 
   test("demotes the attendee ledger-tab link too, not just standalone /admin/ledger", () => {
@@ -59,13 +61,13 @@ describe("AttendeeNotesSection", () => {
     const staffHtml = String(
       <AttendeeNotesSection isOwner={false} notes={[ledgerTabNote]} />,
     );
-    expect(staffHtml).toContain("Check the ledger");
-    expect(staffHtml).not.toContain('href="/admin/attendees/5/ledger"');
+    assertStringIncludes(staffHtml, "Check the ledger");
+    assert(!staffHtml.includes('href="/admin/attendees/5/ledger"'));
 
     const ownerHtml = String(
       <AttendeeNotesSection isOwner notes={[ledgerTabNote]} />,
     );
-    expect(ownerHtml).toContain('href="/admin/attendees/5/ledger"');
+    assertStringIncludes(ownerHtml, 'href="/admin/attendees/5/ledger"');
   });
 
   test("renders an owner note without the alert styling", () => {
@@ -75,8 +77,8 @@ describe("AttendeeNotesSection", () => {
         notes={[note({ note: "private reminder", type: "owner" })]}
       />,
     );
-    expect(html).toContain("private reminder");
-    expect(html).not.toContain("system-note-alert");
+    assertStringIncludes(html, "private reminder");
+    assert(!html.includes("system-note-alert"));
   });
 
   test("renders nothing when there are no notes", () => {
@@ -89,8 +91,8 @@ describe("AttendeeNotesSection", () => {
   test("hides the delete link in read-only mode", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = String(<AttendeeNotesSection isOwner notes={[note()]} />);
-    expect(html).toContain("Refunded");
-    expect(html).not.toContain("/admin/attendee/5/note/1/delete");
+    assertStringIncludes(html, "Refunded");
+    assert(!html.includes("/admin/attendee/5/note/1/delete"));
   });
 });
 
@@ -99,7 +101,8 @@ describe("AddNoteLink", () => {
 
   test("links to the add-note page, returning to the attendee page", () => {
     const html = String(<AddNoteLink attendeeId={7} />);
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "/admin/attendee/7/note?return_url=%2Fadmin%2Fattendees%2F7",
     );
   });
@@ -124,12 +127,12 @@ describe("AttendeeNotesSummary", () => {
         ]}
       />,
     );
-    expect(html).toContain("<details");
-    expect(html).toContain("2 attendees have notes");
-    expect(html).toContain('href="/admin/attendees/5"');
-    expect(html).toContain("Alice");
-    expect(html).toContain("first");
-    expect(html).toContain("other");
+    assertStringIncludes(html, "<details");
+    assertStringIncludes(html, "2 attendees have notes");
+    assertStringIncludes(html, 'href="/admin/attendees/5"');
+    assertStringIncludes(html, "Alice");
+    assertStringIncludes(html, "first");
+    assertStringIncludes(html, "other");
   });
 
   test("falls back to the id when a name is unknown", () => {
@@ -140,7 +143,7 @@ describe("AttendeeNotesSummary", () => {
         notes={[note({ entity_id: 9 })]}
       />,
     );
-    expect(html).toContain("#9");
+    assertStringIncludes(html, "#9");
   });
 
   test("demotes a note's ledger link for non-owners but keeps it for owners", () => {
@@ -153,8 +156,8 @@ describe("AttendeeNotesSummary", () => {
         notes={[note({ entity_id: 5 })]}
       />,
     );
-    expect(staffHtml).toContain("see the ledger");
-    expect(staffHtml).not.toContain('href="/admin/ledger?attendee=5"');
+    assertStringIncludes(staffHtml, "see the ledger");
+    assert(!staffHtml.includes('href="/admin/ledger?attendee=5"'));
 
     const ownerHtml = String(
       <AttendeeNotesSummary
@@ -163,15 +166,15 @@ describe("AttendeeNotesSummary", () => {
         notes={[note({ entity_id: 5 })]}
       />,
     );
-    expect(ownerHtml).toContain('href="/admin/ledger?attendee=5"');
+    assertStringIncludes(ownerHtml, 'href="/admin/ledger?attendee=5"');
   });
 
   test("renders nothing when there are no notes", () => {
     const html = String(
       <AttendeeNotesSummary isOwner={false} names={new Map()} notes={[]} />,
     );
-    expect(html).not.toContain("<details");
-    expect(html).not.toContain("have notes");
+    assert(!html.includes("<details"));
+    assert(!html.includes("have notes"));
   });
 });
 
@@ -185,11 +188,12 @@ describe("adminNoteNewPage", () => {
       returnUrl: "/admin/attendees/5",
       session: OWNER_SESSION,
     });
-    expect(html).toContain("Add a note for Alice Example");
-    expect(html).toContain('action="/admin/attendee/5/note"');
-    expect(html).toContain('name="note"');
-    expect(html).toContain('name="csrf_token"');
-    expect(html).toContain(
+    assertStringIncludes(html, "Add a note for Alice Example");
+    assertStringIncludes(html, 'action="/admin/attendee/5/note"');
+    assertStringIncludes(html, 'name="note"');
+    assertStringIncludes(html, 'name="csrf_token"');
+    assertStringIncludes(
+      html,
       'name="return_url" type="hidden" value="/admin/attendees/5"',
     );
   });
@@ -202,7 +206,7 @@ describe("adminNoteNewPage", () => {
       returnUrl: "",
       session: OWNER_SESSION,
     });
-    expect(html).toContain("Enter a note before saving.");
+    assertStringIncludes(html, "Enter a note before saving.");
   });
 });
 
@@ -215,12 +219,12 @@ describe("adminNoteDeletePage", () => {
       returnUrl: "/admin/attendees/5",
       session: OWNER_SESSION,
     });
-    expect(html).toContain("Are you sure");
-    expect(html).toContain("delete this");
-    expect(html).toContain('action="/admin/attendee/5/note/1/delete"');
+    assertStringIncludes(html, "Are you sure");
+    assertStringIncludes(html, "delete this");
+    assertStringIncludes(html, 'action="/admin/attendee/5/note/1/delete"');
     // The intermediate page is deliberately NOT the copy/paste confirmation.
-    expect(html).not.toContain('name="confirm_identifier"');
+    assert(!html.includes('name="confirm_identifier"'));
     // It bounces back via return_url.
-    expect(html).toContain('value="/admin/attendees/5"');
+    assertStringIncludes(html, 'value="/admin/attendees/5"');
   });
 });
