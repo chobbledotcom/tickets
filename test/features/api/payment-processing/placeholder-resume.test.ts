@@ -12,6 +12,7 @@ import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { prepareClaimedAttendeePaymentAnchor } from "#db/payment-anchor/attendee.ts";
+import { settleAttendeeRows } from "#db/payment-claim.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { parseSessionFailure } from "#db/processed-payments.ts";
 import { placeholderRefund } from "#payment/placeholder-refund.ts";
@@ -141,15 +142,16 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
     return settlementForHeldClaim(held.anchorSessionId, held.claim);
   };
 
-  test("a redelivery finishes the refund a crashed delivery never sent", async () => {
-    const sessionId = "cs_resume_send";
-    const placeholder = await crashedPlaceholderStore(sessionId);
-
+  /** Redeliver the session under a completing provider and expect the
+   * resumed refunded answer. */
+  const expectResumedRefundAnswer = async (
+    sessionId: string,
+    placeholder: Awaited<ReturnType<typeof crashedPlaceholderStore>>,
+  ) => {
     let answer: unknown;
     await withRefundMock(refundCompletes, async () => {
       answer = await processPaymentSession(sessionId, placeholder.data);
     });
-
     expect(answer).toEqual({
       detail: `Resumed after a crashed delivery of session ${sessionId}`,
       error: REFUNDED_ANSWER,
@@ -157,6 +159,13 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
       status: 200,
       success: false,
     });
+  };
+
+  test("a redelivery finishes the refund a crashed delivery never sent", async () => {
+    const sessionId = "cs_resume_send";
+    const placeholder = await crashedPlaceholderStore(sessionId);
+
+    await expectResumedRefundAnswer(sessionId, placeholder);
     // The session outcome is final before another delivery can repair it.
     // The separate attendee anchor has already released its claim.
     const record = requireValue(
@@ -371,6 +380,80 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
     // Nothing is left to finish: the resume must answer null so the caller
     // replays the stored outcome, not rebuild it beside the completed charge.
     expect(await resumePlaceholderSession(placeholder.data, stored)).toBeNull();
+  });
+
+  test("a redelivery finishes the refund when the crash left the claim over no charge", async () => {
+    const sessionId = "cs_resume_no_charge";
+    const placeholder = await crashedPlaceholderStore(sessionId);
+    // The pair the old resume refused: a held claim whose references carry
+    // no charge at all. The redelivery still finishes the refund.
+    await execute("DELETE FROM payment_charges", []);
+    expect(await chargeState()).toBeNull();
+    expect(await anchorMirror()).toBe("claim");
+
+    await expectResumedRefundAnswer(sessionId, placeholder);
+
+    await expectOnePairOfLegs(sessionId);
+    expect(await chargeState()).toEqual({
+      refund_local_state: "recorded",
+      refund_state_name: "completed",
+    });
+    expect(await anchorMirror()).toBe("");
+  });
+
+  test("a redelivery replays the stored words when the send is armed but no claim is held", async () => {
+    const sessionId = "cs_resume_armed_unheld";
+    const placeholder = await crashedPlaceholderStore(sessionId);
+    // The authority arms under the held claim, then the delivery dies
+    // before the provider answers: the arm write is durable, so the charge
+    // rests armed.
+    await withRefundMock(
+      () => Promise.reject(new Error("provider connection lost")),
+      async () => {
+        await expect(
+          requestSessionRefund(placeholder.data.session),
+        ).rejects.toThrow("provider connection lost");
+      },
+    );
+    // The crash then tore the claim off the armed send: a pair no flow can
+    // produce, which the old resume refused to act on. The claim's own
+    // settlement releases it, and the send belongs to the authority's
+    // recovery routes, so the redelivery replays the stored words and moves
+    // nothing.
+    const held = await heldClaim();
+    await settleAttendeeRows(
+      settlementForHeldClaim(held.anchorSessionId, held.claim),
+    );
+    expect(await chargeState()).toMatchObject({
+      refund_state_name: "send_armed",
+    });
+    expect(await anchorMirror()).toBe("");
+
+    const answer = await processPaymentSession(sessionId, placeholder.data);
+
+    const record = requireValue(
+      await getProcessedPayment(sessionId),
+      "the pending session outcome is missing",
+    );
+    const stored = requireValue(
+      await parseSessionFailure(record.failure_data),
+      "the pending outcome is missing",
+    );
+    // The stored outcome is still the pending crash answer: the completion
+    // marker routed the redelivery through the resume, which found nothing
+    // to finish and left the words alone.
+    expect(stored.completion).toEqual({ code: "capacity_full" });
+    expect(answer).toEqual({
+      error: stored.error,
+      status: stored.status,
+      success: false,
+    });
+    // Nothing advanced: the armed charge stays for recovery, and no
+    // unreturned-refund note was written.
+    expect(await chargeState()).toMatchObject({
+      refund_state_name: "send_armed",
+    });
+    expect(await noteCount()).toBe(0);
   });
 
   describe("findHeldAnchor", () => {
