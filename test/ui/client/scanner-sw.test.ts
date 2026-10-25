@@ -7,6 +7,7 @@
  * stored and no connection still gets a defined answer.
  */
 
+import { assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -290,10 +291,15 @@ describe("the scanner service worker's fetch boundaries", () => {
     const answered = await fireRequest("/admin/scanner", { mode: "navigate" });
 
     expect(answered?.status).toBe(200);
-    expect(await answered?.text()).toContain(
+    const offlineBody = await answered?.text();
+    assertExists(offlineBody);
+    assertStringIncludes(
+      offlineBody,
       "You are offline. Reopen the scanner when you are back online.",
     );
-    expect(answered?.headers.get("content-type")).toContain("text/html");
+    const answeredType = answered?.headers.get("content-type");
+    assertExists(answeredType);
+    assertStringIncludes(answeredType, "text/html");
   });
 
   test("passes an online scanner navigation through untouched", async () => {

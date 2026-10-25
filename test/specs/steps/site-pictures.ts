@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
@@ -54,8 +55,8 @@ const visitorSeesPictureAt = async (
   path: string,
 ): Promise<void> => {
   const browser = await openAsNewcomer(path);
-  expect(browser.currentHtml).toContain(sitePictureTag(world));
-  expect(browser.currentHtml).not.toContain("img#");
+  assertStringIncludes(browser.currentHtml, sitePictureTag(world));
+  assert(!browser.currentHtml.includes("img#"));
 };
 
 /** A page the footer story reads beside its own words: where it lives, the
@@ -84,7 +85,7 @@ const STORY_PAGES: Record<string, StoryPage> = {
     write: async (world) => {
       await ownerWritesPages(world);
       await ownerWritesPage(world, "Directions", "how-to-find-us");
-      expect(whatOwnerWasTold(world)).toContain("Page created");
+      assertStringIncludes(whatOwnerWasTold(world), "Page created");
     },
   },
   "terms page": {
@@ -266,7 +267,7 @@ Then(
   async function (this: TicketsWorld, page: string): Promise<void> {
     const known = storyPage(page);
     const browser = await openAsNewcomer(known.path);
-    expect(browser.currentHtml).toContain(known.words);
+    assertStringIncludes(browser.currentHtml, known.words);
     footerShowsPicture(this, 200, browser);
   },
 );
@@ -296,7 +297,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const { answered, said } = await newcomerReading("/page/no-such-page");
     expect(answered).toBe(404);
-    expect(said).toContain(t("public.not_found.heading"));
+    assertStringIncludes(said, t("public.not_found.heading"));
   },
 );
 
@@ -313,10 +314,10 @@ Then(
     const listing = listingNamed(this, name);
     const browser = await openAsNewcomer(`/ticket/${listing.slug}?iframe=true`);
     expect(browser.answered).toBe(200);
-    expect(browser.currentHtml).toContain(listing.name);
-    expect(browser.currentHtml).toContain("Continue");
-    expect(browser.currentHtml).not.toContain('<footer class="site-footer">');
-    expect(browser.currentHtml).not.toContain(sitePictureTag(this));
+    assertStringIncludes(browser.currentHtml, listing.name);
+    assertStringIncludes(browser.currentHtml, "Continue");
+    assert(!browser.currentHtml.includes('<footer class="site-footer">'));
+    assert(!browser.currentHtml.includes(sitePictureTag(this)));
   },
 );
 
@@ -324,7 +325,7 @@ Then(
   "the front page keeps the picture's describing words",
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openAsNewcomer("/");
-    expect(browser.currentHtml).toContain('<img src="" alt="Ghost">');
+    assertStringIncludes(browser.currentHtml, '<img src="" alt="Ghost">');
   },
 );
 
@@ -332,7 +333,7 @@ Then(
   "the front page shows no picture at all",
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openAsNewcomer("/");
-    expect(browser.currentHtml).not.toContain('<img src="/image/');
+    assert(!browser.currentHtml.includes('<img src="/image/'));
   },
 );
 
@@ -358,8 +359,8 @@ Then(
   "a visitor on the list reads the {word} and sees the picture",
   async function (this: TicketsWorld, name: string): Promise<void> {
     const browser = await openAsNewcomer("/listings");
-    expect(browser.currentHtml).toContain(`<h2>${name}</h2>`);
-    expect(browser.currentHtml).toContain(sitePictureTag(this));
-    expect(browser.currentHtml).not.toContain("img#");
+    assertStringIncludes(browser.currentHtml, `<h2>${name}</h2>`);
+    assertStringIncludes(browser.currentHtml, sitePictureTag(this));
+    assert(!browser.currentHtml.includes("img#"));
   },
 );

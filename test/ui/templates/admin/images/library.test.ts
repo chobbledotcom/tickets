@@ -1,4 +1,9 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import {
+  assert,
+  assertArrayIncludes,
+  assertExists,
+  assertStringIncludes,
+} from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -245,9 +250,9 @@ describeWithEnv(
         await makeImage("Alpha");
         const response = await adminGet("/admin/images/options");
         expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toContain(
-          "application/json",
-        );
+        const contentType = response.headers.get("content-type");
+        assertExists(contentType);
+        assertStringIncludes(contentType, "application/json");
         const body = await response.json();
         expect(body).toEqual({
           images: [

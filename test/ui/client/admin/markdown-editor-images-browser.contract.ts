@@ -12,6 +12,7 @@
  * (it needs Chromium and the built bundles).
  */
 
+import { assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { Locator, Page } from "playwright";
@@ -173,7 +174,7 @@ describeWithBrowser(
         // The save lands on the page's own edit form, so the box there shows
         // what the save stored.
         const reference = `![Harbour](img#${harbour.id})`;
-        expect(await contentValue(page)).toContain(reference);
+        assertStringIncludes(await contentValue(page), reference);
 
         // Reopening goes through the owner's list, the way the owner reaches
         // it: the row's link names the page's own edit form, and the story
@@ -185,8 +186,8 @@ describeWithBrowser(
         const wayIn = await row.getAttribute("href");
         if (wayIn === null) throw new Error("the list offered no way in");
         await page.goto(wayIn);
-        expect(await contentValue(page)).toContain(reference);
-        expect(await contentValue(page)).toContain("Take the coast road.");
+        assertStringIncludes(await contentValue(page), reference);
+        assertStringIncludes(await contentValue(page), "Take the coast road.");
       });
     });
 
@@ -262,7 +263,7 @@ describeWithBrowser(
           EMPTY_MESSAGE,
         );
 
-        expect(note).toContain(EMPTY_MESSAGE);
+        assertStringIncludes(note, EMPTY_MESSAGE);
         expect(await panel.locator(OPTION).count()).toBe(0);
         expect(content).toBe("Unchanged words.");
       });
@@ -276,7 +277,7 @@ describeWithBrowser(
           UNAVAILABLE_MESSAGE,
         );
 
-        expect(note).toContain(UNAVAILABLE_MESSAGE);
+        assertStringIncludes(note, UNAVAILABLE_MESSAGE);
         expect(await panel.locator(OPTION).count()).toBe(0);
         expect(content).toBe("Unchanged words.");
       });
@@ -298,7 +299,9 @@ describeWithBrowser(
           .locator(NOTE)
           .filter({ hasText: UNAVAILABLE_MESSAGE })
           .waitFor();
-        expect(await panel.textContent()).toContain(UNAVAILABLE_MESSAGE);
+        const panelText = await panel.textContent();
+        assertExists(panelText);
+        assertStringIncludes(panelText, UNAVAILABLE_MESSAGE);
 
         // Shut and reopen: a failed load is never cached, so the second open
         // asks the route again and the real answer arrives.

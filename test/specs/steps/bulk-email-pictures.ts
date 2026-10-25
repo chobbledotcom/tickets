@@ -5,7 +5,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { t } from "#i18n";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
@@ -68,11 +68,15 @@ Then(
   "the owner is shown the message before it goes, with the {string} picture in place of its reference",
   function (this: TicketsWorld, name: string): void {
     const browser = scenarioBrowser(this);
-    expect(browser.pageText).toContain(t("bulk_email.message_preview_heading"));
+    assertStringIncludes(
+      browser.pageText,
+      t("bulk_email.message_preview_heading"),
+    );
     // The reference the owner typed never reaches the preview as text: it
     // renders as the picture.
-    expect(browser.pageText).not.toContain("img#");
-    expect(browser.currentHtml).toContain(
+    assert(!browser.pageText.includes("img#"));
+    assertStringIncludes(
+      browser.currentHtml,
       pictureTag(pictureUrl(this, name), name),
     );
   },
@@ -82,11 +86,12 @@ Then(
   "the draft they can send themselves names the {string} picture at its address on the site",
   function (this: TicketsWorld, name: string): void {
     const draft = mailtoDraftBody(this);
-    expect(draft).toContain(
+    assertStringIncludes(
+      draft,
       pictureUrl(this, name, `https://${getEffectiveDomain()}`),
     );
     // A written reference would reach the owner's email app unresolved.
-    expect(draft).not.toContain("img#");
+    assert(!draft.includes("img#"));
   },
 );
 
@@ -98,14 +103,14 @@ Then(
     const atTheSite = pictureUrl(this, name, origin);
     for (const email of bookedOnto(this, listingName)) {
       const copy = whatWasSentTo(this, email);
-      expect(copy.html).toContain(fromTheSite);
+      assertStringIncludes(copy.html, fromTheSite);
       // An email reader cannot follow an address that starts with a slash,
       // so neither a half address nor an unresolved reference may reach one.
-      expect(copy.html).not.toContain('src="/image/');
-      expect(copy.html).not.toContain("img#");
+      assert(!copy.html.includes('src="/image/'));
+      assert(!copy.html.includes("img#"));
       // The plain part a text-only reader shows names the same address.
-      expect(copy.text).toContain(atTheSite);
-      expect(copy.text).not.toContain("img#");
+      assertStringIncludes(copy.text, atTheSite);
+      assert(!copy.text.includes("img#"));
     }
   },
 );
@@ -117,9 +122,9 @@ const expectWebAddressKept = (
   address: string,
   pictureNumber: number,
 ): void => {
-  expect(body).toContain(`${address}${pictureNumber}`);
+  assertStringIncludes(body, `${address}${pictureNumber}`);
   // The picture's own address must never end up inside the page's address.
-  expect(body).not.toContain(`${address}https://`);
+  assert(!body.includes(`${address}https://`));
 };
 
 Then(
@@ -133,7 +138,8 @@ Then(
     );
     // The picture in the same message still travels to its address on the
     // site.
-    expect(draft).toContain(
+    assertStringIncludes(
+      draft,
       pictureUrl(this, name, `https://${getEffectiveDomain()}`),
     );
   },
@@ -153,9 +159,9 @@ Then(
       const copy = whatWasSentTo(this, email);
       expectWebAddressKept(copy.text, address, pictureNumber);
       // The read page was never rewritten, so its link keeps the address too.
-      expect(copy.html).toContain(`href="${address}${pictureNumber}"`);
+      assertStringIncludes(copy.html, `href="${address}${pictureNumber}"`);
       // The picture in the same message still carries its own address.
-      expect(copy.text).toContain(pictureUrl(this, name, origin));
+      assertStringIncludes(copy.text, pictureUrl(this, name, origin));
     }
   },
 );
@@ -176,8 +182,9 @@ Then(
   "the draft they can send themselves still shows {string} as the owner wrote it, and the {string} picture at its address on the site",
   function (this: TicketsWorld, words: string, name: string): void {
     const draft = mailtoDraftBody(this);
-    expect(draft).toContain(writtenWords(this, name, words));
-    expect(draft).toContain(
+    assertStringIncludes(draft, writtenWords(this, name, words));
+    assertStringIncludes(
+      draft,
       pictureUrl(this, name, `https://${getEffectiveDomain()}`),
     );
   },
@@ -199,13 +206,14 @@ Then(
       const copy = whatWasSentTo(this, email);
       // The code the owner wrote arrives as code in the plain part, and the
       // picture beside it travels to the site's own address.
-      expect(copy.text).toContain(written);
-      expect(copy.text).toContain(pictureUrl(this, name, origin));
+      assertStringIncludes(copy.text, written);
+      assertStringIncludes(copy.text, pictureUrl(this, name, origin));
       // The HTML part shows the code as code too. The reference inside it
       // keeps the owner's words, so no picture appears inside the code
       // there.
-      expect(copy.html).toContain(`<code>${insideTheCode}</code>`);
-      expect(copy.html).toContain(
+      assertStringIncludes(copy.html, `<code>${insideTheCode}</code>`);
+      assertStringIncludes(
+        copy.html,
         pictureTag(pictureUrl(this, name, origin), name),
       );
     }

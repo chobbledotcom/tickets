@@ -3,6 +3,7 @@
  * opened by somebody never signed in, because that is who these pages are for.
  */
 
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { sitePages } from "#db/site-pages.ts";
 import { t } from "#i18n";
@@ -236,8 +237,8 @@ export const ownerSetsPageHidden: ActsOnAPagesHiddenBox = async (
   hidden,
 ) => {
   const { browser, tick, ticked } = await editorServingHiddenBox(world, name);
-  if (hidden) expect(ticked).not.toContain(tick);
-  else expect(ticked).toContain(tick);
+  const tickIsPresent = ticked.includes(tick);
+  assert(hidden ? !tickIsPresent : tickIsPresent);
   await fillInAndSend(browser, {}, t("common.save_changes"), {
     [HIDDEN_BOX]: hidden ? [tick] : [],
   });

@@ -5,6 +5,7 @@
  * the helpers directly, so the module's own mutants die here.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
@@ -112,16 +113,16 @@ describe("scanner wording helpers", () => {
 
       showStatus(status, "Checking in queued tickets...", "warning");
       time.tick(4_999);
-      expect(status.className).not.toContain("scanner-status-fade-out");
+      assert(!status.className.includes("scanner-status-fade-out"));
       time.tick(1);
-      expect(status.className).toContain("scanner-status-fade-out");
+      assertStringIncludes(status.className, "scanner-status-fade-out");
 
       // A success fades the same way, and strips the fade the warning
       // earned.
       showStatus(status, "Queued tickets are done.", "success");
-      expect(status.className).not.toContain("scanner-status-fade-out");
+      assert(!status.className.includes("scanner-status-fade-out"));
       time.tick(5_000);
-      expect(status.className).toContain("scanner-status-fade-out");
+      assertStringIncludes(status.className, "scanner-status-fade-out");
     });
 
     test("keeps a replacement solid by clearing the old fade", () => {
@@ -132,8 +133,8 @@ describe("scanner wording helpers", () => {
       showStatus(status, "Checking in queued tickets...", "warning");
       showStatus(status, "Not found", "error");
       time.tick(5_000);
-      expect(status.className).toContain("scanner-status-error");
-      expect(status.className).not.toContain("scanner-status-fade-out");
+      assertStringIncludes(status.className, "scanner-status-error");
+      assert(!status.className.includes("scanner-status-fade-out"));
     });
   });
 });

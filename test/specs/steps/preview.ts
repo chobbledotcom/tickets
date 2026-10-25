@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import {
   pictureTag,
   uploadsAPicture,
@@ -39,21 +39,22 @@ When(
 Then(
   "the preview shows the {string} picture",
   function (this: TicketsWorld, _name: string): void {
-    expect(whatTheyWereTold(this, PREVIEWER)).toContain(pictureTag(this));
+    assertStringIncludes(whatTheyWereTold(this, PREVIEWER), pictureTag(this));
   },
 );
 
 Then(
   "the preview never shows the picture reference",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, PREVIEWER)).not.toContain("img#");
+    assert(!whatTheyWereTold(this, PREVIEWER).includes("img#"));
   },
 );
 
 Then(
   "the preview keeps the describing words",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, PREVIEWER)).toContain(
+    assertStringIncludes(
+      whatTheyWereTold(this, PREVIEWER),
       '<img src="" alt="Ghost">',
     );
   },
@@ -62,6 +63,6 @@ Then(
 Then(
   "the preview shows no picture at all",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, PREVIEWER)).not.toContain("/image/");
+    assert(!whatTheyWereTold(this, PREVIEWER).includes("/image/"));
   },
 );

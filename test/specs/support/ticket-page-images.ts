@@ -7,7 +7,7 @@
 
 // jscpd:ignore-start
 
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { openAsNewcomer } from "#test/specs/support/browser.ts";
 import { imageNamed } from "#test/specs/support/images.ts";
 import {
@@ -60,7 +60,7 @@ export const resolvedImageTag = (image: Image): string =>
 
 /** The page shows the image itself. */
 export const expectShownImage = (html: string, image: Image): void => {
-  expect(html).toContain(resolvedImageTag(image));
+  assertStringIncludes(html, resolvedImageTag(image));
 };
 
 /** The named package's own section on a served page: the fieldset the page
@@ -96,7 +96,8 @@ export const expectShownImageInPackageSection = async (
     packageGroupNamed(world, packageName),
   );
   if (memberName !== undefined) {
-    expect(section).toContain(
+    assertStringIncludes(
+      section,
       `<label>${memberName} <span class="package-member-qty">`,
     );
   }

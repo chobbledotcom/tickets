@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 
 import { Then } from "@cucumber/cucumber";
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { t } from "#i18n";
 import {
   browserSeenBy,
@@ -31,7 +31,7 @@ Then(
   "a visitor on the list sees the {word} and the picture in the footer",
   async function (this: TicketsWorld, name: string): Promise<void> {
     const browser = await openAsNewcomer("/listings");
-    expect(browser.currentHtml).toContain(`<h2>${name}</h2>`);
+    assertStringIncludes(browser.currentHtml, `<h2>${name}</h2>`);
     footerShowsPicture(this, 200, browser);
   },
 );
@@ -60,7 +60,7 @@ Then(
     const browser = await openAsNewcomer(
       `/ticket/${listingNamed(this, name).slug}`,
     );
-    expect(browser.currentHtml).toContain(name);
+    assertStringIncludes(browser.currentHtml, name);
     footerShowsPicture(this, 200, browser);
   },
 );
@@ -73,7 +73,7 @@ Then(
       "the link they were given",
     );
     const browser = await openAsNewcomer(`/payment/success?tokens=${token}`);
-    expect(browser.currentHtml).toContain(t("payment.success.heading"));
+    assertStringIncludes(browser.currentHtml, t("payment.success.heading"));
     footerShowsPicture(this, 200, browser);
   },
 );
@@ -96,7 +96,10 @@ Then(
   "their choices page shows the picture in the footer",
   function (this: TicketsWorld): void {
     const browser = browserSeenBy(this, READER);
-    expect(browser.currentHtml).toContain(t("unsubscribe.email_preferences"));
+    assertStringIncludes(
+      browser.currentHtml,
+      t("unsubscribe.email_preferences"),
+    );
     expectFooterPicture(this, browser.currentHtml);
   },
 );

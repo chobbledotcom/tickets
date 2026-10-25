@@ -13,7 +13,7 @@
  */
 
 /* jscpd:ignore-start -- imports */
-import { assertStringIncludes } from "@std/assert";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -87,10 +87,11 @@ describeWithEnv(
         });
         const response = await adminGet("/admin/support");
         const html = await response.text();
-        expect(html).toContain(
+        assertStringIncludes(
+          html,
           `<img src="/image/${image.filename}" alt="HelpPoster">`,
         );
-        expect(html).not.toContain("img#");
+        assert(!html.includes("img#"));
       });
     });
 

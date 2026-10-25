@@ -2,6 +2,7 @@
  * dashboard count: the shared email-owed rule, the attendee row's resolved
  * flags, and the booking count those surfaces render. */
 
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -125,7 +126,8 @@ describeWithEnv(
         page: 0,
         sort: "newest",
       });
-      expect(page.rows.map((row) => row.id)).not.toContain(attendee.id);
+      const listedIds = page.rows.map((row) => row.id);
+      assert(!listedIds.includes(attendee.id));
     });
 
     test("keeps counting the owed webhooks while another booking survives", async () => {

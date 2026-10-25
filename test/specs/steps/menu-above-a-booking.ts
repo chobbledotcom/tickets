@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { addPageItem } from "#db/site-page-items.ts";
 import { sitePages } from "#db/site-pages.ts";
@@ -144,7 +145,8 @@ const customerPage = (world: TicketsWorld): TestBrowser =>
 Then(
   "the menu shows the {word} page's own list",
   function (this: TicketsWorld, pageName: string): void {
-    expect(customerPage(this).currentHtml).toContain(
+    assertStringIncludes(
+      customerPage(this).currentHtml,
       `aria-label="${pageName}"`,
     );
   },
@@ -153,8 +155,8 @@ Then(
 Then(
   "the menu shows no {word} page's own list",
   function (this: TicketsWorld, pageName: string): void {
-    expect(customerPage(this).currentHtml).not.toContain(
-      `aria-label="${pageName}"`,
+    assert(
+      !customerPage(this).currentHtml.includes(`aria-label="${pageName}"`),
     );
   },
 );
@@ -162,7 +164,8 @@ Then(
 Then(
   "the {word} is marked as the place they are",
   function (this: TicketsWorld, name: string): void {
-    expect(customerPage(this).currentHtml).toContain(
+    assertStringIncludes(
+      customerPage(this).currentHtml,
       `<a class="active" href="/ticket/${listingNamed(this, name).slug}">`,
     );
   },
@@ -171,16 +174,15 @@ Then(
 Then(
   "no menu entry is marked as the place they are",
   function (this: TicketsWorld): void {
-    expect(customerPage(this).currentHtml).not.toContain(
-      'class="active" href=',
-    );
+    assert(!customerPage(this).currentHtml.includes('class="active" href='));
   },
 );
 
 Then(
   "the {word} is offered beside it",
   function (this: TicketsWorld, name: string): void {
-    expect(customerPage(this).currentHtml).toContain(
+    assertStringIncludes(
+      customerPage(this).currentHtml,
       `href="/ticket/${listingNamed(this, name).slug}"`,
     );
   },
@@ -190,7 +192,8 @@ Then(
   "the {word} page is marked as the place they are",
   async function (this: TicketsWorld, pageName: string): Promise<void> {
     const page = await pageCalled(pageName);
-    expect(customerPage(this).currentHtml).toContain(
+    assertStringIncludes(
+      customerPage(this).currentHtml,
       `<a class="active" href="/page/${page.slug}">`,
     );
   },
@@ -200,7 +203,8 @@ Then(
   "the menu still offers the {word} page",
   async function (this: TicketsWorld, pageName: string): Promise<void> {
     const page = await pageCalled(pageName);
-    expect(customerPage(this).currentHtml).toContain(
+    assertStringIncludes(
+      customerPage(this).currentHtml,
       `href="/page/${page.slug}"`,
     );
   },
@@ -209,8 +213,10 @@ Then(
 Then(
   "the {word} is not marked as the place they are",
   function (this: TicketsWorld, name: string): void {
-    expect(customerPage(this).currentHtml).not.toContain(
-      `<a class="active" href="/ticket/${listingNamed(this, name).slug}">`,
+    assert(
+      !customerPage(this).currentHtml.includes(
+        `<a class="active" href="/ticket/${listingNamed(this, name).slug}">`,
+      ),
     );
   },
 );
@@ -219,7 +225,8 @@ Then(
   "the {word} group is marked as the place they are",
   function (this: TicketsWorld, groupName: string): void {
     const group = this.things.require("bundle", groupName);
-    expect(customerPage(this).currentHtml).toContain(
+    assertStringIncludes(
+      customerPage(this).currentHtml,
       `<a class="active" href="/ticket/${group.slug}">`,
     );
   },
@@ -230,7 +237,10 @@ Then(
   function (this: TicketsWorld, first: string, second: string): void {
     const html = customerPage(this).currentHtml;
     for (const name of [first, second]) {
-      expect(html).toContain(`name="quantity_${listingNamed(this, name).id}"`);
+      assertStringIncludes(
+        html,
+        `name="quantity_${listingNamed(this, name).id}"`,
+      );
     }
   },
 );

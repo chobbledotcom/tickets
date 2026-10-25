@@ -59,10 +59,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const input = html.match(/<input[^>]*name="admin_username"[^>]*>/)?.[0];
       assert(input, "the setup page renders the admin_username input");
       // The browser must refuse an invalid username before anything is sent.
-      expect(input).toContain('pattern="[a-zA-Z0-9][a-zA-Z0-9_\\-]*"');
-      expect(input).toContain('minlength="1"');
-      expect(input).toContain('maxlength="250"');
-      expect(input).toContain(
+      assertStringIncludes(input, 'pattern="[a-zA-Z0-9][a-zA-Z0-9_\\-]*"');
+      assertStringIncludes(input, 'minlength="1"');
+      assertStringIncludes(input, 'maxlength="250"');
+      assertStringIncludes(
+        input,
         'title="Letters, numbers, hyphens, and underscores only. Start with a letter or number."',
       );
     });

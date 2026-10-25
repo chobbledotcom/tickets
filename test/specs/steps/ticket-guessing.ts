@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
@@ -84,7 +85,7 @@ When(
   "{word} asks for that ticket and gets in",
   async function (this: TicketsWorld, _who: string): Promise<void> {
     const page = await openTicket(this);
-    expect(page.pageText).toContain(headingForTickets(1));
+    assertStringIncludes(page.pageText, headingForTickets(1));
   },
 );
 
@@ -98,7 +99,8 @@ Then(
     expect(requiredWorldValue(this.firstStatus, "what the site answered")).toBe(
       404,
     );
-    expect(requiredWorldValue(this.firstBody, "what the site said")).toContain(
+    assertStringIncludes(
+      requiredWorldValue(this.firstBody, "what the site said"),
       t("public.not_found.heading"),
     );
   },

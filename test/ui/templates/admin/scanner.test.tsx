@@ -171,7 +171,7 @@ describe("the admin scanner page template", () => {
 
     // The device digests a scan under this key. The page is the only
     // response that carries it, and it carries it once.
-    expect(html).toContain('data-door-cache-key="test-door-cache-key"');
+    assertStringIncludes(html, 'data-door-cache-key="test-door-cache-key"');
     expect(times(html, "data-door-cache-key=")).toBe(1);
   });
 
