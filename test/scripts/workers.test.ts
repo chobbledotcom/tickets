@@ -43,15 +43,15 @@ describe("resolveDenoJobs", () => {
 
 describe("coverageDenoJobs", () => {
   test("caps the workers when the caller set none", () => {
-    expect(coverageDenoJobs(undefined, 16)).toBe(4);
-    expect(coverageDenoJobs(undefined, 8)).toBe(4);
+    expect(coverageDenoJobs(undefined, 16)).toBe(2);
+    expect(coverageDenoJobs(undefined, 8)).toBe(2);
     expect(coverageDenoJobs(undefined, 2)).toBe(2);
   });
 
   test("caps the workers for blank and invalid values", () => {
-    expect(coverageDenoJobs("", 16)).toBe(4);
-    expect(coverageDenoJobs("0", 16)).toBe(4);
-    expect(coverageDenoJobs("abc", 16)).toBe(4);
+    expect(coverageDenoJobs("", 16)).toBe(2);
+    expect(coverageDenoJobs("0", 16)).toBe(2);
+    expect(coverageDenoJobs("abc", 16)).toBe(2);
   });
 
   test("leaves a valid explicit count alone", () => {
@@ -62,8 +62,8 @@ describe("coverageDenoJobs", () => {
 
 describe("precommitDenoJobs", () => {
   test("caps the default, because the run's test step is the coverage gate", () => {
-    expect(precommitDenoJobs(16, false, undefined)).toBe(4);
-    expect(precommitDenoJobs(16, true, undefined)).toBe(4);
+    expect(precommitDenoJobs(16, false, undefined)).toBe(2);
+    expect(precommitDenoJobs(16, true, undefined)).toBe(2);
   });
 
   test("keeps the small-machine floor under the cap", () => {
@@ -77,8 +77,8 @@ describe("precommitDenoJobs", () => {
   });
 
   test("an invalid count falls back to the capped default", () => {
-    expect(precommitDenoJobs(16, false, "abc")).toBe(4);
-    expect(precommitDenoJobs(16, false, "0")).toBe(4);
-    expect(precommitDenoJobs(16, false, "")).toBe(4);
+    expect(precommitDenoJobs(16, false, "abc")).toBe(2);
+    expect(precommitDenoJobs(16, false, "0")).toBe(2);
+    expect(precommitDenoJobs(16, false, "")).toBe(2);
   });
 });
