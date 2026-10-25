@@ -42,7 +42,7 @@ export const zaraAliceRows = (): AttendeeTableRow[] => [
 
 /** Render the attendee table to an HTML string for assertion. The renderer
  *  returns `JSX.Element` (SafeHtml) at runtime; tests want a plain string for
- *  `toContain`/`matchAll`/`indexOf`. */
+ *  `matchAll`/`indexOf`. */
 export const render = (opts: AttendeeTableOptions): string =>
   String(AttendeeTable(opts));
 
