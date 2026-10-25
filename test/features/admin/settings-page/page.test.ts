@@ -140,8 +140,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
       // The theme form should not contain the success message
       const themeFormMatch = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
-      expect(themeFormMatch).toBeDefined();
-      assert(!(themeFormMatch?.[0] ?? "").includes("Business email updated"));
+      assert(themeFormMatch);
+      assert(!themeFormMatch[0].includes("Business email updated"));
     });
 
     test("does not render the country form (locale is write-once, set at /setup)", async () => {
