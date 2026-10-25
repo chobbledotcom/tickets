@@ -2,6 +2,7 @@
 
 import ts from "typescript";
 import { answered } from "#scripts/unread-fields/host.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import { type BorrowedField, borrowedFields } from "./fields/borrowed.ts";
 import { fieldPath, onTheClass, shapeAround } from "./fields/declarations.ts";
 import {
@@ -13,6 +14,7 @@ import {
   DEFAULT_REACH,
   exportedShapes,
   inheritedTypesOf,
+  isShape,
   type Shape,
   shapeBody,
   standsFor,
@@ -117,18 +119,18 @@ const createExportedTargetLookup = (
     );
 };
 
-const shapeTarget =
-  (checker: ts.TypeChecker): ShapeTarget =>
-  (shape) =>
-    "symbol" in shape
-      ? shape.symbol
-      : standsFor(
-          checker,
-          answered(
-            checker.getSymbolAtLocation(shape.name),
-            `shape ${shape.name.text}`,
-          ),
-        );
+// Deno's coverage merge mis-attributes a curried ternary body here, so the
+// logic stays a flat block and `bindFirst` supplies the currying.
+const shapeTarget = (checker: ts.TypeChecker, shape: Shape): ts.Symbol => {
+  // A named shape resolves its symbol through its name; an unnamed class has
+  // no name, and the export list handed its symbol over.
+  if (isShape(shape)) {
+    const located = checker.getSymbolAtLocation(shape.name);
+    const named = answered(located, `shape ${shape.name.text}`);
+    return standsFor(checker, named);
+  }
+  return shape.symbol;
+};
 
 const belongsToAnotherExport = (
   walk: ExportWalk,
@@ -257,7 +259,7 @@ const visitShape = (walk: ExportWalk, shape: Shape): void => {
 export const exportedFields = (
   checker: ts.TypeChecker,
 ): ((source: ts.SourceFile) => OwnedField[]) => {
-  const targetOfShape = shapeTarget(checker);
+  const targetOfShape = bindFirst(shapeTarget)(checker);
   const isExportedTarget = createExportedTargetLookup(checker, targetOfShape);
   return (source) => {
     const container = checker.getSymbolAtLocation(source);
