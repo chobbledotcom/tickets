@@ -194,6 +194,65 @@ memberships, and capacity reads. With 14 groups, the page made 119 round trips.
   two loaders. In the one-file deploy this defers evaluation work; it does not
   reduce file parsing.
 
+## Cold booking navigation
+
+`first-request.ts` takes one argument, the scenario. The default scenario is
+`listings`. The `booking-nav` scenario measures the booking page instead:
+
+```bash
+deno task bench:cold-start booking-nav
+```
+
+The scenario serves `GET /ticket/benchmark-listing-1`, the ticket page of the
+benchmark listing. The listing sits on a site page, so the request builds the
+public navigation model for a real target. The seeded nav tree carries a leaf
+off the active chain. A sample is valid only when the page returns 200 with
+every marker the scenario requires. The markers include the rendered active
+chain: the Visit page's active link and the booked listing's active link. A
+booking page that dropped its navigation cannot look fast.
+
+The harness matches the listings scenario: eight fresh child processes per
+simulated latency and the balanced forward and reverse rotation. The first
+request in a fresh process is the cold sample. The second request in that
+process is the warm sample. Every libsql call pays the configured fake latency
+and counts one round trip. Production edge isolates live about 30 seconds. A
+visitor therefore mostly hits the cold first request in a fresh process. The
+warm second request is the best case.
+
+### Recorded booking-nav results (PR #2621)
+
+Measured on 20 October 2026 at pre-rebase head `9b1a68a51`. Every number is a
+median of eight fresh processes per simulated latency. The source is the
+bench-table comment on PR #2621, which names the job-submit run behind each
+row.
+
+| State | Cold @0ms | Cold @5ms | Cold @10ms | Cold @20ms | Cold round trips | Warm @20ms | Warm round trips |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| A — main's nav code (baseline) | 61ms | 115ms | 162ms | 252ms | 16 | 154ms | 12 |
+| B — nav-key change only | 67ms | 154ms | 225ms | 368ms | 23 | 241ms | 17 |
+| C — chain-scoped leaf resolution | 63ms | 136ms | 197ms | 317ms | 20 | 197ms | 15 |
+
+Warm requests at the other latencies (A / B / C): 4 / 5 / 4ms at 0ms,
+47 / 75 / 61ms at 5ms, and 83 / 130 / 106ms at 10ms. The largest median
+absolute deviation in any row was 3.1ms. The 51ms cold gap between states B
+and C at 20ms therefore sat far outside run-to-run noise.
+
+The nav-key change alone (state B) added 7 cold round trips over main
+(16 to 23) and 116ms at 20ms. The chain-scoped consolidation (state C)
+recovered 3 cold round trips and 51ms at 20ms. It also recovered 2 warm round
+trips and 44ms. It did not return to main's 16 cold round trips: the booking
+nav sat at 20. The listings scenario stayed unchanged through the same states,
+with 23 cold round trips, 315ms at 20ms, and 14 warm round trips.
+
+A re-observation at head `0bd0f650a` on 21 October 2026 measured the same 20
+cold and 15 warm round trips. Its cold times sat a few ms above the recorded
+run (325ms against 317ms at 20ms). That gap is run-to-run timing, not a query
+change.
+
+The limits section below applies to these numbers in full. They measured
+source modules against a local SQLite file under fake latency, so they are not
+an end-to-end production observation.
+
 ## What the request benchmark excludes
 
 The request child statically imports `serve-app.ts` before its request clock. It
