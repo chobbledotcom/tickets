@@ -51,6 +51,13 @@ const DIGEST_BATCH = 100;
  * check-in lands. */
 export type TicketCacheEntry = { hash: string; tickets: number };
 
+/** Puts one door's cache rows in digest order, so every device saves the
+ * same list for the same door and the same tokens. */
+const byDigest = (one: TicketCacheEntry, two: TicketCacheEntry): number => {
+  if (one.hash < two.hash) return -1;
+  return 1;
+};
+
 /** The keyed digests of one door's admittable ticket tokens, each with the
  * places its booking still owes on the door's listings. A token belongs in
  * the list when its attendee holds at least one line on the door's listings
@@ -98,7 +105,7 @@ export const ticketCacheForScope = async (
   const entries = (
     await mapParallel(digestBatch)(chunk(DIGEST_BATCH)([...owedByToken.keys()]))
   ).flat();
-  return entries.sort((one, two) => (one.hash < two.hash ? -1 : 1));
+  return entries.sort(byDigest);
 };
 
 /** The cache response behind one door: the door's digest set, or the

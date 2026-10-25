@@ -118,11 +118,6 @@ export const postedScanBodies = (fetchStub: Stub): Record<string, unknown>[] =>
     .filter((call) => String(call.args[0]) === SCAN_PATH)
     .map((call) => JSON.parse(String(call.args[1]?.body)));
 
-/** Every token the page posted to its scan endpoint, in the order the door
- * received them. */
-export const postedScanTokens = (fetchStub: Stub): string[] =>
-  postedScanBodies(fetchStub).map((body) => body.token as string);
-
 /** The fakes one camera test runs against: a clock the test moves forward,
  * the timer queue the loop schedules onto, a canvas context recording its
  * calls, a decoder answering the test's codes, and a camera that opens on

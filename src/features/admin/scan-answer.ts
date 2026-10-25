@@ -233,7 +233,7 @@ const scanBy = async (
   if (delivery) {
     const landed = await foundDelivery(delivery);
     if (landed) {
-      return acknowledgedAnswer(allEntries, attendeeName, landed);
+      return acknowledgedAnswer(allEntries, attendeeName, landed, delivery);
     }
   }
   const decision = decideScan(

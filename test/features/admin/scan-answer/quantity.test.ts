@@ -35,6 +35,10 @@ describeWithEnv(
       return notes[0]!.note;
     };
 
+    /** The alert the door reads on both the first answer and its retry:
+     * the delivery named 4, the booking held 3, and 3 got in. */
+    const overAdmissionAlert = { admitted: 3, bought: 3, named: 4 };
+
     test("a delivery admits exactly the quantity it names", async () => {
       // A party of three. The door admits two of them on this delivery's
       // word, and the third still waits for a delivery of their own.
@@ -84,11 +88,7 @@ describeWithEnv(
       expect(answer.response.status).toBe(200);
       expect(answer.json.status).toBe("checked_in");
       expect(answer.json.quantity).toBe(3);
-      expect(answer.json.overAdmission).toEqual({
-        admitted: 3,
-        bought: 3,
-        named: 4,
-      });
+      expect(answer.json.overAdmission).toEqual(overAdmissionAlert);
       expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 3 }]);
 
       // The booking's note carries the numbers once, where staff can act.
@@ -105,6 +105,9 @@ describeWithEnv(
         4,
       );
       expect(retry.json.status).toBe("already_checked_in");
+      // The first answer named the numbers, but the door can miss it: the
+      // retry is the answer the door acts on, so it says the numbers again.
+      expect(retry.json.overAdmission).toEqual(overAdmissionAlert);
       expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 3 }]);
       expect(await getNoteRows("attendee", [attendee.id])).toHaveLength(1);
     });

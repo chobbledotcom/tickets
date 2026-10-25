@@ -69,14 +69,18 @@ export const wrongListingResponse = (
 /** Answer a delivery the ledger already took. The rows are the ones the
  * delivery admitted. The quantity is what that admission took: what the
  * first send's answer said. A fresh decision picks nothing here, and no
- * prompt the first send passed comes back. */
+ * prompt the first send passed comes back. A delivery that named more
+ * people than its landing admitted still answers the numbers. The first
+ * send's answer can get lost before it reaches the door, and this retry
+ * is the answer the door reads. */
 export const acknowledgedAnswer = (
   allEntries: readonly TokenEntry[],
   attendeeName: string,
   landed: DeliveredScanOperation,
+  delivery?: QueuedDelivery,
 ): Response =>
-  jsonResponse(
-    scanBody(
+  jsonResponse({
+    ...scanBody(
       allEntries.filter((entry) =>
         landed.listingIds.includes(entry.listing.id),
       ),
@@ -84,7 +88,15 @@ export const acknowledgedAnswer = (
       "already_checked_in",
       landed.quantity,
     ),
-  );
+    ...(delivery?.quantity !== undefined &&
+      delivery.quantity > landed.quantity && {
+        overAdmission: {
+          admitted: landed.quantity,
+          bought: bookingHoldings(allEntries),
+          named: delivery.quantity,
+        },
+      }),
+  });
 
 /** The places one booking holds on the lines it still owns, across every
  * listing the booking spans. */
@@ -111,6 +123,7 @@ export const admissionAnswer = async (
           allEntries,
           attendeeName,
           await deliveredAdmission(delivery),
+          delivery,
         )
       : alreadyCheckedIn(decision.rows, attendeeName);
   }

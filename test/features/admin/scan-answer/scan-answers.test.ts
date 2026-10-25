@@ -393,6 +393,43 @@ describeWithEnv("the answer for one admission's write", { db: true }, () => {
     });
   });
 
+  test("a delivery that named more than its landing admitted still alerts", async () => {
+    // The delivery named five people, the booking held three, and the write
+    // moved none because another door took them first. The claim stands at
+    // the three the delivery planned, so the answer reads that landing, and
+    // it still says the numbers: the first send's answer can get lost
+    // before it reaches the door.
+    await withTransaction((tx) =>
+      claimScanOperation({
+        listingIds: [1],
+        operationId: "op-over-admitted-1",
+        quantity: 3,
+        tokenHash: "digest-over-admitted-1",
+      })(tx),
+    );
+
+    const answer = await admissionAnswer(
+      admitOf([standardRow(3)]),
+      [standardRow(3), societyRow()],
+      "Cara",
+      {
+        operationId: "op-over-admitted-1",
+        quantity: 5,
+        tokenHash: "digest-over-admitted-1",
+      },
+      { admitted: 0, remaining: 0 },
+    );
+
+    expect(await answer.json()).toEqual({
+      listingName: "Standard",
+      name: "Cara",
+      overAdmission: { admitted: 3, bought: 4, named: 5 },
+      quantity: 3,
+      status: "already_checked_in",
+      total: 3,
+    });
+  });
+
   test("a drained delivery whose ledger row is gone fails loudly", async () => {
     // The admission stores the pair before any drained answer reads it, so
     // a missing row is a broken invariant, not an answer.

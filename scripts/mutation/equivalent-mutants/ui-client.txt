@@ -173,10 +173,10 @@ src/ui/client/scanner.js::handleResult.not_found~0kp32lg Ticket not found→"" a
 src/ui/client/scanner.js::handleResult.error~0l5b2wp break;→(removed) audited:1itkkge # the error case is the switch's last arm, so falling through leaves the switch the same way
 src/ui/client/scanner.js::admitScan.ok~01y02a0 {name} is registered for "{listingName}", not this listing. Check in anyway?→"" audited:1itkkge # the camera page always renders data-message-wrong-listing-confirm, so the fallback copy never shows
 src/ui/client/scanner.js::admitScan.ok~01y02a0 messageWrongListingConfirm→"" audited:1itkkge # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner.js::admitScan.ok~0ix9hnh Does their ID match "{name}"?→"" audited:1itkkge # the camera page always renders data-message-verify-id-confirm, so the fallback copy never shows
-src/ui/client/scanner.js::admitScan.ok~0ix9hnh messageVerifyIdConfirm→"" audited:1itkkge # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner.js::admitScan~0ly9bwc messageIdMismatch→"" audited:1itkkge # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner.js::admitScan~0ly9bwc ID does not match {name}→"" audited:1itkkge # the camera page always renders data-message-id-mismatch, so the fallback copy never shows
+src/ui/client/scanner.js::askIdCheck.ok~0l175sd Does their ID match "{name}"?→"" audited:0lm6v9j # the camera page always renders data-message-verify-id-confirm, so the fallback copy never shows
+src/ui/client/scanner.js::askIdCheck.ok~0l175sd messageVerifyIdConfirm→"" audited:0lm6v9j # the lookup misses into the fallback copy, whose words are the rendered attribute's own
+src/ui/client/scanner.js::askIdCheck~0ly9bwc messageIdMismatch→"" audited:0lm6v9j # the lookup misses into the fallback copy, whose words are the rendered attribute's own
+src/ui/client/scanner.js::askIdCheck~0ly9bwc ID does not match {name}→"" audited:0lm6v9j # the camera page always renders data-message-id-mismatch, so the fallback copy never shows
 src/ui/client/scanner.js::startScanner.scan.processing~1gtvkhn =→+= audited:1itkkge # the write runs only after the guard above it passed, so processing is always false there; false + true is 1, which is truthy like the true it replaces
 src/ui/client/scanner.js::startScanner.scan~1ub4fcx messageInvalidQr→"" audited:1itkkge # the lookup misses into the fallback copy, whose words are the rendered attribute's own
 src/ui/client/scanner.js::startScanner.scan~1ub4fcx Invalid QR code→"" audited:1itkkge # the camera page always renders data-message-invalid-qr, so the fallback copy never shows
