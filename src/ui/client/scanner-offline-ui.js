@@ -15,11 +15,6 @@ import {
   showStatus,
 } from "./scanner-messages.js";
 import {
-  appendQueuedRow,
-  renderQueuePanel,
-  syncQueue,
-} from "./scanner-offline-sync.js";
-import {
   isCacheFresh,
   isSyncing,
   offlineModeActive,
@@ -31,6 +26,11 @@ import {
   registerScannerWorker,
   writeManualMode,
 } from "./scanner-offline.js";
+import {
+  appendQueuedRow,
+  renderQueuePanel,
+  syncQueue,
+} from "./scanner-offline-sync.js";
 
 /** Show or hide the offline banner, worded for why the mode is on. */
 const updateOfflineBanner = (banner, bannerText, messages) => {
