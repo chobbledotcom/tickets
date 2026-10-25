@@ -143,10 +143,12 @@ export const withoutLinksTo = (
 ): string => rewriteLexedSource(markdown, { link: matcher });
 
 /** Rewrites each picture reference's address through `toUrl`, and keeps
- * every other byte of the source. The lexer parses code spans and fenced
- * code blocks as code, not as pictures. A reference inside them keeps the
- * form the author wrote, the way the HTML render shows it. A reference
- * whose address `toUrl` leaves undefined keeps its written form too. */
+ * every other byte of the source. A reference-style picture the table
+ * resolves takes the editor's inline form, and its definition's address
+ * resolves with it. The lexer parses code spans and fenced code blocks as
+ * code, not as pictures. A reference inside them keeps the form the author
+ * wrote, the way the HTML render shows it. A reference whose address
+ * `toUrl` leaves undefined keeps its written form too. */
 export const rewriteImageDestinations = (
   markdown: string,
   toUrl: ImageDestination,
@@ -233,11 +235,11 @@ const childTokens = (token: Token): readonly Token[] => {
   return "tokens" in token && Array.isArray(token.tokens) ? token.tokens : [];
 };
 
-/** Deepest parsed tokens in source order. Links stay whole so their complete
- * spelling is replaced; code tokens stay whole so link-looking code advances
- * the source cursor without being changed. */
+/** Deepest parsed tokens in source order. Links and pictures stay whole so
+ * their complete spelling is replaced; code tokens stay whole so link-looking
+ * code advances the source cursor without being changed. */
 const leafTokens = (token: Token): Token[] => {
-  if (token.type === "link") return [token];
+  if (token.type === "link" || token.type === "image") return [token];
   const children = childTokens(token);
   return children.length > 0 ? children.flatMap(leafTokens) : [token];
 };
@@ -251,6 +253,44 @@ const IMAGE_SOURCE =
   // biome-ignore lint/suspicious/noControlCharactersInRegex: the control-character range is marked's own bare-address rule, which ends a bare address at the characters a URL never holds
   /^!\[((?:\[(?:\\[\s\S]|[^[\]\\])*\]|\\[\s\S]|`+(?!`)[^`]*?`+(?!`)|``+(?=\])|[^[\]\\`])*)\]\((\s*)((?:<(?:\\.|[^\n<>\\])+>|[^ \t\n\x00-\x1f]*))(?:(?:[ \t]+(?:\n[ \t]*)?|\n[ \t]*)(?:"(?:\\"?|[^"\\])*"|'(?:\\'?|[^'\\])*'|\((?:\\\)?|[^)\\])*\)))?\s*\)$/;
 
+/** The name rule marked's tokenizer gives a reference and a definition: no
+ * bare brackets, and a backslash escape survives. Copied from marked 18's
+ * compiled rules, so the splices below read the source the same way marked
+ * read it. */
+const MARKED_LABEL = "(?!\\s*\\])(?:\\\\[\\s\\S]|[^\\[\\]\\\\])+";
+
+/** The alt-text rule marked's tokenizer gives a picture reference: nested
+ * balanced brackets, backslash escapes, and code spans, but no bare `]`.
+ * Copied from marked 18's reflink rule. */
+const MARKED_ALT_TEXT =
+  "(?:\\[(?:\\\\[\\s\\S]|[^\\[\\]\\\\])*\\]|\\\\[\\s\\S]|`+(?!`)[^`]*?`+" +
+  "(?!`)|``+(?=\\])|[^\\[\\]\\\\`])*?";
+
+/** A reference-style picture's source as marked reads it, `![alt][name]`,
+ * end-anchored. */
+const REFERENCE_IMAGE_SOURCE = new RegExp(
+  `^!\\[(${MARKED_ALT_TEXT})\\]\\[(${MARKED_LABEL})\\]$`,
+);
+
+/** A bare or collapsed picture reference's source as marked reads it,
+ * `![alt]` or `![alt][]`, end-anchored. */
+const SHORTCUT_IMAGE_SOURCE = new RegExp(
+  `^!\\[(${MARKED_LABEL})\\](?:\\[\\])?$`,
+);
+
+/** A definition's source as marked reads it: the name, the colon, the
+ * address, and the optional title, which can sit on the next line.
+ * End-anchored, with the address captured between the parts the rewrite
+ * keeps. Copied from marked 18's def rule. */
+const IMAGE_DEFINITION_SOURCE = new RegExp(
+  "^( {0,3}\\[(?:" +
+    MARKED_LABEL +
+    ")\\]: *(?:\\n[ \\t]*)?)" +
+    "([^<\\s][^\\s]*|<.*?>)" +
+    '((?:(?: +(?:\\n[ \\t]*)?| *\\n[ \\t]*)(?:"(?:\\\\"?|[^"\\\\])*"|' +
+    "'[^'\\n]*(?:\\n[^'\\n]+)*\\n?'|\\([^()]*\\)))? *(?:\\n+|$))$",
+);
+
 /** The address marked reads from an address as written: trimmed, angle
  * brackets off, backslash escapes on punctuation undone. The token's `href`
  * holds the result. */
@@ -260,20 +300,19 @@ const markedHref = (dest: string): string => {
   return bare.replace(/\\([\p{P}\p{S}])/gu, "$1");
 };
 
-/** Replaces one picture's address inside the token's own source, and keeps
- * every other byte of that source, the title part included. A source that
- * does not end in the address's parentheses, such as a `![alt][label]`
- * reference, keeps its written form. */
-const rewriteImageSource = (
-  raw: string,
+/** The splice that replaces the address one rule's match holds. It reads
+ * the token's own source from the match, and it gets the old and new
+ * addresses. */
+type SourceSplice = (
+  match: RegExpExecArray,
+  url: string,
   href: string,
-  toUrl: ImageDestination,
-): string => {
-  const url = toUrl(href);
-  if (url === undefined) return raw;
-  const source = IMAGE_SOURCE.exec(raw);
-  if (!source) return raw;
-  const [, label, gap, dest] = source;
+) => string;
+
+/** Splices one picture's resolved address into the inline form's source:
+ * the alt text and the title keep their written bytes. */
+const spliceInlineImage: SourceSplice = (match, url, href) => {
+  const [, label, gap, dest] = match;
   // The three groups always join the match, and the address must read back
   // as the token's own address. A miss means this copy of marked's picture
   // rule drifted from marked itself.
@@ -286,7 +325,72 @@ const rewriteImageSource = (
   );
   // `![` and `](` hold four characters around the label and the whitespace.
   const start = 4 + label.length + gap.length;
-  return `${raw.slice(0, start)}${url}${raw.slice(start + dest.length)}`;
+  return `${match.input.slice(0, start)}${url}${match.input.slice(start + dest.length)}`;
+};
+
+/** Splices the resolved address into a reference picture's source. The
+ * reference becomes the editor's inline form, the way the HTML render shows
+ * the picture. The alt text keeps its written bytes. */
+const spliceReferenceImage: SourceSplice = (match, url) => {
+  const alt = match[1];
+  // The name always joins the match, so a miss means this copy of marked's
+  // reference rules drifted from marked itself.
+  assert(alt !== undefined, "The picture reference match lost the alt text");
+  return `![${alt}](${url})`;
+};
+
+/** Splices the resolved address into a definition's source: the name, the
+ * title, and the line's shape keep their written bytes. */
+const spliceDefinition: SourceSplice = (match, url, href) => {
+  const [, prefix, dest, suffix] = match;
+  // The address must read back as the token's own address. A miss means this
+  // copy of marked's definition rule drifted from marked itself.
+  assert(
+    prefix !== undefined &&
+      dest !== undefined &&
+      suffix !== undefined &&
+      markedHref(dest) === href,
+    "The definition source match lost the token's address",
+  );
+  return `${prefix}${url}${suffix}`;
+};
+
+/** One source rule a token's own source resolves through, and the splice
+ * that replaces the address a match holds. */
+type SourceRule = {
+  source: RegExp;
+  splice: SourceSplice;
+};
+
+/** The source rules each resolving token type resolves through, in marked's
+ * own order. A picture takes its inline form, then its reference forms. A
+ * definition resolves its own address. */
+const SOURCE_RULES: Record<"image" | "def", readonly SourceRule[]> = {
+  def: [{ source: IMAGE_DEFINITION_SOURCE, splice: spliceDefinition }],
+  image: [
+    { source: IMAGE_SOURCE, splice: spliceInlineImage },
+    { source: REFERENCE_IMAGE_SOURCE, splice: spliceReferenceImage },
+    { source: SHORTCUT_IMAGE_SOURCE, splice: spliceReferenceImage },
+  ],
+};
+
+/** Replaces the address the first matching rule finds in a token's own
+ * source, and keeps every other byte of that source. A source whose address
+ * the rewrite leaves alone, or that no rule reads, keeps its written
+ * form. */
+const rewriteSource = (
+  raw: string,
+  href: string,
+  toUrl: ImageDestination,
+  rules: readonly SourceRule[],
+): string => {
+  const url = toUrl(href);
+  if (url === undefined) return raw;
+  for (const { source, splice } of rules) {
+    const match = source.exec(raw);
+    if (match) return splice(match, url, href);
+  }
+  return raw;
 };
 
 const rewriteToken = (token: Token, rewrites: TokenRewrites): string => {
@@ -303,11 +407,16 @@ const rewriteToken = (token: Token, rewrites: TokenRewrites): string => {
     return rewriteChildren(token.raw, token.tokens, rewrites);
   }
   if (
-    token.type === "image" &&
+    (token.type === "image" || token.type === "def") &&
     typeof token.href === "string" &&
     rewrites.image
   ) {
-    return rewriteImageSource(token.raw, token.href, rewrites.image);
+    return rewriteSource(
+      token.raw,
+      token.href,
+      rewrites.image,
+      SOURCE_RULES[token.type],
+    );
   }
   if (isTableToken(token)) return rewriteTable(token, rewrites);
   if (token.type === "list") {
