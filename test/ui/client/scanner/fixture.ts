@@ -29,6 +29,8 @@ import {
   type HTMLVideoElement as HappyHTMLVideoElement,
   Window,
 } from "happy-dom";
+import { fromBase64Url } from "#crypto/utils.ts";
+import { hmacHex } from "#shared/sha256.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { createGlobalStash, type GlobalStash } from "#test-utils/happy-dom.ts";
 import { rebrandedPage } from "#test-utils/rebrand-page.ts";
@@ -136,6 +138,8 @@ export const SCANNER_PAGE = `
     data-message-offline-cache-missing="No offline ticket list yet. Go online and reload this page first."
     data-message-offline-invalid="This ticket cannot be checked in offline. Scan it again when you are back online to see why."
     data-message-offline-mode-save-failed="Your change was not saved. Free up space on this device, then try again."
+    data-message-offline-not-queued="Nothing was queued. Scan the ticket again to check them in."
+    data-message-offline-quantity-ask="How many people are you checking in?"
     data-message-offline-queued="Ticket looks valid. It will be checked in when you are back online."
     data-message-offline-save-failed="This scan was not saved. Free up space on this device, then scan it again."
     data-message-queue-count-one="{count} queued check-in"
@@ -143,6 +147,7 @@ export const SCANNER_PAGE = `
     data-message-queue-item-already="Was already checked in"
     data-message-queue-item-checked-in="Checked in"
     data-message-queue-item-not-checked-in="Not checked in"
+    data-message-queue-item-over-admitted="Alert: {name} — this check-in was for {named}, but the booking only had {admitted} left. The booking holds {bought} in total."
     data-message-queue-item-queued="Waiting — will be checked in when online"
     data-message-queue-item-refunded="Refunded — not checked in"
     data-message-queue-item-still-queued="Not sent yet — still queued"
@@ -326,11 +331,19 @@ export const SCAN_PATH = "/admin/groups/5/scan";
 /** The ticket token one scan carries. */
 export const TOKEN = "tok12345";
 
-/** The queued check-in one reload would restore. */
+/** The door key the fixture page's data attribute carries: the key the
+ * camera fakes and the stored queue's digest digest under. */
+export const DOOR_KEY = fromBase64Url("dGVzdC1kb296LWNhY2hlLWtleQ");
+
+/** The queued check-in one reload would restore: the digest the door's
+ * list holds for the token one scan carries, the delivery id it answers
+ * by, and the one person it admits. */
 export const queuedItem = {
+  operationId: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b30",
+  quantity: 1,
   queuedAt: 1,
   scanPath: SCAN_PATH,
-  token: TOKEN,
+  tokenHash: await hmacHex(DOOR_KEY, TOKEN),
 };
 
 /** The store's queue, as the page wrote it. */

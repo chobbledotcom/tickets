@@ -144,6 +144,20 @@ Then(
 );
 
 Then(
+  "the door page asks how many people an offline scan checks in",
+  function (this: TicketsWorld): void {
+    const page = scannerBrowser(this).currentHtml;
+    // This harness serves the page and never runs its script, so the step
+    // reads the ask the door worker sees: the page's own words for the
+    // question an offline scan opens before it queues the check-in.
+    assertStringIncludes(
+      page,
+      `data-message-offline-quantity-ask="${t("admin.scanner.offline_quantity_ask")}"`,
+    );
+  },
+);
+
+Then(
   "the ticket page offers to check them out",
   function (this: TicketsWorld): void {
     assertStringIncludes(

@@ -130,6 +130,8 @@ const offlineMessageAttrs = (): Record<string, string> => ({
   "data-message-offline-mode-save-failed": t(
     "admin.scanner.offline_mode_save_failed",
   ),
+  "data-message-offline-not-queued": t("admin.scanner.offline_not_queued"),
+  "data-message-offline-quantity-ask": t("admin.scanner.offline_quantity_ask"),
   "data-message-offline-queued": t("admin.scanner.offline_queued"),
   "data-message-offline-save-failed": t("admin.scanner.offline_save_failed"),
   "data-message-queue-count-one": t("admin.scanner.queue_count_one", {
@@ -144,6 +146,15 @@ const offlineMessageAttrs = (): Record<string, string> => ({
   ),
   "data-message-queue-item-not-checked-in": t(
     "admin.scanner.queue_item_not_checked_in",
+  ),
+  "data-message-queue-item-over-admitted": t(
+    "admin.scanner.queue_item_over_admitted",
+    {
+      admitted: "{admitted}",
+      bought: "{bought}",
+      name: "{name}",
+      named: "{named}",
+    },
   ),
   "data-message-queue-item-queued": t("admin.scanner.queue_item_queued"),
   "data-message-queue-item-refunded": t("admin.scanner.queue_item_refunded"),

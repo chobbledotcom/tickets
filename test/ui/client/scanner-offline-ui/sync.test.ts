@@ -19,6 +19,7 @@ import {
   cameraFakes,
   scanFirst,
   start,
+  whenStatusShows,
   withEmptyCache,
 } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
@@ -34,6 +35,7 @@ import {
   whenTextShows,
 } from "#test/ui/client/scanner/fixture.ts";
 import {
+  digestOf,
   expectSyncSettled,
   firstRow,
   queuedItems,
@@ -63,17 +65,26 @@ describe("scanner offline sync", {
     expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
   };
 
-  /** Answers each replayed check-in with the answer its queued token maps
-   * to, and the page's cache refresh with an empty list. */
-  const answerEachToken = (
+  /** Answers each replayed delivery with the answer its queued ticket maps
+   * to, and the page's cache refresh with an empty list. The delivery names
+   * its ticket by the digest it stored. */
+  const answerEachToken = async (
     answers: Record<string, Record<string, unknown>>,
-  ): FetchResponder =>
-    withEmptyCache((_url, init) => {
-      const { token } = JSON.parse(String(init?.body));
-      const answer = answers[token];
-      if (!answer) throw new Error(`No answer staged for ${token}`);
+  ): Promise<FetchResponder> => {
+    const byDigest = new Map(
+      await Promise.all(
+        Object.entries(answers).map(
+          async ([token, answer]) => [await digestOf(token), answer] as const,
+        ),
+      ),
+    );
+    return withEmptyCache((_url, init) => {
+      const { token_hash } = JSON.parse(String(init?.body));
+      const answer = byDigest.get(token_hash);
+      if (!answer) throw new Error(`No answer staged for ${token_hash}`);
       return Response.json(answer);
     });
+  };
 
   test("settles a queued check-in on the next page load", async () => {
     const fetchStub = stubFetch(settledCheckIn);
@@ -82,13 +93,17 @@ describe("scanner offline sync", {
       const summary = el(h.document, "scanner-queue-summary");
       await whenTextShows(summary, "0 queued check-ins");
 
-      // The replay carried the queued ticket to the door it was scanned at.
+      // The replay carried the queued delivery to the door it was scanned
+      // at: the digest it stored, the delivery id it answers by, and the
+      // person it admits.
       const scanCall = fetchStub.calls.find(
         (call) => String(call.args[0]) === SCAN_PATH,
       );
       expect(scanCall).toBeDefined();
       expect(JSON.parse(String(scanCall?.args[1]?.body))).toEqual({
-        token: TOKEN,
+        operation_id: queuedItem.operationId,
+        quantity: 1,
+        token_hash: queuedItem.tokenHash,
       });
       expect(storedQueue(h)).toBe("[]");
       expect(firstRow(h).textContent).toBe("Checked in");
@@ -230,8 +245,9 @@ describe("scanner offline sync", {
   });
 
   test("shows each settled answer on its own row", async () => {
+    const seed = await queuedItems(["tok1", "tok2", "tok3"]);
     const fetchStub = stubFetch(
-      answerEachToken({
+      await answerEachToken({
         tok1: {
           listingName: "Standard",
           name: "Ada",
@@ -245,8 +261,7 @@ describe("scanner offline sync", {
     );
     try {
       const h = fresh({
-        seed: (store) =>
-          store.setItem("scanner-queue", queuedItems(["tok1", "tok2", "tok3"])),
+        seed: (store) => store.setItem("scanner-queue", seed),
       });
       await expectSyncSettled(h, whenTextShows, fetchStub, [
         "tok1",
@@ -265,49 +280,112 @@ describe("scanner offline sync", {
     }
   });
 
-  test("reports each ask the door declined on its row", async () => {
+  test("rides the ID check on the same delivery and answers once", async () => {
+    // A non-transferable listing asks for an ID check before it admits. The
+    // door makes the check now, and the answer rides the very delivery the
+    // check-in queued — the server records one delivery either way.
     const fetchStub = stubFetch(
-      answerEachToken({
-        tok1: { listingName: "Standard", name: "Ada", status: "wrong_listing" },
-        tok2: { name: "Ada", status: "verify_id" },
-        tok3: { max: 3, name: "Ada", status: "select_quantity" },
+      withEmptyCache((_url, init) => {
+        const { id_verified } = JSON.parse(String(init?.body));
+        return id_verified
+          ? Response.json({
+              listingName: "Standard",
+              name: "Ada",
+              quantity: 1,
+              status: "checked_in",
+              total: 1,
+            })
+          : Response.json({
+              listingName: "Standard",
+              name: "Ada",
+              status: "verify_id",
+            });
       }),
     );
     using _fetch = fetchStub;
-    const h = fresh({
-      seed: (store) =>
-        store.setItem("scanner-queue", queuedItems(["tok1", "tok2", "tok3"])),
-    });
+    const h = fresh(queueSeeded());
 
-    // The replay meets each ask in its turn, and the door declines all
-    // three: nobody is checked in.
-    await whenMessageShows(
-      h,
-      'Ada is registered for "Standard", not this listing. Check in anyway?',
+    await whenMessageShows(h, 'Does their ID match "Ada"?');
+    h.confirm.yes.click();
+
+    // The second post and the settled row ride the platform's own promise
+    // turns, so the wait hops real event-loop turns. Both posts carried the
+    // one delivery's digest.
+    await expectSyncSettled(h, whenStatusShows, fetchStub, [TOKEN, TOKEN]);
+    expect(firstRow(h).textContent).toBe("Checked in");
+    // Two posts went out for one delivery: the ask, then the answer that
+    // rides it — each naming the same digest and the same delivery id.
+    const bodies = fetchStub.calls
+      .filter((call) => String(call.args[0]) === SCAN_PATH)
+      .map((call) => JSON.parse(String(call.args[1]?.body)));
+    expect(bodies).toEqual([
+      {
+        operation_id: queuedItem.operationId,
+        quantity: 1,
+        token_hash: queuedItem.tokenHash,
+      },
+      {
+        id_verified: true,
+        operation_id: queuedItem.operationId,
+        quantity: 1,
+        token_hash: queuedItem.tokenHash,
+      },
+    ]);
+  });
+
+  test("reports an ID check the door declined on its row", async () => {
+    const fetchStub = stubFetch(
+      await answerEachToken({
+        [TOKEN]: {
+          listingName: "Standard",
+          name: "Ada",
+          status: "verify_id",
+        },
+      }),
     );
-    h.confirm.no.click();
+    using _fetch = fetchStub;
+    const h = fresh(queueSeeded());
+
     await whenMessageShows(h, 'Does their ID match "Ada"?');
     h.confirm.no.click();
-    await whenTextShows(
-      el(h.document, "scanner-quantity-message"),
-      "How many tickets for Ada?",
-    );
-    el(h.document, "scanner-quantity-cancel").click();
 
-    await expectSyncSettled(h, whenTextShows, fetchStub, [
-      "tok1",
-      "tok2",
-      "tok3",
-    ]);
-    expect(rowWords(h)).toEqual([
-      "This ticket has no door to check in at.",
-      "Not checked in",
-      "Not checked in",
-    ]);
-    // A declined ask is the end: no re-scan went out for any of them.
+    await expectSyncSettled(h, whenStatusShows, fetchStub, [TOKEN]);
+    expect(firstRow(h).textContent).toBe("Not checked in");
+    // A declined ask is the end: the answer that names the mismatch went
+    // out once, and no second post followed it.
     expect(
       fetchStub.calls.filter((call) => String(call.args[0]) === SCAN_PATH)
         .length,
-    ).toBe(3);
+    ).toBe(1);
+  });
+
+  test("alerts the door when the booking could not supply the pick", async () => {
+    // Two offline devices can each name more than is left. The delivery
+    // that lands second admits what is left, and its answer says the
+    // numbers: the row alerts, and the store drops the settled item.
+    const fetchStub = stubFetch(
+      await answerEachToken({
+        [TOKEN]: {
+          listingName: "Standard",
+          name: "Ada",
+          overAdmission: { admitted: 1, bought: 4, named: 3 },
+          quantity: 1,
+          status: "checked_in",
+          total: 4,
+        },
+      }),
+    );
+    using _fetch = fetchStub;
+    const seed = await queuedItems([TOKEN]);
+    const h = fresh({
+      seed: (store) => store.setItem("scanner-queue", seed),
+    });
+
+    await expectSyncSettled(h, whenStatusShows, fetchStub, [TOKEN]);
+    expect(rowWords(h)).toEqual([
+      "Alert: Ada — this check-in was for 3, but the booking only had 1 left. The booking holds 4 in total.",
+    ]);
+    // The alert row stands out among the settled rows.
+    expect(firstRow(h).className).toBe("scanner-queue-alert");
   });
 });

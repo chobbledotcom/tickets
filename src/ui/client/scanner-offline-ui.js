@@ -7,7 +7,13 @@
 
 import { fromBase64Url } from "#crypto/utils.ts";
 import { hmacHex } from "#shared/sha256.ts";
-import { getMessage, interpolate, showStatus } from "./scanner-messages.js";
+import { showQuantitySelect } from "./quantity-select.ts";
+import {
+  formatTicketCount,
+  getMessage,
+  interpolate,
+  showStatus,
+} from "./scanner-messages.js";
 import {
   dropFromQueue,
   isCacheFresh,
@@ -25,8 +31,22 @@ import {
 } from "./scanner-offline.js";
 
 /** The words a settled queue row carries. A declined ask and a refused
- * ticket read the same way to the door: nobody was checked in. */
+ * ticket read the same way to the door: nobody was checked in. An answer
+ * that reports the booking's shortfall alerts the door with the numbers.
+ * The door then knows some people got in with no place left. */
 const queueOutcome = (messages, answer) => {
+  if (answer?.overAdmission) {
+    return interpolate(
+      getMessage(
+        messages,
+        "messageQueueItemOverAdmitted",
+        "Alert: {name} — this check-in was for {named}, but the booking only had {admitted} left. The booking holds {bought} in total.",
+      ),
+      // The alert's numbers ride the answer's over-admission object. The
+      // person's name rides the answer itself.
+      { ...answer.overAdmission, name: answer.name },
+    );
+  }
   switch (answer?.status) {
     case "checked_in":
       return getMessage(messages, "messageQueueItemCheckedIn", "Checked in");
@@ -187,7 +207,8 @@ export const offlineScan = async (
     return;
   }
   const hash = await hmacHex(panel.doorKey, token);
-  if (!cache.hashes.includes(hash)) {
+  const entry = cache.entries.find((saved) => saved.hash === hash);
+  if (!entry) {
     showStatus(
       statusEl,
       getMessage(
@@ -204,7 +225,7 @@ export const offlineScan = async (
   // check-in twice, and the door reads that as two admissions.
   if (
     readQueue().some(
-      (item) => item.scanPath === scanPath && item.token === token,
+      (item) => item.scanPath === scanPath && item.tokenHash === hash,
     )
   ) {
     showStatus(
@@ -218,11 +239,40 @@ export const offlineScan = async (
     );
     return;
   }
+  // The door picks how many people this check-in admits, offline as
+  // online. The stored list bounds the pick at what the booking owed when
+  // it was built. The server answers what it can still supply, and says so
+  // when another door took some first. A booking that owed one place when
+  // the list was built admits it without an ask.
+  const quantity =
+    entry.tickets > 1
+      ? await showQuantitySelect(
+          entry.tickets,
+          getMessage(
+            messages,
+            "messageOfflineQuantityAsk",
+            "How many people are you checking in?",
+          ),
+          (count) => formatTicketCount(messages, count),
+        )
+      : 1;
+  if (!quantity) {
+    showStatus(
+      statusEl,
+      getMessage(
+        messages,
+        "messageOfflineNotQueued",
+        "Nothing was queued. Scan the ticket again to check them in.",
+      ),
+      "warning",
+    );
+    return;
+  }
   // A storage failure here leaves the scan unqueued, and the save-failed
   // message tells the door to scan again.
   let queued;
   try {
-    queued = queueCheckIn(scanPath, token);
+    queued = queueCheckIn(scanPath, hash, quantity);
   } catch {
     showStatus(
       statusEl,
@@ -268,7 +318,7 @@ let syncRequested = false;
  * decision. Nothing is lost when the connection drops mid-sync or the door
  * refuses the page's session. The door answers a replayed check-in
  * with already_checked_in rather than checking anyone in twice. */
-const syncQueue = async (csrfToken, statusEl, messages, panel, settleScan) => {
+const syncQueue = async (statusEl, messages, panel, settleDelivery) => {
   if (isSyncing()) {
     syncRequested = true;
     return;
@@ -276,19 +326,13 @@ const syncQueue = async (csrfToken, statusEl, messages, panel, settleScan) => {
   if (!navigator.onLine || readQueue().length === 0) return;
   setSyncing(true);
 
-  /** Settle one queued check-in: send it, mark its answer on the row, and
-   * drop it from the store. False when the store refused the removal, which
-   * stops the sync. */
+  /** Settle one queued check-in: send its delivery, mark its answer on the
+   * row, and drop it from the store. False when the store refused the
+   * removal, which stops the sync. */
   const settleRow = async ({ item, row }) => {
     let answer;
     try {
-      answer = await settleScan(
-        item.scanPath,
-        item.token,
-        csrfToken,
-        statusEl,
-        messages,
-      );
+      answer = await settleDelivery(item);
       // An answer without a scan decision is no settlement: an expired
       // session or a refused role leaves the check-in queued.
       if (typeof answer?.status !== "string") {
@@ -323,6 +367,9 @@ const syncQueue = async (csrfToken, statusEl, messages, panel, settleScan) => {
       return false;
     }
     row.textContent = queueOutcome(messages, answer);
+    // The over-admission alert must stand out among the settled rows: the
+    // door let people in with no place left, and staff act on it now.
+    row.className = answer?.overAdmission ? "scanner-queue-alert" : "";
     renderQueueCount(panel, messages);
     return true;
   };
@@ -361,18 +408,19 @@ const syncQueue = async (csrfToken, statusEl, messages, panel, settleScan) => {
     setSyncing(false);
     if (syncRequested) {
       syncRequested = false;
-      syncQueue(csrfToken, statusEl, messages, panel, settleScan);
+      syncQueue(statusEl, messages, panel, settleDelivery);
     }
   }
 };
 
 /** Wire the offline side of one scanner page and return the panel the camera
- * loop hands each offline scan to. */
+ * loop hands each offline scan to. The page hands in `settleDelivery`, the
+ * one call that posts a queued check-in's delivery and answers the door's
+ * final word for it. */
 export const initOfflineScanner = ({
-  csrfToken,
   messages,
   scanPath,
-  settleScan,
+  settleDelivery,
   statusEl,
 }) => {
   const lookup = (id) => {
@@ -388,7 +436,7 @@ export const initOfflineScanner = ({
     summary: lookup("scanner-queue-summary"),
     /** The queue's sync, wired to this page's door. A check-in the door
      * queued as the connection returned asks for it once it lands. */
-    sync: () => syncQueue(csrfToken, statusEl, messages, panel, settleScan),
+    sync: () => syncQueue(statusEl, messages, panel, settleDelivery),
   };
   const banner = lookup("scanner-offline-banner");
   const bannerText = lookup("scanner-offline-banner-text");
@@ -430,7 +478,7 @@ export const initOfflineScanner = ({
     // Disarming settles what the door queued while the switch held the
     // scans, the same way a reload or a returning connection does.
     if (!readManualMode()) {
-      syncQueue(csrfToken, statusEl, messages, panel, settleScan);
+      syncQueue(statusEl, messages, panel, settleDelivery);
     }
   });
 
@@ -438,14 +486,14 @@ export const initOfflineScanner = ({
   // connection flips re-word the banner.
   window.addEventListener("online", () => {
     renderOfflineState();
-    syncQueue(csrfToken, statusEl, messages, panel, settleScan);
+    syncQueue(statusEl, messages, panel, settleDelivery);
   });
   window.addEventListener("offline", () => renderOfflineState());
 
   registerScannerWorker();
   refreshQuietly();
   renderOfflineState();
-  syncQueue(csrfToken, statusEl, messages, panel, settleScan);
+  syncQueue(statusEl, messages, panel, settleDelivery);
 
   return panel;
 };

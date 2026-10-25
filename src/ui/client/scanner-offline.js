@@ -12,13 +12,22 @@ const MODE_KEY = "scanner-offline-mode";
  * origins. */
 const SCANNER_SW_PATH = "/admin/scanner-sw.js";
 
-/** Whether a value is a list of token digests, the only shape the cache
- * stores and the cache endpoint answers. */
-const isHashList = (value) =>
-  Array.isArray(value) && value.every((hash) => typeof hash === "string");
+/** Whether a value is the stored list: one entry per ticket digest, with
+ * the places its booking still owed when the list was built. */
+const isCacheList = (value) =>
+  Array.isArray(value) &&
+  value.every(
+    (entry) =>
+      typeof entry === "object" &&
+      entry !== null &&
+      typeof entry.hash === "string" &&
+      typeof entry.tickets === "number" &&
+      Number.isInteger(entry.tickets) &&
+      entry.tickets > 0,
+  );
 
-/** The stored hash set one door's page keeps, or null when none is stored.
- * A set we cannot parse is treated as absent and dropped. The page then
+/** The stored list one door's page keeps, or null when none is stored. A
+ * list we cannot parse is treated as absent and dropped. The page then
  * answers "no offline list" instead of breaking, and the next online load
  * rebuilds it. */
 export const readTicketCache = (scanPath) => {
@@ -26,7 +35,7 @@ export const readTicketCache = (scanPath) => {
   if (raw === null) return null;
   try {
     const cache = JSON.parse(raw);
-    if (typeof cache.storedAt !== "number" || !isHashList(cache.hashes)) {
+    if (typeof cache.storedAt !== "number" || !isCacheList(cache.entries)) {
       throw new Error(`Stored ticket cache for ${scanPath} has a bad shape`);
     }
     return cache;
@@ -36,13 +45,13 @@ export const readTicketCache = (scanPath) => {
   }
 };
 
-/** Store one door's hash set, stamped with the time this device stored it.
- * The clock that judges the 12-hour validity is this device's own, so a
- * server clock a minute away cannot stretch or cut the window. */
-export const storeTicketCache = (scanPath, hashes) => {
+/** Store one door's list, stamped with the time this device stored it. The
+ * clock that judges the 12-hour validity is this device's own, so a server
+ * clock a minute away cannot stretch or cut the window. */
+export const storeTicketCache = (scanPath, entries) => {
   localStorage.setItem(
     TICKETS_KEY_PREFIX + scanPath,
-    JSON.stringify({ hashes, storedAt: Date.now() }),
+    JSON.stringify({ entries, storedAt: Date.now() }),
   );
 };
 
@@ -53,7 +62,7 @@ export const isCacheFresh = (cache) => {
   return age >= 0 && age < CACHE_TTL_MS;
 };
 
-/** Fetch one door's hash set from the scan-cache endpoint behind its scan
+/** Fetch one door's list from the scan-cache endpoint behind its scan
  * endpoint, and store it. Throws when the request or the body fails, so the
  * caller decides what an unusable cache means for it. */
 export const refreshTicketCache = async (scanPath) => {
@@ -62,10 +71,10 @@ export const refreshTicketCache = async (scanPath) => {
     throw new Error(`The ticket cache for ${scanPath} answered ${res.status}`);
   }
   const body = await res.json();
-  if (!isHashList(body.hashes)) {
+  if (!isCacheList(body.entries)) {
     throw new Error(`The ticket cache for ${scanPath} has a bad shape`);
   }
-  storeTicketCache(scanPath, body.hashes);
+  storeTicketCache(scanPath, body.entries);
   return readTicketCache(scanPath);
 };
 
@@ -112,15 +121,22 @@ export const writeManualMode = (on) => {
  * can be validated at all. */
 export const offlineModeActive = () => readManualMode() || !navigator.onLine;
 
-/** Whether a value is the stored queue: a list where every item names its
- * door, its token, and the moment it was queued. */
+/** Whether a value is the stored queue. Every item names its door, its
+ * ticket digest, its delivery id, the people its check-in admits, and the
+ * moment it went in. */
 const isStoredQueue = (value) =>
   Array.isArray(value) &&
   value.every(
     (item) =>
+      typeof item.operationId === "string" &&
+      item.operationId !== "" &&
+      typeof item.queuedAt === "number" &&
+      typeof item.quantity === "number" &&
+      Number.isInteger(item.quantity) &&
+      item.quantity > 0 &&
       typeof item.scanPath === "string" &&
-      typeof item.token === "string" &&
-      typeof item.queuedAt === "number",
+      typeof item.tokenHash === "string" &&
+      item.tokenHash !== "",
   );
 
 /** The queued check-ins, oldest first. A store the page cannot open reads
@@ -149,10 +165,18 @@ export const readQueue = () => {
 export const writeQueue = (queue) =>
   localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
 
-/** Queue one scan's check-in under the door it scanned at. */
-export const queueCheckIn = (scanPath, token) => {
+/** Queue one scan's check-in under the door it scanned at. The item carries
+ * the ticket's keyed digest (never the raw token), the delivery id this one
+ * check-in answers by, and the people it admits. */
+export const queueCheckIn = (scanPath, tokenHash, quantity) => {
   const queue = readQueue();
-  const item = { queuedAt: Date.now(), scanPath, token };
+  const item = {
+    operationId: crypto.randomUUID(),
+    quantity,
+    queuedAt: Date.now(),
+    scanPath,
+    tokenHash,
+  };
   writeQueue([...queue, item]);
   return item;
 };
@@ -163,7 +187,7 @@ export const queueCheckIn = (scanPath, token) => {
 export const sameQueuedCheckIn = (one, two) =>
   one.queuedAt === two.queuedAt &&
   one.scanPath === two.scanPath &&
-  one.token === two.token;
+  one.tokenHash === two.tokenHash;
 
 /** Whether the stored queue still holds this item. A sync re-run walks the
  * rows an earlier run rendered. A row whose item that run settled left the

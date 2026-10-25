@@ -27,14 +27,10 @@ const extractToken = (data) => {
   }
 };
 
-/** POST to scan API — the page names it door it posts to (one listing or a
- * whole group), so the same client serves both. */
-const postScan = async (scanPath, token, csrfToken, { force, idVerified, quantity } = {}) => {
-  const body = { token };
-  if (force) body.force = true;
-  if (idVerified) body.id_verified = true;
-  if (quantity) body.quantity = quantity;
-
+/** POST one JSON body to a scan API. The page names the API by the door it
+ * posts to (one listing or a whole group), and the answer comes back as
+ * JSON. */
+const postScanBody = async (scanPath, csrfToken, body) => {
   const res = await fetch(scanPath, {
     body: JSON.stringify(body),
     headers: {
@@ -45,6 +41,17 @@ const postScan = async (scanPath, token, csrfToken, { force, idVerified, quantit
   });
 
   return res.json();
+};
+
+/** POST one live scan — the page names the door it posts to, so the same
+ * client serves both. */
+const postScan = async (scanPath, token, csrfToken, { force, idVerified, quantity } = {}) => {
+  const body = { token };
+  if (force) body.force = true;
+  if (idVerified) body.id_verified = true;
+  if (quantity) body.quantity = quantity;
+
+  return postScanBody(scanPath, csrfToken, body);
 };
 
 /** Build a "{name} … ({tickets})" status message for a check-in result. */
@@ -116,6 +123,26 @@ const handleResult = (el, result, messages) => {
 const askConfirm = (messages, key, fallback, values) =>
   showConfirm(interpolate(getMessage(messages, key, fallback), values));
 
+/** Ask the door staff to confirm the person's ID. A decline says the
+ * mismatch on the status line and answers the ask's own answer, so the
+ * caller can return it. A confirmation answers null, and the caller sends
+ * the ID-checked request. */
+const askIdCheck = async (statusEl, messages, answer) => {
+  const ok = await askConfirm(
+    messages,
+    "messageVerifyIdConfirm",
+    'Does their ID match "{name}"?',
+    { name: answer.name },
+  );
+  if (ok) return null;
+  showStatus(
+    statusEl,
+    interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: answer.name }),
+    "error",
+  );
+  return answer;
+};
+
 /** Send the person away, and answer with the ask they declined. */
 const declineAsk = (statusEl, messages, name, answer) => {
   skipPerson(statusEl, messages, name);
@@ -143,16 +170,8 @@ const admitScan = async (scanPath, token, csrfToken, statusEl, messages) => {
       if (!ok) return declineAsk(statusEl, messages, answer.name, answer);
       given.force = true;
     } else if (answer.status === "verify_id" && !given.idVerified) {
-      const ok = await askConfirm(
-        messages,
-        "messageVerifyIdConfirm",
-        'Does their ID match "{name}"?',
-        { name: answer.name },
-      );
-      if (!ok) {
-        showStatus(statusEl, interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: answer.name }), "error");
-        return answer;
-      }
+      const declined = await askIdCheck(statusEl, messages, answer);
+      if (declined) return declined;
       given.idVerified = true;
     } else if (answer.status === "select_quantity") {
       const count = await showQuantitySelect(
@@ -274,6 +293,26 @@ const init = () => {
   const csrfMeta = document.querySelector('meta[name="csrf-token"]');
   const csrfToken = csrfMeta ? csrfMeta.content : "";
 
+  /** Settle one queued check-in: its delivery names the ticket digest it
+   * stored, the operation id this one check-in answers by, and the people
+   * it admits. The server answers once per delivery — a resend repeats the
+   * first send's recorded admission. An ID check the door makes now rides
+   * the same delivery, so the answer stays one admission. */
+  const settleDelivery = async (item) => {
+    const body = {
+      operation_id: item.operationId,
+      quantity: item.quantity,
+      token_hash: item.tokenHash,
+    };
+    const answer = await postScanBody(item.scanPath, csrfToken, body);
+    if (answer.status !== "verify_id") return answer;
+    const declined = await askIdCheck(statusEl, messages, answer);
+    return declined ?? postScanBody(item.scanPath, csrfToken, {
+      ...body,
+      id_verified: true,
+    });
+  };
+
   // The offline side owns its own elements: the banner, the queue panel, and
   // the door switch. It throws naming any one the page fails to render, and
   // its door key needs an engine with Uint8Array.fromBase64. Either failure
@@ -282,10 +321,9 @@ const init = () => {
   let panel = null;
   try {
     panel = initOfflineScanner({
-      csrfToken,
       messages,
       scanPath,
-      settleScan: admitScan,
+      settleDelivery,
       statusEl,
     });
   } catch {

@@ -1,8 +1,9 @@
 /** The offline scan cache one door serves: keyed digests of the ticket
  * tokens its door can currently admit. Each digest is HMAC-SHA256 under a
- * key only the door's scanner page carries, so a copied cache response
- * alone digests nothing. The scanner page stores the set on load, so a scan
- * with no connection answers from the digests alone. The device never holds
+ * key only the door's scanner page carries. A copied cache response alone
+ * digests nothing. The scanner page stores the list on load, so a scan
+ * with no connection answers from the digests alone. The offline quantity
+ * ask bounds its pick at the stored count. The device never holds
  * the tokens of tickets it has not scanned, and never holds any guest
  * detail from this endpoint. */
 
@@ -13,7 +14,7 @@ import { toBase64Url } from "#crypto/utils.ts";
 import type { DecryptedAttendeeRow } from "#db/attendees/pii.ts";
 import { getGroupById } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { chunk, groupToMap, mapParallel } from "#fp";
+import { chunk, groupToMap, mapParallel, requiredMapValue, sumOf } from "#fp";
 import { SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import { jsonResponse, notFoundResponse } from "#routes/response.ts";
@@ -44,42 +45,60 @@ export const pageDoorCacheKey = (door: string): string =>
  * build does not start every digest at the same time. */
 const DIGEST_BATCH = 100;
 
-/** The keyed digests of one door's admittable ticket tokens. A token belongs
- * in the set when its attendee holds at least one line on the door's
- * listings that still owes a ticket. That line must not be refunded, must
- * carry ticket quantity, and is what a scan admits. Every token the loaded
- * lines carry joins the set. One token resolves the attendee's whole
- * booking. So any of the person's tickets admits them at this door the same
- * way. */
-export const ticketHashesForScope = async (
+/** One saved ticket's keyed digest and the places its booking still owed at
+ * this door when the list was built. The offline quantity ask reads the
+ * count. The server answers what the booking can still supply when the
+ * check-in lands. */
+export type TicketCacheEntry = { hash: string; tickets: number };
+
+/** The keyed digests of one door's admittable ticket tokens, each with the
+ * places its booking still owes on the door's listings. A token belongs in
+ * the list when its attendee holds at least one line on the door's listings
+ * that still owes a ticket. That line must not be refunded, must carry
+ * ticket quantity, and is what a scan admits. Every token the loaded lines
+ * carry joins the list. One token resolves the attendee's whole booking. So
+ * any of the person's tickets admits them at this door the same way, and
+ * each carries the same owed count. */
+export const ticketCacheForScope = async (
   scope: ScanScope,
   doorKey: Uint8Array,
-): Promise<string[]> => {
+): Promise<TicketCacheEntry[]> => {
   const rows = await scopeAttendees(scope);
   const rowsByAttendee = groupToMap(
     (row: DecryptedAttendeeRow<Attendee>) => row.id,
     (row: DecryptedAttendeeRow<Attendee>) => row,
   )(rows);
-  const tokens: string[] = [];
+  const owedByToken = new Map<string, number>();
   for (const lines of rowsByAttendee.values()) {
     // One line that can still admit admits the person, so any of the
-    // person's tickets at this door goes in the set.
-    const owes = lines.some(
+    // person's tickets at this door goes in the list.
+    const owing = lines.filter(
       (row) =>
         remainingTickets(row) > 0 && !row.refunded && hasTicketQuantity(row),
     );
-    if (!owes) continue;
-    for (const row of lines) tokens.push(row.ticket_token);
+    if (owing.length === 0) continue;
+    const owed = sumOf(remainingTickets)(owing);
+    for (const row of lines) owedByToken.set(row.ticket_token, owed);
   }
   // One key import serves every digest. A per-digest import repeats the
-  // same work for each token.
+  // same work for each token. Each batch pairs its digests with the owed
+  // counts, so no result order matters.
   const key = await importHmacKey(doorKey);
-  const digestBatch = (batch: string[]): Promise<string[]> =>
-    Promise.all(batch.map((token) => hmacHex(key, token)));
-  const digests = (
-    await mapParallel(digestBatch)(chunk(DIGEST_BATCH)(tokens))
+  const digestBatch = async (batch: string[]): Promise<TicketCacheEntry[]> =>
+    Promise.all(
+      batch.map(async (token) => ({
+        hash: await hmacHex(key, token),
+        tickets: requiredMapValue(
+          owedByToken,
+          token,
+          "A digested token lost its owed count",
+        ),
+      })),
+    );
+  const entries = (
+    await mapParallel(digestBatch)(chunk(DIGEST_BATCH)([...owedByToken.keys()]))
   ).flat();
-  return [...new Set(digests)].sort();
+  return entries.sort((one, two) => (one.hash < two.hash ? -1 : 1));
 };
 
 /** The cache response behind one door: the door's digest set, or the
@@ -94,7 +113,7 @@ const handleScanCacheGet =
       if (!loaded) return notFoundResponse();
       const doorKey = deriveDoorCacheKey(loaded.door);
       return jsonResponse({
-        hashes: await ticketHashesForScope(loaded.scope, doorKey),
+        entries: await ticketCacheForScope(loaded.scope, doorKey),
       });
     });
 

@@ -7,7 +7,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   decideScan,
-  exactQuantityAdmission,
+  quantityAdmission,
   rowsByListing,
   type ScanDecision,
 } from "#routes/admin/scan-decision.ts";
@@ -262,7 +262,7 @@ describe("rowsByListing", () => {
   });
 });
 
-describe("exactQuantityAdmission", () => {
+describe("quantityAdmission", () => {
   /** The fixture decision, narrowed to the admit the controls produce. */
   const admit = (decision: ScanDecision) => {
     if (decision.kind !== "admit")
@@ -278,7 +278,7 @@ describe("exactQuantityAdmission", () => {
   test("fills the listings in booking order to exactly the delivery's quantity", () => {
     // A party spans two listings and owes six places; a delivery that names
     // five admits four at the first listing and one at the next.
-    expect(exactQuantityAdmission(covered, 5)).toEqual({
+    expect(quantityAdmission(covered, 5)).toEqual({
       ...covered,
       remaining: 1,
       rows: [four, two],
@@ -290,7 +290,7 @@ describe("exactQuantityAdmission", () => {
   });
 
   test("stops at the delivery's quantity and drops the listings it never reaches", () => {
-    expect(exactQuantityAdmission(covered, 1)).toEqual({
+    expect(quantityAdmission(covered, 1)).toEqual({
       ...covered,
       remaining: 5,
       rows: [four],
@@ -298,16 +298,25 @@ describe("exactQuantityAdmission", () => {
     });
   });
 
-  test("refuses a quantity the covered listings cannot supply", () => {
+  test("takes what the covered listings owe when the pick runs past them", () => {
     // The delivery names more people than the booking still holds. The
-    // server refuses it instead of admitting fewer than the delivery named.
-    expect(exactQuantityAdmission(covered, 7)).toBeNull();
+    // plan takes the whole party, and the answer says the numbers so the
+    // door can alert — the delivery is capped, never refused.
+    expect(quantityAdmission(covered, 7)).toEqual({
+      ...covered,
+      remaining: 0,
+      rows: [four, two],
+      units: [
+        { rows: [four], tickets: 4 },
+        { rows: [two], tickets: 2 },
+      ],
+    });
   });
 
   test("one place of a party plans one ticket on the first listing", () => {
     const three = standard({ quantity: 3 });
     const one = admit(scanAt([three], { count: 3 }));
-    expect(exactQuantityAdmission(one, 1)).toEqual({
+    expect(quantityAdmission(one, 1)).toEqual({
       ...one,
       remaining: 2,
       units: [{ rows: [three], tickets: 1 }],

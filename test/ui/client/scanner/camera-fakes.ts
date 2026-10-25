@@ -3,10 +3,9 @@
 import { expect } from "@std/expect";
 import type { Stub } from "@std/testing/mock";
 import type { HTMLElement as HappyHTMLElement } from "happy-dom";
-import { fromBase64Url } from "#crypto/utils.ts";
 import { hmacHex } from "#shared/sha256.ts";
 import type { FetchResponder } from "#test-utils/fetch-stub.ts";
-import { el, SCAN_PATH, type ScannerHarness } from "./fixture.ts";
+import { DOOR_KEY, el, SCAN_PATH, type ScannerHarness } from "./fixture.ts";
 
 export type CameraFakes = ReturnType<typeof cameraFakes>;
 
@@ -15,19 +14,22 @@ export const drain = async (): Promise<void> => {
   for (let hop = 0; hop < 50; hop++) await Promise.resolve();
 };
 
-/** The page's own door key, as the fixture renders it. */
-export const doorKey = fromBase64Url("dGVzdC1kb296LWNhY2hlLWtleQ");
-
-/** The door's ticket cache, stamped by the clock the scan will read. The
- * camera fakes own the clock, so the seed lands after they do. */
+/** The door's ticket list, stamped by the clock the scan will read. The
+ * camera fakes own the clock, so the seed lands after they do. The entry
+ * carries the places the booking owed when the list was built; a booking
+ * that owed one admits without an ask, so the seed defaults there. */
 export const seedTicketCache = async (
   h: ScannerHarness,
   token: string,
   storedAt: number,
+  tickets = 1,
 ): Promise<void> => {
   h.window.localStorage.setItem(
     `scanner-tickets-${SCAN_PATH}`,
-    JSON.stringify({ hashes: [await hmacHex(doorKey, token)], storedAt }),
+    JSON.stringify({
+      entries: [{ hash: await hmacHex(DOOR_KEY, token), tickets }],
+      storedAt,
+    }),
   );
 };
 
@@ -37,7 +39,7 @@ export const withEmptyCache =
   (checkIns: FetchResponder): FetchResponder =>
   (url, init) =>
     String(url).endsWith("-cache")
-      ? Response.json({ hashes: [] })
+      ? Response.json({ entries: [] })
       : checkIns(url, init);
 
 /** The real timer the camera fakes replace, captured at module load. */
@@ -109,12 +111,17 @@ export const idle = async (fakes: CameraFakes, ms: number): Promise<void> => {
   await drain();
 };
 
+/** The bodies every scan post the page made carried, in the order the door
+ * received them. */
+export const postedScanBodies = (fetchStub: Stub): Record<string, unknown>[] =>
+  fetchStub.calls
+    .filter((call) => String(call.args[0]) === SCAN_PATH)
+    .map((call) => JSON.parse(String(call.args[1]?.body)));
+
 /** Every token the page posted to its scan endpoint, in the order the door
  * received them. */
 export const postedScanTokens = (fetchStub: Stub): string[] =>
-  fetchStub.calls
-    .filter((call) => String(call.args[0]) === SCAN_PATH)
-    .map((call) => JSON.parse(String(call.args[1]?.body)).token);
+  postedScanBodies(fetchStub).map((body) => body.token as string);
 
 /** The fakes one camera test runs against: a clock the test moves forward,
  * the timer queue the loop schedules onto, a canvas context recording its

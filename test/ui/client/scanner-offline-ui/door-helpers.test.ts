@@ -45,7 +45,7 @@ describe("scanner offline door helpers", {
     // which no microtask drain resolves, so the wait hops real turns.
     const stored = await whenStoreHolds(h, `scanner-tickets-${SCAN_PATH}`);
     expect(JSON.parse(stored)).toEqual({
-      hashes: [],
+      entries: [],
       storedAt: expect.any(Number),
     });
   });
@@ -59,13 +59,13 @@ describe("scanner offline door helpers", {
     );
   });
 
-  test("reads one queued check-in back from the store", () => {
+  test("reads one queued check-in back from the store", async () => {
     const h = fresh({
       onLine: false,
       seed: (store) =>
         store.setItem("scanner-queue", JSON.stringify([queuedItem])),
     });
-    expectOneStoredCheckIn(h, TOKEN);
+    await expectOneStoredCheckIn(h, TOKEN);
   });
 
   test("throws when the queue panel carries no first row", () => {

@@ -49,9 +49,13 @@ const SCAN_PATH = "/admin/groups/5/scan";
 const CACHE_PATH = "/admin/groups/5/scan-cache";
 const DOOR = doorCacheName("group", 5);
 
-/** The ticket the door's list holds, and one it does not. */
+/** The ticket the door's list holds, and one it does not. The held booking
+ * owed three places when the list was built, so the scan asks, and the
+ * door checks in two of the three. */
 const HELD = "held-ada-token-01";
 const UNKNOWN = "unknown-visitor-token";
+const HELD_PLACES = 3;
+const CHECK_IN_PICK = 2;
 
 /** The check-in answer the door's scan endpoint sends, in its own shape. */
 const CHECKED_IN = {
@@ -83,7 +87,8 @@ const ticketQr = (token: string): TicketQr => {
 describe("the offline door on the served scanner page", () => {
   let browser: Browser;
   let bundle: string;
-  let checkIns: { token: string }[];
+  /** The delivery bodies the scan endpoint received. */
+  let deliveries: Record<string, unknown>[];
   let hashes: string[];
   let pageHtml: string;
 
@@ -95,8 +100,9 @@ describe("the offline door on the served scanner page", () => {
     await setupAdminPageTest();
     bundle = await Deno.readTextFile("src/ui/static/scanner.js");
 
-    // The digest set the real cache endpoint serves for this door: the held
-    // ticket's token digested under the key the page alone carries.
+    // The ticket list the real cache endpoint serves for this door: the
+    // held ticket's token digested under the key the page alone carries,
+    // with the places its booking owed when the list was built.
     const doorKey = fromBase64Url(pageDoorCacheKey(DOOR));
     hashes = [await hmacHex(doorKey, HELD)];
     pageHtml = adminScannerPage(
@@ -118,7 +124,7 @@ describe("the offline door on the served scanner page", () => {
   });
 
   beforeEach(() => {
-    checkIns = [];
+    deliveries = [];
   });
 
   const serveDoor = async (request: Request): Promise<Response> => {
@@ -134,11 +140,12 @@ describe("the offline door on the served scanner page", () => {
       });
     }
     if (request.method === "GET" && path === CACHE_PATH) {
-      return Response.json({ hashes });
+      return Response.json({
+        entries: hashes.map((hash) => ({ hash, tickets: HELD_PLACES })),
+      });
     }
     if (request.method === "POST" && path === SCAN_PATH) {
-      const body = await request.json();
-      checkIns.push({ token: body.token });
+      deliveries.push(await request.json());
       return Response.json(CHECKED_IN);
     }
     return new Response(null, { status: 404 });
@@ -296,10 +303,20 @@ describe("the offline door on the served scanner page", () => {
     }, ticket);
 
   /** Scans the ticket in the camera's frame and asserts what the door sees:
-   * the queued words, one waiting row, one pending check-in, and no request
-   * sent. */
+   * the ask names how many people the check-in admits, the door checks in
+   * two of the booking's three, and the queued words, one waiting row, one
+   * pending check-in, and no request sent. */
   const scanWaitsInQueue = async (page: Page): Promise<void> => {
     await page.click("#scanner-start");
+    await waitText(
+      page,
+      "scanner-quantity-message",
+      t("admin.scanner.offline_quantity_ask"),
+    );
+    // The whole party is the common case, so it starts selected. The door
+    // checks in two of the three.
+    await page.selectOption("#scanner-quantity-select", String(CHECK_IN_PICK));
+    await page.click("#scanner-quantity-confirm");
     await statusShows(page, t("admin.scanner.offline_queued"));
     expect(await firstQueueRow(page)).toBe(
       t("admin.scanner.queue_item_queued"),
@@ -307,15 +324,22 @@ describe("the offline door on the served scanner page", () => {
     expect(await queueSummary(page)).toBe(
       t("admin.scanner.queue_count_one", { count: 1 }),
     );
-    expect(checkIns).toEqual([]);
+    expect(deliveries).toEqual([]);
   };
 
-  /** Restores the connection and asserts the sync's outcome: one check-in
-   * sent with the held token, its row checked in, and the queue emptied. */
+  /** Restores the connection and asserts the sync's outcome: one delivery
+   * sent with the digest the page stored, its own operation id, and the
+   * people the door picked; its row checked in, and the queue emptied. */
   const syncChecksTheScanIn = async (page: Page): Promise<void> => {
     await setConnection(page, true);
     await statusShows(page, t("admin.scanner.sync_done"));
-    expect(checkIns).toEqual([{ token: HELD }]);
+    expect(deliveries).toEqual([
+      {
+        operation_id: expect.any(String),
+        quantity: CHECK_IN_PICK,
+        token_hash: hashes[0],
+      },
+    ]);
     expect(await firstQueueRow(page)).toBe(
       t("admin.scanner.queue_item_checked_in"),
     );
@@ -366,7 +390,7 @@ describe("the offline door on the served scanner page", () => {
 
       // The same ticket again: the queue already holds it.
       await statusShows(page, t("admin.scanner.offline_already_queued"));
-      expect(checkIns).toEqual([]);
+      expect(deliveries).toEqual([]);
 
       // A ticket the door's list does not hold: refused, and nothing queued.
       await swapFrame(page, "unknown");
@@ -374,7 +398,7 @@ describe("the offline door on the served scanner page", () => {
       expect(await queueSummary(page)).toBe(
         t("admin.scanner.queue_count_one", { count: 1 }),
       );
-      expect(checkIns).toEqual([]);
+      expect(deliveries).toEqual([]);
 
       await syncChecksTheScanIn(page);
 

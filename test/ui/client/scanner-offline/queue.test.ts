@@ -16,6 +16,7 @@
 // jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { HTMLSelectElement as HappyHTMLSelectElement } from "happy-dom";
 import {
   cameraFakes,
   scanFirst,
@@ -27,11 +28,13 @@ import {
   el,
   SCAN_PATH,
   type ScannerHarness,
+  storedQueue,
   TOKEN,
   useScannerSuite,
 } from "#test/ui/client/scanner/fixture.ts";
 import {
   askedUrls,
+  digestOf,
   expectOfflineRefusal,
   expectOneStoredCheckIn,
 } from "#test/ui/client/scanner/offline-door.ts";
@@ -75,7 +78,7 @@ describe("scanner offline queue", {
         h.statusEl,
         "Ticket looks valid. It will be checked in when you are back online.",
       );
-      expectOneStoredCheckIn(h, TOKEN);
+      await expectOneStoredCheckIn(h, TOKEN);
       // The door reads the page's own words: the queue panel is out with
       // the kept scan's count.
       expect(el(h.document, "scanner-queue").className).not.toContain("hidden");
@@ -84,6 +87,74 @@ describe("scanner offline queue", {
       );
       // No scan left the page: only the page load's cache refresh ran.
       expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
+    } finally {
+      fetchStub.restore();
+    }
+  });
+
+  /** One offline scan of a booking the saved list says owes three places.
+   * The ask is on the page when this settles; the caller answers it. */
+  const scanPartyOfThree = async (h: ScannerHarness): Promise<void> => {
+    using fakes = cameraFakes(h);
+    fakes.ready(4);
+    await seedTicketCache(h, TOKEN, Date.now(), 3);
+    await start(h);
+    await scanFirst(fakes, TOKEN);
+    // The digest runs on the platform's own crypto promise, so the ask
+    // shows over real event-loop turns.
+    await whenStatusShows(
+      el(h.document, "scanner-quantity-message"),
+      "How many people are you checking in?",
+    );
+  };
+
+  test("asks how many people the check-in admits and queues the pick", async () => {
+    // The booking owed three places when the list was built, so the scan
+    // asks before it queues. The door checks in two of the three now.
+    const fetchStub = stubFetch(() => Response.json({}, { status: 500 }));
+    try {
+      const h = fresh({ onLine: false });
+      await scanPartyOfThree(h);
+
+      // The whole party is the common case, so it starts selected.
+      expect(
+        (el(h.document, "scanner-quantity-select") as HappyHTMLSelectElement)
+          .value,
+      ).toBe("3");
+      const select = el(
+        h.document,
+        "scanner-quantity-select",
+      ) as HappyHTMLSelectElement;
+      select.value = "2";
+      el(h.document, "scanner-quantity-confirm").click();
+
+      await whenStatusShows(
+        h.statusEl,
+        "Ticket looks valid. It will be checked in when you are back online.",
+      );
+      const [item] = JSON.parse(String(storedQueue(h)));
+      expect(item.quantity).toBe(2);
+      expect(item.tokenHash).toBe(await digestOf(TOKEN));
+      expect(item.operationId).toEqual(expect.any(String));
+      // No scan left the page: only the page load's cache refresh ran.
+      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
+    } finally {
+      fetchStub.restore();
+    }
+  });
+
+  test("queues nothing when the door cancels the quantity ask", async () => {
+    const fetchStub = stubFetch(new Error("offline"));
+    try {
+      const h = fresh({ onLine: false });
+      await scanPartyOfThree(h);
+      el(h.document, "scanner-quantity-cancel").click();
+
+      await whenStatusShows(
+        h.statusEl,
+        "Nothing was queued. Scan the ticket again to check them in.",
+      );
+      expect(storedQueue(h)).toBe(null);
     } finally {
       fetchStub.restore();
     }

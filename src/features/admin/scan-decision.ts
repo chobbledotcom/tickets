@@ -131,24 +131,23 @@ export const decideScan = (
   };
 };
 
-/** A queued delivery's exact share of one admit decision. Fill the
- * decision's units in booking order until exactly `quantity` places are
- * planned. Each listing caps at what it still owes. Null when the scan's
- * listings cannot supply that many — the delivery is refused, not capped.
- * A live scan's quantity pick caps per listing instead. Only a queued
- * delivery admits an exact count. */
-export const exactQuantityAdmission = (
+/** A queued delivery's share of one admit decision. Fill the decision's
+ * units in booking order until the pick is met or the listings run out.
+ * Each listing caps at what it still owes. The plan therefore never
+ * exceeds the pick, and it can fall short of it. The answer then reports
+ * the shortfall. A live scan's quantity pick caps per listing instead.
+ * Only a queued delivery admits an exact count. */
+export const quantityAdmission = (
   decision: Extract<ScanDecision, { kind: "admit" }>,
   quantity: number,
-): Extract<ScanDecision, { kind: "admit" }> | null => {
+): Extract<ScanDecision, { kind: "admit" }> => {
   const planned: ScanUnit[] = [];
-  const left = decision.units.reduce((remaining: number, unit) => {
+  decision.units.reduce((remaining: number, unit) => {
     if (remaining <= 0) return remaining;
     const take = Math.min(unit.tickets, remaining);
     planned.push({ rows: unit.rows, tickets: take });
     return remaining - take;
   }, quantity);
-  if (left > 0) return null;
   return {
     ...decision,
     remaining:

@@ -20,9 +20,7 @@ import { hmacHex } from "#shared/sha256.ts";
 import {
   type CameraFakes,
   cameraFakes,
-  doorKey,
   drain,
-  postedScanTokens,
   scanFirst,
   scanNext,
   seedTicketCache,
@@ -32,6 +30,7 @@ import {
   withEmptyCache,
 } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
+  DOOR_KEY,
   el,
   queuedItem,
   SCAN_PATH,
@@ -43,9 +42,11 @@ import {
 } from "#test/ui/client/scanner/fixture.ts";
 import {
   askedUrls,
+  digestOf,
   expectOneStoredCheckIn,
   expectSyncSettled,
   firstRow,
+  postedDeliveryHashes,
   queuedItems,
   queueSeeded,
   rowWords,
@@ -148,7 +149,9 @@ describe("scanner offline races", {
       digest.release();
       await whenStatusShows(h.statusEl, "Queued tickets are done.");
       expect(storedQueue(h)).toBe("[]");
-      expect(postedScanTokens(fetchStub)).toEqual([scanToken]);
+      expect(postedDeliveryHashes(fetchStub)).toEqual([
+        await digestOf(scanToken),
+      ]);
       expect(
         el(h.document, "scanner-queue-items").children[0]?.textContent,
       ).toBe("Checked in");
@@ -164,7 +167,9 @@ describe("scanner offline races", {
     // sent away. No test hand writes the store's list.
     const fetchStub = stubFetch(async (url) =>
       String(url).endsWith("-cache")
-        ? Response.json({ hashes: [await hmacHex(doorKey, TOKEN)] })
+        ? Response.json({
+            entries: [{ hash: await hmacHex(DOOR_KEY, TOKEN), tickets: 1 }],
+          })
         : Response.json({}, { status: 500 }),
     );
     try {
@@ -175,7 +180,7 @@ describe("scanner offline races", {
       // The fetched list sits in the store, written by the page's own load.
       const stored = await whenStoreHolds(h, `scanner-tickets-${SCAN_PATH}`);
       expect(JSON.parse(stored)).toEqual({
-        hashes: [await hmacHex(doorKey, TOKEN)],
+        entries: [{ hash: await hmacHex(DOOR_KEY, TOKEN), tickets: 1 }],
         storedAt: expect.any(Number),
       });
 
@@ -187,7 +192,7 @@ describe("scanner offline races", {
         h.statusEl,
         "Ticket looks valid. It will be checked in when you are back online.",
       );
-      expectOneStoredCheckIn(h, TOKEN);
+      await expectOneStoredCheckIn(h, TOKEN);
 
       // A stranger the fetched list does not hold: sent away, nothing kept.
       await scanNext(fakes, "other12345", 3000);
@@ -259,12 +264,13 @@ describe("scanner offline races", {
     // and the re-run walks the rows the first run rendered: a row the
     // first run settled must not replay its check-in.
     const dropped = Promise.withResolvers<Response>();
+    const firstDigest = await digestOf("tok1");
     let firstPosts = 0;
     let secondPosts = 0;
     const fetchStub = stubFetch(
       withEmptyCache((_url, init) => {
-        const { token } = JSON.parse(String(init?.body));
-        if (token === "tok1") {
+        const { token_hash } = JSON.parse(String(init?.body));
+        if (token_hash === firstDigest) {
           firstPosts += 1;
           // The door's guard reads a replayed check-in as one it already
           // counted, the way it answers the page's own replay.
@@ -277,9 +283,9 @@ describe("scanner offline races", {
       }),
     );
     try {
+      const seed = await queuedItems(["tok1", "tok2"]);
       const h = fresh({
-        seed: (store) =>
-          store.setItem("scanner-queue", queuedItems(["tok1", "tok2"])),
+        seed: (store) => store.setItem("scanner-queue", seed),
       });
 
       reconnect(h);

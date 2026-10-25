@@ -10,8 +10,10 @@
 import { expect } from "@std/expect";
 import type { Stub } from "@std/testing/mock";
 import type { HTMLElement as HappyHTMLElement } from "happy-dom";
-import { postedScanTokens, whenStatusShows } from "./camera-fakes.ts";
+import { hmacHex } from "#shared/sha256.ts";
+import { postedScanBodies, whenStatusShows } from "./camera-fakes.ts";
 import {
+  DOOR_KEY,
   el,
   queuedItem,
   SCAN_PATH,
@@ -24,13 +26,25 @@ import {
 export const askedUrls = (fetchStub: Stub): string[] =>
   fetchStub.calls.map((call) => String(call.args[0]));
 
-/** The store holds exactly one queued check-in, the token the page kept. */
-export const expectOneStoredCheckIn = (
+/** The digest the door's list holds for one token, under the fixture page's
+ * key: what the page stores, queues, and posts. */
+export const digestOf = (token: string): Promise<string> =>
+  hmacHex(DOOR_KEY, token);
+
+/** The store holds exactly one queued check-in: the digest the scan stored,
+ * the delivery id it made up, and the one person it admits. */
+export const expectOneStoredCheckIn = async (
   h: ScannerHarness,
   token: string,
-): void => {
+): Promise<void> => {
   expect(JSON.parse(String(storedQueue(h)))).toEqual([
-    { queuedAt: expect.any(Number), scanPath: SCAN_PATH, token },
+    {
+      operationId: expect.any(String),
+      quantity: 1,
+      queuedAt: expect.any(Number),
+      scanPath: SCAN_PATH,
+      tokenHash: await digestOf(token),
+    },
   ]);
 };
 
@@ -68,7 +82,8 @@ export const queueSeeded = (): ScannerGlobals => ({
 });
 
 /** What one settled sync leaves: the done words, the store empty, the
- * panel count at zero, and the check-ins the door received, in order. */
+ * panel count at zero, and the deliveries the door received, in order —
+ * each named by the ticket digest it carried. */
 export const expectSyncSettled = async (
   h: ScannerHarness,
   wait: (target: HappyHTMLElement, text: string) => Promise<void>,
@@ -80,18 +95,28 @@ export const expectSyncSettled = async (
   expect(el(h.document, "scanner-queue-summary").textContent).toBe(
     "0 queued check-ins",
   );
-  expect(postedScanTokens(fetchStub)).toEqual(postedTokens);
+  const digests = await Promise.all(postedTokens.map(digestOf));
+  expect(postedDeliveryHashes(fetchStub)).toEqual(digests);
 };
 
-/** The queued check-ins one reload settles, oldest first. */
-export const queuedItems = (tokens: string[]): string =>
-  JSON.stringify(
-    tokens.map((token, index) => ({
+/** The ticket digests one sync's deliveries carried, in the order the door
+ * received them. */
+export const postedDeliveryHashes = (fetchStub: Stub): string[] =>
+  postedScanBodies(fetchStub).map((body) => body.token_hash as string);
+
+/** The queued check-ins one reload settles, oldest first: each names the
+ * digest its scan stored, the delivery id it answers by, and the people it
+ * admits. */
+export const queuedItems = (tokens: string[]): Promise<string> =>
+  Promise.all(
+    tokens.map(async (token, index) => ({
+      operationId: `018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b3${index}`,
+      quantity: 1,
       queuedAt: index + 1,
       scanPath: SCAN_PATH,
-      token,
+      tokenHash: await digestOf(token),
     })),
-  );
+  ).then(JSON.stringify);
 
 /** The door's answer one settled queue replay gets. A fresh response per
  * call: the page load's cache refresh consumes the first one's body, and a

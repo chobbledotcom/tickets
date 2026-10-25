@@ -1,8 +1,8 @@
 /** One scan's whole answer: the door's scope, the person the request names,
- * the decision, and the JSON the door reads. The routes in
- * `src/features/admin/scanner.ts` hand these their request bodies. A queued
- * delivery's identity, digest match, and ledger row live in
- * `scan-delivery.ts`. */
+ * the decision, and the writes the answer performs. The routes in
+ * `src/features/admin/scanner.ts` hand these their request bodies. The JSON
+ * the door reads lives in `scan-reply.ts`. A queued delivery's identity,
+ * digest match, and ledger row live in `scan-delivery.ts`. */
 
 /* jscpd:ignore-start -- imports */
 import { remainingTickets } from "#booking/remaining-tickets.ts";
@@ -16,10 +16,7 @@ import {
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { getListingsByGroupId } from "#db/groups.ts";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
-import {
-  type DeliveredScanOperation,
-  scanOperationGuard,
-} from "#db/processed-scan-operations.ts";
+import { scanOperationGuard } from "#db/processed-scan-operations.ts";
 import { requiredMapValue, sumOf, unique } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
@@ -36,7 +33,7 @@ import {
 import type { Attendee, Group } from "#types";
 import {
   decideScan,
-  exactQuantityAdmission,
+  quantityAdmission,
   type ScanDecision,
   type ScanUnit,
   unitTickets,
@@ -44,13 +41,23 @@ import {
 import {
   attendeeById,
   attendeeByTokenHash,
-  deliveredAdmission,
   foundDelivery,
   isAdmitCount,
   type PersonLoader,
   type QueuedDelivery,
   queuedDelivery,
 } from "./scan-delivery.ts";
+import {
+  acknowledgedAnswer,
+  admissionAnswer,
+  alreadyCheckedIn,
+  bookingHoldings,
+  lineTickets,
+  listingNamesOf,
+  noteOverAdmission,
+  scanBody,
+  wrongListingResponse,
+} from "./scan-reply.ts";
 /* jscpd:ignore-end */
 
 /** What one door's scan resolves against: the listings it admits, and its
@@ -116,103 +123,6 @@ const resolveAttendeeName = async (
   return decrypted[0]!.name;
 };
 
-/** Build a wrong_listing response when the scanned token does not match the listing.
- * A wrong_listing decision always carries the ticket's own door-safe rows, so
- * the names are never empty. */
-const wrongListingResponse = (
-  allEntries: TokenEntry[],
-  attendeeName: string,
-): Response => {
-  const listingNames =
-    allEntries.length > 0
-      ? allEntries.map((e) => e.listing.name).join(", ")
-      : "Unknown listing";
-  return jsonResponse({
-    listingName: listingNames,
-    name: attendeeName,
-    status: "wrong_listing",
-  });
-};
-
-/** The door's own listing names behind an answer, first occurrence first. */
-const listingNamesOf = (rows: readonly TokenEntry[]): string =>
-  unique(rows.map((row) => row.listing.name)).join(", ");
-
-/** The tickets the covered lines hold in total. */
-const lineTickets = sumOf((row: TokenEntry) => row.attendee.quantity);
-
-/** The JSON answer for one ticket. It names who they are, the tickets this
- * answer covers, the tickets the covered lines hold in total, and the
- * listing names that drove it. */
-const scanBody = (
-  rows: readonly TokenEntry[],
-  attendeeName: string,
-  status: "already_checked_in" | "checked_in" | "verify_id",
-  tickets: number,
-): Record<string, unknown> => ({
-  listingName: listingNamesOf(rows),
-  name: attendeeName,
-  quantity: tickets,
-  status,
-  total: lineTickets([...rows]),
-});
-
-/** The answer for a ticket whose lines owe nothing more. */
-const alreadyCheckedIn = (
-  rows: readonly TokenEntry[],
-  attendeeName: string,
-): Response =>
-  jsonResponse(
-    scanBody(rows, attendeeName, "already_checked_in", lineTickets([...rows])),
-  );
-
-/** Answer a delivery the ledger already took. The rows are the ones the
- * delivery admitted. The quantity is what that admission took: what the
- * first send's answer said. A fresh decision picks nothing here, and no
- * prompt the first send passed comes back. */
-const acknowledgedAnswer = (
-  allEntries: readonly TokenEntry[],
-  attendeeName: string,
-  landed: DeliveredScanOperation,
-): Response =>
-  jsonResponse(
-    scanBody(
-      allEntries.filter((entry) =>
-        landed.listingIds.includes(entry.listing.id),
-      ),
-      attendeeName,
-      "already_checked_in",
-      landed.quantity,
-    ),
-  );
-
-/** The JSON answer for one landed admission. Another door can take every
- * ticket this scan planned to admit between the decision and the write.
- * A queued delivery's pair is stored either way, so the drained case
- * answers what that delivery admits — its own claim, or the winner's. A
- * live scan answers that the person is already in. */
-export const admissionAnswer = async (
-  decision: Extract<ScanDecision, { kind: "admit" }>,
-  allEntries: readonly TokenEntry[],
-  attendeeName: string,
-  delivery: QueuedDelivery | undefined,
-  took: { admitted: number; remaining: number },
-): Promise<Response> => {
-  if (took.admitted === 0) {
-    return delivery
-      ? acknowledgedAnswer(
-          allEntries,
-          attendeeName,
-          await deliveredAdmission(delivery),
-        )
-      : alreadyCheckedIn(decision.rows, attendeeName);
-  }
-  return jsonResponse({
-    ...scanBody(decision.rows, attendeeName, "checked_in", took.admitted),
-    remaining: took.remaining,
-  });
-};
-
 /** Perform one scan's whole admission as one transaction: every unit's
  * admit, and one activity row per listing that really admitted tickets.
  * The write skips refunded lines, so a merged attendee's refunded order
@@ -227,6 +137,7 @@ export const admissionAnswer = async (
 const performCheckIns = async (
   decision: Extract<ScanDecision, { kind: "admit" }>,
   delivery?: QueuedDelivery,
+  overNamed?: { bought: number; named: number },
 ): Promise<{ admitted: number; remaining: number }> => {
   const attendeeId = decision.rows[0]!.attendee.id;
   const listingOf = (unit: ScanUnit) => unit.rows[0]!.listing;
@@ -234,6 +145,14 @@ const performCheckIns = async (
     decision.units.map((unit) => [listingOf(unit).id, listingOf(unit).name]),
   );
   const planned = unitTickets(decision.units);
+  const ledger = delivery
+    ? scanOperationGuard({
+        listingIds: unique(decision.units.map((unit) => listingOf(unit).id)),
+        operationId: delivery.operationId,
+        quantity: planned,
+        tokenHash: delivery.tokenHash,
+      })
+    : undefined;
   const moved = await moveTicketsAndLog(
     "admit",
     decision.units.map((unit) => ({
@@ -247,13 +166,22 @@ const performCheckIns = async (
         move.listingId,
         `Listing ${move.listingId} is no unit of this scan`,
       )}'`,
-    delivery &&
-      scanOperationGuard({
-        listingIds: unique(decision.units.map((unit) => listingOf(unit).id)),
-        operationId: delivery.operationId,
-        quantity: planned,
-        tokenHash: delivery.tokenHash,
-      }),
+    ledger && {
+      reserve: ledger.reserve,
+      settle: async (moved, tx) => {
+        await ledger.settle?.(moved, tx);
+        // The pick ran past the booking: the note carries the numbers on
+        // the booking, once per delivery, where staff can act on them.
+        if (overNamed && delivery) {
+          await noteOverAdmission(
+            attendeeId,
+            delivery,
+            `An offline door check-in named ${overNamed.named} people, and ${ticketCount(moved)} of them could be checked in. The booking holds ${overNamed.bought} places.`,
+            tx,
+          );
+        }
+      },
+    },
   );
   // What the write left: the touched pairs' post-write owed, plus the owed
   // of rows the scan did not admit. The transaction saw every ticket a
@@ -337,8 +265,31 @@ const scanDecisionResponse = async (
       return wrongListingResponse(allEntries, attendeeName);
     case "refunded":
       return jsonResponse({ name: attendeeName, status: "refunded" });
-    case "already_checked_in":
-      return alreadyCheckedIn(decision.live, attendeeName);
+    case "already_checked_in": {
+      // A queued check-in landing on a booking with nothing left to admit
+      // is an over-admission attempt. The door let people in without
+      // knowing the ticket was spent. The answer and the booking's note
+      // both say the numbers, and the note lands once per delivery.
+      if (!delivery || delivery.quantity === undefined) {
+        return alreadyCheckedIn(decision.live, attendeeName);
+      }
+      const bought = bookingHoldings(allEntries);
+      const named = delivery.quantity;
+      await noteOverAdmission(
+        decision.live[0]!.attendee.id,
+        delivery,
+        `An offline door check-in named ${named} people, and none could be checked in. The booking holds ${bought} places.`,
+      );
+      return jsonResponse({
+        ...scanBody(
+          decision.live,
+          attendeeName,
+          "already_checked_in",
+          lineTickets([...decision.live]),
+        ),
+        overAdmission: { admitted: 0, bought, named },
+      });
+    }
     case "verify_id":
       return jsonResponse(
         scanBody(
@@ -357,21 +308,29 @@ const scanDecisionResponse = async (
       });
     case "admit": {
       // A queued delivery that names a quantity admits exactly that many
-      // places — the fill's plan, or a refusal when the booking cannot
-      // supply them. A live scan keeps its per-listing cap.
+      // places — the fill's plan. When the booking cannot supply them all,
+      // the plan takes what is left. The answer carries the numbers, so
+      // the door alerts instead of losing the check-in. A live scan keeps
+      // its per-listing cap.
       const exact =
         delivery?.quantity === undefined
           ? decision
-          : exactQuantityAdmission(decision, delivery.quantity);
-      if (exact === null) {
-        return apiErrorResponse("Invalid quantity");
-      }
+          : quantityAdmission(decision, delivery.quantity);
+      const overNamed =
+        delivery?.quantity !== undefined &&
+        unitTickets(decision.units) < delivery.quantity
+          ? {
+              bought: bookingHoldings(allEntries),
+              named: delivery.quantity,
+            }
+          : undefined;
       return admissionAnswer(
         exact,
         allEntries,
         attendeeName,
         delivery,
-        await performCheckIns(exact, delivery),
+        await performCheckIns(exact, delivery, overNamed),
+        overNamed,
       );
     }
   }

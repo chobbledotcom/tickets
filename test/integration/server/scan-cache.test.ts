@@ -38,7 +38,7 @@ const doorDigest = (door: string, token: string): Promise<string> =>
   hmacHex(deriveDoorCacheKey(door), token);
 
 describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
-  test("serves the hashes of every ticket the listing door can admit", async () => {
+  test("serves an entry for every ticket the listing door can admit", async () => {
     const { listing, token: kept } = await createTestAttendeeWithToken(
       "Ada Host",
       "ada@example.com",
@@ -54,10 +54,31 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
     );
     const door = doorCacheName("listing", listing.id);
     expect(body).toEqual({
-      hashes: (
+      entries: (
         await Promise.all([doorDigest(door, kept), doorDigest(door, other)])
-      ).sort(),
+      )
+        .sort()
+        .map((hash) => ({ hash, tickets: 1 })),
     });
+  });
+
+  test("carries the places each booking still owes the door", async () => {
+    const { listing, token } = await createTestAttendeeWithToken(
+      "Ada Host",
+      "ada@example.com",
+      {},
+      3,
+    );
+    const body = await assertJson(
+      authedGet(`/admin/listing/${listing.id}/scan-cache`),
+      200,
+    );
+    expect(body.entries).toEqual([
+      {
+        hash: await doorDigest(doorCacheName("listing", listing.id), token),
+        tickets: 3,
+      },
+    ]);
   });
 
   test("leaves a checked-in ticket out of the set", async () => {
@@ -87,8 +108,11 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       authedGet(`/admin/listing/${listing.id}/scan-cache`),
       200,
     );
-    expect(body.hashes).toEqual([
-      await doorDigest(doorCacheName("listing", listing.id), waiting),
+    expect(body.entries).toEqual([
+      {
+        hash: await doorDigest(doorCacheName("listing", listing.id), waiting),
+        tickets: 1,
+      },
     ]);
   });
 
@@ -111,10 +135,10 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       200,
     );
     const door = doorCacheName("group", group.id);
-    expect(body.hashes).toEqual(
-      (
-        await Promise.all([doorDigest(door, first), doorDigest(door, second)])
-      ).sort(),
+    expect(body.entries).toEqual(
+      (await Promise.all([doorDigest(door, first), doorDigest(door, second)]))
+        .sort()
+        .map((hash) => ({ hash, tickets: 1 })),
     );
   });
 
