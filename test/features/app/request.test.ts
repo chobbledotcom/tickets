@@ -8,6 +8,7 @@ import { buildFlashCookie } from "#shared/cookies.ts";
 import { getHeader } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withMigrationLock } from "#test-utils/db-helpers/migration-lock.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
@@ -112,32 +113,11 @@ describeWithEnv("request pipeline", { db: true }, () => {
   });
 
   test("serves the migration page while another request owns the lock", async () => {
-    const { getDb } = await import("#db/client.ts");
-    const { invalidateInitDbCache, SCHEMA_HASH } = await import(
-      "#db/migrations.ts"
-    );
-    const db = getDb();
-    try {
-      await db.execute(
-        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
-      );
-      await db.execute({
-        args: ["migration_lock", new Date().toISOString()],
-        sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-      });
-      invalidateInitDbCache();
-
+    await withMigrationLock(async () => {
       const response = await handleRequest(mockRequest("/"));
       expect(response.status).toBe(503);
       assertStringIncludes(await response.text(), "Update In Progress");
-    } finally {
-      await db.execute("DELETE FROM settings WHERE key = 'migration_lock'");
-      await db.execute({
-        args: [SCHEMA_HASH],
-        sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-      });
-      invalidateInitDbCache();
-    }
+    });
   });
 
   /** A path nothing serves must die as a silent bare 404: no page, no report. */

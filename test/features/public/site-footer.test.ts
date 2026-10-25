@@ -5,9 +5,16 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
+import { insertBuiltSite } from "#db/built-sites.ts";
 import { executeWithoutCacheInvalidation, getDb } from "#db/client.ts";
 import { bumpSettingsVersion, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
+import {
+  databaseBusyResponse,
+  migrationInProgressResponse,
+  siteNotActivatedResponse,
+  temporaryErrorResponse,
+} from "#routes/response.ts";
 import { MAX_TOKEN_404S } from "#shared/limits.ts";
 import {
   createReserved,
@@ -24,8 +31,11 @@ import {
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withMigrationLock } from "#test-utils/db-helpers/migration-lock.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -258,6 +268,98 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
       await handleRequest(mockRequest("/t/one-more-made-up-token")),
       429,
       `<img src="/image/${image.filename}" alt="FooterLimited">`,
+    );
+    assert(!html.includes("img#"));
+  });
+
+  test("the footer's img#N reference resolves on the 503 pages", async () => {
+    const image = await makeImage("FooterOffline");
+    await settings.update.siteFooter(
+      `Back soon.![FooterOffline](img#${image.id})`,
+    );
+    // Every shared 503 page renders the site footer, so each resolves the
+    // footer's images exactly like the rendered pages do: the temporary
+    // error page, the busy database page, the not-activated page, and the
+    // migration page.
+    for (const response of [
+      await withRequestContext(() => temporaryErrorResponse("GET")),
+      await withRequestContext(() => databaseBusyResponse("POST")),
+      await withRequestContext(() => siteNotActivatedResponse()),
+      await withRequestContext(() => migrationInProgressResponse()),
+    ]) {
+      const html = await expectHtmlResponse(
+        response,
+        503,
+        `<img src="/image/${image.filename}" alt="FooterOffline">`,
+      );
+      assert(!html.includes("img#"));
+    }
+  });
+
+  test("a failed footer read still renders the 503 page", async () => {
+    const image = await makeImage("FooterBrokenRead");
+    await settings.update.siteFooter(
+      `Note.![FooterBrokenRead](img#${image.id})`,
+    );
+    const db = getDb();
+    const realExecute = db.execute.bind(db);
+    // `using` restores the stub when the test's scope closes.
+    using _executeStub = stub(db, "execute", (statement: InStatement) => {
+      const sql = typeof statement === "string" ? statement : statement.sql;
+      if (sql.includes("FROM images")) {
+        throw new Error("the images read failed");
+      }
+      return realExecute(statement);
+    });
+    // The database refused the footer's lookup, so the page still answers
+    // and the footer keeps the reference's alt text.
+    const html = await expectHtmlResponse(
+      await withRequestContext(() => temporaryErrorResponse("GET")),
+      503,
+      '<img src="" alt="FooterBrokenRead">',
+    );
+    assert(!html.includes(`<img src="/image/${image.filename}"`));
+  });
+
+  test("the footer's img#N reference resolves on the migration page", async () => {
+    const image = await makeImage("FooterMigration");
+    await settings.update.siteFooter(
+      `Almost there.![FooterMigration](img#${image.id})`,
+    );
+    await withMigrationLock(async () => {
+      const html = await expectHtmlResponse(
+        await handleRequest(mockRequest("/")),
+        503,
+        "Update In Progress",
+        `<img src="/image/${image.filename}" alt="FooterMigration">`,
+      );
+      assert(!html.includes("img#"));
+    });
+  });
+
+  test("the footer's img#N reference resolves on the renewal error page", async () => {
+    const image = await makeImage("FooterRenewal");
+    await settings.update.siteFooter(
+      `Renew here.![FooterRenewal](img#${image.id})`,
+    );
+    const site = await insertBuiltSite(
+      "Footer Renewal Site",
+      "renewal-footer.b-cdn.net",
+      "",
+      "",
+      false,
+      "7201",
+    );
+    const { token } = await provisionTestBuiltSite(site.id);
+    // No listing qualifies as a renewal tier, so the link shows the error
+    // page, and its footer resolves like every other public page's.
+    const html = await expectHtmlResponse(
+      await handleRequest(
+        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
+      ),
+      200,
+      "Renewal Unavailable",
+      `<img src="/image/${image.filename}" alt="FooterRenewal">`,
     );
     assert(!html.includes("img#"));
   });
