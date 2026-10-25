@@ -1,8 +1,10 @@
 import { requireValue } from "#shared/required-value.ts";
 
 const setBody = (data: string, name: string): string => {
-  const match = data.match(new RegExp(`${name} == \\{([\\s\\S]*?)\\}`));
-  if (!match) throw new Error(`Missing checker set ${name}`);
+  const match = requireValue(
+    data.match(new RegExp(`${name} == \\{([\\s\\S]*?)\\}`)),
+    `Missing checker set ${name}`,
+  );
   return requireValue(match[1], `Missing checker set body ${name}`);
 };
 export const members = (data: string, name: string): string[] =>
