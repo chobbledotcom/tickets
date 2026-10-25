@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { runApi } from "#cli/run.ts";
@@ -97,6 +98,9 @@ describeWithEnv("CLI questions flow", { db: true }, () => {
     ]);
     // The server's 400 maps to the contract's validation exit code.
     expect(failed.code).toBe(3);
-    expect(JSON.parse(failed.err!).error.message).toContain("does not match");
+    assertStringIncludes(
+      JSON.parse(failed.err!).error.message,
+      "does not match",
+    );
   });
 });
