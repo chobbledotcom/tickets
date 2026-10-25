@@ -196,11 +196,63 @@ describe("hand-numbered tokens", () => {
     ).toEqual([]);
   });
 
-  test("stays quiet on a quoted statement a variable holds", () => {
+  test("fires on a statement a local constant holds for a helper call", () => {
     expect(
       findHandNumberedSql(
         "shared/db/synthetic.ts",
-        'const sql = "DELETE FROM t WHERE id = ?1";\nawait execute(sql, [id]);',
+        [
+          'const statement = "SELECT id FROM t WHERE parent_id = ?1";',
+          "const rows = await execute(statement, [id]);",
+        ].join("\n"),
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
+  test("fires on a quoted statement the sql name holds", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        'const sql = "DELETE FROM t WHERE id = ?1";',
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
+  test("stays quiet on a constant a non-SQL call receives", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        [
+          'const message = "Expected ?1 binds, got 0";',
+          "logWarning(message);",
+        ].join("\n"),
+      ),
+    ).toEqual([]);
+  });
+
+  test("stays quiet on a call whose first argument is not a bare name", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        [
+          'const message = "Expected ?1 binds, got 0";',
+          "execute(build(message), [id]);",
+        ].join("\n"),
+      ),
+    ).toEqual([]);
+  });
+
+  test("stays quiet on a constant no call receives", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        [
+          'const message = "Expected ?1 binds, got 0";',
+          "return message.length;",
+        ].join("\n"),
       ),
     ).toEqual([]);
   });

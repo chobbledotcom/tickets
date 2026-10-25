@@ -114,6 +114,26 @@ const callOpens = (
   return opens;
 };
 
+const BARE_NAME = /^[A-Za-z_$][\w$]*$/;
+
+/** The names of the locals a SQL helper call receives as its first
+ *  argument: the statement text travels through them, so a string one of
+ *  them holds is SQL text wherever the file assigns it. */
+export const sqlCarryingNames = (blanked: string): Set<string> => {
+  const names = new Set<string>();
+  for (const name of SQL_HELPERS) {
+    for (const { open } of callOpens(blanked, name)) {
+      const comma = firstArgumentComma(blanked, open);
+      const close = matchingBracket(blanked, open);
+      if (close < 0) continue;
+      const argument = blanked
+        .slice(open + 1, comma >= 0 ? comma : close)
+        .trim();
+      if (BARE_NAME.test(argument)) names.add(argument);
+    }
+  }
+  return names;
+};
 /** The positions where a statement receives its bind list: an `args: name`
  * property, the `args` shorthand in an object literal, and the second
  * argument of a SQL helper call — a bare name or an inline array. */

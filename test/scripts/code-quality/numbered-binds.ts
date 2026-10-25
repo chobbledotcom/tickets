@@ -15,7 +15,9 @@ import {
 import { matchingBracket } from "#test/scripts/code-quality/brackets.ts";
 import {
   argumentUses,
+  argumentUses,
   sqlTextArgumentStarts,
+  sqlCarryingNames,
 } from "#test/scripts/code-quality/helper-binds.ts";
 
 /** The one file whose own job is to emit `?N` tokens. */
@@ -23,6 +25,10 @@ const NUMBERED_STATEMENT_PATH = "shared/db/numbered-statement.ts";
 
 /** A digit directly after a `?`: a hand-written parameter number. */
 const HAND_NUMBERED_TOKEN = /\?[0-9]/;
+
+/** The name a token before a string span ends with: the constant an
+ *  assignment to that name holds. */
+const TOKEN_BEFORE = /([A-Za-z_$][\w$]*)$/;
 
 /** The element shapes a repeated-bind check can compare: a variable or member
  * chain, a quoted literal, a number, or the same under one spread. A call may
@@ -389,11 +395,12 @@ const followsSqlProperty = (blanked: string, at: number): boolean => {
  * the only writer of `?N` tokens, so SQL text never spells one itself; the
  * prose comments that kept such numbering honest are comments, which the
  * string-span walk never reads. The walk judges SQL text only: a template
- * literal, an `sql:` property's string, or the statement string a SQL helper
- * call carries. Every other string is prose, and the walk skips it. A
- * template's SQL text is checked with its interpolations blanked, and each
- * interpolation's own string spans — the conditional fragments an assembly
- * writes — are checked in their place. */
+ * literal, an `sql:` property's string, the statement string a SQL helper
+ * call carries, or a quoted string an assignment holds for the `sql` name
+ * or for a local a SQL helper call receives. Every other string is prose,
+ * and the walk skips it. A template's SQL text is checked with its
+ * interpolations blanked, and each interpolation's own string spans — the
+ * conditional fragments an assembly writes — are checked in their place. */
 export const findHandNumberedSql = (
   relativePath: string,
   content: string,
@@ -401,6 +408,7 @@ export const findHandNumberedSql = (
   if (relativePath === NUMBERED_STATEMENT_PATH) return [];
   const blanked = blankSpans(content, true);
   const statementStringStarts = sqlTextArgumentStarts(content, blanked);
+  const sqlNames = sqlCarryingNames(blanked);
   const violations: string[] = [];
   const check = (start: number, end: number): void => {
     const text = content.slice(start, end);
@@ -414,10 +422,22 @@ export const findHandNumberedSql = (
       check(span.start, span.end);
     }
   };
+  const sqlAssigned = (at: number): boolean => {
+    let cursor = at;
+    while (cursor > 0 && /\s/.test(blanked[cursor - 1] as string)) cursor -= 1;
+    const before = cursor - 1;
+    if (before < 0) return false;
+    if (blanked[before] !== "=" || blanked[before - 1] === "=") return false;
+    const token = blanked.slice(0, before).trimEnd();
+    if (/\bsql$/.test(token)) return true;
+    const name = token.match(TOKEN_BEFORE);
+    return name !== null && sqlNames.has(name[1] as string);
+  };
   const isSqlText = (at: number): boolean =>
     content[at] === "`" ||
     statementStringStarts.has(at) ||
-    followsSqlProperty(blanked, at);
+    followsSqlProperty(blanked, at) ||
+    sqlAssigned(at);
   for (const span of lexicalSpans(content)) {
     if (span.kind === "string" && isSqlText(span.start)) {
       check(span.start, span.end);
