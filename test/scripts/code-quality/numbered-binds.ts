@@ -378,11 +378,10 @@ const interpolationStringSpans = (
 const followsSqlProperty = (blanked: string, at: number): boolean => {
   let cursor = at;
   while (cursor > 0 && /\s/.test(blanked[cursor - 1] as string)) cursor -= 1;
-  return (
-    cursor >= 4 &&
-    blanked.slice(cursor - 4, cursor - 1) === "sql" &&
-    !/[A-Za-z0-9_$]/.test(blanked[cursor - 5] ?? "")
-  );
+  if (cursor < 4) return false;
+  const word = blanked.slice(cursor - 4, cursor - 1);
+  if (word !== "sql") return false;
+  return !/[A-Za-z0-9_$]/.test(blanked[cursor - 5] ?? "");
 };
 
 /** The hand-numbered `?N` tokens of one source file. The numbered binder is

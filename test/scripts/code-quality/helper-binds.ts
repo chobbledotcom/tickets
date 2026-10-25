@@ -70,9 +70,9 @@ const pastBlanks = (content: string, at: number): number => {
 
 /** Where each SQL helper call's statement text begins: the string or
  * template literal that opens the call's first argument, or nothing when the
- * call passes an expression there. `blanked` names the real calls; the
- * opening character is read from `content` at the same index, where the
- * quotes still show. */
+ * call passes an expression there, or when the call's text ends before the
+ * argument. `blanked` names the real calls; the opening character is read
+ * from `content` at the same index, where the quotes still show. */
 export const sqlTextArgumentStarts = (
   content: string,
   blanked: string,
@@ -81,7 +81,10 @@ export const sqlTextArgumentStarts = (
   for (const name of SQL_HELPERS) {
     for (const { open } of callOpens(blanked, name)) {
       const at = pastBlanks(content, open + 1);
-      if ("\"'`".includes(content[at] ?? "")) starts.add(at);
+      const opening = content[at];
+      if (opening === undefined) continue;
+      if (!"\"'`".includes(opening)) continue;
+      starts.add(at);
     }
   }
   return starts;

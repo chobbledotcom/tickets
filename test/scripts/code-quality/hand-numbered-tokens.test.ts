@@ -96,6 +96,42 @@ describe("hand-numbered tokens", () => {
     ]);
   });
 
+  test("reads past a comment before the statement a helper call carries", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        'await execute(/* find */ "DELETE FROM t WHERE id = ?1", [id]);',
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
+  test("stays quiet on a helper call whose text ends before its argument", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        "const rows = await queryOne(",
+      ),
+    ).toEqual([]);
+  });
+
+  test("fires on an sql property that opens the file", () => {
+    expect(findHandNumberedSql("shared/db/synthetic.ts", 'sql: "?1"')).toEqual([
+      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
+  test("stays quiet on a string that opens the file", () => {
+    expect(findHandNumberedSql("shared/db/synthetic.ts", '"?1"')).toEqual([]);
+  });
+
+  test("stays quiet on another property whose value is a string", () => {
+    expect(findHandNumberedSql("shared/db/synthetic.ts", 'key: "?1"')).toEqual(
+      [],
+    );
+  });
+
   test("fires on an sql property whose value sits on the next line", () => {
     expect(
       findHandNumberedSql(
