@@ -374,10 +374,13 @@ const SOURCE_RULES: Record<"image" | "def", readonly SourceRule[]> = {
   ],
 };
 
+/** The first source rule that read a token's own source, and the match it
+ * read. */
+type FoundSource = { match: RegExpExecArray; splice: SourceSplice };
+
 /** Replaces the address the first matching rule finds in a token's own
- * source, and keeps every other byte of that source. A source whose address
- * the rewrite leaves alone, or that no rule reads, keeps its written
- * form. */
+ * source, and keeps every other byte of that source. A source whose
+ * address the rewrite leaves alone keeps its written form. */
 const rewriteSource = (
   raw: string,
   href: string,
@@ -386,11 +389,19 @@ const rewriteSource = (
 ): string => {
   const url = toUrl(href);
   if (url === undefined) return raw;
-  for (const { source, splice } of rules) {
-    const match = source.exec(raw);
-    if (match) return splice(match, url, href);
-  }
-  return raw;
+  const found = rules.reduce<FoundSource | undefined>(
+    (read, { source, splice }) => {
+      if (read) return read;
+      const match = source.exec(raw);
+      return match ? { match, splice } : undefined;
+    },
+    undefined,
+  );
+  // Every source marked hands this rewrite as a picture or a definition
+  // matches one rule. A miss means this copy of marked's rules drifted
+  // from marked itself.
+  assert(found?.match, "No source rule read this token's source");
+  return found.splice(found.match, url, href);
 };
 
 const rewriteToken = (token: Token, rewrites: TokenRewrites): string => {
