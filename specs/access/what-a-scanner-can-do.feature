@@ -130,6 +130,7 @@ Feature: An owner gives a door worker the scanner, and nothing else
     @case:scanners.the-over-admission-note-reaches-the-organiser
     Scenario: The organiser reads the note an over-admitted check-in left
       Given Cara has a ticket for 3 places at the Ceilidh
+      And the Ceilidh is in a group
       And Sam is signed in as a scanner
       When Sam opens the Ceilidh door
       And Sam queues a check-in for 2 of Cara's places at the Ceilidh door
@@ -139,8 +140,12 @@ Feature: An owner gives a door worker the scanner, and nothing else
       Then the notes panel shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
       When the organiser opens the Ceilidh's roster
       Then the notes panel shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
+      When the organiser opens the group's people list
+      Then the notes panel shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
       When the door sends the same queued check-in again
       When the organiser opens the Ceilidh's overview
+      Then the notes panel shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
+      When the organiser opens the group's people list
       Then the notes panel shows one note for Cara saying the check-in named 2, admitted 1, and the booking holds 3 places
 
   @rule:access.a-scanner-reaches-nothing-else

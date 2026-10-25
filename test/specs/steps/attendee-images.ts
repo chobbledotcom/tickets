@@ -6,14 +6,39 @@ import { t } from "#i18n";
 import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+
 // jscpd:ignore-end
 
+import { setListingGroups } from "#db/groups.ts";
 import {
   noteDeletePath,
   notedAboutWithPicture,
   pictureTag,
   regionShowsPicture,
 } from "#test/specs/support/attendee-images.ts";
+import { findOrCreateGroup, groupNamed } from "#test/specs/support/groups.ts";
+
+/** The group the people-list steps share. Every scenario starts from an
+ * empty database, so one fixed name carries nothing over. */
+const PEOPLE_LIST_GROUP = "Door groups";
+
+Given(
+  "the {word} is in a group",
+  async function (this: TicketsWorld, listing: string): Promise<void> {
+    // The group's people list filters bookings by group membership, so the
+    // story puts the listing in one group before anybody opens that list.
+    const group = await findOrCreateGroup(PEOPLE_LIST_GROUP);
+    await setListingGroups(listingIdNamed(this, listing), [group.id]);
+  },
+);
+
+When(
+  "the organiser opens the group's people list",
+  async function (this: TicketsWorld): Promise<void> {
+    const group = await groupNamed(PEOPLE_LIST_GROUP);
+    await openAdminPage(this, `/admin/attendees?group=${group.id}`);
+  },
+);
 
 /** The notes block on the person's page: every note, oldest first, right
  * above the tab strip. */
