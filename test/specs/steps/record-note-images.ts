@@ -3,8 +3,9 @@
  * the organiser is told when the site refuses to keep the note.
  */
 
-// jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
+// jscpd:ignore-start
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { regionShowsPicture } from "#test/specs/support/attendee-images.ts";
 import {
@@ -96,7 +97,8 @@ Then(
 Then(
   "the organiser is told the note is too long",
   function (this: TicketsWorld): void {
-    expect(browserSeenBy(this, CUSTOMER).pageText).toContain(
+    assertStringIncludes(
+      browserSeenBy(this, CUSTOMER).pageText,
       noteTooLongMessage(),
     );
   },

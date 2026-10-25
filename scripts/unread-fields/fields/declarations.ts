@@ -12,7 +12,7 @@ import {
   quotedInBrackets,
 } from "#scripts/unread-fields/writes.ts";
 import { type FieldName, fieldNameText, isFieldName } from "./names.ts";
-import { isShape, type Shape, shapeBody } from "./shapes.ts";
+import { isShape, type NamedShape, type Shape, shapeBody } from "./shapes.ts";
 
 const keepsItToItself = carriesAModifier(
   ts.ModifierFlags.Private | ts.ModifierFlags.Protected,
@@ -112,5 +112,5 @@ export const underAHeldClass: PathFromNode<readonly Step[] | undefined> = (
   return;
 };
 
-export const shapeAround = (node: ts.Node): Shape | undefined =>
+export const shapeAround = (node: ts.Node): NamedShape | undefined =>
   ts.findAncestor(node, isShape);

@@ -3,7 +3,7 @@
  * nav link it lights up, and where the body it is handed ends up.
  */
 
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import {
@@ -29,13 +29,16 @@ describe("the single-form page", () => {
   test("hands the body the viewer and titles itself from the catalog", () => {
     const html = page(OWNER_SESSION);
 
-    expect(html).toContain("<p>owner</p>");
-    expect(html).toContain(`<title>${t("admin.seeds.title")}</title>`);
+    assertStringIncludes(html, "<p>owner</p>");
+    assertStringIncludes(html, `<title>${t("admin.seeds.title")}</title>`);
   });
 
   test("shows the notices its route passes back", () => {
-    expect(page(OWNER_SESSION, "It broke")).toContain("It broke");
-    expect(page(OWNER_SESSION, undefined, "It worked")).toContain("It worked");
+    assertStringIncludes(page(OWNER_SESSION, "It broke"), "It broke");
+    assertStringIncludes(
+      page(OWNER_SESSION, undefined, "It worked"),
+      "It worked",
+    );
   });
 });
 
@@ -49,9 +52,9 @@ describe("the other opener families", () => {
       <p>Body</p>,
     );
 
-    expect(html).toContain('<div class="success" role="alert">Saved</div>');
-    expect(html).toContain('class="error"');
-    expect(html).toContain("Name is taken");
+    assertStringIncludes(html, '<div class="success" role="alert">Saved</div>');
+    assertStringIncludes(html, 'class="error"');
+    assertStringIncludes(html, "Name is taken");
   });
 
   test("the error page shows its rejection over the body", () => {
@@ -60,9 +63,9 @@ describe("the other opener families", () => {
       "Date clashes",
     )(<p>Body</p>);
 
-    expect(html).toContain('class="error"');
-    expect(html).toContain("Date clashes");
-    expect(html).toContain("<p>Body</p>");
+    assertStringIncludes(html, 'class="error"');
+    assertStringIncludes(html, "Date clashes");
+    assertStringIncludes(html, "<p>Body</p>");
   });
 
   test("the list page shows only a write's success notice", () => {
@@ -70,8 +73,11 @@ describe("the other opener families", () => {
       <p>Body</p>
     ))([], OWNER_SESSION, "Invited");
 
-    expect(html).toContain('<div class="success" role="alert">Invited</div>');
-    expect(html).not.toContain('class="error"');
+    assertStringIncludes(
+      html,
+      '<div class="success" role="alert">Invited</div>',
+    );
+    assert(!html.includes('class="error"'));
   });
 
   test("a family with no notices renders none", () => {
@@ -79,6 +85,6 @@ describe("the other opener families", () => {
       <p>Body</p>
     ))([], OWNER_SESSION);
 
-    expect(html).not.toContain('role="alert"');
+    assert(!html.includes('role="alert"'));
   });
 });

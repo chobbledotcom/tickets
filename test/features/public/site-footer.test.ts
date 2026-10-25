@@ -400,7 +400,7 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     // The warm render serves the cold lookup's own table, so the footer is
     // byte-identical and the picture keeps its own address.
     expect(footerRegionOf(warmHtml)).toBe(footerRegionOf(coldHtml));
-    expect(warmHtml).toContain(`<img src="/image/${image.filename}"`);
+    assertStringIncludes(warmHtml, `<img src="/image/${image.filename}"`);
 
     // A settings write moves the version, so the next render re-queries.
     await settings.update.siteFooter(footerText);
@@ -411,7 +411,8 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     expect(
       rewrittenSqls.filter((sql) => sql.includes("FROM images")).length,
     ).toBe(1);
-    expect(rewrittenHtml).toContain(
+    assertStringIncludes(
+      rewrittenHtml,
       `<img src="/image/${image.filename}" alt="FooterMemo">`,
     );
   });
@@ -450,8 +451,8 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
 
     const afterSqls = await withRecordedSql(async () => {
       const html = await assertPublicHtml("/");
-      expect(html).not.toContain(`<img src="/image/${image.filename}"`);
-      expect(html).toContain('<img src="" alt="FooterOtherIsolate">');
+      assert(!html.includes(`<img src="/image/${image.filename}"`));
+      assertStringIncludes(html, '<img src="" alt="FooterOtherIsolate">');
     });
     expect(afterSqls.filter((sql) => sql.includes("FROM images")).length).toBe(
       1,

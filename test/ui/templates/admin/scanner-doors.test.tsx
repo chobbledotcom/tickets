@@ -1,16 +1,18 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { adminScannerDoorsPage } from "#templates/admin/scanner.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import type { AdminSession } from "#types";
 
 describe("the admin scanner doors page template", () => {
   beforeAll(setupAdminPageTest);
 
   /** The doors page serves a scanner login, whose nav carries no other
    *  section's words for the assertions below to trip over. */
-  const SCANNER_SESSION = { adminLevel: "scanner" as const };
+  const SCANNER_SESSION: AdminSession = { adminLevel: "scanner" };
 
   test("lists every door under its kind, as a link to the door", () => {
     const html = adminScannerDoorsPage(SCANNER_SESSION, {
@@ -18,12 +20,12 @@ describe("the admin scanner doors page template", () => {
       listingDoors: [{ name: "Ceilidh", path: "/admin/listings/3/scan" }],
     });
 
-    expect(html).toContain("<title>Scanner doors</title>");
-    expect(html).toContain(t("admin.scanner.doors_intro"));
-    expect(html).toContain(t("terms.listings"));
-    expect(html).toContain(t("terms.groups"));
-    expect(html).toContain('href="/admin/listings/3/scan">Ceilidh</a>');
-    expect(html).toContain('href="/admin/groups/7/scan">Winter Social</a>');
+    assertStringIncludes(html, "<title>Scanner doors</title>");
+    assertStringIncludes(html, t("admin.scanner.doors_intro"));
+    assertStringIncludes(html, t("terms.listings"));
+    assertStringIncludes(html, t("terms.groups"));
+    assertStringIncludes(html, 'href="/admin/listings/3/scan">Ceilidh</a>');
+    assertStringIncludes(html, 'href="/admin/groups/7/scan">Winter Social</a>');
     // The listings section is announced before the groups section.
     expect(html.indexOf(t("terms.listings"))).toBeLessThan(
       html.indexOf(t("terms.groups")),
@@ -36,10 +38,10 @@ describe("the admin scanner doors page template", () => {
       listingDoors: [{ name: "Ceilidh", path: "/admin/listings/3/scan" }],
     });
 
-    expect(html).toContain(t("terms.listings"));
-    expect(html).toContain('href="/admin/listings/3/scan">Ceilidh</a>');
+    assertStringIncludes(html, t("terms.listings"));
+    assertStringIncludes(html, 'href="/admin/listings/3/scan">Ceilidh</a>');
     // An empty heading would promise a link that is not there.
-    expect(html).not.toContain(t("terms.groups"));
+    assert(!html.includes(t("terms.groups")));
   });
 
   test("lists the group doors alone when no listing has a door", () => {
@@ -48,9 +50,9 @@ describe("the admin scanner doors page template", () => {
       listingDoors: [],
     });
 
-    expect(html).toContain(t("terms.groups"));
-    expect(html).toContain('href="/admin/groups/7/scan">Winter Social</a>');
-    expect(html).not.toContain(t("terms.listings"));
+    assertStringIncludes(html, t("terms.groups"));
+    assertStringIncludes(html, 'href="/admin/groups/7/scan">Winter Social</a>');
+    assert(!html.includes(t("terms.listings")));
   });
 
   test("says when there are no doors yet", () => {
@@ -59,13 +61,13 @@ describe("the admin scanner doors page template", () => {
       listingDoors: [],
     });
 
-    expect(html).toContain(t("admin.scanner.doors_empty"));
-    expect(html).not.toContain(t("terms.listings"));
-    expect(html).not.toContain(t("terms.groups"));
+    assertStringIncludes(html, t("admin.scanner.doors_empty"));
+    assert(!html.includes(t("terms.listings")));
+    assert(!html.includes(t("terms.groups")));
     // A door's path always ends in "/scan"; the empty doors page links to no
     // door (the nav's own /admin/scanner route is not a door).
-    expect(html).not.toContain('href="/admin/listing/');
-    expect(html).not.toContain('href="/admin/groups/');
+    assert(!html.includes('href="/admin/listing/'));
+    assert(!html.includes('href="/admin/groups/'));
   });
 
   test("the nav links a scanner back to the doors list", () => {
@@ -74,8 +76,8 @@ describe("the admin scanner doors page template", () => {
     const html = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "scanner" } }),
     );
-    expect(html).toContain('href="/admin/scanner"');
-    expect(html).toContain(">Scanner</a>");
+    assertStringIncludes(html, 'href="/admin/scanner"');
+    assertStringIncludes(html, ">Scanner</a>");
   });
 
   test("the nav offers the doors list to a scanner login only", () => {
@@ -85,7 +87,7 @@ describe("the admin scanner doors page template", () => {
       const html = String(
         AdminNav({ active: "/admin/", session: { adminLevel } }),
       );
-      expect(html).not.toContain('href="/admin/scanner"');
+      assert(!html.includes('href="/admin/scanner"'));
     }
   });
 });

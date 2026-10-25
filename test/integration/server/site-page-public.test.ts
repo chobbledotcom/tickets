@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
@@ -51,25 +52,26 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
         metaTitle: "About | Acme",
       });
       const html = await assertPublicHtml("/page/about-us");
-      expect(html).toContain("<h1>Page about-us</h1>");
-      expect(html).toContain("<strong>world</strong>");
-      expect(html).toContain("<title>About | Acme</title>");
+      assertStringIncludes(html, "<h1>Page about-us</h1>");
+      assertStringIncludes(html, "<strong>world</strong>");
+      assertStringIncludes(html, "<title>About | Acme</title>");
       // The description is escaped into the net-new meta tag.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         '<meta name="description" content="We sell &quot;things&quot; &amp; fun" />',
       );
       // No items ⇒ no item list at all.
-      expect(html).not.toContain('class="page-items"');
+      assert(!html.includes('class="page-items"'));
       // The login footer is a homepage-only affordance (#69).
-      expect(html).not.toContain('href="/admin/login"');
+      assert(!html.includes('href="/admin/login"'));
     });
 
     test("falls back to the page name for the title; no meta tag when empty", () =>
       withSetting({ website_title: "Acme Site" }, async () => {
         await makePage("plain");
         const html = await assertPublicHtml("/page/plain");
-        expect(html).toContain("<title>Page plain - Acme Site</title>");
-        expect(html).not.toContain('name="description"');
+        assertStringIncludes(html, "<title>Page plain - Acme Site</title>");
+        assert(!html.includes('name="description"'));
       }));
 
     test("renders the page's linked images as the shared CSS gallery", async () => {
@@ -92,14 +94,16 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       const html = await assertPublicHtml("/page/gallery-page");
       // The public page now shows the images an editor attached, as the same
       // CSS-only gallery the news post page uses.
-      expect(html).toContain('class="news-gallery"');
-      expect(html).toContain("one.webp");
-      expect(html).toContain('alt="First alt"');
+      assertStringIncludes(html, 'class="news-gallery"');
+      assertStringIncludes(html, "one.webp");
+      assertStringIncludes(html, 'alt="First alt"');
       // Two images ⇒ a swappable thumbnail per image.
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         '<label class="news-gallery-thumb" for="news-gallery-0">',
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         '<label class="news-gallery-thumb" for="news-gallery-1">',
       );
     });
@@ -107,7 +111,7 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
     test("renders no gallery when the page has no images", async () => {
       await makePage("imageless");
       const html = await assertPublicHtml("/page/imageless");
-      expect(html).not.toContain("news-gallery");
+      assert(!html.includes("news-gallery"));
     });
 
     test("renders live items as links and dead items as text", async () => {
@@ -154,23 +158,23 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
         await addPageItem(page.id, type, id);
       }
       const html = await assertPublicHtml("/page/catalogue");
-      expect(html).toContain('class="page-items"');
+      assertStringIncludes(html, 'class="page-items"');
       // Reachable targets link — including a parent with a bookable child;
       // unreachable ones are plain text (never a dead link): inactive listing,
       // child listing, sold-out parent, renewal tier, member-less group.
-      expect(html).toContain(`href="/ticket/${live.slug}"`);
-      expect(html).toContain(`href="/ticket/${parent.slug}"`);
-      expect(html).toContain(`href="/ticket/fg"`);
-      expect(html).toContain("<span>Dead Listing</span>");
-      expect(html).toContain("<span>Child Listing</span>");
-      expect(html).toContain("<span>Starved Parent</span>");
-      expect(html).toContain("<span>Tier Listing</span>");
-      expect(html).toContain("<span>Empty Group</span>");
-      expect(html).not.toContain(`href="/ticket/${dead.slug}"`);
-      expect(html).not.toContain(`href="/ticket/${child.slug}"`);
-      expect(html).not.toContain(`href="/ticket/${soldOutParent.slug}"`);
-      expect(html).not.toContain(`href="/ticket/${tier.slug}"`);
-      expect(html).not.toContain(`href="/ticket/eg"`);
+      assertStringIncludes(html, `href="/ticket/${live.slug}"`);
+      assertStringIncludes(html, `href="/ticket/${parent.slug}"`);
+      assertStringIncludes(html, `href="/ticket/fg"`);
+      assertStringIncludes(html, "<span>Dead Listing</span>");
+      assertStringIncludes(html, "<span>Child Listing</span>");
+      assertStringIncludes(html, "<span>Starved Parent</span>");
+      assertStringIncludes(html, "<span>Tier Listing</span>");
+      assertStringIncludes(html, "<span>Empty Group</span>");
+      assert(!html.includes(`href="/ticket/${dead.slug}"`));
+      assert(!html.includes(`href="/ticket/${child.slug}"`));
+      assert(!html.includes(`href="/ticket/${soldOutParent.slug}"`));
+      assert(!html.includes(`href="/ticket/${tier.slug}"`));
+      assert(!html.includes(`href="/ticket/eg"`));
     });
   });
 
@@ -183,13 +187,13 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       withSetting({ contact_form_enabled: false }, async () => {
         await makePage("flagless");
         const html = await assertPublicHtml("/page/flagless");
-        expect(html).not.toContain('href="/contact"');
-        expect(html).not.toContain('href="/terms"');
-        expect(html).not.toContain('href="/order"');
+        assert(!html.includes('href="/contact"'));
+        assert(!html.includes('href="/terms"'));
+        assert(!html.includes('href="/order"'));
         // Setting the contact text alone turns the Contact link on.
         await withSetting({ contact_page_text: "Write to us" }, async () => {
           const withText = await assertPublicHtml("/page/flagless");
-          expect(withText).toContain('href="/contact"');
+          assertStringIncludes(withText, 'href="/contact"');
         });
       }));
 
@@ -223,30 +227,35 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       const html = await assertPublicHtml("/page/cleaning");
       // Desktop: the active root carries the nested subnav; the chain page is
       // marked active at each level, its sibling is not.
-      expect(html).toContain('class="admin-subnav"');
-      expect(html).toContain(
+      assertStringIncludes(html, 'class="admin-subnav"');
+      assertStringIncludes(
+        html,
         `<a class="active" href="/page/services">Page services</a>`,
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<a class="active" href="/page/cleaning">Page cleaning</a>`,
       );
-      expect(html).toContain(`<a href="/page/gardening">Page gardening</a>`);
+      assertStringIncludes(
+        html,
+        `<a href="/page/gardening">Page gardening</a>`,
+      );
       // The current page's own children are offered as the deepest level (N7).
-      expect(html).toContain('href="/page/windows"');
+      assertStringIncludes(html, 'href="/page/windows"');
       // Mobile: one stacked bar per level, named after its parent page (the
       // ACTIVE chain page, not the sibling that happens to sort first).
-      expect(html).toContain('aria-label="Site menu"');
-      expect(html).toContain('aria-label="Page services"');
-      expect(html).toContain('aria-label="Page cleaning"');
-      expect(html).not.toContain('aria-label="Page gardening"');
+      assertStringIncludes(html, 'aria-label="Site menu"');
+      assertStringIncludes(html, 'aria-label="Page services"');
+      assertStringIncludes(html, 'aria-label="Page cleaning"');
+      assert(!html.includes('aria-label="Page gardening"'));
     });
 
     test("the fixed pages show no submenu bars (no active chain)", async () => {
       await makePage("solo");
       const html = await assertPublicHtml("/listings");
-      expect(html).toContain('href="/page/solo"');
-      expect(html).not.toContain('class="admin-subnav"');
-      expect(html).not.toContain('aria-label="Page solo"');
+      assertStringIncludes(html, 'href="/page/solo"');
+      assert(!html.includes('class="admin-subnav"'));
+      assert(!html.includes('aria-label="Page solo"'));
     });
 
     test("a group is live when ANY member is bookable, not just the first", async () => {
@@ -264,7 +273,7 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       await listingChildren.setIds(parent.id, [childMember.id]);
       await addPageItem(page.id, "group", grp.id);
       const html = await assertPublicHtml("/page/mixed-group");
-      expect(html).toContain('href="/ticket/mg"');
+      assertStringIncludes(html, 'href="/ticket/mg"');
     });
 
     test("a page whose only item is a member-less group renders it dead", async () => {
@@ -274,8 +283,8 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       const empty = await createTestGroup({ name: "Ghost Group", slug: "gg" });
       await addPageItem(page.id, "group", empty.id);
       const html = await assertPublicHtml("/page/ghost-town");
-      expect(html).toContain("<span>Ghost Group</span>");
-      expect(html).not.toContain('href="/ticket/gg"');
+      assertStringIncludes(html, "<span>Ghost Group</span>");
+      assert(!html.includes('href="/ticket/gg"'));
     });
 
     test("a page with a missing listing item still renders", async () => {
@@ -283,8 +292,8 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       await addPageItem(page.id, "listing", 999_999);
 
       const html = await assertPublicHtml("/page/missing-listing-item");
-      expect(html).toContain("<h1>Page missing-listing-item</h1>");
-      expect(html).not.toContain('href="/ticket/');
+      assertStringIncludes(html, "<h1>Page missing-listing-item</h1>");
+      assert(!html.includes('href="/ticket/'));
     });
 
     test("a package group with an incomplete bundle renders dead despite a bookable member", async () => {
@@ -306,8 +315,8 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       await deactivateTestListing(dead.id);
       await addPageItem(page.id, "group", group.id);
       const html = await assertPublicHtml("/page/broken-bundle");
-      expect(html).toContain("<span>Combo</span>");
-      expect(html).not.toContain('href="/ticket/combo"');
+      assertStringIncludes(html, "<span>Combo</span>");
+      assert(!html.includes('href="/ticket/combo"'));
     });
 
     test("a concealing package member keeps its listing item link", async () => {
@@ -323,7 +332,7 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       });
       await addPageItem(page.id, "listing", member.id);
       const html = await assertPublicHtml("/page/hidden-member");
-      expect(html).toContain(`href="/ticket/${member.slug}"`);
+      assertStringIncludes(html, `href="/ticket/${member.slug}"`);
     });
 
     test("an item-less page renders no empty submenu or mobile bar", async () => {
@@ -332,8 +341,8 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       // screen-reader users as a navigation landmark with nothing in it.
       await makePage("bare");
       const html = await assertPublicHtml("/page/bare");
-      expect(html).not.toContain('class="admin-subnav"');
-      expect(html).not.toContain('aria-label="Page bare"');
+      assert(!html.includes('class="admin-subnav"'));
+      assert(!html.includes('aria-label="Page bare"'));
     });
 
     test("the public nav never carries the admin #main-nav id", async () => {
@@ -342,15 +351,15 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       // reading width, while .admin-nav-group still pins the desktop sidebar.
       await makePage("styled");
       const html = await assertPublicHtml("/page/styled");
-      expect(html).not.toContain('id="main-nav"');
-      expect(html).toContain('class="admin-nav-group"');
+      assert(!html.includes('id="main-nav"'));
+      assertStringIncludes(html, 'class="admin-nav-group"');
     });
 
     test("the order gallery carries the root pages too", () =>
       withSetting({ order_enabled: true }, async () => {
         await makePage("gallery-root");
         const html = await assertPublicHtml("/order");
-        expect(html).toContain('href="/page/gallery-root"');
+        assertStringIncludes(html, 'href="/page/gallery-root"');
       }));
   });
 });

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -57,37 +58,38 @@ describe("the listing booking-QR page", () => {
       values,
     });
 
-    expect(html).toContain('class="active" href="/admin/"');
-    expect(html).toContain('href="/admin/listing/12"');
+    assertStringIncludes(html, 'class="active" href="/admin/"');
+    assertStringIncludes(html, 'href="/admin/listing/12"');
   });
 
   test("names the listing and links to it in the panel heading", () => {
     const html = renderPanel();
 
-    expect(html).toContain("Booking QR code —");
-    expect(html).toContain('href="/admin/listing/12"');
-    expect(html).toContain('class="prose"');
+    assertStringIncludes(html, "Booking QR code —");
+    assertStringIncludes(html, 'href="/admin/listing/12"');
+    assertStringIncludes(html, 'class="prose"');
   });
 
   test("describes the direct-checkout condition for both states", () => {
     const direct = renderPanel({ canDirectCheckout: true });
     const indirect = renderPanel({ canDirectCheckout: false });
 
-    expect(direct).toContain('class="success-text"');
-    expect(direct).toContain("(this is the case)");
-    expect(indirect).toContain('class="danger-text"');
-    expect(indirect).toContain("(this is not the case)");
+    assertStringIncludes(direct, 'class="success-text"');
+    assertStringIncludes(direct, "(this is the case)");
+    assertStringIncludes(indirect, 'class="danger-text"');
+    assertStringIncludes(indirect, "(this is not the case)");
   });
 
   test("renders a fixed-price override input without an upper bound", () => {
     const html = renderPanel();
 
     const priceInput = html.match(/<input[^>]*name="value"[^>]*>/)![0];
-    expect(priceInput).toContain('inputmode="decimal"');
-    expect(priceInput).toContain('type="text"');
-    expect(priceInput).toContain('min="0"');
-    expect(priceInput).not.toContain('max="');
-    expect(html).toContain(
+    assertStringIncludes(priceInput, 'inputmode="decimal"');
+    assertStringIncludes(priceInput, 'type="text"');
+    assertStringIncludes(priceInput, 'min="0"');
+    assert(!priceInput.includes('max="'));
+    assertStringIncludes(
+      html,
       "Overrides the listed per-unit price of £12 for this booking",
     );
   });
@@ -97,28 +99,28 @@ describe("the listing booking-QR page", () => {
       listing: listing({ can_pay_more: true }),
     });
 
-    expect(html).toContain('min="12.00"');
-    expect(html).toContain('max="25.00"');
-    expect(html).toContain("Minimum £12, maximum £25");
+    assertStringIncludes(html, 'min="12.00"');
+    assertStringIncludes(html, 'max="25.00"');
+    assertStringIncludes(html, "Minimum £12, maximum £25");
   });
 
   test("collects the customer name and quantity", () => {
     const html = renderPanel();
 
     expect(html).toMatch(/<input[^>]*name="customer_name"[^>]*type="text"/);
-    expect(html).toContain('value="Ada"');
+    assertStringIncludes(html, 'value="Ada"');
     expect(html).toMatch(/<input[^>]*name="quantity"[^>]*type="number"/);
     expect(html).toMatch(/<input[^>]*max="4"[^>]*min="1"/);
-    expect(html).toContain('value="2"');
+    assertStringIncludes(html, 'value="2"');
   });
 
   test("dates are a required dropdown, and the saved date stays selected", () => {
     const html = renderPanel();
 
     expect(html).toMatch(/<select[^>]*name="date"[^>]*required/);
-    expect(html).toContain('<option selected value="2026-06-15">');
+    assertStringIncludes(html, '<option selected value="2026-06-15">');
     // The empty prompt stays first and unselected for the required check.
-    expect(html).toContain('value="">');
+    assertStringIncludes(html, 'value="">');
   });
 
   test("a daily-only form shows no date dropdown for other listing types", () => {
@@ -126,7 +128,7 @@ describe("the listing booking-QR page", () => {
       listing: listing({ listing_type: "standard" }),
     });
 
-    expect(html).not.toContain('name="date"');
+    assert(!html.includes('name="date"'));
   });
 
   test("shows the generated QR with its copyable link and refresh hooks", () => {
@@ -137,20 +139,20 @@ describe("the listing booking-QR page", () => {
       },
     });
 
-    expect(html).toContain('class="qr-result"');
-    expect(html).toContain('data-qr-refresh="/admin/listing/12/qr.json"');
-    expect(html).toContain('data-qr-refresh-form="/admin/listing/12/qr"');
-    expect(html).toContain('class="qr-code" data-qr-svg>');
-    expect(html).toContain("<svg>encoded</svg>");
-    expect(html).toContain("data-qr-link");
-    expect(html).toContain('type="text"');
-    expect(html).toContain('value="https://site.example/t?qr=abc123"');
+    assertStringIncludes(html, 'class="qr-result"');
+    assertStringIncludes(html, 'data-qr-refresh="/admin/listing/12/qr.json"');
+    assertStringIncludes(html, 'data-qr-refresh-form="/admin/listing/12/qr"');
+    assertStringIncludes(html, 'class="qr-code" data-qr-svg>');
+    assertStringIncludes(html, "<svg>encoded</svg>");
+    assertStringIncludes(html, "data-qr-link");
+    assertStringIncludes(html, 'type="text"');
+    assertStringIncludes(html, 'value="https://site.example/t?qr=abc123"');
   });
 
   test("renders a rejected generate's error and the submitted values", () => {
     const html = renderPanel({ error: "Enter a valid price" });
 
-    expect(html).toContain("Enter a valid price");
-    expect(html).toContain('value="19.99"');
+    assertStringIncludes(html, "Enter a valid price");
+    assertStringIncludes(html, 'value="19.99"');
   });
 });

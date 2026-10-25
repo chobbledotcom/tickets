@@ -89,10 +89,11 @@ describeWithEnv(
       using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
 
       const html = await (await adminGet(tabPath(site.id))).text();
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `<img src="/image/${image.filename}" alt="SitePoster">`,
       );
-      expect(html).not.toContain("img#");
+      assert(!html.includes("img#"));
     });
 
     test("saves markdown indentation without trimming", async () => {

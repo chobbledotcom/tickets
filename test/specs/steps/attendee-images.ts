@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
@@ -133,20 +134,20 @@ Then(
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
     expect(browser.currentUrl).toBe(noteDeletePath(this));
-    expect(browser.pageText).toContain(t("notes.delete_confirm"));
+    assertStringIncludes(browser.pageText, t("notes.delete_confirm"));
   },
 );
 
 Then(
   "the confirmation shows the {string} picture",
   function (this: TicketsWorld, _name: string): void {
-    expect(scenarioBrowser(this).currentHtml).toContain(pictureTag(this));
+    assertStringIncludes(scenarioBrowser(this).currentHtml, pictureTag(this));
   },
 );
 
 Then(
   "the confirmation never shows the picture reference",
   function (this: TicketsWorld): void {
-    expect(scenarioBrowser(this).currentHtml).not.toContain("img#");
+    assert(!scenarioBrowser(this).currentHtml.includes("img#"));
   },
 );

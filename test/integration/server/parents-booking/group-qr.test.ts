@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -43,7 +44,7 @@ describeWithEnv(
       expect(res.status).toBe(200);
       expect(res.headers.get("content-type")).toBe("image/svg+xml");
       const body = await res.text();
-      expect(body).toContain("<svg");
+      assertStringIncludes(body, "<svg");
     });
   },
 );

@@ -3,6 +3,7 @@
  * needs a new kind of read adds it here.
  */
 export const READERS = `
+import Anonymous from "./shapes.ts";
 import type { Reached } from "./inner";
 import { report, sum } from "./produce.ts";
 import {
@@ -463,4 +464,6 @@ export const readARestCarriersKept = (row: RestCarrier): number => {
 
 export const readThroughTheCarrier = (value: CarriesTheField): number =>
   value.carried;
+
+export const takenFromTheAnonymous = new Anonymous().handedOver;
 `;

@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -54,7 +55,7 @@ describe("admin ledger formatting", () => {
         kind: KIND.serviceCost,
         source: account(COST, 3),
       });
-      expect(html).toContain("Service event cost added for");
+      assertStringIncludes(html, "Service event cost added for");
     });
 
     test("reads as cost reduced when the money went back into it", () => {
@@ -63,7 +64,7 @@ describe("admin ledger formatting", () => {
         kind: KIND.serviceCost,
         source: account(EXTERNAL, 1),
       });
-      expect(html).toContain("Service event cost reduced for");
+      assertStringIncludes(html, "Service event cost reduced for");
     });
 
     test("names the cost account either way", () => {
@@ -72,7 +73,7 @@ describe("admin ledger formatting", () => {
         kind: KIND.serviceCost,
         source: account(EXTERNAL, 1),
       });
-      expect(html).toContain("<b>cost</b>");
+      assertStringIncludes(html, "<b>cost</b>");
     });
   });
 
@@ -83,7 +84,7 @@ describe("admin ledger formatting", () => {
         kind: KIND.modifier,
         source: account(ATTENDEE, 1),
       });
-      expect(html).toContain("Extra option income added for");
+      assertStringIncludes(html, "Extra option income added for");
     });
 
     test("reads as a reduction when the money came back off it", () => {
@@ -92,7 +93,7 @@ describe("admin ledger formatting", () => {
         kind: KIND.modifier,
         source: account(MODIFIER, 2),
       });
-      expect(html).toContain("Option income reduced for");
+      assertStringIncludes(html, "Option income reduced for");
     });
   });
 

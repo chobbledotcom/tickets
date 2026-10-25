@@ -67,8 +67,9 @@ const buildDenoTestArgs = (
     "--allow-ffi",
     "--parallel",
     // Install shared test state in every isolate before test-module imports:
-    // the fast `toContain` override and the full locale catalog used by direct
-    // template tests that do not enter through a production route loader.
+    // the fast typed-array equality tester and the full locale catalog used
+    // by direct template tests that do not enter through a production route
+    // loader.
     "--preload",
     "./test/test-utils/preload.ts",
     // Expose `globalThis.gc` so the test DB layer can reclaim libsql's

@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -28,7 +29,8 @@ const imagesSection = (): GuideSection => {
 describe("operations guide schema", () => {
   test("states the image size limit the site actually uses", () => {
     const html = String(renderGuideSections([imagesSection()]));
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `up to <strong>${formatBytes(MAX_IMAGE_SIZE)}</strong>`,
     );
   });
@@ -39,9 +41,9 @@ describe("operations guide schema", () => {
         sections.find(({ titleKey }) => titleKey === "customising_your_site")!,
       ]),
     );
-    expect(html).toContain("Saving gives every visitor a fresh copy");
-    expect(html).toContain("your change appears at once");
-    expect(html).not.toContain("cached for up to an hour");
+    assertStringIncludes(html, "Saving gives every visitor a fresh copy");
+    assertStringIncludes(html, "your change appears at once");
+    assert(!html.includes("cached for up to an hour"));
   });
 
   test("keeps every operations section in its intended order", () => {
@@ -86,17 +88,20 @@ describe("operations guide schema", () => {
 
     const listingAnswer = html.slice(listingStart, attendeeStart);
     const attendeeAnswer = html.slice(attendeeStart, filtersStart);
-    expect(listingAnswer).toContain(
+    assertStringIncludes(
+      listingAnswer,
       `<code>${listingTable.layout.defaultTemplate}</code>`,
     );
-    expect(attendeeAnswer).toContain(
+    assertStringIncludes(
+      attendeeAnswer,
       `<code>${attendeeTable.layout.defaultTemplate}</code>`,
     );
-    expect(listingAnswer).not.toContain(
+    assert(!listingAnswer.includes(t("guide.table_columns.attendee_hidden")));
+    assertStringIncludes(
+      attendeeAnswer,
       t("guide.table_columns.attendee_hidden"),
     );
-    expect(attendeeAnswer).toContain(t("guide.table_columns.attendee_hidden"));
-    expect(listingAnswer).toContain("<code>{{name}}</code>");
-    expect(attendeeAnswer).toContain("<code>{{email}}</code>");
+    assertStringIncludes(listingAnswer, "<code>{{name}}</code>");
+    assertStringIncludes(attendeeAnswer, "<code>{{email}}</code>");
   });
 });

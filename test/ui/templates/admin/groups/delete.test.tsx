@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
 import {
@@ -15,18 +15,22 @@ describe("adminGroupDeletePage", () => {
   test("renders the heading, confirm copy, note, and prompt", () => {
     const html = adminGroupDeletePage(group, OWNER_SESSION);
 
-    expect(html).toContain('action="/admin/groups/5/delete"');
-    expect(html).toContain("<h1>Delete Group</h1>");
-    expect(html).toContain(
+    assertStringIncludes(html, 'action="/admin/groups/5/delete"');
+    assertStringIncludes(html, "<h1>Delete Group</h1>");
+    assertStringIncludes(
+      html,
       "Are you sure you want to delete the group <strong>Autumn Tours</strong> (autumn-tours)?",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "<p>Listings in this group will not be deleted. They will be moved out of the group.</p>",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       "Type the group name &quot;Autumn Tours&quot; to confirm.",
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'name="confirm_identifier" placeholder="Autumn Tours" required',
     );
   });
@@ -40,16 +44,16 @@ describe("adminGroupDeletePage", () => {
 
     const html = adminGroupDeletePage(tricky, OWNER_SESSION);
 
-    expect(html).toContain("<strong>Fish &amp; Chips &lt;b&gt;</strong>");
-    expect(html).not.toContain("Chips <b>");
+    assertStringIncludes(html, "<strong>Fish &amp; Chips &lt;b&gt;</strong>");
+    assert(!html.includes("Chips <b>"));
   });
 
   test("renders a non-dangerous submit button", () => {
     const html = adminGroupDeletePage(group, OWNER_SESSION);
 
-    expect(html).not.toContain('<button class="danger" type="submit">');
-    expect(html).toContain("/icons.svg#check");
-    expect(html).toContain("Delete Group");
+    assert(!html.includes('<button class="danger" type="submit">'));
+    assertStringIncludes(html, "/icons.svg#check");
+    assertStringIncludes(html, "Delete Group");
   });
 
   test("renders a rejected-submit error", () => {
@@ -59,6 +63,6 @@ describe("adminGroupDeletePage", () => {
       "Group Name does not match.",
     );
 
-    expect(html).toContain("Group Name does not match.");
+    assertStringIncludes(html, "Group Name does not match.");
   });
 });

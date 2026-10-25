@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
@@ -108,7 +109,7 @@ describe("attendee page blocks", () => {
     expect(html).toMatch(
       /^<div class="page-block attendee-banner"><section class="attendee-notes">[\s\S]*<p>Bring identification<\/p>[\s\S]*<\/section><\/div>$/,
     );
-    expect(html).not.toContain("attendee-status");
+    assert(!html.includes("attendee-status"));
   });
 
   test("keeps a note's ledger link for owners but demotes it for other admins", () => {
@@ -120,13 +121,13 @@ describe("attendee page blocks", () => {
     // The ledger pages are owner-only, so a non-owner's note renders the
     // words without the link — a rendered link is a promise that it works.
     const staffHtml = String(renderBanner([attendeeStatus()], [ledgerNote]));
-    expect(staffHtml).toContain("check the ledger");
-    expect(staffHtml).not.toContain('href="/admin/ledger/attendee/1"');
+    assertStringIncludes(staffHtml, "check the ledger");
+    assert(!staffHtml.includes('href="/admin/ledger/attendee/1"'));
 
     const ownerHtml = String(
       renderBanner([attendeeStatus()], [ledgerNote], true),
     );
-    expect(ownerHtml).toContain('href="/admin/ledger/attendee/1"');
+    assertStringIncludes(ownerHtml, 'href="/admin/ledger/attendee/1"');
   });
 
   test("omits the payment block when the attendee has no payment", () => {
@@ -151,9 +152,9 @@ describe("attendee page blocks", () => {
       }),
     );
 
-    expect(html).toContain("Payment Details");
-    expect(html).toContain('action="/admin/attendees/7/refresh-payment"');
-    expect(html).not.toContain("Payment ID:");
+    assertStringIncludes(html, "Payment Details");
+    assertStringIncludes(html, 'action="/admin/attendees/7/refresh-payment"');
+    assert(!html.includes("Payment ID:"));
   });
 
   test("does not promise refresh for an unindexed legacy payment", () => {
@@ -165,8 +166,8 @@ describe("attendee page blocks", () => {
       }),
     );
 
-    expect(html).toContain("pi_legacy");
-    expect(html).not.toContain("/refresh-payment");
+    assertStringIncludes(html, "pi_legacy");
+    assert(!html.includes("/refresh-payment"));
   });
 
   test("explains an older provider-unknown payment without a dead form", () => {
@@ -179,8 +180,8 @@ describe("attendee page blocks", () => {
       }),
     );
 
-    expect(html).toContain("Payment Details");
-    expect(html).toContain(message);
-    expect(html).not.toContain("/refresh-payment");
+    assertStringIncludes(html, "Payment Details");
+    assertStringIncludes(html, message);
+    assert(!html.includes("/refresh-payment"));
   });
 });

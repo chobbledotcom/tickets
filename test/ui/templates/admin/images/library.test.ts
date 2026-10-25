@@ -1,3 +1,9 @@
+import {
+  assert,
+  assertArrayIncludes,
+  assertExists,
+  assertStringIncludes,
+} from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -72,8 +78,8 @@ describeWithEnv(
             "File storage is not configured.",
           );
           const html = await (await adminGet("/admin/images")).text();
-          expect(html).not.toContain("Hidden while disabled");
-          expect(html).not.toContain("Add Image");
+          assert(!html.includes("Hidden while disabled"));
+          assert(!html.includes("Add Image"));
         });
       });
     });
@@ -234,7 +240,7 @@ describeWithEnv(
         const messages = (await getAllActivityLog()).map(
           (entry) => entry.message,
         );
-        expect(messages).toContain("Image 'New library image' uploaded");
+        assertArrayIncludes(messages, ["Image 'New library image' uploaded"]);
       });
     });
 
@@ -244,9 +250,9 @@ describeWithEnv(
         await makeImage("Alpha");
         const response = await adminGet("/admin/images/options");
         expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toContain(
-          "application/json",
-        );
+        const contentType = response.headers.get("content-type");
+        assertExists(contentType);
+        assertStringIncludes(contentType, "application/json");
         const body = await response.json();
         expect(body).toEqual({
           images: [

@@ -1,3 +1,4 @@
+import { assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -26,7 +27,8 @@ describe("check-double-casts rules", () => {
     );
     expect(issue?.rule).toBe("double-cast");
     expect(issue?.line).toBe(1);
-    expect(issue?.fix).toContain("narrow");
+    assertExists(issue);
+    assertStringIncludes(issue.fix, "narrow");
   });
 
   test("reads the cast only where code casts, not in comments or strings", () => {
@@ -66,12 +68,14 @@ describe("check-double-casts rules", () => {
       { "shrank.ts": 2 },
     );
     expect(issue?.rule).toBe("improved");
-    expect(issue?.problem).toContain("down from the recorded 2");
+    assertExists(issue);
+    assertStringIncludes(issue.problem, "down from the recorded 2");
   });
 
   test("fails when an entry names a file that casts no more", () => {
     const [issue] = findIssues("done.ts", "export {};\n", { "done.ts": 3 });
     expect(issue?.rule).toBe("stale-entry");
-    expect(issue?.fix).toContain("delete the entry");
+    assertExists(issue);
+    assertStringIncludes(issue.fix, "delete the entry");
   });
 });

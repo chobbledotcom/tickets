@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -33,9 +34,9 @@ describeWithEnv("AdminNav visibility", {}, () => {
         "/admin/modifiers",
         "/admin/ledger",
       ]) {
-        expect(html, href).not.toContain(`href="${href}"`);
+        assert(!html.includes(`href="${href}"`), href);
       }
-      expect(html).toContain('href="/admin/attendees"');
+      assertStringIncludes(html, 'href="/admin/attendees"');
     });
   });
 
@@ -50,10 +51,10 @@ describeWithEnv("AdminNav visibility", {}, () => {
           session: { adminLevel: "owner" },
         }),
       );
-      expect(users).not.toContain('href="/admin/api-keys"');
-      expect(settings).not.toContain('href="/admin/attributes"');
-      expect(settings).not.toContain('href="/admin/logistics"');
-      expect(settings).not.toContain('href="/admin/questions"');
+      assert(!users.includes('href="/admin/api-keys"'));
+      assert(!settings.includes('href="/admin/attributes"'));
+      assert(!settings.includes('href="/admin/logistics"'));
+      assert(!settings.includes('href="/admin/questions"'));
     });
   });
 
@@ -61,20 +62,20 @@ describeWithEnv("AdminNav visibility", {}, () => {
     const ownerHtml = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
     );
-    expect(ownerHtml).toContain('href="/admin/ledger"');
-    expect(ownerHtml).toContain("Money");
-    expect(ownerHtml).not.toContain("Money history");
+    assertStringIncludes(ownerHtml, 'href="/admin/ledger"');
+    assertStringIncludes(ownerHtml, "Money");
+    assert(!ownerHtml.includes("Money history"));
     const managerHtml = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "manager" } }),
     );
-    expect(managerHtml).not.toContain('href="/admin/ledger"');
+    assert(!managerHtml.includes('href="/admin/ledger"'));
   });
 
   test("owner sees a top-level Site link when Site is enabled", () => {
     const html = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
     );
-    expect(html).toContain('href="/admin/site"');
+    assertStringIncludes(html, 'href="/admin/site"');
   });
 
   test("owner does not see Site when Site is disabled", () =>
@@ -82,7 +83,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
       );
-      expect(html).not.toContain('href="/admin/site"');
+      assert(!html.includes('href="/admin/site"'));
     }));
 
   test("Site routes stay out of the nav while Site is disabled", () =>
@@ -91,8 +92,8 @@ describeWithEnv("AdminNav visibility", {}, () => {
         const html = String(
           AdminNav({ active, session: { adminLevel: "owner" } }),
         );
-        expect(html, active).not.toContain('href="/admin/site"');
-        expect(html, active).not.toContain('href="/admin/site/contact"');
+        assert(!html.includes('href="/admin/site"'), active);
+        assert(!html.includes('href="/admin/site/contact"'), active);
       }
     }));
 
@@ -101,7 +102,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/", session: { adminLevel } }),
       );
-      expect(html, adminLevel).not.toContain('href="/admin/site"');
+      assert(!html.includes('href="/admin/site"'), adminLevel);
     }
   });
 
@@ -110,8 +111,8 @@ describeWithEnv("AdminNav visibility", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/site", session: { adminLevel } }),
       );
-      expect(html).toContain('href="/admin/site/contact"');
-      expect(html).toContain('href="/admin/site/order"');
+      assertStringIncludes(html, 'href="/admin/site/contact"');
+      assertStringIncludes(html, 'href="/admin/site/order"');
     }
   });
 
@@ -122,15 +123,15 @@ describeWithEnv("AdminNav visibility", {}, () => {
     const html = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
     );
-    expect(html).toContain('href="/admin/built-sites"');
-    expect(html).toContain("Builds");
+    assertStringIncludes(html, 'href="/admin/built-sites"');
+    assertStringIncludes(html, "Builds");
   });
 
   test("Builds is absent on a site that cannot build", () => {
     const html = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
     );
-    expect(html).not.toContain('href="/admin/built-sites"');
+    assert(!html.includes('href="/admin/built-sites"'));
   });
 
   test("Builds no longer sits in the Settings sub-nav", () => {
@@ -142,7 +143,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
       }),
     );
     const sub = subNav(html);
-    expect(sub).not.toContain('href="/admin/built-sites"');
+    assert(!sub.includes('href="/admin/built-sites"'));
   });
 
   test("editors get no section sub-nav away from the Site editor", () => {
@@ -152,7 +153,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
         session: { adminLevel: "editor" },
       }),
     );
-    expect(html).not.toContain('href="/admin/site/contact"');
+    assert(!html.includes('href="/admin/site/contact"'));
   });
 
   test("the Images section sub-nav offers an Add link when storage is enabled", () =>
@@ -160,10 +161,10 @@ describeWithEnv("AdminNav visibility", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/images", session: { adminLevel: "owner" } }),
       );
-      expect(html).toContain('href="/admin/images/new"');
+      assertStringIncludes(html, 'href="/admin/images/new"');
       const sub = subNav(html);
-      expect(sub).toContain('href="/admin/images/new"');
-      expect(sub).toContain("Add");
+      assertStringIncludes(sub, 'href="/admin/images/new"');
+      assertStringIncludes(sub, "Add");
     }));
 
   test("editors see the Images Add sub-nav link too when storage is enabled", () =>
@@ -174,7 +175,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
           session: { adminLevel: "editor" },
         }),
       );
-      expect(html).toContain('href="/admin/images/new"');
+      assertStringIncludes(html, 'href="/admin/images/new"');
     }));
 
   test("the Images section is absent when storage is disabled", () =>
@@ -182,7 +183,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/images", session: { adminLevel: "owner" } }),
       );
-      expect(html).not.toContain('href="/admin/images/new"');
+      assert(!html.includes('href="/admin/images/new"'));
     }));
 
   test("Guide stays hidden from editors, scanners, and agents", () => {
@@ -190,7 +191,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/", session: { adminLevel } }),
       );
-      expect(html, adminLevel).not.toContain('href="/admin/guide"');
+      assert(!html.includes('href="/admin/guide"'), adminLevel);
     }
   });
 
@@ -200,8 +201,8 @@ describeWithEnv("AdminNav visibility", {}, () => {
       AdminNav({ active: "/admin/guide", session: { adminLevel: "owner" } }),
     );
     const sub = subNav(html);
-    expect(sub).toContain('href="/admin/support"');
-    expect(sub).toContain("Support");
+    assertStringIncludes(sub, 'href="/admin/support"');
+    assertStringIncludes(sub, "Support");
   });
 
   test("Support is hidden from managers even when the host offers it", () => {
@@ -209,8 +210,8 @@ describeWithEnv("AdminNav visibility", {}, () => {
     const html = String(
       AdminNav({ active: "/admin/guide", session: { adminLevel: "manager" } }),
     );
-    expect(html).toContain('href="/admin/guide"');
-    expect(html).not.toContain('href="/admin/support"');
+    assertStringIncludes(html, 'href="/admin/guide"');
+    assert(!html.includes('href="/admin/support"'));
   });
 
   test("Support is hidden when the host has no admin contact address", () => {
@@ -218,8 +219,8 @@ describeWithEnv("AdminNav visibility", {}, () => {
     const html = String(
       AdminNav({ active: "/admin/guide", session: { adminLevel: "owner" } }),
     );
-    expect(html).not.toContain('href="/admin/support"');
-    expect(html).toContain('href="/admin/guide"');
+    assert(!html.includes('href="/admin/support"'));
+    assertStringIncludes(html, 'href="/admin/guide"');
   });
 
   test("Support is gone from the Settings sub-nav", () => {
@@ -230,7 +231,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
         session: { adminLevel: "owner" },
       }),
     );
-    expect(html).not.toContain('href="/admin/support"');
+    assert(!html.includes('href="/admin/support"'));
   });
 
   test("the Support page highlights Guide and its own sub-nav link", () => {
@@ -238,7 +239,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
     const html = String(
       AdminNav({ active: "/admin/support", session: { adminLevel: "owner" } }),
     );
-    expect(html).toContain('class="active" href="/admin/guide"');
-    expect(html).toContain('class="active" href="/admin/support"');
+    assertStringIncludes(html, 'class="active" href="/admin/guide"');
+    assertStringIncludes(html, 'class="active" href="/admin/support"');
   });
 });

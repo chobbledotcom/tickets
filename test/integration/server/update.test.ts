@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -117,20 +118,20 @@ describeWithEnv("server (admin update)", { db: true }, () => {
     test("shows Development build in dev mode", async () => {
       const response = await adminGet("/admin/update");
       const html = await response.text();
-      expect(html).toContain("Development build");
+      assertStringIncludes(html, "Development build");
     });
 
     test("shows update available when latest version is newer", async () => {
       await setLatestVersion("v2099-01-01-120000", "2099-01-01 - Big Update");
       const html = await getUpdatePageHtml();
-      expect(html).toContain("Update Available");
-      expect(html).toContain("2099-01-01 - Big Update");
+      assertStringIncludes(html, "Update Available");
+      assertStringIncludes(html, "2099-01-01 - Big Update");
     });
 
     test("shows no update available when version is current", async () => {
       await setLatestVersion("v2025-01-01-000000", "2025-01-01 - Old");
       const html = await getUpdatePageHtml();
-      expect(html).toContain("No Update Available");
+      assertStringIncludes(html, "No Update Available");
     });
 
     test("displays success flash message", async () => {
@@ -142,7 +143,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
         },
       );
       const html = await response.text();
-      expect(html).toContain("Update available: v1");
+      assertStringIncludes(html, "Update available: v1");
     });
 
     test("displays error flash message", async () => {
@@ -154,7 +155,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
         },
       );
       const html = await response.text();
-      expect(html).toContain("Failed to check");
+      assertStringIncludes(html, "Failed to check");
     });
   });
 

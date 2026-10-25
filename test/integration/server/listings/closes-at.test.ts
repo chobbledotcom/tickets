@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -62,7 +63,7 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
         "Registration Closes",
         "from now",
       );
-      expect(html).not.toContain("No deadline");
+      assert(!html.includes("No deadline"));
     });
 
     test("admin listing detail page shows 'No deadline' when closes_at is null", async () => {
@@ -150,8 +151,8 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
       const result = formatCountdown(
         new Date(nowMs() + 30 * 60 * 1000).toISOString(),
       );
-      expect(result).toContain("minute");
-      expect(result).toContain("from now");
+      assertStringIncludes(result, "minute");
+      assertStringIncludes(result, "from now");
     });
 
     test("formatCountdown shows closed for past dates", () => {

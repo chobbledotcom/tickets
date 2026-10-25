@@ -13,6 +13,7 @@ import { queryAll } from "#db/client.ts";
 import { setListingGroups } from "#db/groups.ts";
 import { handleRequest } from "#routes";
 import { attribute } from "#test/specs/support/form-controls/reading.ts";
+import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -246,7 +247,7 @@ export const mergeDeciding = async (
   world: TicketsWorld,
   decisions: MergeBookingDecision[],
 ): Promise<MergeOutcome> => {
-  const { bookingChoices, version } = await mergeChoices(world);
+  const { bookingChoices, html, version } = await mergeChoices(world);
   const fields: Record<string, string> = {
     merge_version: version,
     source_token: requiredWorldValue(world.duplicateToken, "duplicate token"),
@@ -260,7 +261,12 @@ export const mergeDeciding = async (
     }
     fields[decision.field] = decision.choice;
     if (decision.money !== undefined) {
-      fields[moneyFieldFor(decision.field)] = decision.money;
+      const moneyField = moneyFieldFor(decision.field);
+      // The organiser picks the money outcome only where the preview rendered
+      // the question. A page that drops the question fails the story here,
+      // before any post.
+      expectCanReallySend(html, { [moneyField]: decision.money });
+      fields[moneyField] = decision.money;
     }
   }
   return mergeOutcomeOf(await mergePost(survivorId(world), fields));

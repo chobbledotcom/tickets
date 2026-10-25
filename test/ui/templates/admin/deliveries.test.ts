@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -69,8 +70,8 @@ describe("agentDeliveriesPage", () => {
         agentSession,
         null,
       );
-      expect(html).toContain("no logistics agents assigned");
-      expect(html).toContain("/admin/logout");
+      assertStringIncludes(html, "no logistics agents assigned");
+      assertStringIncludes(html, "/admin/logout");
     });
   });
 
@@ -79,7 +80,7 @@ describe("agentDeliveriesPage", () => {
       { bookings: [], heading: "Today" },
       { bookings: [], heading: "Tomorrow" },
     ]);
-    expect(html).toContain("No deliveries scheduled");
+    assertStringIncludes(html, "No deliveries scheduled");
   });
 
   test("renders a drop-off booking with labelled details, maps, phone and a done toggle", () => {
@@ -87,24 +88,24 @@ describe("agentDeliveriesPage", () => {
       { bookings: [booking()], heading: "Today" },
       { bookings: [], heading: "Tomorrow" },
     ]);
-    expect(html).toContain("Drop-off");
-    expect(html).toContain("09:00");
-    expect(html).toContain("Van 1");
+    assertStringIncludes(html, "Drop-off");
+    assertStringIncludes(html, "09:00");
+    assertStringIncludes(html, "Van 1");
     // Details are prefixed with bold labels.
-    expect(html).toContain("<strong>Name:</strong> Alice");
-    expect(html).toContain("<strong>Listing:</strong> Bouncy Castle");
-    expect(html).toContain("<strong>Address:</strong> 1 Test Street");
-    expect(html).toContain("<strong>Phone:</strong>");
-    expect(html).toContain("tel:+447700900000");
-    expect(html).toContain("https://wa.me/447700900000");
-    expect(html).toContain('action="/admin/deliveries/mark"');
-    expect(html).toContain('value="start"');
-    expect(html).toContain('name="date" type="hidden" value="2026-06-16"');
-    expect(html).toContain("Mark done");
+    assertStringIncludes(html, "<strong>Name:</strong> Alice");
+    assertStringIncludes(html, "<strong>Listing:</strong> Bouncy Castle");
+    assertStringIncludes(html, "<strong>Address:</strong> 1 Test Street");
+    assertStringIncludes(html, "<strong>Phone:</strong>");
+    assertStringIncludes(html, "tel:+447700900000");
+    assertStringIncludes(html, "https://wa.me/447700900000");
+    assertStringIncludes(html, 'action="/admin/deliveries/mark"');
+    assertStringIncludes(html, 'value="start"');
+    assertStringIncludes(html, 'name="date" type="hidden" value="2026-06-16"');
+    assertStringIncludes(html, "Mark done");
     // The ticket token the customer can quote is shown.
-    expect(html).toContain("<strong>Token:</strong> TOKEN123");
+    assertStringIncludes(html, "<strong>Token:</strong> TOKEN123");
     // The empty Tomorrow group shows its own placeholder.
-    expect(html).toContain("Nothing scheduled");
+    assertStringIncludes(html, "Nothing scheduled");
   });
 
   test("shows both the drop-off and collection jobs for a same-day booking", () => {
@@ -122,8 +123,8 @@ describe("agentDeliveriesPage", () => {
       },
       { bookings: [], heading: "Tomorrow" },
     ]);
-    expect(html).toContain("Drop-off");
-    expect(html).toContain("Collection");
+    assertStringIncludes(html, "Drop-off");
+    assertStringIncludes(html, "Collection");
     // The shared booking details appear once, not once per leg.
     expect(html.match(/Bouncy Castle/g)).toHaveLength(1);
   });
@@ -142,14 +143,14 @@ describe("agentDeliveriesPage", () => {
       },
       { bookings: [], heading: "Tomorrow" },
     ]);
-    expect(html).toContain("Collection");
-    expect(html).toContain("Mark not done");
-    expect(html).toContain("delivery-leg done");
+    assertStringIncludes(html, "Collection");
+    assertStringIncludes(html, "Mark not done");
+    assertStringIncludes(html, "delivery-leg done");
     // Non-callable phone is shown as plain text, with no tel: link.
-    expect(html).toContain("no-digits-here");
-    expect(html).not.toContain("tel:");
+    assertStringIncludes(html, "no-digits-here");
+    assert(!html.includes("tel:"));
     // No address line when the address is blank.
-    expect(html).not.toContain("1 Test Street");
+    assert(!html.includes("1 Test Street"));
   });
 
   test("omits the phone line entirely when there is no phone", () => {
@@ -157,7 +158,7 @@ describe("agentDeliveriesPage", () => {
       { bookings: [booking({ phone: "" })], heading: "Today" },
       { bookings: [], heading: "Tomorrow" },
     ]);
-    expect(html).not.toContain("delivery-phone");
+    assert(!html.includes("delivery-phone"));
   });
 
   test("renders an error flash message", () => {
@@ -168,7 +169,7 @@ describe("agentDeliveriesPage", () => {
       agentSession,
       null,
     );
-    expect(html).toContain("Something went wrong");
+    assertStringIncludes(html, "Something went wrong");
   });
 
   test("renders a success flash message", () => {
@@ -179,7 +180,7 @@ describe("agentDeliveriesPage", () => {
       agentSession,
       null,
     );
-    expect(html).toContain("Marked done");
+    assertStringIncludes(html, "Marked done");
   });
 
   test("no date picker renders when none is supplied (the agent's case)", () => {
@@ -195,7 +196,7 @@ describe("agentDeliveriesPage", () => {
       agentSession,
       null,
     );
-    expect(html).not.toContain("date-picker");
+    assert(!html.includes("date-picker"));
   });
 
   test("staff get the calendar date picker linking each date to the run sheet", () => {
@@ -210,10 +211,10 @@ describe("agentDeliveriesPage", () => {
       dateNav(),
     );
     // The shared calendar component renders, wired to reopen the run sheet.
-    expect(html).toContain("date-picker");
-    expect(html).toContain('href="/admin/deliveries?date=2026-07-06"');
+    assertStringIncludes(html, "date-picker");
+    assertStringIncludes(html, 'href="/admin/deliveries?date=2026-07-06"');
     // Month paging keeps the deliveries route (not the calendar page).
-    expect(html).toContain("/admin/deliveries?cal=");
+    assertStringIncludes(html, "/admin/deliveries?cal=");
   });
 
   test("staff picker keeps the opened date while paging months", () => {
@@ -229,6 +230,6 @@ describe("agentDeliveriesPage", () => {
     );
     // Paging months carries the selected date so it stays highlighted (the
     // ampersand is HTML-escaped in the rendered href).
-    expect(html).toContain("/admin/deliveries?date=2026-07-12&amp;cal=");
+    assertStringIncludes(html, "/admin/deliveries?date=2026-07-12&amp;cal=");
   });
 });

@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -25,7 +26,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Check-in &amp; QR scanner",
       );
 
-      expect(html).not.toContain("Data &amp;amp; privacy");
+      assert(!html.includes("Data &amp;amp; privacy"));
     });
 
     test("contains booking questions section", async () => {

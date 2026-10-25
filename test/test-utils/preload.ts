@@ -1,6 +1,5 @@
 /** Shared setup installed before each test module by the standard runners. */
 import "#test-utils/bdd.ts";
-import "#test-utils/fast-expect.ts";
 import "#test-utils/typed-array-equality.ts";
 import { ensureMessageGroups } from "#i18n";
 import { MESSAGE_GROUPS } from "#locales/manifest.ts";

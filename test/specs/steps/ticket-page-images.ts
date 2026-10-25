@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then } from "@cucumber/cucumber";
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { settings } from "#db/settings.ts";
 import { thingsGroupedTogether } from "#test/specs/support/bundles.ts";
 import {
@@ -277,7 +277,8 @@ Then(
     name: string,
     image: string,
   ): Promise<void> {
-    expect((await visitorOpensBooking(this, name)).currentHtml).toContain(
+    assertStringIncludes(
+      (await visitorOpensBooking(this, name)).currentHtml,
       `<img src="" alt="${image}">`,
     );
   },

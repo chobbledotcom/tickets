@@ -1,3 +1,4 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decryptAttendees } from "#db/attendees/pii.ts";
@@ -119,7 +120,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       const raw = await getAttendeesRaw(listing!.id);
       const decrypted = await decryptAttendees(raw, await getTestPrivateKey());
       expect(decrypted.length).toBe(1);
-      expect(DEMO_NAMES).toContain(decrypted[0]!.name);
+      assertArrayIncludes(DEMO_NAMES as readonly string[], [
+        decrypted[0]!.name,
+      ]);
     });
 
     test("rejects invalid CSRF token", async () => {
