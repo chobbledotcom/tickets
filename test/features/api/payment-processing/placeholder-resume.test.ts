@@ -385,8 +385,8 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
   test("a redelivery finishes the refund when the crash left the claim over no charge", async () => {
     const sessionId = "cs_resume_no_charge";
     const placeholder = await crashedPlaceholderStore(sessionId);
-    // The pair the old resume refused: a held claim whose references carry
-    // no charge at all. The redelivery still finishes the refund.
+    // A held claim whose references carry no charge: the redelivery still
+    // finishes the refund.
     await execute("DELETE FROM payment_charges", []);
     expect(await chargeState()).toBeNull();
     expect(await anchorMirror()).toBe("claim");
@@ -415,11 +415,9 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
         ).rejects.toThrow("provider connection lost");
       },
     );
-    // The crash then tore the claim off the armed send: a pair no flow can
-    // produce, which the old resume refused to act on. The claim's own
-    // settlement releases it, and the send belongs to the authority's
-    // recovery routes, so the redelivery replays the stored words and moves
-    // nothing.
+    // The settlement releases the claim off the armed send. The send
+    // belongs to the authority's recovery routes, so the redelivery replays
+    // the stored words and moves nothing.
     const held = await heldClaim();
     await settleAttendeeRows(
       settlementForHeldClaim(held.anchorSessionId, held.claim),
