@@ -150,6 +150,12 @@ describe("hand-numbered tokens", () => {
     ).toEqual([]);
   });
 
+  test("stays quiet when the file opens with a colon and a string", () => {
+    expect(findHandNumberedSql("shared/db/synthetic.ts", 's: "?1"')).toEqual(
+      [],
+    );
+  });
+
   test("fires on an sql property whose value sits on the next line", () => {
     expect(
       findHandNumberedSql(
