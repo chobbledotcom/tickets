@@ -122,6 +122,20 @@ These checks serve different purposes.
   emitted edge. Confirm that the checker reports a counterexample.
   Direct generator tests keep unsafe outcomes visible. SumUp and Square
   extraction stop if a declared transition fails.
+- **Explain each proof beside its rules.** Use these guide sections in every
+  TLA model:
+  - Purpose and limits
+  - Read the notation
+  - Data from the code
+  - Model memory
+  - Safety checks
+  - Proof checks
+  Describe each tuple column and each state field. Explain every rule in
+  plain words. Distinguish checked outcomes from assumptions about callers or
+  external systems. Explain why history flags cannot forget an unsafe result.
+  Keep the checker type notes beside their declarations. These notes form the
+  checked data shapes. The prose explains them, but does not enforce them.
+  When a rule changes, update its explanation in the same change.
 - **Observe real writes.** `test/test-utils/payment-seam.ts` records claim and
   refund-arm facts through test-only database triggers. A later settlement
   cannot erase a recorded violation. The observer checks the authority revision
