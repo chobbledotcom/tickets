@@ -208,6 +208,20 @@ describe("resolveImageReferences", () => {
     );
   });
 
+  test("resolves a reference-style picture and its definition", () => {
+    expect(
+      resolveImageReferences("![Poster][poster]\n\n[poster]: img#5", urls),
+    ).toBe(
+      "![Poster](https://tickets.example/image/poster.webp)\n\n[poster]: https://tickets.example/image/poster.webp",
+    );
+  });
+
+  test("keeps the written form of a reference-style picture the table lacks", () => {
+    expect(
+      resolveImageReferences("![Poster][poster]\n\n[poster]: img#7", urls),
+    ).toBe("![Poster][poster]\n\n[poster]: img#7");
+  });
+
   test("keeps the written form of a reference the table lacks", () => {
     expect(resolveImageReferences("See ![Poster](img#7).", urls)).toBe(
       "See ![Poster](img#7).",
