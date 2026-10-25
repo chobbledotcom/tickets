@@ -15,9 +15,8 @@ import {
 import { matchingBracket } from "#test/scripts/code-quality/brackets.ts";
 import {
   argumentUses,
-  argumentUses,
   sqlTextArgumentStarts,
-  sqlCarryingNames,
+  sqlConstantUses,
 } from "#test/scripts/code-quality/helper-binds.ts";
 
 /** The one file whose own job is to emit `?N` tokens. */
@@ -255,11 +254,11 @@ const innermostBlockAt = (blocks: Block[], at: number): Block | undefined =>
  * scope that declares the name wins, and inside it the declaration that
  * precedes the use. A declaration in an unrelated scope never reaches the
  * use, and a same-scope declaration after the use shadows it to nothing. */
-const visibleDeclaration = (
+const visibleDeclaration = <Declaration extends { start: number }>(
   blocks: Block[],
-  declarations: LocalArray[] | undefined,
+  declarations: readonly Declaration[] | undefined,
   at: number,
-): LocalArray | undefined => {
+): Declaration | undefined => {
   if (declarations === undefined) return;
   const scopes = [
     ...blocks
@@ -276,6 +275,41 @@ const visibleDeclaration = (
     }
   }
   return;
+};
+
+/** Every `const`/`let` declaration position of one file, by name. The
+ *  annotation a declaration may carry ends at its `=`, so one match covers
+ *  one declaration and a match never spans two statements. */
+const NAME_DECLARATION =
+  /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;{}]*?)?=/g;
+
+const nameDeclarations = (
+  blanked: string,
+): Map<string, { start: number }[]> => {
+  const declarations = new Map<string, { start: number }[]>();
+  for (const match of [...blanked.matchAll(NAME_DECLARATION)]) {
+    const name = match[1] as string;
+    const starts = declarations.get(name) ?? [];
+    starts.push({ start: match.index });
+    declarations.set(name, starts);
+  }
+  return declarations;
+};
+
+/** The declaration positions the file's SQL helper calls receive: the
+ *  binding visible at a call is the constant whose string spans count as
+ *  SQL text. A bare name without a visible declaration names nothing. */
+const sqlCarryingStarts = (
+  blanked: string,
+  blocks: Block[],
+  declarations: Map<string, { start: number }[]>,
+): Set<number> => {
+  const carrying = new Set<number>();
+  for (const { at, name } of sqlConstantUses(blanked)) {
+    const visible = visibleDeclaration(blocks, declarations.get(name), at);
+    if (visible !== undefined) carrying.add(visible.start);
+  }
+  return carrying;
 };
 
 /** One args array a statement binds: where the array sits, the line it is
@@ -392,15 +426,19 @@ const followsSqlProperty = (blanked: string, at: number): boolean => {
 };
 
 /** The hand-numbered `?N` tokens of one source file. The numbered binder is
+/** The hand-numbered `?N` tokens of one source file. The numbered binder is
  * the only writer of `?N` tokens, so SQL text never spells one itself; the
  * prose comments that kept such numbering honest are comments, which the
  * string-span walk never reads. The walk judges SQL text only: a template
  * literal, an `sql:` property's string, the statement string a SQL helper
  * call carries, or a quoted string an assignment holds for the `sql` name
- * or for a local a SQL helper call receives. Every other string is prose,
- * and the walk skips it. A template's SQL text is checked with its
- * interpolations blanked, and each interpolation's own string spans — the
- * conditional fragments an assembly writes — are checked in their place. */
+ * or for a constant whose visible declaration a SQL helper call receives.
+ * The constant is the binding the scope resolution reaches: a same-named
+ * constant in an unrelated or shadowing scope is prose the rule does not
+ * judge. Every other string is prose, and the walk skips it. A template's
+ * SQL text is checked with its interpolations blanked, and each
+ * interpolation's own string spans — the conditional fragments an assembly
+ * writes — are checked in their place. */
 export const findHandNumberedSql = (
   relativePath: string,
   content: string,
@@ -408,7 +446,13 @@ export const findHandNumberedSql = (
   if (relativePath === NUMBERED_STATEMENT_PATH) return [];
   const blanked = blankSpans(content, true);
   const statementStringStarts = sqlTextArgumentStarts(content, blanked);
-  const sqlNames = sqlCarryingNames(blanked);
+  const blocks = matchedBlocks(blanked);
+  const declarations = nameDeclarations(blanked);
+  const carrying = sqlCarryingStarts(blanked, blocks, declarations);
+  const sqlCarries = (name: string, at: number): boolean => {
+    const visible = visibleDeclaration(blocks, declarations.get(name), at);
+    return visible !== undefined && carrying.has(visible.start);
+  };
   const violations: string[] = [];
   const check = (start: number, end: number): void => {
     const text = content.slice(start, end);
@@ -431,7 +475,7 @@ export const findHandNumberedSql = (
     const token = blanked.slice(0, before).trimEnd();
     if (/\bsql$/.test(token)) return true;
     const name = token.match(TOKEN_BEFORE);
-    return name !== null && sqlNames.has(name[1] as string);
+    return name !== null && sqlCarries(name[1] as string, at);
   };
   const isSqlText = (at: number): boolean =>
     content[at] === "`" ||

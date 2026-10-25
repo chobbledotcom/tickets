@@ -4,7 +4,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { blankSpans } from "#scripts/typescript-lex.ts";
 import { matchingBracket } from "#test/scripts/code-quality/brackets.ts";
-import { SQL_HELPERS } from "#test/scripts/code-quality/helper-binds.ts";
+import { SQL_HELPERS, sqlConstantUses } from "#test/scripts/code-quality/helper-binds.ts";
 import { REPO_ROOT } from "#test/scripts/code-quality/scan-context.ts";
 
 /**
@@ -119,5 +119,18 @@ describe("SQL helper set", () => {
     expect(exportedBindHelpers(blankSpans(source, true)).sort()).toEqual(
       [...SQL_HELPERS].sort(),
     );
+  });
+});
+
+describe("SQL constant uses", () => {
+  test("skips a helper call whose argument list never closes", () => {
+    const blanked = blankSpans(
+      "await execute(statement, [id]);\nawait execute(statement);\nawait execute(broken",
+      true,
+    );
+    expect(sqlConstantUses(blanked).map((use) => use.name)).toEqual([
+      "statement",
+      "statement",
+    ]);
   });
 });

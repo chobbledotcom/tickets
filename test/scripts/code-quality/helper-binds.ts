@@ -1,8 +1,9 @@
 /**
- * The bind lists that arrive through a SQL helper call: the second argument
- * of the query and write helpers, a bare name or an inline array, past the
- * type arguments a generic call carries. `findRepeatedBinds` reads these
- * beside the `args` object forms.
+ * What a SQL helper call carries: the statement text its first argument
+ * names, and the bind list its second argument holds — a bare name or an
+ * inline array, past the type arguments a generic call carries.
+ * `findRepeatedBinds` reads the bind lists beside the `args` object forms,
+ * and the numbered-token rule resolves the statement names to constants.
  */
 
 import { skipComment } from "#scripts/typescript-lex.ts";
@@ -116,23 +117,25 @@ const callOpens = (
 
 const BARE_NAME = /^[A-Za-z_$][\w$]*$/;
 
-/** The names of the locals a SQL helper call receives as its first
- *  argument: the statement text travels through them, so a string one of
- *  them holds is SQL text wherever the file assigns it. */
-export const sqlCarryingNames = (blanked: string): Set<string> => {
-  const names = new Set<string>();
+/** The bare names the file's SQL helper calls receive as their first
+ *  argument, each with the position of its call: the statement text travels
+ *  through them. A call whose argument list never closes names nothing, and
+ *  the same name in another scope is a different constant. */
+export type SqlUse = { at: number; name: string };
+
+export const sqlConstantUses = (blanked: string): SqlUse[] => {
+  const uses: SqlUse[] = [];
   for (const name of SQL_HELPERS) {
-    for (const { open } of callOpens(blanked, name)) {
+    for (const { at, open } of callOpens(blanked, name)) {
       const comma = firstArgumentComma(blanked, open);
       const close = matchingBracket(blanked, open);
       if (close < 0) continue;
-      const argument = blanked
-        .slice(open + 1, comma >= 0 ? comma : close)
-        .trim();
-      if (BARE_NAME.test(argument)) names.add(argument);
+      const end = comma >= 0 ? comma : close;
+      const argument = blanked.slice(open + 1, end).trim();
+      if (BARE_NAME.test(argument)) uses.push({ at, name: argument });
     }
   }
-  return names;
+  return uses;
 };
 /** The positions where a statement receives its bind list: an `args: name`
  * property, the `args` shorthand in an object literal, and the second
