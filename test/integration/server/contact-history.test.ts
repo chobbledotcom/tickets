@@ -1,4 +1,4 @@
-import { assertStringIncludes } from "@std/assert";
+import { assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -227,7 +227,8 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
         line.includes("DECRYPT_FAILED"),
       );
       expect(decryptFailure).toBeDefined();
-      expect(decryptFailure).toContain('detail="contact history editor ');
+      assertExists(decryptFailure);
+      assertStringIncludes(decryptFailure, 'detail="contact history editor ');
       expect(html).toMatch(/name="visits"[^>]*value="9"/);
       expect(html).toMatch(/name="public_booking_count"[^>]*value="5"/);
       expect(html).toMatch(/name="admin_booking_count"[^>]*value="2"/);

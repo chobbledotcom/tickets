@@ -12,6 +12,7 @@
  * contact-history write failing after the text has already gone.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -82,8 +83,8 @@ describeWithEnv("admin sms", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain("Messages awaiting delivery:");
-    expect(html).not.toContain("Send a text message");
+    assertStringIncludes(html, "Messages awaiting delivery:");
+    assert(!html.includes("Send a text message"));
   });
 
   it("GET renders one person's page and their history", async () => {
@@ -96,10 +97,10 @@ describeWithEnv("admin sms", { db: true }, () => {
     await adminFormPost("/admin/sms", { ...form, message: "History line" });
 
     const html = await (await adminGet(smsUrl)).text();
-    expect(html).toContain("Send a text message");
-    expect(html).toContain("Jane Doe");
-    expect(html).toContain(PHONE);
-    expect(html).toContain("History line");
+    assertStringIncludes(html, "Send a text message");
+    assertStringIncludes(html, "Jane Doe");
+    assertStringIncludes(html, PHONE);
+    assertStringIncludes(html, "History line");
   });
 
   it("POST rejects a message of only spaces", async () => {

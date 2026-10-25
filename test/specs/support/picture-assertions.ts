@@ -4,7 +4,7 @@
  * text the story watches.
  */
 
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 
 /** The shown text holds the picture at its own address, and the watched text
  * keeps no raw reference. When the story watches no separate text, the shown
@@ -14,6 +14,6 @@ export const showsPicture = (
   tag: string,
   watched: string = shown,
 ): void => {
-  expect(shown).toContain(tag);
-  expect(watched).not.toContain("img#");
+  assertStringIncludes(shown, tag);
+  assert(!watched.includes("img#"));
 };

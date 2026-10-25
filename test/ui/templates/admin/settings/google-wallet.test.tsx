@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -18,23 +18,27 @@ describe("GoogleWalletForm", () => {
       }),
     );
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="google_wallet_issuer_id" placeholder="3388000000012345678" type="text" value="3388000000012345678">`,
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="google_wallet_service_account_email" placeholder="wallet@project.iam.gserviceaccount.com" type="email" value="wallet@project.example.com">`,
     );
-    expect(html).toContain("<label>Issuer ID<input");
-    expect(html).toContain("<label>Service Account Email<input");
+    assertStringIncludes(html, "<label>Issuer ID<input");
+    assertStringIncludes(html, "<label>Service Account Email<input");
   });
 
   test("masks the saved service account key only when configured", () => {
     const unconfigured = String(GoogleWalletForm(advancedDefaultState));
 
-    expect(unconfigured).toContain(
+    assertStringIncludes(
+      unconfigured,
       "<label>Service Account Private Key (PEM)<textarea",
     );
-    expect(unconfigured).toContain(
+    assertStringIncludes(
+      unconfigured,
       `<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="google_wallet_service_account_key" placeholder="-----BEGIN PRIVATE KEY-----" rows="4"></textarea>`,
     );
 
@@ -45,18 +49,18 @@ describe("GoogleWalletForm", () => {
       }),
     );
 
-    expect(configured).toContain(`rows="4">${MASK_SENTINEL}</textarea>`);
+    assertStringIncludes(configured, `rows="4">${MASK_SENTINEL}</textarea>`);
   });
 
   test("targets the Google Wallet route, guide, and save copy", () => {
     const html = String(GoogleWalletForm(advancedDefaultState));
 
-    expect(html).toContain("<h2>Google Wallet</h2>");
-    expect(html).toContain('action="/admin/settings/google-wallet"');
-    expect(html).toContain('id="settings-google-wallet"');
-    expect(html).toContain('href="/admin/guide#google-wallet"');
-    expect(html).toContain("Save Google Wallet Settings");
-    expect(html).toContain("Google Wallet API enabled");
+    assertStringIncludes(html, "<h2>Google Wallet</h2>");
+    assertStringIncludes(html, 'action="/admin/settings/google-wallet"');
+    assertStringIncludes(html, 'id="settings-google-wallet"');
+    assertStringIncludes(html, 'href="/admin/guide#google-wallet"');
+    assertStringIncludes(html, "Save Google Wallet Settings");
+    assertStringIncludes(html, "Google Wallet API enabled");
   });
 
   test("carries the host-config hint in both override states", () => {
@@ -66,7 +70,8 @@ describe("GoogleWalletForm", () => {
         hostGoogleWalletLabel: "Host wallet",
       }),
     );
-    expect(fallingBack).toContain(
+    assertStringIncludes(
+      fallingBack,
       "Currently using: Host wallet. Override below or leave empty to keep using host config.",
     );
 
@@ -77,6 +82,6 @@ describe("GoogleWalletForm", () => {
         hostGoogleWalletLabel: "Host wallet",
       }),
     );
-    expect(overriding).toContain(" Overriding: Host wallet.");
+    assertStringIncludes(overriding, " Overriding: Host wallet.");
   });
 });

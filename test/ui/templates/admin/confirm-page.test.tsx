@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   ConfirmPage,
@@ -46,30 +46,30 @@ describe("ConfirmPage", () => {
       OWNER,
     );
 
-    expect(html).toContain("<title></title>");
-    expect(html).toContain("<h1>Delete Alice</h1>");
+    assertStringIncludes(html, "<title></title>");
+    assertStringIncludes(html, "<h1>Delete Alice</h1>");
   });
 
   test("renders the real confirmation form while the action is available", () => {
     const html = renderConfirmation();
 
-    expect(html).toContain('action="/admin/people/1/refund"');
-    expect(html).toContain('name="confirm_identifier"');
-    expect(html).toContain('placeholder="Alice Example"');
-    expect(html).toContain("Send refund");
-    expect(html).toContain("Money will be returned.");
-    expect(html).toContain("<h1>Check payment</h1>");
-    expect(html).toContain("Payment details");
+    assertStringIncludes(html, 'action="/admin/people/1/refund"');
+    assertStringIncludes(html, 'name="confirm_identifier"');
+    assertStringIncludes(html, 'placeholder="Alice Example"');
+    assertStringIncludes(html, "Send refund");
+    assertStringIncludes(html, "Money will be returned.");
+    assertStringIncludes(html, "<h1>Check payment</h1>");
+    assertStringIncludes(html, "Payment details");
   });
 
   test("renders the blocked explanation without any usable form", () => {
     const html = renderConfirmation(true);
 
-    expect(html).toContain("A refund is already moving");
-    expect(html).toContain("Payment details");
-    expect(html).not.toContain("<form");
-    expect(html).not.toContain('name="confirm_identifier"');
-    expect(html).not.toContain("Send refund");
-    expect(html).not.toContain("Money will be returned.");
+    assertStringIncludes(html, "A refund is already moving");
+    assertStringIncludes(html, "Payment details");
+    assert(!html.includes("<form"));
+    assert(!html.includes('name="confirm_identifier"'));
+    assert(!html.includes("Send refund"));
+    assert(!html.includes("Money will be returned."));
   });
 });

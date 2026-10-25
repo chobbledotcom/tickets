@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
@@ -13,10 +14,11 @@ describe("adminSettingsPage", () => {
 
   test("renders the underline-links checkbox, unchecked by default", () => {
     const html = adminSettingsPage(OWNER_SESSION, defaultSettingsState());
-    expect(html).toContain("Underline links");
-    const checkbox = html.match(/<input[^>]*name="underline_links"[^>]*>/);
-    expect(checkbox?.[0]).toContain('type="checkbox"');
-    expect(checkbox?.[0]).not.toContain("checked");
+    assertStringIncludes(html, "Underline links");
+    const checkbox =
+      html.match(/<input[^>]*name="underline_links"[^>]*>/)?.[0] ?? "";
+    assertStringIncludes(checkbox, 'type="checkbox"');
+    assert(!checkbox.includes("checked"));
   });
 
   test("checks the underline-links checkbox when enabled", () => {
@@ -25,22 +27,22 @@ describe("adminSettingsPage", () => {
       underlineLinks: true,
     });
     const checkbox = html.match(/<input[^>]*name="underline_links"[^>]*>/);
-    expect(checkbox?.[0]).toContain("checked");
+    assertStringIncludes(checkbox?.[0] ?? "", "checked");
   });
 
   test("shows settings sub-navigation", () => {
     const html = adminSettingsPage(OWNER_SESSION, defaultSettingsState());
-    expect(html).toContain('href="/admin/settings-advanced"');
-    expect(html).toContain('href="/admin/backup"');
-    expect(html).toContain('href="/admin/debug"');
+    assertStringIncludes(html, 'href="/admin/settings-advanced"');
+    assertStringIncludes(html, 'href="/admin/backup"');
+    assertStringIncludes(html, 'href="/admin/debug"');
   });
 
   test("renders the calendar feeds form as markup, not escaped HTML", () => {
     const html = adminSettingsPage(OWNER_SESSION, defaultSettingsState());
-    expect(html).toContain('action="/admin/settings/calendar-feeds"');
-    expect(html).toContain('name="calendar_feeds_enabled"');
-    expect(html).toContain('name="calendar_feeds_group_by"');
-    expect(html).not.toContain("&lt;form");
+    assertStringIncludes(html, 'action="/admin/settings/calendar-feeds"');
+    assertStringIncludes(html, 'name="calendar_feeds_enabled"');
+    assertStringIncludes(html, 'name="calendar_feeds_group_by"');
+    assert(!html.includes("&lt;form"));
   });
 
   test("checks the calendar feeds toggle when enabled", () => {
@@ -53,7 +55,7 @@ describe("adminSettingsPage", () => {
 
   test("hides the booking fee form until a payment provider is chosen", () => {
     const html = adminSettingsPage(OWNER_SESSION, defaultSettingsState());
-    expect(html).not.toContain('action="/admin/settings/booking-fee"');
+    assert(!html.includes('action="/admin/settings/booking-fee"'));
   });
 
   test("asks for a booking fee percentage between 0 and 10", () => {
@@ -62,13 +64,13 @@ describe("adminSettingsPage", () => {
       bookingFee: "2.5",
       paymentProvider: "stripe",
     });
-    expect(html).toContain('action="/admin/settings/booking-fee"');
-    expect(html).toContain('id="settings-booking-fee"');
+    assertStringIncludes(html, 'action="/admin/settings/booking-fee"');
+    assertStringIncludes(html, 'id="settings-booking-fee"');
     const input = html.match(/<input[^>]*name="booking_fee"[^>]*>/)?.[0];
-    expect(input).toContain('type="number"');
-    expect(input).toContain('min="0"');
-    expect(input).toContain('max="10"');
-    expect(input).toContain('step="0.1"');
-    expect(input).toContain('value="2.5"');
+    assertStringIncludes(input ?? "", 'type="number"');
+    assertStringIncludes(input ?? "", 'min="0"');
+    assertStringIncludes(input ?? "", 'max="10"');
+    assertStringIncludes(input ?? "", 'step="0.1"');
+    assertStringIncludes(input ?? "", 'value="2.5"');
   });
 });

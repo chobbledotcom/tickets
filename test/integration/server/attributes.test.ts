@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
@@ -129,8 +130,8 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
       // The tab loader once received the framework's page-context object in
       // its `error` parameter, so every load showed an error box reading
       // "[object Object]".
-      expect(html).not.toContain("[object Object]");
-      expect(html).not.toContain('class="error"');
+      assert(!html.includes("[object Object]"));
+      assert(!html.includes('class="error"'));
     });
 
     test("shows available options and checked selections", async () => {
@@ -150,13 +151,17 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
         "Easy",
         "Hard",
       );
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         `checked name="option_ids" type="checkbox" value="${
           attribute.options[1]!.id
         }"`,
       );
       // Each attribute's options render as a row-based checkbox fieldset.
-      expect(html).toContain('<fieldset class="checkboxes listing-section">');
+      assertStringIncludes(
+        html,
+        '<fieldset class="checkboxes listing-section">',
+      );
     });
 
     test("shows attributes that do not have options yet", async () => {

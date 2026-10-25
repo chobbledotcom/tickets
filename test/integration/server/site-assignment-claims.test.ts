@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
@@ -55,7 +56,7 @@ describeWithEnv(
         for (const call of suite.fetchStub.calls) {
           const body = JSON.parse(call.args[1].body);
           expect(body.to).toEqual(["jane@example.com"]);
-          expect(body.html).toContain("https://a.test.net/setup/");
+          assertStringIncludes(body.html, "https://a.test.net/setup/");
         }
       });
 
@@ -85,7 +86,7 @@ describeWithEnv(
         await expectOneSiteServed();
         expect(suite.fetchStub.calls.length).toBe(1);
         const body = JSON.parse(suite.fetchStub.calls[0]!.args[1].body);
-        expect(body.html).toContain("https://a.test.net/setup/");
+        assertStringIncludes(body.html, "https://a.test.net/setup/");
       });
 
       test("a repair resend grants the term the plan states today", async () => {

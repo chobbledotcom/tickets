@@ -4,6 +4,7 @@
  * surface every admin page opens through.
  */
 
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -33,7 +34,7 @@ describe("the spec's flash bag", () => {
       title: "Holiday",
     });
 
-    expect(html).toContain("Name is taken");
+    assertStringIncludes(html, "Name is taken");
   });
 
   test("shows the success notice only when there is one", () => {
@@ -51,8 +52,8 @@ describe("the spec's flash bag", () => {
       title: "Holidays",
     });
 
-    expect(withNotice).toContain("Holiday saved");
-    expect(without).not.toContain("flash");
+    assertStringIncludes(withNotice, "Holiday saved");
+    assert(!without.includes("flash"));
   });
 
   test("shows either notice, or neither", () => {
@@ -65,9 +66,9 @@ describe("the spec's flash bag", () => {
         title: "Update",
       });
 
-    expect(spec({ error: "It broke" })).toContain("It broke");
-    expect(spec({ success: "It worked" })).toContain("It worked");
-    expect(spec({})).not.toContain("flash");
+    assertStringIncludes(spec({ error: "It broke" }), "It broke");
+    assertStringIncludes(spec({ success: "It worked" }), "It worked");
+    assert(!spec({}).includes("flash"));
   });
 
   test("keeps only the notices flashProps was given", () => {
@@ -94,8 +95,8 @@ describe("the spec's shell", () => {
       title: "Holidays",
     });
 
-    expect(html).toContain('<a class="active" href="/admin/users">');
-    expect(html).toContain("<p>Opener body</p>");
+    assertStringIncludes(html, '<a class="active" href="/admin/users">');
+    assertStringIncludes(html, "<p>Opener body</p>");
   });
 
   test("renders the action row it is handed", () => {
@@ -107,7 +108,8 @@ describe("the spec's shell", () => {
       title: "Holidays",
     });
 
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       '<p class="actions"><a href="/admin/holidays/new">Add</a></p>',
     );
   });
@@ -121,7 +123,7 @@ describe("the spec's shell", () => {
       title: "Advanced",
     });
 
-    expect(html).toContain('data-theme="dark"');
+    assertStringIncludes(html, 'data-theme="dark"');
   });
 
   test("forwards custom shell and body classes", () => {
@@ -134,9 +136,9 @@ describe("the spec's shell", () => {
       title: "Advanced",
     });
 
-    expect(html).toContain('<body class="custom-body"');
-    expect(html).toContain('class="page-regions custom-shell"');
-    expect(html).not.toContain('class="page-regions admin-page"');
+    assertStringIncludes(html, '<body class="custom-body"');
+    assertStringIncludes(html, 'class="page-regions custom-shell"');
+    assert(!html.includes('class="page-regions admin-page"'));
   });
 });
 
@@ -162,9 +164,9 @@ describe("the spec's form facet", () => {
   test("posts the whole body to the action it was given", () => {
     const html = formSpec();
 
-    expect(html).toContain('<form action="/admin/recalculate"');
-    expect(html).toContain("<h1>Recalculate</h1>");
-    expect(html).toContain("<p>Opener body</p>");
+    assertStringIncludes(html, '<form action="/admin/recalculate"');
+    assertStringIncludes(html, "<h1>Recalculate</h1>");
+    assertStringIncludes(html, "<p>Opener body</p>");
     expect(html.indexOf("<h1>Recalculate</h1>")).toBeLessThan(
       html.indexOf("<p>Opener body</p>"),
     );
@@ -173,7 +175,7 @@ describe("the spec's form facet", () => {
   test("carries the reason a submit was refused, inside the form", () => {
     const html = formSpec({ error: "Nothing to do" });
 
-    expect(html).toContain("Nothing to do");
+    assertStringIncludes(html, "Nothing to do");
     expect(html.indexOf("Nothing to do")).toBeLessThan(
       html.indexOf("<p>Opener body</p>"),
     );
@@ -182,7 +184,7 @@ describe("the spec's form facet", () => {
   test("heads the form with its title, then any notice", () => {
     const html = formSpec({ success: "Saved" });
 
-    expect(html).toContain("<h1>Recalculate</h1>");
+    assertStringIncludes(html, "<h1>Recalculate</h1>");
     expect(html.indexOf("<h1>Recalculate</h1>")).toBeLessThan(
       html.indexOf("Saved"),
     );
@@ -191,7 +193,7 @@ describe("the spec's form facet", () => {
   test("shows an info-only notice between the heading and the fields", () => {
     const html = formSpec({ info: "Copied the key" });
 
-    expect(html).toContain("Copied the key");
+    assertStringIncludes(html, "Copied the key");
     expect(html.indexOf("<h1>Recalculate</h1>")).toBeLessThan(
       html.indexOf("Copied the key"),
     );
@@ -227,22 +229,22 @@ describe("the spec's list facet", () => {
   test("renders the table when items exist and the empty note when not", () => {
     const full = listSpec(["one", "two"]);
 
-    expect(full).toContain("<h2>Groups</h2>");
-    expect(full).toContain("<p>one</p>");
-    expect(full).toContain('<a href="/admin/guide">Guide</a>');
-    expect(full).not.toContain("Nothing yet");
+    assertStringIncludes(full, "<h2>Groups</h2>");
+    assertStringIncludes(full, "<p>one</p>");
+    assertStringIncludes(full, '<a href="/admin/guide">Guide</a>');
+    assert(!full.includes("Nothing yet"));
 
     const empty = listSpec([]);
 
-    expect(empty).toContain("Nothing yet");
-    expect(empty).toContain('<a href="/admin/guide">Guide</a>');
+    assertStringIncludes(empty, "Nothing yet");
+    assertStringIncludes(empty, '<a href="/admin/guide">Guide</a>');
   });
 
   test("renders the table for a single item, not the empty note", () => {
     const solo = listSpec(["only"]);
 
-    expect(solo).toContain("<p>only</p>");
-    expect(solo).not.toContain("Nothing yet");
+    assertStringIncludes(solo, "<p>only</p>");
+    assert(!solo.includes("Nothing yet"));
   });
 
   test("adds the move column to a reorderable list", () => {
@@ -253,13 +255,13 @@ describe("the spec's list facet", () => {
       header: () => "Move",
     });
 
-    expect(html).toContain('<th class="col-reorder">');
-    expect(html).toContain("/admin/groups/one/move-down");
-    expect(html).toContain("/admin/groups/two/move-up");
-    expect(html).not.toContain("/admin/groups/one/move-up");
-    expect(html).not.toContain("/admin/groups/two/move-down");
-    expect(html).toContain("▲");
-    expect(html).toContain("▼");
+    assertStringIncludes(html, '<th class="col-reorder">');
+    assertStringIncludes(html, "/admin/groups/one/move-down");
+    assertStringIncludes(html, "/admin/groups/two/move-up");
+    assert(!html.includes("/admin/groups/one/move-up"));
+    assert(!html.includes("/admin/groups/two/move-down"));
+    assertStringIncludes(html, "▲");
+    assertStringIncludes(html, "▼");
   });
 
   test("omits the move column when the site is read-only", () => {
@@ -270,14 +272,14 @@ describe("the spec's list facet", () => {
       header: () => "Move",
     });
 
-    expect(html).not.toContain('class="col-reorder"');
-    expect(html).not.toContain("/admin/groups/one/move-up");
-    expect(html).not.toContain("/admin/groups/one/move-down");
-    expect(html).not.toContain("/admin/groups/two/move-up");
-    expect(html).not.toContain("/admin/groups/two/move-down");
-    expect(html).not.toContain("▲");
-    expect(html).not.toContain("▼");
-    expect(html).toContain("<p>one</p>");
+    assert(!html.includes('class="col-reorder"'));
+    assert(!html.includes("/admin/groups/one/move-up"));
+    assert(!html.includes("/admin/groups/one/move-down"));
+    assert(!html.includes("/admin/groups/two/move-up"));
+    assert(!html.includes("/admin/groups/two/move-down"));
+    assert(!html.includes("▲"));
+    assert(!html.includes("▼"));
+    assertStringIncludes(html, "<p>one</p>");
   });
 });
 
@@ -303,14 +305,15 @@ describe("pages built on the spec", () => {
   test("titles itself from the message catalog and renders its data", () => {
     const html = dataPage(OWNER_SESSION, ["first", "second"]);
 
-    expect(html).toContain(`<title>${t("backup.page_title")}</title>`);
-    expect(html).toContain("<p>first, second</p>");
-    expect(html).toContain('<a class="active" href="/admin/backup">');
+    assertStringIncludes(html, `<title>${t("backup.page_title")}</title>`);
+    assertStringIncludes(html, "<p>first, second</p>");
+    assertStringIncludes(html, '<a class="active" href="/admin/backup">');
   });
 
   test("carries the notices its route passes back", () => {
-    expect(dataPage(OWNER_SESSION, [], "It broke")).toContain("It broke");
-    expect(dataPage(OWNER_SESSION, [], undefined, "It worked")).toContain(
+    assertStringIncludes(dataPage(OWNER_SESSION, [], "It broke"), "It broke");
+    assertStringIncludes(
+      dataPage(OWNER_SESSION, [], undefined, "It worked"),
       "It worked",
     );
   });
@@ -330,13 +333,16 @@ describe("pages built on the spec", () => {
     });
 
   test("reads the error and the success out of the bag", () => {
-    expect(optsPage(OWNER_SESSION, { error: "It broke" })).toContain(
+    assertStringIncludes(
+      optsPage(OWNER_SESSION, { error: "It broke" }),
       "It broke",
     );
-    expect(optsPage(OWNER_SESSION, { success: "It worked" })).toContain(
+    assertStringIncludes(
+      optsPage(OWNER_SESSION, { success: "It worked" }),
       "It worked",
     );
-    expect(optsPage(OWNER_SESSION, {})).toContain(
+    assertStringIncludes(
+      optsPage(OWNER_SESSION, {}),
       '<a class="active" href="/admin/users">',
     );
   });
@@ -363,13 +369,14 @@ describe("pages built on the spec", () => {
   test("hands the body both the items and the viewer", () => {
     const html = collectionPage(["one", "two"], OWNER_SESSION);
 
-    expect(html).toContain("<p>2 for owner</p>");
-    expect(html).toContain(`<title>${t("terms.groups")}</title>`);
-    expect(html).toContain('<a class="active" href="/admin/groups">');
+    assertStringIncludes(html, "<p>2 for owner</p>");
+    assertStringIncludes(html, `<title>${t("terms.groups")}</title>`);
+    assertStringIncludes(html, '<a class="active" href="/admin/groups">');
   });
 
   test("shows the notice a write left behind", () => {
-    expect(collectionPage([], OWNER_SESSION, "Group deleted")).toContain(
+    assertStringIncludes(
+      collectionPage([], OWNER_SESSION, "Group deleted"),
       "Group deleted",
     );
   });
@@ -392,13 +399,14 @@ describe("pages built on the spec", () => {
   test("hands the body the viewer and titles itself from the catalog", () => {
     const html = formPage(OWNER_SESSION);
 
-    expect(html).toContain("<p>owner</p>");
-    expect(html).toContain(`<title>${t("admin.seeds.title")}</title>`);
+    assertStringIncludes(html, "<p>owner</p>");
+    assertStringIncludes(html, `<title>${t("admin.seeds.title")}</title>`);
   });
 
   test("shows the notices its route passes back", () => {
-    expect(formPage(OWNER_SESSION, "It broke")).toContain("It broke");
-    expect(formPage(OWNER_SESSION, undefined, "It worked")).toContain(
+    assertStringIncludes(formPage(OWNER_SESSION, "It broke"), "It broke");
+    assertStringIncludes(
+      formPage(OWNER_SESSION, undefined, "It worked"),
       "It worked",
     );
   });

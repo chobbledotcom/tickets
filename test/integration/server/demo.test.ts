@@ -1,3 +1,4 @@
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   afterAll,
@@ -120,9 +121,9 @@ describe("applyDemoOverrides", () => {
     });
     applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
     expect(form.get("name")).not.toBe("Real Name");
-    expect(DEMO_NAMES as readonly string[]).toContain(form.get("name"));
+    assertArrayIncludes(DEMO_NAMES as readonly string[], [form.get("name")]);
     expect(form.get("email")).not.toBe("real@example.com");
-    expect(DEMO_EMAILS as readonly string[]).toContain(form.get("email"));
+    assertArrayIncludes(DEMO_EMAILS as readonly string[], [form.get("email")]);
   });
 
   test("clears pinned coordinates outright instead of substituting text", () => {
@@ -151,7 +152,7 @@ describe("applyDemoOverrides", () => {
     const form = new FormParams({ email: "", name: "Real Name" });
     applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
     expect(form.get("email")).toBe("");
-    expect(DEMO_NAMES as readonly string[]).toContain(form.get("name"));
+    assertArrayIncludes(DEMO_NAMES as readonly string[], [form.get("name")]);
   });
 
   test("returns the same form instance", () => {
@@ -176,13 +177,15 @@ describe("applyDemoOverrides", () => {
       name: "My Listing",
     });
     applyDemoOverrides(form, LISTING_DEMO_FIELDS);
-    expect(DEMO_LISTING_NAMES as readonly string[]).toContain(form.get("name"));
-    expect(DEMO_LISTING_DESCRIPTIONS as readonly string[]).toContain(
+    assertArrayIncludes(DEMO_LISTING_NAMES as readonly string[], [
+      form.get("name"),
+    ]);
+    assertArrayIncludes(DEMO_LISTING_DESCRIPTIONS as readonly string[], [
       form.get("description"),
-    );
-    expect(DEMO_LISTING_LOCATIONS as readonly string[]).toContain(
+    ]);
+    assertArrayIncludes(DEMO_LISTING_LOCATIONS as readonly string[], [
       form.get("location"),
-    );
+    ]);
   });
 });
 
@@ -237,9 +240,9 @@ describe("wrapResourceForDemo", () => {
     wrapped.create(form);
 
     // applyDemoOverrides mutates the form in place before passing to resource
-    expect(DEMO_GROUP_NAMES as readonly string[]).toContain(
+    assertArrayIncludes(DEMO_GROUP_NAMES as readonly string[], [
       getLastCreateForm()!.get("name"),
-    );
+    ]);
   });
 
   test("delegates update with demo overrides applied", () => {
@@ -253,9 +256,9 @@ describe("wrapResourceForDemo", () => {
     const form = new FormParams({ name: "Real Holiday" });
     wrapped.update(42, form);
 
-    expect(DEMO_HOLIDAY_NAMES as readonly string[]).toContain(
+    assertArrayIncludes(DEMO_HOLIDAY_NAMES as readonly string[], [
       getLastUpdateForm()!.get("name"),
-    );
+    ]);
   });
 
   test("does not apply overrides when demo mode is off", () => {
@@ -287,6 +290,6 @@ describe("layout banner integration", () => {
     const response = await handleRequest(mockRequest("/admin/login"));
     const html = await response.text();
     expect(response.status).toBe(200);
-    expect(html).toContain("Demo Mode");
+    assertStringIncludes(html, "Demo Mode");
   });
 });

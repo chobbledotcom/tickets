@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   adminUserNewPage,
@@ -33,25 +33,25 @@ describe("adminUserNewPage agent selector", () => {
 
   test("renders the agent checkboxes when agents exist", () => {
     const html = adminUserNewPage(OWNER_SESSION, AGENTS);
-    expect(html).toContain("Assigned logistics agents");
-    expect(html).toContain('<fieldset class="checkboxes">');
-    expect(html).toContain('name="agent_ids"');
-    expect(html).toContain("Van 1");
-    expect(html).toContain('value="2"');
-    expect(html).toContain("Delivery agent");
-    expect(html).toContain('action="/admin/users"');
-    expect(html).toContain('<a class="active" href="/admin/user/new">');
+    assertStringIncludes(html, "Assigned logistics agents");
+    assertStringIncludes(html, '<fieldset class="checkboxes">');
+    assertStringIncludes(html, 'name="agent_ids"');
+    assertStringIncludes(html, "Van 1");
+    assertStringIncludes(html, 'value="2"');
+    assertStringIncludes(html, "Delivery agent");
+    assertStringIncludes(html, 'action="/admin/users"');
+    assertStringIncludes(html, '<a class="active" href="/admin/user/new">');
   });
 
   test("renders the agent checkboxes for a single agent", () => {
     const html = adminUserNewPage(OWNER_SESSION, [{ id: 1, name: "Van 1" }]);
-    expect(html).toContain('name="agent_ids"');
-    expect(html).toContain("Van 1");
+    assertStringIncludes(html, 'name="agent_ids"');
+    assertStringIncludes(html, "Van 1");
   });
 
   test("omits the selector when there are no agents", () => {
     const html = adminUserNewPage(OWNER_SESSION, []);
-    expect(html).not.toContain("Assigned logistics agents");
+    assert(!html.includes("Assigned logistics agents"));
   });
 });
 
@@ -77,15 +77,16 @@ describe("UserAgentsPanel", () => {
         user: editedUser,
       }),
     );
-    expect(html).toContain("Assigned agents for driver");
-    expect(html).toContain('action="/admin/users/7/agents"');
+    assertStringIncludes(html, "Assigned agents for driver");
+    assertStringIncludes(html, 'action="/admin/users/7/agents"');
     // Van 2 (id 2) is checked, Van 1 (id 1) is not.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'checked name="agent_ids" type="checkbox" value="2"',
     );
-    expect(html).toContain('name="agent_ids" type="checkbox" value="1"');
-    expect(html).not.toContain(
-      'checked name="agent_ids" type="checkbox" value="1"',
+    assertStringIncludes(html, 'name="agent_ids" type="checkbox" value="1"');
+    assert(
+      !html.includes('checked name="agent_ids" type="checkbox" value="1"'),
     );
   });
 
@@ -98,9 +99,10 @@ describe("UserAgentsPanel", () => {
         user: editedUser,
       }),
     );
-    expect(html).toContain("No logistics agents exist yet");
+    assertStringIncludes(html, "No logistics agents exist yet");
     // The link and its leading space stay glued to the sentence that offers it.
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'Add some under <a href="/admin/logistics">Logistics</a>.',
     );
   });
@@ -115,10 +117,10 @@ describe("adminUsersPage agent rows", () => {
       currentUserId: 1,
       inviteLink: "",
     });
-    expect(html).toContain("Van 1, Van 2");
+    assertStringIncludes(html, "Van 1, Van 2");
     // The edit-agents link moved to the per-user manage page.
-    expect(html).toContain('<a href="/admin/users/4">driver</a>');
-    expect(html).not.toContain('href="/admin/users/4/agents"');
+    assertStringIncludes(html, '<a href="/admin/users/4">driver</a>');
+    assert(!html.includes('href="/admin/users/4/agents"'));
   });
 
   test("shows a placeholder when an agent user has no agents", () => {
@@ -127,6 +129,6 @@ describe("adminUsersPage agent rows", () => {
       currentUserId: 1,
       inviteLink: "",
     });
-    expect(html).toContain("No agents assigned");
+    assertStringIncludes(html, "No agents assigned");
   });
 });

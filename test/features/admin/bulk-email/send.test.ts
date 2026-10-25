@@ -1,4 +1,9 @@
-import { assertRejects, assertStringIncludes } from "@std/assert";
+import {
+  assert,
+  assertExists,
+  assertRejects,
+  assertStringIncludes,
+} from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -111,14 +116,17 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       );
       // Email clients cannot read root-relative sources, so the sent HTML
       // carries the site origin; the admin preview keeps the relative URL.
-      expect(sent[0].html).toContain(
+      assertStringIncludes(
+        sent[0].html,
         `src="https://${getEffectiveDomain()}/image/${image.filename}"`,
       );
       // The text part cannot render the picture, so it names the same address.
-      expect(sent[0].text).toContain(
+      assertExists(sent[0].text);
+      assertStringIncludes(
+        sent[0].text,
         `![Flyer](https://${getEffectiveDomain()}/image/${image.filename})`,
       );
-      expect(sent[0].text).not.toContain("img#");
+      assert(!sent[0].text.includes("img#"));
     });
 
     test("sends an img#id reference for a picture whose name carries brackets", async () => {
@@ -128,17 +136,20 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       );
       // The HTML render percent-encodes the address it emits; the text part
       // names it as the site stores it.
-      expect(sent[0].html).toContain(
+      assertStringIncludes(
+        sent[0].html,
         `src="https://${getEffectiveDomain()}/image/${encodeURIComponent(
           image.filename,
         )}"`,
       );
       // The editor's serializer escapes the name's brackets, and the text
       // part keeps that spelling the owner wrote.
-      expect(sent[0].text).toContain(
+      assertExists(sent[0].text);
+      assertStringIncludes(
+        sent[0].text,
         `![Poster \\[blue\\]](https://${getEffectiveDomain()}/image/${image.filename})`,
       );
-      expect(sent[0].text).not.toContain("img#");
+      assert(!sent[0].text.includes("img#"));
     });
 
     test("keeps a reference inside code as code in the text part", async () => {
@@ -149,8 +160,12 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       // The code span is text the owner wrote as code, so the text part
       // keeps it written. The real reference still names the picture's
       // address on the site.
-      expect(sent[0].text).toContain(`\`![Flyer](img#${image.id})\` by hand:`);
-      expect(sent[0].text).toContain(
+      assertStringIncludes(
+        sent[0].text,
+        `\`![Flyer](img#${image.id})\` by hand:`,
+      );
+      assertStringIncludes(
+        sent[0].text,
         `![Flyer](https://${getEffectiveDomain()}/image/${image.filename})`,
       );
     });

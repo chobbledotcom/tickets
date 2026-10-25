@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as bddTest, describe } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -70,15 +71,15 @@ describe("activity log templates", () => {
         logEntry({ id: 2, listing_id: 1, message: "Payment received" }),
       ];
       const html = adminListingActivityLogPage(listing, entries, OWNER_SESSION);
-      expect(html).toContain("Ticket reserved");
-      expect(html).toContain("Payment received");
-      expect(html).toContain("Log");
+      assertStringIncludes(html, "Ticket reserved");
+      assertStringIncludes(html, "Payment received");
+      assertStringIncludes(html, "Log");
     });
 
     test("renders empty state when no entries", () => {
       const listing = testListingWithCount();
       const html = adminListingActivityLogPage(listing, [], OWNER_SESSION);
-      expect(html).toContain("No activity recorded yet");
+      assertStringIncludes(html, "No activity recorded yet");
     });
   });
 
@@ -91,8 +92,8 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      expect(html).toContain("System started");
-      expect(html).toContain("Log");
+      assertStringIncludes(html, "System started");
+      assertStringIncludes(html, "Log");
     });
 
     test("renders empty state when no entries", () => {
@@ -102,7 +103,7 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      expect(html).toContain("No activity recorded yet");
+      assertStringIncludes(html, "No activity recorded yet");
     });
 
     test("shows truncation message when truncated", () => {
@@ -113,7 +114,7 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      expect(html).toContain("Showing the most recent 200 entries");
+      assertStringIncludes(html, "Showing the most recent 200 entries");
     });
 
     test("does not show truncation message when not truncated", () => {
@@ -124,7 +125,7 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      expect(html).not.toContain("Showing the most recent 200 entries");
+      assert(!html.includes("Showing the most recent 200 entries"));
     });
 
     test("prefixes Square signature errors with a link to re-do settings", () => {
@@ -142,10 +143,13 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      expect(html).toContain('href="/admin/settings#settings-square-webhook"');
-      expect(html).toContain("Re-enter your Square settings");
+      assertStringIncludes(
+        html,
+        'href="/admin/settings#settings-square-webhook"',
+      );
+      assertStringIncludes(html, "Re-enter your Square settings");
       // The original error message is still shown after the link
-      expect(html).toContain("Square signature verification failed");
+      assertStringIncludes(html, "Square signature verification failed");
     });
 
     test("does not add the Square settings link to unrelated messages", () => {
@@ -156,7 +160,7 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      expect(html).not.toContain("Re-enter your Square settings");
+      assert(!html.includes("Re-enter your Square settings"));
     });
   });
 
@@ -179,10 +183,10 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      expect(html).toContain("<th>Attendee</th>");
-      expect(html).toContain("<th>Listing</th>");
+      assertStringIncludes(html, "<th>Attendee</th>");
+      assertStringIncludes(html, "<th>Listing</th>");
       // The empty-state row spans all four columns.
-      expect(html).toContain('colspan="4"');
+      assertStringIncludes(html, 'colspan="4"');
     });
 
     test("links an entry to its attendee and listing by name", () => {
@@ -200,8 +204,14 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         refs,
       );
-      expect(html).toContain('<a href="/admin/attendees/7">Ada Lovelace</a>');
-      expect(html).toContain('<a href="/admin/listing/3">Summer Concert</a>');
+      assertStringIncludes(
+        html,
+        '<a href="/admin/attendees/7">Ada Lovelace</a>',
+      );
+      assertStringIncludes(
+        html,
+        '<a href="/admin/listing/3">Summer Concert</a>',
+      );
     });
 
     test("escapes attendee names so stored PII cannot inject markup", () => {
@@ -213,8 +223,8 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         refs,
       );
-      expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
-      expect(html).not.toContain("<script>alert(1)</script>");
+      assertStringIncludes(html, "&lt;script&gt;alert(1)&lt;/script&gt;");
+      assert(!html.includes("<script>alert(1)</script>"));
     });
 
     test("leaves both link cells empty when an entry references neither", () => {
@@ -232,10 +242,10 @@ describe("activity log templates", () => {
         html.indexOf("<tbody>"),
         html.indexOf("</tbody>"),
       );
-      expect(tbody).not.toContain('href="/admin/attendees/');
-      expect(tbody).not.toContain('href="/admin/listing/');
+      assert(!tbody.includes('href="/admin/attendees/'));
+      assert(!tbody.includes('href="/admin/listing/'));
       // The two reference columns are still rendered, just empty.
-      expect(tbody).toContain("<td></td><td></td>");
+      assertStringIncludes(tbody, "<td></td><td></td>");
     });
 
     test("renders no link when the referenced attendee no longer exists", () => {
@@ -249,8 +259,8 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      expect(html).not.toContain('href="/admin/attendees/42"');
-      expect(html).toContain("Attendee deleted");
+      assert(!html.includes('href="/admin/attendees/42"'));
+      assertStringIncludes(html, "Attendee deleted");
     });
 
     // Render the global log with one attendee-referencing entry and return just
@@ -281,8 +291,8 @@ describe("activity log templates", () => {
         kinds: new Map(),
         names: new Map([[8, "Grace Hopper"]]),
       });
-      expect(tbody).not.toContain('href="/admin/attendees/8"');
-      expect(tbody).not.toContain("Grace Hopper");
+      assert(!tbody.includes('href="/admin/attendees/8"'));
+      assert(!tbody.includes("Grace Hopper"));
     });
 
     test("renders no attendee link when only the kind is loaded (name missing)", () => {
@@ -290,7 +300,7 @@ describe("activity log templates", () => {
         kinds: new Map([[9, "attendee"]]),
         names: new Map(),
       });
-      expect(tbody).not.toContain('href="/admin/attendees/9"');
+      assert(!tbody.includes('href="/admin/attendees/9"'));
     });
 
     test("renders no link when the referenced listing no longer exists", () => {
@@ -303,8 +313,8 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      expect(html).not.toContain('href="/admin/listing/99"');
-      expect(html).toContain("Listing deleted");
+      assert(!html.includes('href="/admin/listing/99"'));
+      assertStringIncludes(html, "Listing deleted");
     });
   });
 
@@ -319,8 +329,8 @@ describe("activity log templates", () => {
         }),
       ];
       const html = adminListingActivityLogPage(listing, entries, OWNER_SESSION);
-      expect(html).not.toContain("<th>Attendee</th>");
-      expect(html).not.toContain('href="/admin/attendees/7"');
+      assert(!html.includes("<th>Attendee</th>"));
+      assert(!html.includes('href="/admin/attendees/7"'));
     });
   });
 

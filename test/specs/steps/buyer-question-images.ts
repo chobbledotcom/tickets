@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
@@ -143,6 +144,9 @@ Then(
 Then(
   "the organiser is told to enter a name",
   function (this: TicketsWorld): void {
-    expect(scenarioBrowser(this).pageText).toContain(t("error.name_required"));
+    assertStringIncludes(
+      scenarioBrowser(this).pageText,
+      t("error.name_required"),
+    );
   },
 );

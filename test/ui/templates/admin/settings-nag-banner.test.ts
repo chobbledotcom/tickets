@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getSettingsNagItems } from "#shared/settings-nags.ts";
@@ -19,17 +20,20 @@ describeWithEnv(
         },
         () => {
           const html = String(SettingsNagBanner());
-          expect(html).toContain("Finish setting up your site");
-          expect(html).toContain(
+          assertStringIncludes(html, "Finish setting up your site");
+          assertStringIncludes(
+            html,
             'href="/admin/settings#settings-payment-provider"',
           );
-          expect(html).toContain(
+          assertStringIncludes(
+            html,
             'href="/admin/settings#settings-business-email"',
           );
-          expect(html).toContain(
+          assertStringIncludes(
+            html,
             'href="/admin/settings-advanced#settings-custom-domain"',
           );
-          expect(html).not.toContain("superuser");
+          assert(!html.includes("superuser"));
         },
       );
     });
@@ -44,8 +48,9 @@ describeWithEnv(
         },
         () => {
           const html = String(SettingsNagBanner({}));
-          expect(html).toContain("Finish setting up your site");
-          expect(html).toContain(
+          assertStringIncludes(html, "Finish setting up your site");
+          assertStringIncludes(
+            html,
             'href="/admin/settings#settings-payment-provider"',
           );
         },
@@ -61,8 +66,9 @@ describeWithEnv(
     test("renders superuser nag link when items contain the superuser item", () => {
       const items = [superuserItem];
       const html = String(SettingsNagBanner({ items }));
-      expect(html).toContain('href="/admin/settings#settings-superuser"');
-      expect(html).toContain(
+      assertStringIncludes(html, 'href="/admin/settings#settings-superuser"');
+      assertStringIncludes(
+        html,
         "Choose whether to enable a superuser recovery account.",
       );
     });
@@ -79,16 +85,22 @@ describeWithEnv(
           const baseNags = getSettingsNagItems();
           const items = [...baseNags, superuserItem];
           const html = String(SettingsNagBanner({ items }));
-          expect(html).toContain(
+          assertStringIncludes(
+            html,
             'href="/admin/settings#settings-payment-provider"',
           );
-          expect(html).toContain(
+          assertStringIncludes(
+            html,
             'href="/admin/settings#settings-business-email"',
           );
-          expect(html).toContain(
+          assertStringIncludes(
+            html,
             'href="/admin/settings-advanced#settings-custom-domain"',
           );
-          expect(html).toContain('href="/admin/settings#settings-superuser"');
+          assertStringIncludes(
+            html,
+            'href="/admin/settings#settings-superuser"',
+          );
         },
       );
     });
@@ -101,7 +113,8 @@ describeWithEnv(
     test("superuser nag label text matches exactly", () => {
       const items = [superuserItem];
       const html = String(SettingsNagBanner({ items }));
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         "Choose whether to enable a superuser recovery account.",
       );
     });

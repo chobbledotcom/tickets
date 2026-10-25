@@ -1,4 +1,5 @@
 /* jscpd:ignore-start -- imports */
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -26,9 +27,9 @@ describeWithEnv("the admin markdown preview", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain(`src="/image/${image.filename}"`);
-    expect(body).toContain('alt="Hero"');
-    expect(body).not.toContain("/image/id/");
+    assertStringIncludes(body, `src="/image/${image.filename}"`);
+    assertStringIncludes(body, 'alt="Hero"');
+    assert(!body.includes("/image/id/"));
   });
 
   test("leaves an unknown img#id reference to its alt text", async () => {
@@ -47,6 +48,6 @@ describeWithEnv("the admin markdown preview", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain('<img src="" alt="Ghost">');
+    assertStringIncludes(body, '<img src="" alt="Ghost">');
   });
 });

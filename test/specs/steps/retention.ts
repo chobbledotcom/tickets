@@ -1,4 +1,5 @@
 import { Given, Then, When } from "@cucumber/cucumber";
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   plantAnswersWithGoneLink,
@@ -38,9 +39,9 @@ Then(
   "the waiting checkout is still there, still due for its next check",
   async function (this: TicketsWorld): Promise<void> {
     expect((await plantedCheckoutStates()).get("old-waiting")).toBe("waiting");
-    expect(await plantedCheckoutsDueForRecovery()).toContain(
+    assertArrayIncludes(await plantedCheckoutsDueForRecovery(), [
       "prune-old-waiting",
-    );
+    ]);
   },
 );
 

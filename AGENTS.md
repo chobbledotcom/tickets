@@ -659,5 +659,3 @@ regressions to fix.
   (`test/integration/db/migration-restore/`).
 - Keep heavy SDKs out of module load. Import them dynamically on first use
   (`stripe.ts`, `sentry.ts`).
-- `expect(bigHtml).toContain(...)` is safe: `#test-utils` overrides the matcher,
-  so it only formats on failure.

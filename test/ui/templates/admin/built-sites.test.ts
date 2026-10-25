@@ -1,3 +1,4 @@
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
@@ -26,19 +27,19 @@ describe("built-site templates", () => {
     test("renders formatted deadline column", () => {
       const site = testBuiltSite({ readOnlyFrom: "2099-06-01T00:00:00Z" });
       const html = adminBuiltSitesPage([site], OWNER_SESSION);
-      expect(html).toContain("Read-only from");
-      expect(html).toContain("in");
-      expect(html).toContain("day");
+      assertStringIncludes(html, "Read-only from");
+      assertStringIncludes(html, "in");
+      assertStringIncludes(html, "day");
     });
 
     test("shows the build count above the list, singular for 1", () => {
       const one = adminBuiltSitesPage([testBuiltSite()], OWNER_SESSION);
-      expect(one).toContain("1 build");
+      assertStringIncludes(one, "1 build");
       const two = adminBuiltSitesPage(
         [testBuiltSite(), testBuiltSite({ id: 2 })],
         OWNER_SESSION,
       );
-      expect(two).toContain("2 builds");
+      assertStringIncludes(two, "2 builds");
       // The count names the number before the list itself starts.
       expect(two.indexOf("2 builds")).toBeLessThan(two.indexOf("<table"));
     });
@@ -47,9 +48,12 @@ describe("built-site templates", () => {
       const html = adminBuiltSitesPage([testBuiltSite()], OWNER_SESSION);
       // Name is the default sort, so its heading is plain text and the
       // others link to their sort.
-      expect(html).toContain("<strong>Name</strong>");
-      expect(html).toContain('href="/admin/built-sites?sort=created"');
-      expect(html).toContain('href="/admin/built-sites?sort=read_only_from"');
+      assertStringIncludes(html, "<strong>Name</strong>");
+      assertStringIncludes(html, 'href="/admin/built-sites?sort=created"');
+      assertStringIncludes(
+        html,
+        'href="/admin/built-sites?sort=read_only_from"',
+      );
       const byCreated = adminBuiltSitesPage(
         [testBuiltSite()],
         OWNER_SESSION,
@@ -57,44 +61,44 @@ describe("built-site templates", () => {
         [],
         "created",
       );
-      expect(byCreated).toContain("<strong>Created</strong>");
-      expect(byCreated).toContain('href="/admin/built-sites?sort=name"');
+      assertStringIncludes(byCreated, "<strong>Created</strong>");
+      assertStringIncludes(byCreated, 'href="/admin/built-sites?sort=name"');
     });
 
     test("renders the created column as a short datetime", () => {
       const html = adminBuiltSitesPage([testBuiltSite()], OWNER_SESSION);
-      expect(html).toContain("Created");
-      expect(html).toContain("<td>2026-01-01 00:00</td>");
+      assertStringIncludes(html, "Created");
+      assertStringIncludes(html, "<td>2026-01-01 00:00</td>");
     });
 
     test("renders 'never' for empty deadline", () => {
       const site = testBuiltSite({ readOnlyFrom: "" });
       const html = adminBuiltSitesPage([site], OWNER_SESSION);
-      expect(html).toContain("never");
+      assertStringIncludes(html, "never");
     });
 
     test("links each site name to its entity page and has no list delete link", () => {
       const site = testBuiltSite({ id: 7, name: "Linky", readOnlyFrom: "" });
       const html = adminBuiltSitesPage([site], OWNER_SESSION);
-      expect(html).toContain('href="/admin/built-sites/7">Linky</a>');
-      expect(html).not.toContain("/admin/built-sites/7/delete");
+      assertStringIncludes(html, 'href="/admin/built-sites/7">Linky</a>');
+      assert(!html.includes("/admin/built-sites/7/delete"));
     });
 
     test("warns when no qualifying renewal tier is configured", () => {
       const site = testBuiltSite({ readOnlyFrom: "" });
       const html = adminBuiltSitesPage([site], OWNER_SESSION, undefined, []);
-      expect(html).toContain("Renewal tiers");
-      expect(html).toContain("No renewal tier listing is configured");
-      expect(html).toContain("won't be able to renew");
+      assertStringIncludes(html, "Renewal tiers");
+      assertStringIncludes(html, "No renewal tier listing is configured");
+      assertStringIncludes(html, "won't be able to renew");
     });
 
     test("keeps the read-only entity link but hides create actions", () => {
       using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
       const site = testBuiltSite({ id: 7, name: "Linky", readOnlyFrom: "" });
       const html = adminBuiltSitesPage([site], OWNER_SESSION);
-      expect(html).toContain("Linky");
-      expect(html).not.toContain('href="/admin/built-sites/new"');
-      expect(html).toContain('href="/admin/built-sites/7"');
+      assertStringIncludes(html, "Linky");
+      assert(!html.includes('href="/admin/built-sites/new"'));
+      assertStringIncludes(html, 'href="/admin/built-sites/7"');
     });
 
     test("lists only Bunny hosting ids in the shared host marker", () => {
@@ -106,8 +110,8 @@ describe("built-site templates", () => {
         ],
         OWNER_SESSION,
       );
-      expect(html).toContain("bunny-1");
-      expect(html).not.toContain("deno-1</p>");
+      assertStringIncludes(html, "bunny-1");
+      assert(!html.includes("deno-1</p>"));
     });
 
     test("lists each tier with units sold from attendee_count", () => {
@@ -134,13 +138,13 @@ describe("built-site templates", () => {
         monthly,
         annual,
       ]);
-      expect(html).toContain("Monthly tier");
-      expect(html).toContain("Annual tier");
-      expect(html).toContain(">7<");
-      expect(html).toContain(">2<");
-      expect(html).toContain('href="/admin/listing/11"');
-      expect(html).toContain('href="/admin/listing/12"');
-      expect(html).not.toContain("No renewal tier listing is configured");
+      assertStringIncludes(html, "Monthly tier");
+      assertStringIncludes(html, "Annual tier");
+      assertStringIncludes(html, ">7<");
+      assertStringIncludes(html, ">2<");
+      assertStringIncludes(html, 'href="/admin/listing/11"');
+      assertStringIncludes(html, 'href="/admin/listing/12"');
+      assert(!html.includes("No renewal tier listing is configured"));
     });
   });
 
@@ -187,22 +191,23 @@ describe("built-site templates", () => {
     test("renders new, edit, and delete destinations and labels", () => {
       const site = testBuiltSite({ id: 42, name: "Delete <site>" });
       const newPage = adminBuiltSiteNewPage(OWNER_SESSION);
-      expect(newPage).toContain('action="/admin/built-sites"');
-      expect(newPage).toContain("Add Built Site");
+      assertStringIncludes(newPage, 'action="/admin/built-sites"');
+      assertStringIncludes(newPage, "Add Built Site");
       const edit = String(BuiltSiteEditPanel({ site }));
-      expect(edit).toContain('action="/admin/built-sites/42/edit"');
-      expect(edit).toContain("Save Changes");
+      assertStringIncludes(edit, 'action="/admin/built-sites/42/edit"');
+      assertStringIncludes(edit, "Save Changes");
       const deletePage = adminBuiltSiteDeletePage(site, OWNER_SESSION);
-      expect(deletePage).toContain('action="/admin/built-sites/42/delete"');
-      expect(deletePage).toContain("Delete Built Site");
-      expect(deletePage).toContain("Delete &lt;site&gt;");
-      expect(deletePage).not.toContain("button-danger");
+      assertStringIncludes(deletePage, 'action="/admin/built-sites/42/delete"');
+      assertStringIncludes(deletePage, "Delete Built Site");
+      assertStringIncludes(deletePage, "Delete &lt;site&gt;");
+      assert(!deletePage.includes("button-danger"));
     });
 
     test("adds a (visit) link with the rewritten host inside the Site URL label", () => {
       const site = testBuiltSite({ siteUrl: "https://test.bunny.net/tickets" });
       const edit = String(BuiltSiteEditPanel({ site }));
-      expect(edit).toContain(
+      assertStringIncludes(
+        edit,
         '<label>Site URL <a href="https://test.b-cdn.net/tickets" target="_blank" rel="noopener noreferrer">(visit)</a>',
       );
     });
@@ -210,7 +215,8 @@ describe("built-site templates", () => {
     test("links a bare saved hostname as an absolute address", () => {
       const site = testBuiltSite({ siteUrl: "test-42.b-cdn.net" });
       const edit = String(BuiltSiteEditPanel({ site }));
-      expect(edit).toContain(
+      assertStringIncludes(
+        edit,
         'href="https://test-42.b-cdn.net" target="_blank" rel="noopener noreferrer"',
       );
     });
@@ -218,21 +224,21 @@ describe("built-site templates", () => {
     test("rewrites a bare zone hostname and keeps the link absolute", () => {
       const site = testBuiltSite({ siteUrl: "x.bunny.net" });
       const edit = String(BuiltSiteEditPanel({ site }));
-      expect(edit).toContain('href="https://x.b-cdn.net"');
+      assertStringIncludes(edit, 'href="https://x.b-cdn.net"');
     });
 
     test("adds no (visit) link when no site URL is saved", () => {
       const site = testBuiltSite({ siteUrl: "" });
       const edit = String(BuiltSiteEditPanel({ site }));
-      expect(edit).not.toContain("(visit)");
+      assert(!edit.includes("(visit)"));
     });
 
     test("renders the edit form, with no (visit) link, for a malformed saved URL", () => {
       const site = testBuiltSite({ siteUrl: "https://" });
       const edit = String(BuiltSiteEditPanel({ site }));
-      expect(edit).toContain('action="/admin/built-sites');
-      expect(edit).toContain('value="https://"');
-      expect(edit).not.toContain("(visit)");
+      assertStringIncludes(edit, 'action="/admin/built-sites');
+      assertStringIncludes(edit, 'value="https://"');
+      assert(!edit.includes("(visit)"));
     });
   });
 
@@ -245,30 +251,34 @@ describe("built-site templates", () => {
 
     test("shows renewal URL and rotate/bump/override/re-sync forms; no tier picker", () => {
       const html = String(renewalPanelFor(provisionedSite));
-      expect(html).toContain("Renewal URL");
-      expect(html).toContain("rotate-renewal-token");
-      expect(html).toContain("bump-deadline");
-      expect(html).toContain("override-deadline");
-      expect(html).toContain("re-sync-deadline");
-      expect(html).toContain("Rotate token");
-      expect(html).toContain("Re-sync deadline");
-      expect(html).not.toContain("tier_listing_id");
-      expect(html).not.toContain("set-renewal-tier");
+      assertStringIncludes(html, "Renewal URL");
+      assertStringIncludes(html, "rotate-renewal-token");
+      assertStringIncludes(html, "bump-deadline");
+      assertStringIncludes(html, "override-deadline");
+      assertStringIncludes(html, "re-sync-deadline");
+      assertStringIncludes(html, "Rotate token");
+      assertStringIncludes(html, "Re-sync deadline");
+      assert(!html.includes("tier_listing_id"));
+      assert(!html.includes("set-renewal-tier"));
     });
 
     test("renders the actual renewal URL (token, not placeholder)", () => {
       const html = String(renewalPanelFor(provisionedSite));
-      expect(html).toContain("/renew/?t=real-customer-renewal-token");
-      expect(html).not.toContain("?t=<token>");
+      assertStringIncludes(html, "/renew/?t=real-customer-renewal-token");
+      assert(!html.includes("?t=<token>"));
     });
 
     test("labels the shared bump/override forms inline (no headings)", () => {
       const html = String(renewalPanelFor(provisionedSite));
-      expect(html).toContain(
+      assertStringIncludes(
+        html,
         '<label for="bump_months">Bump deadline by months',
       );
-      expect(html).toContain('<label for="override_date">Override deadline');
-      expect(html).not.toContain("<h3>Bump deadline</h3>");
+      assertStringIncludes(
+        html,
+        '<label for="override_date">Override deadline',
+      );
+      assert(!html.includes("<h3>Bump deadline</h3>"));
     });
   });
 
@@ -280,21 +290,21 @@ describe("built-site templates", () => {
 
     test("shows Provision Renewal form, bump/override forms; no Rotate/Re-sync; no tier picker", () => {
       const html = String(renewalPanelFor(unprovisionedSite));
-      expect(html).toContain("Provision renewal");
-      expect(html).toContain("provision-renewal");
-      expect(html).toContain("bump-deadline");
-      expect(html).toContain("override-deadline");
-      expect(html).not.toContain("rotate-renewal-token");
-      expect(html).not.toContain("re-sync-deadline");
-      expect(html).not.toContain("tier_listing_id");
+      assertStringIncludes(html, "Provision renewal");
+      assertStringIncludes(html, "provision-renewal");
+      assertStringIncludes(html, "bump-deadline");
+      assertStringIncludes(html, "override-deadline");
+      assert(!html.includes("rotate-renewal-token"));
+      assert(!html.includes("re-sync-deadline"));
+      assert(!html.includes("tier_listing_id"));
     });
 
     test("labels the shared bump/override forms with headings (no inline labels)", () => {
       const html = String(renewalPanelFor(unprovisionedSite));
-      expect(html).toContain("<h3>Bump deadline</h3>");
-      expect(html).toContain("<h3>Override deadline</h3>");
-      expect(html).not.toContain('for="bump_months"');
-      expect(html).not.toContain('for="override_date"');
+      assertStringIncludes(html, "<h3>Bump deadline</h3>");
+      assertStringIncludes(html, "<h3>Override deadline</h3>");
+      assert(!html.includes('for="bump_months"'));
+      assert(!html.includes('for="override_date"'));
     });
   });
 
@@ -314,14 +324,14 @@ describe("built-site templates", () => {
           },
         }),
       );
-      expect(html).toContain("/admin/built-sites/9/add-secrets");
-      expect(html).toContain("<code>NTFY_URL</code>");
-      expect(html).toContain("<code>STORAGE_ZONE_KEY</code>");
-      expect(html).toContain("Set 2 missing secret(s)");
-      expect(html).toContain("host-level infrastructure credentials");
-      expect(html).toContain("STORAGE_ZONE_KEY");
-      expect(html).toContain("Secrets currently on this site");
-      expect(html).toContain("<code>DB_ENCRYPTION_KEY</code>");
+      assertStringIncludes(html, "/admin/built-sites/9/add-secrets");
+      assertStringIncludes(html, "<code>NTFY_URL</code>");
+      assertStringIncludes(html, "<code>STORAGE_ZONE_KEY</code>");
+      assertStringIncludes(html, "Set 2 missing secret(s)");
+      assertStringIncludes(html, "host-level infrastructure credentials");
+      assertStringIncludes(html, "STORAGE_ZONE_KEY");
+      assertStringIncludes(html, "Secrets currently on this site");
+      assertStringIncludes(html, "<code>DB_ENCRYPTION_KEY</code>");
     });
 
     test("omits the live-secrets list when the site has none set", () => {
@@ -337,9 +347,9 @@ describe("built-site templates", () => {
           },
         }),
       );
-      expect(html).not.toContain("Secrets currently on this site");
-      expect(html).toContain("/admin/built-sites/9/add-secrets");
-      expect(html).not.toContain("host-level infrastructure credentials");
+      assert(!html.includes("Secrets currently on this site"));
+      assertStringIncludes(html, "/admin/built-sites/9/add-secrets");
+      assert(!html.includes("host-level infrastructure credentials"));
     });
 
     test("confirms when every expected secret is already present", () => {
@@ -355,8 +365,8 @@ describe("built-site templates", () => {
           },
         }),
       );
-      expect(html).toContain("All expected secrets are present");
-      expect(html).not.toContain("add-secrets");
+      assertStringIncludes(html, "All expected secrets are present");
+      assert(!html.includes("add-secrets"));
     });
 
     test("shows the error when secrets cannot be read", () => {
@@ -370,13 +380,13 @@ describe("built-site templates", () => {
           },
         }),
       );
-      expect(html).toContain("BUNNY_API_KEY is not configured");
-      expect(html).not.toContain("add-secrets");
+      assertStringIncludes(html, "BUNNY_API_KEY is not configured");
+      assert(!html.includes("add-secrets"));
     });
 
     test("notes when the secrets view is unavailable", () => {
       const html = String(SecretsPanel({ site }));
-      expect(html).toContain("Secrets status is unavailable");
+      assertStringIncludes(html, "Secrets status is unavailable");
     });
   });
 
@@ -397,21 +407,24 @@ describe("built-site templates", () => {
 
     test("shows the version, latest release, and an update button when behind", () => {
       const html = render();
-      expect(html).toContain("Thu, 01 Jan 2026 00:00:00 UTC");
-      expect(html).toContain("2099-01-01 - Big Update (v2099-01-01-120000)");
-      expect(html).toContain("An update is available");
-      expect(html).toContain("/admin/built-sites/42/update");
-      expect(html).toContain("Update this site");
+      assertStringIncludes(html, "Thu, 01 Jan 2026 00:00:00 UTC");
+      assertStringIncludes(
+        html,
+        "2099-01-01 - Big Update (v2099-01-01-120000)",
+      );
+      assertStringIncludes(html, "An update is available");
+      assertStringIncludes(html, "/admin/built-sites/42/update");
+      assertStringIncludes(html, "Update this site");
     });
 
     test("shows up to date when the site is on the latest release", () => {
       const html = render({ updateAvailable: false, upToDate: true });
-      expect(html).toContain("on the latest known release");
+      assertStringIncludes(html, "on the latest known release");
     });
 
     test("shows unknown when no database keys are stored", () => {
       const html = render({ siteVersionLabel: null, updateAvailable: false });
-      expect(html).toContain("no read-only database credentials");
+      assertStringIncludes(html, "no read-only database credentials");
     });
 
     test("shows the read error when the site database is unreachable", () => {
@@ -420,12 +433,12 @@ describe("built-site templates", () => {
         siteVersionLabel: null,
         updateAvailable: false,
       });
-      expect(html).toContain("connection refused");
+      assertStringIncludes(html, "connection refused");
     });
 
     test("notes when the host has not checked for a release yet", () => {
       const html = render({ latestVersion: "", updateAvailable: false });
-      expect(html).toContain("None checked yet");
+      assertStringIncludes(html, "None checked yet");
     });
 
     test("explains when automatic update is unavailable", () => {
@@ -434,8 +447,8 @@ describe("built-site templates", () => {
         updateAvailable: false,
         upToDate: false,
       });
-      expect(html).toContain("Automatic update needs the provider API key");
-      expect(html).not.toContain("Update this site");
+      assertStringIncludes(html, "Automatic update needs the provider API key");
+      assert(!html.includes("Update this site"));
     });
   });
 });

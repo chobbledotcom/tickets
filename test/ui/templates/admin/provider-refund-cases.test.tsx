@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type {
   ProviderRefundCase,
@@ -68,30 +68,33 @@ describe("provider refund recovery templates", () => {
   test("renders a bounded blind queue with a detail link and opaque cursor", () => {
     const html = String(<ProviderRefundCaseQueue page={queue} />);
 
-    expect(html).toContain("Refunds needing attention");
-    expect(html).toContain('<section class="prose" id="refund-recovery">');
-    expect(html).toContain("SumUp");
-    expect(html).toContain("£25");
-    expect(html).toContain('href="/admin/privacy/refunds/17"');
-    expect(html).toContain(
+    assertStringIncludes(html, "Refunds needing attention");
+    assertStringIncludes(html, '<section class="prose" id="refund-recovery">');
+    assertStringIncludes(html, "SumUp");
+    assertStringIncludes(html, "£25");
+    assertStringIncludes(html, 'href="/admin/privacy/refunds/17"');
+    assertStringIncludes(
+      html,
       'href="/admin/privacy?refund_after=opaque-next-page"',
     );
-    expect(html).not.toContain("charge-17");
+    assert(!html.includes("charge-17"));
   });
 
   test("requires an explicit owner choice and posts the seen revision", () => {
     const html = adminProviderRefundCasePage(OWNER_SESSION, detail, {});
 
-    expect(html).toContain("charge-17");
-    expect(html).toContain('action="/admin/privacy/refunds/17"');
-    expect(html).toContain('name="revision" type="hidden" value="4"');
-    expect(html).toContain(
+    assertStringIncludes(html, "charge-17");
+    assertStringIncludes(html, 'action="/admin/privacy/refunds/17"');
+    assertStringIncludes(html, 'name="revision" type="hidden" value="4"');
+    assertStringIncludes(
+      html,
       'name="choice" required type="radio" value="provider_confirmed_returned"',
     );
-    expect(html).toContain(
+    assertStringIncludes(
+      html,
       'name="choice" required type="radio" value="provider_confirmed_not_sent"',
     );
-    expect(html).not.toContain("checked");
+    assert(!html.includes("checked"));
   });
 
   test("shows the returned part and the missing part before an owner acts", () => {
@@ -123,11 +126,11 @@ describe("provider refund recovery templates", () => {
         adminProviderRefundCasePage(OWNER_SESSION, awaitingMoney, {}),
       ],
     ] as const) {
-      expect(html, name).toContain("£25 GBP");
-      expect(html, name).toContain("Provider returned");
-      expect(html, name).toContain("£4 GBP");
-      expect(html, name).toContain("Not returned");
-      expect(html, name).toContain("£21 GBP");
+      assertStringIncludes(html, "£25 GBP", name);
+      assertStringIncludes(html, "Provider returned", name);
+      assertStringIncludes(html, "£4 GBP", name);
+      assertStringIncludes(html, "Not returned", name);
+      assertStringIncludes(html, "£21 GBP", name);
     }
 
     const nothingReturned = adminProviderRefundCasePage(
@@ -135,9 +138,9 @@ describe("provider refund recovery templates", () => {
       detail,
       {},
     );
-    expect(nothingReturned).toContain("£25 GBP");
-    expect(nothingReturned).not.toContain("Provider returned");
-    expect(nothingReturned).not.toContain("Not returned");
+    assertStringIncludes(nothingReturned, "£25 GBP");
+    assert(!nothingReturned.includes("Provider returned"));
+    assert(!nothingReturned.includes("Not returned"));
   });
 
   test("separates a partial provider check from conclusive owner choices", () => {
@@ -180,16 +183,17 @@ describe("provider refund recovery templates", () => {
       {},
     );
 
-    expect(partial).toContain(
+    assertStringIncludes(
+      partial,
       'name="choice" type="hidden" value="check_again"',
     );
-    expect(partial).not.toContain('type="radio"');
-    expect(returned).toContain('value="provider_confirmed_returned"');
-    expect(returned).not.toContain('value="provider_confirmed_not_sent"');
-    expect(returned).toContain("Provider returned");
-    expect(returned).not.toContain("Not returned");
-    expect(notSent).toContain('value="provider_confirmed_not_sent"');
-    expect(notSent).not.toContain('value="provider_confirmed_returned"');
+    assert(!partial.includes('type="radio"'));
+    assertStringIncludes(returned, 'value="provider_confirmed_returned"');
+    assert(!returned.includes('value="provider_confirmed_not_sent"'));
+    assertStringIncludes(returned, "Provider returned");
+    assert(!returned.includes("Not returned"));
+    assertStringIncludes(notSent, 'value="provider_confirmed_not_sent"');
+    assert(!notSent.includes('value="provider_confirmed_returned"'));
   });
 
   test("makes inconclusive conflict evidence reachable only by rechecking", () => {
@@ -205,10 +209,13 @@ describe("provider refund recovery templates", () => {
       {},
     );
 
-    expect(html).toContain('id="refund-check-conflict"');
-    expect(html).toContain('name="choice" type="hidden" value="check_again"');
-    expect(html).toContain("Check the provider again");
-    expect(html).not.toContain('type="radio"');
+    assertStringIncludes(html, 'id="refund-check-conflict"');
+    assertStringIncludes(
+      html,
+      'name="choice" type="hidden" value="check_again"',
+    );
+    assertStringIncludes(html, "Check the provider again");
+    assert(!html.includes('type="radio"'));
   });
 
   test("shows the charge's own currency beside an irreversible choice", () => {
@@ -223,9 +230,9 @@ describe("provider refund recovery templates", () => {
     );
     const detailHtml = adminProviderRefundCasePage(OWNER_SESSION, yenCase, {});
 
-    expect(queueHtml).toContain("¥1,000 JPY");
-    expect(detailHtml).toContain("¥1,000 JPY");
-    expect(detailHtml).not.toContain("£10");
+    assertStringIncludes(queueHtml, "¥1,000 JPY");
+    assertStringIncludes(detailHtml, "¥1,000 JPY");
+    assert(!detailHtml.includes("£10"));
   });
 
   test("labels provider checks as checks without offering another send", () => {
@@ -236,12 +243,15 @@ describe("provider refund recovery templates", () => {
         {},
       );
 
-      expect(html).toContain('action="/admin/privacy/refunds/17"');
-      expect(html).toContain('name="revision" type="hidden" value="4"');
-      expect(html).toContain('name="choice" type="hidden" value="check_again"');
-      expect(html).toContain("Check the provider again");
-      expect(html).not.toContain("Send this refund");
-      expect(html).not.toContain('type="radio"');
+      assertStringIncludes(html, 'action="/admin/privacy/refunds/17"');
+      assertStringIncludes(html, 'name="revision" type="hidden" value="4"');
+      assertStringIncludes(
+        html,
+        'name="choice" type="hidden" value="check_again"',
+      );
+      assertStringIncludes(html, "Check the provider again");
+      assert(!html.includes("Send this refund"));
+      assert(!html.includes('type="radio"'));
     }
   });
 
@@ -252,16 +262,19 @@ describe("provider refund recovery templates", () => {
       {},
     );
 
-    expect(html).toContain('id="refund-send-ready"');
-    expect(html).toContain('name="choice" type="hidden" value="check_again"');
-    expect(html).toContain('<button class="danger" type="submit">');
-    expect(html).toContain("Send this refund");
-    expect(html).not.toContain("Check the provider again");
+    assertStringIncludes(html, 'id="refund-send-ready"');
+    assertStringIncludes(
+      html,
+      'name="choice" type="hidden" value="check_again"',
+    );
+    assertStringIncludes(html, '<button class="danger" type="submit">');
+    assertStringIncludes(html, "Send this refund");
+    assert(!html.includes("Check the provider again"));
   });
 
   test("marks a choice as a money action only when it can re-queue a send", () => {
     const withNotSent = adminProviderRefundCasePage(OWNER_SESSION, detail, {});
-    expect(withNotSent).toContain('<button class="danger" type="submit">');
+    assertStringIncludes(withNotSent, '<button class="danger" type="submit">');
 
     // Confirming money that already came back sends nothing, so the machine
     // says this settled-return decision is not a money action.
@@ -276,8 +289,8 @@ describe("provider refund recovery templates", () => {
       },
       {},
     );
-    expect(returnedOnly).toContain('<button type="submit">');
-    expect(returnedOnly).not.toContain('<button class="danger" type="submit">');
+    assertStringIncludes(returnedOnly, '<button type="submit">');
+    assert(!returnedOnly.includes('<button class="danger" type="submit">'));
   });
 
   test("requires a specific Money-recorded confirmation for returned cash", () => {
@@ -287,20 +300,21 @@ describe("provider refund recovery templates", () => {
       {},
     );
 
-    expect(html).toContain("matching entry in Money is still due");
-    expect(html).toContain(
+    assertStringIncludes(html, "matching entry in Money is still due");
+    assertStringIncludes(
+      html,
       'name="choice" required type="radio" value="money_recorded"',
     );
-    expect(html).not.toContain("provider_confirmed_returned");
-    expect(html).not.toContain("check_again");
-    expect(html).not.toContain("Why this needs attention");
+    assert(!html.includes("provider_confirmed_returned"));
+    assert(!html.includes("check_again"));
+    assert(!html.includes("Why this needs attention"));
   });
 
   test("renders the queue link as plain text in read-only mode", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = String(<ProviderRefundCaseQueue page={queue} />);
 
-    expect(html).toContain("Open refund 17");
-    expect(html).not.toContain('href="/admin/privacy/refunds/17"');
+    assertStringIncludes(html, "Open refund 17");
+    assert(!html.includes('href="/admin/privacy/refunds/17"'));
   });
 });
