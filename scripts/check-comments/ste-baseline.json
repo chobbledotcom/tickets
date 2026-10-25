@@ -1086,7 +1086,7 @@
     "banned-modal": 1
   },
   "src/shared/db/migrations/schema/tables-attendees.ts": {
-    "long-sentence": 19,
+    "long-sentence": 18,
     "semicolon": 3,
     "contraction": 3
   },

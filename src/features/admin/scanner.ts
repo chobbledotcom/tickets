@@ -181,7 +181,7 @@ const handleDoorsGet: RequestRoute = (request) =>
  */
 const handleScanPost: IdRouteHandler = (request, { id }) =>
   withAuth(request, SCANNER_JSON, (_session, body) =>
-    processScan(listingScope(id), body),
+    processScan(listingScope(id), body, doorCacheName("listing", id)),
   );
 
 /** Handle POST /admin/groups/:id/scan — the same API over the group's whole
@@ -191,7 +191,11 @@ const handleGroupScanPost: IdRouteHandler = (request, { id }) =>
   withAuth(request, SCANNER_JSON, async (_session, body) => {
     const group = await getGroupById(id);
     if (!group) return jsonResponse({ status: "not_found" }, 404);
-    return processScan(await groupScope(group), body);
+    return processScan(
+      await groupScope(group),
+      body,
+      doorCacheName("group", id),
+    );
   });
 
 /** Scanner routes */

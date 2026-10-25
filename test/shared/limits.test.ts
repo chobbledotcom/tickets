@@ -1,5 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+// The scan-operation retention limit registers from the delivery-ledger
+// module now; load it so the registry holds every entry.
+import { PRUNE_SCAN_OPERATIONS_RETENTION_DAYS } from "#db/processed-scan-operations.ts";
 import {
   formatBytes,
   formatLimitValue,
@@ -225,6 +228,7 @@ describe("limits", () => {
         "PRUNE_INTERVAL_HOURS",
         "PRUNE_LOGINS_RETENTION_DAYS",
         "PRUNE_PAYMENTS_RETENTION_DAYS",
+        "PRUNE_SCAN_OPERATIONS_RETENTION_DAYS",
         "PRUNE_SESSIONS_RETENTION_DAYS",
         "PRUNE_SUMUP_RETENTION_HOURS",
         "PRUNE_TOKENS_RETENTION_DAYS",
@@ -289,6 +293,9 @@ describe("limits", () => {
       );
       expect(currentByKey.get("PRUNE_CONTACTS_RETENTION_DAYS")).toBe(
         PRUNE_CONTACTS_RETENTION_DAYS,
+      );
+      expect(currentByKey.get("PRUNE_SCAN_OPERATIONS_RETENTION_DAYS")).toBe(
+        PRUNE_SCAN_OPERATIONS_RETENTION_DAYS,
       );
       expect(currentByKey.get("ADDRESS_CACHE_DAYS")).toBe(ADDRESS_CACHE_DAYS);
       expect(currentByKey.get("MAX_ADDRESS_LOOKUPS")).toBe(MAX_ADDRESS_LOOKUPS);

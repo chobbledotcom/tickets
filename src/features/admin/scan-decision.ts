@@ -79,6 +79,11 @@ const scanAdmits = (
 /** The tickets one listing's rows still owe the door. */
 const owedTickets = sumOf((row: TokenEntry) => remainingTickets(row.attendee));
 
+/** The places one set of scan units admits in all. */
+export const unitTickets: (units: readonly ScanUnit[]) => number = sumOf(
+  (unit: ScanUnit) => unit.tickets,
+);
+
 /** Decide one scan. The ask names the ticket's rows, the listings the door
  * admits, and the door staff's let-them-in-anyway choice for a ticket that
  * matches nowhere in scope. `checkInEveryListing` is the group's stored
@@ -120,9 +125,35 @@ export const decideScan = (
   }));
   return {
     kind: "admit",
-    remaining:
-      sumOf(owedTickets)(owed) - sumOf((unit: ScanUnit) => unit.tickets)(units),
+    remaining: sumOf(owedTickets)(owed) - unitTickets(units),
     rows,
     units,
+  };
+};
+
+/** A queued delivery's exact share of one admit decision. Fill the
+ * decision's units in booking order until exactly `quantity` places are
+ * planned. Each listing caps at what it still owes. Null when the scan's
+ * listings cannot supply that many — the delivery is refused, not capped.
+ * A live scan's quantity pick caps per listing instead. Only a queued
+ * delivery admits an exact count. */
+export const exactQuantityAdmission = (
+  decision: Extract<ScanDecision, { kind: "admit" }>,
+  quantity: number,
+): Extract<ScanDecision, { kind: "admit" }> | null => {
+  const planned: ScanUnit[] = [];
+  const left = decision.units.reduce((remaining: number, unit) => {
+    if (remaining <= 0) return remaining;
+    const take = Math.min(unit.tickets, remaining);
+    planned.push({ rows: unit.rows, tickets: take });
+    return remaining - take;
+  }, quantity);
+  if (left > 0) return null;
+  return {
+    ...decision,
+    remaining:
+      decision.remaining + unitTickets(decision.units) - unitTickets(planned),
+    rows: planned.flatMap((unit) => [...unit.rows]),
+    units: planned,
   };
 };

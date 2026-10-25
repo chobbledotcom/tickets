@@ -17,8 +17,9 @@ import {
   SUMUP_RECOVERY_INTERVAL_MS,
   SUMUP_UNANSWERED_AFTER_MS,
 } from "#shared/limits.ts";
-// The Square link limits register from their own module now; load it so the
-// registry holds every entry.
+// The Square link limits and the scan-operations retention limit register
+// from their own modules now; load them so the registry holds every entry.
+import "#db/processed-scan-operations.ts";
 import "#shared/square/limits.ts";
 
 const metadata = LIMIT_ENTRIES.map(({ defaultValue, envKey, label, unit }) => [
@@ -167,6 +168,12 @@ describe("limit registry contract", () => {
         100,
         "Form re-fill stash max entries",
         "entries",
+      ],
+      [
+        "PRUNE_SCAN_OPERATIONS_RETENTION_DAYS",
+        7,
+        "Prune: scan operations retention",
+        "days",
       ],
     ]);
   });
