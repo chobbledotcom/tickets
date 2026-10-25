@@ -9,7 +9,7 @@ import {
   claimScanOperation,
   deliveredScanOperation,
   type ScanDelivery,
-  settleScanOperation,
+  scanOperationGuard,
 } from "#db/processed-scan-operations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -70,30 +70,54 @@ describeWithEnv("the scan delivery ledger", { db: true }, () => {
     expect(await deliveredScanOperation("op-ledger-4", "digest-e")).toBeNull();
   });
 
-  test("settles a drained admission to what the write really moved", async () => {
-    // Another door took tickets between the delivery's decision and its
-    // write, so the write moved fewer places than the delivery claimed. The
-    // stored admission then reads what the first send's answer said.
-    await withTransaction((tx) =>
-      claimScanOperation({
-        listingIds: [3, 4],
-        operationId: "op-ledger-6",
-        quantity: 2,
-        tokenHash: "digest-g",
-      })(tx),
-    );
-
-    await withTransaction((tx) =>
-      settleScanOperation(
-        "op-ledger-6",
-        "digest-g",
-        { listingIds: [4], quantity: 1 },
+  test("settles a partly drained admission beside the listings its admission planned", async () => {
+    // Another door took tickets on one listing between the delivery's
+    // decision and its write, so the write moved fewer places than the
+    // delivery claimed. The stored admission keeps the listings the
+    // delivery planned beside the places the write really took, so the
+    // retry's answer names the same tier the first send's answer named.
+    const guard = scanOperationGuard({
+      listingIds: [3, 4],
+      operationId: "op-ledger-6",
+      quantity: 5,
+      tokenHash: "digest-g",
+    });
+    await withTransaction(async (tx) => {
+      expect(await guard.reserve(tx)).toBe(true);
+      await guard.settle!(
+        [
+          { attendeeId: 1, count: 2, listingId: 3, owedAfter: 0 },
+          { attendeeId: 1, count: 0, listingId: 4, owedAfter: 2 },
+        ],
         tx,
-      ),
-    );
+      );
+    });
     expect(await deliveredScanOperation("op-ledger-6", "digest-g")).toEqual({
-      listingIds: [4],
-      quantity: 1,
+      listingIds: [3, 4],
+      quantity: 2,
+    });
+  });
+
+  test("keeps the claim's quantity when the write moves nothing", async () => {
+    // A racing door took every ticket before the write ran, so the write
+    // moved nothing. The record keeps the quantity the delivery claimed,
+    // and the retry answers that claim.
+    const guard = scanOperationGuard({
+      listingIds: [3],
+      operationId: "op-ledger-8",
+      quantity: 4,
+      tokenHash: "digest-i",
+    });
+    await withTransaction(async (tx) => {
+      expect(await guard.reserve(tx)).toBe(true);
+      await guard.settle!(
+        [{ attendeeId: 1, count: 0, listingId: 3, owedAfter: 0 }],
+        tx,
+      );
+    });
+    expect(await deliveredScanOperation("op-ledger-8", "digest-i")).toEqual({
+      listingIds: [3],
+      quantity: 4,
     });
   });
 

@@ -7,13 +7,18 @@
  */
 
 // jscpd:ignore-start
+import { fromBase64Url } from "#crypto/utils.ts";
+import { hmacHex } from "#shared/sha256.ts";
 import {
   browserSeenBy,
   SCANNER,
   visiting,
 } from "#test/specs/support/browser.ts";
 import {
+  type DoorAnswer,
+  type QueuedDelivery,
   type ShowTicketAtDoor,
+  sendDoorJson,
   sendDoorScan,
 } from "#test/specs/support/door.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
@@ -88,3 +93,40 @@ export const scanAtDoorAsScanner: ShowTicketAtDoor = async (
     choices,
   );
 };
+
+/** The queued check-in one offline scan holds: the ticket's keyed digest
+ * under the door cache key the served page alone carries, the operation id
+ * the device makes up, and the people the door picked. The key comes off
+ * the page the door serves, the way the page's own script reads it. */
+export const queuedCheckInAtDoor = async (
+  world: TicketsWorld,
+  listing: string,
+  ticket: string,
+  pick: number,
+): Promise<QueuedDelivery> => {
+  const browser = await openScannerDoor(world, listing);
+  const key = browser.currentHtml.match(/data-door-cache-key="([^"]*)"/)?.[1];
+  if (!key) throw new Error("The scanner page carries no door cache key");
+  return {
+    body: {
+      operation_id: crypto.randomUUID(),
+      quantity: pick,
+      token_hash: await hmacHex(fromBase64Url(key), ticket),
+    },
+    listing,
+    scanPath: `/admin/listing/${listingIdNamed(world, listing)}/scan`,
+  };
+};
+
+/** Sends one queued check-in the connection returned: the very body the
+ * page queued, over the scanner's own session, the way the page's sync
+ * sends it. */
+export const sendQueuedCheckIn = async (
+  world: TicketsWorld,
+  queued: QueuedDelivery,
+): Promise<DoorAnswer> =>
+  sendDoorJson(
+    queued.scanPath,
+    await openScannerDoor(world, queued.listing),
+    queued.body,
+  );
