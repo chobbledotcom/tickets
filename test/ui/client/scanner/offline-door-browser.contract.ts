@@ -91,6 +91,8 @@ describe("the offline door on the served scanner page", () => {
   let deliveries: Record<string, unknown>[];
   let hashes: string[];
   let pageHtml: string;
+  /** The answer the scan endpoint gives the next delivery. */
+  let scanAnswer: Record<string, unknown>;
 
   beforeAll(async () => {
     // The raw contract task runs without the test harness's preload, so the
@@ -125,6 +127,7 @@ describe("the offline door on the served scanner page", () => {
 
   beforeEach(() => {
     deliveries = [];
+    scanAnswer = CHECKED_IN;
   });
 
   const serveDoor = async (request: Request): Promise<Response> => {
@@ -146,7 +149,7 @@ describe("the offline door on the served scanner page", () => {
     }
     if (request.method === "POST" && path === SCAN_PATH) {
       deliveries.push(await request.json());
-      return Response.json(CHECKED_IN);
+      return Response.json(scanAnswer);
     }
     return new Response(null, { status: 404 });
   };
@@ -254,7 +257,9 @@ describe("the offline door on the served scanner page", () => {
   const queueSummary = (page: Page): Promise<string> =>
     textOf(page, "scanner-queue-summary");
 
-  const firstQueueRow = (page: Page): Promise<string> =>
+  const firstQueueRow = (
+    page: Page,
+  ): Promise<{ className: string; text: string }> =>
     page.evaluate(() => {
       const list = document.getElementById("scanner-queue-items");
       if (!list) {
@@ -262,7 +267,7 @@ describe("the offline door on the served scanner page", () => {
       }
       const row = list.children[0];
       if (!row) throw new Error("The queue panel carries no first row");
-      return row.textContent;
+      return { className: row.className, text: row.textContent ?? "" };
     });
 
   const togglePressed = (page: Page): Promise<string> =>
@@ -307,6 +312,7 @@ describe("the offline door on the served scanner page", () => {
    * two of the booking's three, and the queued words, one waiting row, one
    * pending check-in, and no request sent. */
   const scanWaitsInQueue = async (page: Page): Promise<void> => {
+    const sentBefore = deliveries.length;
     await page.click("#scanner-start");
     await waitText(
       page,
@@ -318,31 +324,38 @@ describe("the offline door on the served scanner page", () => {
     await page.selectOption("#scanner-quantity-select", String(CHECK_IN_PICK));
     await page.click("#scanner-quantity-confirm");
     await statusShows(page, t("admin.scanner.offline_queued"));
-    expect(await firstQueueRow(page)).toBe(
+    expect((await firstQueueRow(page)).text).toBe(
       t("admin.scanner.queue_item_queued"),
     );
     expect(await queueSummary(page)).toBe(
       t("admin.scanner.queue_count_one", { count: 1 }),
     );
-    expect(deliveries).toEqual([]);
+    expect(deliveries.length).toBe(sentBefore);
   };
 
   /** Restores the connection and asserts the sync's outcome: one delivery
    * sent with the digest the page stored, its own operation id, and the
-   * people the door picked; its row checked in, and the queue emptied. */
-  const syncChecksTheScanIn = async (page: Page): Promise<void> => {
+   * people the door picked; the row the answer settled on, and the queue
+   * emptied. */
+  const syncChecksTheScanIn = async (
+    page: Page,
+    row: { className: string; text: string } = {
+      className: "",
+      text: t("admin.scanner.queue_item_checked_in"),
+    },
+  ): Promise<void> => {
+    const sentBefore = deliveries.length;
     await setConnection(page, true);
     await statusShows(page, t("admin.scanner.sync_done"));
-    expect(deliveries).toEqual([
-      {
-        operation_id: expect.any(String),
-        quantity: CHECK_IN_PICK,
-        token_hash: hashes[0],
-      },
-    ]);
-    expect(await firstQueueRow(page)).toBe(
-      t("admin.scanner.queue_item_checked_in"),
-    );
+    // One delivery this sync: the queued check-in's own body, with its own
+    // operation id and the people the door picked.
+    expect(deliveries.length).toBe(sentBefore + 1);
+    expect(deliveries.at(-1)).toEqual({
+      operation_id: expect.any(String),
+      quantity: CHECK_IN_PICK,
+      token_hash: hashes[0],
+    });
+    expect(await firstQueueRow(page)).toEqual(row);
     expect(await queueSummary(page)).toBe(
       t("admin.scanner.queue_count_other", { count: 0 }),
     );
@@ -350,6 +363,33 @@ describe("the offline door on the served scanner page", () => {
       await page.evaluate(() => localStorage.getItem("scanner-queue")),
     ).toBe("[]");
   };
+
+  /** The replay answer one over-admitted delivery lands with, and the
+   * alert row it settles on: the landing admitted `admitted` of the two
+   * the page named. */
+  const overLanding = (
+    admitted: number,
+    status: "already_checked_in" | "checked_in",
+  ) => ({
+    answer: {
+      listingName: "Ceilidh",
+      name: "Ada",
+      overAdmission: { admitted, bought: HELD_PLACES, named: CHECK_IN_PICK },
+      quantity: admitted,
+      ...(status === "checked_in" ? { remaining: 0 } : {}),
+      status,
+      total: HELD_PLACES,
+    },
+    row: {
+      className: "scanner-queue-alert",
+      text: t("admin.scanner.queue_item_over_admitted", {
+        admitted,
+        bought: HELD_PLACES,
+        name: "Ada",
+        named: CHECK_IN_PICK,
+      }),
+    },
+  });
 
   test("a scan made without a connection waits in the queue and checks in when the connection returns", async () => {
     const { page, server } = await openDoor();
@@ -413,6 +453,30 @@ describe("the offline door on the served scanner page", () => {
       expect(await queueSummary(page)).toBe(
         t("admin.scanner.queue_count_other", { count: 0 }),
       );
+    } finally {
+      await page.context().close();
+      await server.shutdown();
+      await server.finished;
+    }
+  });
+
+  test("a replayed check-in the booking could not fully supply alerts with the numbers", async () => {
+    const { page, server } = await openDoor();
+    try {
+      // The replay reads the delivery's landing. The booking's places can
+      // be gone when it lands: the numbers ride the answer the scan
+      // endpoint sends.
+      await setConnection(page, false);
+      await scanWaitsInQueue(page);
+      scanAnswer = overLanding(0, "already_checked_in").answer;
+      await syncChecksTheScanIn(page, overLanding(0, "already_checked_in").row);
+
+      // A second delivery, partly supplied: another door took one place
+      // between the queueing and the sync.
+      await setConnection(page, false);
+      await scanWaitsInQueue(page);
+      scanAnswer = overLanding(1, "checked_in").answer;
+      await syncChecksTheScanIn(page, overLanding(1, "checked_in").row);
     } finally {
       await page.context().close();
       await server.shutdown();

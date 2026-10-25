@@ -6,7 +6,7 @@ import type { EvidencePages } from "#scripts/specs/evidence/pages.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import type { ApiAnswer } from "#test/specs/support/booking-api.ts";
 import type { ThingForSale } from "#test/specs/support/bundles.ts";
-import type { DoorAnswer } from "#test/specs/support/door.ts";
+import type { DoorAnswer, QueuedDelivery } from "#test/specs/support/door.ts";
 import type {
   PutsThingsBack,
   RemembersThings,
@@ -194,6 +194,9 @@ export interface TicketsWorld extends World, EvidencePages {
   providerReply?: Response | Error;
   questionChoices?: { byLabel: Record<string, string>; field: string };
   questionId?: number;
+  /** The queued check-in an offline story holds: the body the page's own
+   * script built, the door it belongs to, and the path it posts to. */
+  queuedDelivery?: QueuedDelivery;
   raceListing?: string;
   raceLoser?: BookingAttempt;
   raceWinners?: number;

@@ -12,10 +12,12 @@ import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   openScannerPage,
   ownerInvitesScanner,
+  queuedCheckInAtDoor,
   scanAtDoorAsScanner,
   scannerBrowser,
   scannerFollowsInvite,
   scannerLogsIn,
+  sendQueuedCheckIn,
   signedInScanner,
 } from "#test/specs/support/scanners.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
@@ -143,17 +145,62 @@ Then(
   },
 );
 
-Then(
-  "the door page asks how many people an offline scan checks in",
-  function (this: TicketsWorld): void {
-    const page = scannerBrowser(this).currentHtml;
-    // This harness serves the page and never runs its script, so the step
-    // reads the ask the door worker sees: the page's own words for the
-    // question an offline scan opens before it queues the check-in.
-    assertStringIncludes(
-      page,
-      `data-message-offline-quantity-ask="${t("admin.scanner.offline_quantity_ask")}"`,
+/** Sends the story's queued check-in: the one body the queue step built,
+ * so a resend is the same delivery, not a second one. */
+const sendTheQueuedCheckIn = async (world: TicketsWorld): Promise<void> => {
+  const queued = world.queuedDelivery;
+  if (!queued) throw new Error("The story holds no queued check-in to send");
+  world.doorAnswer = await sendQueuedCheckIn(world, queued);
+};
+
+When(
+  "{word} queues a check-in for {int} of {word}'s places at the {word} door",
+  async function (
+    this: TicketsWorld,
+    _who: string,
+    pick: number,
+    guest: string,
+    listing: string,
+  ): Promise<void> {
+    this.queuedDelivery = await queuedCheckInAtDoor(
+      this,
+      listing,
+      ticketOf(this, guest),
+      pick,
     );
+  },
+);
+
+When(
+  "the connection returns and the door sends the queued check-in",
+  function (this: TicketsWorld): Promise<void> {
+    return sendTheQueuedCheckIn(this);
+  },
+);
+
+When(
+  "the door sends the same queued check-in again",
+  function (this: TicketsWorld): Promise<void> {
+    return sendTheQueuedCheckIn(this);
+  },
+);
+
+Then(
+  "the door says the queued check-in checked in {int} of {int} places",
+  function (this: TicketsWorld, admitted: number, total: number): void {
+    expect(this.doorAnswer?.status).toBe("checked_in");
+    expect(this.doorAnswer?.quantity).toBe(admitted);
+    expect(this.doorAnswer?.total).toBe(total);
+  },
+);
+
+Then(
+  "the door says {word} was already checked in",
+  function (this: TicketsWorld, _guest: string): void {
+    // The resend is the delivery's own landing again: nobody is admitted
+    // twice, and a delivery the booking supplied names no shortfall.
+    expect(this.doorAnswer?.status).toBe("already_checked_in");
+    expect(this.doorAnswer?.overAdmission).toBeUndefined();
   },
 );
 

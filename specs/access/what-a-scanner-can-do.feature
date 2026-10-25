@@ -94,12 +94,20 @@ Feature: An owner gives a door worker the scanner, and nothing else
       Then the door page offers an offline mode switch that starts off
       And the door page keeps a place that will list the queued check-ins
 
-    @case:scanners.the-door-page-asks-the-offline-party-size
-    Scenario: The door page asks how many people an offline scan checks in
-      Given Alice has a ticket for the Ceilidh
+    @case:scanners.a-queued-check-in-admits-its-people-once
+    Scenario: A queued check-in checks in its people once, and a resend says so
+      Given Cara has a ticket for 3 places at the Ceilidh
       And Sam is signed in as a scanner
       When Sam opens the Ceilidh door
-      Then the door page asks how many people an offline scan checks in
+      And Sam queues a check-in for 2 of Cara's places at the Ceilidh door
+      When the connection returns and the door sends the queued check-in
+      Then the door says the queued check-in checked in 2 of 3 places
+      When Sam reads the QR on Cara's ticket
+      Then the ticket page says 2 of 3 are checked in
+      When the door sends the same queued check-in again
+      Then the door says Cara was already checked in
+      When Sam reads the QR on Cara's ticket
+      Then the ticket page says 2 of 3 are checked in
 
   @rule:access.a-scanner-reaches-nothing-else
   Rule: A scanner reaches nothing else
