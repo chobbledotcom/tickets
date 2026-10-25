@@ -130,41 +130,6 @@ export const TEST_AUTHORITY_BUILDING_PATHS = [
   "test-utils/webhooks/stripe.ts",
 ];
 
-export const REFUND_AUTHORITY_SOURCE_PATHS = [
-  "features/admin/privacy.ts",
-  "features/admin/refunds/attempt.ts",
-  "features/admin/refunds/authority.ts",
-  "features/admin/refunds/dispatch.ts",
-  "features/admin/refunds/provider.ts",
-  "features/admin/refunds/readiness-findings.ts",
-  "features/admin/refunds/readiness-run.ts",
-  "features/admin/refunds/refresh.ts",
-  "features/api/payment-processing/refunds.ts",
-  "shared/payment/refund-authority-lifecycle.ts",
-  "shared/provider-refunds.ts",
-];
-
-export const REFUND_AUTHORITY_TEST_PATHS = [
-  "features/admin/refunds/attempt/unrecorded.test.ts",
-  "features/admin/refunds/provider/batch/budget.test.ts",
-  "features/admin/refunds/provider/claim-lifecycle.test.ts",
-  "features/admin/refunds/provider/dispatch-helpers.ts",
-  "features/admin/refunds/provider/mixed-capability.test.ts",
-  "features/admin/refunds/provider/readiness-helpers.ts",
-  "features/admin/refunds/readiness-findings/authority-failure.test.ts",
-  "features/admin/refunds/refresh/helpers.ts",
-  "integration/server/privacy-refund-recovery-race.test.ts",
-  "shared/payment/refund-authority-lifecycle.test.ts",
-  "shared/provider-refunds.test.ts",
-  "shared/provider-refunds/send.test.ts",
-  "shared/provider-refunds/send/outcomes.test.ts",
-  "shared/provider-refunds/state-owner-revision.test.ts",
-  "shared/provider-refunds/state.test.ts",
-  "shared/provider-refunds/target-conflict.test.ts",
-  "shared/provider-refunds/target.test.ts",
-  "specs/steps/refund-safety/owner-cases.ts",
-];
-
 export const LOWER_SEND_SOURCE_PATHS = {
   armReadyRefund: [
     "shared/provider-refunds.ts",

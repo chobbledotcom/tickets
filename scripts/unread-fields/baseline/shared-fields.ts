@@ -56,7 +56,6 @@ export const SHARED_FIELD_BASELINE: readonly FindingIdentity[] = [
   ...identitiesAt([
     ["src/shared/admin-surface/sections.ts", [{ name: "AdminSectionDef" }]],
     ["src/shared/db/activity-log.ts", [{ name: "ActivityLogEntry" }]],
-    ["src/shared/schema-atlas/machine-spec.ts", [{ name: "MachineEvent" }]],
     [
       "src/shared/square/wire.ts",
       [{ name: "SquareOrder" }, { name: "tenders" }, { way: "[]" }],
