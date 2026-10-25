@@ -130,9 +130,16 @@ Then(
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
     // This harness serves the page and never runs its script, so the step
-    // reads the place the page keeps. The panel's live region and list are
-    // the template test's subject.
-    assertStringIncludes(page, '<div class="hidden" id="scanner-queue">');
+    // reads the promise the served page makes: the panel whose polite
+    // live region will carry the queued count, and the list the queued
+    // check-ins will fill once offline mode turns on.
+    const queue = page.match(
+      /<div class="hidden" id="scanner-queue">([\s\S]*?)<\/div>/,
+    );
+    expect(queue?.[1]).toContain(
+      '<p aria-live="polite" id="scanner-queue-summary"></p>',
+    );
+    expect(queue?.[1]).toContain('<ul id="scanner-queue-items"></ul>');
   },
 );
 
