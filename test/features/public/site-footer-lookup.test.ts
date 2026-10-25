@@ -17,6 +17,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
+
 // jscpd:ignore-end
 
 const footerTag = `<footer class="site-footer">`;
@@ -125,10 +126,9 @@ describeWithEnv(
         "DELETE FROM image_uses WHERE image_id = ?",
         [image.id],
       );
-      await executeWithoutCacheInvalidation(
-        "DELETE FROM images WHERE id = ?",
-        [image.id],
-      );
+      await executeWithoutCacheInvalidation("DELETE FROM images WHERE id = ?", [
+        image.id,
+      ]);
       await bumpSettingsVersion();
 
       const afterSqls = await withRecordedSql(async () => {
