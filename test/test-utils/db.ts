@@ -74,6 +74,7 @@ const cleanupUnlessKept = (
 /** Drop every cached read a fresh database must not inherit. */
 const invalidateEntityCaches = (): void => {
   invalidateCachesForTable("sessions");
+  invalidateCachesForTable("images");
   invalidateUsersCache();
   invalidateListingsCache();
   holidays.invalidate();

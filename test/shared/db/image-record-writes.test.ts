@@ -13,7 +13,7 @@ import {
 import { getCurrentSettingsVersion } from "#db/settings.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestDbWithSetup, describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("db > image record writes", { db: true }, () => {
   test("advance the shared version when an insert, an update, and a delete land", async () => {
@@ -43,6 +43,35 @@ describeWithEnv("db > image record writes", { db: true }, () => {
 
     expect(await getImageById(image.id)).toBeNull();
     expect(afterDelete).toBeGreaterThan(afterUpdate);
+  });
+
+  test("a fresh test database does not inherit the image-URL cache", async () => {
+    // The next describeWithEnv test gets a fresh copy of the same golden
+    // state: the same settings version, but its own images rows. This
+    // database's insert does not move the version (only the record spine
+    // does), so the cache this lookup fills carries the version the fresh
+    // copy also holds. The URL must still not cross that boundary.
+    const image = await makeImage("Carry");
+    const text = `![Carry](img#${image.id})`;
+
+    const warm = await imageUrlsFor([text]);
+    expect(warm.get(image.id)).toBe(`/image/${image.filename}`);
+
+    await createTestDbWithSetup();
+
+    const carried = await imageUrlsFor([text]);
+    expect(carried.get(image.id)).toBeUndefined();
+  });
+
+  test("refuse an update that names no column", async () => {
+    // An empty partial cannot build an UPDATE: the statement takes its SET
+    // clause from the provided columns alone. Refuse it with a clear error
+    // instead of a database syntax error.
+    const image = await makeImage("Empty Update");
+
+    await expect(updateImageRecord(image.id, {})).rejects.toThrow(
+      "names no column to write",
+    );
   });
 
   test("looks up exactly the ids the texts reference", async () => {
