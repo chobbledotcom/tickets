@@ -449,14 +449,20 @@ export const insertImageRecord = async (input: ImageInput): Promise<Image> =>
   );
 
 /** Update one image record's metadata. Returns null when the id names no
- * row. */
-export const updateImageRecord = (
+ * row. The update takes its SET clause from the provided columns alone. An
+ * input with no defined value names no column to write: it throws here
+ * instead of wiping a stored field or failing at the database. */
+export const updateImageRecord = async (
   id: number,
   input: Partial<ImageInput>,
-): Promise<Image | null> =>
-  withImageVersionBump((transaction) =>
+): Promise<Image | null> => {
+  if (Object.values(input).every((value) => value === undefined)) {
+    throw new Error(`Image ${id} update names no column to write`);
+  }
+  return withImageVersionBump((transaction) =>
     writeTableRow(transaction, imagesTable, { id, input, kind: "update" }),
   );
+};
 
 export const deleteImageRecord = async (imageId: number): Promise<void> => {
   await executeBatch([
