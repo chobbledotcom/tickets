@@ -7,10 +7,10 @@
  */
 
 /* jscpd:ignore-start */
+import { attendeeStatusApiTable } from "#db/attendee-status-api-table.ts";
 import {
   type AttendeeStatus,
   type AttendeeStatusWriteInput,
-  attendeeStatusApiTable,
   attendeeStatusDeleteMessage,
   attendeeStatuses,
   heldAttendeeCount,

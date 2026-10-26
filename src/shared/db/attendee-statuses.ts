@@ -9,7 +9,6 @@
  */
 
 /* jscpd:ignore-start -- import block */
-import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 /* jscpd:ignore-end */
@@ -25,13 +24,7 @@ import {
 import type { NamedSortOrderInput } from "#db/common-schema.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import {
-  col,
-  defineCachedListTable,
-  type Table,
-  writeTableRow,
-} from "#db/table.ts";
-import { TransactionValidationError } from "#db/transaction.ts";
+import { col, defineCachedListTable, writeTableRow } from "#db/table.ts";
 import { t } from "#i18n";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -419,47 +412,6 @@ export const attendeeStatusWrites: AttendeeStatusWrites = {
   delete: deleteStatus,
   save: saveStatus,
 };
-
-/** Save a status through the boundary, throwing the operator-facing message
- *  as a validation error when the boundary refuses. */
-const attendeeStatusSaveOrThrow = async (
-  id: number | null,
-  input: AttendeeStatusWriteInput,
-): Promise<AttendeeStatus> => {
-  const result = await attendeeStatusWrites.save(id, input);
-  if (!result.ok) {
-    throw new TransactionValidationError(
-      attendeeStatusSaveMessage(result.error),
-    );
-  }
-  return result.value;
-};
-
-/** Delete a status through the boundary, throwing the operator-facing message
- *  as a validation error when the boundary refuses. */
-const attendeeStatusDeleteOrThrow = async (id: number): Promise<void> => {
-  const result = await attendeeStatusWrites.delete(id);
-  if (!result.ok) {
-    throw new TransactionValidationError(
-      attendeeStatusDeleteMessage(result.error),
-    );
-  }
-};
-
-/** The CRUD write surface the admin JSON API writes through. The raw table's
- *  reads (already decrypted names) carry over. The three writes go through
- *  the shared attendeeStatusWrites boundary, so the single-default
- *  invariants hold. A refused write throws the message the factory turns
- *  into a 400. The casts restate the raw table's wider input type as the
- *  full write input the API mappers always produce. */
-export const attendeeStatusApiTable = {
-  ...attendeeStatuses.table,
-  deleteById: (id: InValue) => attendeeStatusDeleteOrThrow(Number(id)),
-  insert: (input: AttendeeStatusWriteInput) =>
-    attendeeStatusSaveOrThrow(null, input),
-  update: (id: InValue, input: AttendeeStatusWriteInput) =>
-    attendeeStatusSaveOrThrow(Number(id), input),
-} as unknown as Table<AttendeeStatus, AttendeeStatusWriteInput>;
 
 /**
  * Ensure at least one status exists. Seeds a single non-reservation default

@@ -1,8 +1,8 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { attendeeStatusApiTable } from "#db/attendee-status-api-table.ts";
 import {
-  attendeeStatusApiTable,
   attendeeStatuses,
   getAttendeeStatus,
   statusDeleteProspects,
@@ -401,6 +401,36 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
 
     test("the delete prospects answer null for a missing status", async () => {
       expect(await statusDeleteProspects(99999)).toBeNull();
+    });
+
+    test("the API table reads a status back by primary key", async () => {
+      const status = await createStatus("Primary read");
+
+      const read = await attendeeStatusApiTable.findByIdPrimary!(status.id);
+      expect(read?.name).toBe("Primary read");
+    });
+  });
+
+  describe("the API table write surface", () => {
+    test("a partial update fills the omitted flags with the create defaults", async () => {
+      const status = await createStatus("Default flags");
+
+      const updated = await attendeeStatusApiTable.update(status.id, {
+        name: "Renamed",
+      });
+      expect(updated?.name).toBe("Renamed");
+      expect(updated?.is_paid_default).toBe(false);
+      expect(updated?.is_public_default).toBe(false);
+      expect(updated?.is_reservation).toBe(false);
+      expect(updated?.reservation_amount).toBe("0");
+    });
+
+    test("the table update refuses a missing name", async () => {
+      const status = await createStatus("Guarded");
+
+      await expect(
+        attendeeStatusApiTable.update(status.id, { isReservation: true }),
+      ).rejects.toThrow("requires the name field");
     });
   });
 
