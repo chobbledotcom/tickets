@@ -330,10 +330,19 @@ src/features/admin/scan-answer.ts::listingScope.checkInEveryListing~0fgw13m  fal
 src/features/admin/scan-answer.ts::resolveAttendeeName.fromEntry~1ssznli  0 → 1 audited:1szzqlg # every entry of one token decrypts the same attendee row, and the empty-entries fallback decrypts that same row, so entries[0], entries[1], and the fallback answer one name
 src/features/admin/scan-answer.ts::personLoader.token~15m14rg  ?? → || audited:1szzqlg # the token lookup's array index answers an AttendeeWithBookings object or undefined, and an object is always truthy
 src/features/admin/scan-answer.ts::personLoader.attendee_id~0idmeoo  ?? → || audited:1szzqlg # the id lookup's Map.get answers an AttendeeWithBookings object or undefined, and an object is always truthy
-src/features/admin/scan-decision.ts::decideScan.share~1r19kyt  ?? → || audited:0c3uwjf # count reaches decideScan only through isAdmitCount, a positive safe integer or undefined; the falsy 0 never occurs, so ?? and || agree
-src/features/admin/scanner.ts::optionDetails~079ewsj  ?? → || audited:12upmqx # the operand answers a stored listing name or undefined; "" is the fallback itself, so "" ?? "" === "" || ""
+src/features/admin/scan-decision.ts::decideScan.share~1r19kyt  ?? → || audited:1n76s70 # count reaches decideScan only through isAdmitCount, a positive safe integer or undefined; the falsy 0 never occurs, so ?? and || agree
+src/features/admin/scanner.ts::optionDetails~079ewsj  ?? → || audited:0n0txep # the operand answers a stored listing name or undefined; "" is the fallback itself, so "" ?? "" === "" || ""
 src/features/admin/auth.ts::createLoginSession~11fciup  ?? → || audited:1k77c4b # returnPath answers null or a target whose decoded path starts with "/admin/", and that prefix makes every target truthy
 
 # Contact history editor (features/admin/contact-history.ts): the counter
 # fallback runs on a strict non-negative integer or null.
 src/features/admin/contact-history.ts::nonNegativeInt~1sju92h  ?? → || audited:0mx51nm # getOptionalInt answers a non-negative integer or null; its only falsy value is 0, which equals the 0 fallback, so 0 ?? 0 = 0 || 0
+
+# Attendee CSV export (features/admin/attendees-csv.ts): the price reads the
+# ledger projection and the question fallbacks run on arrays, a Map, and the
+# empty string itself.
+src/features/admin/attendees-csv.ts::formatPrice~1wguj7n  10 → 0 audited:0vatub4 # price_paid reaches the CSV only through String() of the ledger sale projection (a non-negative integer in minor units), a plain decimal string with no 0x/0o prefix, so parseInt with radix 0 reads it as base 10 exactly like radix 10
+src/features/admin/attendees-csv.ts::questionColumns.questions~1kswxdf  ?? → || audited:0vatub4 # data?.questions answers an array or undefined; an array is always truthy, so both operators fall through only to the same [] fallback
+src/features/admin/attendees-csv.ts::questionColumns.answerMap~1d6ka7d  ?? → || audited:0vatub4 # data?.attendeeAnswerMap answers a Map or undefined; a Map is always truthy
+src/features/admin/attendees-csv.ts::questionColumns.value~1cqfose  ?? → || audited:0vatub4 # the lookup answers the attendee's free text (a string) or undefined; the only falsy string is "" and the fallback is "" itself, so "" ?? "" and "" || "" both answer ""
+src/features/admin/attendees-csv.ts::questionColumns.value.ids~1jni3oa  ?? → || audited:0vatub4 # the lookup answers the attendee's chosen answer ids (an array) or undefined; an array is always truthy

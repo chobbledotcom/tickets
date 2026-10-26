@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   linePair,
+  movesThatMoved,
   pairBookingsOf,
   pairKey,
   type StoredTicketLine,
@@ -124,6 +125,14 @@ describe("booking > ticket moves", () => {
 
   test("counts the tickets a set of moves covers", () => {
     expect(ticketCount([move(2), move(0), move(3)])).toBe(5);
+  });
+
+  test("only the moves that really moved tickets reach the door's log", () => {
+    // A zero count moved nothing, so no activity row names it; a count of
+    // one is the smallest move that did.
+    expect(
+      movesThatMoved([answer(0, 0), answer(1, 1), answer(3, 3)]),
+    ).toEqual([answer(1, 1), answer(3, 3)]);
   });
 });
 

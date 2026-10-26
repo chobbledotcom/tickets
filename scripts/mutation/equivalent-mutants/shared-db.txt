@@ -32,8 +32,8 @@ src/shared/db/listing-relationship-validation.ts::listingById.day_prices~1ag3qoh
 # Group-cap sweep (attendees/update.ts): the boundary-delta accumulator is a
 # Map<string, number>; the only falsy-but-non-null number is 0 and the fallback
 # is 0, so `?? 0` and `|| 0` always agree.
-src/shared/db/attendees/update.ts::loadsAtBoundaries.deltas~0b895vw  ?? → || audited:0jo8xms # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
-src/shared/db/attendees/update.ts::loadsAtBoundaries.deltas~1kwldm9  ?? → || audited:0jo8xms # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
+src/shared/db/attendees/update.ts::loadsAtBoundaries.deltas~0b895vw  ?? → || audited:0nhsczc # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
+src/shared/db/attendees/update.ts::loadsAtBoundaries.deltas~1kwldm9  ?? → || audited:0nhsczc # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
 
 # attendees/tokens.ts — `?? → ||` sites where the operand is a Map#get() whose
 # value is always a truthy object or array (never a falsy-but-non-null value),

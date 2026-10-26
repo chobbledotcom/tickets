@@ -13,6 +13,7 @@
  */
 
 import { shortHash } from "#scripts/checksum.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { dim, red, yellow } from "#scripts/precommit/colors.ts";
 import { write } from "#scripts/precommit/write.ts";
 import { projectRoot, rel } from "#scripts/project-root.ts";
@@ -41,6 +42,8 @@ import {
   type MutantLoopContext,
   runFileMutants,
 } from "./run-file.ts";
+import { writeRunSummary } from "./run-journal.ts";
+import { MUTATION_RUN_ROOT_ENV } from "./isolation-state.ts";
 import { collectStateBuilderFiles } from "./state-graph.ts";
 import { defaultStaticJobs, staticWorkerParent } from "./static.ts";
 import {
@@ -357,12 +360,43 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   const early = unfinishedRunExit(opts, results.length, plans);
   if (early !== null) return early;
 
-  return reportIgnoreListStaleness(
+  const exitCode = reportIgnoreListStaleness(
     opts,
     plans,
     report(results),
     unconfirmedKeys,
   );
+  // A run that reached a verdict publishes its numbers for the tracked
+  // journal (issue #2301). A failure here is a record-keeping failure: it
+  // must not turn a finished run's verdict into a crash, so it is reported
+  // and the run's own exit code stands. Outside an isolated snapshot there
+  // is no run to publish into, so an env-less run writes nothing.
+  const runRoot = Deno.env.get(MUTATION_RUN_ROOT_ENV);
+  if (runRoot !== undefined) {
+    try {
+      const { effective, ignored, killed, score, survived, total } = summarize(
+        results,
+      );
+      await writeRunSummary(runRoot, {
+        effective,
+        exhaustive: opts.exhaustive,
+        finishedAt: new Date().toISOString(),
+        harness: opts.useHarness,
+        ignored,
+        killed,
+        score,
+        sources: opts.sourceFiles.map((file) => rel(file)),
+        survived,
+        tests: opts.testFiles.map((file) => rel(file)),
+        total,
+      });
+    } catch (error) {
+      console.error(
+        `The run's numbers could not be published for the mutation journal: ${errorMessage(error)}`,
+      );
+    }
+  }
+  return exitCode;
 };
 
 const mutate = async (

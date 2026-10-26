@@ -17,6 +17,7 @@ import {
   onTerminationSignals,
 } from "#scripts/termination-signals.ts";
 import { errorMessage } from "#shared/error-message.ts";
+import { commandValue, runCommand } from "#scripts/precommit/git.ts";
 import { envWith } from "./child-process.ts";
 import {
   liveRunIdSet,
@@ -28,6 +29,11 @@ import {
 } from "./isolation-cleanup.ts";
 import { withRunClaim, withRunClaimGuard } from "./isolation-lock.ts";
 import { readRunRecords, writeRunRecord } from "./isolation-records.ts";
+import {
+  appendJournalEntry,
+  journalEntry,
+  readRunSummary,
+} from "./run-journal.ts";
 import {
   copyMutationSnapshot,
   createRunId,
@@ -146,6 +152,32 @@ const settleRecord = (
   interrupted ? markInterrupted(record) : markFinished(record, code);
 
 /**
+ * Append the run's published numbers to the tracked journal (issue #2301).
+ * Only a conclusive run publishes: a run the deadline or an interrupt stopped
+ * has no score, and the child publishes none for it. The journal is
+ * auxiliary — a failure here is reported and the run's own verdict stands.
+ */
+const publishRunSummary = async (
+  record: MutationRunRecord,
+  root: string,
+): Promise<void> => {
+  if (record.status !== "passed" && record.status !== "failed") return;
+  try {
+    const summary = await readRunSummary(record.root);
+    if (summary === null) return;
+    const commit = await commandValue(runCommand, ["rev-parse", "HEAD"]);
+    await appendJournalEntry(
+      root,
+      journalEntry(record.id, commit ?? null, summary),
+    );
+  } catch (error) {
+    console.error(
+      `The mutation run's numbers could not be recorded in scripts/mutation/runs.jsonl: ${errorMessage(error)}`,
+    );
+  }
+};
+
+/**
  * Record the child's result, then bring back what the run means to keep. The
  * supervisor's claim on the run stays fresh throughout, so a clear-up
  * elsewhere can neither take the copy before its kept files are read nor take
@@ -172,6 +204,7 @@ const finishChild = async (
   const exitCode = interrupted ? 130 : failedToKeep || code;
   const settled = settleRecord(record, interrupted, exitCode);
   await writeRunRecord(settled);
+  await publishRunSummary(settled, root);
   return { exitCode, record: settled };
 };
 
