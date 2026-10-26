@@ -44,6 +44,18 @@ export const shortFormImageId = (href: string): number | undefined => {
   return id === undefined ? undefined : Number(id);
 };
 
+/** One image token's address: the editor's short form (`img#N`) resolves to
+ * the image's uid URL in the render's table. Any other address stays as
+ * written. An id the table lacks leaves no address. */
+const resolveImageAddress = (
+  token: Token,
+  imageUrls: ReadonlyMap<number, string>,
+): void => {
+  if (token.type !== "image" || typeof token.href !== "string") return;
+  const id = shortFormImageId(token.href);
+  token.href = id === undefined ? token.href : (imageUrls.get(id) ?? "");
+};
+
 /** The per-render token walk. A short-form image reference (`![alt](img#7)`)
  * written by the editor's image dropdown resolves to the image's uid URL in
  * the render's table. The table is the request's page-image slot, or the
@@ -55,10 +67,7 @@ export const shortFormImageId = (href: string): number | undefined => {
 const walkTokensFor =
   (imageUrls: ReadonlyMap<number, string>) =>
   (token: Token): void => {
-    if (token.type === "image" && typeof token.href === "string") {
-      const id = shortFormImageId(token.href);
-      token.href = id === undefined ? token.href : (imageUrls.get(id) ?? "");
-    }
+    resolveImageAddress(token, imageUrls);
     if (hasHref(token) && !isSafeUrl(token.href)) token.href = "";
     if (token.type === "image" && token.href === "") {
       (token as Tokens.Generic).type = "text";
