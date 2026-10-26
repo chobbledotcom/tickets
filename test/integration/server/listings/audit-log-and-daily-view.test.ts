@@ -3,6 +3,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { createDailyListing } from "#test/integration/server/listings/_shared-setup.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
@@ -46,8 +47,10 @@ describeWithEnv(
         const updateLog = logs.find((l: { message: string }) =>
           l.message.includes("updated"),
         );
-        expect(updateLog).toBeDefined();
-        assertStringIncludes(updateLog?.message ?? "", listing.name);
+        assertStringIncludes(
+          requireValue(updateLog, "the listing-update log entry").message,
+          listing.name,
+        );
       });
     });
     describe("daily listing admin view", () => {

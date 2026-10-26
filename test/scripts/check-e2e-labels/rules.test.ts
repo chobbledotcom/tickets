@@ -60,7 +60,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    assertStringIncludes(issues[0]?.message ?? "", "renders exactly");
+    assertStringIncludes(issues[0]!.message, "renders exactly");
   });
 
   test("flags a page-text helper whose key names nothing", () => {
@@ -69,7 +69,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    expect(issues[0]?.message).toBe(
+    expect(issues[0]!.message).toBe(
       'uses key "admin.ledger.gone", which src/locales/en holds nowhere. ' +
         "Give the group and key the page's template reads.",
     );
@@ -81,7 +81,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    assertStringIncludes(issues[0]?.message ?? "", '"admin.attendees.gone"');
+    assertStringIncludes(issues[0]!.message, '"admin.attendees.gone"');
   });
 
   test("reads key calls written in single quotes", () => {
@@ -106,7 +106,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    expect(issues[0]?.message).toBe(
+    expect(issues[0]!.message).toBe(
       'names group "common", but "settings.save_payment_provider" lives in ' +
         '"settings". Name the group that holds the key.',
     );
@@ -152,7 +152,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    expect(issues[0]?.message).toBe(
+    expect(issues[0]!.message).toBe(
       'names group "attendees", but "admin.ledger.event.sale" lives in ' +
         '"ledger". Name the group that holds the key.',
     );
@@ -173,7 +173,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    expect(issues[0]?.message).toBe(
+    expect(issues[0]!.message).toBe(
       'names group "settings", but "orphan.key" lives in ' +
         '"no group". Name the group that holds the key.',
     );
@@ -206,12 +206,10 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    expect(issues[0]?.line).toBe(1);
-    assertStringIncludes(issues[0]?.message ?? "", '"Update Stripe Key"');
-    assertStringIncludes(
-      issues[0]?.message ?? "",
-      "no message in src/locales/en",
-    );
+    const issue = issues[0]!;
+    expect(issue.line).toBe(1);
+    assertStringIncludes(issue.message, '"Update Stripe Key"');
+    assertStringIncludes(issue.message, "no message in src/locales/en");
   });
 
   test("flags a page-text marker that no message carries", () => {
@@ -220,7 +218,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    expect(issues[0]?.message).toBe(
+    expect(issues[0]!.message).toBe(
       'uses "Payment gone for", which no message in src/locales/en renders ' +
         'at all. Match the new copy, or derive it with t("…") as ' +
         "saveCredentials does.",
@@ -233,7 +231,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    assertStringIncludes(issues[0]?.message ?? "", '"Save changes"');
+    assertStringIncludes(issues[0]!.message, '"Save changes"');
   });
 
   test("leaves the scenario's own data and pattern matches alone", () => {
@@ -263,7 +261,7 @@ describe("e2e label rules", () => {
 
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
-    expect(issues[0]?.message).toBe(
+    expect(issues[0]!.message).toBe(
       'asks for message key "settings.provider.update_credentials", which ' +
         "src/locales/en holds nowhere. Copy renames leave this driver with " +
         "nothing to click.",
@@ -396,7 +394,7 @@ describe("e2e label rules", () => {
 
     expect(issues.length).toBe(1);
     assertStringIncludes(
-      issues[0]?.message ?? "",
+      issues[0]!.message,
       "calls clickButton with no argument 1 to read",
     );
   });

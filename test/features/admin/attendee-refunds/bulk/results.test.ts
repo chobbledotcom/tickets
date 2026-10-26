@@ -4,6 +4,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { setN1GuardNotifyOnly } from "#db/query-log.ts";
 import { resetI18nForTest } from "#i18n";
+import { requireValue } from "#shared/required-value.ts";
 import {
   createPaidListing,
   createRefundableAttendee,
@@ -108,7 +109,10 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
     const log = (await getListingActivityLog(listing.id)).find((entry) =>
       entry.message.includes("Bulk refund: 0 succeeded"),
     );
-    assertStringIncludes(log?.message ?? "", "0 succeeded, 1 failed");
+    assertStringIncludes(
+      requireValue(log, "the bulk-refund log entry").message,
+      "0 succeeded, 1 failed",
+    );
   });
 
   test("reports one uncertain refund answer in the flash", async () => {

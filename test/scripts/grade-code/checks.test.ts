@@ -26,11 +26,11 @@ const verdictOf = (
   source: string,
   id: string,
   overLimit: Record<string, number> = {},
+  file = "src/features/admin/sample.ts",
 ) => {
-  const verdict = runMechanical(
-    extractCode("src/features/admin/sample.ts", source),
-    ctxOf(overLimit),
-  )[id];
+  const verdict = runMechanical(extractCode(file, source), ctxOf(overLimit))[
+    id
+  ];
   if (verdict === undefined) throw new Error(`the ${id} check did not run`);
   return verdict;
 };
@@ -277,42 +277,43 @@ describe("i18n_catalog", () => {
   });
 
   test("passes a template whose copy goes through t()", () => {
-    const verdict = runMechanical(
-      extractCode(
-        "src/ui/templates/sample.tsx",
+    expect(
+      verdictOf(
         'const a = <p>{t("guide.search_hint")}</p>;\n',
-      ),
-      ctxOf(),
-    ).i18n_catalog;
-    expect(verdict?.status).toBe("PASS");
+        "i18n_catalog",
+        {},
+        "src/ui/templates/sample.tsx",
+      ).status,
+    ).toBe("PASS");
   });
 
   test("fails hard-coded JSX text in a template", () => {
-    const verdict = runMechanical(
-      extractCode(
-        "src/ui/templates/sample.tsx",
-        "const a = <p>Please enter your name</p>;\n",
-      ),
-      ctxOf(),
-    ).i18n_catalog;
-    expect(verdict?.status).toBe("FAIL");
-    assertStringIncludes(verdict?.note ?? "", 'text "Please enter your name"');
+    const verdict = verdictOf(
+      "const a = <p>Please enter your name</p>;\n",
+      "i18n_catalog",
+      {},
+      "src/ui/templates/sample.tsx",
+    );
+    expect(verdict.status).toBe("FAIL");
+    assertStringIncludes(verdict.note, 'text "Please enter your name"');
   });
 
   test("warns within an allowlisted budget and fails over it", () => {
     // src/ui/templates/admin/calendar.tsx carries a budget of 1.
     const grade = (source: string) =>
-      runMechanical(
-        extractCode("src/ui/templates/admin/calendar.tsx", source),
-        ctxOf(),
-      ).i18n_catalog;
-    expect(grade("const a = <p>One leftover string</p>;\n")?.status).toBe(
+      verdictOf(
+        source,
+        "i18n_catalog",
+        {},
+        "src/ui/templates/admin/calendar.tsx",
+      );
+    expect(grade("const a = <p>One leftover string</p>;\n").status).toBe(
       "WARN",
     );
     expect(
       grade(
         "const a = <p>One leftover string</p>;\nconst b = <p>Another one here</p>;\n",
-      )?.status,
+      ).status,
     ).toBe("FAIL");
   });
 });

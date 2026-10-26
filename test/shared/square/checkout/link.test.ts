@@ -238,7 +238,7 @@ describeSquare(() => {
           // own clock decides here: 2026-09-29T12:00:00Z plus one hour.
           expect(row?.link_ends_at).toBe("2026-09-29T13:00:00.000Z");
           expect(row?.next_attempt_at).toBe("2026-09-29T13:00:00.000Z");
-          assert(!row?.sealed_handle.includes("link_order_stage"));
+          assert(!row!.sealed_handle.includes("link_order_stage"));
           expect(await decrypt(row?.sealed_handle as EnvKeyEncrypted)).toBe(
             "link_order_stage",
           );

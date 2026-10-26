@@ -36,7 +36,7 @@ const contactRows = async (hash: string): Promise<number> => {
     "SELECT COUNT(*) AS n FROM contact_preferences WHERE contact_hash = ?",
     [hash],
   );
-  return row?.n ?? 0;
+  return row!.n;
 };
 
 describeWithEnv(

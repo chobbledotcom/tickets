@@ -53,7 +53,7 @@ describe("check-ste rules", () => {
     test("keeps reading an indented line that continues a paragraph", () => {
       const content = "Text\n    Should this continue?\n";
       expect(rulesOn(content)).toEqual(["banned-modal"]);
-      assertStringIncludes(proseBlocks(content)[0]?.text ?? "", "Should");
+      assertStringIncludes(proseBlocks(content)[0]!.text, "Should");
     });
 
     test("keeps reading an indented line that continues a list item", () => {
@@ -331,8 +331,8 @@ describe("check-ste rules", () => {
         '"Prior to"',
         '"in order to"',
       ]);
-      expect(issues[0]?.fix).toBe('write "before"');
-      expect(issues[1]?.fix).toBe('write "to"');
+      expect(issues[0]!.fix).toBe('write "before"');
+      expect(issues[1]!.fix).toBe('write "to"');
     });
 
     test("wordy flags e.g. with periods, but not inside a longer word", () => {

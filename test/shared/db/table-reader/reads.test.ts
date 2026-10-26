@@ -10,6 +10,7 @@ import { it as test } from "@std/testing/bdd";
 import { getDb, resultRows } from "#db/client.ts";
 import { listingOptionColumns, rawListingsTable } from "#db/listings/table.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -76,7 +77,7 @@ describeWithEnv("db > table reader > reads", { db: true }, () => {
       );
 
       // Only the selected columns count — the filter names the key too.
-      const sql = getQueryLog()[0]?.sql ?? "";
+      const sql = requireValue(getQueryLog()[0], "the logged query").sql;
       assertStringIncludes(sql.slice(0, sql.indexOf(" FROM ")), "listing.id");
       expect(rows).toEqual([{ name: "Keyed" }]);
     });

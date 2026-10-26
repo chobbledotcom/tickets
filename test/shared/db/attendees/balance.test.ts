@@ -100,7 +100,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
     const row = await getProcessedPayment("balance-ref-ok");
     expect(row?.attendee_id).toBe(attendeeId);
-    assert(!row?.payment_reference.includes("pi_balance_ok"));
+    assert(!row!.payment_reference.includes("pi_balance_ok"));
     await expectRefundReferences(attendeeId, ["pi_balance_ok"]);
   });
 

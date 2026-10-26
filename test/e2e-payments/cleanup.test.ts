@@ -54,8 +54,9 @@ describe("attempting every cleanup", () => {
       },
     ]);
     expect(outcome.errors).toHaveLength(1);
-    assertStringIncludes(outcome.errors[0]?.message ?? "", "string-throw");
-    assertStringIncludes(outcome.errors[0]?.message ?? "", "not an Error");
+    const error = outcome.errors[0]!;
+    assertStringIncludes(error.message, "string-throw");
+    assertStringIncludes(error.message, "not an Error");
   });
 });
 

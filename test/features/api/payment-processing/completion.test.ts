@@ -39,7 +39,7 @@ const flagOf = async (
     `SELECT ${column} AS value FROM attendees WHERE id = ?`,
     [attendeeId],
   );
-  return Number(row?.value ?? 0);
+  return Number(row!.value);
 };
 
 /** The entry as the create batch hands it on: the in-memory echo carries the
