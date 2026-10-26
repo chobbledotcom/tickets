@@ -7,20 +7,16 @@
  */
 
 /* jscpd:ignore-start */
-import type { InValue } from "@libsql/client";
 import {
   type AttendeeStatus,
   type AttendeeStatusWriteInput,
+  attendeeStatusApiTable,
   attendeeStatusDeleteMessage,
   attendeeStatuses,
-  attendeeStatusSaveMessage,
-  attendeeStatusWrites,
   heldAttendeeCount,
   statusDeleteProspects,
 } from "#db/attendee-statuses.ts";
 import { catalogNameLengthError } from "#db/name-registry.ts";
-import type { Table } from "#db/table.ts";
-import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import { OWNER_API } from "#routes/auth.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
@@ -104,46 +100,6 @@ const statusInputFrom = (
   });
 };
 
-/** Save a status through the shared boundary, throwing the operator-facing
- *  message when the boundary refuses. */
-const saveStatusOrThrow = async (
-  id: number | null,
-  input: AttendeeStatusWriteInput,
-): Promise<AttendeeStatus> => {
-  const result = await attendeeStatusWrites.save(id, input);
-  if (!result.ok) {
-    throw new TransactionValidationError(
-      attendeeStatusSaveMessage(result.error),
-    );
-  }
-  return result.value;
-};
-
-/** Delete a status through the shared boundary, throwing the operator-facing
- *  message when the boundary refuses. */
-const deleteStatusOrThrow = async (id: number): Promise<void> => {
-  const result = await attendeeStatusWrites.delete(id);
-  if (!result.ok) {
-    throw new TransactionValidationError(
-      attendeeStatusDeleteMessage(result.error),
-    );
-  }
-};
-
-/** The CRUD write surface: the raw table's reads (already decrypted names)
- *  carry over. The three writes go through the shared attendeeStatusWrites
- *  boundary, so the single-default invariants hold. A refused write throws
- *  the message the factory turns into a 400. The casts restate the raw
- *  table's wider input type as the full write input the mappers always
- *  produce. */
-const statusApiTable = {
-  ...attendeeStatuses.table,
-  deleteById: (id: InValue) => deleteStatusOrThrow(Number(id)),
-  insert: (input: AttendeeStatusWriteInput) => saveStatusOrThrow(null, input),
-  update: (id: InValue, input: AttendeeStatusWriteInput) =>
-    saveStatusOrThrow(Number(id), input),
-} as unknown as Table<AttendeeStatus, AttendeeStatusWriteInput>;
-
 /** The one delete the API refuses beyond the shared confirm-by-name check: a
  *  status the write boundary or a booking still depends on. */
 const statusDeleteRefusal = async (id: number): Promise<string | null> => {
@@ -167,7 +123,7 @@ export const attendeeStatusApiRoutes = defineCrudApi<
   // Reordering is a dashboard concern. The API has no verb for it, so the
   // answer hides the sort order.
   stripKeys: ["sort_order"],
-  table: statusApiTable,
+  table: attendeeStatusApiTable,
   toCreateInput: (body) => statusInputFrom(body, null),
   toUpdateInput: (body, existing) => statusInputFrom(body, existing),
   validateDelete: statusDeleteRefusal,

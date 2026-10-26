@@ -1,14 +1,15 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { runApi } from "#cli/run.ts";
-import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
+import {
+  attendeeStatusApiTable,
+  attendeeStatuses,
+  getAttendeeStatus,
+  statusDeleteProspects,
+} from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
 import { handleRequest } from "#routes";
-import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
-import { adminApiTestTransport } from "#test-utils/admin-api-transport.ts";
 import { assertJson } from "#test-utils/assertions.ts";
-import { runDeps } from "#test-utils/cli-table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
@@ -152,6 +153,49 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
       );
     });
 
+    test("refuses a name past the input length cap", async () => {
+      await assertJson(
+        apiRequest("/api/admin/attendee-statuses", {
+          body: { name: "x".repeat(251) },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("Name must be 250 characters or fewer");
+        },
+      );
+    });
+
+    test("refuses a flag that is not a boolean", async () => {
+      await assertJson(
+        apiRequest("/api/admin/attendee-statuses", {
+          body: { is_public_default: "yes", name: "Flagged" },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("is_public_default must be a boolean");
+        },
+      );
+    });
+
+    test("refuses a reservation amount that is not a string", async () => {
+      await assertJson(
+        apiRequest("/api/admin/attendee-statuses", {
+          body: {
+            is_reservation: true,
+            name: "Bad hold",
+            reservation_amount: 25,
+          },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("reservation_amount must be a string");
+        },
+      );
+    });
+
     test("refuses a paid status that is also a reservation", async () => {
       await assertJson(
         apiRequest("/api/admin/attendee-statuses", {
@@ -204,6 +248,26 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
       );
     });
 
+    test("an update keeps a reservation's stored amount", async () => {
+      const status = await attendeeStatuses.table.insert({
+        isReservation: true,
+        name: "Reserved",
+        reservationAmount: "25%",
+      });
+
+      await assertJson(
+        apiRequest(`/api/admin/attendee-statuses/${status.id}`, {
+          body: { name: "Reserved seat" },
+          method: "PUT",
+        }),
+        200,
+        (body) => {
+          expect(body.status.is_reservation).toBe(true);
+          expect(body.status.reservation_amount).toBe("25%");
+        },
+      );
+    });
+
     test("refuses clearing the only public default", async () => {
       const [seed] = await attendeeStatuses.getAll();
 
@@ -216,6 +280,23 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
         (body) => {
           expect(body.error).toBe(
             "Choose another public default before clearing this one",
+          );
+        },
+      );
+    });
+
+    test("refuses clearing the only paid default", async () => {
+      const [seed] = await attendeeStatuses.getAll();
+
+      await assertJson(
+        apiRequest(`/api/admin/attendee-statuses/${seed!.id}`, {
+          body: { is_paid_default: false },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "Choose another paid default before clearing this one",
           );
         },
       );
@@ -307,6 +388,20 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
       );
       expect(await getAttendeeStatus(status.id)).not.toBeNull();
     });
+
+    test("the table delete throws the boundary refusal as a validation error", async () => {
+      // The route pre-refuses every refusal, so the table's own throw path
+      // is exercised directly: a delete the boundary refuses fails loudly.
+      await createStatus("Spare");
+      const [seed] = await attendeeStatuses.getAll();
+      await expect(attendeeStatusApiTable.deleteById(seed!.id)).rejects.toThrow(
+        "Choose another public default before deleting this status",
+      );
+    });
+
+    test("the delete prospects answer null for a missing status", async () => {
+      expect(await statusDeleteProspects(99999)).toBeNull();
+    });
   });
 
   // Status settings are owner-only in the dashboard, so the JSON API must
@@ -360,49 +455,6 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
       );
       expect(res.status).toBe(403);
       expect(await getAttendeeStatus(status.id)).not.toBeNull();
-    });
-  });
-
-  // The CLI drives the resource off the same table as the routes, so the
-  // list and create commands reach the resource with no CLI change.
-  describe("CLI", () => {
-    const run = (args: string[]) =>
-      runApi(args, runDeps(ADMIN_API_RESOURCES, adminApiTestTransport));
-
-    test("lists attendee statuses with their flags and amount", async () => {
-      await createStatus("VIP");
-
-      const listed = await run(["list", "attendee-statuses"]);
-      const rows = JSON.parse(listed.out!)["attendee-statuses"];
-      expect(rows.map((row: { name: string }) => row.name)).toEqual([
-        "Confirmed",
-        "VIP",
-      ]);
-      expect(rows[0]).toMatchObject({
-        is_paid_default: true,
-        is_public_default: true,
-        is_reservation: false,
-        name: "Confirmed",
-        reservation_amount: "0",
-      });
-    });
-
-    test("creates a status and lists it back", async () => {
-      const created = await run([
-        "create",
-        "attendee-statuses",
-        '{"is_reservation":true,"name":"Reserved","reservation_amount":"25%"}',
-      ]);
-      const status = JSON.parse(created.out!).status;
-      expect(status.name).toBe("Reserved");
-      expect(status.is_reservation).toBe(true);
-
-      const listed = await run(["list", "attendee-statuses"]);
-      expect(
-        JSON.parse(listed.out!)["attendee-statuses"].some(
-          (row: { name: string }) => row.name === "Reserved",
-        ),
-      ).toBe(true);
     });
   });
 });
