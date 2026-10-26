@@ -92,6 +92,12 @@ describe("what the scan counts as a shape", () => {
     );
   });
 
+  test("counts a read of a static the anonymous class borrows", () => {
+    // The read names the same member the walk found through the extends
+    // clause, so it keeps the borrowed static out of the report.
+    expect(verdictOf("typeof default", "passedOnTheBase")).toBe("read");
+  });
+
   test("leaves out a method the class keeps to itself", () => {
     expect(verdictOf("Answerer", "keptInside")).toBeUndefined();
   });

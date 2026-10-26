@@ -468,4 +468,5 @@ export const readThroughTheCarrier = (value: CarriesTheField): number =>
 export const takenFromTheAnonymous = new Anonymous().handedOver;
 export const readOnTheAnonymousClass = Anonymous.carriedOnTheClass;
 export const readFromTheAnonymousBase = new Anonymous().onTheBase;
+export const readThePassedOnStatic = Anonymous.passedOnTheBase;
 `;

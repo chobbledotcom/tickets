@@ -9,6 +9,7 @@ export const defaulted = `
 class BehindTheDefault {
   onTheBase = 1;
   static carriedToTheDefault = 1;
+  static passedOnTheBase = 1;
 }
 
 export default class extends BehindTheDefault {

@@ -298,4 +298,5 @@ export const EVERY_FIELD: readonly string[] = [
   "typeof ShadowsItsBase.writtenOnTheChild",
   "typeof default.carriedOnTheClass",
   "typeof default.carriedToTheDefault",
+  "typeof default.passedOnTheBase",
 ];
