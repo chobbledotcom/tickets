@@ -6,11 +6,12 @@
  */
 
 import { t } from "#i18n";
-import {
-  ASSIGN_UNDATED_FIELD,
-  type AssignCard,
-} from "#routes/admin/listings-switch.ts";
+import type { AssignCard } from "#routes/admin/listings-switch.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
+
+/** The date box the save reads the move's day from. The card renders it and
+ * the plan's POST reads it — one name, owned here at the markup. */
+export const ASSIGN_UNDATED_FIELD = "assign_undated_to";
 
 export const AssignUndatedDayCard = ({
   card,

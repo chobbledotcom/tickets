@@ -105,16 +105,18 @@ describeWithEnv("db: listings — the daily switch", { db: true }, () => {
       },
       execute: () => Promise.reject(new Error("the log write failed")),
     };
-    const failure = await moveUndatedBookingsToDayTx(
-      scriptedTx,
-      listing.id,
-      listing.name,
-      "2026-11-05",
-      1,
-    ).then(
-      () => null,
-      (error: unknown) => error,
-    );
+    let failure: unknown = null;
+    try {
+      await moveUndatedBookingsToDayTx(
+        scriptedTx,
+        listing.id,
+        listing.name,
+        "2026-11-05",
+        1,
+      );
+    } catch (error) {
+      failure = error;
+    }
     expect(failure).toBeInstanceOf(Error);
     expect(failure).toHaveProperty(
       "message",
