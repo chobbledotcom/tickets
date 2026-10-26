@@ -306,7 +306,9 @@ describe("CLI table-vs-server", () => {
       if (serves(entry, "delete")) routes.push(`DELETE ${root}/${idParam}`);
       return routes;
     };
-    const declared = entries.flatMap(([, entry]) => {
+    /** One resource's declared routes: the standard routes it serves, its
+     *  child routes, and its custom routes. */
+    const routesFor = (entry: AdminApiResource): string[] => {
       const root = `/api/admin/${entry.path}`;
       const idParam = `:${entry.label.toLowerCase()}Id`;
       const children = Object.entries(entry.children ?? {}).flatMap(
@@ -320,7 +322,8 @@ describe("CLI table-vs-server", () => {
         ([, route]) => `${route.method} ${root}/${route.subpath}`,
       );
       return [...standardRoutes(entry), ...children, ...custom];
-    });
+    };
+    const declared = entries.flatMap(([, entry]) => routesFor(entry));
     // A custom route may occupy the standard delete's key, and the server's
     // route map holds each key once.
     expect([...new Set(declared)].sort()).toEqual(
