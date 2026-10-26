@@ -313,7 +313,7 @@ describe("gradeJevAnswers", () => {
     expect(results.sureFail).toMatchObject({ goodness: 0, status: "FAIL" });
     expect(results.unsurePass).toMatchObject({ goodness: 0.5, status: "WARN" });
     expect(results.unsureFail).toMatchObject({ goodness: 0.5, status: "WARN" });
-    assertStringIncludes(results.unsurePass?.note ?? "", "conf 0.20");
+    assertStringIncludes(results.unsurePass!.note, "conf 0.20");
   });
 
   test("throws when a question it was given has no answer", () => {

@@ -7,6 +7,7 @@ import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import type {
   AttendeeWithBookings,
   ListingAttendeeRow,
+  TokenBookingRow,
 } from "#db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { emailOwedColumn } from "#db/attendees/notification-flags.ts";
@@ -43,14 +44,15 @@ type PreviousBookingLine = Pick<
   "listing_id" | "quantity" | "price_paid"
 >;
 
-type BookingRowWithAttendee = ListingAttendeeRow & { attendee_id: number };
+type BookingRowWithAttendee = TokenBookingRow & { attendee_id: number };
 type RowWithAttendee<Row> = Row & { attendee_id: number };
 
 const bookingRowWithoutAttendee = (
   row: BookingRowWithAttendee,
-): ListingAttendeeRow => ({
+): TokenBookingRow => ({
   attachment_downloads: row.attachment_downloads,
   checked_in: row.checked_in,
+  email_owed: row.email_owed,
   end_at: row.end_at,
   ledger_event_group: row.ledger_event_group,
   listing_id: row.listing_id,
@@ -64,20 +66,22 @@ const bookingRowWithoutAttendee = (
 });
 
 /** Load the booking lines for a set of attendees, grouped by attendee id.
- * Callers vary only in which columns they read, any extra WHERE clause, and how
- * each row is mapped once the `attendee_id` grouping key is stripped. */
+ * Callers vary only in which columns they read, any extra join, and any
+ * extra WHERE clause. Each row is mapped once the `attendee_id` grouping
+ * key is stripped. */
 const bookingLinesByAttendeeIds = async <
   Row extends { attendee_id: number },
   Result,
 >(
   attendeeIds: number[],
   columns: string,
+  joins: string,
   extraWhere: string,
   toResult: (row: Row) => Result,
 ): Promise<Map<number, Result[]>> => {
   const rows = await queryAll<Row>(
     `SELECT ${listingAttendeeColumn("attendee_id")}, ${columns}
-     FROM listing_attendees AS ${LISTING_ATTENDEE_ALIAS}
+     FROM listing_attendees AS ${LISTING_ATTENDEE_ALIAS}${joins}
      WHERE ${listingAttendeeColumn("attendee_id")} IN (${inPlaceholders(
        attendeeIds,
      )})${extraWhere}
@@ -90,10 +94,14 @@ const bookingLinesByAttendeeIds = async <
 
 const bookingRowsByAttendeeIds = (
   attendeeIds: number[],
-): Promise<Map<number, ListingAttendeeRow[]>> =>
-  bookingLinesByAttendeeIds<BookingRowWithAttendee, ListingAttendeeRow>(
+): Promise<Map<number, TokenBookingRow[]>> =>
+  bookingLinesByAttendeeIds<BookingRowWithAttendee, TokenBookingRow>(
     attendeeIds,
-    listingAttendeeRowColumnsFrom(LISTING_ATTENDEE_ALIAS),
+    `${listingAttendeeRowColumnsFrom(LISTING_ATTENDEE_ALIAS)}, ${emailOwedColumn(ATTENDEE_ALIAS, listingAttendeeColumn("listing_id"))}`,
+    // The owed rule reads the attendee's flag through the same alias the
+    // attendee scan uses, so the projection matches the one emailOwedColumn
+    // emits everywhere else.
+    ` JOIN attendees AS ${ATTENDEE_ALIAS} ON ${ATTENDEE_ALIAS}.id = ${listingAttendeeColumn("attendee_id")}`,
     "",
     bookingRowWithoutAttendee,
   );
@@ -124,6 +132,7 @@ const previousBookingLinesByAttendeeIds = (
   >(
     attendeeIds,
     PREVIOUS_BOOKING_LINE_COLS,
+    "",
     `\n       AND ${listingAttendeeColumn("quantity")} > 0`,
     previousBookingLineWithoutAttendee,
   );
@@ -257,7 +266,7 @@ type AttendeeScanRow = {
 /** Assemble one attendee's full booking view from its row and lines. */
 const attendeeWithBookingsBuild = (
   row: AttendeeScanRow,
-  bookings: ListingAttendeeRow[],
+  bookings: TokenBookingRow[],
 ): AttendeeWithBookings => ({
   bookings,
   created: row.created,
@@ -282,7 +291,7 @@ const attendeeWithBookingsBuild = (
 export const getAttendeesByTokens = async (
   tokens: string[],
 ): Promise<(AttendeeWithBookings | null)[]> =>
-  resultsForTokens<AttendeeScanRow, ListingAttendeeRow, AttendeeWithBookings>(
+  resultsForTokens<AttendeeScanRow, TokenBookingRow, AttendeeWithBookings>(
     tokens,
     ATTENDEE_SCAN_COLUMNS,
     bookingRowsByAttendeeIds,

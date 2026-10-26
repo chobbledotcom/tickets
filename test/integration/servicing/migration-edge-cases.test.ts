@@ -36,13 +36,13 @@ describeWithEnv(
       const firstRun = await getDb().execute(
         "SELECT COUNT(*) AS c FROM attendees",
       );
-      const firstCount = Number(firstRun.rows[0]?.c ?? 0);
+      const firstCount = Number(firstRun.rows[0]!.c);
       // Re-run: must not duplicate columns, error, or shift row count.
       await migration.up();
       const secondRun = await getDb().execute(
         "SELECT COUNT(*) AS c FROM attendees",
       );
-      expect(Number(secondRun.rows[0]?.c ?? 0)).toBe(firstCount);
+      expect(Number(secondRun.rows[0]!.c)).toBe(firstCount);
       expect(await indexExists("idx_attendees_kind")).toBe(true);
     });
   },

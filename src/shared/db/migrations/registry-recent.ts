@@ -97,5 +97,11 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-10-20_processed_scan_operations",
     () => import("./2026-10-20_processed_scan_operations.ts"),
   ),
+  // The partial index the dashboard count seeks, so the count reads the few
+  // flagged attendees instead of every attendee row.
+  entry(
+    "2026-10-26_attendees_pending_flags_index",
+    () => import("./2026-10-26_attendees_pending_flags_index.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

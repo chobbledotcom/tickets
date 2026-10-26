@@ -258,12 +258,12 @@ describe("site-pages core", () => {
       );
       const targets: TargetMap = new Map([leafTarget("listing", 10)]); // no group:20
       const model = buildNavModel(forest, targets, "page:1");
-      const level = model.submenuLevels[0]?.nodes ?? [];
+      const level = model.submenuLevels[0]!.nodes;
       expect(level.map((n) => n.key)).toEqual(["listing:10"]); // group dropped
-      expect(level[0]?.href).toBe("/ticket/listing-10");
+      expect(level[0]!.href).toBe("/ticket/listing-10");
       // The level is labelled by the page whose items it lists, and a page
       // current's own items surface as currentChildren (the /page item list).
-      expect(model.submenuLevels[0]?.label).toBe("page-1");
+      expect(model.submenuLevels[0]!.label).toBe("page-1");
       expect(model.currentChildren).toEqual(level);
     });
 
@@ -284,13 +284,13 @@ describe("site-pages core", () => {
       expect(model.activeRootId).toBe(1);
       expect(model.submenuLevels).toHaveLength(2);
 
-      const level0 = model.submenuLevels[0]?.nodes ?? [];
+      const level0 = model.submenuLevels[0]!.nodes;
       const pNode = level0.find((n) => n.key === "page:2");
       const leafUnderR = level0.find((n) => n.key === "listing:10");
       expect(pNode?.active).toBe(true); // chain continues through P
       expect(leafUnderR?.active).toBe(false); // NOT the chosen occurrence
 
-      const level1 = model.submenuLevels[1]?.nodes ?? [];
+      const level1 = model.submenuLevels[1]!.nodes;
       const leafUnderP = level1.find((n) => n.key === "listing:10");
       expect(leafUnderP?.active).toBe(true); // the chosen occurrence
       // Each level is labelled by its page, root-first.
@@ -347,11 +347,12 @@ describe("site-pages core", () => {
       );
       // One level (page 1's own items): the child page 2, not active.
       expect(model.submenuLevels).toHaveLength(1);
-      expect(model.submenuLevels[0]?.nodes[0]?.key).toBe("page:2");
-      expect(model.submenuLevels[0]?.nodes[0]?.active).toBe(false);
+      const level = model.submenuLevels[0]!.nodes;
+      expect(level[0]!.key).toBe("page:2");
+      expect(level[0]!.active).toBe(false);
       // Page nodes are always live (both the root row and the nested node).
-      expect(model.rootPageNodes[0]?.live).toBe(true);
-      expect(model.submenuLevels[0]?.nodes[0]?.live).toBe(true);
+      expect(model.rootPageNodes[0]!.live).toBe(true);
+      expect(level[0]!.live).toBe(true);
       // The current page's items double as its rendered children list.
       expect(model.currentChildren.map((n) => n.key)).toEqual(["page:2"]);
     });

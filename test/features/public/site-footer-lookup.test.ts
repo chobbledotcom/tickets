@@ -135,7 +135,12 @@ describeWithEnv(
       const afterSqls = await withRecordedSql(async () => {
         const html = await assertPublicHtml("/");
         assert(!html.includes(`<img src="/image/${image.filename}"`));
-        assertStringIncludes(html, '<img src="" alt="FooterOtherIsolate">');
+        // The reference's name stays visible and no empty picture loads.
+        assert(!html.includes('<img src=""'));
+        assertStringIncludes(
+          html,
+          "<p>Thanks for coming.FooterOtherIsolate</p>",
+        );
       });
       expect(
         afterSqls.filter((sql) => sql.includes("FROM images")).length,
@@ -161,6 +166,12 @@ describeWithEnv(
           await handleRequest(mockRequest(`/order?select_${listing.id}=1`)),
           /^\/ticket\//,
         );
+        // An embedded booking page renders, but the layout drops the footer
+        // on it, so it pays no footer lookup either.
+        const embedded = await assertPublicHtml(
+          `/ticket/${listing.slug}?iframe=true`,
+        );
+        assert(!embedded.includes(footerTag));
       });
       // The requests ran real reads, so an empty recording would prove nothing.
       expect(sqls.length).toBeGreaterThan(0);

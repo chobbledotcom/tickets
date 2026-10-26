@@ -39,7 +39,10 @@ import {
 } from "#shared/email/bulk.ts";
 import { cappedReply } from "#shared/email.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { rewriteImageDestinations } from "#shared/markdown.ts";
+import {
+  rewriteImageDestinations,
+  shortFormImageId,
+} from "#shared/markdown.ts";
 import { nowMs } from "#shared/now.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 import { isRecord } from "#types";
@@ -176,8 +179,8 @@ export const resolveImageReferences = (
   imageUrls: ImageUrls,
 ): string =>
   rewriteImageDestinations(text, (href) => {
-    const id = href.match(/^img#(\d+)$/)?.[1];
-    return id === undefined ? undefined : imageUrls.get(Number(id));
+    const id = shortFormImageId(href);
+    return id === undefined ? undefined : imageUrls.get(id);
   });
 
 const FOOTER_INTRO =

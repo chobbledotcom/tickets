@@ -18,7 +18,7 @@ const countIn = async (table: string): Promise<number> => {
   const rows = await queryAll<{ total: number }>(
     `SELECT COUNT(*) AS total FROM ${table}`,
   );
-  return rows[0]?.total ?? 0;
+  return rows[0]!.total;
 };
 
 /** A question with two answers, assigned to a listing, one answer chosen. */

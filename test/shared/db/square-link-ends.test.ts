@@ -40,7 +40,7 @@ describeWithEnv("square link ends", { db: true }, () => {
       "link_sq_stage",
     );
     // The session id itself never rests in the row, only its one-way hash.
-    assert(!row?.sealed_handle.includes("sq_stage"));
+    assert(!row!.sealed_handle.includes("sq_stage"));
   });
 
   test("claims one due row at a time and holds it inside a lease", async () => {

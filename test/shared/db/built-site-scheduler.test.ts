@@ -31,7 +31,7 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
       "SELECT site_data FROM built_sites WHERE id = ?",
       [row.id],
     );
-    assert(!raw?.site_data.includes(TEST_SCHEDULED_KEY));
+    assert(!raw!.site_data.includes(TEST_SCHEDULED_KEY));
     assert(!JSON.stringify(raw).includes(TEST_SCHEDULED_KEY));
     expect(
       (await builtSitesCrudTable.read.one({ id: row.id }))?.scheduledTaskKey,

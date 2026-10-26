@@ -47,6 +47,15 @@ export const NOTES_BLOCK = '<section class="attendee-notes">';
  * panels. */
 export const NOTES_SUMMARY = "attendee-notes-summary";
 
+/** The person's page top block: the status heading and the notes, above the
+ * tab strip. */
+export const BANNER_BLOCK = 'class="page-block attendee-banner"';
+
+/** How many times the page writes the picture out. The person's page holds
+ * the note once, so its story holds the whole page to one copy. */
+export const pictureCount = (html: string, world: TicketsWorld): number =>
+  html.split(pictureTag(world)).length - 1;
+
 /** The page region one opening marker opens. The marker can sit inside the
  * opening tag's attributes, so the scan starts at the `<tag` that holds it.
  * One pass over that tag's open and close tokens counts the nesting, so a

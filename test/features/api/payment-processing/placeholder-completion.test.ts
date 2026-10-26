@@ -72,7 +72,7 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
       "SELECT COUNT(*) AS total FROM activity_log WHERE attendee_id IS NOT NULL",
       [],
     );
-    return Number(row?.total ?? 0);
+    return Number(row!.total);
   };
 
   /** Crash the rejected-charge store at the ledger, then read back the

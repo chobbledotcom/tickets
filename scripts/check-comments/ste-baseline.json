@@ -260,10 +260,9 @@
     "banned-modal": 2
   },
   "src/features/public/ticket-submit.ts": {
-    "long-sentence": 5,
-    "banned-modal": 4,
-    "contraction": 2,
-    "semicolon": 4,
+    "long-sentence": 3,
+    "banned-modal": 3,
+    "semicolon": 3,
     "wordy": 1
   },
   "src/features/public/ticket-submit/parse.ts": {
@@ -2216,7 +2215,7 @@
     "wordy": 2,
     "contraction": 2,
     "banned-modal": 11,
-    "semicolon": 17
+    "semicolon": 16
   },
   "src/shared/update.ts": {
     "long-sentence": 4,

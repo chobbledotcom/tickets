@@ -8,6 +8,7 @@ import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { handleRequest } from "#routes";
 import { addMonthsIso } from "#shared/dates.ts";
 import { nowIso } from "#shared/now.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { stubEdgeSecretSuccess } from "#test/integration/server/site-assignment-shared.ts";
 import {
   adminAttendeeAction,
@@ -212,8 +213,10 @@ describeWithEnv(
         const resendLog = logs.find((l: { message: string }) =>
           l.message.includes("Notification re-sent"),
         );
-        expect(resendLog).toBeDefined();
-        assertStringIncludes(resendLog?.message ?? "", "John Doe");
+        assertStringIncludes(
+          requireValue(resendLog, "the re-sent notification log entry").message,
+          "John Doe",
+        );
       });
 
       test("a package member's resend rehydrates every line of the package", async () => {

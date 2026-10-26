@@ -13,8 +13,6 @@ import { submitMultiTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
-// jscpd:ignore-end
-
 /** The multi-listing attendee `listingId` shares, and the set of answer ids
  * saved on it — the shared "look up what got recorded" step behind every
  * multi-listing custom-question assertion below. */

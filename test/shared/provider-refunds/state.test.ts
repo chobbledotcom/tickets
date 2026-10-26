@@ -45,7 +45,7 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
       await paymentReferenceIndex(payment),
     );
     expect(stored?.provider_reference.startsWith("hyb:1:")).toBe(true);
-    assert(!stored?.provider_reference.includes(payment.reference));
+    assert(!stored!.provider_reference.includes(payment.reference));
   });
 
   for (const [reference, charge, refundedAmount, expected] of [

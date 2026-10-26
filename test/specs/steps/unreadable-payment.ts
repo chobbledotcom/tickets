@@ -191,16 +191,14 @@ Then(
       await getTestPrivateKey(),
     );
     expect(notes).toHaveLength(1);
+    const note = notes[0]!.note;
     assertStringIncludes(
-      notes[0]?.note ?? "",
+      note,
       "the provider reported the payment in a form the site could not read",
     );
-    assertStringIncludes(notes[0]?.note ?? "", "Refund code: malformed_charge");
-    assertStringIncludes(
-      notes[0]?.note ?? "",
-      `/admin/ledger/attendee/${attendeeId}`,
-    );
-    assert(!notes[0]?.note.includes(UNREADABLE.paymentIntent));
+    assertStringIncludes(note, "Refund code: malformed_charge");
+    assertStringIncludes(note, `/admin/ledger/attendee/${attendeeId}`);
+    assert(!note.includes(UNREADABLE.paymentIntent));
   },
 );
 

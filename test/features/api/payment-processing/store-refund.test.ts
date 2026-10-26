@@ -21,6 +21,7 @@ import {
   specForFailure,
   storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -146,12 +147,15 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
         "SELECT protected_state FROM processed_payments WHERE payment_reference_index != ''",
       );
       expect(anchor?.protected_state).toBe("");
-      const note = await queryOne<{ system_name: string; total: number }>(
-        `SELECT system_name, COUNT(*) OVER () AS total
+      const note = requireValue(
+        await queryOne<{ system_name: string; total: number }>(
+          `SELECT system_name, COUNT(*) OVER () AS total
            FROM system_notes WHERE entity_type = 'attendee'`,
+        ),
+        "the refund note",
       );
-      expect(note?.total).toBe(1);
-      assertStringIncludes(note?.system_name ?? "", "refund_unreturned");
+      expect(note.total).toBe(1);
+      assertStringIncludes(note.system_name, "refund_unreturned");
 
       // With the claim free, the next delivery replays the stored words and
       // writes nothing new.
@@ -162,11 +166,9 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       });
       expect(
         Number(
-          (
-            await queryOne<{ total: number }>(
-              "SELECT COUNT(*) AS total FROM system_notes WHERE entity_type = 'attendee'",
-            )
-          )?.total,
+          (await queryOne<{ total: number }>(
+            "SELECT COUNT(*) AS total FROM system_notes WHERE entity_type = 'attendee'",
+          ))!.total,
         ),
       ).toBe(1);
     });
@@ -204,8 +206,9 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       }
       // The note's name is the once-only latch a resumed delivery checks; it
       // carries only the blind reference index, never the real reference.
-      assertStringIncludes(row.system_name ?? "", "refund_unreturned");
-      assert(!(row.system_name ?? "").includes("pi_cs_plain_explanation"));
+      const name = requireValue(row.system_name, "the stored note's name");
+      assertStringIncludes(name, "refund_unreturned");
+      assert(!name.includes("pi_cs_plain_explanation"));
       assert(!(await decrypt(row.note)).includes("pi_cs_plain_explanation"));
     });
 

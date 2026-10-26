@@ -1,4 +1,4 @@
-import { assertStringIncludes } from "@std/assert";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { questionListings } from "#db/questions/queries.ts";
@@ -29,7 +29,8 @@ describeWithEnv("the ticket page's image references", { db: true }, () => {
 
   /** Assert the page rendered `alt`'s reference as the image's uid URL. The
    * head's og:description echoes the raw description, so only the resolved
-   * body image proves the lookup ran; an unresolved page renders src="". */
+   * body image proves the lookup ran; an unresolved page renders the name as
+   * plain text instead. */
   const expectResolved = (html: string, image: Image, alt: string): void => {
     assertStringIncludes(
       html,
@@ -103,12 +104,13 @@ describeWithEnv("the ticket page's image references", { db: true }, () => {
     expectResolved(await response.text(), poster, "Poster");
   });
 
-  test("renders an image reference no image answers with an empty source", async () => {
+  test("renders an image reference no image answers as its alt text", async () => {
     const listing = await createTestListing({
       description: "![Poster](img#999999)",
       name: "Kayak Tour",
     });
     const html = await ticketPageHtml(listing.slug);
-    assertStringIncludes(html, '<img src="" alt="Poster">');
+    assert(!html.includes('<img src=""'));
+    assertStringIncludes(html, "<p>Poster</p>");
   });
 });

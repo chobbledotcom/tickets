@@ -81,7 +81,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
     const row = await queryOne<{ total: number }>(
       "SELECT COUNT(*) AS total FROM system_notes WHERE entity_type = 'attendee'",
     );
-    return Number(row?.total ?? 0);
+    return Number(row!.total);
   };
 
   const chargeState = () =>

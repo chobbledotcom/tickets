@@ -3,6 +3,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
+import { requireValue } from "#shared/required-value.ts";
 import {
   expectManualAddWebhook,
   stubWebhookFetch,
@@ -99,7 +100,10 @@ describeWithEnv("server (admin attendees) > add attendee", { db: true }, () => {
       const log = (await getListingActivityLog(listing.id)).find((l) =>
         l.message.includes("added manually"),
       );
-      assertStringIncludes(log?.message ?? "", "Jane Doe");
+      assertStringIncludes(
+        requireValue(log, "the manual-add log entry").message,
+        "Jane Doe",
+      );
     });
 
     test("persists every submitted contact field, not just the name", async () => {

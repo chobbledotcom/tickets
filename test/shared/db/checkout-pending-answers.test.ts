@@ -48,7 +48,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
       [await sessionIndexOf("cs_sealed")],
     );
     expect(row).not.toBeNull();
-    assert(!row?.sealed.includes("Coming by bus"));
+    assert(!row!.sealed.includes("Coming by bus"));
   });
 
   test("rests only the hash of the session id, never the id itself", async () => {

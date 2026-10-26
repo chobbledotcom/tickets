@@ -15,6 +15,7 @@ import {
   noteDeletePath,
   notedAboutWithPicture,
   pageShowsPicture,
+  pictureCount,
   regionShowsPicture,
   uploadsAPicture,
 } from "#test/specs/support/attendee-images.ts";
@@ -111,6 +112,24 @@ describe("holding the page as a whole to its picture", () => {
     expect(() =>
       pageShowsPicture("<main><p>words</p></main>", worldWithPicture()),
     ).toThrow();
+  });
+});
+
+describe("counting the copies the page shows", () => {
+  test("counts one copy once", () => {
+    expect(
+      pictureCount(`<main><p>words</p>${shown}</main>`, worldWithPicture()),
+    ).toBe(1);
+  });
+
+  test("counts every copy a page that repeats the note holds", () => {
+    expect(pictureCount(`${shown}${shown}`, worldWithPicture())).toBe(2);
+  });
+
+  test("counts nothing on a page that shows no picture", () => {
+    expect(pictureCount("<main><p>words</p></main>", worldWithPicture())).toBe(
+      0,
+    );
   });
 });
 

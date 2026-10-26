@@ -31,8 +31,7 @@ const columnNames = async (table: string): Promise<string[]> =>
   );
 
 const rowCount = async (table: string): Promise<number> =>
-  (await queryAll<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`))[0]?.n ??
-  0;
+  (await queryAll<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`))[0]!.n;
 
 const renameTable = {
   columnRenames: [],

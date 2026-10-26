@@ -168,16 +168,11 @@ Then(
       await getTestPrivateKey(),
     );
     expect(notes).toHaveLength(1);
-    assertStringIncludes(
-      notes[0]?.note ?? "",
-      "the event filled up while they were paying",
-    );
-    assertStringIncludes(notes[0]?.note ?? "", "Refund code: capacity_full");
-    assert(!(notes[0]?.note ?? "").includes(lateSession.paymentIntent));
-    assertStringIncludes(
-      notes[0]?.note ?? "",
-      `/admin/ledger/attendee/${attendeeId}`,
-    );
+    const note = notes[0]!.note;
+    assertStringIncludes(note, "the event filled up while they were paying");
+    assertStringIncludes(note, "Refund code: capacity_full");
+    assert(!note.includes(lateSession.paymentIntent));
+    assertStringIncludes(note, `/admin/ledger/attendee/${attendeeId}`);
     await expectSessionFailed(sessionId);
   },
 );

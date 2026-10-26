@@ -28,6 +28,7 @@ import { createBackupZip, restoreFromZip } from "#db/backup.ts";
 import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { SCHEMA } from "#db/migrations/schema/index.ts";
+import { requireValue } from "#shared/required-value.ts";
 
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -47,7 +48,7 @@ const columnDefault = async (): Promise<string | null> => {
     args: ["kind"],
     sql: "SELECT dflt_value FROM pragma_table_info('attendees') WHERE name = ?",
   });
-  return (result.rows[0]?.dflt_value as string | null) ?? null;
+  return result.rows[0]!.dflt_value as string | null;
 };
 
 describe("servicing §1 — schema declares the kind column + index", () => {
@@ -169,14 +170,14 @@ describeWithEnv(
     const kindNotNull = async (): Promise<number> => {
       const result = await getDb().execute("PRAGMA table_info(attendees)");
       const row = result.rows.find((r) => r.name === "kind");
-      return Number(row?.notnull ?? 0);
+      return Number(requireValue(row, "the kind column's pragma row").notnull);
     };
 
     const limboCount = async (): Promise<number> => {
       const result = await getDb().execute(
         "SELECT COUNT(*) AS count FROM attendees WHERE kind IS NULL",
       );
-      return Number(result.rows[0]?.count ?? 0);
+      return Number(result.rows[0]!.count);
     };
 
     test("PRAGMA table_info(attendees).notnull === 1 for the kind column", async () => {
