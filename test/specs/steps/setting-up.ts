@@ -11,6 +11,7 @@ import {
   rememberBrowser,
 } from "#test/specs/support/browser.ts";
 import {
+  aNameTheBrowserRefuses,
   aSiteNobodyHasSetUp,
   firstOwnerCanSignIn,
   GOOD_PASSWORD,
@@ -61,6 +62,11 @@ When(
   function (this: TicketsWorld): Promise<string> {
     return somebodySetsUp(this, GOOD_PASSWORD, `${GOOD_PASSWORD}-oops`);
   },
+);
+
+When(
+  "somebody sets the site up typing a name that starts with a hyphen",
+  (): Promise<void> => aNameTheBrowserRefuses(),
 );
 
 Then("they are told the site is set up", function (this: TicketsWorld): void {

@@ -228,3 +228,47 @@ describe("a box that cannot be changed or cannot hold the number", () => {
     expect(whyValueCannotBeSent(box, "name", "")).toBeNull();
   });
 });
+
+describe("a box that carries a shape of its own", () => {
+  const username = (attributes: string) =>
+    `<input type="text" name="username" ${attributes}>`;
+  const USERNAME_PATTERN = "[a-zA-Z0-9][a-zA-Z0-9_\\-]*";
+
+  test("accepts a value the shape allows", () => {
+    expect(
+      whyValueCannotBeSent(
+        username(`pattern="${USERNAME_PATTERN}"`),
+        "username",
+        "firstowner",
+      ),
+    ).toBeNull();
+  });
+
+  test("refuses a value the shape refuses", () => {
+    expect(
+      whyValueCannotBeSent(
+        username(`pattern="${USERNAME_PATTERN}"`),
+        "username",
+        "-firstowner",
+      ),
+    ).toBe(
+      `the username box takes nothing the shape "${USERNAME_PATTERN}" refuses`,
+    );
+  });
+
+  test("matches the whole value, not just its start", () => {
+    expect(
+      whyValueCannotBeSent(
+        username(`pattern="${USERNAME_PATTERN}"`),
+        "username",
+        "firstowner!",
+      ),
+    ).not.toBeNull();
+  });
+
+  test("leaves an empty box to the required rule", () => {
+    expect(whyValueCannotBeSent(username("required"), "username", "")).toBe(
+      "the username box must be filled in",
+    );
+  });
+});

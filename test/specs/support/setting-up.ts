@@ -1,9 +1,11 @@
 /** The one-off ceremony that turns a bare site into somebody's. */
 
 // jscpd:ignore-start
+import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { openAsNewcomer } from "#test/specs/support/browser.ts";
 import { checkboxValueOffered } from "#test/specs/support/form-controls/reading.ts";
+import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   keepWhatTheyWereTold,
@@ -81,6 +83,21 @@ export const somebodySetsUp = async (
   await sendSetup(browser, { ...CHOSEN, password }, confirmation);
   keepWhatTheyWereTold(world, SETTER, browser.pageText);
   return browser.pageText;
+};
+
+/** A name the page's own box refuses: it starts with a hyphen, which the
+ * username shape forbids. */
+const REFUSED_NAME = "-firstowner";
+
+/** Somebody fills the setup page in with a name that starts with a hyphen.
+ * The send never happens: the box's own shape refuses it, so the story holds
+ * the page to that refusal instead of posting. */
+export const aNameTheBrowserRefuses = async (): Promise<void> => {
+  const browser = await openSetup();
+  const form = browser.formBodyFor(t("setup.submit"), ["admin_username"]);
+  expect(
+    whyValueCannotBeSent(form, "admin_username", REFUSED_NAME),
+  ).not.toBeNull();
 };
 
 /** Somebody who had the setup page open before the site was set up sends it

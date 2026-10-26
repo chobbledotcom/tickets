@@ -11,8 +11,6 @@ import {
   setSnapshotField,
 } from "#db/settings/snapshot.ts";
 
-/* jscpd:ignore-end */
-
 const StoredJsonSchema = v.object({ value: v.string() });
 
 const parseStoredJson = (row: unknown): string =>
