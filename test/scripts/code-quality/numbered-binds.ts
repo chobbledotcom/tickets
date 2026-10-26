@@ -345,7 +345,6 @@ const followsSqlProperty = (blanked: string, at: number): boolean => {
 };
 
 /** The hand-numbered `?N` tokens of one source file. The numbered binder is
-/** The hand-numbered `?N` tokens of one source file. The numbered binder is
  * the only writer of `?N` tokens, so SQL text never spells one itself; the
  * prose comments that kept such numbering honest are comments, which the
  * string-span walk never reads. The walk judges SQL text only: a template
