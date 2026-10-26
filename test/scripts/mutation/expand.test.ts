@@ -35,6 +35,23 @@ describe("the files a glob names", () => {
     });
   });
 
+  test("names the files an extglob segment accepts", async () => {
+    await withTempDir(async (dir) => {
+      await writeFile(join(dir, "src", "a.ts"));
+      await writeFile(join(dir, "src", "b.ts"));
+      await writeFile(join(dir, "src", "c.ts"));
+
+      // The segment reads as one folder name to a fixed-directory scan, so it
+      // must end the fixed prefix the way a star does.
+      const found = await expandFrom(dir, ["src/+(a|b).ts", "src/!(c).ts"]);
+
+      expect(found.map((path) => relative(dir, path))).toEqual([
+        join("src", "a.ts"),
+        join("src", "b.ts"),
+      ]);
+    });
+  });
+
   test("names no files when the folder is not there", async () => {
     await withTempDir(async (dir) => {
       // A test file that moved is still named by a branch's committed diff, so
