@@ -6,11 +6,11 @@ import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { PENDING_NOTIFICATION } from "#db/attendees/notification-flags.ts";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
+import { account } from "#shared/ledger/account.ts";
 import {
   assertJson,
   expectListingActivityLogContains,
 } from "#test-utils/assertions.ts";
-import { account } from "#shared/ledger/account.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeExists,
@@ -185,13 +185,12 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
     const realCreate = attendeesApi.createAttendeeAtomic;
     await withMocks(
       () =>
-        stub(attendeesApi, "createAttendeeAtomic", (input, work) => {
+        stub(attendeesApi, "createAttendeeAtomic", async (input, work) => {
           // The concurrent winner commits under the same token before the
           // loser's insert runs, so the loser's create hits the unique token
           // index exactly as a real race does.
-          return realCreate({ ...input, name: "Winner" }, work).then(() =>
-            realCreate(input, work),
-          );
+          await realCreate({ ...input, name: "Winner" }, work);
+          return realCreate(input, work);
         }),
       async () => {
         await assertJson(
@@ -330,6 +329,8 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
       (body) => {
         expect(body.attendee).toMatchObject({
           date: "2026-08-14",
+          // Two days booked: the stay ends two days after it starts.
+          end_date: "2026-08-16",
           listing_id: listing.id,
           quantity: 1,
         });
@@ -389,6 +390,11 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
         (parsed) =>
           expect(parsed.error).toBe("Name must be 250 characters or fewer"),
       );
+      // An empty name is the same refusal as a missing one: the row never
+      // stores a nameless booking.
+      await assertJson(createBooking(listing.id, { name: "" }), 400, (body) =>
+        expect(body.error).toBe("name is required"),
+      );
     });
 
     test("lines that miss a listing, a whole quantity, or a daily date", async () => {
@@ -403,6 +409,24 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
       );
       await assertJson(
         createBooking(listing.id, { lines: [{ listingId: listing.id }] }),
+        400,
+        (parsed) =>
+          expect(parsed.error).toBe(
+            "lines[0] needs a positive listingId and quantity, and a whole durationDays from 1 to 90",
+          ),
+      );
+      await assertJson(
+        createBooking(listing.id, { lines: [{ listingId: 0, quantity: 1 }] }),
+        400,
+        (parsed) =>
+          expect(parsed.error).toBe(
+            "lines[0] needs a positive listingId and quantity, and a whole durationDays from 1 to 90",
+          ),
+      );
+      await assertJson(
+        createBooking(listing.id, {
+          lines: [{ listingId: listing.id, quantity: 0 }],
+        }),
         400,
         (parsed) =>
           expect(parsed.error).toBe(
@@ -474,6 +498,14 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
             lines: [{ listingId: listing.id, quantity: 1 }],
             name: "St",
             status: 5,
+          },
+          "status must be text",
+        ],
+        [
+          {
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Blank status",
+            status: "",
           },
           "status must be text",
         ],
