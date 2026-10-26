@@ -71,6 +71,9 @@ const optInAddOnsByGroupId = async (
 ): Promise<ValidationContext["optInAddOnsByGroup"]> => {
   const byGroup = new Map<number, { id: number; name: string }[]>();
   if (groupIds.length === 0) return byGroup;
+  // Every requested group gets an entry, so the checks read one without a
+  // fallback.
+  for (const groupId of groupIds) byGroup.set(groupId, []);
   const rows = await queryAll<{
     group_id: number;
     modifier_id: number;
@@ -86,12 +89,14 @@ const optInAddOnsByGroupId = async (
     [...groupIds],
   );
   for (const row of rows) {
-    const addOns = byGroup.get(row.group_id) ?? [];
+    const addOns = requireValue(
+      byGroup.get(row.group_id),
+      "Group add-ons missing",
+    );
     addOns.push({
       id: row.modifier_id,
       name: await modifiersTable.readColumn("name", row.name, row.modifier_id),
     });
-    byGroup.set(row.group_id, addOns);
   }
   return byGroup;
 };

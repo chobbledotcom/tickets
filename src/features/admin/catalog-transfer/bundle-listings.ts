@@ -210,10 +210,12 @@ type EdgeCheckDeps = {
 const parentIsAChild = (
   resolved: BundleRef,
   { context, listingPlans }: EdgeCheckDeps,
-): boolean =>
-  "siteId" in resolved
-    ? context.siteListingsWithParent.has(resolved.siteId)
-    : bundleListingOf(resolved, context, listingPlans).parentKeys.length > 0;
+): boolean => {
+  if ("siteId" in resolved) {
+    return context.siteListingsWithParent.has(resolved.siteId);
+  }
+  return bundleListingOf(resolved, context, listingPlans).parentKeys.length > 0;
+};
 
 /** The site groups the merged membership pairs give one listing. Both
  * declaration sides land in the pairs, so this is the membership set the
@@ -232,15 +234,25 @@ const addOnReachesParent = (
   addOnId: number,
   parent: BundleRef,
 ): boolean => {
-  const coversGroup = (groupId: number): boolean =>
-    (context.optInAddOnsByGroup.get(groupId) ?? []).some(
-      (addOn) => addOn.id === addOnId,
+  let parentGroupIds: readonly number[] = [];
+  if ("siteId" in parent) {
+    parentGroupIds = requireValue(
+      context.groupsByParentId.get(parent.siteId),
+      "Parent groups missing",
     );
-  const parentGroupIds =
-    "siteId" in parent
-      ? (context.groupsByParentId.get(parent.siteId) ?? [])
-      : unique(siteGroupIdsOfListing(pairs, parent.bundleKey));
-  return parentGroupIds.some(coversGroup);
+  } else {
+    parentGroupIds = unique(siteGroupIdsOfListing(pairs, parent.bundleKey));
+  }
+  for (const groupId of parentGroupIds) {
+    const addOns = requireValue(
+      context.optInAddOnsByGroup.get(groupId),
+      "Group add-ons missing",
+    );
+    for (const addOn of addOns) {
+      if (addOn.id === addOnId) return true;
+    }
+  }
+  return false;
 };
 
 /** The add-on dead-end refusal for one child-parent edge, or null. A
@@ -254,15 +266,20 @@ const childAddOnDeadEndError = (
   parent: BundleRef,
 ): string | null => {
   if (plan.input.bookableAlone ?? false) return null;
-  const seen = new Set<number>();
-  for (const groupId of unique(siteGroupIdsOfListing(deps.pairs, childKey))) {
-    for (const addOn of deps.context.optInAddOnsByGroup.get(groupId) ?? []) {
-      if (seen.has(addOn.id)) continue;
-      seen.add(addOn.id);
-      if (!addOnReachesParent(deps, addOn.id, parent)) {
-        return childAddOnError(addOn.name, plan.input.name);
-      }
+  const groupIds = unique(siteGroupIdsOfListing(deps.pairs, childKey));
+  const judged = new Map<number, string>();
+  for (const groupId of groupIds) {
+    const addOns = requireValue(
+      deps.context.optInAddOnsByGroup.get(groupId),
+      "Group add-ons missing",
+    );
+    for (const addOn of addOns) {
+      judged.set(addOn.id, addOn.name);
     }
+  }
+  for (const [addOnId, addOnName] of judged) {
+    const reaches = addOnReachesParent(deps, addOnId, parent);
+    if (!reaches) return childAddOnError(addOnName, plan.input.name);
   }
   return null;
 };
