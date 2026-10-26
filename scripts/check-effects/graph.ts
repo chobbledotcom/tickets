@@ -8,7 +8,8 @@ import {
   resolveSpecifier,
   topLevelImports,
 } from "#scripts/check-imports/rules.ts";
-import { parseProgram, visitNodes } from "#scripts/parse-program.ts";
+import { parseProgram } from "#scripts/parse-program.ts";
+import { walkNodes } from "#scripts/walk-nodes.ts";
 
 /** One source file and its text, as the graph builder reads it. */
 export interface SourceFile {
@@ -37,6 +38,15 @@ export const resolveSpecifierToFile = (
   return null;
 };
 
+/** Parse one module and walk every node, depth-first, parents first. */
+const walkFileNodes = (
+  file: string,
+  content: string,
+  visit: (node: Record<string, unknown>) => void,
+): void => {
+  walkNodes(parseProgram(file, content), visit);
+};
+
 /** Every literal dynamic-import specifier in one parsed module. A
  * dynamic import with a computed specifier loads nothing this graph can
  * name. */
@@ -45,7 +55,7 @@ const dynamicImportSpecifiers = (
   content: string,
 ): readonly string[] => {
   const specifiers: string[] = [];
-  visitNodes(parseProgram(file, content), (node) => {
+  walkFileNodes(file, content, (node) => {
     const source = node.source;
     if (
       node.type === "ImportExpression" &&
