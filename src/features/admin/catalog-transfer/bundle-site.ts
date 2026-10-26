@@ -5,10 +5,14 @@
  * one query, all before the first database write.
  */
 
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 /* jscpd:ignore-start -- imports */
+import { inPlaceholders, queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getGroupsById } from "#db/groups.ts";
+import { listingParents } from "#db/listing-parents.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
+import { modifiersTable } from "#db/modifiers.ts";
 import { normalizeEntityName as nameKey } from "#db/name-registry.ts";
 import { unique } from "#fp";
 import { requireValue } from "#shared/required-value.ts";
@@ -49,8 +53,47 @@ export type ValidationContext = {
   listingIndexByName: Map<string, number>;
   listingRefs: ReadonlyMap<ListingBody, ListingRefs>;
   memberRefs: ReadonlyMap<GroupBody, ReadonlyMap<string, Resolved>>;
+  optInAddOnsByGroup: ReadonlyMap<number, { id: number; name: string }[]>;
   siteGroupById: Map<number, Group>;
+  /** The site groups the document's listings join. */
+  siteGroupIds: readonly number[];
   siteListingById: Map<number, ListingWithCount>;
+  /** The site listings that sit under a parent of their own. */
+  siteListingsWithParent: ReadonlySet<number>;
+};
+
+/** The group-scoped opt-in add-ons covering `groupIds`, one query, names
+ * decrypted for the refusal message. These are the only opt-ins that can
+ * reach a planned listing. A planned listing carries no add-on links of its
+ * own, so only a group it joins reaches one. */
+const optInAddOnsByGroupId = async (
+  groupIds: readonly number[],
+): Promise<ValidationContext["optInAddOnsByGroup"]> => {
+  const byGroup = new Map<number, { id: number; name: string }[]>();
+  if (groupIds.length === 0) return byGroup;
+  const rows = await queryAll<{
+    group_id: number;
+    modifier_id: number;
+    name: EnvKeyEncrypted;
+  }>(
+    `SELECT modifierGroup.group_id, modifier.id AS modifier_id, modifier.name
+       FROM modifiers AS modifier
+       JOIN modifier_groups AS modifierGroup
+         ON modifierGroup.modifier_id = modifier.id
+      WHERE modifier.active = 1 AND modifier.trigger = 'optional'
+        AND modifier.scope = 'groups'
+        AND modifierGroup.group_id IN (${inPlaceholders(groupIds)})`,
+    [...groupIds],
+  );
+  for (const row of rows) {
+    const addOns = byGroup.get(row.group_id) ?? [];
+    addOns.push({
+      id: row.modifier_id,
+      name: await modifiersTable.readColumn("name", row.name, row.modifier_id),
+    });
+    byGroup.set(row.group_id, addOns);
+  }
+  return byGroup;
 };
 
 /** The membership pairs both sides declared, indexed by each side's name so
@@ -115,11 +158,18 @@ export const buildContext = async (
     listingIndexByName,
     listingRefs,
     memberRefs,
+    optInAddOnsByGroup: new Map(),
     siteGroupById: new Map(),
+    siteGroupIds: [],
     siteListingById: new Map(),
+    siteListingsWithParent: new Set(),
   };
+  const siteGroupIds = unique(
+    [...listingRefs.values()].flatMap((refs) => siteIdsOf(refs.groups)),
+  );
+  const parentIds = unique(siteParentIdsOf(listingRefs));
   const siteListingIds = unique([
-    ...siteParentIdsOf(listingRefs),
+    ...parentIds,
     ...[...memberRefs.values()].flatMap(siteIdsOf),
   ]);
   context.siteListingById = new Map(
@@ -129,13 +179,20 @@ export const buildContext = async (
     ]),
   );
   context.siteGroupById = await getGroupsById();
+  context.siteGroupIds = siteGroupIds;
   // Every stored parent's own groups, one batched read, for the
   // hidden-package edge rule.
-  const parentIds = unique(siteParentIdsOf(listingRefs));
   context.groupsByParentId =
     parentIds.length === 0
       ? new Map()
       : await listingGroups.getIdsByKeys(parentIds);
+  // The site listings that sit under a parent of their own: the nesting rule
+  // the edge write applies to every named parent.
+  const parentLinks = await listingParents.getIdsByKeys(parentIds);
+  context.siteListingsWithParent = new Set(
+    [...parentLinks].flatMap(([id, links]) => (links.length > 0 ? [id] : [])),
+  );
+  context.optInAddOnsByGroup = await optInAddOnsByGroupId(siteGroupIds);
   return context;
 };
 

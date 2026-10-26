@@ -97,6 +97,13 @@ const sameDayPrices = (a: DayPrices, b: DayPrices): boolean => {
   );
 };
 
+/** The site group ids inside a list of membership pairs: the site rows the
+ * write links the listings to. */
+export const siteGroupIdsOfPairs = (pairs: Iterable<PlannedPair>): number[] =>
+  [...pairs].flatMap((pair) =>
+    "siteId" in pair.group ? [pair.group.siteId] : [],
+  );
+
 /** The stored listing row projected onto the edge-compatibility shape. */
 export const edgeListingOfRow = (row: ListingWithCount): EdgeListing => ({
   assign_built_site: row.assign_built_site,

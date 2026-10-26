@@ -6,12 +6,20 @@
 /* jscpd:ignore-start -- imports */
 import { getListingsByGroupIds } from "#db/groups.ts";
 import { normalizeEntityName as nameKey } from "#db/name-registry.ts";
-import { unique } from "#fp";
+import { requiredMapValue, unique } from "#fp";
+import { t } from "#i18n";
 import { dayPriceFieldsFromInput } from "#shared/listing-edge.ts";
-import { edgeFieldError } from "#shared/listing-parents-rules.ts";
+import {
+  childAddOnError,
+  edgeFieldError,
+} from "#shared/listing-parents-rules.ts";
 import { validateListingInput } from "#shared/listings-actions.ts";
-import { packageChildEdgeError } from "#shared/package-membership.ts";
+import {
+  packageChildEdgeError,
+  sitePlanMemberError,
+} from "#shared/package-membership.ts";
 import { requireValue } from "#shared/required-value.ts";
+import type { ListingWithCount } from "#types";
 import type { FailureCollector } from "./bundle-names.ts";
 import {
   type BundleRef,
@@ -20,6 +28,7 @@ import {
   type ListingPlan,
   type PlannedEdge,
   packageMemberRefusals,
+  siteGroupIdsOfPairs,
 } from "./bundle-plan.ts";
 import { resolvedReference, siteIdsOf } from "./bundle-refs.ts";
 import {
@@ -41,10 +50,7 @@ export const validateListings = async (
   adminLevel: Parameters<typeof applyImportPolicy>[1],
   fail: FailureCollector,
 ): Promise<ListingPlan[]> => {
-  const siteGroupIds = unique(
-    [...context.listingRefs.values()].flatMap((refs) => siteIdsOf(refs.groups)),
-  );
-  const siblingsByGroup = await getListingsByGroupIds(siteGroupIds);
+  const siblingsByGroup = await getListingsByGroupIds(context.siteGroupIds);
   const plans: ListingPlan[] = [];
   for (const [body, refs] of context.listingRefs) {
     const item = body.listing.name;
@@ -58,9 +64,32 @@ export const validateListings = async (
       item,
       await validateListingInput(input, undefined, { siblingsByGroup }),
     );
+    // A group that holds a stored built-site plan can only lose members.
+    // The single import refuses this join inside its write transaction.
+    fail.failIf(
+      item,
+      storedPlanJoinError(siteIdsOf(refs.groups), siblingsByGroup),
+    );
     checkSitePackageJoins(context, pairs, input, item, fail);
   }
   return plans;
+};
+
+/** The refusal for a join into a site group that holds a stored built-site
+ * plan. The plan books its own site, so the group can only lose members. */
+const storedPlanJoinError = (
+  groupIds: readonly number[],
+  siblingsByGroup: ReadonlyMap<number, ListingWithCount[]>,
+): string | null => {
+  for (const groupId of groupIds) {
+    const plan = requiredMapValue(
+      siblingsByGroup,
+      groupId,
+      "Missing group listing membership",
+    ).find((listing) => listing.assign_built_site);
+    if (plan !== undefined) return sitePlanMemberError(plan.name);
+  }
+  return null;
 };
 
 /** The listing-side package checks for SITE package groups: the pick count
@@ -175,16 +204,111 @@ type EdgeCheckDeps = {
   pairs: MembershipPairs;
 };
 
-/** One listing item's parent edges: the package conflicts first, as the edge
- * write path orders its guards, then the edge editor's compatibility rules. */
+/** True when the named parent is a child, or the document makes it one.
+ * A stored parent can sit under its own parent. A planned item can declare
+ * parents of its own. The edge write refuses both nests. */
+const parentIsAChild = (
+  resolved: BundleRef,
+  { context, listingPlans }: EdgeCheckDeps,
+): boolean =>
+  "siteId" in resolved
+    ? context.siteListingsWithParent.has(resolved.siteId)
+    : bundleListingOf(resolved, context, listingPlans).parentKeys.length > 0;
+
+/** The site groups the merged membership pairs give one listing. Both
+ * declaration sides land in the pairs, so this is the membership set the
+ * write creates. */
+const siteGroupIdsOfListing = (
+  pairs: MembershipPairs,
+  listingKey: string,
+): number[] =>
+  siteGroupIdsOfPairs(pairs.byListing.get(listingKey)?.values() ?? []);
+
+/** Whether one opt-in add-on reaches the edge's parent, through the
+ * parent's groups. A site row reads its stored groups. A planned item reads
+ * the document's merged memberships. */
+const addOnReachesParent = (
+  { context, pairs }: EdgeCheckDeps,
+  addOnId: number,
+  parent: BundleRef,
+): boolean => {
+  const coversGroup = (groupId: number): boolean =>
+    (context.optInAddOnsByGroup.get(groupId) ?? []).some(
+      (addOn) => addOn.id === addOnId,
+    );
+  const parentGroupIds =
+    "siteId" in parent
+      ? (context.groupsByParentId.get(parent.siteId) ?? [])
+      : unique(siteGroupIdsOfListing(pairs, parent.bundleKey));
+  return parentGroupIds.some(coversGroup);
+};
+
+/** The add-on dead-end refusal for one child-parent edge, or null. A
+ * group-scoped opt-in add-on the child reaches must also reach the parent.
+ * The child's own booking page exempts it. The edge write checks the same
+ * reachability inside its transaction. */
+const childAddOnDeadEndError = (
+  deps: EdgeCheckDeps,
+  plan: ListingPlan,
+  childKey: string,
+  parent: BundleRef,
+): string | null => {
+  if (plan.input.bookableAlone ?? false) return null;
+  const seen = new Set<number>();
+  for (const groupId of unique(siteGroupIdsOfListing(deps.pairs, childKey))) {
+    for (const addOn of deps.context.optInAddOnsByGroup.get(groupId) ?? []) {
+      if (seen.has(addOn.id)) continue;
+      seen.add(addOn.id);
+      if (!addOnReachesParent(deps, addOn.id, parent)) {
+        return childAddOnError(addOn.name, plan.input.name);
+      }
+    }
+  }
+  return null;
+};
+
+/** The refusal for one declared edge, or null when the edge can be written.
+ * The checks follow the edge write's guard order: the nesting rule, then the
+ * package conflicts, then the field rules, then the child add-on's reach. */
+const edgeRefusal = (
+  deps: EdgeCheckDeps,
+  body: ListingBody,
+  plan: ListingPlan,
+  resolved: BundleRef,
+): string | null => {
+  const { context, listingPlans, pairs } = deps;
+  if (parentIsAChild(resolved, deps)) {
+    return t("error.parent_is_already_a_child");
+  }
+  if (parentIsHiddenPackageMember(resolved, pairs, context)) {
+    return packageChildEdgeError("gate_in_hidden");
+  }
+  if (joinsAnyPackage(pairs, body.listing.name, context)) {
+    return packageChildEdgeError("child_is_member");
+  }
+  const parentEdge =
+    "siteId" in resolved
+      ? edgeListingOfRow(siteListingOf(resolved, context))
+      : edgeListingOfPlan(bundleListingOf(resolved, context, listingPlans));
+  const fieldError = edgeFieldError(parentEdge, edgeListingOfPlan(plan));
+  if (fieldError !== null) return fieldError;
+  return childAddOnDeadEndError(
+    deps,
+    plan,
+    nameKey(body.listing.name),
+    resolved,
+  );
+};
+
+/** One listing item's parent edges: each edge runs the checks the edge write
+ * guards, in its order. The first refusal fails the item and stops it. */
 const validateItemEdges = (
   { context, fail, listingPlans, pairs }: EdgeCheckDeps,
   body: ListingBody,
   plan: ListingPlan,
 ): PlannedEdge[] => {
+  const deps = { context, fail, listingPlans, pairs };
   const item = body.listing.name;
-  const childEdge = edgeListingOfPlan(plan);
-  const joinsPackage = joinsAnyPackage(pairs, item, context);
   const edges: PlannedEdge[] = [];
   for (const parentName of body.parents) {
     const resolved = resolvedReference(
@@ -192,20 +316,11 @@ const validateItemEdges = (
       parentName,
     );
     if (resolved === undefined) continue;
-    if (joinsPackage) {
-      fail.failItem(item, packageChildEdgeError("child_is_member"));
+    const refusal = edgeRefusal(deps, body, plan, resolved);
+    if (refusal !== null) {
+      fail.failItem(item, refusal);
       break;
     }
-    if (parentIsHiddenPackageMember(resolved, pairs, context)) {
-      fail.failItem(item, packageChildEdgeError("gate_in_hidden"));
-      break;
-    }
-    const parentEdge =
-      "siteId" in resolved
-        ? edgeListingOfRow(siteListingOf(resolved, context))
-        : edgeListingOfPlan(bundleListingOf(resolved, context, listingPlans));
-    fail.failIf(item, edgeFieldError(parentEdge, childEdge));
-    if (fail.hasFailed(item)) break;
     edges.push({ child: { bundleKey: nameKey(item) }, parent: resolved });
   }
   return edges;

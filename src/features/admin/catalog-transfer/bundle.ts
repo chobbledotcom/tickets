@@ -38,6 +38,7 @@ import {
   type BundleRef,
   describeFailure,
   type ImportedBundle,
+  siteGroupIdsOfPairs,
 } from "./bundle-plan.ts";
 import { validateBundle } from "./bundle-validate.ts";
 import { groupDataToInput } from "./import-listing.ts";
@@ -168,11 +169,7 @@ const writeBundle = async (
         ...edges.map((edge) => edge.parent),
       ].flatMap((ref) => ("siteId" in ref ? [ref.siteId] : [])),
     );
-    const siteGroupIds = unique(
-      pairs.flatMap((pair) =>
-        "siteId" in pair.group ? [pair.group.siteId] : [],
-      ),
-    );
+    const siteGroupIds = unique(siteGroupIdsOfPairs(pairs));
     await requireSiteEntitiesTx(tx, {
       groupIds: siteGroupIds,
       listingIds: siteListingIds,
