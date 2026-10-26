@@ -1,8 +1,9 @@
 /**
- * The bind lists that arrive through a SQL helper call: the second argument
- * of the query and write helpers, a bare name or an inline array, past the
- * type arguments a generic call carries. `findRepeatedBinds` reads these
- * beside the `args` object forms.
+ * What a SQL helper call carries: the statement text its first argument
+ * names, and the bind list its second argument holds — a bare name or an
+ * inline array, past the type arguments a generic call carries.
+ * `findRepeatedBinds` reads the bind lists beside the `args` object forms,
+ * and the numbered-token rule resolves the statement names to constants.
  */
 
 import { skipComment } from "#scripts/typescript-lex.ts";
@@ -12,6 +13,10 @@ import {
   pastSpaces,
   pastTypeArguments,
 } from "#test/scripts/code-quality/brackets.ts";
+import {
+  type Block,
+  visibleDeclaration,
+} from "#test/scripts/code-quality/scopes.ts";
 
 /** The SQL query and write helpers whose second call argument carries a
  * statement's bind list. `execute` also matches member calls (`tx.execute`);
@@ -112,6 +117,64 @@ const callOpens = (
     if (open >= 0) opens.push({ at: match.index, open });
   }
   return opens;
+};
+
+const BARE_NAME = /^[A-Za-z_$][\w$]*$/;
+
+/** The bare names the file's SQL helper calls receive as their first
+ *  argument, each with the position of its call: the statement text travels
+ *  through them. A call whose argument list never closes names nothing, and
+ *  the same name in another scope is a different constant. */
+export type SqlUse = { at: number; name: string };
+
+export const sqlConstantUses = (blanked: string): SqlUse[] => {
+  const uses: SqlUse[] = [];
+  for (const name of SQL_HELPERS) {
+    for (const { at, open } of callOpens(blanked, name)) {
+      const comma = firstArgumentComma(blanked, open);
+      const close = matchingBracket(blanked, open);
+      if (close < 0) continue;
+      const end = comma >= 0 ? comma : close;
+      const argument = blanked.slice(open + 1, end).trim();
+      if (BARE_NAME.test(argument)) uses.push({ at, name: argument });
+    }
+  }
+  return uses;
+};
+
+/** Every `const`/`let` declaration position of one file, by name. The
+ *  annotation a declaration may carry ends at its `=`, so one match covers
+ *  one declaration and a match never spans two statements. */
+const NAME_DECLARATION =
+  /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;{}]*?)?=/g;
+
+export const nameDeclarations = (
+  blanked: string,
+): Map<string, { start: number }[]> => {
+  const declarations = new Map<string, { start: number }[]>();
+  for (const match of [...blanked.matchAll(NAME_DECLARATION)]) {
+    const name = match[1] as string;
+    const starts = declarations.get(name) ?? [];
+    starts.push({ start: match.index });
+    declarations.set(name, starts);
+  }
+  return declarations;
+};
+
+/** The declaration positions the file's SQL helper calls receive: the
+ *  binding visible at a call is the constant whose string spans count as
+ *  SQL text. A bare name without a visible declaration names nothing. */
+export const sqlCarryingStarts = (
+  blanked: string,
+  blocks: Block[],
+  declarations: Map<string, { start: number }[]>,
+): Set<number> => {
+  const carrying = new Set<number>();
+  for (const { at, name } of sqlConstantUses(blanked)) {
+    const visible = visibleDeclaration(blocks, declarations.get(name), at);
+    if (visible !== undefined) carrying.add(visible.start);
+  }
+  return carrying;
 };
 
 /** The positions where a statement receives its bind list: an `args: name`
