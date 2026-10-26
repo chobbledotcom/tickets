@@ -1,19 +1,22 @@
 /**
- * Admin JSON API routes for the site pages resource: the content pages
- * (site_pages rows, addressed by id). Site → Pages admits owners and
- * editors, so the JSON API matches. The fixed pages (home, contact and
- * terms) land with their own layer.
+ * Admin JSON API routes for the site pages resource. The content pages
+ * (site_pages rows) are addressed by id. The fixed pages (home, contact
+ * and terms) are addressed by name. Site → Pages admits owners and
+ * editors, so the JSON API matches.
  *
- * The writes skip the generic CRUD writer (defineCrudApi): a create carries
- * its root order inside the INSERT, and the slug index moves with the slug.
- * Create and update go through the form's own DB wrappers (createSitePage,
- * updateSitePage). A delete clears the tree edges with the row
- * (deleteSitePageWithEdges). Parsers and auth are the shared ones.
+ * The content-page writes skip the generic CRUD writer (defineCrudApi).
+ * A create carries its root order inside the INSERT, and the slug index
+ * moves with the slug. Create and update go through the form's own DB
+ * wrappers (createSitePage, updateSitePage). A delete clears the tree
+ * edges with the row (deleteSitePageWithEdges). The fixed pages are
+ * settings-backed. Their content is the public page text, changed through
+ * the settings writers. Parsers and auth are the shared ones.
  */
 
 /* jscpd:ignore-start */
 import { logActivity } from "#db/activity-log.ts";
 import { type TxScope, withTransaction } from "#db/client.ts";
+import { settings } from "#db/settings.ts";
 import {
   deleteSitePageWithEdges,
   getAllPageItems,
@@ -45,7 +48,11 @@ import {
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import type { Result } from "#shared/result.ts";
 import { SITE_ADMIN_LEVELS, type SitePage, type SitePageItem } from "#types";
-import { planParentChange, toPageWrite } from "./api-site-pages-input.ts";
+import {
+  planParentChange,
+  toFixedPageContent,
+  toPageWrite,
+} from "./api-site-pages-input.ts";
 
 /* jscpd:ignore-end */
 
@@ -254,6 +261,86 @@ const handleDelete: RouteHandlerFn = withPage(async (page, body) => {
   return jsonResponse({ status: "ok" });
 });
 
+// ─── Fixed pages (home, contact, terms) ────────────────────────
+
+/** The three fixed pages: not site_pages rows, but the settings-backed public
+ *  pages. Each names the setting that holds its content and the writer that
+ *  changes it. Only the content can change. */
+const FIXED_PAGES = {
+  contact: {
+    content: () => settings.contactPageText,
+    save: (content: string) => settings.update.contactPageText(content),
+  },
+  home: {
+    content: () => settings.homepageText,
+    save: (content: string) => settings.update.homepageText(content),
+  },
+  terms: {
+    content: () => settings.terms,
+    save: (content: string) => settings.update.terms(content),
+  },
+} as const satisfies Record<
+  string,
+  { content: () => string; save: (content: string) => Promise<void> }
+>;
+
+type FixedPageName = keyof typeof FIXED_PAGES;
+
+/** The fixed page as the API answers with it: only its name and its
+ *  content. A fixed page has no id, slug, parent, or hidden flag. */
+const fixedPageResponse = (name: FixedPageName, content: string): Response =>
+  jsonResponse({ [RESPONSE_KEY]: { content, name } });
+
+/** A fixed-page route's body handler: the parsed JSON body in, the response
+ *  out. */
+type FixedPageBodyHandler = (
+  body: Record<string, unknown>,
+) => Promise<Response>;
+
+/** A fixed-page route: authenticate the request under SITE_API, then run
+ *  `handle` with the parsed JSON body. The fixed-page handlers share the
+ *  auth and body wiring. */
+const fixedPageRoute =
+  (handle: FixedPageBodyHandler): RouteHandlerFn =>
+  (request) =>
+    withAuth(request, SITE_API, (_session, body) => handle(body));
+
+/** GET /api/admin/site-pages/:name — read one fixed page. */
+const handleFixedGet = (name: FixedPageName): RouteHandlerFn =>
+  fixedPageRoute(async () =>
+    fixedPageResponse(name, FIXED_PAGES[name].content()),
+  );
+
+/** PUT /api/admin/site-pages/:name — update one fixed page's content. The
+ *  shared content rule refuses a field the page cannot carry, and an
+ *  unusable content value. The settings writer stores the text and bumps
+ *  the settings version, so the public page and the sitemap reload. */
+const handleFixedUpdate = (name: FixedPageName): RouteHandlerFn =>
+  fixedPageRoute(async (body) => {
+    const content = toFixedPageContent(body, FIXED_PAGES[name].content());
+    if (!content.ok) return apiErrorResponse(content.error);
+    await FIXED_PAGES[name].save(content.value);
+    await logActivity(`${ENTRY.label} '${name}' updated`);
+    return fixedPageResponse(name, content.value);
+  });
+
+/** POST and DELETE on a fixed page answer a refusal. The admin form has
+ *  no create or delete for home, contact, or terms, so the JSON API
+ *  refuses them the same way. */
+const handleFixedRefusal = (verb: "created" | "deleted"): RouteHandlerFn =>
+  fixedPageRoute(async () => apiErrorResponse(`fixed pages cannot be ${verb}`));
+
+/** The four routes one fixed page answers to. The literal name segment beats
+ *  the content pages' `:pageId` route (which only matches digits). */
+const fixedPageRoutes = (
+  name: FixedPageName,
+): Record<string, RouteHandlerFn> => ({
+  [`DELETE /api/admin/site-pages/${name}`]: handleFixedRefusal("deleted"),
+  [`GET /api/admin/site-pages/${name}`]: handleFixedGet(name),
+  [`POST /api/admin/site-pages/${name}`]: handleFixedRefusal("created"),
+  [`PUT /api/admin/site-pages/${name}`]: handleFixedUpdate(name),
+});
+
 // ─── Routes ─────────────────────────────────────────────────────
 
 export const sitePageApiRoutes: Record<string, RouteHandlerFn> = {
@@ -262,4 +349,7 @@ export const sitePageApiRoutes: Record<string, RouteHandlerFn> = {
   "GET /api/admin/site-pages/:pageId": handleGet,
   "POST /api/admin/site-pages": handleCreate,
   "PUT /api/admin/site-pages/:pageId": handleUpdate,
+  ...fixedPageRoutes("contact"),
+  ...fixedPageRoutes("home"),
+  ...fixedPageRoutes("terms"),
 };

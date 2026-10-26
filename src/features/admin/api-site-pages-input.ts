@@ -81,7 +81,7 @@ const withSupplied = (
 /** One writable text field: a value past the field's cap gets the form's own
  *  length refusal. The form reads submitted values trimmed, so the API trims
  *  too. */
-const optionalTextField = (
+export const optionalTextField = (
   body: Record<string, unknown>,
   key: keyof typeof FIELD_LABELS,
   stored: string,
@@ -175,6 +175,36 @@ export const toPageWrite = (
     name: name.value,
     slug: slug.value,
   });
+};
+
+/** The content-page write fields a fixed page does not carry. A body that
+ *  names one is refused with the field-named message, so a client cannot
+ *  send a fixed page a shape it cannot hold. */
+const FIXED_PAGE_BARRED_FIELDS = [
+  "hidden",
+  "meta_description",
+  "meta_title",
+  "name",
+  "parent",
+  "slug",
+] as const;
+
+/** The fixed page's content: the one writable field of a home, contact or
+ *  terms page. Absent keeps the stored text. A body naming any content-page
+ *  field a fixed page does not carry is refused with the field-named
+ *  message. A supplied content runs the shared text rule: trimmed, and a
+ *  non-string is refused with the field message. A value past the form's
+ *  textarea cap answers the form's length message. */
+export const toFixedPageContent = (
+  body: Record<string, unknown>,
+  stored: string,
+): Result<string> => {
+  for (const field of FIXED_PAGE_BARRED_FIELDS) {
+    if (body[field] !== undefined) {
+      return errorResult(`${field} cannot change on a fixed page`);
+    }
+  }
+  return optionalTextField(body, "content", stored);
 };
 
 /** The tx step both parent writes share: drop the page's current parent

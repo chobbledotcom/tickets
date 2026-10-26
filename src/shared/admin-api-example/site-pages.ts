@@ -1,6 +1,7 @@
 /**
  * The site-pages resource's doc entries: the five standard content-page
- * endpoints. The paths come from the resource table, so the docs cannot
+ * endpoints plus the fixed pages (home, contact and terms) read and updated
+ * by name. The paths come from the resource table, so the docs cannot
  * disagree with the server about them.
  */
 
@@ -14,7 +15,7 @@ import {
   type AdminApiSitePage,
 } from "#shared/admin-api-resources.ts";
 import type { DeleteBody } from "#shared/rest/crud-parsers.ts";
-import { crudDocs, type EndpointDoc } from "./endpoint-doc.ts";
+import { crudDocs, type EndpointDoc, json } from "./endpoint-doc.ts";
 // jscpd:ignore-end
 
 /** One content page exactly as the admin endpoints answer with it: the
@@ -47,6 +48,26 @@ const SITE_PAGE_DELETE_BODY: DeleteBody = {
   confirm_identifier: ADMIN_API_EXAMPLE_SITE_PAGE.name,
 };
 
+/** The content a fixed-page read or update answers with. The home, contact,
+ *  and terms pages share the shape: their name plus this body text. */
+const FIXED_PAGE_CONTENT = "Welcome to the hut. The hill is open all year.";
+
+/** One documented fixed-page route. The path and the page shape are shared
+ *  across the three names and the read, update, and refusal verbs. */
+const fixedPageDoc = (
+  name: "contact" | "home" | "terms",
+  method: "DELETE" | "GET" | "POST" | "PUT",
+  description: string,
+  response: unknown,
+  request?: unknown,
+): EndpointDoc => ({
+  description,
+  method,
+  path: `/api/admin/site-pages/${name}`,
+  ...(request === undefined ? {} : { request: json(request) }),
+  response: json(response),
+});
+
 export const SITE_PAGE_ENDPOINTS: EndpointDoc[] = [
   ...crudDocs({
     createBody: CREATE_SITE_PAGE_BODY,
@@ -64,4 +85,30 @@ export const SITE_PAGE_ENDPOINTS: EndpointDoc[] = [
     singular: "page",
     updateBody: UPDATE_SITE_PAGE_BODY,
   }),
+  // The three fixed pages: home, contact and terms. Each is read and its
+  // content updated by name, and cannot be created, deleted, or hidden.
+  ...(["home", "contact", "terms"] as const).flatMap((name) => [
+    fixedPageDoc(name, "GET", `Read the ${name} page (owners and editors)`, {
+      page: { content: FIXED_PAGE_CONTENT, name },
+    }),
+    fixedPageDoc(
+      name,
+      "PUT",
+      `Update the ${name} page's content (owners and editors)`,
+      { page: { content: FIXED_PAGE_CONTENT, name } },
+      { content: FIXED_PAGE_CONTENT },
+    ),
+    fixedPageDoc(
+      name,
+      "POST",
+      "A fixed page cannot be created (owners and editors)",
+      { error: "fixed pages cannot be created" },
+    ),
+    fixedPageDoc(
+      name,
+      "DELETE",
+      "A fixed page cannot be deleted (owners and editors)",
+      { error: "fixed pages cannot be deleted" },
+    ),
+  ]),
 ];
