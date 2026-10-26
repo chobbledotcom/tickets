@@ -1,5 +1,5 @@
-import { escapeAnnotationValue } from "../github-actions.ts";
-import type { TestQualityFinding } from "../test-quality-audit-model.ts";
+import { escapeAnnotationValue } from "#scripts/github-actions.ts";
+import type { TestQualityFinding } from "#scripts/test-quality-audit-model.ts";
 
 /** One finding rendered the way the audit names it. */
 export const formatQualityFinding = (finding: TestQualityFinding): string =>

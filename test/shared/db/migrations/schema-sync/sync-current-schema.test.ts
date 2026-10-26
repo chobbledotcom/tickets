@@ -3,7 +3,6 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 import { syncCurrentSchema } from "#db/migrations/schema-sync.ts";
-import { logLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import {
   readListingAggregates,
   readModifierAggregates,
@@ -12,6 +11,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
+import { logLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 import { insertModifier, insertModifierUsage } from "#test-utils/modifiers.ts";
 

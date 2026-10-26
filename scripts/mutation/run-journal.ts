@@ -13,10 +13,10 @@
 
 import { join } from "@std/path";
 import * as v from "valibot";
+import { nonBlankLines } from "#scripts/lines.ts";
 import { rel } from "#scripts/project-root.ts";
 import { readJsonOrNull } from "#scripts/read-json.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { nonBlankLines } from "../lines.ts";
 import { MUTATION_RUN_ROOT_ENV } from "./isolation-state.ts";
 import { type MutantResult, summarize } from "./summary.ts";
 import { writeWholeOrNotAtAll } from "./write-whole.ts";

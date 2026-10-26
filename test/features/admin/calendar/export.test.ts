@@ -23,7 +23,7 @@ import {
   bookDailyTicket,
   fetchCalendarResponse,
   tomorrow,
-} from "../calendar-test-helpers.ts";
+} from "#test/features/admin/calendar-test-helpers.ts";
 import {
   setupDailyBooking,
   setupMixedBookings,
