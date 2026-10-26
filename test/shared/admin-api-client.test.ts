@@ -41,6 +41,13 @@ const stubTransport = (
 };
 
 describe("admin api client", () => {
+  test("list refuses a resource that serves no list route", async () => {
+    const { transport } = stubTransport({});
+    await expect(
+      adminApiList(transport, ADMIN_API_RESOURCES.attendees),
+    ).rejects.toThrow("admin api attendees serves no list route");
+  });
+
   test("list builds the table's path and validates the envelope", async () => {
     const { calls, transport } = stubTransport({
       attributes: [ATTRIBUTE],

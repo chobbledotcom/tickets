@@ -1,4 +1,5 @@
 import { expect } from "@std/expect";
+import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#db/attendees/api.ts";
 import type { ExistingLine } from "#db/attendees/atomic-update.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
@@ -19,6 +20,17 @@ import type { Attendee, Listing } from "#types";
 import { createDailyTestListing, createTestListing } from "./listings.ts";
 
 export { getAttendeesRaw };
+
+/** Stub the atomic attendee create to refuse with a capacity failure, for
+ *  tests of the create-refused path. */
+export const stubRefusedAtomicCreate = () =>
+  stub(attendeesApi, "createAttendeeAtomic", () =>
+    Promise.resolve({
+      listingIds: [],
+      reason: "capacity_exceeded" as const,
+      success: false,
+    }),
+  );
 
 export const expectNoAttendeesForListings = async (
   listingIds: number[],

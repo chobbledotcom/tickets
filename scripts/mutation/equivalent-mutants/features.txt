@@ -315,8 +315,6 @@ src/features/admin/attendee-form-model.ts::clampDayCount~0tzfryu  ?? → || audi
 src/features/admin/attendee-form-model.ts::clampDayCount~0tzfryu  1 → 0 audited:0ni0min # same clamp: a null raw clamps to 1 whether the fallback is 0 or 1, because clampDurationDays floors at 1
 src/features/admin/attendee-form-model.ts::resolveStatusId~07pfg6s  ?? → || audited:0ni0min # the two operators differ only at statusId 0, and the sole production caller (parseAttendeeForm) maps a non-positive raw to null before calling, so 0 never reaches the function
 src/features/admin/attendee-form-model.ts::resolveSharedDates.dated.duration~04xi3o1  ?? → || audited:0ni0min # bookingDurationDays returns null or a span of at least one whole day, never 0, so the nullish and falsy arms agree on every reachable value
-src/features/admin/attendee-form-model.ts::toLedgerOrder.fullSubtotal~16fny0e  0 → 1 audited:0ni0min # the manual-add order feeds only manualAddLedgerPoster, whose owedOrderForLedger reads total (forced to 0), extras (emptied), lines, and modifierApplications — never fullSubtotal
-src/features/admin/attendee-form-model.ts::toLedgerOrder.total~1qdsgd9  0 → 1 audited:0ni0min # owedOrderForLedger spreads the order and overwrites total with 0 before every consumer, so the value set here is never read
 src/features/admin/attendees-route-helpers.ts::loadPaymentReviewActionData.listingId~1glbb8m  ?? → || audited:09nlv1i # getFirstBooking returns a listing_attendees row, whose listingId comes from an AUTOINCREMENT key that starts at 1, so 0 never occurs and the nullish and falsy arms agree on every reachable value
 # Door-safe check-in projection: the fields it blanks are contact columns the
 # fixed DOOR_SAFE_COLUMNS layout never renders, so no rendered page can carry

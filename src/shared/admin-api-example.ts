@@ -192,6 +192,18 @@ const ADMIN_API_ATTENDEE_STATUS_DELETE_BODY = {
   confirm_identifier: "Reserved",
 } satisfies DeleteBody;
 
+/** The create body a caller copies: one booking line on a standard listing,
+ *  with the attendee's contact fields and the status by name. */
+const ADMIN_API_ATTENDEE_CREATE_BODY = {
+  address: "12 Main Street, Springfield",
+  email: "jane@example.com",
+  lines: [{ listingId: 4, quantity: 2 }],
+  name: "Jane Doe",
+  phone: "+1 555 0123",
+  special_instructions: "Vegetarian",
+  status: "Confirmed",
+};
+
 // =============================================================================
 // Attribute examples (owner only)
 // =============================================================================
@@ -451,6 +463,14 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     singular: "status",
     updateBody: ADMIN_API_ATTENDEE_STATUS_UPDATE_BODY,
   }),
+  {
+    description:
+      "Create a booking. The answer is the stored attendee row. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op.",
+    method: "POST",
+    path: "/api/admin/attendees",
+    request: json(ADMIN_API_ATTENDEE_CREATE_BODY),
+    response: json({ attendee: ADMIN_API_EXAMPLE_ATTENDEE }),
+  },
   ...QUESTION_ENDPOINTS,
   ...SITE_PAGE_ENDPOINTS,
 ];

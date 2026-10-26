@@ -138,6 +138,17 @@ export type AdminApiAttendeeStatus = v.InferOutput<
   typeof AttendeeStatusRowSchema
 >;
 
+/** One attendee booking row as the admin API answers with it. The row schema
+ *  stays open — the server owns the rest of the stored row. */
+export const AttendeeRowSchema = v.looseObject({
+  id: v.number(),
+  listing_id: v.number(),
+  name: v.string(),
+  quantity: v.number(),
+});
+
+export type AdminApiAttendeeRow = v.InferOutput<typeof AttendeeRowSchema>;
+
 /** The writable fields one site-page update carries, including the parent.
  *  The field list repeats the shape uptime-kuma's own schemas spell. The two
  *  domains share nothing, so the matcher's finding is marked. */
@@ -272,6 +283,18 @@ export type AdminApiCustomRoute = {
   subpath: string;
 };
 
+/** Which of the five standard routes a resource serves. Absent means all five
+ *  (list, get, create, update, delete). A create-only surface declares only
+ *  the routes it answers. The route table, the CLI, and the docs then never
+ *  offer a path the server 404s. */
+export type AdminApiServes = {
+  create?: boolean;
+  delete?: boolean;
+  get?: boolean;
+  list?: boolean;
+  update?: boolean;
+};
+
 export type AdminApiResource = {
   children?: Record<string, AdminApiChild>;
   /** Server-side custom routes. A `DELETE` on the resource's own id segment
@@ -281,8 +304,11 @@ export type AdminApiResource = {
   /** The display name the server logs and confirms with ("Attribute"). The
    *  single-envelope key and the id param name derive from it lowercased. */
   label: string;
-  listSchema: v.GenericSchema;
+  /** Absent on a create-only resource that serves no collection route. */
+  listSchema?: v.GenericSchema;
   path: string;
+  /** The standard routes the resource serves, all five when absent. */
+  serves?: AdminApiServes;
   singleSchema: v.GenericSchema;
   updateBodySchema?: v.GenericSchema;
 };
@@ -299,6 +325,15 @@ export const ADMIN_API_RESOURCES = {
     path: "attendee-statuses",
     singleSchema: v.looseObject({ status: AttendeeStatusRowSchema }),
     updateBodySchema: UpdateAttendeeStatusBodySchema,
+  },
+  attendees: {
+    // The create is the one standard route this surface serves. A booking
+    // needs the server's full validation, so the table declares no client
+    // body schema. The server owns the request shape.
+    label: "Attendee",
+    path: "attendees",
+    serves: { create: true },
+    singleSchema: v.looseObject({ attendee: AttendeeRowSchema }),
   },
   attributes: {
     children: {

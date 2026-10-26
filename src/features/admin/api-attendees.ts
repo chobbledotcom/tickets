@@ -21,11 +21,8 @@ import type { ListingBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import type { PendingNotificationFlag } from "#db/attendees/notification-flags.ts";
-import {
-  decryptAttendeeFields,
-  getAttendeeIdForToken,
-} from "#db/attendees/pii.ts";
-import { getAttendeeRaw } from "#db/attendees/queries.ts";
+import { decryptAttendeeFields } from "#db/attendees/pii.ts";
+import { getAttendeeRawByToken } from "#db/attendees/queries.ts";
 import { getListingsById } from "#db/listings/records.ts";
 import { byId, sumOf } from "#fp";
 import { emailPendingForAdminLines } from "#routes/admin/attendees-route-helpers.ts";
@@ -40,6 +37,7 @@ import {
   listPriceOrder,
   type PricedOrder,
 } from "#shared/checkout-pricing.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
@@ -88,7 +86,7 @@ type ApiLine = {
  * retry token, and at least one booking line. */
 type ParsedApiCreate = ContactInfo & {
   lines: ApiLine[];
-  statusId: number | null;
+  statusId: number;
   ticketToken: string | undefined;
 };
 
@@ -211,28 +209,30 @@ const parseLine = (
 
 /** The status a create body asks for. A named status resolves by name. When
  * the body names none, the attendee takes the public default, the same
- * coercion the manual-add form makes. */
+ * coercion the manual-add form makes. A site with no public default is a
+ * broken setup and fails loudly, never a silent status-less booking. */
 const resolveStatusId = (
   name: string | undefined,
   statuses: AttendeeStatus[],
-): Result<number | null> => {
-  if (name === undefined) {
-    return okResult(
-      statuses.find((candidate) => candidate.is_public_default)?.id ?? null,
-    );
+): Result<number> => {
+  if (name !== undefined) {
+    const status = statuses.find((candidate) => candidate.name === name);
+    return status === undefined
+      ? errorResult(`Unknown status '${name}'`)
+      : okResult(status.id);
   }
-  const status = statuses.find((candidate) => candidate.name === name);
-  return status === undefined
-    ? errorResult(`Unknown status '${name}'`)
-    : okResult(status.id);
+  return okResult(
+    requireValue(
+      statuses.find((candidate) => candidate.is_public_default),
+      "No public default status is configured",
+    ).id,
+  );
 };
 
 /** The status and retry token a body asks for, or the refusal. */
 const parseStatusAndToken = async (
   body: Record<string, unknown>,
-): Promise<
-  Result<{ statusId: number | null; ticketToken: string | undefined }>
-> => {
+): Promise<Result<{ statusId: number; ticketToken: string | undefined }>> => {
   const status = body.status;
   if (status !== undefined && (typeof status !== "string" || status === "")) {
     return errorResult("status must be text");
@@ -317,10 +317,8 @@ const toLedgerOrder = (lines: ApiLine[]): PricedOrder =>
 const retriedAttendeeResponse = async (
   token: string,
 ): Promise<Response | null> => {
-  const existingId = await getAttendeeIdForToken(token);
-  if (existingId === null) return null;
-  const existing = await getAttendeeRaw(existingId);
-  if (existing === null) return apiErrorResponse("Attendee not found", 404);
+  const existing = await getAttendeeRawByToken(token);
+  if (existing === null) return null;
   return jsonResponse({
     attendee: toApiAttendee(
       await decryptAttendeeFields(existing, await requireRequestPrivateKey()),

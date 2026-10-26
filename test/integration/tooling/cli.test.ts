@@ -18,6 +18,7 @@ import { jsonResponse } from "#routes/response.ts";
 import {
   ADMIN_API_RESOURCES,
   type AdminApiResource,
+  type AdminApiServes,
 } from "#shared/admin-api-resources.ts";
 import { runDeps, testTable } from "#test-utils/cli-table.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -289,6 +290,22 @@ describe("CLI table-vs-server", () => {
     // Neither side can silently drift.
     const entries: readonly [string, AdminApiResource][] =
       Object.entries(ADMIN_API_RESOURCES);
+    const serves = (
+      entry: AdminApiResource,
+      verb: keyof AdminApiServes,
+    ): boolean => entry.serves === undefined || entry.serves[verb] === true;
+    /** The standard routes a resource serves, one per verb it declares. */
+    const standardRoutes = (entry: AdminApiResource): string[] => {
+      const root = `/api/admin/${entry.path}`;
+      const idParam = `:${entry.label.toLowerCase()}Id`;
+      const routes: string[] = [];
+      if (serves(entry, "list")) routes.push(`GET ${root}`);
+      if (serves(entry, "get")) routes.push(`GET ${root}/${idParam}`);
+      if (serves(entry, "create")) routes.push(`POST ${root}`);
+      if (serves(entry, "update")) routes.push(`PUT ${root}/${idParam}`);
+      if (serves(entry, "delete")) routes.push(`DELETE ${root}/${idParam}`);
+      return routes;
+    };
     const declared = entries.flatMap(([, entry]) => {
       const root = `/api/admin/${entry.path}`;
       const idParam = `:${entry.label.toLowerCase()}Id`;
@@ -302,15 +319,7 @@ describe("CLI table-vs-server", () => {
       const custom = Object.entries(entry.custom ?? {}).map(
         ([, route]) => `${route.method} ${root}/${route.subpath}`,
       );
-      return [
-        `GET ${root}`,
-        `GET ${root}/${idParam}`,
-        `POST ${root}`,
-        `PUT ${root}/${idParam}`,
-        `DELETE ${root}/${idParam}`,
-        ...children,
-        ...custom,
-      ];
+      return [...standardRoutes(entry), ...children, ...custom];
     });
     // A custom route may occupy the standard delete's key, and the server's
     // route map holds each key once.
