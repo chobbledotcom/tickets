@@ -40,7 +40,9 @@ describe("the record a mutation run keeps on disk", () => {
         await rename(from, to);
       }) as typeof Deno.rename);
 
-      const writing = writeRunRecord(markRunning(record, 4242));
+      const writing = writeRunRecord(
+        markRunning(record, { pid: 4242, supervisorPid: 4243 }),
+      );
       // Read only once the swap is under way, or this would prove nothing.
       await swapping.promise;
       expect(await readRunRecord(recordPath("swap", root))).toMatchObject({

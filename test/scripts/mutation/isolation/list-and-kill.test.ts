@@ -4,6 +4,8 @@ import { stub } from "@std/testing/mock";
 import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
   ISOLATION_USAGE,
+  type MutationRunRecord,
+  markChildEnded,
   markFinished,
   markRunning,
   newRunRecord,
@@ -13,6 +15,7 @@ import {
   finishedRun,
   runIdNamed,
   runningRun,
+  runningRunApart,
   runningWithoutPid,
   runQuietMutationCommand,
   withTempDir,
@@ -27,6 +30,24 @@ import {
 } from "./helpers.ts";
 
 describe("listing, signalling and cleaning isolated runs", () => {
+  /** Write a run's record and its fresh claim, then run a kill command over
+   * it while every signal sent is recorded instead of delivered. */
+  const killRecordedRun = async (
+    root: string,
+    record: MutationRunRecord,
+    ...extraArgs: string[]
+  ): Promise<{ calls: KillCall[]; result: number }> => {
+    await writeRunRecord(record);
+    await writeRunClaim(record);
+    const calls: KillCall[] = [];
+    using _kill = recordKillCalls(calls);
+    const result = await runQuietMutationCommand(
+      ["--kill", record.id, ...extraArgs],
+      root,
+    );
+    return { calls, result };
+  };
+
   test("runs invalid, help, and empty list commands", async () => {
     await withTempDir(async (root) => {
       const invalid = await captureMutationCommand([], root);
@@ -59,7 +80,7 @@ describe("listing, signalling and cleaning isolated runs", () => {
           root,
           "2026-07-09T12:04:00.000Z",
         ),
-        Deno.pid,
+        { pid: Deno.pid, supervisorPid: Deno.pid },
       );
       const live = markRunning(
         newRunRecord(
@@ -68,11 +89,11 @@ describe("listing, signalling and cleaning isolated runs", () => {
           root,
           "2026-07-09T12:03:00.000Z",
         ),
-        Deno.pid,
+        { pid: Deno.pid, supervisorPid: Deno.pid },
       );
       const stale = markRunning(
         newRunRecord(runIdNamed("stale"), [], root, "2026-07-09T12:02:00.000Z"),
-        99_999_999,
+        { pid: 99_999_999, supervisorPid: 99_999_999 },
       );
       const copying = newRunRecord(
         runIdNamed("copying"),
@@ -125,10 +146,13 @@ describe("listing, signalling and cleaning isolated runs", () => {
       const live = runningRun("live", root, Deno.pid);
       const noPid = runningWithoutPid("nopid", root);
       const passed = finishedRun("passed", root);
-      // Finished, but its pid is this very process, so the pid is certainly
+      // Finished, but its pids are this very process, so they are certainly
       // alive: only the status should keep it from being signalled.
       const done = markFinished(
-        markRunning(newRunRecord(runIdNamed("done"), [], root), Deno.pid),
+        markRunning(newRunRecord(runIdNamed("done"), [], root), {
+          pid: Deno.pid,
+          supervisorPid: Deno.pid,
+        }),
         0,
       );
       await writeRecords([live, noPid, passed, done]);
@@ -167,6 +191,49 @@ describe("listing, signalling and cleaning isolated runs", () => {
       ).toBe(1);
       // Still only the two signals sent to the live run above.
       expect(calls).toHaveLength(2);
+    });
+  });
+
+  test("signals a run's supervisor, never the child pid beside it", async () => {
+    await withTempDir(async (root) => {
+      // The record as a kill between the child's exit and the record write
+      // finds it: the child's pid is still in it — and live, since the system
+      // may have handed that id to a stranger — while only the supervisor is
+      // left of the run. Signalling the child's pid would be a guess about
+      // somebody else's process, so only the supervisor may be signalled.
+      const racing = runningRunApart("racing", root, {
+        pid: Deno.ppid,
+        supervisorPid: Deno.pid,
+      });
+
+      const polite = await killRecordedRun(root, racing);
+      const forced = await killRecordedRun(root, racing, "--force");
+
+      expect(polite.result).toBe(0);
+      expect(forced.result).toBe(0);
+      expect([...polite.calls, ...forced.calls]).toEqual([
+        { pid: Deno.pid, signal: "SIGTERM" },
+        { pid: Deno.pid, signal: "SIGKILL" },
+      ]);
+    });
+  });
+
+  test("still signals a run whose child has ended, through its supervisor", async () => {
+    await withTempDir(async (root) => {
+      // The record once the child's status resolved: its pid has already
+      // left it, and the supervisor is bringing the run's kept files back.
+      // The kill must still reach the run, through the supervisor.
+      const windingDown = markChildEnded(
+        runningRunApart("winding-down", root, {
+          pid: Deno.ppid,
+          supervisorPid: Deno.pid,
+        }),
+      );
+
+      const { calls, result } = await killRecordedRun(root, windingDown);
+
+      expect(result).toBe(0);
+      expect(calls).toEqual([{ pid: Deno.pid, signal: "SIGTERM" }]);
     });
   });
 
