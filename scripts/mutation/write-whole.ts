@@ -5,9 +5,14 @@ import { errorMessage } from "#shared/error-message.ts";
 export interface WriteWholeDeps {
   remove(path: string): Promise<void>;
   rename(from: string, to: string): Promise<void>;
+  writeTextFile(path: string, text: string): Promise<void>;
 }
 
-const realDeps: WriteWholeDeps = { remove: Deno.remove, rename: Deno.rename };
+const realDeps: WriteWholeDeps = {
+  remove: Deno.remove,
+  rename: Deno.rename,
+  writeTextFile: Deno.writeTextFile,
+};
 
 /** Take a failed write's temp file back away. The write can die before the
  * temp exists, so an absent file means there is nothing left to do; any other
@@ -38,7 +43,7 @@ export const writeWholeOrNotAtAll = async (
   const temp = `${path}.writing`;
   let renamed = false;
   try {
-    await Deno.writeTextFile(temp, text);
+    await deps.writeTextFile(temp, text);
     await deps.rename(temp, path);
     renamed = true;
   } finally {

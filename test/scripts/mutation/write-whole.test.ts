@@ -16,6 +16,30 @@ describe("writing a whole file", () => {
     });
   });
 
+  test("removes the temp file when the write dies part-way", async () => {
+    await withTempDir(async (dir) => {
+      const file = join(dir, "listing.ts");
+      await Deno.writeTextFile(file, "old\n");
+      const failure = new Error("no space left on device");
+      await assertRejects(
+        () =>
+          writeWholeOrNotAtAll(file, "new\n", {
+            remove: Deno.remove,
+            rename: Deno.rename,
+            // A full disk: some bytes land, then the write dies.
+            writeTextFile: async (temp, text) => {
+              await Deno.writeTextFile(temp, text.slice(0, 2));
+              throw failure;
+            },
+          }),
+        Error,
+        "no space left on device",
+      );
+      assertEquals(await Deno.readTextFile(file), "old\n");
+      assertEquals(await pathExists(`${file}.writing`), false);
+    });
+  });
+
   test("removes the temp file when the rename fails", async () => {
     await withTempDir(async (dir) => {
       const file = join(dir, "listing.ts");
@@ -26,6 +50,7 @@ describe("writing a whole file", () => {
           writeWholeOrNotAtAll(file, "new\n", {
             remove: Deno.remove,
             rename: () => Promise.reject(failure),
+            writeTextFile: Deno.writeTextFile,
           }),
         Error,
         "the target file is locked",
@@ -47,6 +72,7 @@ describe("writing a whole file", () => {
               remove: () =>
                 Promise.reject(new Deno.errors.PermissionDenied("no")),
               rename: () => Promise.reject(failure),
+              writeTextFile: Deno.writeTextFile,
             }),
           Error,
           "the target file is locked",
@@ -66,6 +92,25 @@ describe("writing a whole file", () => {
         ),
       );
       assertEquals(errors, []);
+    });
+  });
+
+  test("does not call the cleanup when the write succeeds", async () => {
+    await withTempDir(async (dir) => {
+      const file = join(dir, "listing.ts");
+      await Deno.writeTextFile(file, "old\n");
+      const removed: string[] = [];
+      await writeWholeOrNotAtAll(file, "new\n", {
+        remove: (path) => {
+          removed.push(path);
+          return Promise.resolve();
+        },
+        rename: Deno.rename,
+        writeTextFile: Deno.writeTextFile,
+      });
+      assertEquals(await Deno.readTextFile(file), "new\n");
+      assertEquals(await pathExists(`${file}.writing`), false);
+      assertEquals(removed, []);
     });
   });
 });
