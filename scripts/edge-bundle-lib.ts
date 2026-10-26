@@ -16,7 +16,7 @@
  */
 
 import { denoPlugins } from "@luca/esbuild-deno-loader";
-import { fromFileUrl } from "@std/path";
+import { dirname, fromFileUrl } from "@std/path";
 import type { Plugin } from "esbuild";
 import * as esbuild from "esbuild";
 import { ASSETS } from "#shared/images/wasm-assets.ts";
@@ -255,4 +255,30 @@ export const buildEdgeBundle = async (
 
   // Clean up esbuild
   esbuild.stop();
+};
+
+/** A `buildEdgeBundle` emit callback that writes the bundle straight to
+ *  `path`. */
+export const emitTo =
+  (path: string) =>
+  async ({ content }: { content: string }): Promise<void> => {
+    await Deno.writeTextFile(path, content);
+  };
+
+/** Build the production pipeline bundle of the shared app core
+ *  (`src/serve-app.ts`, no platform wrapper registers a server) and write it
+ *  to `path`. The bundle-load benchmark and the production-suite smoke both
+ *  boot exactly this artifact. */
+export const buildServeAppBundle = async (
+  path: string,
+  label: string,
+): Promise<void> => {
+  await Deno.mkdir(dirname(path), { recursive: true });
+  await buildEdgeBundle({
+    emit: emitTo(path),
+    entryPoint: "./src/serve-app.ts",
+    label,
+    // esbuild names the output after the entry basename under ./dist.
+    outfile: "serve-app.js",
+  });
 };

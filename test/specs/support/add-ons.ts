@@ -10,6 +10,7 @@ const FIELD = "bookable_alone";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { groups, setListingGroups } from "#db/groups.ts";
+import { t } from "#i18n";
 // jscpd:ignore-start
 import {
   adminBrowser,
@@ -18,6 +19,7 @@ import {
   opensSalesPagesAt,
   organiserSendsAndIsTold,
 } from "#test/specs/support/browser.ts";
+import { copyLoaded } from "#test/specs/support/copy.ts";
 import {
   checkboxValueOffered,
   tickedCheckboxes,
@@ -170,19 +172,43 @@ export const offerChoiceThroughAddOnGroup = async (
   await linkModifierGroup(charge.id, group.id);
 };
 
+/** The organiser's browser on one of their listing's own admin pages. */
+const adminListingPage = async (
+  world: TicketsWorld,
+  name: string,
+  page: string,
+): Promise<TestBrowser> => {
+  const browser = await adminBrowser(world);
+  await browser.visit(`/admin/listing/${listingIdNamed(world, name)}/${page}`);
+  return browser;
+};
+
 /** The organiser unticks sell-on-its-own on the real edit form and keeps
  * what the site said — a refused save is a message, not a thrown-away send. */
 export const tryStopSellingOnItsOwn: ChangeOneThing<void> = async (
   world,
   name,
 ) => {
-  const browser = await adminBrowser(world);
-  await browser.visit(`/admin/listing/${listingIdNamed(world, name)}/edit`);
+  const browser = await adminListingPage(world, name, "edit");
   // The send must carry nothing for the box: the form's own ticked value
   // would ride along and the site would never see the untick.
   await organiserSendsAndIsTold(world, browser, {}, "Save Changes", {
     [FIELD]: servedBoxSend(browser.currentHtml, false),
   });
+};
+
+/** The organiser opens the real deactivation confirmation, types the thing's
+ * name to confirm, and keeps what the site said — a refused take-off-sale is
+ * a message on that page, and the thing stays on sale. */
+export const tryTakeOffSale: ActOnOneThing = async (world, name) => {
+  await copyLoaded("listings-table");
+  const browser = await adminListingPage(world, name, "deactivate");
+  await organiserSendsAndIsTold(
+    world,
+    browser,
+    { confirm_identifier: name },
+    t("listings_table.deactivate_listing"),
+  );
 };
 
 /** Everything the site currently offers for sale, as the customer sees it. */

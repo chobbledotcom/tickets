@@ -86,7 +86,7 @@ export class Badge {
 }
 ```
 
-A class that a module exports as its default has no name. The report reaches
+A class that a module exports as its default without a name has no name. The report reaches
 it through that default export, so its fields sit under `default`, as
 `default.total`.
 

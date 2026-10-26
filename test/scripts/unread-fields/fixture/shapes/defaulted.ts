@@ -4,7 +4,8 @@
  * report as unread lives in its own file, which the build writes beside it.
  */
 export const defaulted = `
-export default class {
+export default class extends BaseClass {
+  static heldByTheUnnamed = 1;
   handedOver = 1;
 }
 `;

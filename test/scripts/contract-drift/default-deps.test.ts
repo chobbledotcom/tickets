@@ -1,4 +1,4 @@
-import { assertRejects, assertStringIncludes } from "@std/assert";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
@@ -58,6 +58,19 @@ const FULL_HISTORY_CALLS = [
 /** The error the base resolution throws when origin/main stays missing. */
 const NO_ORIGIN_MAIN =
   "This checkout has no origin/main even after a fetch, so the base dump has no older tree to run in. Fetch origin/main or use a full checkout, then run the command again";
+
+/** Asserts the base resolution rejects with the standing error and carries
+ * the failed git steps' stderr, so the cause never travels without its
+ * message (issue #2740). */
+const assertBaseError = async (deps: DriftDeps): Promise<void> => {
+  const failure = await deps.mergeBase().then(
+    () => null,
+    (reason: unknown) => reason,
+  );
+  const message = failure instanceof Error ? failure.message : "";
+  assertStringIncludes(message, NO_ORIGIN_MAIN);
+  assertStringIncludes(message, NO_MAIN.stderr.trim());
+};
 
 /** A git for the base tests. It records every call in `calls` and answers
  * from `answers`, keyed by the joined command. An unmatched command
@@ -182,7 +195,7 @@ describe("contract drift default dependencies", () => {
         "rev-parse --is-shallow-repository": () => okRun("false\n"),
       }),
     });
-    await assertRejects(() => deps.mergeBase(), Error, NO_ORIGIN_MAIN);
+    await assertBaseError(deps);
     expect(calls).toEqual([MERGE_BASE, FETCH_MAIN, MERGE_BASE, SHALLOW_CHECK]);
   });
 
@@ -197,7 +210,7 @@ describe("contract drift default dependencies", () => {
         "rev-parse --is-shallow-repository": () => okRun("true\n"),
       }),
     });
-    await assertRejects(() => deps.mergeBase(), Error, NO_ORIGIN_MAIN);
+    await assertBaseError(deps);
     expect(calls).toEqual(FULL_HISTORY_CALLS);
   });
 

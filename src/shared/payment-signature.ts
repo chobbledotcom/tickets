@@ -12,7 +12,6 @@
  */
 
 import { constantTimeEqualBytes, hmacHashSync } from "#crypto/hashing.ts";
-import { sortedPairs } from "#fp-strings";
 
 /** The logical checkout metadata a price signature is computed over — every
  *  field optional, since any may be omitted at signing or "" at verification. */
@@ -44,12 +43,12 @@ const canonicalPricePayload = (
   metadata: SignedMetadata,
   total: number,
 ): string => {
-  const entries = sortedPairs(
-    Object.entries(metadata).filter(
+  const entries = Object.entries(metadata)
+    .filter(
       (entry): entry is [string, string] =>
         !!entry[1] && !UNSIGNED_KEYS.has(entry[0]),
-    ),
-  );
+    )
+    .toSorted(([left], [right]) => (left < right ? -1 : 1));
   return JSON.stringify([PRICE_SIG_VERSION, total, entries]);
 };
 

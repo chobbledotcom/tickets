@@ -11,7 +11,4 @@ src/fp.ts::collectionCache.generation~0dbfxl4  0 → -1 audited:03da9gy # same: 
 src/fp.ts::collectionCache.invalidate~058o5v1  ++ → -- audited:03da9gy # either direction changes generation and invalidates every older captured copy
 src/fp.ts::collectionCache.size~012d4va  ?? → || audited:03da9gy # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0
 
-# sortedPairs sorts the entries of one record, so its keys are unique and the
-# comparator never returns its equal-keys value. The swap outcome differs from
-# the "leave" outcome only for keys that compare equal, which cannot occur.
-src/fp-strings.ts::sortedPairs~0kqbt3q  1 → 0  audited:076siw2 # with unique keys every comparison is -1 or not-less-than, and V8's pinned sort places both not-less-than values on the same side of its only decision (probed to 500 keys: ascending, reversed, shuffled)
+src/shared/payment-signature.ts::canonicalPricePayload.entries~0kqbt3q  1 → 0  audited:0yl0a1b   # the keys are the metadata keys of one canonical payload record, so they are unique: every comparison is -1 or not-less-than, and V8's pinned sort places both not-less-than values on the same side of its only decision (probed to 500 keys: ascending, reversed, shuffled)

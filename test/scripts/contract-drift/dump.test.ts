@@ -253,12 +253,54 @@ describe("declaredTableOrNone", () => {
 
   test("reads a table module the tree does not have as no table", async () => {
     expect(
-      await declaredTableOrNone("m", () => {
+      await declaredTableOrNone(
+        "m",
+        () => {
+          throw new TypeError(
+            'Module not found "file:///tree/test/shared/payment/m/expected-moves.ts"',
+          );
+        },
+        "#test/shared/payment/m/expected-moves.ts",
+      ),
+    ).toBeUndefined();
+  });
+
+  test("reads a bare quoted specifier as no table too", async () => {
+    expect(
+      await declaredTableOrNone(
+        "m",
+        () => {
+          throw new TypeError(
+            'Module not found "#test/shared/payment/m/expected-moves.ts"',
+          );
+        },
+        "#test/shared/payment/m/expected-moves.ts",
+      ),
+    ).toBeUndefined();
+  });
+
+  test("stops when a module one level below the table is missing", async () => {
+    await expect(
+      declaredTableOrNone(
+        "m",
+        () => {
+          throw new TypeError(
+            'Module not found "file:///tree/test/shared/payment/m/its-helper.ts"',
+          );
+        },
+        "#test/shared/payment/m/expected-moves.ts",
+      ),
+    ).rejects.toThrow("its-helper.ts");
+  });
+
+  test("stops on a missing module when the load names no specifier", async () => {
+    await expect(
+      declaredTableOrNone("m", () => {
         throw new TypeError(
-          'Module not found "file:///tree/expected-moves.ts"',
+          'Module not found "file:///tree/test/shared/payment/m/expected-moves.ts"',
         );
       }),
-    ).toBeUndefined();
+    ).rejects.toThrow("Module not found");
   });
 
   test("stops on a failure that is not a missing module", async () => {

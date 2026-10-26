@@ -7,6 +7,7 @@
  * packages and repository files. A remote jsr or https module cannot be
  * mapped usefully, and `cachedPathOf` says why.
  */
+import { captureStdoutOrThrow } from "#scripts/process.ts";
 
 import { answered, pathIs } from "./host.ts";
 
@@ -343,24 +344,16 @@ export const pathsFromInfo = (
 /** Ask `deno info` with the runtime that runs the scan. `Deno.execPath()`
  * names the parent runtime, so the graph never comes from a different
  * `deno` than the one the scan runs in. */
-const runInfo = async (
-  root: string,
-  args: readonly string[],
-): Promise<InfoJson> => {
-  const output = await new Deno.Command(Deno.execPath(), {
-    args: ["info", "--json", ...args],
-    cwd: root,
-    stderr: "piped",
-    stdout: "piped",
-  }).output();
-  if (!output.success) {
-    const said = new TextDecoder().decode(output.stderr).trim();
-    throw new Error(
-      `deno info ${args.join(" ")} failed: ${output.code}: ${said}`,
-    );
-  }
-  return JSON.parse(new TextDecoder().decode(output.stdout));
-};
+const runInfo = (root: string, args: readonly string[]): Promise<InfoJson> =>
+  captureStdoutOrThrow(
+    new Deno.Command(Deno.execPath(), {
+      args: ["info", "--json", ...args],
+      cwd: root,
+      stderr: "piped",
+      stdout: "piped",
+    }),
+    `deno info ${args.join(" ")}`,
+  ).then((stdout) => JSON.parse(stdout) as InfoJson);
 
 /** The value of one settled spawn. A rejected spawn raises its reason, so the
  * scan says why the graph cannot be read. */
