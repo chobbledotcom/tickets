@@ -198,6 +198,9 @@ Choose the smallest shared interface that makes every case explicit.
 - Put rules shared by all providers or record kinds in one pure function.
 - Keep expected facts and observed facts as different fields or types.
 - Keep IO in a thin shell around pure data-in/data-out rules.
+- Keep a pure-listed module free of every import path to the database, the
+  network, and the wall clock. `deno task check:effects` holds this split
+  mechanically.
 - Define one command API for related state changes.
 - Use a revision, claim, unique key, or conditional write for races.
 
@@ -250,6 +253,8 @@ For each pull request, record:
 - database and provider call budget;
 - its place in a stack;
 - the contract rows it completes.
+- every change to the pure list or the effect roots, and the module that
+  each change moves.
 
 Keep each PR under the repository's source-line limit. If a complete behavior
 does not fit, split by a smaller complete invariant. Do not split one invariant
@@ -306,6 +311,8 @@ While implementing:
 - do expensive or external work outside database transactions;
 - make the final state change atomic;
 - do not add compatibility wrappers for internal callers;
+- when the effect check fails, split the IO shell out or remove the pure
+  entry. Do not hide the import path.
 - do not add exports used only by tests.
 
 ### 9. Use fast feedback while behavior is moving
@@ -401,6 +408,7 @@ The final description must name:
 - source and total changed-line counts;
 - database and provider call counts where relevant;
 - tests and mutation commands run;
+- pure list and effect root changes, when the branch moved them.
 - known fault or plan rows completed.
 
 ### 14. Merge a stack from the bottom

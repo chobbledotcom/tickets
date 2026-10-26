@@ -82,6 +82,10 @@ jobs:
       - name: Check module import names
         run: deno task check:imports
 
+
+      - name: Check the pure core against the effect table
+        run: deno task check:effects
+
       - name: Check for alias exports
         run: deno task check:alias-exports
 
