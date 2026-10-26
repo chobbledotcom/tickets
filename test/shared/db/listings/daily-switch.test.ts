@@ -14,7 +14,10 @@ import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { expectListingActivityLogContains } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTestListing,
+  listingWithTwoUndatedBookings,
+} from "#test-utils/db-helpers/listings.ts";
 import type { ListingWithCount } from "#types";
 
 const input = (overrides: Partial<ListingInput> = {}): ListingInput =>
@@ -37,18 +40,6 @@ const rawRows = async (
     "SELECT attendee_id, end_at, start_at FROM listing_attendees WHERE listing_id = ? ORDER BY attendee_id",
     [listingId],
   );
-};
-
-/** A listing with two undated bookings: one row of 2, one row of 3. */
-const listingWithTwoUndatedBookings = async (): Promise<ListingWithCount> => {
-  const listing = await createTestListing({ maxAttendees: 10 });
-  await bookAttendee(listing, { quantity: 2 });
-  await bookAttendee(listing, {
-    email: "y@example.com",
-    name: "Y",
-    quantity: 3,
-  });
-  return listing;
 };
 
 describeWithEnv("db: listings — the daily switch", { db: true }, () => {

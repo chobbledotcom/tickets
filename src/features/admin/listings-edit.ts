@@ -23,14 +23,14 @@ import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
+  type AuthSession,
   CONTENT_MULTIPART,
   contentMultipartRoute,
   requireContentOr,
   withAuth,
-  type AuthSession,
 } from "#routes/auth.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
-import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminLandingPath, entityReturnPath } from "#shared/admin-pages.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -51,6 +51,7 @@ import {
   isListingType,
   type ListingWithCount,
 } from "#types";
+import { operationResponse } from "./crud-handlers.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { getListingAndGroups } from "./listing-page-data.ts";
 import {
@@ -351,30 +352,31 @@ const saveListingEdit = async (
     existing,
     confirmed?.plan,
   ).update(id, form);
-  if (result.ok) {
-    return handleListingEditSuccess(
-      result.row,
-      existing,
-      aggregates.input,
-      formData,
-      id,
-      confirmed?.plan,
-    );
-  }
-  if ("notFound" in result) return notFoundResponse();
-  if (confirmed) {
-    // The organiser is mid-switch, not mid-edit: a refused move (or any
-    // save the move cannot fix) is the assign page's business.
-    return renderListingSwitchAssignPage(
-      existing,
-      session,
-      form,
-      confirmed.page,
-      result.error,
-      400,
-    );
-  }
-  return renderListingEditError(id, session, form, result.error);
+  return operationResponse(
+    result,
+    (saved) =>
+      handleListingEditSuccess(
+        saved.row,
+        existing,
+        aggregates.input,
+        formData,
+        id,
+        confirmed?.plan,
+      ),
+    // The organiser is mid-switch, not mid-edit: a refused move (or any save
+    // the move cannot fix) is the assign page's business.
+    (error) =>
+      confirmed
+        ? renderListingSwitchAssignPage(
+            existing,
+            session,
+            form,
+            confirmed.page,
+            error,
+            400,
+          )
+        : renderListingEditError(id, session, form, error),
+  );
 };
 
 /**

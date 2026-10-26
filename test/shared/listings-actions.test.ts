@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
+import { withTransaction } from "#db/client.ts";
 import { groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
@@ -9,6 +10,7 @@ import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { listingInputToEdge } from "#shared/listing-edge.ts";
 import {
   performListingDelete,
+  refuseUndatedListingSwitch,
   toggleListingActive,
   validateListingInput,
 } from "#shared/listings-actions.ts";
@@ -17,10 +19,14 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTestListing,
+  listingWithTwoUndatedBookings,
+} from "#test-utils/db-helpers/listings.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 import { withLocalStorageEnabled } from "#test-utils/mocks.ts";
+import type { ListingWithCount } from "#types";
 import { inputFor } from "./listings-actions/helpers.ts";
 
 setupTestEncryptionKey();
@@ -387,5 +393,35 @@ describeWithEnv("performListingDelete", { db: true }, () => {
       expect(await getListingWithCount(listing.id)).not.toBeNull();
       expect(await downloadRaw("delete-blocked.pdf")).not.toBeNull();
     });
+  });
+});
+
+/** The guard's verdict for one listing's would-be daily save. */
+const guardVerdictIs = async (
+  listing: ListingWithCount,
+  expected: string | null,
+): Promise<void> => {
+  await withTransaction(async (tx) => {
+    const refusal = await refuseUndatedListingSwitch(tx, listing.id, {
+      ...listing,
+      groupIds: [],
+      listingType: "daily",
+    } as unknown as ListingInput);
+    expect(refusal).toBe(expected);
+  });
+};
+
+describeWithEnv("refuseUndatedListingSwitch", { db: true }, () => {
+  test("names the undated bookings a bare switch would strand", async () => {
+    const listing = await listingWithTwoUndatedBookings();
+    await guardVerdictIs(
+      listing,
+      t("listings_table.switch_daily_undated_guard", { count: 2 }),
+    );
+  });
+
+  test("lets a save through when nothing would be stranded", async () => {
+    const listing = await createTestListing({ maxAttendees: 10 });
+    await guardVerdictIs(listing, null);
   });
 });

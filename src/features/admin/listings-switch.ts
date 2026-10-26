@@ -131,7 +131,6 @@ export const probeAssignDates = async (
   quantity: number,
   durationDays: number,
 ): Promise<boolean[]> => {
-  if (dates.length === 0) return [];
   try {
     return await withTransaction(async (tx) => {
       // `updateStatement` is optional only on the façade type. The REST layer
