@@ -8,6 +8,7 @@
  * both directions.
  */
 
+import { t } from "#i18n";
 import {
   CATALOG_BUNDLE_EXAMPLE_JSON,
   CATALOG_GROUP_EXAMPLE_JSON,
@@ -80,7 +81,7 @@ export const importExportSections = (): GuideSection[] => [
           </p>
           <ExampleCode
             code={CATALOG_BUNDLE_EXAMPLE_JSON}
-            label="The same two listings and one package as one bundle file:"
+            label={t("guide.p.bundle_example_label")}
           />
         </>,
       ),

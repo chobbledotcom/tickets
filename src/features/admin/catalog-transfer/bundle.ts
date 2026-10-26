@@ -24,6 +24,7 @@ import { groups } from "#db/groups.ts";
 import { syncListingPricesForIds } from "#db/listing-price-sync.ts";
 import { dayCountPriceStatements } from "#db/listing-prices.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { normalizeEntityName as nameKey } from "#db/name-registry.ts";
 import { takenSlugIndexes } from "#db/slug-registry.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { unique } from "#fp";
@@ -37,7 +38,6 @@ import {
   type BundleRef,
   describeFailure,
   type ImportedBundle,
-  nameKey,
 } from "./bundle-plan.ts";
 import { validateBundle } from "./bundle-validate.ts";
 import { type ImportedMembership, membershipStatements } from "./membership.ts";

@@ -8,14 +8,16 @@
 import { listingGroups } from "#db/groups/table.ts";
 import { getGroupsById } from "#db/groups.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
-import type { CatalogNameIndex } from "#db/name-registry.ts";
+import {
+  type CatalogNameIndex,
+  normalizeEntityName as nameKey,
+} from "#db/name-registry.ts";
 import { unique } from "#fp";
 import { requireValue } from "#shared/required-value.ts";
 import type { Group, ListingWithCount } from "#types";
 import type { FailureCollector, ItemNameIndexes } from "./bundle-names.ts";
 import {
   type BundleRef,
-  nameKey,
   type PlannedMembership,
   type PlannedPair,
   sameMembership,

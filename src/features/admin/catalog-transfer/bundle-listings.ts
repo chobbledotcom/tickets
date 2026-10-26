@@ -4,6 +4,7 @@
  */
 
 import { getListingsByGroupIds } from "#db/groups.ts";
+import { normalizeEntityName as nameKey } from "#db/name-registry.ts";
 import { unique } from "#fp";
 import { dayPriceFieldsFromInput } from "#shared/listing-edge.ts";
 import { edgeFieldError } from "#shared/listing-parents-rules.ts";
@@ -16,7 +17,6 @@ import {
   edgeListingOfPlan,
   edgeListingOfRow,
   type ListingPlan,
-  nameKey,
   type PlannedEdge,
   packageMemberRefusals,
 } from "./bundle-plan.ts";

@@ -8,9 +8,13 @@
  * a repeated parent.
  */
 
-import { matchName, type NameIndex } from "#db/name-registry.ts";
+import {
+  matchName,
+  type NameIndex,
+  normalizeEntityName as nameKey,
+} from "#db/name-registry.ts";
 import { seenBefore } from "#shared/seen-before.ts";
-import { type BundleRef, nameKey } from "./bundle-plan.ts";
+import type { BundleRef } from "./bundle-plan.ts";
 
 /** One resolved reference, or the reason it resolved to nothing. */
 export type Resolved = BundleRef | { error: string };

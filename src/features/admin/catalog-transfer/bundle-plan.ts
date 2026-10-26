@@ -9,7 +9,6 @@
  * on the site. A name is therefore an unambiguous key.
  */
 
-import { normalizeEntityName } from "#db/name-registry.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { listingInputToEdge } from "#shared/listing-edge.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
@@ -74,9 +73,6 @@ export type BundlePlan = {
   listingPlans: ListingPlan[];
   pairs: PlannedPair[];
 };
-
-/** Normalise a name the way the name registry compares them. */
-export const nameKey = normalizeEntityName;
 
 /** The failure message for one item: the item name, then each reason. */
 export const describeFailure = ({ item, reasons }: BundleFailure): string =>

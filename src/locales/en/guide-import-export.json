@@ -11,5 +11,6 @@
   "guide.q.what_is_in_catalog_file": "What's inside the file?",
   "guide.a.what_is_in_catalog_file": "<p>The file carries what you sell, and nothing else: the structure and the pricing. Everything is joined by <strong>name</strong>, never by number, because names survive a move between sites and numbers do not.</p><p>Pictures, file attachments, attendees, and any money or booking history are left out on purpose — a copy describes what you sell, not the records tied to one site. The file carries a version number, so a file from a different version is refused rather than loaded wrongly.</p>",
   "guide.q.catalog_json_shape": "What does the file look like?",
+  "guide.p.bundle_example_label": "The same two listings and one package as one bundle file:",
   "guide.q.catalog_bundle_shape": "What does a bundle file look like?"
 }
