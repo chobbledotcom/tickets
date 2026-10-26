@@ -519,12 +519,20 @@ automatic.
   suite on the merged tree, then removes the worktree. The boss runs it
   before a pull request is ready. The head CI and this check must both pass
 - `deno task contract:diff [base]` — print the semantic drift of this
-  branch's declared contracts (machine moves, money flags, joint-state
-  invariants) against `base`, the commit this branch and `origin/main` share
-  by default. The task fetches the history it needs. An explicit `base` is
-  read as the checkout holds it, so run `git fetch origin main` first for a
-  current base. Drift is a report, not a gate: paste it in the pull request
+  branch's declared contracts (machine moves and money flags) against `base`,
+  the commit this branch and `origin/main` share by default. The task fetches
+  the history it needs. An explicit `base` is read as the checkout holds it.
+  Run `git fetch origin main` first for a current explicit base. Drift is a
+  report, not a gate: paste it in the pull request
   description when the branch touches a machine spec
+- `deno task verify:models` — check safety models under `verification/`:
+  - payment row/refund
+  - SumUp recovery
+  - payment review
+  - Square link expiry
+
+  Devenv supplies pinned Apalache and its Java runtime. CI and precommit run the
+  same task
 - `deno task check:effects` — hold the pure core to the effect table: a
   module the pure list names must hold no import path, static or dynamic,
   to a module that opens the database, the network, or the wall clock. The

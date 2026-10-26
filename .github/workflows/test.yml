@@ -118,6 +118,9 @@ jobs:
       - name: Check for import cycles
         run: deno task cycles
 
+      - name: Check machine safety models
+        run: deno task verify:models
+
       - name: Build edge bundle
         run: deno task build:edge
 
@@ -163,6 +166,42 @@ jobs:
         with:
           name: coverage-report
           path: coverage/html/
+
+  # The served-page browser contracts need Chromium, and no other job runs
+  # `test:screenshot-contract`. This is the one place a broken or flaky
+  # journey on a served page goes red (issue #2743).
+  browser-contracts:
+    runs-on: ubicloud-standard-8
+    timeout-minutes: 20
+
+    # The browser profile carries Chromium, whose path the contracts read
+    # through CHROMIUM_EXECUTABLE.
+    defaults:
+      run:
+        shell: devenv --profile browser shell bash -- -e {0}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up devenv
+        uses: ./.github/actions/setup-devenv
+        with:
+          profile: browser
+
+      # The task's test:files legs run through the test harness, which
+      # downloads and starts stripe-mock. Caching .bin avoids the download
+      # on every run.
+      - name: Cache stripe-mock
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .bin
+          key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
+
+      - name: Run the browser contracts
+        run: deno task test:screenshot-contract
 
   specs:
     runs-on: ubicloud-standard-8

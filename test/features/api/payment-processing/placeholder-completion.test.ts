@@ -34,7 +34,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { singleItem } from "#test-utils/factories.ts";
-import { expectLegalJointStates } from "#test-utils/joint-state.ts";
+import { checkPaymentSeam } from "#test-utils/payment-seam.ts";
 import { withRefundLedgerFault } from "#test-utils/refund-ledger-fault.ts";
 import {
   expectOnePairOfLegs,
@@ -47,6 +47,8 @@ import {
 setupTestEncryptionKey();
 
 describeWithEnv("placeholder money completion", { db: true }, () => {
+  checkPaymentSeam();
+
   const CAPTURED = 620;
 
   const storedNote = (): Promise<{
@@ -107,10 +109,6 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
     if (state.claim === undefined || state.unrecorded === undefined) {
       throw new Error("held anchor row lost its claim or return time");
     }
-    await expectLegalJointStates(
-      rejection.sessionId,
-      "after a crashed rejected store",
-    );
     return {
       attendeeId: held.attendee_id,
       claim: state.claim,
@@ -312,7 +310,6 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
         ),
       ).rejects.toThrow(message),
     );
-    await expectLegalJointStates(rejection.sessionId, `after: ${message}`);
     await expectOnePairOfLegs(rejection.sessionId);
     expect(await storedNote()).toBeNull();
     expect(await activityCount()).toBe(0);

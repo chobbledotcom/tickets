@@ -19,6 +19,19 @@ let
     util-linux
   ];
 
+  apalacheArchive = pkgs.fetchurl {
+    url = "https://github.com/apalache-mc/apalache/releases/download/v0.62.1/apalache-0.62.1.tgz";
+    sha256 = "93fef2f381d30465eff906a2d6afa3358cb2c9adf6a8aad3bec0ded4f45432bb";
+  };
+  apalacheJar = pkgs.runCommand "apalache-0.62.1.jar" {
+    nativeBuildInputs = [ pkgs.gnutar pkgs.gzip ];
+  } ''
+    tar -xOzf ${apalacheArchive} apalache-0.62.1/lib/apalache.jar > "$out"
+  '';
+  apalache = pkgs.writeShellScriptBin "apalache-mc" ''
+    exec ${pkgs.jre}/bin/java -jar ${apalacheJar} "$@"
+  '';
+
   runtimeSetup = pkgs.replaceVars ./scripts/devenv/library-path.sh {
     libraryPath = lib.optionalString pkgs.stdenv.isLinux (
       lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]
@@ -27,7 +40,7 @@ let
 
   precommitHook = pkgs.writeShellApplication {
     name = "tickets-precommit-hook";
-    runtimeInputs = [ deno ] ++ checkTools;
+    runtimeInputs = [ deno apalache ] ++ checkTools;
     text = builtins.readFile (
       pkgs.replaceVars ./scripts/devenv/precommit.sh {
         inherit runtimeSetup;
@@ -59,6 +72,13 @@ in
       git-hooks.enable = false;
     };
 
+    # The browser-contract job needs Chromium, and like the ci profile it
+    # must not run the commit-time Git hook.
+    profiles.browser.module = {
+      ticketsBrowserTools = true;
+      git-hooks.enable = false;
+    };
+
     languages.deno = {
       enable = true;
       package = deno;
@@ -67,7 +87,8 @@ in
     packages =
       checkTools
       ++ lib.optionals (!config.container.isBuilding) (
-        [ pkgs.gh ] ++ lib.optionals browserTools [ pkgs.chromium ]
+        [ pkgs.gh apalache ]
+        ++ lib.optionals browserTools [ pkgs.chromium ]
       );
 
     scripts.pc.exec = ''exec deno task precommit "$@"'';

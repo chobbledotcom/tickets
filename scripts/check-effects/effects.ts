@@ -52,7 +52,6 @@ export const PURE_MODULES: readonly string[] = [
   "#payment/claim.ts",
   "#payment/conflict.ts",
   "#payment/diagnose.ts",
-  "#payment/joint-state.ts",
   "#payment/money.ts",
   "#payment/placeholder-refund.ts",
   "#payment/provider-call.ts",

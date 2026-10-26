@@ -1316,7 +1316,7 @@
     "present-perfect": 1
   },
   "src/shared/db/schema-anomaly-scan.ts": {
-    "long-sentence": 3
+    "long-sentence": 2
   },
   "src/shared/db/sessions.ts": {
     "long-sentence": 3,

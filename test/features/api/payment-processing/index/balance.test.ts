@@ -6,7 +6,7 @@ import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withSessionFailureFault } from "#test-utils/db-fault.ts";
-import { expectLegalJointStates } from "#test-utils/joint-state.ts";
+import { checkPaymentSeam } from "#test-utils/payment-seam.ts";
 import {
   expectSessionFailed,
   getProcessedPayment,
@@ -31,6 +31,8 @@ const balanceData = (
   );
 
 describeWithEnv("payment processing balance outcomes", { db: true }, () => {
+  checkPaymentSeam();
+
   test("settles the exact balance and finalizes the payment", async () => {
     const { attendeeId, listingId } = await createReservedAttendee(1500);
     const id = "cs_direct_balance";
@@ -115,7 +117,6 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
       withSessionFailureFault(() => processPaymentSession(id, data)),
     ).rejects.toThrow("session failure write refused");
     expect(refund.calls).toHaveLength(1);
-    await expectLegalJointStates(id, "after a crashed balance refund");
 
     // While the reservation is fresh, the crash looks like live work.
     expect(await processPaymentSession(id, data)).toMatchObject({

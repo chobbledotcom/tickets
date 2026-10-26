@@ -203,8 +203,8 @@ src/shared/db/listing-parents.ts::edgeIncompatibilityAfterChange.parents~1cm1r1e
 # only `refund_state_name` and `refund_local_state`, which are payment_charges
 # columns. SQLite resolves an unqualified name against the subquery's own FROM
 # first, so the empty prefix produces the same statement.
-src/shared/db/prune.ts::paymentStatement.sql~1oy3usg  charge. → "" audited:1408g6j # the fragment's columns are payment_charges columns and the subquery's only table is charge, so the unqualified names still bind to charge
-src/shared/db/prune.ts::paymentStatement.sql~0tukn2g  charge. → "" audited:1408g6j # same subquery shape one arm down: the unqualified names still bind to charge
+src/shared/db/prune.ts::paymentStatement.sql~1oy3usg  charge. → "" audited:17fm35a # Both fragment columns belong to the inner charge table. SQLite resolves the unqualified names in that table.
+src/shared/db/prune.ts::paymentStatement.sql~0tukn2g  charge. → "" audited:17fm35a # The second fragment has the same inner charge table and column scope.
 
 # payment-finalize.ts — the stored reference fields fall back to "". Each left
 # side is a string or undefined, and the fallback is the empty string, so ??

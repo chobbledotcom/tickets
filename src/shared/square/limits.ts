@@ -3,6 +3,7 @@
  * edge subrequest budget decides how many links one run can take.
  */
 
+import { WEBHOOK_RETRY_WINDOW_DAYS } from "#shared/limits.ts";
 import {
   MAINTENANCE_TASK_CALL_LIMIT,
   TASK_RUNNER_CALL_RESERVE,
@@ -36,3 +37,7 @@ export const SQUARE_LINK_RETRY_MS = 5 * 60 * 1000;
  * from its creation. A handle row older than this plus the webhook window
  * can no longer take payment, whatever this task did. */
 export const SQUARE_NATIVE_LIFETIME_MS = 180 * DAY_MS;
+
+/** Keep handles and checkout answers past native expiry and webhook retries. */
+export const SQUARE_LINK_RETENTION_MS =
+  SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS;

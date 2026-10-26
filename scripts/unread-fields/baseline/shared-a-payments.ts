@@ -238,9 +238,6 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
     ["src/shared/payment/claim.ts", [{ name: "IndexedRefundClaimDecision" }]],
   ])(["indexes", "kind"]),
   ...identitiesAt([
-    ["src/shared/payment/joint-state.ts", [{ name: "IllegalJointState" }]],
-  ])(["authority", "reason", "rows"]),
-  ...identitiesAt([
     ["src/shared/payment/refund-attempt.ts", [{ name: "RefundActionResult" }]],
   ])(["admission"]),
   ...identitiesAt([
