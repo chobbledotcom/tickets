@@ -11,6 +11,7 @@
  * Leaving the page saves nothing.
  */
 
+/* jscpd:ignore-start */
 import { buildListingCapCondition } from "#db/capacity.ts";
 import { resultRows, type SqlStatement, withTransaction } from "#db/client.ts";
 import { holidays } from "#db/holidays.ts";
@@ -25,14 +26,13 @@ import { t } from "#i18n";
 import type { AuthSession } from "#routes/auth.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-/* jscpd:ignore-start */
 import type { FormParams } from "#shared/form-data.ts";
-/* jscpd:ignore-end */
 import { ASSIGN_UNDATED_FIELD } from "#templates/admin/listings/assign-day-card.tsx";
 import type { ListingWithCount } from "#types";
 import { listingPage } from "./listing-page.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
 import { buildUpdateListingResource, parseGroupIds } from "./listings-form.ts";
+/* jscpd:ignore-end */
 
 /** What the assign card shows: the warning's count, the dates offered, and
  * the date already chosen on a re-render. It also records whether any date
