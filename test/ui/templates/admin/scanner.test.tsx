@@ -492,5 +492,3 @@ describe("the admin scanner page template", () => {
     assertStringIncludes(html, 'href="/admin/guide#checkin"');
   });
 });
-
-
