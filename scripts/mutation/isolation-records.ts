@@ -18,22 +18,20 @@ import {
   runsRoot,
   workRoot,
 } from "./isolation-state.ts";
-
-const MUTATION_RECORD_PENDING_SUFFIX = ".writing";
+import { writeWholeOrNotAtAll } from "./write-whole.ts";
 
 /**
  * Write the record in one step: the new text goes to a spare file that is then
  * swapped into place, so another run reading at that moment sees either the
- * old record or the new one — never half of one.
+ * old record or the new one — never half of one. A write that fails takes its
+ * spare file back away with it.
  */
 export const writeRunRecord = async (
   record: MutationRunRecord,
 ): Promise<void> => {
   const path = join(record.root, MUTATION_RECORD_FILE);
   await Deno.mkdir(dirname(path), { recursive: true });
-  const pending = `${path}${MUTATION_RECORD_PENDING_SUFFIX}`;
-  await Deno.writeTextFile(pending, `${JSON.stringify(record, null, 2)}\n`);
-  await Deno.rename(pending, path);
+  await writeWholeOrNotAtAll(path, `${JSON.stringify(record, null, 2)}\n`);
 };
 
 /**
