@@ -162,6 +162,15 @@ describe("attendee status cells", () => {
     );
   });
 
+  test("a multi-ticket line with exactly one ticket left still says Check in/out", () => {
+    const html = renderStatus({ checked_in: 2, id: 16, quantity: 3 });
+
+    // One place remains, so both directions still open the quantity page.
+    expect(html).toBe(
+      '<a class="link-button checkin" href="/admin/listing/9/attendee/16/checkin">Check in/out</a>',
+    );
+  });
+
   test("a fully admitted multi-ticket line offers Check out", () => {
     const html = renderStatus({ checked_in: 3, id: 12, quantity: 3 });
 
