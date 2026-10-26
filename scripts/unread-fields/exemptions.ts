@@ -11,7 +11,10 @@ import {
   exemptFieldsAt,
   type FindingExemption,
 } from "#scripts/unread-fields/policy.ts";
-import type { AdminApiResource } from "#shared/admin-api-resources.ts";
+import type {
+  AdminApiResource,
+  AdminApiServes,
+} from "#shared/admin-api-resources.ts";
 import type { SumupCheckoutRequest } from "#shared/sumup/transport.ts";
 import type { WebhookPayload } from "#shared/webhook.ts";
 import type { WarningDeleteProps } from "#templates/admin/confirm-page.tsx";
@@ -35,6 +38,22 @@ const adminApiResources = exemptFieldsAt<AdminApiResource>(
   serves: "check",
   singleSchema: "check",
   updateBodySchema: "check",
+});
+
+const adminApiServes = exemptFieldsAt<AdminApiServes>(
+  "src/shared/admin-api-resources.ts",
+  [{ name: "AdminApiServes" }],
+  {
+    evidence:
+      "the CLI's servesVerb, the describe verb filter, and the route-derivation test read entry.serves[verb] by key, which the reader cannot trace to named fields",
+    kind: "schema-driven",
+  },
+)({
+  create: "exempt",
+  delete: "exempt",
+  get: "exempt",
+  list: "exempt",
+  update: "exempt",
 });
 
 const publicListings = exemptFieldsAt<PublicListing>(
@@ -454,6 +473,7 @@ const exactExemptions = exactFieldExemptions([
 
 export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
   ...adminApiResources,
+  ...adminApiServes,
   ...bodyExemptions,
   ...exactExemptions,
   ...publicListings,

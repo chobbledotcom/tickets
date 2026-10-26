@@ -147,8 +147,6 @@ export const AttendeeRowSchema = v.looseObject({
   quantity: v.number(),
 });
 
-export type AdminApiAttendeeRow = v.InferOutput<typeof AttendeeRowSchema>;
-
 /** The writable fields one site-page update carries, including the parent.
  *  The field list repeats the shape uptime-kuma's own schemas spell. The two
  *  domains share nothing, so the matcher's finding is marked. */
