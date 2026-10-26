@@ -72,6 +72,26 @@ describe("what the scan counts as a shape", () => {
     expect(verdictOf("default", "handedOver")).toBe("read");
   });
 
+  test("reports a static of the class the module exports with no name", () => {
+    // A static belongs to the class object, so the report reaches it through
+    // `typeof default`, the class side of the same default export.
+    expect(verdictOf("typeof default", "carriedOnTheClass")).toBe("read");
+  });
+
+  test("reports a field the anonymous class borrows from its base", () => {
+    // The extends clause is the only place the base is named, so the walk
+    // meets the borrowed field through that clause alone.
+    expect(verdictOf("default", "onTheBase")).toBe("read");
+  });
+
+  test("reports a static the anonymous class borrows from its base", () => {
+    // Nothing reads the borrowed static, so it stays in the report under the
+    // class side of the default export.
+    expect(verdictOf("typeof default", "carriedToTheDefault")).toBe(
+      "never read",
+    );
+  });
+
   test("leaves out a method the class keeps to itself", () => {
     expect(verdictOf("Answerer", "keptInside")).toBeUndefined();
   });
