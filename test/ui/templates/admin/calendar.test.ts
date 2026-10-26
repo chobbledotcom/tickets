@@ -134,10 +134,7 @@ describe("adminCalendarPage", () => {
     assertStringIncludes(html, "Agent");
     // A specific agent's link carries the agent param and the #attendees
     // anchor, so the roster's own filter and the page's section agree.
-    assertStringIncludes(
-      html,
-      'href="/admin/calendar?agent=3#attendees"',
-    );
+    assertStringIncludes(html, 'href="/admin/calendar?agent=3#attendees"');
   });
 
   test("omits the agent filter bar when no agents exist", () => {
