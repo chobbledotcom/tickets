@@ -23,6 +23,7 @@ Feature: A payment whose callback was lost
       And the site never hears that the payment arrived
       When scheduled maintenance runs
       Then the payment is booked
+      And the Concert has earned 45.00
       When the customer opens the payment link they were given
       Then they reach the page that says their payment was successful
       And the payment is still booked exactly once

@@ -14,6 +14,6 @@ export const uniqueNamesSchema = (
     v.array(v.pipe(v.string(), v.trim(), v.nonEmpty())),
     v.check(
       (names) => new Set(names).size === names.length,
-      `${listName} list a name twice`,
+      `${listName} must list every name once`,
     ),
   );

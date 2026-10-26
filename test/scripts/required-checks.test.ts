@@ -133,4 +133,27 @@ describe("required checks", () => {
     // list lives here because repository Settings alone is not reviewable.
     expect(manifest).toEqual(["checks", "specs", "test"]);
   });
+
+  test("lists no name a workflow job cannot emit", async () => {
+    // A manifest name no job emits would hold the merge queue for a check
+    // that never runs — the silent-drift class issue #2671 names. The
+    // live-ruleset gate holds the manifest to Settings; this holds it to the
+    // jobs the workflows actually declare.
+    const workflow = await Deno.readTextFile(".github/workflows/test.yml");
+    const declared = [...workflow.matchAll(/^ {2}([a-z0-9-]+):\n/gm)].map(
+      (match) => match[1],
+    );
+    const manifest = v.parse(
+      manifestSchema,
+      JSON.parse(
+        await Deno.readTextFile("scripts/required-checks/checks.json"),
+      ),
+    );
+    for (const name of manifest) {
+      expect(
+        declared,
+        `"${name}" is in the manifest but test.yml declares no job named it`,
+      ).toContain(name);
+    }
+  });
 });

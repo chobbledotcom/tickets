@@ -279,6 +279,38 @@ describe("declaredTableOrNone", () => {
     ).toBeUndefined();
   });
 
+  test("reads a module the real loader cannot find as no table", async () => {
+    // The synthetic errors above pin the matcher's logic; this one pins the
+    // agreement to the runtime: Deno's own not-found error for a mapped
+    // specifier must carry the bare path the matcher looks for.
+    const specifier = "#test/shared/payment/m/no-such-table-module.ts";
+    expect(
+      await declaredTableOrNone("m", () => import(specifier), specifier),
+    ).toBeUndefined();
+  });
+
+  test("hands every test-module table load its own specifier", async () => {
+    // The specifier must name the very module the load imports, or the base
+    // dump misreads a missing table (or a break one level below it, issue
+    // #2740). The load keeps a literal import — a variable specifier would
+    // ask the base-dump child for read permission it does not hold — so this
+    // holds the two spellings together: each test-module specifier appears
+    // exactly twice, once in its import and once as the load's module name.
+    const source = await Deno.readTextFile("scripts/contract-drift/dump.ts");
+    const loads = [...source.matchAll(/import\(\s*"([^"]+)"\s*\)/g)]
+      .map((match) => match[1])
+      .filter((specifier): specifier is string => specifier !== undefined)
+      .filter((specifier) => specifier.startsWith("#test/"));
+    expect(loads.length).toBeGreaterThan(0);
+    for (const specifier of loads) {
+      const spellings = source.split(`"${specifier}"`).length - 1;
+      expect(
+        spellings,
+        `"${specifier}" must appear twice: in its import and as the load's module name`,
+      ).toBe(2);
+    }
+  });
+
   test("stops when a module one level below the table is missing", async () => {
     await expect(
       declaredTableOrNone(
