@@ -15,6 +15,7 @@ import {
   resultRows,
   type SqlStatement,
 } from "#db/client.ts";
+import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
 import { type Read, readStatement } from "#db/read.ts";
 import { equals, matchesNoRows } from "#db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
@@ -258,6 +259,22 @@ export const selectTransfers = async (
 ): Promise<Transfer[]> => {
   const [rows] = await selectTransfersMany(read, [query]);
   return rows;
+};
+
+/** Read transfers whose rows a deferred numbered WHERE selects. A scope that
+ *  names one value in several places binds it once and reuses its token. */
+export const selectTransfersScope = async (
+  read: BatchExecutor,
+  where: NumberedSql,
+): Promise<Transfer[]> => {
+  const statement = numberedStatement(where);
+  const [result] = await read([
+    {
+      args: statement.args,
+      sql: `SELECT ${COLUMNS} FROM transfers WHERE ${statement.sql}`,
+    },
+  ]);
+  return transfersIn(requireValue(result, "Ledger read went unanswered"));
 };
 
 /** Every leg of one business event (booking, refund, …). */
