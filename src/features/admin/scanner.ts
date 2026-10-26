@@ -4,6 +4,7 @@ import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAllGroupNames, getGroupById } from "#db/groups.ts";
 import { getListingPickerNames } from "#db/listings/catalog.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { PRUNE_SCAN_OPERATIONS_RETENTION_DAYS } from "#db/processed-scan-operations.ts";
 import { filter, groupToMap, sumOf } from "#fp";
 import { sortedByString } from "#fp-strings";
 import { pageGuardFor, SCANNER_JSON, withAuth } from "#routes/auth.ts";
@@ -100,6 +101,7 @@ const handleScannerGet: IdRouteHandler = createIdEntityHandler<
         manualCheckinOptions(attendees, null),
         false,
         pageDoorCacheKey(doorCacheName("listing", listing.id)),
+        PRUNE_SCAN_OPERATIONS_RETENTION_DAYS,
       ),
     );
   },
@@ -131,6 +133,7 @@ const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(
       // group whose stored rule says to check in every listing.
       scope.listingIds.size > 1 && scope.checkInEveryListing,
       pageDoorCacheKey(doorCacheName("group", group.id)),
+      PRUNE_SCAN_OPERATIONS_RETENTION_DAYS,
     ),
   );
 });

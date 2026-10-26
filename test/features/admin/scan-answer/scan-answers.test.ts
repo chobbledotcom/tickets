@@ -14,8 +14,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
 import { claimScanOperation } from "#db/processed-scan-operations.ts";
 import { settings } from "#db/settings.ts";
-import { admissionAnswer } from "#routes/admin/scan-answer.ts";
 import type { ScanDecision } from "#routes/admin/scan-decision.ts";
+import { admissionAnswer } from "#routes/admin/scan-reply.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { groupDoor, scanAtDoor } from "#test/features/admin/scanner/support.ts";
@@ -346,10 +346,12 @@ describeWithEnv("the answer for one admission's write", { db: true }, () => {
   test("a write that took nothing answers already checked in over the planned rows", async () => {
     // Another door took every ticket between the decision and the write.
     const answer = await admissionAnswer(
-      admitOf([standardRow(1)]),
-      [standardRow(1)],
+      {
+        allEntries: [standardRow(1)],
+        decision: admitOf([standardRow(1)]),
+        delivery: undefined,
+      },
       "Cara",
-      undefined,
       { admitted: 0, remaining: 0 },
     );
 
@@ -377,10 +379,15 @@ describeWithEnv("the answer for one admission's write", { db: true }, () => {
     );
 
     const answer = await admissionAnswer(
-      admitOf([standardRow(3)]),
-      [standardRow(3), societyRow()],
+      {
+        allEntries: [standardRow(3), societyRow()],
+        decision: admitOf([standardRow(3)]),
+        delivery: {
+          operationId: "op-drained-1",
+          tokenHash: "digest-drained-1",
+        },
+      },
       "Cara",
-      { operationId: "op-drained-1", tokenHash: "digest-drained-1" },
       { admitted: 0, remaining: 0 },
     );
 
@@ -393,15 +400,59 @@ describeWithEnv("the answer for one admission's write", { db: true }, () => {
     });
   });
 
+  test("a delivery that named more than its landing admitted still alerts", async () => {
+    // The delivery named five people, the booking held three, and the write
+    // moved none because another door took them first. The claim stands at
+    // the three the delivery planned, so the answer reads that landing, and
+    // it still says the numbers: the first send's answer can get lost
+    // before it reaches the door.
+    await withTransaction((tx) =>
+      claimScanOperation({
+        listingIds: [1],
+        operationId: "op-over-admitted-1",
+        quantity: 3,
+        tokenHash: "digest-over-admitted-1",
+      })(tx),
+    );
+
+    const answer = await admissionAnswer(
+      {
+        allEntries: [standardRow(3), societyRow()],
+        decision: admitOf([standardRow(3)]),
+        delivery: {
+          operationId: "op-over-admitted-1",
+          quantity: 5,
+          tokenHash: "digest-over-admitted-1",
+        },
+      },
+      "Cara",
+      { admitted: 0, remaining: 0 },
+    );
+
+    expect(await answer.json()).toEqual({
+      listingName: "Standard",
+      name: "Cara",
+      overAdmission: { admitted: 3, bought: 4, named: 5 },
+      quantity: 3,
+      status: "already_checked_in",
+      total: 3,
+    });
+  });
+
   test("a drained delivery whose ledger row is gone fails loudly", async () => {
     // The admission stores the pair before any drained answer reads it, so
     // a missing row is a broken invariant, not an answer.
     await expect(
       admissionAnswer(
-        admitOf([standardRow(1)]),
-        [standardRow(1)],
+        {
+          allEntries: [standardRow(1)],
+          decision: admitOf([standardRow(1)]),
+          delivery: {
+            operationId: "op-drained-2",
+            tokenHash: "digest-drained-2",
+          },
+        },
         "Cara",
-        { operationId: "op-drained-2", tokenHash: "digest-drained-2" },
         { admitted: 0, remaining: 0 },
       ),
     ).rejects.toThrow(
@@ -411,10 +462,12 @@ describeWithEnv("the answer for one admission's write", { db: true }, () => {
 
   test("a write that took tickets answers checked in with what remains", async () => {
     const answer = await admissionAnswer(
-      admitOf([standardRow(3)]),
-      [standardRow(3)],
+      {
+        allEntries: [standardRow(3)],
+        decision: admitOf([standardRow(3)]),
+        delivery: undefined,
+      },
       "Cara",
-      undefined,
       { admitted: 1, remaining: 2 },
     );
 

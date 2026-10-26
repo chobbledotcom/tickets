@@ -6,16 +6,25 @@ import { expect } from "@std/expect";
 // jscpd:ignore-end
 
 import { t } from "#i18n";
+import { overAdmissionNoteText } from "#routes/admin/scan-reply.ts";
+import {
+  NOTES_BLOCK,
+  NOTES_SUMMARY,
+  regionFrom,
+} from "#test/specs/support/attendee-images.ts";
+import { scenarioBrowser } from "#test/specs/support/browser.ts";
 import { ticketOf } from "#test/specs/support/door.ts";
 import { privatePagePath } from "#test/specs/support/editors.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   openScannerPage,
   ownerInvitesScanner,
+  queuedCheckInAtDoor,
   scanAtDoorAsScanner,
   scannerBrowser,
   scannerFollowsInvite,
   scannerLogsIn,
+  sendQueuedCheckIn,
   signedInScanner,
 } from "#test/specs/support/scanners.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
@@ -111,6 +120,199 @@ Then(
 );
 
 Then(
+  "the door page offers an offline mode switch that starts off",
+  function (this: TicketsWorld): void {
+    const page = scannerBrowser(this).currentHtml;
+    // This harness serves the page and never runs its script, so the step
+    // reads the switch the door worker sees: the site's own label, and
+    // the off state the page serves it in.
+    const toggle = page.match(
+      /<button([^>]*)\sid="scanner-offline-toggle"([^>]*)>([^<]*)<\/button>/,
+    );
+    expect(toggle?.[3]?.trim()).toBe(t("admin.scanner.offline_mode"));
+    expect(toggle?.[0]).toContain('aria-pressed="false"');
+  },
+);
+
+Then(
+  "the door page keeps a place that will list the queued check-ins",
+  function (this: TicketsWorld): void {
+    const page = scannerBrowser(this).currentHtml;
+    // This harness serves the page and never runs its script, so the step
+    // reads the promise the served page makes: the panel whose polite
+    // live region will carry the queued count, and the list the queued
+    // check-ins will fill once offline mode turns on.
+    const queue = page.match(
+      /<div class="hidden" id="scanner-queue">([\s\S]*?)<\/div>/,
+    );
+    expect(queue?.[1]).toContain(
+      '<p aria-live="polite" id="scanner-queue-summary"></p>',
+    );
+    expect(queue?.[1]).toContain('<ul id="scanner-queue-items"></ul>');
+  },
+);
+
+/** Sends the story's queued check-in: the one body the queue step built,
+ * so a resend is the same delivery, not a second one. The answer the send
+ * replaces stays in the world, so a step can hold a resend beside the
+ * landing it repeated. */
+const sendTheQueuedCheckIn = async (world: TicketsWorld): Promise<void> => {
+  const queued = world.queuedDelivery;
+  if (!queued) throw new Error("The story holds no queued check-in to send");
+  if (world.doorAnswer !== undefined) {
+    world.previousDoorAnswer = world.doorAnswer;
+  }
+  world.doorAnswer = await sendQueuedCheckIn(world, queued);
+};
+
+When(
+  "{word} queues a check-in for {int} of {word}'s places at the {word} door",
+  async function (
+    this: TicketsWorld,
+    _who: string,
+    pick: number,
+    guest: string,
+    listing: string,
+  ): Promise<void> {
+    this.queuedDelivery = await queuedCheckInAtDoor(
+      this,
+      listing,
+      ticketOf(this, guest),
+      pick,
+    );
+  },
+);
+
+When(
+  "the connection returns and the door sends the queued check-in",
+  function (this: TicketsWorld): Promise<void> {
+    return sendTheQueuedCheckIn(this);
+  },
+);
+
+When(
+  "the door sends the same queued check-in again",
+  function (this: TicketsWorld): Promise<void> {
+    return sendTheQueuedCheckIn(this);
+  },
+);
+
+Then(
+  "the door says the queued check-in checked in {int} of {int} places",
+  function (this: TicketsWorld, admitted: number, total: number): void {
+    expect(this.doorAnswer?.status).toBe("checked_in");
+    expect(this.doorAnswer?.quantity).toBe(admitted);
+    expect(this.doorAnswer?.total).toBe(total);
+  },
+);
+
+Then(
+  "the door says {word} was already checked in",
+  function (this: TicketsWorld, _guest: string): void {
+    // The resend is the delivery's own landing again: nobody is admitted
+    // twice, and a delivery the booking supplied names no shortfall.
+    expect(this.doorAnswer?.status).toBe("already_checked_in");
+    expect(this.doorAnswer?.overAdmission).toBeUndefined();
+  },
+);
+
+Then(
+  "the door says the check-in named {int}, admitted {int}, and the booking holds {int} places",
+  function (
+    this: TicketsWorld,
+    named: number,
+    admitted: number,
+    bought: number,
+  ): void {
+    // The alert an over-admitted landing answers: what the check-in
+    // named, what it admitted, and what the booking holds.
+    expect(this.doorAnswer?.status).toBe("checked_in");
+    expect(this.doorAnswer?.quantity).toBe(admitted);
+    expect(this.doorAnswer?.total).toBe(bought);
+    expect(this.doorAnswer?.overAdmission).toEqual({ admitted, bought, named });
+  },
+);
+
+Then(
+  "the door gives the same numbers and admits nobody more",
+  function (this: TicketsWorld): void {
+    // The resend is the delivery's landing answered again: the alert
+    // carries the numbers the first send gave, and nobody is admitted.
+    expect(this.doorAnswer?.status).toBe("already_checked_in");
+    expect(this.doorAnswer?.quantity).toBe(this.previousDoorAnswer?.quantity);
+    expect(this.doorAnswer?.total).toBe(this.previousDoorAnswer?.total);
+    expect(this.doorAnswer?.overAdmission).toEqual(
+      this.previousDoorAnswer?.overAdmission,
+    );
+  },
+);
+
+/** The over-admission note appears once in the region the organiser reads it
+ * in. The notes summary names the booking the note sits on; the person's own
+ * page does not, so only the summary step asks for the name. */
+const notesRegionShowsOneNote = (
+  html: string,
+  openMarker: string,
+  tag: string,
+  named: number,
+  admitted: number,
+  bought: number,
+  guest?: string,
+): void => {
+  const region = regionFrom(html, openMarker, tag);
+  expect(region).not.toBe("");
+  if (guest !== undefined) {
+    expect(region).toContain(guest);
+  }
+  expect(
+    region.split(overAdmissionNoteText(named, admitted, bought)),
+  ).toHaveLength(2);
+};
+
+Then(
+  "the notes panel shows one note for {word} saying the check-in named {int}, admitted {int}, and the booking holds {int} places",
+  function (
+    this: TicketsWorld,
+    guest: string,
+    named: number,
+    admitted: number,
+    bought: number,
+  ): void {
+    // The organiser reads the note inside the notes summary's own region,
+    // grouped under the booking it is on, and the region holds it once.
+    notesRegionShowsOneNote(
+      scenarioBrowser(this).currentHtml,
+      NOTES_SUMMARY,
+      "details",
+      named,
+      admitted,
+      bought,
+      guest,
+    );
+  },
+);
+
+Then(
+  "the notes block above the tabs shows one note for {word} saying the check-in named {int}, admitted {int}, and the booking holds {int} places",
+  function (
+    this: TicketsWorld,
+    _guest: string,
+    named: number,
+    admitted: number,
+    bought: number,
+  ): void {
+    notesRegionShowsOneNote(
+      scenarioBrowser(this).currentHtml,
+      NOTES_BLOCK,
+      "section",
+      named,
+      admitted,
+      bought,
+    );
+  },
+);
+
+Then(
   "the ticket page offers to check them out",
   function (this: TicketsWorld): void {
     assertStringIncludes(
@@ -190,6 +392,20 @@ Then(
       scannerBrowser(this).pageText,
       t("attendee_form.checked_in_count", { count: admitted, total }),
     );
+  },
+);
+
+Then(
+  "the ticket page says all {int} places are checked in",
+  function (this: TicketsWorld, total: number): void {
+    // Every place the booking holds is in: the party's badge reads its
+    // full state, and no partial count for the party stays on the page.
+    const html = scannerBrowser(this).currentHtml;
+    assertStringIncludes(
+      html,
+      `<span class="badge-ok">${t("admin.attendee_table.checked_in_badge")}</span>`,
+    );
+    expect(html).not.toContain(`of ${total})`);
   },
 );
 

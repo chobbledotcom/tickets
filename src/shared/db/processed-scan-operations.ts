@@ -11,11 +11,7 @@
  * guest detail rests here, and the digest is the row's only trace.
  */
 
-import {
-  movesThatMoved,
-  type TicketMoveAnswer,
-  ticketCount,
-} from "#booking/ticket-moves.ts";
+import { type TicketMoveAnswer, ticketCount } from "#booking/ticket-moves.ts";
 import type { ScanOperationGuard } from "#db/attendees/door-moves.ts";
 import {
   insert,
@@ -24,7 +20,6 @@ import {
   type TxScope,
   update,
 } from "#db/client.ts";
-import { unique } from "#fp";
 import { limit } from "#shared/limits.ts";
 import { DAY_MS, nowIso } from "#shared/now.ts";
 
@@ -38,8 +33,8 @@ export type ScanDelivery = {
   tokenHash: string;
 };
 
-/** What one landed delivery admitted: the listings its write moved tickets
- * on, and the places that write really took. A retry answers these, so its
+/** What one landed delivery admitted: the listings its admission planned,
+ * and the places its write really took. A retry answers these, so its
  * answer mirrors the first send's. */
 export type DeliveredScanOperation = {
   listingIds: readonly number[];
@@ -69,11 +64,12 @@ export const claimScanOperation =
   };
 
 /** Correct one landed delivery's recorded admission to what its write
- * really moved. Another door can take tickets between the delivery's
+ * really took. Another door can take tickets between the delivery's
  * decision and its write, so the write can move fewer places than the
- * delivery claimed — never more. The stored admission then reads what the
- * first send's answer said, and a retry mirrors it. Runs inside the same
- * transaction as the move it corrects. */
+ * delivery claimed — never more. The stored admission keeps the listings
+ * the delivery planned beside the places the write really took. A retry
+ * then names the same tier the first send's answer named. Runs inside
+ * the same transaction as the move it corrects. */
 export const settleScanOperation = async (
   operationId: string,
   tokenHash: string,
@@ -112,22 +108,21 @@ export const deliveredScanOperation = async (
   };
 };
 
-/** What the delivery's record says after its write: the claim, or the
- * write's real landing when it moved fewer places than the delivery
- * claimed. A write that moved nothing leaves the claim standing. The
- * drained answer reads the claim's own admission, so the retry mirrors
- * what the first send said. */
+/** What the delivery's record says after its write: the listings its
+ * admission planned, and the places the write really took. A write that
+ * moved nothing keeps the claim's own quantity: the drained answer reads
+ * the claim, so the retry mirrors what the first send said. The planned
+ * listings stand whatever the write moved, so the retry's answer names
+ * the same tier the first send's answer named. */
 const recordedAdmission = (
   delivery: ScanDelivery,
   moved: readonly TicketMoveAnswer[],
 ): DeliveredScanOperation => {
   const actual = ticketCount(moved);
-  return actual === 0 || actual === delivery.quantity
-    ? { listingIds: delivery.listingIds, quantity: delivery.quantity }
-    : {
-        listingIds: unique(movesThatMoved(moved).map((move) => move.listingId)),
-        quantity: actual,
-      };
+  return {
+    listingIds: delivery.listingIds,
+    quantity: actual === 0 ? delivery.quantity : actual,
+  };
 };
 
 /** The once-only hold one delivery takes on its admission write: it
