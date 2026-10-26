@@ -8,7 +8,7 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
  */
 
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
-import { addPageImageUrls } from "#db/images.ts";
+import { addPageImageUrls } from "#db/image-urls.ts";
 import { createOwnerNote, deleteNotes, getNote } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import type { SystemNote } from "#db/notes/types.ts";

@@ -4,7 +4,7 @@
 
 /* jscpd:ignore-start */
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
-import { addPageImageUrls } from "#db/images.ts";
+import { addPageImageUrls } from "#db/image-urls.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { requireMessageField, withCsrfForm } from "#routes/csrf.ts";

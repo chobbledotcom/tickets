@@ -23,7 +23,7 @@ import {
   getRawEmailTemplate,
 } from "#db/email-templates.ts";
 /* jscpd:ignore-start */
-import { imageUrlsFor, mergePageImageUrls } from "#db/images.ts";
+import { imageUrlsFor, mergePageImageUrls } from "#db/image-urls.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 /* jscpd:ignore-end */

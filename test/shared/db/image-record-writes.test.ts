@@ -3,11 +3,11 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getDb } from "#db/client.ts";
+import { imageUrlsFor } from "#db/image-urls.ts";
 import {
   deleteImageRecord,
   getImageById,
   type ImageInput,
-  imageUrlsFor,
   insertImageRecord,
   updateImageRecord,
 } from "#db/images.ts";

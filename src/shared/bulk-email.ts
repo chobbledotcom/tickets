@@ -11,7 +11,7 @@
 
 import { decryptPiiBlob } from "#db/attendees/pii.ts";
 import { hashEmail } from "#db/contact-preferences.ts";
-import type { ImageUrls } from "#db/images.ts";
+import type { ImageUrls } from "#db/image-urls.ts";
 import {
   filter,
   flatMap,

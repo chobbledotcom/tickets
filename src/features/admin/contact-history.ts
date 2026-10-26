@@ -16,7 +16,7 @@ import {
   getContactRecordOrRepair,
   saveContactRecord,
 } from "#db/contact-preferences.ts";
-import { addPageImageUrls } from "#db/images.ts";
+import { addPageImageUrls } from "#db/image-urls.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";

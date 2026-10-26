@@ -71,7 +71,7 @@ const md = once(
 /** Renders block markdown, escaping raw HTML and stripping unsafe URLs. An
  * `img#N` reference resolves through `imageUrls`. Without the argument, it
  * resolves through the request's page-image slot, which the page's loaders
- * fill with `addPageImageUrls` (see `#db/images.ts`). A missing entry
+ * fill with `addPageImageUrls` (see `#db/image-urls.ts`). A missing entry
  * renders no image, and the alt text shows. The override exists for a render
  * whose table is not the page's, such as the site footer. */
 export const renderMarkdown = (

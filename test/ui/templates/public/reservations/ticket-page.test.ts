@@ -2,7 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttributeWithOptions } from "#db/attributes.ts";
-import { addTicketPageImageUrls } from "#db/images.ts";
+import { addTicketPageImageUrls } from "#db/image-urls.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import { detectIframeMode } from "#shared/request-context.ts";

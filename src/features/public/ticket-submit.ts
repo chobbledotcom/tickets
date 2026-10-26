@@ -11,7 +11,8 @@ import {
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
-import { addTicketPageImageUrls, getImagesForItem } from "#db/images.ts";
+import { addTicketPageImageUrls } from "#db/image-urls.ts";
+import { getImagesForItem } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { notFoundResponse } from "#routes/response.ts";

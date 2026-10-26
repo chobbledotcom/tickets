@@ -5,6 +5,9 @@ import { executeBatch, queryAll } from "#db/client.ts";
 import {
   addPageImageUrls,
   addTicketPageImageUrls,
+  imageUrlsFor,
+} from "#db/image-urls.ts";
+import {
   appendImageToItem,
   clearImageUsesForItemStatement,
   deleteImageRecord,
@@ -14,7 +17,6 @@ import {
   getImagesForItem,
   getImageUsesForImage,
   imagesTable,
-  imageUrlsFor,
   imageUseTargets,
   setImagesForItem,
   setItemsForImage,

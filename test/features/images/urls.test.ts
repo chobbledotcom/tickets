@@ -4,11 +4,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getDb } from "#db/client.ts";
-import {
-  addPageImageUrls,
-  imageUrlsFor,
-  insertImageRecord,
-} from "#db/images.ts";
+import { addPageImageUrls, imageUrlsFor } from "#db/image-urls.ts";
+import { insertImageRecord } from "#db/images.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { settings } from "#db/settings.ts";
 import { renderMarkdown } from "#shared/markdown.ts";

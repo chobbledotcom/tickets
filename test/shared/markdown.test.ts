@@ -1,7 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { mergePageImageUrls } from "#db/images.ts";
+import { mergePageImageUrls } from "#db/image-urls.ts";
 import {
   isSafeUrl,
   isSimpleMarkdown,
