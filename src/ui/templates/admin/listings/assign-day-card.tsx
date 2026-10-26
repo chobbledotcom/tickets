@@ -19,19 +19,24 @@ export const AssignUndatedDayCard = ({
   card: AssignCard;
 }): JSX.Element => (
   <div class="notice listing-assign-day" role="alert">
-    <h2>
-      {t("listings_table.switch_daily_undated_heading", { count: card.count })}
-    </h2>
-    <p>{t("listings_table.switch_daily_undated_body")}</p>
-    {card.noDates ? (
-      <p>{t("listings_table.switch_daily_undated_no_dates")}</p>
-    ) : card.noneFits ? (
-      <p>
-        {t("listings_table.switch_daily_undated_none_fits", {
+    <div class="prose">
+      <h2>
+        {t("listings_table.switch_daily_undated_heading", {
           count: card.count,
         })}
-      </p>
-    ) : (
+      </h2>
+      <p>{t("listings_table.switch_daily_undated_body")}</p>
+      {card.noDates ? (
+        <p>{t("listings_table.switch_daily_undated_no_dates")}</p>
+      ) : card.noneFits ? (
+        <p>
+          {t("listings_table.switch_daily_undated_none_fits", {
+            count: card.count,
+          })}
+        </p>
+      ) : null}
+    </div>
+    {!(card.noDates || card.noneFits) && (
       <>
         <label for={ASSIGN_UNDATED_FIELD}>
           {t("listings_table.switch_daily_undated_pick")}
