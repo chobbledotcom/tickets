@@ -26,6 +26,7 @@ import { settings } from "#db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { normalizePhone } from "#shared/phone.ts";
+import { seenBefore } from "#shared/seen-before.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
@@ -212,21 +213,26 @@ const countFieldsFromRow = (
   visits: row?.visits ?? 0,
 });
 
-export const getContactRecord: ContactRecordLoader = async (
-  hash,
-  privateKey,
-) => {
-  const row = await queryOne<
-    CountColumnsRow & { stats_blob: OwnerKeyEncrypted | "" }
-  >(
+/** One contact's stored row: the plaintext counters plus the owner-encrypted
+ * note. */
+type ContactRow = CountColumnsRow & { stats_blob: OwnerKeyEncrypted | "" };
+
+const loadContactRow = (hash: string): Promise<ContactRow | null> =>
+  queryOne<ContactRow>(
     "SELECT visits, public_booking_count, admin_booking_count, stats_blob FROM contact_preferences WHERE contact_hash = ?",
     [hash],
   );
-  return {
-    ...(await parseStats(row?.stats_blob ?? "", privateKey)),
-    ...countFieldsFromRow(row),
-  };
-};
+
+const recordFromRow = async (
+  row: ContactRow | null,
+  privateKey: CryptoKey,
+): Promise<ContactRecord> => ({
+  ...(await parseStats(row?.stats_blob ?? "", privateKey)),
+  ...countFieldsFromRow(row),
+});
+
+export const getContactRecord: ContactRecordLoader = async (hash, privateKey) =>
+  recordFromRow(await loadContactRow(hash), privateKey);
 
 /** The plaintext count columns for one contact — readable without the private
  * key and without touching the (possibly corrupt) encrypted stats blob. Lets a
@@ -253,22 +259,31 @@ export const getRepairFallbackRecord = async (
   ...(await getContactCountFields(hash)),
 });
 
-/** {@link getContactRecord}, but a corrupt/undecryptable note must not take
- *  down the caller: log it for repair and fall back to
+/** Notes already reported as unreadable in this process, keyed by reader
+ * context and hash. One unrepaired row must not write a log line on every
+ * read. */
+const unreadableNotesReported = seenBefore();
+
+/** {@link getContactRecord}, but an unreadable encrypted note must not take
+ *  down the caller: log it once per process and fall back to
  *  {@link getRepairFallbackRecord} instead of throwing, so the real booking
  *  counts and the record's repair link stay visible. `context` names the
  *  caller in the logged detail (e.g. "contact history", "contact history
- *  editor"). */
+ *  editor"). A database failure is not an unreadable note: the row read stays
+ *  outside the catch, so it surfaces as the database error it is. */
 export const getContactRecordOrRepair: (
   context: string,
 ) => ContactRecordLoader = (context) => async (hash, privateKey) => {
+  const row = await loadContactRow(hash);
   try {
-    return await getContactRecord(hash, privateKey);
+    return await recordFromRow(row, privateKey);
   } catch (error) {
-    logError({
-      code: ErrorCode.DECRYPT_FAILED,
-      detail: `${context} ${base64ToBase64Url(hash)}: ${error}`,
-    });
+    if (!unreadableNotesReported(`${context}:${hash}`)) {
+      logError({
+        code: ErrorCode.DECRYPT_FAILED,
+        detail: `${context} ${base64ToBase64Url(hash)}: ${error}`,
+      });
+    }
     return getRepairFallbackRecord(hash);
   }
 };
