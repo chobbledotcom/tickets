@@ -173,7 +173,7 @@ Then(
       "the event filled up while they were paying",
     );
     assertStringIncludes(notes[0]?.note ?? "", "Refund code: capacity_full");
-    assert(!notes[0]?.note.includes(lateSession.paymentIntent));
+    assert(!(notes[0]?.note ?? "").includes(lateSession.paymentIntent));
     assertStringIncludes(
       notes[0]?.note ?? "",
       `/admin/ledger/attendee/${attendeeId}`,
