@@ -115,6 +115,9 @@ jobs:
       - name: Check known-equivalent mutant records
         run: deno task check:equivalents
 
+      - name: Check test-quality audit findings
+        run: deno task check:test-quality
+
       - name: Check for import cycles
         run: deno task cycles
 
