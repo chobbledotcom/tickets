@@ -244,8 +244,8 @@ src/shared/admin-surface.ts::adminRecordPath~11evcma  ?? → || audited:1b16u45 
 
 # db/listings/attendees.ts — fallbacks whose left side can never be a
 # falsy-but-present value that differs from the fallback itself.
-src/shared/db/listings/attendees.ts::listingAttendeeFilter.activeOnly~1bv0ikc  ?? → || audited:0wqao29 # activeOnly is boolean|undefined and the fallback is false, so false ?? false === false || false
-src/shared/db/listings/attendees.ts::listingAttendeeFilter.kindScope~0taxexu  ?? → || audited:0wqao29 # kindScope is one of two non-empty words or undefined, so it is never falsy-but-present
+src/shared/db/listings/attendees.ts::listingAttendeeFilter.activeOnly~1bv0ikc  ?? → || audited:04x3l2t # activeOnly is boolean|undefined and the fallback is false, so false ?? false === false || false
+src/shared/db/listings/attendees.ts::listingAttendeeFilter.kindScope~0taxexu  ?? → || audited:04x3l2t # kindScope is one of two non-empty words or undefined, so it is never falsy-but-present
 
 # db/client.ts — fallbacks whose left side can never be a falsy-but-present
 # value, and a label no code ever reads.
@@ -317,7 +317,7 @@ src/shared/booking/order-lines.ts::buildOrderLines.pathLines.quantity~1s0ldgs  ?
 src/shared/booking/order-lines.ts::buildOrderLines~03e3vj5  ?? → || audited:0upeppu # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
 src/shared/booking/order-lines.ts::buildOrderLines~03e3vj5  0 → 1 audited:0upeppu # the emitted map only feeds child-line subtraction, and a listing with emitted lines is never a child, so its folded total equals its emission and its child line skips on 0 or −1 alike; a child listing gets no emission at all, so the fallback is never read for it
 src/shared/booking/order-lines.ts::buildOrderLines.childLines.quantity~1r5rdx3  ?? → || audited:0upeppu # same proof: ReadonlyMap.get() (number|undefined) against the same 0 fallback
-src/shared/booking/ticket-moves.ts::pairBookingsOf.pairLines~1wtl68l  ?? → || audited:0pa6h9f # linesByPair.get(): StoredTicketLine[]|undefined from Map.groupBy — an array is truthy even when empty
+src/shared/booking/ticket-moves.ts::pairBookingsOf.pairLines~1wtl68l  ?? → || audited:000q5r7 # linesByPair.get(): StoredTicketLine[]|undefined from Map.groupBy — an array is truthy even when empty
 src/shared/listing-parents-rules.ts::describedDayCounts.sorted~1uom1op  - → / audited:0dddsgg # day counts are positive integers, so a / b is positive for every distinct pair; V8's toSorted with an always-positive comparator returns the input order unchanged (probed on ascending and non-ascending inputs), so the sorted sequence is identical
 
 # firstMatch only yields undefined | null | a target object; null fails both

@@ -362,5 +362,41 @@ describeWithEnv(
       });
       expect(await getNoteRows("attendee", [attendee.id])).toHaveLength(1);
     });
+
+    test("a delivery a concurrent door shortens to one still records the shortfall", async () => {
+      // One delivery takes one place; two stay for the racing second door.
+      const { door, attendee } = await partyOfThree();
+      await deliverDigest(
+        door.group.id,
+        attendee.ticket_token,
+        "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b33",
+        1,
+      );
+      // A second delivery names two, and another door takes one place
+      // between its decision and its write. The landing admits one, and
+      // the note says the numbers, so the door never reads a plain
+      // checked-in for a short landing.
+      const answer = await withConcurrentDoorDrain(
+        attendee.id,
+        door.members[0]!.id,
+        () =>
+          deliverDigest(
+            door.group.id,
+            attendee.ticket_token,
+            "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b34",
+            2,
+          ),
+      );
+      expect(answer.json.status).toBe("checked_in");
+      expect(answer.json.quantity).toBe(1);
+      expect(answer.json.overAdmission).toEqual({
+        admitted: 1,
+        bought: 3,
+        named: 2,
+      });
+      expect(await overAdmissionNote(attendee.id)).toBe(
+        "An offline door check-in named 2 people, and 1 of them could be checked in. The booking holds 3 places.",
+      );
+    });
   },
 );
