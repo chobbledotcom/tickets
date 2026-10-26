@@ -2,8 +2,8 @@
  * when a repeat read is served from a cache, and what a key change wipes. */
 
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
 import { describe, it } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { setEncryptionKeyForTest } from "#crypto/encryption.ts";
 import {
   generateKeyPair,
@@ -82,20 +82,14 @@ describe("hybrid crypto caches", () => {
       };
 
       it("caches a decrypt result under its ciphertext", async () => {
-        const sealed = await hybridEncrypt(
-          "count me",
-          await ownerPublicKey(),
-        );
+        const sealed = await hybridEncrypt("count me", await ownerPublicKey());
         const before = statEntries("decrypt") ?? 0;
         await hybridDecrypt(sealed, privateKey);
         expect(statEntries("decrypt")).toBe(before + 1);
       });
 
       it("serves a repeat decrypt of one ciphertext without repeating the RSA work", async () => {
-        const sealed = await hybridEncrypt(
-          "cache me",
-          await ownerPublicKey(),
-        );
+        const sealed = await hybridEncrypt("cache me", await ownerPublicKey());
         expect(await hybridDecrypt(sealed, privateKey)).toBe("cache me");
         const realDecrypt = crypto.subtle.decrypt.bind(crypto.subtle);
         const counted = stub(
@@ -113,10 +107,7 @@ describe("hybrid crypto caches", () => {
       });
 
       it("wipes the decrypt cache when the encryption key changes", async () => {
-        const sealed = await hybridEncrypt(
-          "wipe me",
-          await ownerPublicKey(),
-        );
+        const sealed = await hybridEncrypt("wipe me", await ownerPublicKey());
         await hybridDecrypt(sealed, privateKey);
         expect(statEntries("decrypt")).toBeGreaterThan(0);
         setEncryptionKeyForTest(OTHER_TEST_ENCRYPTION_KEY);
