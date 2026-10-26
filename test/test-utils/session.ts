@@ -334,6 +334,20 @@ export const setupListingAndLogin = async (
   return { cookie, csrfToken, listing };
 };
 
+/** POST a urlencoded form to `path` from the session holding this cookie, with
+ * the signed CSRF token every form carries. */
+export const postFormAs = async (
+  path: string,
+  cookie: string,
+  data: TestFormValues = {},
+): Promise<Response> => {
+  const csrf_token = await signCsrfToken();
+  return awaitTestRequest(path, {
+    cookie,
+    data: { ...data, csrf_token },
+  });
+};
+
 export const adminFormPost = async (
   path: string,
   data: TestFormValues = {},
