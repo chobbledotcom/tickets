@@ -109,6 +109,14 @@ describe("formatBundleIssues", () => {
     ).toBe('Invalid catalog file — "listing 1": listing.name: bad');
   });
 
+  test("falls back to the position when the body's name is not a string", () => {
+    expect(
+      formatBundleIssues([issueAt(["listings", 0, "listing", "name"], "bad")], {
+        listings: [{ listing: { name: 42 } }],
+      }),
+    ).toBe('Invalid catalog file — "listing 1": listing.name: bad');
+  });
+
   test("reports a name-level failure without a field suffix", () => {
     expect(
       formatBundleIssues([issueAt(["listings", 0], "Invalid input")], {

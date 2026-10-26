@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 
+import type { BlindIndex } from "#crypto/sealed.ts";
 import { writeRowInTransaction } from "#db/client.ts";
 import {
   packageGroupIdsTx,
@@ -23,7 +24,10 @@ import {
   TransactionValidationError,
 } from "#db/transaction.ts";
 import { t } from "#i18n";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import type {
+  GroupInput,
+  ListingInput,
+} from "#shared/catalog-fields/fields.ts";
 import { dayPriceFieldsFromInput } from "#shared/listing-edge.ts";
 import {
   generateUniqueListingSlug,
@@ -39,7 +43,7 @@ import {
   parseDayPrices,
 } from "#types";
 import { type ImportedMembership, writeMembershipsTx } from "./membership.ts";
-import type { ListingData, ListingTransfer } from "./schema.ts";
+import type { GroupData, ListingData, ListingTransfer } from "./schema.ts";
 
 /* jscpd:ignore-end */
 
@@ -100,18 +104,16 @@ export const withNewId = (
   specs.map((spec) => ({ ...spec, [newIdField]: newId }) as ImportedMembership);
 
 export const membershipSpec = (
-  entry: {
-    packagePrice?: number | null | undefined;
-    quantity?: number | undefined;
-    dayPrices?: Record<string, number> | undefined;
-  },
+  packagePrice: number | null | undefined,
+  quantity: number | undefined,
+  dayPrices: Record<string, number> | undefined,
   isPackage: boolean,
 ): MembershipSpec =>
   isPackage
     ? {
-        dayPrices: entry.dayPrices ? parseDayPrices(entry.dayPrices) : {},
-        packagePrice: entry.packagePrice ?? null,
-        quantity: entry.quantity === undefined ? 1 : entry.quantity,
+        dayPrices: dayPrices ? parseDayPrices(dayPrices) : {},
+        packagePrice: packagePrice ?? null,
+        quantity: quantity === undefined ? 1 : quantity,
       }
     : { dayPrices: {}, packagePrice: null, quantity: 1 };
 
@@ -188,18 +190,59 @@ export const listingDataToInput = (
   slugIndex: string,
   groupIds: number[],
 ): ListingInput => {
-  const { closesAt, dayPrices, ...rest } = data;
+  const {
+    bookableDays,
+    closesAt,
+    dayPrices,
+    description,
+    location,
+    maxAttendees,
+    minimumDaysBefore,
+    nonTransferable,
+    useDefaults,
+    usesLogistics,
+    ...rest
+  } = data;
   return {
     ...rest,
     attachmentName: "",
     attachmentUrl: "",
+    bookableDays,
     closesAt: closesAt === null ? undefined : closesAt,
     dayPrices: dayPrices === undefined ? undefined : parseDayPrices(dayPrices),
+    description,
     groupIds,
+    location,
+    maxAttendees,
+    minimumDaysBefore,
+    nonTransferable,
     slug,
     slugIndex,
+    useDefaults,
+    usesLogistics,
   } as ListingInput;
 };
+
+/** The transferable group columns projected onto the group insert input, the
+ * group-side twin of {@link listingDataToInput}. Reads every field by name so
+ * the import surfaces exactly what the site stores. */
+export const groupDataToInput = (
+  data: GroupData,
+  slug: string,
+  slugIndex: BlindIndex,
+): GroupInput => ({
+  description: data.description,
+  hidden: data.hidden,
+  hidePackageListings: data.hidePackageListings,
+  isPackage: data.isPackage,
+  maxAttendees: data.maxAttendees,
+  name: data.name,
+  scanChecksInAllListings: data.scanChecksInAllListings,
+  showHiddenListings: data.showHiddenListings,
+  slug,
+  slugIndex,
+  termsAndConditions: data.termsAndConditions,
+});
 
 export const applyImportPolicy = (
   input: ListingInput,
@@ -271,7 +314,9 @@ export const importListing = async (
         withNewId(
           memberships.map((membership, index) => ({
             ...membershipSpec(
-              membership,
+              membership.packagePrice,
+              membership.quantity,
+              membership.dayPrices,
               packageGroupIds.has(groupResolve.ids[index]!),
             ),
             groupId: groupResolve.ids[index]!,

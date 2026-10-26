@@ -29,7 +29,6 @@ import {
 } from "#db/transaction.ts";
 import { identity, mapById } from "#fp";
 import { t } from "#i18n";
-import type { GroupInput } from "#shared/catalog-fields/fields.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { okResult, type Result } from "#shared/result.ts";
 import {
@@ -42,6 +41,7 @@ import { importBundle } from "./bundle.ts";
 import type { ImportedBundle } from "./bundle-plan.ts";
 import {
   fail,
+  groupDataToInput,
   type ImportedEntity,
   importListing,
   importTransactionFailure,
@@ -158,9 +158,14 @@ const importGroup = async (
   if (memberError) return fail(memberError);
 
   const { slug, slugIndex } = await generateUniqueGroupSlug();
-  const input: GroupInput = { ...group, slug, slugIndex };
+  const input = groupDataToInput(group, slug, slugIndex);
   const specs = members.map((member, index) => ({
-    ...membershipSpec(member, group.isPackage ?? false),
+    ...membershipSpec(
+      member.packagePrice,
+      member.quantity,
+      member.dayPrices,
+      group.isPackage ?? false,
+    ),
     listingId: memberResolve.ids[index]!,
   }));
   const id = await writeRowInTransaction(

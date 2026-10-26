@@ -5,13 +5,11 @@
  * one query, all before the first database write.
  */
 
+/* jscpd:ignore-start -- imports */
 import { listingGroups } from "#db/groups/table.ts";
 import { getGroupsById } from "#db/groups.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
-import {
-  type CatalogNameIndex,
-  normalizeEntityName as nameKey,
-} from "#db/name-registry.ts";
+import { normalizeEntityName as nameKey } from "#db/name-registry.ts";
 import { unique } from "#fp";
 import { requireValue } from "#shared/required-value.ts";
 import type { Group, ListingWithCount } from "#types";
@@ -39,6 +37,7 @@ import type {
   ListingBody,
   ListingMembership,
 } from "./schema.ts";
+/* jscpd:ignore-end */
 
 /** Everything the later phases read: the document and its per-item resolution
  * maps (keyed by the item objects themselves), plus the stored rows the site
@@ -51,7 +50,6 @@ export type ValidationContext = {
   listingRefs: ReadonlyMap<ListingBody, ListingRefs>;
   memberRefs: ReadonlyMap<GroupBody, ReadonlyMap<string, Resolved>>;
   siteGroupById: Map<number, Group>;
-  siteIndex: CatalogNameIndex;
   siteListingById: Map<number, ListingWithCount>;
 };
 
@@ -118,7 +116,6 @@ export const buildContext = async (
     listingRefs,
     memberRefs,
     siteGroupById: new Map(),
-    siteIndex,
     siteListingById: new Map(),
   };
   const siteListingIds = unique([
@@ -251,7 +248,12 @@ export const collectPairs = (
         entry.group,
         { bundleKey: nameKey(body.listing.name) },
         resolved,
-        membershipSpec(entry, groupViewOf(resolved, context).isPackage),
+        membershipSpec(
+          entry.packagePrice,
+          entry.quantity,
+          entry.dayPrices,
+          groupViewOf(resolved, context).isPackage,
+        ),
         body.listing.name,
         fail,
       );
@@ -270,7 +272,12 @@ export const collectPairs = (
         body.group.name,
         resolved,
         { bundleKey: nameKey(body.group.name) },
-        membershipSpec(member, body.group.isPackage ?? false),
+        membershipSpec(
+          member.packagePrice,
+          member.quantity,
+          member.dayPrices,
+          body.group.isPackage ?? false,
+        ),
         body.group.name,
         fail,
       );

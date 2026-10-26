@@ -7,6 +7,7 @@
 import { packageMembersError } from "#db/groups.ts";
 import { dayPriceFieldsFromInput } from "#shared/listing-edge.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type { ListingWithCount } from "#types";
 import { bundleListingOf } from "./bundle-listings.ts";
 import type { FailureCollector } from "./bundle-names.ts";
@@ -39,11 +40,12 @@ const memberFactsOf = (
 ): MemberFact[] => {
   const facts: MemberFact[] = [];
   for (const member of body.members) {
-    const found = resolvedReference(
-      context.memberRefs.get(body)!,
-      member.listing,
+    // An unresolved member already failed the group item, so the checks never
+    // reach this loop for it.
+    const found = requireValue(
+      resolvedReference(context.memberRefs.get(body)!, member.listing),
+      "Referenced member missing",
     );
-    if (found === undefined) continue;
     if ("siteId" in found) {
       facts.push({
         name: member.listing,

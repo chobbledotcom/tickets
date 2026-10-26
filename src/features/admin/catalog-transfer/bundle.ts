@@ -40,6 +40,7 @@ import {
   type ImportedBundle,
 } from "./bundle-plan.ts";
 import { validateBundle } from "./bundle-validate.ts";
+import { groupDataToInput } from "./import-listing.ts";
 import { type ImportedMembership, membershipStatements } from "./membership.ts";
 import type { CatalogBundle } from "./schema.ts";
 
@@ -187,11 +188,13 @@ const writeBundle = async (
     );
     const groupStatements = await Promise.all(
       groupPlans.map((groupPlan, index) =>
-        groups.table.insertStatement!({
-          ...groupPlan.body.group,
-          slug: slugs[listingCount + index]!.slug,
-          slugIndex: slugs[listingCount + index]!.slugIndex,
-        }),
+        groups.table.insertStatement!(
+          groupDataToInput(
+            groupPlan.body.group,
+            slugs[listingCount + index]!.slug,
+            slugs[listingCount + index]!.slugIndex,
+          ),
+        ),
       ),
     );
     const results = await tx.batch([...listingStatements, ...groupStatements]);

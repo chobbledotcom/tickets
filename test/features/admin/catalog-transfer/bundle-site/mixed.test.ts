@@ -164,4 +164,31 @@ describeWithEnv("bundle references to stored rows", { db: true }, () => {
       "cannot offer add-ons while its package hides listing names",
     );
   });
+
+  test("refuses a package member that also declares a parent", async () => {
+    await createTestListing({ name: "Stored Parent" });
+    await createTestGroup({ isPackage: true, name: "Stored Pack" });
+    const bundle = mixedBundle();
+    bundle.listings[0]!.parents = ["Stored Parent"];
+    const result = await importCatalog(bundle);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    assertStringIncludes(result.error, "can't also be an add-on");
+  });
+
+  test("refuses a parent edge whose child carries a minimum quantity", async () => {
+    await createTestListing({ name: "Stored Parent" });
+    const bundle = mixedBundle();
+    bundle.listings[1]!.listing = {
+      maxAttendees: 5,
+      maxPrice: 0,
+      minQuantity: 2,
+      name: "Add-on",
+      unitPrice: 100,
+    };
+    const result = await importCatalog(bundle);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    assertStringIncludes(result.error, "Add-on");
+  });
 });

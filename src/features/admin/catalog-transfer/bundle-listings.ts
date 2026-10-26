@@ -3,6 +3,7 @@
  * planned listing, and the parent-edge rules each named parent must pass.
  */
 
+/* jscpd:ignore-start -- imports */
 import { getListingsByGroupIds } from "#db/groups.ts";
 import { normalizeEntityName as nameKey } from "#db/name-registry.ts";
 import { unique } from "#fp";
@@ -29,6 +30,7 @@ import {
 } from "./bundle-site.ts";
 import { applyImportPolicy, listingDataToInput } from "./import-listing.ts";
 import type { ListingBody } from "./schema.ts";
+/* jscpd:ignore-end */
 
 /** The plan for every listing item, with the listing validator the form and
  * the single import share. The group-sibling read is hoisted out of the loop,
@@ -73,8 +75,12 @@ const checkSitePackageJoins = (
 ): void => {
   for (const pair of pairs.byListing.get(nameKey(item))?.values() ?? []) {
     if (!("siteId" in pair.group)) continue;
-    const group = context.siteGroupById.get(pair.group.siteId);
-    if (group === undefined) continue;
+    // The group a resolved reference names was loaded with the context, so
+    // the row is present.
+    const group = requireValue(
+      context.siteGroupById.get(pair.group.siteId),
+      "Referenced group missing",
+    );
     if (!group.is_package) continue;
     const refusals = packageMemberRefusals(
       item,
@@ -127,10 +133,17 @@ export const parentIsHiddenPackageMember = (
   context: ValidationContext,
 ): boolean => {
   if ("siteId" in ref) {
-    const groupIds = context.groupsByParentId.get(ref.siteId) ?? [];
+    // Every stored parent the document names was loaded into the map, so an
+    // absent key is a vanished row.
+    const groupIds = requireValue(
+      context.groupsByParentId.get(ref.siteId),
+      "Parent groups missing",
+    );
     for (const groupId of groupIds) {
-      const group = context.siteGroupById.get(groupId);
-      if (group === undefined) continue;
+      const group = requireValue(
+        context.siteGroupById.get(groupId),
+        "Referenced group missing",
+      );
       if (group.is_package && group.hide_package_listings) return true;
     }
     return false;
