@@ -29,10 +29,14 @@ Feature: The organiser reads notes that carry pictures
       Then the notes summary shows the "Poster" picture
 
     @case:images-in-notes.the-listing-panels-show-it
-    Scenario: The organiser reads the listing's overview and roster
+    Scenario: The organiser reads the notes summary on the listing's overview
       Given the organiser noted about Ada "Called about parking" with a picture called "Poster"
       When the organiser opens the Fayre's overview
       Then the notes summary shows the "Poster" picture
+
+    @case:images-in-notes.the-listing-roster-shows-it
+    Scenario: The organiser reads the notes summary on the listing's roster
+      Given the organiser noted about Ada "Called about parking" with a picture called "Poster"
       When the organiser opens the Fayre's roster
       Then the notes summary shows the "Poster" picture
 
