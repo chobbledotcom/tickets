@@ -11,10 +11,10 @@
 
 import { setFastPbkdf2ForTest } from "#crypto/hashing.ts";
 import { setRsaKeySizeForTest } from "#crypto/hybrid.ts";
+import { bootBundle } from "#scripts/bench/cold-start/boot-bundle.ts";
+import { prepareBootDatabase } from "#scripts/bench/cold-start/prepare-db.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { hranaTestFetch } from "#test-utils/hrana.ts";
-import { bootBundle } from "../bench/cold-start/boot-bundle.ts";
-import { prepareBootDatabase } from "../bench/cold-start/prepare-db.ts";
 
 const [target] = Deno.args;
 if (!target) {

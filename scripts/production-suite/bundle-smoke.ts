@@ -10,8 +10,8 @@
  * bundle-serving contract.
  */
 
-import { spawnChildJson } from "../bench/cold-start/spawn-child.ts";
-import { buildServeAppBundle } from "../edge-bundle-lib.ts";
+import { spawnChildJson } from "#scripts/bench/cold-start/spawn-child.ts";
+import { buildServeAppBundle } from "#scripts/edge-bundle-lib.ts";
 
 const OUT_DIR = "./dist/production-suite";
 const BUNDLE = `${OUT_DIR}/serve-app.js`;

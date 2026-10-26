@@ -63,10 +63,12 @@ const NO_ORIGIN_MAIN =
  * the failed git steps' stderr, so the cause never travels without its
  * message (issue #2740). */
 const assertBaseError = async (deps: DriftDeps): Promise<void> => {
-  const failure = await deps.mergeBase().then(
-    () => null,
-    (reason: unknown) => reason,
-  );
+  let failure: unknown;
+  try {
+    await deps.mergeBase();
+  } catch (reason) {
+    failure = reason;
+  }
   const message = failure instanceof Error ? failure.message : "";
   assertStringIncludes(message, NO_ORIGIN_MAIN);
   assertStringIncludes(message, NO_MAIN.stderr.trim());

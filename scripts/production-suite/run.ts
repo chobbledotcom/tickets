@@ -29,10 +29,10 @@
  * release-blocking place.
  */
 
-import { captureOutput } from "../process.ts";
-import { projectRoot } from "../project-root.ts";
-import { runTests, withTestHarness } from "../test-harness.ts";
-import { runBundleSmoke } from "./bundle-smoke.ts";
+import { captureOutput } from "#scripts/process.ts";
+import { runBundleSmoke } from "#scripts/production-suite/bundle-smoke.ts";
+import { projectRoot } from "#scripts/project-root.ts";
+import { runTests, withTestHarness } from "#scripts/test-harness.ts";
 
 /** One leg: a name for the log plus the work that throws on failure. */
 type Leg = { name: string; run: () => Promise<void> };
