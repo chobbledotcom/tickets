@@ -17,6 +17,8 @@ describe("the assign-day card", () => {
     expect(html.includes("2 bookings have no day")).toBe(true);
     expect(html.includes("Move these bookings to")).toBe(true);
     expect(html.includes('value="2026-11-05"')).toBe(true);
+    // The select submits under the field the save reads the day from.
+    expect(html.includes('name="assign_undated_to"')).toBe(true);
   });
 
   test("says plainly when the listing has no bookable dates", () => {

@@ -1,3 +1,4 @@
+import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -28,6 +29,16 @@ const input = (overrides: Partial<ListingInput> = {}): ListingInput =>
     name: "Hall",
     ...overrides,
   }) as ListingInput;
+
+/** A minimal libsql ResultSet for a stubbed batch read: no rows. */
+const emptyResultSet = (): ResultSet => ({
+  columns: [],
+  columnTypes: [],
+  lastInsertRowid: undefined,
+  rows: [],
+  rowsAffected: 0,
+  toJSON: () => ({}),
+});
 
 /** The booking rows of one listing, with their day windows. */
 const rawRows = async (
@@ -75,30 +86,66 @@ describeWithEnv("db: listings — the daily switch", { db: true }, () => {
   test("a batch failure that is not the capacity guard propagates untouched", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
     await bookAttendee(listing, { quantity: 2 });
-    const failingTx: TxScope = {
-      batch: () => Promise.reject(new Error("the database stopped responding")),
-      execute: () =>
-        Promise.reject(new Error("the database stopped responding")),
-    };
-    const failure = await withTransaction(async () => {
-      try {
-        await moveUndatedBookingsToDayTx(
-          failingTx,
-          listing.id,
-          listing.name,
-          "2026-11-05",
-          1,
-        );
-        return null;
-      } catch (error) {
-        return error;
-      }
+    // A scripted transaction: the row read answers with the undated booking,
+    // the move's own batch then fails for a reason that is no capacity
+    // refusal, and a log write after it would fail with another message.
+    let call = 0;
+    const rowResult = (): ResultSet => ({
+      columns: [],
+      columnTypes: [],
+      lastInsertRowid: undefined,
+      rows: [
+        { attendeeId: 1, packageGroupId: 0, parentListingId: 0, quantity: 2 },
+      ],
+      rowsAffected: 0,
+      toJSON: () => ({}),
     });
+    const scriptedTx: TxScope = {
+      batch: () => {
+        call += 1;
+        if (call === 1) return Promise.resolve([rowResult()]);
+        if (call === 2) {
+          return Promise.reject(new Error("the database stopped responding"));
+        }
+        return Promise.reject(new Error("the log write failed"));
+      },
+      execute: () => Promise.reject(new Error("the log write failed")),
+    };
+    const failure = await moveUndatedBookingsToDayTx(
+      scriptedTx,
+      listing.id,
+      listing.name,
+      "2026-11-05",
+      1,
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    );
     expect(failure).toBeInstanceOf(Error);
     expect(failure).toHaveProperty(
       "message",
       "the database stopped responding",
     );
+  });
+
+  test("the move reads its rows through the transaction it is given", async () => {
+    const listing = await listingWithTwoUndatedBookings();
+    // A transaction that answers every read with no rows: the move must take
+    // its row set from it, never from a read outside the transaction — a
+    // lagging replica read would strand a booking dayless behind the flip.
+    const emptyTx: TxScope = {
+      batch: () => Promise.resolve([emptyResultSet()]),
+      execute: () =>
+        Promise.reject(new Error("the move must not write outside its batch")),
+    };
+    const moved = await moveUndatedBookingsToDayTx(
+      emptyTx,
+      listing.id,
+      listing.name,
+      "2026-11-05",
+      1,
+    );
+    expect(moved).toBe(0);
   });
 
   test("a committed two-row move logs the plural count", async () => {

@@ -7,6 +7,7 @@ import { listingsTable } from "#db/listings/records.ts";
 import {
   planListingTypeSwitch,
   probeAssignDates,
+  type SwitchStep,
   wouldBeStartDates,
 } from "#routes/admin/listings-switch.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
@@ -17,6 +18,7 @@ import {
   allDays,
   bookableStartDates,
   createTestListing,
+  listingWithTwoUndatedBookings,
 } from "#test-utils/db-helpers/listings.ts";
 import { testFormParams } from "#test-utils/form-values.ts";
 import type { ListingWithCount } from "#types";
@@ -79,6 +81,16 @@ const hallWithOneUndatedBooking = async (): Promise<ListingWithCount> => {
   return listing;
 };
 
+/** The plan for a save that names its day: the confirmed pick's step. */
+const confirmedPickStep = (
+  listing: ListingWithCount,
+  day: string,
+): Promise<SwitchStep> =>
+  planListingTypeSwitch(
+    listing,
+    switchForm(listing, { assign_undated_to: day }),
+  );
+
 describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
   test("wouldBeStartDates falls back to the stored fields the submission omits", async () => {
     const stored = await createTestListing({
@@ -128,6 +140,34 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     expect(fits).toEqual([false, true]);
   });
 
+  test("the probe asks for the places the bookings hold, not their rows", async () => {
+    const listing = await listingWithTwoUndatedBookings({ maxAttendees: 5 });
+    const day = (await bookableStartDates(listing.id))[0]!;
+    // One dated place occupies the day; the cap only widens while it is set.
+    const { queryAll } = await import("#db/client.ts");
+    await queryAll("UPDATE listings SET max_attendees = 6 WHERE id = ?", [
+      listing.id,
+    ]);
+    await bookAttendee(listing, {
+      date: day,
+      email: "z@example.com",
+      name: "Z",
+    });
+    await queryAll("UPDATE listings SET max_attendees = 5 WHERE id = ?", [
+      listing.id,
+    ]);
+    // The two bookings hold five places against four free: asking for their
+    // row count (2) would wrongly fit.
+    const fits = await probeAssignDates(
+      listing,
+      wouldBeInput(listing, { listingType: "daily" }),
+      [day],
+      5,
+      1,
+    );
+    expect(fits).toEqual([false]);
+  });
+
   test("a probe write that fails for another reason propagates untouched", async () => {
     const listing = await createTestListing({ name: "Mine" });
     const taken = await createTestListing({ name: "Taken" });
@@ -171,6 +211,19 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     expect(step.page.submittedValues.listing_type).toBe("daily");
   });
 
+  test("the card and the plan count the bookings, not the places they hold", async () => {
+    // Two bookings hold five places between them: the warning names the two.
+    const listing = await listingWithTwoUndatedBookings();
+    const [day] = await bookableStartDates(listing.id);
+    const step = await confirmedPickStep(listing, day!);
+    expect(step).toMatchObject({
+      kind: "assign",
+      plan: { count: 2, date: day },
+    });
+    if (step.kind !== "assign") return;
+    expect(step.page.card.count).toBe(2);
+  });
+
   test("a pick outside the offered dates is refused with the pick error", async () => {
     const listing = await hallWithOneUndatedBooking();
     const step = await planListingTypeSwitch(
@@ -201,10 +254,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
   test("a confirmed pick carries the move into the save", async () => {
     const listing = await hallWithOneUndatedBooking();
     const [day] = await bookableStartDates(listing.id);
-    const step = await planListingTypeSwitch(
-      listing,
-      switchForm(listing, { assign_undated_to: day! }),
-    );
+    const step = await confirmedPickStep(listing, day!);
     expect(step).toMatchObject({
       kind: "assign",
       plan: { count: 1, date: day },

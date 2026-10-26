@@ -60,6 +60,28 @@ const hallWithTwoBookings = async () => {
   return listing;
 };
 
+/** Save the confirmed switch for `day`, and assert the flash names the two
+ * moved bookings and the listing now reads as a daily one. */
+const confirmSwitchOfTwo = async (
+  listing: { id: number; max_attendees: number; name: string; slug: string },
+  day: string,
+): Promise<void> => {
+  const { response } = await adminFormPost(
+    `/admin/listing/${listing.id}/edit`,
+    switchForm(listing, { assign_undated_to: day }),
+  );
+  await expectFlashRedirect(
+    `/admin/listing/${listing.id}`,
+    t("listings_table.listing_updated", {
+      warning: t("listings_table.switch_daily_undated_given_suffix", {
+        count: 2,
+        date: day,
+      }),
+    }),
+  )(response);
+  expect((await getListingWithCount(listing.id))?.listing_type).toBe("daily");
+};
+
 describeWithEnv(
   "e2e: multi-day bookings — switching to daily with undated bookings",
   { db: true },
@@ -91,24 +113,8 @@ describeWithEnv(
     test("a chosen date moves every undated booking and completes the switch", async () => {
       const listing = await hallWithTwoBookings();
       const day = (await bookableStartDates(listing.id))[0]!;
+      await confirmSwitchOfTwo(listing, day);
 
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/edit`,
-        switchForm(listing, { assign_undated_to: day }),
-      );
-      await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
-        t("listings_table.listing_updated", {
-          warning: t("listings_table.switch_daily_undated_given_suffix", {
-            count: 2,
-            date: day,
-          }),
-        }),
-      )(response);
-
-      expect((await getListingWithCount(listing.id))?.listing_type).toBe(
-        "daily",
-      );
       const rows = await rawRows(listing.id);
       expect(rows).toHaveLength(2);
       for (const row of rows) expect(row.start_at).not.toBeNull();
@@ -121,6 +127,32 @@ describeWithEnv(
       expect(
         await attendeesApi.hasAvailableSpots(listing.id, 1, nextDay, 1),
       ).toBe(true);
+    });
+
+    test("a switch that leaves an overflowing group behind still moves the bookings", async () => {
+      // The listing sits in a group whose cap its places already overflow.
+      // The switch save itself carries no ticked group, so it removes the
+      // membership — the move must judge the group set the save leaves
+      // behind, not the one the listing is still in while the save runs.
+      const listing = await hallWithTwoBookings();
+      const { assignListingsToGroup } = await import(
+        "#db/groups/membership/package-writes.ts"
+      );
+      const { createTestGroup, listingGroupIdsOf } = await import(
+        "#test-utils/db-helpers/groups.ts"
+      );
+      const group = await createTestGroup({
+        maxAttendees: 1,
+        name: "Already full",
+      });
+      await assignListingsToGroup([listing.id], group.id);
+
+      const day = (await bookableStartDates(listing.id))[0]!;
+      await confirmSwitchOfTwo(listing, day);
+
+      const rows = await rawRows(listing.id);
+      for (const row of rows) expect(row.start_at).not.toBeNull();
+      expect(await listingGroupIdsOf(listing.id)).toEqual([]);
     });
 
     test("a date without room is refused with its reason and nothing moves", async () => {

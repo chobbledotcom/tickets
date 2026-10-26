@@ -17,7 +17,7 @@ import {
   updateStatementFor,
 } from "#db/attendees/atomic-update.ts";
 import {
-  queryAll,
+  queryAllPrimary,
   resultRows,
   type SqlStatement,
   type TxScope,
@@ -30,7 +30,8 @@ import type { ListingType } from "#types";
 
 /** The move a confirmed save performs: give every undated booking this day. */
 export interface AssignPlan {
-  /** The undated bookings the card named (the flash suffix's count). */
+  /** How many bookings the move will date — the rows, the same count the
+   * card named (the flash suffix's count). */
   count: number;
   date: string;
 }
@@ -52,24 +53,8 @@ export interface UndatedBooking {
   quantity: number;
 }
 
-/** The undated bookings of one listing — the rows a switch to daily must
- * give a day first. A quantity-0 ghost line books nothing, so it is not a
- * booking and never blocks the switch. */
-export const undatedBookingsForListing = async (
-  listingId: number,
-): Promise<UndatedBooking[]> =>
-  queryAll<UndatedBooking>(
-    `SELECT attendee_id AS "attendeeId",
-            package_group_id AS "packageGroupId",
-            parent_listing_id AS "parentListingId",
-            quantity
-       FROM listing_attendees
-      WHERE listing_id = ? AND start_at IS NULL AND quantity > 0`,
-    [listingId],
-  );
-
-/** One statement of a transaction batch whose single row answers one count. */
-const countStatement = (sql: string, listingId: number): SqlStatement => ({
+/** One statement of a transaction batch whose single row answers one read. */
+const singleStatement = (sql: string, listingId: number): SqlStatement => ({
   args: [listingId],
   sql,
 });
@@ -81,14 +66,37 @@ const storedTypeTx = async (
   listingId: number,
 ): Promise<string> => {
   const results = await tx.batch([
-    countStatement("SELECT listing_type FROM listings WHERE id = ?", listingId),
+    singleStatement(
+      "SELECT listing_type FROM listings WHERE id = ?",
+      listingId,
+    ),
   ]);
   return resultRows<{ listing_type: string }>(results[0]!)[0]!.listing_type;
 };
 
-const UNDATED_COUNT_SQL =
-  "SELECT COUNT(*) AS undated FROM listing_attendees" +
-  " WHERE listing_id = ? AND start_at IS NULL AND quantity > 0";
+/** The rows that block a switch: a booking whose day nobody set and whose
+ * places somebody holds. A quantity-0 ghost line books nothing, so it never
+ * blocks. The guard's count and the move's rows derive from this one clause,
+ * so they can never disagree about which bookings block the switch. */
+const UNDATED_WHERE = "listing_id = ? AND start_at IS NULL AND quantity > 0";
+
+const UNDATED_ROWS_SQL = `SELECT attendee_id AS "attendeeId",
+            package_group_id AS "packageGroupId",
+            parent_listing_id AS "parentListingId",
+            quantity
+       FROM listing_attendees
+      WHERE ${UNDATED_WHERE}`;
+
+const UNDATED_COUNT_SQL = `SELECT COUNT(*) AS undated FROM listing_attendees WHERE ${UNDATED_WHERE}`;
+
+/** The undated bookings of one listing — the rows a switch to daily must
+ * give a day first. The plan's pre-check, pinned to the primary: a lagging
+ * replica names a stale count on the card. The move reads the same rows
+ * through its own transaction. */
+export const undatedBookingsForListing = (
+  listingId: number,
+): Promise<UndatedBooking[]> =>
+  queryAllPrimary<UndatedBooking>(singleStatement(UNDATED_ROWS_SQL, listingId));
 
 /** Refuse a save that flips the listing type to daily while undated bookings
  * remain. The HTML assign flow does not run this guard — its move dates every
@@ -101,7 +109,7 @@ export const refuseUndatedSwitchTx = async (
   if (wouldBeType !== "daily") return null;
   if ((await storedTypeTx(tx, listingId)) === "daily") return null;
   const results = await tx.batch([
-    countStatement(UNDATED_COUNT_SQL, listingId),
+    singleStatement(UNDATED_COUNT_SQL, listingId),
   ]);
   const { undated } = resultRows<{ undated: number }>(results[0]!)[0]!;
   return undated === 0
@@ -142,8 +150,10 @@ const moveStatement = (
 /** Date every undated booking of the listing in one guarded batch. The
  * save's transaction runs this after the listing row and its joins are
  * written. The capacity predicate then counts the listing as the daily
- * listing it becomes. Refusals surface as a validation error that rolls the
- * whole save back. Returns the number of rows it dated. */
+ * listing it becomes. The rows are read through the save's own transaction.
+ * A booking a lagging replica has not caught up with is still dated, never
+ * stranded dayless behind the flip. Refusals surface as a validation error
+ * that rolls the whole save back. Returns the number of rows it dated. */
 export const moveUndatedBookingsToDayTx = async (
   tx: TxScope,
   listingId: number,
@@ -151,7 +161,10 @@ export const moveUndatedBookingsToDayTx = async (
   date: string,
   durationDays: number,
 ): Promise<number> => {
-  const rows = await undatedBookingsForListing(listingId);
+  const results = await tx.batch([
+    singleStatement(UNDATED_ROWS_SQL, listingId),
+  ]);
+  const rows = resultRows<UndatedBooking>(results[0]!);
   if (rows.length === 0) return 0;
   const statements = rows.flatMap((row) => [
     moveStatement(row, listingId, date, durationDays),

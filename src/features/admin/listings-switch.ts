@@ -11,7 +11,7 @@
  * Leaving the page saves nothing.
  */
 
-import { capacityConditionFor } from "#db/capacity.ts";
+import { buildListingCapCondition } from "#db/capacity.ts";
 import { resultRows, type SqlStatement, withTransaction } from "#db/client.ts";
 import { holidays } from "#db/holidays.ts";
 import {
@@ -42,6 +42,7 @@ export const ASSIGN_UNDATED_FIELD = "assign_undated_to";
  * can hold the bookings at all. */
 export interface AssignCard {
   chosen: string;
+  /** How many bookings have no day — the rows, not the places they hold. */
   count: number;
   dates: string[];
   noDates: boolean;
@@ -96,8 +97,10 @@ class AssignProbe extends Error {
   }
 }
 
-/** One SELECT asks the shared capacity predicate about every offered date.
- * It answers whether the undated demand can land there under all the caps. */
+/** One SELECT asks the listing's own per-day cap about every offered date.
+ * It answers whether the undated demand can land there. Group caps are the
+ * move's business: the confirmed save writes the submission's memberships
+ * before the move's full capacity condition reads them. */
 const dateVerdictsStatement = (
   listingId: number,
   quantity: number,
@@ -107,7 +110,7 @@ const dateVerdictsStatement = (
   numberedStatement((bind) => {
     const columns = dates
       .map((date, index) => {
-        const fits = capacityConditionFor({
+        const fits = buildListingCapCondition({
           date,
           durationDays,
           listingId,
@@ -119,9 +122,9 @@ const dateVerdictsStatement = (
     return `SELECT ${columns}`;
   });
 
-/** Judge each offered date against the new listing with the production
- * capacity SQL. The row update and the join writes run inside a transaction
- * that always rolls back. The probe can never leave a trace. */
+/** Judge each offered date against the listing row the save writes, with
+ * the production per-day cap SQL. The row write runs inside a transaction
+ * that always rolls back, so the probe can never leave a trace. */
 export const probeAssignDates = async (
   stored: ListingWithCount,
   wouldBe: ListingInput,
@@ -160,7 +163,10 @@ export const planListingTypeSwitch = async (
   const rows = await undatedBookingsForListing(stored.id);
   if (rows.length === 0) return { kind: "none" };
 
-  const count = rows.reduce((total, row) => total + row.quantity, 0);
+  // Two counts with two jobs: the bookings the card and the notices name,
+  // and the places whose room the move asks for.
+  const bookings = rows.length;
+  const places = rows.reduce((total, row) => total + row.quantity, 0);
   const chosen = form.getString(ASSIGN_UNDATED_FIELD);
 
   const parsed = await buildUpdateListingResource(form, stored).parseInput(
@@ -176,7 +182,7 @@ export const planListingTypeSwitch = async (
       stored,
       wouldBe,
       dates,
-      count,
+      places,
       wouldBeStaySpanDays(wouldBe),
     );
   }
@@ -184,7 +190,7 @@ export const planListingTypeSwitch = async (
   const page: AssignPageContext = {
     card: {
       chosen,
-      count,
+      count: bookings,
       dates,
       noDates: dates.length === 0,
       // Said plainly the moment the page opens: no offered date can hold the
@@ -218,7 +224,7 @@ export const planListingTypeSwitch = async (
   if (!fits[dates.indexOf(chosen)]) {
     return {
       error: t("listings_table.switch_daily_undated_refused", {
-        count,
+        count: places,
         date: chosen,
         name: wouldBe.name,
       }),
@@ -227,7 +233,7 @@ export const planListingTypeSwitch = async (
       status: 400,
     };
   }
-  return { kind: "assign", page, plan: { count, date: chosen } };
+  return { kind: "assign", page, plan: { count: bookings, date: chosen } };
 };
 
 /** Serve the edit page as the switch's intermediate step. The full form

@@ -6,12 +6,11 @@
  */
 
 import { t } from "#i18n";
-import type { AssignCard } from "#routes/admin/listings-switch.ts";
+import {
+  ASSIGN_UNDATED_FIELD,
+  type AssignCard,
+} from "#routes/admin/listings-switch.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
-
-/** The date box the save reads the move's day from — the same field
- * `ASSIGN_UNDATED_FIELD` reads on the edit POST. */
-const ASSIGN_FIELD = "assign_undated_to";
 
 export const AssignUndatedDayCard = ({
   card,
@@ -33,10 +32,10 @@ export const AssignUndatedDayCard = ({
       </p>
     ) : (
       <>
-        <label for={ASSIGN_FIELD}>
+        <label for={ASSIGN_UNDATED_FIELD}>
           {t("listings_table.switch_daily_undated_pick")}
         </label>
-        <select id={ASSIGN_FIELD} name={ASSIGN_FIELD}>
+        <select id={ASSIGN_UNDATED_FIELD} name={ASSIGN_UNDATED_FIELD}>
           <option selected={card.chosen === ""} value="">
             {t("listings_table.switch_daily_undated_pick_placeholder")}
           </option>
