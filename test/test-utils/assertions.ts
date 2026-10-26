@@ -8,7 +8,7 @@
  * imports this module.
  */
 
-import { assertExists, assertStringIncludes } from "@std/assert";
+import { assert, assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -269,4 +269,16 @@ export const expectEncryptedAtRest = (
   for (const value of values) {
     expect(value?.startsWith("enc:")).toBe(true);
   }
+};
+
+/** Assert a 200 preview response renders a reference the image library cannot
+ * answer as the reference's name as plain text, with no picture to load. */
+export const expectAltTextPreview = async (
+  response: Response,
+  name: string,
+): Promise<void> => {
+  expect(response.status).toBe(200);
+  const body = await response.text();
+  assert(!body.includes("<img"));
+  assertStringIncludes(body, `<p>${name}</p>`);
 };

@@ -135,7 +135,12 @@ describeWithEnv(
       const afterSqls = await withRecordedSql(async () => {
         const html = await assertPublicHtml("/");
         assert(!html.includes(`<img src="/image/${image.filename}"`));
-        assertStringIncludes(html, '<img src="" alt="FooterOtherIsolate">');
+        // The reference's name stays visible and no empty picture loads.
+        assert(!html.includes('<img src=""'));
+        assertStringIncludes(
+          html,
+          "<p>Thanks for coming.FooterOtherIsolate</p>",
+        );
       });
       expect(
         afterSqls.filter((sql) => sql.includes("FROM images")).length,

@@ -36,20 +36,33 @@ const hasHref = (token: Token): token is Token & { href: string } =>
   (token.type === "link" || token.type === "image") &&
   typeof (token as { href?: unknown }).href === "string";
 
+/** The id one short-form image address (`img#7`) names, or undefined for any
+ * other address. The editor's image dropdown writes the short form. The HTML
+ * render and the plain-text rewrite both resolve it. */
+export const shortFormImageId = (href: string): number | undefined => {
+  const id = href.match(/^img#(\d+)$/)?.[1];
+  return id === undefined ? undefined : Number(id);
+};
+
 /** The per-render token walk. A short-form image reference (`![alt](img#7)`)
  * written by the editor's image dropdown resolves to the image's uid URL in
  * the render's table. The table is the request's page-image slot, or the
- * call site's override. An id the table lacks renders nothing to load, so
- * the <img> falls back to its alt text. Links and code spans never carry
- * the rewrite. Unsafe URLs strip to nothing. */
+ * call site's override. An image with no address afterwards renders as its
+ * alt text. The address is missing when the table lacks the id, or when the
+ * safety check strips the URL. An `<img src="">` makes the browser request
+ * the page itself. Links and code spans never carry the rewrite. Unsafe
+ * link URLs strip to nothing. */
 const walkTokensFor =
   (imageUrls: ReadonlyMap<number, string>) =>
   (token: Token): void => {
     if (token.type === "image" && typeof token.href === "string") {
-      const id = token.href.match(/^img#(\d+)$/)?.[1];
-      if (id) token.href = imageUrls.get(Number(id)) ?? "";
+      const id = shortFormImageId(token.href);
+      token.href = id === undefined ? token.href : (imageUrls.get(id) ?? "");
     }
     if (hasHref(token) && !isSafeUrl(token.href)) token.href = "";
+    if (token.type === "image" && token.href === "") {
+      (token as Tokens.Generic).type = "text";
+    }
   };
 
 /** Built on first render, not at module load — `new Marked(...)` compiles

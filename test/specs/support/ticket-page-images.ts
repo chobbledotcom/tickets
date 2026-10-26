@@ -53,8 +53,8 @@ export const sellsReadableThing = async (
 
 /** The image tag a resolved reference renders, as the served page carries it.
  * The head's description echoes the raw words, so only this body tag proves
- * the lookup ran: a page whose lookup did not run renders the tag with no
- * source instead. */
+ * the lookup ran: a page whose lookup did not run renders the name as plain
+ * text instead. */
 export const resolvedImageTag = (image: Image): string =>
   `<img src="/image/${image.filename}" alt="${image.name}">`;
 
@@ -64,14 +64,35 @@ export const expectShownImage = (html: string, image: Image): void => {
 };
 
 /** The named package's own section on a served page: the fieldset the page
- * renders for it, where its description and each member's row show. */
+ * renders for it, where its description and each member's row show. A member
+ * that is itself a parent renders its own nested fieldset, so the section
+ * ends at its own fieldset's closing tag, never at the first closing tag. */
 export const packageSectionHtml = (html: string, group: Group): string => {
   const start = html.indexOf(`data-package-section="${group.id}"`);
   if (start < 0) {
     throw new Error(`the page shows no section for the package ${group.name}`);
   }
-  const end = html.indexOf("</fieldset>", start);
-  return html.slice(start, end + "</fieldset>".length);
+  // The section's own fieldset opened before `start`, where its
+  // data-package-section attribute sits.
+  let openSections = 1;
+  let at = start;
+  while (openSections > 0) {
+    const nextOpen = html.indexOf("<fieldset", at);
+    const nextClose = html.indexOf("</fieldset>", at);
+    if (nextClose < 0) {
+      throw new Error(
+        `the page leaves the package ${group.name}'s section open`,
+      );
+    }
+    if (nextOpen >= 0 && nextOpen < nextClose) {
+      openSections += 1;
+      at = nextOpen + "<fieldset".length;
+    } else {
+      openSections -= 1;
+      at = nextClose + "</fieldset>".length;
+    }
+  }
+  return html.slice(start, at);
 };
 
 /** The package a story set up, by the story's name for it. */
@@ -80,6 +101,22 @@ const packageGroupNamed = (world: TicketsWorld, name: string): Group =>
     world.things.recall("bundle", name),
     `the package called "${name}"`,
   );
+
+/** One member's row inside a package section: from the row's own opening tag
+ * to the next row's, so a picture found in the slice shows in that row. */
+export const memberRowHtml = (section: string, memberName: string): string => {
+  const label = `<label>${memberName} <span class="package-member-qty">`;
+  const at = section.indexOf(label);
+  if (at < 0) {
+    throw new Error(`the package section shows no row for ${memberName}`);
+  }
+  const rowStart = section.lastIndexOf('<div class="ticket-row', at);
+  if (rowStart < 0) {
+    throw new Error(`the package section renders ${memberName} outside a row`);
+  }
+  const nextRow = section.indexOf('<div class="ticket-row', at + label.length);
+  return section.slice(rowStart, nextRow < 0 ? section.length : nextRow);
+};
 
 /** The image shows inside the named package's own section on the page that
  * sells it beside one thing on its own — in the package's description, or in
@@ -95,13 +132,12 @@ export const expectShownImageInPackageSection = async (
     (await visitorReadsMixedPage(world, packageName, extraName)).currentHtml,
     packageGroupNamed(world, packageName),
   );
-  if (memberName !== undefined) {
-    assertStringIncludes(
-      section,
-      `<label>${memberName} <span class="package-member-qty">`,
-    );
+  if (memberName === undefined) {
+    expectShownImage(section, await imageNamed(image));
+    return;
   }
-  expectShownImage(section, await imageNamed(image));
+  // The picture shows in that member's own row, not anywhere in the section.
+  expectShownImage(memberRowHtml(section, memberName), await imageNamed(image));
 };
 
 /** A visitor reads the shared page the story set up, by the page's name. */

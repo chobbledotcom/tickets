@@ -1,5 +1,5 @@
 import type { InStatement } from "@libsql/client";
-import { assertStringIncludes } from "@std/assert";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -77,7 +77,11 @@ describeWithEnv(
       await withRequestContext(async () => {
         await addPageImageUrls(["plain text", null]);
 
-        assertStringIncludes(renderMarkdown("![Poster](img#7)"), 'src=""');
+        assertStringIncludes(
+          renderMarkdown("![Poster](img#7)"),
+          "<p>Poster</p>",
+        );
+        assert(!renderMarkdown("![Poster](img#7)").includes("<img"));
       });
     });
 
@@ -88,8 +92,9 @@ describeWithEnv(
 
       assertStringIncludes(
         renderMarkdown(`![Poster](img#${hero.id})`),
-        'src=""',
+        "<p>Poster</p>",
       );
+      assert(!renderMarkdown(`![Poster](img#${hero.id})`).includes("<img"));
     });
   },
 );
