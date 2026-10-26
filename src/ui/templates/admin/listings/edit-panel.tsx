@@ -24,6 +24,7 @@ import {
   ListingAggregateMismatchNotice,
   listingAggregateToFieldValues,
 } from "./aggregates.tsx";
+import { AssignUndatedDayCard } from "./assign-day-card.tsx";
 import {
   advancedSectionHasValues,
   DurationWarning,
@@ -124,6 +125,7 @@ export const ListingEditPanel = ({
   aggregateRecalculation,
   parents,
   selectedGroupIds = [],
+  assignUndatedDay,
 }: ListingEditPanelOptions): JSX.Element => {
   const offeredUnder = parents?.offeredUnder ?? [];
   const childOfNames =
@@ -156,6 +158,9 @@ export const ListingEditPanel = ({
         enctype="multipart/form-data"
         id="listing-edit-form"
       >
+        {assignUndatedDay && (
+          <AssignUndatedDayCard card={assignUndatedDay.card} />
+        )}
         {form.formSections({
           advancedOpen:
             advancedSectionHasValues(listing, builderEnabled) || !!error,
@@ -167,7 +172,15 @@ export const ListingEditPanel = ({
           dayPricesListing: listing,
           durationWarning,
           useDefaultsChecked: listing.use_defaults,
-          values: listingToFieldValues(listing),
+          // On the switch page the form carries the organiser's submitted
+          // values, so the confirm save still submits the switch it started
+          // from. The stored row answers the type radio "Standard".
+          values: assignUndatedDay
+            ? {
+                ...listingToFieldValues(listing),
+                ...assignUndatedDay.submittedValues,
+              }
+            : listingToFieldValues(listing),
         })}
         {showFinancials && (
           <RunningTotalsFieldset config={listingRunningTotalsConfig(listing)}>

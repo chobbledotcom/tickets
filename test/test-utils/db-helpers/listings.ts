@@ -107,6 +107,7 @@ export const duplicateTestListing = async (
 export const updateTestListing = async (
   listingId: number,
   updates: Partial<Omit<ListingInput, "groupIds">> & {
+    assignUndatedTo?: string;
     groupId?: number;
     groupIds?: number[];
   },
@@ -193,6 +194,24 @@ export const bookableStartDates = async (
     (await getListingWithCount(listingId))!,
     await getActiveHolidays(),
   );
+};
+
+/** A listing holding two undated bookings: one row of 2 places, one row of 3.
+ * The daily switch's assign flow dates both in one step. */
+export const listingWithTwoUndatedBookings = async (
+  overrides: TestListingOverrides = {},
+): Promise<ListingWithCount> => {
+  const { bookAttendee } = await import(
+    "#test-utils/db-helpers/attendee-payments.ts"
+  );
+  const listing = await createTestListing({ maxAttendees: 10, ...overrides });
+  await bookAttendee(listing, { quantity: 2 });
+  await bookAttendee(listing, {
+    email: "y@example.com",
+    name: "Y",
+    quantity: 3,
+  });
+  return listing;
 };
 
 /** The name of every listing now in the database. What a backup or restore test

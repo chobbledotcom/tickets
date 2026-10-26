@@ -7,6 +7,7 @@ import {
   getListingQuestionIds,
 } from "#db/questions/queries.ts";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
+import type { AssignPageContext } from "#routes/admin/listings-switch.ts";
 import { ListingAttributesPanel } from "#templates/admin/attributes.tsx";
 import { ListingQrPanel } from "#templates/admin/listing-qr.tsx";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
@@ -31,6 +32,7 @@ export const loadListingEditPanel = async (
   ctx: PageCtx,
   error?: string,
   selectedGroupIds?: number[],
+  assignUndatedDay?: AssignPageContext,
 ): Promise<JSX.Element> => {
   // The framework resolved (and 404'd) the listing before this tab loads, so
   // the stored re-fetch the edit form needs always finds the row. Assert it
@@ -39,6 +41,7 @@ export const loadListingEditPanel = async (
   const parents = await loadListingParentsSection(ctxData.listing);
   return ListingEditPanel({
     aggregateRecalculation: ctxData.aggregateRecalculation,
+    assignUndatedDay,
     error,
     groups: ctxData.groups,
     listing: ctxData.listing,

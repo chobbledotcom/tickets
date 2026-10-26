@@ -2,6 +2,7 @@ import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import type { PairBookings } from "#booking/ticket-moves.ts";
 import type { ListingAggregateRecalculation } from "#db/listings/aggregates.ts";
 import type { SystemNote } from "#db/notes/types.ts";
+import type { AssignPageContext } from "#routes/admin/listings-switch.ts";
 import type { ListingPublicPageState } from "#routes/public/page-listings.ts";
 import type {
   AttendeeListSetup,
@@ -63,10 +64,11 @@ export type ListingOverviewPanelOptions = ListingPanelSharedOptions & {
   publicPage: ListingPublicPageState;
 };
 
-/** A selectable child candidate on the edit page's "required children" list: the
- * listing plus why it can't be a child of the one being edited (null when it
- * can). Ineligible candidates are pre-disabled (unless already ticked) so the
- * operator can't build an edge the save would only reject (usability #4). */
+/** A selectable child candidate on the edit page's "required children" list.
+ * It holds the listing plus why it can't be a child of the one being edited
+ * (null when it can). Ineligible candidates are pre-disabled (unless already
+ * ticked), so the operator can't build an edge the save only rejects
+ * (usability #4). */
 export type ChildCandidate = {
   listing: ListingWithCount;
   ineligibleReason: string | null;
@@ -90,4 +92,8 @@ export type ListingEditPanelOptions = {
   aggregateRecalculation?: ListingAggregateRecalculation | undefined;
   parents?: ListingParentsSection | undefined;
   selectedGroupIds?: number[] | undefined;
+  /** Set when this save is a switch to booked-by-the-day that undated
+   * bookings block: the card names them and offers the move's date, and the
+   * form carries the organiser's submitted values. */
+  assignUndatedDay?: AssignPageContext | undefined;
 };

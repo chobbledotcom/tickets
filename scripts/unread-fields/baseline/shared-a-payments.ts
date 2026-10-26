@@ -20,11 +20,9 @@ const inOptionDemand = ownerAt("src/shared/booking/option-demand.ts");
 const LISTING_INPUT_FIELDS = [
   "attachmentName",
   "attachmentUrl",
-  "bookableDays",
   "description",
   "location",
   "maxAttendees",
-  "minimumDaysBefore",
   "nonTransferable",
   "useDefaults",
   "usesLogistics",
