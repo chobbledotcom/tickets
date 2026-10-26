@@ -4,4 +4,7 @@
  *  stripped before the split. Shared by the report readers that must skip the
  *  padding a torn or padded file can carry. */
 export const nonBlankLines = (text: string): string[] =>
-  text.replaceAll("\r\n", "\n").split("\n").filter((line) => line.trim() !== "");
+  text
+    .replaceAll("\r\n", "\n")
+    .split("\n")
+    .filter((line) => line.trim() !== "");
