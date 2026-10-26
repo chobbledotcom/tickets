@@ -321,10 +321,11 @@ src/features/admin/attendees-route-helpers.ts::loadPaymentReviewActionData.listi
 # Door-safe check-in projection: the fields it blanks are contact columns the
 # fixed DOOR_SAFE_COLUMNS layout never renders, so no rendered page can carry
 # the value and every value renders identically.
-src/features/checkin.ts::doorSafeEntries.attendee.address~0l1hej5  → "mutated" audited:0vuzwaw # the door-safe layout's columnKeys exclude the contact columns, so the blanked address can never render
-src/features/checkin.ts::doorSafeEntries.attendee.email~12hbckl  → "mutated" audited:0vuzwaw # same: email is absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
-src/features/checkin.ts::doorSafeEntries.attendee.phone~0opqph9  → "mutated" audited:0vuzwaw # same: phone is absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
-src/features/checkin.ts::doorSafeEntries.attendee.special_instructions~169zrbe  → "mutated" audited:0vuzwaw # same: special instructions are absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
+src/features/checkin.ts::doorSafeEntries.attendee.address~0l1hej5  → "mutated" audited:0px08fp # the door-safe layout's columnKeys exclude the contact columns, so the blanked address can never render
+src/features/checkin.ts::doorSafeEntries.attendee.email~12hbckl  → "mutated" audited:0px08fp # same: email is absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
+src/features/checkin.ts::doorSafeEntries.attendee.phone~0opqph9  → "mutated" audited:0px08fp # same: phone is absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
+src/features/checkin.ts::doorSafeEntries.attendee.special_instructions~169zrbe  → "mutated" audited:0px08fp # same: special instructions are absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
+src/features/checkin.ts::agentRunSheetDates.today~14wz3mc  the configured timezone's clock → "" audited:0px08fp # agentRunSheetDates reads the site timezone, which setup validates as a real IANA zone; todayInTz then always answers a parseable YYYY-MM-DD, so parseDateStringOrThrow never raises this message
 src/ui/templates/checkin.tsx::staffBulkForm.value~1ffn39t  false → "" audited:1qxiq8y # the POST reads the field as form.get("check_in") === "true", so "false" and "" both answer checkout
 src/features/admin/scan-answer.ts::listingScope.checkInEveryListing~0fgw13m  false → true audited:0b0nlsc # the flag's only reader is scanAdmits; a one-listing scope owes its rows on one listing, so "every group" and "the first group" answer the same one group
 src/features/admin/scan-answer.ts::resolveAttendeeName.fromEntry~1ssznli  0 → 1 audited:0b0nlsc # every entry of one token decrypts the same attendee row, and the empty-entries fallback decrypts that same row, so entries[0], entries[1], and the fallback answer one name
