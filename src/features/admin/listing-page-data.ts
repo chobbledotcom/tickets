@@ -24,7 +24,7 @@ import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
 import { getPairBookings } from "#db/attendees/ticket-lines.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { groups } from "#db/groups.ts";
-import { addNoteImageUrls } from "#db/images.ts";
+import { addNoteImageUrls } from "#db/image-urls.ts";
 import { getListingOverviewStats } from "#db/listing-overview-stats.ts";
 import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
 import {

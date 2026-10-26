@@ -5,11 +5,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { encryptBytes } from "#crypto/encryption.ts";
 import { getDb } from "#db/client.ts";
-import {
-  addPageImageUrls,
-  imageUrlsFor,
-  insertImageRecord,
-} from "#db/images.ts";
+import { addPageImageUrls, imageUrlsFor } from "#db/image-urls.ts";
+import { insertImageRecord } from "#db/images.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";

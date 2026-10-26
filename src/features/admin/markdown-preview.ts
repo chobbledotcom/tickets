@@ -13,7 +13,7 @@ import { defineRoutes } from "#routes/router.ts";
  * data is read or returned, so a wider role leaks only those URLs.
  */
 
-import { addPageImageUrls } from "#db/images.ts";
+import { addPageImageUrls } from "#db/image-urls.ts";
 import { CONTENT_FORM, withAuth } from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";

@@ -7,7 +7,7 @@
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { hasAssignedBuiltSite } from "#db/built-sites/claims.ts";
-import { addNoteImageUrls } from "#db/images.ts";
+import { addNoteImageUrls } from "#db/image-urls.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import {

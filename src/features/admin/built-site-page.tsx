@@ -3,7 +3,7 @@
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
-import { addPageImageUrls } from "#db/images.ts";
+import { addPageImageUrls } from "#db/image-urls.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
