@@ -31,11 +31,13 @@ defaults:
   run:
     shell: devenv --profile ci shell bash -- -e {0}
 
-# Two jobs that run side by side. Together their steps mirror `getSteps()` in
-# scripts/precommit/steps.ts — if you add a step there, add it to whichever job
-# it belongs to here. Nothing in the suite reads what the static checks
-# produce, so running them beside the suite instead of ahead of it takes their
-# time off the critical path.
+# Three jobs that run side by side. The static checks and the suite mirror
+# `getSteps()` in scripts/precommit/steps.ts — if you add a step there, add it
+# to whichever job it belongs to here. Nothing in the suite reads what the
+# static checks produce, so running them beside the suite instead of ahead of
+# it takes their time off the critical path. The specs job runs the Cucumber
+# journeys, which no precommit step runs, so the journeys pass or fail as
+# hosted evidence too (issue #2761).
 jobs:
   checks:
     runs-on: ubicloud-standard-4
@@ -157,3 +159,42 @@ jobs:
         with:
           name: coverage-report
           path: coverage/html/
+
+  specs:
+    runs-on: ubicloud-standard-8
+    # The whole journey suite runs in seconds on a developer machine. A wedged
+    # scenario can hold a runner for hours with no failure text (issue #2225),
+    # so the job gives up loudly instead.
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up devenv
+        uses: ./.github/actions/setup-devenv
+        with:
+          profile: ci
+
+      # stripe-mock is downloaded, started, and stopped by the harness inside
+      # scripts/run-specs.ts. Caching .bin just avoids re-downloading it on
+      # every run.
+      - name: Cache stripe-mock
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .bin
+          key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
+
+      - name: Run the Cucumber journeys
+        run: deno task specs
+
+      # The progress output names the failed scenario; the message, JUnit, and
+      # HTML reports under reports/ hold the step-level detail.
+      - name: Upload spec reports
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: spec-reports
+          path: reports/
