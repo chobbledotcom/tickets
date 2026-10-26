@@ -5,6 +5,7 @@ import {
   classifyDatabaseError,
   DATABASE_RETRY,
   databaseErrorFingerprint,
+  isDatabaseError,
 } from "#db/errors.ts";
 
 /**
@@ -68,6 +69,30 @@ describe("db > error kinds", () => {
         new TypeError("Cannot read properties of undefined (reading 'slug')"),
       ),
     ).toBe("other");
+  });
+
+  test("isDatabaseError says which errors the database layer raised", () => {
+    expect(isDatabaseError(new Error("SQLITE_BUSY: database is locked"))).toBe(
+      true,
+    );
+    expect(
+      isDatabaseError(
+        new LibsqlError("Server returned HTTP status 502", "SERVER_ERROR"),
+      ),
+    ).toBe(true);
+    expect(
+      isDatabaseError(
+        new TypeError(
+          "error sending request from 85.208.99.12:41022 for https://mydb.aws-eu-west-1.turso.io/v2/pipeline (203.0.113.7:443): client error (SendRequest): connection closed before message completed",
+        ),
+      ),
+    ).toBe(true);
+    expect(isDatabaseError(new Error("synthetic db failure"))).toBe(false);
+    expect(
+      isDatabaseError(
+        new TypeError("Cannot read properties of undefined (reading 'slug')"),
+      ),
+    ).toBe(false);
   });
 
   test("the retry table says what replays on a read and on a write", () => {

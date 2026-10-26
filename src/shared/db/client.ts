@@ -143,7 +143,8 @@ const executeWithRoundTripGuard = executeWithRoundTrip((_statement, execute) =>
 );
 
 /** Count and retry a bare client statement. Transaction statements use only the
- * round-trip guard above because their surrounding write must not be replayed. */
+ * round-trip guard above: the transaction runner owns the retry decision for
+ * the whole unit (see {@link retryOnTransientDatabaseError}). */
 const executeWithTransientRetry = executeWithRoundTrip((statement, execute) =>
   retryOnTransientDatabaseError(execute, {
     isRead: isReadSql(sqlOf(statement)),
@@ -730,7 +731,7 @@ export const useTransaction = <T>(
  * however many round trips the work makes. Statements must be SELECTs — a
  * write smuggled into the scope throws before it reaches the database. The
  * snapshot never commits: it ends by closing; cache invalidation does not
- * apply because nothing was written. An upstream failure replays the whole
+ * apply because nothing was written. A transient failure replays the whole
  * attempt on a fresh transaction, so `work` must be safe to run twice, as
  * with {@link withTransaction}.
  */
