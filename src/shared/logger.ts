@@ -213,6 +213,14 @@ export type ErrorContext = {
    * into `detail`.
    */
   error?: unknown;
+  /**
+   * Optional grouping override for the Sentry report. A report that carries
+   * an exception groups by its stack. A transport message defeats that
+   * grouping, because it names the connection's IP, port, and database host.
+   * The override pins the group to stable facts instead. Built by
+   * databaseErrorFingerprint in src/shared/db/errors.ts.
+   */
+  fingerprint?: string[] | undefined;
 };
 
 /** Format an error detail string with request context and error message */
