@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   memberRowHtml,
   packageSectionHtml,
-} from "#test/specs/support/ticket-page-images.ts";
+} from "#test/specs/support/package-section.ts";
 import type { Group } from "#types";
 
 // jscpd:ignore-end
