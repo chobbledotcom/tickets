@@ -6,7 +6,8 @@
  * output, so a shape change will break the test and force an update.
  */
 
-import { type AdminApiAttendee, toAdminListing } from "#routes/admin/api.ts";
+import { toAdminListing } from "#routes/admin/api.ts";
+import type { AdminApiAttendee } from "#routes/admin/api-attendees.ts";
 import type {
   CreateAttributeBody,
   UpdateAttributeBody,

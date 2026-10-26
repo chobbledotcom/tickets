@@ -1,12 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { accountBalance } from "#accounting/queries.ts";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
 import { PENDING_NOTIFICATION } from "#db/attendees/notification-flags.ts";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import {
   assertJson,
   expectListingActivityLogContains,
 } from "#test-utils/assertions.ts";
+import { account } from "#shared/ledger/account.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeExists,
@@ -14,7 +18,7 @@ import {
   stubRefusedAtomicCreate,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { withMocks } from "#test-utils/mocks.ts";
+import { withExpectedError, withMocks } from "#test-utils/mocks.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
 /** One POST create request carrying the minimal valid body for a listing. */
@@ -85,6 +89,28 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
     await expectListingActivityLogContains(listing.id, "added via API");
   });
 
+  test("the booking's gross lands in the ledger and on the row", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      maxQuantity: 2,
+      name: "Ledger Fair",
+      unitPrice: 500,
+    });
+    const created = await assertJson(
+      createBooking(listing.id, {
+        lines: [{ listingId: listing.id, quantity: 2 }],
+        name: "Ledger Person",
+      }),
+      201,
+      (body) => expect(body.attendee.remaining_balance).toBe(1000),
+    );
+    // The gross `sale` leg makes the attendee owe exactly the lines' cost,
+    // the same money shape a manual add leaves.
+    expect(
+      await accountBalance(account("attendee", created.attendee.id as number)),
+    ).toBe(-1000);
+  });
+
   test("never sends the buyer email; the owed-email flag matches a manual add", async () => {
     const listing = await createTestListing({
       maxAttendees: 10,
@@ -142,6 +168,77 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
     );
     expect(fresh.attendee.id).not.toBe(first.attendee.id);
     expect(await rosterAttendeeIds(listing.id)).toHaveLength(2);
+  });
+
+  test("a create that loses a token race answers with the winner's booking", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      name: "Race Fair",
+      unitPrice: 500,
+    });
+    const body = {
+      email: "loser@example.com",
+      lines: [{ listingId: listing.id, quantity: 1 }],
+      name: "Loser",
+      ticketToken: "race-token-1",
+    };
+    const realCreate = attendeesApi.createAttendeeAtomic;
+    await withMocks(
+      () =>
+        stub(attendeesApi, "createAttendeeAtomic", (input, work) => {
+          // The concurrent winner commits under the same token before the
+          // loser's insert runs, so the loser's create hits the unique token
+          // index exactly as a real race does.
+          return realCreate({ ...input, name: "Winner" }, work).then(() =>
+            realCreate(input, work),
+          );
+        }),
+      async () => {
+        await assertJson(
+          apiRequest("/api/admin/attendees", { body, method: "POST" }),
+          200,
+          (parsed) => expect(parsed.attendee.name).toBe("Winner"),
+        );
+        // The loser stored nothing: the booking exists once.
+        expect(await rosterAttendeeIds(listing.id)).toHaveLength(1);
+      },
+    );
+  });
+
+  test("a create that fails without a stored token keeps failing loudly", async () => {
+    const listing = await createTestListing({ name: "Loud Fail Fair" });
+    await withExpectedError(async () => {
+      await withMocks(
+        () =>
+          stub(attendeesApi, "createAttendeeAtomic", () =>
+            Promise.reject(new Error("create exploded")),
+          ),
+        async () => {
+          // A retry token whose booking was never stored is no answer: the
+          // failure stays a failure.
+          const withToken = await apiRequest("/api/admin/attendees", {
+            body: {
+              email: "boom@example.com",
+              lines: [{ listingId: listing.id, quantity: 1 }],
+              name: "Boom",
+              ticketToken: "boom-token-1",
+            },
+            method: "POST",
+          });
+          expect(withToken.status).toBe(503);
+          // The same failure without a retry token fails the same way.
+          const withoutToken = await apiRequest("/api/admin/attendees", {
+            body: {
+              email: "boom@example.com",
+              lines: [{ listingId: listing.id, quantity: 1 }],
+              name: "Boom",
+            },
+            method: "POST",
+          });
+          expect(withoutToken.status).toBe(503);
+        },
+      );
+    });
   });
 
   test("a body with no lines fails with a 400", async () => {

@@ -17,7 +17,10 @@ import {
   type AttendeeStatus,
   attendeeStatuses,
 } from "#db/attendee-statuses.ts";
-import type { ListingBooking } from "#db/attendee-types.ts";
+import type {
+  CreateAttendeeResult,
+  ListingBooking,
+} from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import type { PendingNotificationFlag } from "#db/attendees/notification-flags.ts";
@@ -326,7 +329,11 @@ const retriedAttendeeResponse = async (
   });
 };
 
-/** Run the atomic create for a validated body and answer with the attendee. */
+/** Run the atomic create for a validated body and answer with the attendee.
+ *  A concurrent create under the same caller token can win between the
+ *  fresh-token check and the insert. The unique token index then refuses the
+ *  loser, whose idempotent answer is the booking the winner stored. Any other
+ *  failure is re-raised. */
 const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
   const { lines, statusId, ticketToken } = parsed;
   const bookings: ListingBooking[] = lines.map((line) => ({
@@ -340,23 +347,32 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
   // does not block). The ledger poster records the gross `sale` legs in the
   // SAME create transaction. The input carries that gross as remainingBalance,
   // so the attendee owes exactly what the lines cost.
-  const result = await attendeesApi.createAttendeeAtomic(
-    {
-      address: parsed.address,
-      allowOverbook: true,
-      bookings,
-      email: parsed.email,
-      emailPending: emailPendingFor(lines),
-      name: parsed.name,
-      phone: parsed.phone,
-      remainingBalance: sumOf(lineListPrice)(order.lines),
-      source: "admin",
-      special_instructions: parsed.special_instructions,
-      statusId,
-      ...(ticketToken === undefined ? {} : { ticketToken }),
-    },
-    manualAddLedgerPoster(order),
-  );
+  let result: CreateAttendeeResult;
+  try {
+    result = await attendeesApi.createAttendeeAtomic(
+      {
+        address: parsed.address,
+        allowOverbook: true,
+        bookings,
+        email: parsed.email,
+        emailPending: emailPendingFor(lines),
+        name: parsed.name,
+        phone: parsed.phone,
+        remainingBalance: sumOf(lineListPrice)(order.lines),
+        source: "admin",
+        special_instructions: parsed.special_instructions,
+        statusId,
+        ...(ticketToken === undefined ? {} : { ticketToken }),
+      },
+      manualAddLedgerPoster(order),
+    );
+  } catch (error) {
+    if (ticketToken !== undefined) {
+      const retried = await retriedAttendeeResponse(ticketToken);
+      if (retried !== null) return retried;
+    }
+    throw error;
+  }
   if (!result.success) {
     return apiErrorResponse("The booking could not be created");
   }

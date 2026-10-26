@@ -43,11 +43,7 @@ import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import { apiEntityGate, withApiEntity } from "#shared/rest/crud-parsers.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminListing, Listing, ListingWithCount } from "#types";
-import {
-  type AdminApiAttendee,
-  handleCreateAttendee,
-  toApiAttendee,
-} from "./api-attendees.ts";
+import { handleCreateAttendee, toApiAttendee } from "./api-attendees.ts";
 import { bodyToCreateInput, bodyToUpdateInput } from "./api-listing-body.ts";
 import {
   type PreparedListingJoins,
@@ -55,8 +51,6 @@ import {
   prepareChildEdges,
   prepareListingJoins,
 } from "./api-listing-joins.ts";
-
-export type { AdminApiAttendee };
 
 /* jscpd:ignore-end */
 
