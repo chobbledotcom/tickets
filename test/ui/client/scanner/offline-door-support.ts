@@ -147,7 +147,8 @@ export const openDoor = async (
   };
   await page.addInitScript(
     (codes: Record<string, TicketQr>) => {
-      if (!navigator.mediaDevices) return;
+      // No guard for a missing mediaDevices: the assignment below throws,
+      // and a broken fake camera must be loud, not a real camera path.
       const canvas = document.createElement("canvas");
       canvas.width = 400;
       canvas.height = 400;

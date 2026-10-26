@@ -37,8 +37,11 @@ const textOf = (page: Page, id: string): Promise<string> =>
     return found.textContent;
   }, id);
 
-/** Waits for the element to carry the text. A page that lost the element
- * fails at once, the way a broken page must. */
+/** Waits for the element to carry the text while it is shown. A closed
+ * overlay keeps its words, so a wait must not settle on the previous ask's
+ * leftovers: the page hides furniture with its own hidden class, and a
+ * shown element carries it nowhere in its ancestor chain. A page that lost
+ * the element fails at once, the way a broken page must. */
 export const waitText = async (
   page: Page,
   id: string,
@@ -48,6 +51,9 @@ export const waitText = async (
     ({ elementId, text }: { elementId: string; text: string }) => {
       const found = document.getElementById(elementId);
       if (!found) throw new Error(`The served page carries no ${elementId}`);
+      for (let node: Element | null = found; node; node = node.parentElement) {
+        if (node.classList.contains("hidden")) return false;
+      }
       return found.textContent === text;
     },
     { elementId: id, text },
