@@ -299,6 +299,31 @@ export const getAttendeePiiBlobsForListingDay = (
     [listingId, day.endAt, day.startAt],
   );
 
+/** Query one attendee row by a plaintext ticket token, binding the token's
+ *  blind index as the statement's only argument. Ticket tokens are unique, so
+ *  this matches at most one row. */
+const attendeeRowByToken = async <T>(
+  sql: string,
+  token: string,
+): Promise<T | null> => {
+  const tokenIndex = await hmacHash(token);
+  return queryOne<T>(sql, [tokenIndex]);
+};
+
+/**
+ * Get the attendee id for a plaintext ticket token, or null when the token
+ * matches none. Ticket tokens are unique, so this matches at most one attendee.
+ */
+export const getAttendeeIdForToken = async (
+  token: string,
+): Promise<number | null> => {
+  const row = await attendeeRowByToken<{ id: number }>(
+    "SELECT id FROM attendees WHERE ticket_token_index = ?",
+    token,
+  );
+  return row ? row.id : null;
+};
+
 /**
  * Get the encrypted PII blob for the attendee identified by a plaintext ticket
  * token. Used to resolve a single-attendee bulk-email recipient. Ticket tokens
@@ -309,11 +334,10 @@ export const getAttendeePiiBlobsForListingDay = (
 export const getAttendeePiiBlobForToken = async (
   token: string,
 ): Promise<OwnerKeyEncrypted | null> => {
-  const tokenIndex = await hmacHash(token);
   // Apply the real-line guard: an all-ghost (no-quantity-only) attendee has no
   // valid ticket URL, so the single-attendee bulk-email target resolves to no
   // recipient (a genuine one-off transactional mail would be a separate path).
-  const row = await queryOne<{ pii_blob: OwnerKeyEncrypted }>(
+  const row = await attendeeRowByToken<{ pii_blob: OwnerKeyEncrypted }>(
     `SELECT pii_blob FROM attendees
      WHERE ticket_token_index = ?
        AND kind = '${ATTENDEE_KIND}'
@@ -322,7 +346,7 @@ export const getAttendeePiiBlobForToken = async (
          WHERE attendee_id = attendees.id AND quantity > 0
        )
      LIMIT 1`,
-    [tokenIndex],
+    token,
   );
   return row ? row.pii_blob : null;
 };

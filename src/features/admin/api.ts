@@ -42,7 +42,12 @@ import {
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import { apiEntityGate, withApiEntity } from "#shared/rest/crud-parsers.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { AdminListing, Attendee, Listing, ListingWithCount } from "#types";
+import type { AdminListing, Listing, ListingWithCount } from "#types";
+import {
+  type AdminApiAttendee,
+  handleCreateAttendee,
+  toApiAttendee,
+} from "./api-attendees.ts";
 import { bodyToCreateInput, bodyToUpdateInput } from "./api-listing-body.ts";
 import {
   type PreparedListingJoins,
@@ -50,6 +55,8 @@ import {
   prepareChildEdges,
   prepareListingJoins,
 } from "./api-listing-joins.ts";
+
+export type { AdminApiAttendee };
 
 /* jscpd:ignore-end */
 
@@ -139,20 +146,6 @@ const toggleActiveRoute =
   (active: boolean) =>
   (request: Request, params: RouteParams): Promise<Response> =>
     handleToggleActive(request, params.listingId as number, active);
-
-/** One attendee booking row as the admin API answers with it: the decrypted
- * roster row minus the sealed PII blob and its blind index. Storage details go
- * the same way slug_index goes from listing responses. */
-export type AdminApiAttendee = Omit<
-  Attendee,
-  "pii_blob" | "ticket_token_index"
->;
-
-const toApiAttendee = ({
-  pii_blob: _,
-  ticket_token_index: __,
-  ...attendee
-}: Attendee): AdminApiAttendee => attendee;
 
 /** The listing's roster as JSON. One row per booking line, newest first.
  * Every line shows, including a quantity-0 placeholder, and a booking on
@@ -254,6 +247,7 @@ const listingApiRoutes = defineCrudApi<
 
 export const adminApiRoutes = {
   ...attendeeStatusApiRoutes,
+  "POST /api/admin/attendees": handleCreateAttendee,
   ...attributeApiRoutes,
   ...holidayApiRoutes,
   ...groupApiRoutes,
