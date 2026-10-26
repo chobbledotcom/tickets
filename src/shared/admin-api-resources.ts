@@ -374,6 +374,24 @@ export const ADMIN_API_RESOURCES = {
   },
   "site-pages": {
     createBodySchema: CreateSitePageBodySchema,
+    custom: {
+      // The fixed pages (home, contact and terms) are not site_pages rows.
+      // They are addressed by name: a client reads and updates each page's
+      // content. A fixed page cannot be created, deleted, or hidden, so the
+      // read and update verbs answer normally and the other two refuse.
+      "contact-delete": { method: "DELETE", subpath: "contact" },
+      "contact-get": { method: "GET", subpath: "contact" },
+      "contact-post": { method: "POST", subpath: "contact" },
+      "contact-put": { method: "PUT", subpath: "contact" },
+      "home-delete": { method: "DELETE", subpath: "home" },
+      "home-get": { method: "GET", subpath: "home" },
+      "home-post": { method: "POST", subpath: "home" },
+      "home-put": { method: "PUT", subpath: "home" },
+      "terms-delete": { method: "DELETE", subpath: "terms" },
+      "terms-get": { method: "GET", subpath: "terms" },
+      "terms-post": { method: "POST", subpath: "terms" },
+      "terms-put": { method: "PUT", subpath: "terms" },
+    },
     label: "Page",
     listSchema: v.looseObject({
       "site-pages": v.array(SitePageRowSchema),

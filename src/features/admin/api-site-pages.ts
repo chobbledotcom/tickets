@@ -5,12 +5,10 @@
  * editors, so the JSON API matches.
  *
  * The content-page writes skip the generic CRUD writer (defineCrudApi).
- * A create carries its root order inside the INSERT, and the slug index
- * moves with the slug. Create and update go through the form's own DB
- * wrappers (createSitePage, updateSitePage). A delete clears the tree
- * edges with the row (deleteSitePageWithEdges). The fixed pages are
- * settings-backed. Their content is the public page text, changed through
- * the settings writers. Parsers and auth are the shared ones.
+ * A create carries its root order, and the slug index moves with the
+ * slug. A delete clears the tree edges with the row. The fixed pages
+ * are settings-backed. Their content is the public page text, changed
+ * through the settings writers. Parsers and auth are the shared ones.
  */
 
 /* jscpd:ignore-start */
