@@ -1,12 +1,19 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { t } from "#i18n";
+import { handleRequest } from "#routes";
 import { supportMessageApi } from "#shared/site-support-message.ts";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
+import {
+  expectFlash,
+  expectHtmlResponse,
+  followRedirectWithFlash,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { adminGet } from "#test-utils/session.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
   "GET /admin/built-sites/:id/support-message",
@@ -68,6 +75,38 @@ describeWithEnv(
           200,
           "The support message could not be read",
         );
+      });
+
+      test("resolves the stashed draft's img#N reference on the read-only panel", async () => {
+        const site = await createTestBuiltSite({
+          hostingId: "8104",
+          name: "Draft Site",
+        });
+        const image = await makeImage("DraftPoster");
+        using _read = stub(supportMessageApi, "readSupportMessage", () =>
+          Promise.resolve({ ok: true as const, value: "# Stored" }),
+        );
+        // A refused save stashes its draft, and the panel renders that draft
+        // on the read-only branch, so the tab loader must fill the page's
+        // image table from the draft too. The write itself must run while the
+        // site is writable; only the follow-up GET reads as read-only.
+        const { response, cookie } = await adminFormPost(tabPath(site.id), {
+          support_message: `![DraftPoster](img#${image.id}) ${"x".repeat(2100)}`,
+        });
+        expectFlash(response, t("built_sites.support_message_too_long"), false);
+
+        using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+        const followed = await followRedirectWithFlash(
+          response,
+          handleRequest,
+          cookie,
+        );
+        const html = await expectHtmlResponse(followed, 200, "Support message");
+        assertStringIncludes(
+          html,
+          `<img src="/image/${image.filename}" alt="DraftPoster">`,
+        );
+        assert(!html.includes("img#"));
       });
 
       test("renders the current message as Markdown when read-only", async () => {
