@@ -1,3 +1,4 @@
+import { escapeAnnotationValue } from "../github-actions.ts";
 import type { TestQualityFinding } from "../test-quality-audit-model.ts";
 
 /** One finding rendered the way the audit names it. */
@@ -5,9 +6,6 @@ export const formatQualityFinding = (finding: TestQualityFinding): string =>
   `${finding.path}:${finding.line}:${finding.column} ${finding.message}`;
 
 export const MAX_QUALITY_ANNOTATIONS = 100;
-
-const escapeAnnotationValue = (value: string): string =>
-  value.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
 
 /** One `::warning` annotation per finding, capped so a wide backlog cannot
  *  flood the GitHub checks pane. */

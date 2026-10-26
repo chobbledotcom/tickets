@@ -3,8 +3,8 @@ import { join } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   appendJournalEntry,
-  type MutationRunSummary,
   journalEntry,
+  type MutationRunSummary,
   readJournal,
   readRunSummary,
   runSummaryPath,
@@ -56,6 +56,9 @@ describe("mutation run journal", () => {
   test("appended runs read back oldest first, one JSON line each", async () => {
     const root = await Deno.makeTempDir();
     try {
+      // The journal lives inside the checkout's scripts/mutation/, which a
+      // real checkout always carries; the temp root needs it made here.
+      await Deno.mkdir(join(root, "scripts/mutation"), { recursive: true });
       const first = journalEntry("run-1", "aaa", summary());
       const second = journalEntry("run-2", "bbb", {
         ...summary(),

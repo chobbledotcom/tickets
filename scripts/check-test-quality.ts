@@ -9,13 +9,13 @@
  * scripts/test-quality-audit.ts for what the patterns are.
  */
 
-import { auditTestFiles } from "./test-quality-audit.ts";
 import {
   gateReport,
   qualityAnnotations,
   qualityVerdict,
 } from "./check-test-quality/report.ts";
 import { commandValue, runCommand, runGit } from "./precommit/git.ts";
+import { auditTestFiles } from "./test-quality-audit.ts";
 
 /** The test files this change touches, compared with the merge base on
  *  `origin/main`. Only committed work counts, matching the mutation gate's

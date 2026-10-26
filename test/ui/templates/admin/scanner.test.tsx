@@ -261,6 +261,18 @@ describe("the admin scanner page template", () => {
       RETENTION_DAYS,
     );
     assert(!quiet.includes("Scanning a ticket in this group"));
+    // A caller that leaves the flag off (as every listing door's route does)
+    // gets the quiet page too, so the parameter's own default stays quiet.
+    const unset = adminScannerPage(
+      { name: "Doors" },
+      "/admin/listings/5/scan",
+      OWNER_SESSION,
+      [],
+      undefined,
+      DOOR_CACHE_KEY,
+      RETENTION_DAYS,
+    );
+    assert(!unset.includes("Scanning a ticket in this group"));
   });
 
   test("carries every check-in message both checking paths read", () => {
@@ -348,18 +360,36 @@ describe("the admin scanner page template", () => {
     // check-in that ran past the booking reads, a waiting row's words, and
     // the count's plurals.
     const carriedOnce = {
+      "offline-already-queued": t("admin.scanner.offline_already_queued"),
       "offline-banner-auto": t("admin.scanner.offline_banner_auto"),
       "offline-banner-manual": t("admin.scanner.offline_banner_manual"),
+      "offline-cache-expired": t("admin.scanner.offline_cache_expired"),
+      "offline-cache-missing": t("admin.scanner.offline_cache_missing"),
+      "offline-invalid": t("admin.scanner.offline_invalid"),
+      "offline-mode-save-failed": t("admin.scanner.offline_mode_save_failed"),
       "offline-not-queued": t("admin.scanner.offline_not_queued"),
       "offline-quantity-ask": t("admin.scanner.offline_quantity_ask"),
+      "offline-queued": t("admin.scanner.offline_queued"),
+      "offline-save-failed": t("admin.scanner.offline_save_failed"),
       "queue-count-one": t("admin.scanner.queue_count_one", holes("count")),
       "queue-count-other": t("admin.scanner.queue_count_other", holes("count")),
+      "queue-item-already": t("admin.scanner.queue_item_already"),
+      "queue-item-checked-in": t("admin.scanner.queue_item_checked_in"),
       "queue-item-expired": t("admin.scanner.queue_item_expired"),
+      "queue-item-not-checked-in": t("admin.scanner.queue_item_not_checked_in"),
       "queue-item-over-admitted": t(
         "admin.scanner.queue_item_over_admitted",
         holes("admitted", "bought", "name", "named"),
       ),
       "queue-item-queued": t("admin.scanner.queue_item_queued"),
+      "queue-item-refunded": t("admin.scanner.queue_item_refunded"),
+      "queue-item-still-queued": t("admin.scanner.queue_item_still_queued"),
+      "queue-save-failed": t("admin.scanner.queue_save_failed"),
+      // The kept-scan sync's four words, which the offline door reads.
+      "sync-done": t("admin.scanner.sync_done"),
+      "sync-holds": t("admin.scanner.sync_holds"),
+      "sync-running": t("admin.scanner.sync_running"),
+      "sync-still-queued": t("admin.scanner.sync_still_queued"),
     } as const;
     for (const [attr, value] of Object.entries(carriedOnce)) {
       carried(attr, value, 1);
@@ -421,6 +451,10 @@ describe("the admin scanner page template", () => {
     assertStringIncludes(html, 'id="scanner-offline-banner-text"');
     assertStringIncludes(html, 'id="scanner-queue"');
     assertStringIncludes(html, 'id="scanner-queue-summary"');
+    // The toggle the door uses to switch to offline mode, styled as a quiet
+    // link so it never reads as the camera's start button.
+    assertStringIncludes(html, 'class="link-button muted"');
+    assertStringIncludes(html, 'id="scanner-offline-toggle"');
     assertStringIncludes(html, 'id="scanner-queue-items"');
     assertStringIncludes(html, 'id="scanner-quantity-message"');
     assertStringIncludes(html, 'for="scanner-quantity-select"');

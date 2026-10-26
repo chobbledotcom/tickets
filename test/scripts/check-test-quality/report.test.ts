@@ -23,7 +23,9 @@ describe("check-test-quality report", () => {
     expect(verdict.informational[0]).toBe(
       "Test quality audit found 2 review targets:",
     );
-    expect(verdict.informational[1]).toBe("test/a.test.ts:12:5 presence-only assertion; prefer checking the value, shape, or invariant");
+    expect(verdict.informational[1]).toBe(
+      "test/a.test.ts:12:5 presence-only assertion; prefer checking the value, shape, or invariant",
+    );
   });
 
   test("the empty audit answers one quiet line", () => {
@@ -35,9 +37,16 @@ describe("check-test-quality report", () => {
   });
 
   test("the review gate takes only the findings in files this change touches", () => {
-    const touched = finding("test/touched.test.ts", 7, "truthiness assertion; prefer an exact value or contract-specific matcher");
+    const touched = finding(
+      "test/touched.test.ts",
+      7,
+      "truthiness assertion; prefer an exact value or contract-specific matcher",
+    );
     const elsewhere = finding("test/elsewhere.test.ts");
-    const verdict = qualityVerdict([touched, elsewhere], ["test/touched.test.ts"]);
+    const verdict = qualityVerdict(
+      [touched, elsewhere],
+      ["test/touched.test.ts"],
+    );
     expect(verdict.gateFindings).toEqual([touched]);
     expect(verdict.gateSkipped).toBe(false);
   });
@@ -50,7 +59,11 @@ describe("check-test-quality report", () => {
 
   test("each finding becomes one file-anchored warning annotation", () => {
     const annotations = qualityAnnotations([
-      finding("test/a.test.ts", 12, "truthiness assertion; prefer an exact value or contract-specific matcher"),
+      finding(
+        "test/a.test.ts",
+        12,
+        "truthiness assertion; prefer an exact value or contract-specific matcher",
+      ),
     ]);
     expect(annotations).toEqual([
       "::warning file=test/a.test.ts,line=12,col=5::truthiness assertion; prefer an exact value or contract-specific matcher",
@@ -79,16 +92,26 @@ describe("check-test-quality report", () => {
   });
 
   test("the gate failure names the fix and lists the findings", () => {
-    const lines = gateReport([finding("test/touched.test.ts", 7, "truthiness assertion; prefer an exact value or contract-specific matcher")]);
+    const lines = gateReport([
+      finding(
+        "test/touched.test.ts",
+        7,
+        "truthiness assertion; prefer an exact value or contract-specific matcher",
+      ),
+    ]);
     expect(lines[0]).toBe(
       "The test files this change touches carry weak assertion patterns.",
     );
-    expect(lines[2]).toBe("test/touched.test.ts:7:5 truthiness assertion; prefer an exact value or contract-specific matcher");
+    expect(lines[2]).toBe(
+      "test/touched.test.ts:7:5 truthiness assertion; prefer an exact value or contract-specific matcher",
+    );
   });
 
   test("one finding renders as its position and message", () => {
-    expect(formatQualityFinding(finding("test/a.test.ts", 3, "test has no visible assertion"))).toBe(
-      "test/a.test.ts:3:5 test has no visible assertion",
-    );
+    expect(
+      formatQualityFinding(
+        finding("test/a.test.ts", 3, "test has no visible assertion"),
+      ),
+    ).toBe("test/a.test.ts:3:5 test has no visible assertion");
   });
 });

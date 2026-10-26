@@ -3,8 +3,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryOne } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { committedEntries } from "#routes/api/payment-processing/committed-entries.ts";
+import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { singleListingPayment } from "./index/helpers.ts";
@@ -82,9 +82,18 @@ describeWithEnv("payment processing > committed entries", { db: true }, () => {
     expect(attendee.checked_in).toBe(0);
     expect(attendee.refunded).toBe(false);
     expect(attendee.attachment_downloads).toBe(0);
+    // The rebuilt row carries no geo or logistics split: those belong to the
+    // attendee's own stored record, not the paid booking's echo.
+    expect(attendee.lat).toBe("");
+    expect(attendee.lng).toBe("");
+    expect(attendee.split_logistics_agents).toBe(false);
     // The rest of the line comes from the committed row itself.
-    expect(attendee.date).toBe(stored.start_at === null ? null : stored.start_at.slice(0, 10));
-    expect(attendee.end_date).toBe(stored.end_at === null ? null : stored.end_at.slice(0, 10));
+    expect(attendee.date).toBe(
+      stored.start_at === null ? null : stored.start_at.slice(0, 10),
+    );
+    expect(attendee.end_date).toBe(
+      stored.end_at === null ? null : stored.end_at.slice(0, 10),
+    );
     expect(attendee.status_id).toBe(stored.status_id);
     expect(attendee.ticket_token_index).toBe(stored.ticket_token_index);
     expect(attendee.webhooks_pending).toBe(stored.webhooks_pending);

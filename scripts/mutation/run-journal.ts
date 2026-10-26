@@ -13,7 +13,13 @@
 
 import { join } from "@std/path";
 import * as v from "valibot";
+import { rel } from "#scripts/project-root.ts";
 import { readJsonOrNull } from "#scripts/read-json.ts";
+import { errorMessage } from "#shared/error-message.ts";
+import { nonBlankLines } from "../lines.ts";
+import { MUTATION_RUN_ROOT_ENV } from "./isolation-state.ts";
+import { type MutantResult, summarize } from "./summary.ts";
+import { writeWholeOrNotAtAll } from "./write-whole.ts";
 
 export const RUN_SUMMARY_FILE = "summary.json";
 export const MUTATION_JOURNAL_PATH = "scripts/mutation/runs.jsonl";
@@ -33,9 +39,7 @@ export const MutationRunSummarySchema = v.object({
   total: v.pipe(v.number(), v.integer()),
 });
 
-export type MutationRunSummary = v.InferOutput<
-  typeof MutationRunSummarySchema
->;
+export type MutationRunSummary = v.InferOutput<typeof MutationRunSummarySchema>;
 
 /** One journal line: the summary plus the run and checkout it belongs to. */
 export const MutationJournalEntrySchema = v.intersect([
@@ -50,19 +54,16 @@ export type MutationJournalEntry = v.InferOutput<
   typeof MutationJournalEntrySchema
 >;
 
-const summaryPendingSuffix = ".writing";
-
 /** Write the child's summary in one step, so a supervisor reading mid-write
  *  sees the old file or the new one, never half of one. */
 export const writeRunSummary = async (
   runRoot: string,
   summary: MutationRunSummary,
-): Promise<void> => {
-  const path = runSummaryPath(runRoot);
-  const pending = `${path}${summaryPendingSuffix}`;
-  await Deno.writeTextFile(pending, `${JSON.stringify(summary, null, 2)}\n`);
-  await Deno.rename(pending, path);
-};
+): Promise<void> =>
+  writeWholeOrNotAtAll(
+    runSummaryPath(runRoot),
+    `${JSON.stringify(summary, null, 2)}\n`,
+  );
 
 /** The summary the child of `runRoot` wrote, or null when there is none — a
  *  run that never reached a verdict publishes nothing. */
@@ -95,9 +96,7 @@ export const appendJournalEntry = async (
     create: true,
   });
   try {
-    await file.write(
-      new TextEncoder().encode(`${JSON.stringify(entry)}\n`),
-    );
+    await file.write(new TextEncoder().encode(`${JSON.stringify(entry)}\n`));
   } finally {
     file.close();
   }
@@ -109,8 +108,47 @@ export const readJournal = async (
   root: string,
 ): Promise<MutationJournalEntry[]> => {
   const text = await Deno.readTextFile(join(root, MUTATION_JOURNAL_PATH));
-  return text
-    .split("\n")
-    .filter((line) => line.trim() !== "")
-    .map((line) => v.parse(MutationJournalEntrySchema, JSON.parse(line)));
+  return nonBlankLines(text).map((line) =>
+    v.parse(MutationJournalEntrySchema, JSON.parse(line)),
+  );
+};
+
+/** Publish a finished run's numbers for the tracked journal (issue #2301).
+ * A failure here is a record-keeping failure: it must not turn a finished
+ * run's verdict into a crash, so it is reported and the run's own exit code
+ * stands. Outside an isolated snapshot there is no run to publish into, so an
+ * env-less run writes nothing. */
+export const publishRunSummary = async (
+  run: {
+    exhaustive: boolean;
+    useHarness: boolean;
+    sourceFiles: readonly string[];
+    testFiles: readonly string[];
+  },
+  results: readonly MutantResult[],
+): Promise<void> => {
+  const runRoot = Deno.env.get(MUTATION_RUN_ROOT_ENV);
+  if (runRoot === undefined) return;
+  try {
+    const { effective, ignored, killed, score, survived, total } = summarize([
+      ...results,
+    ]);
+    await writeRunSummary(runRoot, {
+      effective,
+      exhaustive: run.exhaustive,
+      finishedAt: new Date().toISOString(),
+      harness: run.useHarness,
+      ignored,
+      killed,
+      score,
+      sources: run.sourceFiles.map((file) => rel(file)),
+      survived,
+      tests: run.testFiles.map((file) => rel(file)),
+      total,
+    });
+  } catch (error) {
+    console.error(
+      `The run's numbers could not be published for the mutation journal: ${errorMessage(error)}`,
+    );
+  }
 };

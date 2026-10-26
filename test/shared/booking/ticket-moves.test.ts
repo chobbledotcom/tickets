@@ -130,9 +130,10 @@ describe("booking > ticket moves", () => {
   test("only the moves that really moved tickets reach the door's log", () => {
     // A zero count moved nothing, so no activity row names it; a count of
     // one is the smallest move that did.
-    expect(
-      movesThatMoved([answer(0, 0), answer(1, 1), answer(3, 3)]),
-    ).toEqual([answer(1, 1), answer(3, 3)]);
+    expect(movesThatMoved([answer(0, 0), answer(1, 1), answer(3, 3)])).toEqual([
+      answer(1, 1),
+      answer(3, 3),
+    ]);
   });
 });
 

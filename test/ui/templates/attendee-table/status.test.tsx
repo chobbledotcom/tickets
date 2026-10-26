@@ -201,6 +201,46 @@ describe("attendee status cells", () => {
     assertStringIncludes(html, '<button class="link-button checkin"');
   });
 
+  test("a none-in multi-ticket line reads Check in, not Check in/out", () => {
+    const html = renderStatus({ checked_in: 0, id: 15, quantity: 3 });
+
+    expect(html).toBe(
+      '<a class="link-button checkin" href="/admin/listing/9/attendee/15/checkin">Check in</a>',
+    );
+  });
+
+  test("a checked-in single booking posts check_in=false", () => {
+    const html = renderStatus({ checked_in: 1, id: 16 });
+
+    assertStringIncludes(
+      html,
+      '<input name="check_in" type="hidden" value="false">',
+    );
+  });
+
+  test("a badge with one ticket left still says how many are in", () => {
+    const html = renderStatus(
+      { checked_in: 2, quantity: 3 },
+      { showCheckin: false, showCheckinState: true },
+    );
+
+    expect(html).toBe('<span class="badge-ok">Checked in (2 of 3)</span>');
+  });
+
+  test("keeps the toggle form when showCheckinState is explicitly false", () => {
+    const html = renderStatus(
+      { checked_in: 1, id: 17 },
+      { showCheckin: false, showCheckinState: false },
+    );
+
+    assert(html.includes("<form"));
+    assertStringIncludes(
+      html,
+      '<input name="check_in" type="hidden" value="false">',
+    );
+    assert(!html.includes("badge-ok"));
+  });
+
   test("throws when a check-in row has no listing", () => {
     expect(() => renderStatus({ id: 42 }, {}, [])).toThrow(
       "Attendee 42 has no listing",

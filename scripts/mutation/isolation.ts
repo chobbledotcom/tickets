@@ -6,6 +6,7 @@
  */
 
 import { relative } from "@std/path";
+import { commandValue, runCommand } from "#scripts/precommit/git.ts";
 import {
   INHERIT_STDIO,
   stopProcess,
@@ -17,7 +18,6 @@ import {
   onTerminationSignals,
 } from "#scripts/termination-signals.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { commandValue, runCommand } from "#scripts/precommit/git.ts";
 import { envWith } from "./child-process.ts";
 import {
   liveRunIdSet,
@@ -29,11 +29,6 @@ import {
 } from "./isolation-cleanup.ts";
 import { withRunClaim, withRunClaimGuard } from "./isolation-lock.ts";
 import { readRunRecords, writeRunRecord } from "./isolation-records.ts";
-import {
-  appendJournalEntry,
-  journalEntry,
-  readRunSummary,
-} from "./run-journal.ts";
 import {
   copyMutationSnapshot,
   createRunId,
@@ -56,6 +51,11 @@ import {
   type SnapshotArgsFn,
   selectedRuns,
 } from "./isolation-state.ts";
+import {
+  appendJournalEntry,
+  journalEntry,
+  readRunSummary,
+} from "./run-journal.ts";
 import {
   type CopyBackFile,
   keepSnapshotFiles,
