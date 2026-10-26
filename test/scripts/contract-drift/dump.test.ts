@@ -141,31 +141,6 @@ describe("contract dump", () => {
     }
   });
 
-  test("dumps the declared joint states", async () => {
-    expect((await currentContracts()).jointStates).toEqual([
-      {
-        authority: "absent",
-        rows: [
-          "claim",
-          "claim_review",
-          "claim_review_unrecorded",
-          "claim_unrecorded",
-        ],
-      },
-      {
-        authority: "send_armed",
-        rows: [
-          "free_finalized",
-          "free_reserved",
-          "review",
-          "review_unrecorded",
-          "settled",
-          "unrecorded",
-        ],
-      },
-    ]);
-  });
-
   test("refuses a machine the loaders do not know", async () => {
     await expect(contractsFromAtlas([machineWith([])])).rejects.toThrow(
       "Machine m joined the atlas; the drift dump must learn its events and declared moves",

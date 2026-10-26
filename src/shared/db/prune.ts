@@ -35,7 +35,7 @@ import {
 import { logDebug } from "#shared/logger.ts";
 import { DAY_MS, isoBefore, now, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
-import { SQUARE_NATIVE_LIFETIME_MS } from "#shared/square/limits.ts";
+import { SQUARE_LINK_RETENTION_MS } from "#shared/square/limits.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 import type { User } from "#types";
 
@@ -135,9 +135,7 @@ const pruneStatements = (): PruneStatement[] => [
   // through webhook retries.
   boundedDelete("checkout_pending_answers", (bind) => {
     const paymentsCutoff = bind(isoBefore(PRUNE_PAYMENTS_RETENTION_MS));
-    const squareCutoff = bind(
-      isoBefore(SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS),
-    );
+    const squareCutoff = bind(isoBefore(SQUARE_LINK_RETENTION_MS));
     const webhookCutoff = bind(isoBefore(WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS));
     return `created_at < ${paymentsCutoff}
        AND (
@@ -158,8 +156,7 @@ const pruneStatements = (): PruneStatement[] => [
   // rows keep their place until the task observes their end.
   boundedDelete(
     "square_link_ends",
-    (bind) =>
-      `created_at < ${bind(isoBefore(SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS))}`,
+    (bind) => `created_at < ${bind(isoBefore(SQUARE_LINK_RETENTION_MS))}`,
   ),
   boundedDelete(
     "strings",

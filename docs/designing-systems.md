@@ -80,13 +80,9 @@ factory for that already. Use it — or extend it for every caller.
 
 ## Checked forwards and backwards
 
-A stateful lifecycle is declared as a machine, its combinations with other
-machines are declared as a seam, and both declarations are checked in both
-directions: forwards by tests that drive the real transitions and crash them
-mid-flight, backwards by reading the stored data and proving it fits. This was
-retrofitted onto the payment machines across three large PRs (#2065, #2079,
-#2084); a new lifecycle declares it with its first slice, when it is cheap. The
-mechanisms, each with its reference:
+Declare each stateful lifecycle as a machine. Use generated models to check
+transition safety. Use database tests and bounded scans to check stored facts.
+These checks serve different purposes.
 
 - **Declare the machine as data.** Nodes carrying representative states built
   through the production transitions, events, and an exhaustive moves table — a
@@ -99,30 +95,56 @@ mechanisms, each with its reference:
 - **Derive, never restate.** SQL guards (`rowWorkMirrorSql`), status words,
   danger flags, and the operator map (`SCHEMA_ATLAS_MACHINES`, rendered at
   `/admin/schema`) all derive from the spec. Vocabulary lists derive from the
-  machine's own types — an exhaustive mapped record keyed by the machine's union
-  (`STORED_AUTHORITY_FACTS` in `src/shared/payment/joint-state.ts`) — so a grown
-  or renamed state stops compiling until every consumer learns it.
-- **Declare the seam.** When two machines share reality, declare the ILLEGAL
-  combinations, each entry naming the invariant it breaks
-  (`ILLEGAL_JOINT_STATES` in `src/shared/payment/joint-state.ts`). List only
-  what is provably impossible: every crash window's intermediate state must stay
-  legal, because a redelivery has to finish from it.
-- **Witness every manufactured crash.** Each crash-manufacture test helper reads
-  back every stored record it touched and asserts the combination is one a real
-  run can produce (`expectLegalJointStates` in
-  `test/test-utils/joint-state.ts`), so the whole crash suite polices the seam
-  without new tests.
+  machine's own types — an exhaustive mapped record keyed by the machine's union —
+  so a grown or renamed state stops compiling until every consumer learns it.
+- **Check machine safety with models.** `deno task verify:models` executes the
+  production transitions and generates model inputs for Apalache. There is no
+  stored copy of the move tables. Each model checks its initial state and an
+  unrestricted inductive step. These checks establish model safety for any run
+  length:
+  - `verification/JointState.tla` checks the indexed-reference claim guard and
+    the actual refund money-edge results. A money edge must arm a durable
+    authority and preserve its request.
+  - `verification/SumupRecovery.tla` checks that records with unaccounted money
+    cannot be pruned. Risky records retain a check path. Paid and terminal
+    evidence cannot move backwards.
+  - `verification/PaymentReview.tla` keeps the reason in each review state.
+    Acknowledgement preserves the case. Only matching evidence retires it.
+    Review events do not move money.
+  - `verification/SquareLinkEnd.tla` keeps cancel handles while links can accept
+    payment. Inconclusive replies and expired leases retain retry work. Native
+    expiry and the webhook window bound age pruning.
+  The models trust representative coverage and event annotations.
+  The Square model also trusts the configured provider lifetime. Claim
+  admission remains a model assumption. Mirror tests and database tests check
+  these inputs and boundaries. Model safety does not prove SQL atomicity,
+  provider truth or eventual task execution. After a model change, corrupt an
+  emitted edge. Confirm that the checker reports a counterexample.
+  Direct generator tests keep unsafe outcomes visible. SumUp and Square
+  extraction stop if a declared transition fails.
+- **Make proof code read like its rules.** Give each fact named record fields.
+  Use short rule names that describe the business condition. Prefer explicit
+  conditions to dense Boolean formulas. Declare each fact schema once in its
+  generator. Derive the TypeScript record type and checker type note from it.
+  Keep comments for assumptions that names cannot express. Keep checker type
+  notes beside their declarations. Share common pure rules in
+  `verification/ModelRules.tla`. `deno task cpd` checks all maintained TLA
+  modules, including helpers. Its TLA adapter preserves identifiers, literals
+  and prime marks. It excludes comments from clone detection.
+- **Observe real writes.** `test/test-utils/payment-seam.ts` records claim and
+  refund-arm facts through test-only database triggers. A later settlement
+  cannot erase a recorded violation. The observer checks the authority revision
+  and request identity at arm time. Callback refunds can precede an attendee
+  anchor. Keep the schema, permission, concurrency, provider and crash tests.
 - **Enumerate flows × crash windows.** List every flow; every await between two
   durable writes is a window; each window gets an idempotent-redelivery proof or
   a fault-injected test. Faults are triggers at SQLite's own boundary, not stubs
   (`test/test-utils/db-fault.ts`), so the failing write rolls back exactly as
   production would.
-- **Check backwards from the data.** A bounded scan reads the declared
-  impossibilities back out of the live database and shows the operator every hit
+- **Check stored data separately.** A bounded scan reads SumUp state, checkout-id
+  and clock rules from the live database. It shows each fault to the operator
   (`src/shared/db/schema-anomaly-scan.ts`, the `/admin/schema` "Live check").
-  Key the scan's queries by the declaration table's own literal types, so
-  declaring a new illegal combination refuses to compile until the scan knows
-  how to find it.
+  A proof over valid transitions does not detect corrupt stored records.
 
 ## Pure, functional
 

@@ -6,22 +6,28 @@ import {
   claimAttendeeRows,
   type LoadedRefundAttendee,
 } from "#db/payment-claim/take.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { getRefundPaymentReferences } from "#db/payment-references.ts";
+import { loadRefundAuthorityByReference } from "#db/provider-refund-authority.ts";
 import { requiredMapValue } from "#fp";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  CLAIM_MIRROR,
   claimCurrentAttendeeRows,
   protectedStateOf,
   putRowState,
   REVIEW_MIRROR,
+  referenceIndexOf,
   reviewCase,
   rowStateSlot,
 } from "#test-utils/payment-claim.ts";
 import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
+import { checkPaymentSeam } from "#test-utils/payment-seam.ts";
 import {
   bookedWithPayment,
   finalizeProcessedPayment,
+  taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
@@ -55,6 +61,8 @@ describeWithEnv(
   "db > payment claim admission",
   { db: true, encryptionKey: true },
   () => {
+    checkPaymentSeam();
+
     test("an empty command can be refused before opening a transaction", async () => {
       const calls = await countDatabaseCalls(0, async () => {
         expect(
@@ -86,6 +94,32 @@ describeWithEnv(
       expect(await protectedStateOf("sess-admission-refused")).toBe("");
       expect(await claimCurrentAttendeeRows([attendeeId])).toMatchObject({
         kind: "claimed",
+      });
+    });
+
+    test("a claim can hold an indexed payment before its refund authority exists", async () => {
+      const sessionId = "sess-admission-no-authority";
+      const reference = "pi_admission_no_authority";
+      const attendeeId = await bookedWithPayment(sessionId, reference);
+      const referenceIndex = await paymentReferenceIndex(
+        taggedPaymentReference(reference),
+      );
+      expect(await referenceIndexOf(sessionId)).toBe(referenceIndex);
+      expect(await loadRefundAuthorityByReference(referenceIndex)).toBeNull();
+      const loaded = await loadedAttendee(attendeeId);
+
+      const result = await claimAttendeeRows([loaded]);
+
+      expect(result).toMatchObject({
+        held: new Map([[attendeeId, [sessionId]]]),
+        kind: "claimed",
+        phases: new Map([[sessionId, "checking"]]),
+      });
+      expect(await protectedStateOf(sessionId)).toBe(CLAIM_MIRROR);
+      expect(await loadRefundAuthorityByReference(referenceIndex)).toBeNull();
+      expect(await claimAttendeeRows([loaded])).toEqual({
+        blockedBy: { kind: "held" },
+        kind: "blocked",
       });
     });
 

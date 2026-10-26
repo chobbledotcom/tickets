@@ -118,6 +118,9 @@ jobs:
       - name: Check for import cycles
         run: deno task cycles
 
+      - name: Check machine safety models
+        run: deno task verify:models
+
       - name: Build edge bundle
         run: deno task build:edge
 

@@ -98,6 +98,7 @@ const STEPS = [
   // one by one while the report stayed advisory (see test/integration/
   // import-cycles.test.ts); once it reached zero the report became the gate.
   { cmd: ["task", "cycles"], name: "cycles" },
+  { cmd: ["task", "verify:models"], name: "verify:models" },
   { cmd: ["task", "build:edge"], name: "build:edge" },
   {
     cmd: ["task", "test:coverage"],

@@ -28,6 +28,9 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 const sessionIndexOf = (sessionId: string): Promise<string> =>
   hmacHash(sessionId);
 
+const requiredSquareRetentionMs =
+  SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS;
+
 describeWithEnv("checkout pending answers", { db: true }, () => {
   test("stages sealed rows and reads them back by session id", async () => {
     await stageCheckoutAnswers("cs_staged", { "7": "Coming by bus" }, null);
@@ -164,8 +167,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     const pastSquareLifetime = new Date(
       nowMs() -
         PRUNE_PAYMENTS_RETENTION_MS -
-        SQUARE_NATIVE_LIFETIME_MS -
-        WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS -
+        requiredSquareRetentionMs -
         60_000,
     ).toISOString();
     await execute(
@@ -193,12 +195,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     await execute(
       "UPDATE square_link_ends SET created_at = ? WHERE session_index = ?",
       [
-        new Date(
-          nowMs() -
-            SQUARE_NATIVE_LIFETIME_MS -
-            WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS -
-            60_000,
-        ).toISOString(),
+        new Date(nowMs() - requiredSquareRetentionMs - 60_000).toISOString(),
         await sessionIndexOf("cs_handle_old"),
       ],
     );
