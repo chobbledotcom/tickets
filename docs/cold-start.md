@@ -14,8 +14,14 @@ directly measured total.
 
 ```bash
 deno run -A scripts/bench/cold-start/bundle-load.ts
-deno run -A scripts/bench/cold-start/first-request.ts
+deno run -A scripts/bench/cold-start/first-request.ts listings
+deno run -A scripts/bench/cold-start/first-request.ts booking-nav
 ```
+
+`first-request.ts` measures two scenarios. The default `listings` scenario
+serves the catalogue page `/listings`. The `booking-nav` scenario serves the
+booking page of a listing that sits on a site page, so the request also
+builds the menu above it.
 
 Results below were measured on 14 July 2026 with Deno 2.5.6 in this development
 container. Wall times depend on the machine. Bundle size, query count, and the
@@ -194,6 +200,60 @@ memberships, and capacity reads. With 14 groups, the page made 119 round trips.
   two loaders. In the one-file deploy this defers evaluation work; it does not
   reduce file parsing.
 
+## Cold booking page with the site menu
+
+The `booking-nav` scenario runs the same method as the listings scenario, but
+the child serves the booking page `GET /ticket/benchmark-listing-1`. The
+preparation seeds the listings scenario's catalogue first, and then adds the
+site pages the menu reads. A root page named "Visit" carries a nested page
+named "Extras" and the benchmark listings 1 and 2. "Extras" carries one group.
+Extras sits off the chain of pages a booking for listing 1 marks in the menu.
+The scenario therefore measures a menu resolution that must skip an off-chain
+group.
+
+Every response must render its markers before it counts as a sample. A
+booking page's markers are its own booking form and the active chain in the
+menu. The chain is the Visit page and the listing itself, each as an active
+link. A response without the menu fails the run. Round trips count the same
+way as in the listings scenario: every libsql execute or batch pays the fake
+latency.
+
+The recorded runs measured three states on 20 October 2026 at the branch head
+under review in #2621. All three states ran the same harness and fixture. The
+baseline ran main's menu code from before #2621, and that code resolved every
+entry in the whole tree. The attribution state told the menu which entry the
+booking is for, and kept main's unscoped resolution. The merged state passed
+the same target and resolved only the entries on the marked chain of pages.
+
+| State | Cold 0 ms | Cold 5 ms | Cold 10 ms | Cold 20 ms | Cold round trips | Warm 20 ms | Warm round trips |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Main's menu code (baseline) | 61 ms | 115 ms | 162 ms | 252 ms | 16 | 154 ms | 12 |
+| Menu target, main's unscoped resolution (attribution) | 67 ms | 154 ms | 225 ms | 368 ms | 23 | 241 ms | 17 |
+| Menu target, chain-scoped resolution (merged) | 63 ms | 136 ms | 197 ms | 317 ms | 20 | 197 ms | 15 |
+
+Warm requests at the other latencies (baseline / attribution / merged): 4 /
+5 / 4 ms at 0 ms, 47 / 75 / 61 ms at 5 ms, and 83 / 130 / 106 ms at 10 ms.
+
+- The target alone added 7 cold round trips over main (16 to 23) and 116 ms
+  at 20 ms.
+- The chain-scoped resolution recovered 3 of those 7 round trips (23 to 20)
+  and 51 ms at 20 ms. Warm requests recovered 2 round trips (17 to 15) and
+  44 ms at 20 ms.
+- The booking page does not return to main's 16 cold round trips. Marking the
+  page's place keeps the count at 20, 4 above a menu that marks nothing.
+- The listings scenario is unchanged. Main's menu code and the merged code
+  both measured 23 cold round trips, 315 ms at 20 ms, and 14 warm round trips.
+- The largest median absolute deviation in any row was 3.1 ms. The 51 ms gap
+  between the attribution and merged states at 20 ms sits far outside that
+  noise.
+
+A re-run on 21 October 2026 at the merged code repeated the round-trip
+counts: 20 cold and 15 warm. Its cold medians were 71 / 146 / 207 / 325 ms at
+0 / 5 / 10 / 20 ms. Its warm medians were 5 / 63 / 108 / 198 ms, with
+deviations at or below 2.7 ms cold and 0.5 ms warm. The cold medians sit a
+few ms above the recorded run at the same latency. That gap is run-to-run
+timing, not a query change.
+
 ## What the request benchmark excludes
 
 The request child statically imports `serve-app.ts` before its request clock. It
@@ -214,6 +274,9 @@ their medians and call the result an end-to-end production observation.
   each group.
 - Existing public listings, package, ticket, and site-page tests lock the
   rendered behavior and dead-link gates.
+- `test/features/public/site-nav.test.ts` and
+  `specs/pages/the-menu-above-a-booking.feature` lock the menu marking that
+  the booking-nav scenario measures.
 - `test/lib/cold-boot-queries.test.ts` continues to lock the four-query general
   boot chain before route business work.
 - Production startup logs still report runtime/bundle load, request wait, boot
