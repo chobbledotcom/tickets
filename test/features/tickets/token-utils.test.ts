@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { getDb } from "#db/client.ts";
 import { isTokenRateLimited, recordTokenFailure } from "#db/token-attempts.ts";
@@ -14,7 +15,9 @@ import {
 } from "#routes/tickets/token-utils.ts";
 import { MAX_TOKEN_404S } from "#shared/limits.ts";
 import { flushPendingWork } from "#shared/pending-work.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createMultiBookingAttendee,
@@ -123,6 +126,37 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     );
     expect(owedByListing.get(collecting.id)).toBe(1);
     expect(owedByListing.get(stopped.id)).toBe(0);
+  });
+
+  test("the entry's badge and the admin reads agree on a tab-padded stored value", async () => {
+    // A direct edit can leave a tab at a stored token edge. The badge SQL
+    // trims spaces and non-breaking spaces, the parser trims every pad, so
+    // the entry resolves the rule where the admin reads do: in SQL. One
+    // rule, so the ticket page's badge and the list cannot disagree.
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      name: "Tab Padded Entry",
+    });
+    const { attendee, token } = await createTestAttendeeDirect(
+      listing.id,
+      "Tab Pad Buyer",
+      "tab-pad@example.com",
+    );
+    await getDb().execute({
+      args: ["phone,\temail", listing.id],
+      sql: "UPDATE listings SET fields = ? WHERE id = ?",
+    });
+    await setPendingNotificationFlags(attendee.id, 1, 0);
+
+    const entries = await entriesForToken(token);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.attendee.email_owed).toBe(0);
+
+    const read = await getAttendeeOrNull(
+      attendee.id,
+      await getTestPrivateKey(),
+    );
+    expect(requireValue(read, "the booked attendee").email_owed).toBe(0);
   });
 
   test("resolveEntries keeps the null date when a booking has no start/end", async () => {

@@ -161,6 +161,12 @@ export type ListingAttendeeRow = {
   package_group_id: number;
 };
 
+/** A booking row of the token reads: the shared booking fields plus the
+ * read-resolved email rule, asked about the row's own listing
+ * (`emailOwedColumn`). The CASE keeps it 0 while the attendee's flag is
+ * down, so the entry's view needs no second rule beside the SQL one. */
+export type TokenBookingRow = ListingAttendeeRow & { email_owed: number };
+
 /** An attendee with all their listing bookings (for token resolution) */
 export type AttendeeWithBookings = {
   /** Base attendee fields (PII, token, created — shared across listings) */
@@ -181,7 +187,7 @@ export type AttendeeWithBookings = {
   /** 0 none, 1 online booking, 2 admin add — an owed confirmation email. */
   email_pending: number;
   /** Per-listing bookings, sorted by start_at then listing_id */
-  bookings: ListingAttendeeRow[];
+  bookings: TokenBookingRow[];
 };
 
 /** Item for batch availability check */

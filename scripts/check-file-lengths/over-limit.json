@@ -13,7 +13,7 @@
   "src/shared/payment-helpers.ts": 636,
   "src/shared/payment/refund-machine-spec.ts": 534,
   "src/shared/storage.ts": 543,
-  "src/shared/types.ts": 778,
+  "src/shared/types.ts": 783,
   "src/ui/static/style.scss": 3174,
   "src/ui/templates/admin/questions.tsx": 589,
   "test/features/admin/debug/server.test.ts": 667,

@@ -271,4 +271,46 @@ describe("attendee refund confirmation pages", () => {
     assert(!ready.includes("payments in flight"));
     assert(!ready.includes("Try again later."));
   });
+
+  test("the confirmation pages carry the owed-send pills beside the name", () => {
+    // AttendeeDetails serves the refund, payment-review and re-send
+    // confirmations, so the pills render there too. A person still owed a
+    // send shows it at the decision point; a settled person never does.
+    const flagged = testAttendee({
+      email_owed: 1,
+      email_pending: 1,
+      webhooks_pending: 1,
+    });
+    const flaggedPages = [
+      adminRefundAttendeePage({ attendee: flagged }, OWNER_SESSION),
+      adminPaymentReviewPage(
+        { attendee: flagged, reviewIdentity: "case-9" },
+        OWNER_SESSION,
+      ),
+      adminResendNotificationPage(
+        { attendee: flagged, hasWebhook: true },
+        OWNER_SESSION,
+      ),
+    ];
+    for (const html of flaggedPages) {
+      assertStringIncludes(html, "Email not sent");
+      assertStringIncludes(html, "Webhooks not sent");
+    }
+
+    const settledPages = [
+      adminRefundAttendeePage({ attendee: testAttendee() }, OWNER_SESSION),
+      adminPaymentReviewPage(
+        { attendee: testAttendee(), reviewIdentity: "case-9" },
+        OWNER_SESSION,
+      ),
+      adminResendNotificationPage(
+        { attendee: testAttendee(), hasWebhook: true },
+        OWNER_SESSION,
+      ),
+    ];
+    for (const html of settledPages) {
+      assert(!html.includes("Email not sent"));
+      assert(!html.includes("Webhooks not sent"));
+    }
+  });
 });
