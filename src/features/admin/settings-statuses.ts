@@ -142,9 +142,9 @@ const statusDeleteGet = (request: Request, id: number): Promise<Response> =>
     const status = await getAttendeeStatus(id);
     if (status === null) return notFoundResponse();
     const prospects = await statusDeleteProspects(id);
-    const retire = prospects?.blocker
+    const retire = prospects.blocker
       ? { blocked: attendeeStatusDeleteMessage(prospects.blocker) }
-      : await reassignChoice(id, prospects?.others ?? []);
+      : await reassignChoice(id, prospects.others);
     return htmlResponse(
       retireStatusDeletePage(status, retire, session, getFlash().error),
     );

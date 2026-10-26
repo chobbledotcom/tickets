@@ -104,7 +104,7 @@ const statusInputFrom = (
  *  status the write boundary or a booking still depends on. */
 const statusDeleteRefusal = async (id: number): Promise<string | null> => {
   const prospects = await statusDeleteProspects(id);
-  if (prospects?.blocker) {
+  if (prospects.blocker) {
     return attendeeStatusDeleteMessage(prospects.blocker);
   }
   return (await heldAttendeeCount(id)) > 0

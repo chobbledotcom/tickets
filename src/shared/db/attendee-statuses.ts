@@ -115,17 +115,20 @@ export const statusDeleteBlocker = (
 };
 
 /** The other statuses and the blocker a delete of this status will be
- *  refused on. The blocker is null when the delete can proceed. The result
- *  is null when no such status exists. The delete page and the JSON API both
- *  ask this before a delete, so they refuse exactly the same statuses. */
+ *  refused on. The blocker is null when the delete can proceed. The delete
+ *  page and the JSON API both ask this before a delete, so they refuse
+ *  exactly the same statuses. Both callers have already loaded the status, so
+ *  a missing row is a broken race and throws loudly. */
 export const statusDeleteProspects = async (
   id: number,
 ): Promise<{
   blocker: StatusDeleteBlocker | null;
   others: readonly AttendeeStatus[];
-} | null> => {
-  const status = await getAttendeeStatus(id);
-  if (status === null) return null;
+}> => {
+  const status = requireValue(
+    await getAttendeeStatus(id),
+    `Attendee status ${id} does not exist`,
+  );
   const others = (await attendeeStatuses.getAll()).filter(
     (other) => other.id !== id,
   );

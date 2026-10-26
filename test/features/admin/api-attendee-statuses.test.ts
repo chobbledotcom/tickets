@@ -399,8 +399,10 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
       );
     });
 
-    test("the delete prospects answer null for a missing status", async () => {
-      expect(await statusDeleteProspects(99999)).toBeNull();
+    test("the delete prospects throw for a missing status", async () => {
+      await expect(statusDeleteProspects(99999)).rejects.toThrow(
+        "Attendee status 99999 does not exist",
+      );
     });
 
     test("the API table reads a status back by primary key", async () => {
