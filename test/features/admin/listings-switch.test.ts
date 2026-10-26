@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
 import { moveUndatedBookingsToDayTx } from "#db/listings/daily-switch.ts";
+import { listingsTable } from "#db/listings/records.ts";
 import {
   planListingTypeSwitch,
   probeAssignDates,
@@ -17,6 +18,17 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { testFormParams } from "#test-utils/form-values.ts";
 import type { ListingWithCount } from "#types";
+
+/** A would-be daily input over the stored row: the row's own fields with the
+ * caller's submitted daily fields on top. */
+const wouldBeInput = (
+  stored: ListingWithCount,
+  overrides: Partial<ListingInput> = {},
+): ListingInput => ({
+  ...(listingsTable.rowToInput(stored) as ListingInput),
+  groupIds: [],
+  ...overrides,
+});
 
 /** The booking rows of one listing, with their day windows. */
 const rawRows = async (
@@ -73,10 +85,10 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
       maximumDaysAfter: 30,
       minimumDaysBefore: 2,
     });
-    const offered = await wouldBeStartDates(stored, {
-      customisableDays: false,
-      durationDays: 1,
-    } as unknown as ListingInput);
+    const offered = await wouldBeStartDates(
+      stored,
+      wouldBeInput(stored, { customisableDays: false, durationDays: 1 }),
+    );
     const fromStored = await bookableStartDates(stored.id);
     expect(offered).toEqual(fromStored);
   });
@@ -88,13 +100,16 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
       maximumDaysAfter: 30,
       minimumDaysBefore: 0,
     });
-    const offered = await wouldBeStartDates(stored, {
-      bookableDays: ["Monday", "Tuesday"],
-      customisableDays: false,
-      durationDays: 1,
-      maximumDaysAfter: 5,
-      minimumDaysBefore: 0,
-    } as unknown as ListingInput);
+    const offered = await wouldBeStartDates(
+      stored,
+      wouldBeInput(stored, {
+        bookableDays: ["Monday", "Tuesday"],
+        customisableDays: false,
+        durationDays: 1,
+        maximumDaysAfter: 5,
+        minimumDaysBefore: 0,
+      }),
+    );
     expect(offered.length).toBeGreaterThan(0);
     expect(offered).not.toEqual(await bookableStartDates(stored.id));
   });
@@ -104,7 +119,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     await bookAttendee(listing, { date: "2026-11-05", quantity: 2 });
     const fits = await probeAssignDates(
       listing,
-      { ...listing, listingType: "daily" } as unknown as ListingInput,
+      wouldBeInput(listing, { listingType: "daily" }),
       ["2026-11-05", "2026-11-06"],
       1,
       1,
@@ -114,11 +129,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
 
   test("a probe write that fails for another reason propagates untouched", async () => {
     const listing = await createTestListing({ name: "Mine" });
-    const clash = {
-      ...listing,
-      groupIds: [999999],
-      listingType: "daily",
-    } as unknown as ListingInput;
+    const clash = wouldBeInput(listing, { groupIds: [999999] });
     await expect(
       probeAssignDates(listing, clash, ["2026-11-05"], 1, 1),
     ).rejects.toThrow();

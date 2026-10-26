@@ -402,11 +402,11 @@ const guardVerdictIs = async (
   expected: string | null,
 ): Promise<void> => {
   await withTransaction(async (tx) => {
-    const refusal = await refuseUndatedListingSwitch(tx, listing.id, {
-      ...listing,
-      groupIds: [],
-      listingType: "daily",
-    } as unknown as ListingInput);
+    const refusal = await refuseUndatedListingSwitch(
+      tx,
+      listing.id,
+      inputFor({ groupIds: [], listingType: "daily" }),
+    );
     expect(refusal).toBe(expected);
   });
 };
