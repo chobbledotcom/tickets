@@ -252,9 +252,6 @@ For each pull request, record:
 - expected source files and source-line budget;
 - database and provider call budget;
 - its place in a stack;
-- the contract drift report (`deno task contract:diff`), pasted in the
-  pull request description, when the branch changes a machine declaration,
-  an event's money flag, or the joint-state seam.
 - the contract rows it completes.
 - every change to the pure list or the effect roots, and the module that
   each change moves.
@@ -316,7 +313,6 @@ While implementing:
 - do not add compatibility wrappers for internal callers;
 - when the effect check fails, split the IO shell out or remove the pure
   entry. Do not hide the import path.
-- teach the contract drift dump the events of a machine the branch adds.
 - do not add exports used only by tests.
 
 ### 9. Use fast feedback while behavior is moving
@@ -355,7 +351,6 @@ Before the expensive gates, inspect the whole PR against its parent.
 Check that:
 
 - every contract row has production code and a test;
-- every contract drift line names a change the plan declared.
 - every new export has a production caller;
 - no old parallel path remains;
 - no failure becomes `null`, empty, unpaid, or successful by default;
@@ -413,8 +408,6 @@ The final description must name:
 - source and total changed-line counts;
 - database and provider call counts where relevant;
 - tests and mutation commands run;
-- the contract drift report, pasted whole, when the branch changed a machine
-  declaration or the joint-state seam.
 - pure list and effect root changes, when the branch moved them.
 - known fault or plan rows completed.
 
