@@ -1,10 +1,11 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import { base64ToBase64Url } from "#crypto/utils.ts";
-import { execute, queryOne } from "#db/client.ts";
+import { execute, getDb, queryOne, setDb } from "#db/client.ts";
 import {
   contactHash,
   forgetContact,
@@ -12,6 +13,7 @@ import {
   getContactCountFields,
   getContactCounts,
   getContactRecord,
+  getContactRecordOrRepair,
   getUnsubscribedHashSet,
   getVisits,
   hashEmail,
@@ -22,10 +24,13 @@ import {
   saveContactRecord,
   unsubscribeHash,
 } from "#db/contact-preferences.ts";
+import { invalidateInitDbCache } from "#db/migrations.ts";
 import { settings } from "#db/settings.ts";
 import { setContactVisits } from "#test-utils/contact-preferences.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { stubClient } from "#test-utils/db-helpers/result-set.ts";
+import { useErrorLogSpy } from "#test-utils/debug-log.ts";
 
 const rowFor = (
   hash: string,
@@ -346,5 +351,85 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
     expect(record.adminBookingCount).toBe(3);
     expect(record.contactCount).toBe(5);
     expect(record.visits).toBe(9);
+  });
+});
+
+describeWithEnv("contact-preferences: repair fallback", { db: true }, () => {
+  const errorSpy = useErrorLogSpy();
+
+  const decryptFailedLines = (): string[] =>
+    errorSpy()
+      .calls.map((call) => String(call.args[0]))
+      .filter((line) => line.includes("E_DECRYPT_FAILED"));
+
+  test("falls back to the real plaintext counts when the note cannot be read", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("fallback@example.com");
+    await execute(
+      "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (?, ?, ?, ?, ?)",
+      [hash, 4, 3, 1, "not-valid-ciphertext"],
+    );
+
+    expect(
+      await getContactRecordOrRepair("fallback test reader")(hash, pk),
+    ).toEqual({
+      adminBookingCount: 1,
+      adminNotes: "",
+      contactCount: 0,
+      lastContact: "",
+      lastSubject: "",
+      publicBookingCount: 3,
+      visits: 4,
+    });
+  });
+
+  test("logs an unreadable note once per process per reader", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("reported-once@example.com");
+    await execute(
+      "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (?, ?, ?, ?, ?)",
+      [hash, 4, 3, 1, "not-valid-ciphertext"],
+    );
+    const load = getContactRecordOrRepair("once test reader");
+
+    await load(hash, pk);
+    await load(hash, pk);
+
+    const lines = decryptFailedLines();
+    expect(lines).toHaveLength(1);
+    assertStringIncludes(lines[0]!, 'detail="once test reader ');
+
+    // A different reader of the same row reports it once under its own name.
+    await getContactRecordOrRepair("second test reader")(hash, pk);
+    expect(decryptFailedLines()).toHaveLength(2);
+  });
+
+  test("a database failure throws instead of logging a decryption failure", async () => {
+    const pk = await getTestPrivateKey();
+    const load = getContactRecordOrRepair("db failure test reader");
+    // Fail only the row read (the one statement touching the encrypted
+    // stats blob) and let every other read reach the real database, so the
+    // counts read inside the repair fallback still works.
+    const real = getDb();
+    setDb(
+      stubClient({
+        execute: (statement) => {
+          const sql =
+            typeof statement === "string" ? statement : String(statement.sql);
+          return sql.includes("stats_blob")
+            ? Promise.reject(new Error("database read failed"))
+            : real.execute(statement);
+        },
+      }),
+    );
+    try {
+      await expect(
+        load(await hashEmail("db-failure@example.com"), pk),
+      ).rejects.toThrow("database read failed");
+    } finally {
+      invalidateInitDbCache();
+      setDb(null);
+    }
+    expect(decryptFailedLines()).toHaveLength(0);
   });
 });
