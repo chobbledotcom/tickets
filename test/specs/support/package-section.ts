@@ -4,6 +4,7 @@
  * so the picture steps can prove where a picture shows.
  */
 
+import { escapeHtml } from "#jsx/escape-html.ts";
 import type { Group } from "#types";
 
 /** The named package's own section on a served page: the fieldset the page
@@ -39,9 +40,10 @@ export const packageSectionHtml = (html: string, group: Group): string => {
 };
 
 /** One member's row inside a package section: from the row's own opening tag
- * to the next row's, so a picture found in the slice shows in that row. */
+ * to the next row's, so a picture found in the slice shows in that row. The
+ * row's label spells the name the way the page does, escaped. */
 export const memberRowHtml = (section: string, memberName: string): string => {
-  const label = `<label>${memberName} <span class="package-member-qty">`;
+  const label = `<label>${escapeHtml(memberName)} <span class="package-member-qty">`;
   const at = section.indexOf(label);
   if (at < 0) {
     throw new Error(`the package section shows no row for ${memberName}`);

@@ -48,6 +48,11 @@ describe("the package section helpers", () => {
     return row;
   };
 
+  /** The label markup the page renders inside a member's row, spelled the way
+   * the page spells the member's name. */
+  const memberLabel = (label: string, qty: number): string =>
+    `<label>${label} <span class="package-member-qty">&times;${qty}</span></label>`;
+
   test("slices the section from its attribute to its own close", () => {
     expect(section.startsWith('data-package-section="7">')).toBe(true);
     expect(section.endsWith("</fieldset>")).toBe(true);
@@ -55,9 +60,7 @@ describe("the package section helpers", () => {
   });
 
   test("keeps the rows that follow a member's nested fieldset inside", () => {
-    expect(section).toContain(
-      '<label>Lantern <span class="package-member-qty">&times;2</span></label>',
-    );
+    expect(section).toContain(memberLabel("Lantern", 2));
   });
 
   test("slices a section that holds no nested fieldset whole", () => {
@@ -91,9 +94,7 @@ describe("the package section helpers", () => {
   test("slices one member's row out of the section", () => {
     const row = rowSlice("Tent");
     expect(row).toContain('alt="Bedroll"');
-    expect(row).toContain(
-      '<label>Tent <span class="package-member-qty">&times;1</span></label>',
-    );
+    expect(row).toContain(memberLabel("Tent", 1));
     expect(row).not.toContain("Lantern");
     // A member that is itself a parent keeps its child selector in its row.
     expect(row).toContain('<fieldset class="child-selector"');
@@ -102,11 +103,29 @@ describe("the package section helpers", () => {
 
   test("slices the last member's row to the section's end", () => {
     const row = rowSlice("Lantern");
-    expect(row).toContain(
-      '<label>Lantern <span class="package-member-qty">&times;2</span></label>',
-    );
+    expect(row).toContain(memberLabel("Lantern", 2));
     expect(row).not.toContain('alt="Bedroll"');
     expect(row.endsWith("</fieldset>")).toBe(true);
+  });
+
+  test("reads a member name the page escapes, like Bed & Breakfast", () => {
+    const page =
+      '<fieldset class="package-section" data-package-section="7">' +
+      "<legend>Camp Kit</legend>" +
+      '<div class="ticket-row package-member">' +
+      '<img src="/image/b.webp" alt="Bedroll">' +
+      // The page spells the name escaped (listing-rows.ts escapeHtml).
+      memberLabel("Bed &amp; Breakfast", 1) +
+      "</div>" +
+      "</fieldset>";
+    const row = memberRowHtml(
+      packageSectionHtml(page, group),
+      "Bed & Breakfast",
+    );
+    expect(row.startsWith('<div class="ticket-row package-member">')).toBe(
+      true,
+    );
+    expect(row).toContain('alt="Bedroll"');
   });
 
   test("fails loudly when the member's label sits outside any row", () => {
