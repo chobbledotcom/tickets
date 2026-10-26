@@ -346,3 +346,9 @@ src/features/admin/attendees-csv.ts::questionColumns.questions~1kswxdf  ?? → |
 src/features/admin/attendees-csv.ts::questionColumns.answerMap~1d6ka7d  ?? → || audited:0vatub4 # data?.attendeeAnswerMap answers a Map or undefined; a Map is always truthy
 src/features/admin/attendees-csv.ts::questionColumns.value~1cqfose  ?? → || audited:0vatub4 # the lookup answers the attendee's free text (a string) or undefined; the only falsy string is "" and the fallback is "" itself, so "" ?? "" and "" || "" both answer ""
 src/features/admin/attendees-csv.ts::questionColumns.value.ids~1jni3oa  ?? → || audited:0vatub4 # the lookup answers the attendee's chosen answer ids (an array) or undefined; an array is always truthy
+
+# Admin calendar (features/admin/calendar.ts): a span argument both capacity
+# consumers clamp back to one day, and a fallback filter value whose only
+# consumers serialize "all" and "" identically.
+src/features/admin/calendar.ts::buildAvailabilityRows.remaining~1dj41ac  1 → 0 audited:0i9w7f4 # the span reaches the capacity read only through expandDailyRange and daysOfSpan, which both pass it through clampDurationDays — clampInteger(1, 90) floors it at 1 — so 0 and 1 read the same single day for every input
+src/features/admin/calendar.ts::handleAdminCalendarGet.agentFilter~1oxpbil  all → "" audited:0i9w7f4 # this arm is taken only without a date filter, where attendees stays [] so filterAttendeesByAgent never runs and the agent bar never renders (agents is []); every link serializes the value through agentFilterParam, where "all" and "" both become "" and then an omitted param
