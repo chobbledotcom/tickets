@@ -1,3 +1,4 @@
+// test-groups: run-alone
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
@@ -88,10 +89,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     });
     // The input carries none of the calendar fields, so the stored row's
     // window and days stand in for everything the submission left out.
-    const offered = await wouldBeStartDates(
-      stored,
-      inputFor({ customisableDays: false, durationDays: 1 }),
-    );
+    const offered = await wouldBeStartDates(stored, inputFor({}));
     const fromStored = await bookableStartDates(stored.id);
     expect(offered).toEqual(fromStored);
   });

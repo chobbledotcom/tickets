@@ -481,6 +481,8 @@ export const refuseUndatedListingSwitch = async (
   tx: TxScope,
   listingId: number,
   input: ListingInput,
-): Promise<string | null> =>
-  (await listingSaveOrphanedAddOnTx(tx, listingId, input)) ??
-  (await refuseUndatedSwitchTx(tx, listingId, input.listingType ?? "standard"));
+): Promise<string | null> => {
+  const addOnRefusal = await listingSaveOrphanedAddOnTx(tx, listingId, input);
+  if (addOnRefusal !== null) return addOnRefusal;
+  return refuseUndatedSwitchTx(tx, listingId, input.listingType ?? "standard");
+};
