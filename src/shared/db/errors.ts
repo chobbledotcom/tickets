@@ -13,17 +13,14 @@ import { LibsqlError } from "@libsql/client";
 
 /**
  * The kind of a failed database round trip:
- *
  * - `locked` — SQLite's single write lock was contended (SQLITE_BUSY). The
  *   statement never ran, so any statement can replay it.
  * - `upstream-status` — the database server or its gateway answered a
- *   fleeting HTTP 421/502/503/504, which the client surfaces as a
- *   SERVER_ERROR LibsqlError naming the status.
- * - `transport-connect` — a fetch `client error (Connect)` failure (DNS, TCP,
- *   TLS). No request left the edge, so a replay cannot double-apply.
+ *   fleeting HTTP 421/502/503/504, surfaced as a SERVER_ERROR LibsqlError.
+ * - `transport-connect` — a fetch `client error (Connect)` failure (DNS,
+ *   TCP, TLS). No request left the edge, so a replay cannot double-apply.
  * - `transport-send` — a fetch `client error (SendRequest)` failure. The
- *   request reached the network. The server already ran the statement, or
- *   the failure arrived first — the client cannot tell.
+ *   request reached the network, so the server already ran the statement.
  * - `other` — every other error, database or not.
  */
 export type DatabaseErrorKind =

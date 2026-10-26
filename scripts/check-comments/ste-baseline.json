@@ -878,7 +878,7 @@
     "semicolon": 10,
     "long-sentence": 13,
     "contraction": 1,
-    "banned-modal": 10,
+    "banned-modal": 9,
     "present-perfect": 1,
     "wordy": 2
   },

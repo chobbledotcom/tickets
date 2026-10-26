@@ -259,19 +259,15 @@ export const DATABASE_MAX_ATTEMPTS = TRANSIENT_ERROR_BACKOFF_MS.length + 1;
 
 /**
  * The one place the retry rules run. {@link DATABASE_RETRY} says how often
- * each error kind retries on a read and on a write:
+ * each kind retries on a read and on a write:
  *
- * - SQLITE_BUSY always retries. The lock was never taken, so nothing ran.
+ * - SQLITE_BUSY always retries — the lock was never taken, so nothing ran.
  *   When its retries run out, the failure surfaces as DatabaseBusyError.
- * - A fleeting upstream 421/502/503/504 retries on READS ONLY. On a write the
- *   same response can arrive after the write landed, so a replay would
- *   double-apply.
- * - A fetch transport failure retries on reads like an upstream status. On a
- *   write only a Connect failure retries — a single attempt, not the ladder —
- *   because no request left the edge. A SendRequest failure can arrive after
- *   the server ran the statement, so a write never replays it.
- *
- * Every other error propagates at once.
+ * - A fleeting upstream 421/502/503/504 retries on READS ONLY: on a write
+ *   it can arrive after the write landed, so a replay can double-apply.
+ * - A transport failure retries on reads like an upstream status. On a
+ *   write only a Connect failure retries, one attempt — nothing left the
+ *   edge. A SendRequest failure can arrive after the statement ran.
  */
 const retryOnTransientDatabaseError = <T>(
   run: () => Promise<T>,
