@@ -47,7 +47,7 @@ const rawRows = async (
  * edit form, switched to daily, with the offered day under the assign field. */
 const switchForm = (
   stored: ListingWithCount,
-  extra: Record<string, string> = {},
+  extra: Record<string, string | string[]> = {},
 ): ReturnType<typeof testFormParams> =>
   testFormParams({
     assign_undated_to: "",
@@ -178,6 +178,24 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
       switchForm(listing, { assign_undated_to: "2020-01-01" }),
     );
     expect(step).toMatchObject({ kind: "page", status: 400 });
+  });
+
+  test("a listing with no bookable dates offers none and asks for none", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 2,
+      name: "Hall",
+    });
+    await bookAttendee(listing, { quantity: 1 });
+    // The submission checks no bookable day, so the would-be calendar is
+    // empty and there is no date to pick.
+    const step = await planListingTypeSwitch(
+      listing,
+      switchForm(listing, { bookable_days: [] }),
+    );
+    expect(step).toMatchObject({ kind: "page", status: 200 });
+    if (step.kind !== "page") return;
+    expect(step.page.card.noDates).toBe(true);
+    expect(step.page.card.dates).toEqual([]);
   });
 
   test("a confirmed pick carries the move into the save", async () => {

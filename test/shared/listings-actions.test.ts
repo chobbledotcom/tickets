@@ -424,4 +424,16 @@ describeWithEnv("refuseUndatedListingSwitch", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 10 });
     await guardVerdictIs(listing, null);
   });
+
+  test("reads a missing listing type as the ordinary kind it stays", async () => {
+    const listing = await listingWithTwoUndatedBookings();
+    await withTransaction(async (tx) => {
+      const refusal = await refuseUndatedListingSwitch(
+        tx,
+        listing.id,
+        inputFor({ groupIds: [] }),
+      );
+      expect(refusal).toBeNull();
+    });
+  });
 });

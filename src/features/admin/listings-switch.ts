@@ -170,16 +170,16 @@ export const planListingTypeSwitch = async (
   const wouldBe = parsed.value;
 
   const dates = await wouldBeStartDates(stored, wouldBe);
-  const fits =
-    dates.length === 0
-      ? []
-      : await probeAssignDates(
-          stored,
-          wouldBe,
-          dates,
-          count,
-          wouldBeStaySpanDays(wouldBe),
-        );
+  let fits: boolean[] = [];
+  if (dates.length > 0) {
+    fits = await probeAssignDates(
+      stored,
+      wouldBe,
+      dates,
+      count,
+      wouldBeStaySpanDays(wouldBe),
+    );
+  }
 
   const page: AssignPageContext = {
     card: {
