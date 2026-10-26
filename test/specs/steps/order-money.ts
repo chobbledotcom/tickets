@@ -145,3 +145,59 @@ Then(
     ]);
   },
 );
+
+Given(
+  "a Weekend holding a Tent at {word}, sold in it at {word}, and a Breakfast at {word} with no Weekend price",
+  function (
+    this: TicketsWorld,
+    tent: string,
+    tentInBundle: string,
+    breakfast: string,
+  ): void {
+    orderCatalog(this, {
+      listings: [],
+      packages: [
+        {
+          members: [
+            {
+              name: "Tent",
+              ownPrice: minorUnits(tent),
+              price: minorUnits(tentInBundle),
+            },
+            // A blank box on the bundle's own form: no price of its own in
+            // the Weekend, so it sells there at its own price.
+            { name: "Breakfast", ownPrice: minorUnits(breakfast) },
+          ],
+          name: "Weekend",
+        },
+      ],
+      parents: [],
+    });
+  },
+);
+
+When(
+  "a customer pays for one Weekend in one order",
+  async function (this: TicketsWorld): Promise<void> {
+    await orderJourney(this, {
+      form: (c) => ({ [`package_quantity_${c.group("Weekend").id}`]: "1" }),
+      paid: true,
+      rows: (c) => [
+        [c.listing("Breakfast").id, c.group("Weekend").id, 0, 1, ""],
+        [c.listing("Tent").id, c.group("Weekend").id, 0, 1, ""],
+      ],
+      select: { listings: [], packages: ["Weekend"] },
+    });
+  },
+);
+
+Then(
+  "the {word} has earned {word} in the Weekend",
+  async function (
+    this: TicketsWorld,
+    part: string,
+    total: string,
+  ): Promise<void> {
+    expect(await earnedBy(this, part)).toBe(minorUnits(total));
+  },
+);

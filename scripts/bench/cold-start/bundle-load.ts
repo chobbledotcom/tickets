@@ -12,7 +12,11 @@
 
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
 import { emptyListsFor } from "#fp";
-import { buildEdgeBundle } from "#scripts/edge-bundle-lib.ts";
+import {
+  buildEdgeBundle,
+  buildServeAppBundle,
+  emitTo,
+} from "#scripts/edge-bundle-lib.ts";
 import { spawnChildJson } from "./spawn-child.ts";
 import { median, stripBase64Payloads, strippedChars } from "./strip-lib.ts";
 import {
@@ -32,25 +36,12 @@ const RUNS = 10;
 
 const log = console.log.bind(console);
 
-/** A `buildEdgeBundle` emit callback that writes the bundle straight to `path`. */
-const emitTo =
-  (path: string) =>
-  async ({ content }: { content: string }): Promise<void> => {
-    await Deno.writeTextFile(path, content);
-  };
-
 const buildVariants = async (): Promise<void> => {
   await Deno.mkdir(OUT_DIR, { recursive: true });
 
   // Production build pipeline with the shared app core as the entry, so no
   // platform wrapper registers a server.
-  await buildEdgeBundle({
-    emit: emitTo(FULL),
-    entryPoint: "./src/serve-app.ts",
-    label: "Bench",
-    // esbuild names the output after the entry basename under ./dist.
-    outfile: "serve-app.js",
-  });
+  await buildServeAppBundle(FULL, "Bench");
 
   // Same contents behind await import(): isolates the parse/compile share.
   await buildEdgeBundle({
