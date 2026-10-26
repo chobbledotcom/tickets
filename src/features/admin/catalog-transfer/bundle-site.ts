@@ -53,7 +53,7 @@ export type ValidationContext = {
   listingIndexByName: Map<string, number>;
   listingRefs: ReadonlyMap<ListingBody, ListingRefs>;
   memberRefs: ReadonlyMap<GroupBody, ReadonlyMap<string, Resolved>>;
-  optInAddOnsByGroup: ReadonlyMap<number, { id: number; name: string }[]>;
+  optInAddOnsByGroup: ReadonlyMap<number, OptInAddOn[]>;
   siteGroupById: Map<number, Group>;
   /** The site groups the document's listings join. */
   siteGroupIds: readonly number[];
@@ -61,6 +61,18 @@ export type ValidationContext = {
   /** The site listings that sit under a parent of their own. */
   siteListingsWithParent: ReadonlySet<number>;
 };
+
+/** One group-scoped opt-in add-on: its modifier id for the dedup and its
+ * decrypted name for the refusal message. */
+export type OptInAddOn = { id: number; name: string };
+
+/** The opt-in add-ons one group carries. The loader gives every requested
+ * group an entry, so a missing entry means a broken read. */
+export const optInAddOnsOnGroup = (
+  addOnsByGroup: ReadonlyMap<number, OptInAddOn[]>,
+  groupId: number,
+): OptInAddOn[] =>
+  requireValue(addOnsByGroup.get(groupId), "Group add-ons missing");
 
 /** The group-scoped opt-in add-ons covering `groupIds`, one query, names
  * decrypted for the refusal message. These are the only opt-ins that can
@@ -89,10 +101,7 @@ const optInAddOnsByGroupId = async (
     [...groupIds],
   );
   for (const row of rows) {
-    const addOns = requireValue(
-      byGroup.get(row.group_id),
-      "Group add-ons missing",
-    );
+    const addOns = optInAddOnsOnGroup(byGroup, row.group_id);
     addOns.push({
       id: row.modifier_id,
       name: await modifiersTable.readColumn("name", row.name, row.modifier_id),

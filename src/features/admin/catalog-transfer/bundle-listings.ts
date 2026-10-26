@@ -34,6 +34,7 @@ import { resolvedReference, siteIdsOf } from "./bundle-refs.ts";
 import {
   groupViewOf,
   type MembershipPairs,
+  optInAddOnsOnGroup,
   siteListingOf,
   type ValidationContext,
 } from "./bundle-site.ts";
@@ -244,10 +245,7 @@ const addOnReachesParent = (
     parentGroupIds = unique(siteGroupIdsOfListing(pairs, parent.bundleKey));
   }
   for (const groupId of parentGroupIds) {
-    const addOns = requireValue(
-      context.optInAddOnsByGroup.get(groupId),
-      "Group add-ons missing",
-    );
+    const addOns = optInAddOnsOnGroup(context.optInAddOnsByGroup, groupId);
     for (const addOn of addOns) {
       if (addOn.id === addOnId) return true;
     }
@@ -269,10 +267,7 @@ const childAddOnDeadEndError = (
   const groupIds = unique(siteGroupIdsOfListing(deps.pairs, childKey));
   const judged = new Map<number, string>();
   for (const groupId of groupIds) {
-    const addOns = requireValue(
-      deps.context.optInAddOnsByGroup.get(groupId),
-      "Group add-ons missing",
-    );
+    const addOns = optInAddOnsOnGroup(deps.context.optInAddOnsByGroup, groupId);
     for (const addOn of addOns) {
       judged.set(addOn.id, addOn.name);
     }
