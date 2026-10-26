@@ -39,8 +39,8 @@ const hasHref = (token: Token): token is Token & { href: string } =>
 /** The per-render token walk. A short-form image reference (`![alt](img#7)`)
  * written by the editor's image dropdown resolves to the image's uid URL in
  * the render's table. The table is the request's page-image slot, or the
- * call site's override. An id the table lacks renders nothing to load, so
- * the <img> falls back to its alt text. Links and code spans never carry
+ * call site's override. An id the table lacks keeps the reference's name
+ * visible with nothing to load. Links and code spans never carry
  * the rewrite. Unsafe URLs strip to nothing. */
 const walkTokensFor =
   (imageUrls: ReadonlyMap<number, string>) =>
@@ -63,6 +63,16 @@ const md = once(
       renderer: {
         html({ raw }) {
           return escapeHtml(raw);
+        },
+        image({ href, text, tokens }) {
+          // An image with no address — an img#N reference the table cannot
+          // answer, or an unsafe URL — shows its name as text. An <img> with
+          // an empty src would make the browser re-request this page.
+          if (href !== "") return false;
+          const name = tokens
+            ? this.parser.parseInline(tokens, this.parser.textRenderer)
+            : text;
+          return escapeHtml(name);
         },
       },
     }),

@@ -94,7 +94,7 @@ describeWithEnv("public /news routes", { db: true }, () => {
     const page = await handleRequest(mockRequest(`/news/${post.slug}`));
     expect(page.status).toBe(200);
     const body = await page.text();
-    assertStringIncludes(body, 'src="" alt="Ghost"');
     assert(!body.includes("424242"));
+    assertStringIncludes(body, "<p>Ghost</p>");
   });
 });

@@ -53,10 +53,7 @@ Then(
 Then(
   "the preview keeps the describing words",
   function (this: TicketsWorld): void {
-    assertStringIncludes(
-      whatTheyWereTold(this, PREVIEWER),
-      '<img src="" alt="Ghost">',
-    );
+    assertStringIncludes(whatTheyWereTold(this, PREVIEWER), "Ghost");
   },
 );
 

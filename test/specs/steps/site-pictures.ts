@@ -325,7 +325,8 @@ Then(
   "the front page keeps the picture's describing words",
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openAsNewcomer("/");
-    assertStringIncludes(browser.currentHtml, '<img src="" alt="Ghost">');
+    assertStringIncludes(browser.currentHtml, "Ghost");
+    assert(!browser.currentHtml.includes("<img"));
   },
 );
 
@@ -333,7 +334,7 @@ Then(
   "the front page shows no picture at all",
   async function (this: TicketsWorld): Promise<void> {
     const browser = await openAsNewcomer("/");
-    assert(!browser.currentHtml.includes('<img src="/image/'));
+    assert(!browser.currentHtml.includes("<img"));
   },
 );
 

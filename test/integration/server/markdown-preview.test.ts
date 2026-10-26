@@ -5,6 +5,7 @@ import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectHtml } from "#test-utils/assertions/html.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { testCookie } from "#test-utils/session.ts";
 
@@ -32,10 +33,13 @@ describeWithEnv("POST /admin/markdown-preview", { db: true }, () => {
     );
   });
 
-  test("leaves an img#N reference the image table lacks with no source", async () => {
+  test("leaves an img#N reference the image table lacks as its name alone", async () => {
     const response = await postPreview("![Ghost](img#99999)");
 
-    expect(response.status).toBe(200);
-    assertStringIncludes(await response.text(), '<img src="" alt="Ghost">');
+    await expectHtml(response, {
+      status: 200,
+      contains: ["<p>Ghost</p>"],
+      notContains: ["<img"],
+    });
   });
 });

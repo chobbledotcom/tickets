@@ -135,7 +135,8 @@ describeWithEnv(
       const afterSqls = await withRecordedSql(async () => {
         const html = await assertPublicHtml("/");
         assert(!html.includes(`<img src="/image/${image.filename}"`));
-        assertStringIncludes(html, '<img src="" alt="FooterOtherIsolate">');
+        assert(!html.includes('src=""'));
+        assertStringIncludes(html, "FooterOtherIsolate");
       });
       expect(
         afterSqls.filter((sql) => sql.includes("FROM images")).length,

@@ -319,7 +319,7 @@ describe("ticketViewPage ticket cards", () => {
     });
   });
 
-  test("renders an unresolved card description's img#N reference with no source", async () => {
+  test("renders an unresolved card description's img#N reference as its name", async () => {
     await withRequestContext(() => {
       const cards = [
         {
@@ -330,9 +330,11 @@ describe("ticketViewPage ticket cards", () => {
         },
       ];
       const html = ticketViewPage(cards);
+      // The paragraph holds the name alone: an image for the reference would
+      // sit inside it.
       assertStringIncludes(
         html,
-        '<div class="ticket-card-description"><p><img src="" alt="Poster"></p>',
+        '<div class="ticket-card-description"><p>Poster</p>',
       );
     });
   });

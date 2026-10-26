@@ -63,15 +63,71 @@ export const expectShownImage = (html: string, image: Image): void => {
   assertStringIncludes(html, resolvedImageTag(image));
 };
 
+/** The region from the tag of that kind that opens at `openStart` to the tag
+ * that closes it, counting the tags of that kind nested inside, so a nested
+ * child selector cannot end the region early. */
+const regionToMatchingClose = (
+  html: string,
+  tagName: string,
+  openStart: number,
+): string => {
+  const tag = new RegExp(`<${tagName}(?=[\\s>])|</${tagName}>`, "g");
+  let depth = 0;
+  for (const match of html.slice(openStart).matchAll(tag)) {
+    depth += match[0].startsWith("</") ? -1 : 1;
+    if (depth === 0) {
+      return html.slice(
+        openStart,
+        openStart + (match.index ?? 0) + match[0].length,
+      );
+    }
+  }
+  throw new Error(`the ${tagName} the region opens with never closes`);
+};
+
 /** The named package's own section on a served page: the fieldset the page
- * renders for it, where its description and each member's row show. */
-export const packageSectionHtml = (html: string, group: Group): string => {
-  const start = html.indexOf(`data-package-section="${group.id}"`);
-  if (start < 0) {
+ * renders for it, where its description and each member's row show. A member
+ * that is itself a parent renders its own fieldset inside this one, so the
+ * section ends only at the close that balances the section's own fieldset. */
+export const packageSectionHtml = (
+  html: string,
+  group: Pick<Group, "id" | "name">,
+): string => {
+  const attribute = html.indexOf(`data-package-section="${group.id}"`);
+  if (attribute < 0) {
     throw new Error(`the page shows no section for the package ${group.name}`);
   }
-  const end = html.indexOf("</fieldset>", start);
-  return html.slice(start, end + "</fieldset>".length);
+  // The attribute sits inside the section's opening fieldset tag.
+  const openStart = html.lastIndexOf("<fieldset", attribute);
+  if (openStart < 0) {
+    throw new Error(
+      `the section for the package ${group.name} has no fieldset`,
+    );
+  }
+  return regionToMatchingClose(html, "fieldset", openStart);
+};
+
+/** One package member's own row in a served package section: the row div the
+ * page renders for that member, where its description shows. The row is the
+ * one whose label carries the member's name and fixed quantity. */
+export const packageMemberRowHtml = (
+  section: string,
+  memberName: string,
+): string => {
+  const label = `<label>${memberName} <span class="package-member-qty">`;
+  let from = 0;
+  for (;;) {
+    const rowStart = section.indexOf(
+      '<div class="ticket-row package-member">',
+      from,
+    );
+    if (rowStart < 0) {
+      throw new Error(`the section shows no row for the member ${memberName}`);
+    }
+    const row = regionToMatchingClose(section, "div", rowStart);
+    if (row.includes(label)) return row;
+    from = rowStart + 1;
+  }
 };
 
 /** The package a story set up, by the story's name for it. */
@@ -82,8 +138,8 @@ const packageGroupNamed = (world: TicketsWorld, name: string): Group =>
   );
 
 /** The image shows inside the named package's own section on the page that
- * sells it beside one thing on its own — in the package's description, or in
- * one member's row when the story names that member. */
+ * sells it beside one thing on its own — in the package's description, or,
+ * when the story names that member, inside that member's own row. */
 export const expectShownImageInPackageSection = async (
   world: TicketsWorld,
   packageName: string,
@@ -95,13 +151,11 @@ export const expectShownImageInPackageSection = async (
     (await visitorReadsMixedPage(world, packageName, extraName)).currentHtml,
     packageGroupNamed(world, packageName),
   );
-  if (memberName !== undefined) {
-    assertStringIncludes(
-      section,
-      `<label>${memberName} <span class="package-member-qty">`,
-    );
-  }
-  expectShownImage(section, await imageNamed(image));
+  const region =
+    memberName === undefined
+      ? section
+      : packageMemberRowHtml(section, memberName);
+  expectShownImage(region, await imageNamed(image));
 };
 
 /** A visitor reads the shared page the story set up, by the page's name. */
