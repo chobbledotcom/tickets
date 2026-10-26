@@ -41,13 +41,16 @@ const topLevelChar = (blanked: string, at: number, stops: string): number => {
 };
 
 /** The index of the `=` that starts one type definition, past the alias's
- * generic parameters, or -1 when no definition starts there. */
+ *  generic parameters, or -1 when no definition starts there. The walk stops
+ *  at the `;` that closes the statement, so an `import type` line never lends
+ *  a later statement's `=` to this name. */
 const typeDefinitionEquals = (blanked: string, nameEnd: number): number => {
   let depth = 0;
   for (let at = nameEnd; at < blanked.length; at++) {
     const character = blanked[at] as string;
     if (character === "<") depth += 1;
     if (character === ">") depth -= 1;
+    if (depth === 0 && character === ";") return -1;
     if (depth === 0 && character === "=") return at;
   }
   return -1;
@@ -76,17 +79,18 @@ const declarationHead = (blanked: string, nameEnd: number): string => {
 };
 
 /** The module's types that carry a statement's two bind positions in their
- * own members: a tuple or function type spelled `sql` and `args`. An export
- * annotated with one is a bind helper even when its own parameter list stays
- * unwritten. */
+ *  own members: a tuple or function type spelled `sql` and `args`. An export
+ *  annotated with one is a bind helper even when its own parameter list stays
+ *  unwritten. The walk stops at the `;` that closes the type's statement, so
+ *  a later declaration's group never answers for this type. */
 const bindAliases = (blanked: string): string[] => {
   const aliases: string[] = [];
   for (const match of blanked.matchAll(/\btype\s+([A-Za-z_$][\w$]*)/g)) {
     const nameEnd = (match.index ?? 0) + match[0].length;
     const equals = typeDefinitionEquals(blanked, nameEnd);
     if (equals < 0) continue;
-    const open = topLevelChar(blanked, equals + 1, "([");
-    if (open < 0) continue;
+    const open = topLevelChar(blanked, equals + 1, "([;");
+    if (open < 0 || blanked[open] === ";") continue;
     if (carriesSqlAndArgs(bracketGroup(blanked, open))) {
       aliases.push(match[1] as string);
     }
@@ -122,6 +126,25 @@ describe("SQL helper set", () => {
     expect(exportedBindHelpers(blankSpans(source, true)).sort()).toEqual(
       [...SQL_HELPERS].sort(),
     );
+  });
+
+  test("reads a type's own statement only, never a later one", () => {
+    const module = [
+      'import type Config from "./config.ts";',
+      "const seed = build(sql, args);",
+      "export const probe: Config = makeConfig();",
+      "export type SqlStatement = { sql: string; args: InValue[] };",
+      "const spill = join(sql, args);",
+      "export const take: SqlStatement = makeConfig();",
+      "export type SqlArgs = [sql: string, args?: InValue[]];",
+      "export const runAll: SqlArgs = async (text, values) => rows;",
+      "export const later = async (sql: string, args: InValue[]): Promise<void> => {};",
+      "export const plain = async (text: string): Promise<void> => {};",
+    ].join("\n");
+    expect(exportedBindHelpers(blankSpans(module, true)).sort()).toEqual([
+      "later",
+      "runAll",
+    ]);
   });
 });
 
