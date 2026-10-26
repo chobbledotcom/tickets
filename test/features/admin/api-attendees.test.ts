@@ -1,5 +1,5 @@
-import { describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { PENDING_NOTIFICATION } from "#db/attendees/notification-flags.ts";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
@@ -399,17 +399,14 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
 
     test("answers 400 when the atomic create refuses", async () => {
       const listing = await createTestListing({ name: "Refused Fair" });
-      await withMocks(
-        stubRefusedAtomicCreate,
-        async () => {
-          await assertJson(
-            createBooking(listing.id, { name: "Refused" }),
-            400,
-            (parsed) =>
-              expect(parsed.error).toBe("The booking could not be created"),
-          );
-        },
-      );
+      await withMocks(stubRefusedAtomicCreate, async () => {
+        await assertJson(
+          createBooking(listing.id, { name: "Refused" }),
+          400,
+          (parsed) =>
+            expect(parsed.error).toBe("The booking could not be created"),
+        );
+      });
     });
   });
 });
