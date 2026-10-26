@@ -88,6 +88,18 @@ const typed = { args: [first.name, second.name], sql: namesSql };`,
     ]);
   });
 
+  test("stays quiet on a lookalike sibling an allowed declaration entry names by file prefix", () => {
+    expect(
+      findRepeatedBinds(
+        "shared/accounting/queries.tsx",
+        `const accountsScope = (accounts: AccountRef[]): WhereClause => {
+  const part = { args: [type, ...ids, type, ...ids], clause };
+};`,
+        ["shared/accounting/queries.ts:accountsScope"],
+      ),
+    ).toEqual([]);
+  });
+
   test("stays quiet on a repeat inside the allowed declaration", () => {
     expect(
       findRepeatedBinds(

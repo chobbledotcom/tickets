@@ -67,6 +67,17 @@ describe("hand-numbered tokens", () => {
     ).toEqual([]);
   });
 
+  test("never judges a comment an interpolation carries", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        "const sql = `SELECT ?1 FROM t WHERE id = ${id /* the parent id ?1 */}`;",
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
   test("stays quiet on the binder that owns the tokens", () => {
     expect(
       findHandNumberedSql(
@@ -196,11 +207,101 @@ describe("hand-numbered tokens", () => {
     ).toEqual([]);
   });
 
-  test("stays quiet on a quoted statement a variable holds", () => {
+  test("fires on a statement a local constant holds for a helper call", () => {
     expect(
       findHandNumberedSql(
         "shared/db/synthetic.ts",
-        'const sql = "DELETE FROM t WHERE id = ?1";\nawait execute(sql, [id]);',
+        [
+          'const statement = "SELECT id FROM t WHERE parent_id = ?1";',
+          "const rows = await execute(statement, [id]);",
+        ].join("\n"),
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
+  test("fires on a quoted statement the sql name holds", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        'const sql = "DELETE FROM t WHERE id = ?1";',
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
+  test("stays quiet on a constant a non-SQL call receives", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        [
+          'const message = "Expected ?1 binds, got 0";',
+          "logWarning(message);",
+        ].join("\n"),
+      ),
+    ).toEqual([]);
+  });
+
+  test("stays quiet on a call whose first argument is not a bare name", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        [
+          'const message = "Expected ?1 binds, got 0";',
+          "execute(build(message), [id]);",
+        ].join("\n"),
+      ),
+    ).toEqual([]);
+  });
+
+  test("judges only the constant the SQL call receives when a sibling reuses the name", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        [
+          "function one() {",
+          '  const statement = "SELECT id FROM t WHERE parent_id = ?1";',
+          "  const rows = await execute(statement, [id]);",
+          "}",
+          "function two() {",
+          '  const statement = "Expected ?1 binds, got 0";',
+          "  logWarning(statement);",
+          "}",
+        ].join("\n"),
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:2: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
+  test("stays quiet on an inner constant that shadows the SQL-carrying name", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        [
+          'const statement = "SELECT id FROM t WHERE parent_id = ?1";',
+          "const rows = await execute(statement, [id]);",
+          "function two() {",
+          '  const statement = "Expected ?1 binds, got 0";',
+          "  logWarning(statement);",
+          "}",
+        ].join("\n"),
+      ),
+    ).toEqual([
+      "shared/db/synthetic.ts:1: SQL text carries a hand-numbered ?N token; build the statement through numberedStatement instead",
+    ]);
+  });
+
+  test("stays quiet on a constant no call receives", () => {
+    expect(
+      findHandNumberedSql(
+        "shared/db/synthetic.ts",
+        [
+          'const message = "Expected ?1 binds, got 0";',
+          "return message.length;",
+        ].join("\n"),
       ),
     ).toEqual([]);
   });
