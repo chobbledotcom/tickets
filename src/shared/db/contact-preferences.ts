@@ -23,7 +23,9 @@ import {
 } from "#db/client.ts";
 import { queryColumnSet } from "#db/query.ts";
 import { settings } from "#db/settings.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { namedError } from "#shared/named-error.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { normalizePhone } from "#shared/phone.ts";
 import { seenBefore } from "#shared/seen-before.ts";
@@ -161,21 +163,31 @@ const EMPTY_STATS: ContactStats = {
   lastSubject: "",
 };
 
+/** The stored stats note is unreadable: the owner-key decryption failed, or
+ * the decrypted text does not match the stored-JSON shape. The plaintext count
+ * columns stay readable, so the caller can offer a repair. A database failure
+ * is never this error. */
+class UnreadableStatsNoteError extends namedError("UnreadableStatsNoteError") {}
+
 const parseStats = async (
   blob: OwnerKeyEncrypted | "",
   privateKey: CryptoKey,
 ): Promise<ContactStats> => {
   if (!blob) return EMPTY_STATS;
-  const { c, n, s, t } = statsJson.read(
-    await decryptWithOwnerKey(blob, privateKey),
-    "contact_preferences.stats_blob",
-  );
-  return {
-    adminNotes: n ?? "",
-    contactCount: c ?? 0,
-    lastContact: t ?? "",
-    lastSubject: s ?? "",
-  };
+  try {
+    const { c, n, s, t } = statsJson.read(
+      await decryptWithOwnerKey(blob, privateKey),
+      "contact_preferences.stats_blob",
+    );
+    return {
+      adminNotes: n ?? "",
+      contactCount: c ?? 0,
+      lastContact: t ?? "",
+      lastSubject: s ?? "",
+    };
+  } catch (error) {
+    throw new UnreadableStatsNoteError(errorMessage(error));
+  }
 };
 
 const loadStatsBlobs = async (
@@ -217,22 +229,19 @@ const countFieldsFromRow = (
  * note. */
 type ContactRow = CountColumnsRow & { stats_blob: OwnerKeyEncrypted | "" };
 
-const loadContactRow = (hash: string): Promise<ContactRow | null> =>
-  queryOne<ContactRow>(
+export const getContactRecord: ContactRecordLoader = async (
+  hash,
+  privateKey,
+) => {
+  const row = await queryOne<ContactRow>(
     "SELECT visits, public_booking_count, admin_booking_count, stats_blob FROM contact_preferences WHERE contact_hash = ?",
     [hash],
   );
-
-const recordFromRow = async (
-  row: ContactRow | null,
-  privateKey: CryptoKey,
-): Promise<ContactRecord> => ({
-  ...(await parseStats(row?.stats_blob ?? "", privateKey)),
-  ...countFieldsFromRow(row),
-});
-
-export const getContactRecord: ContactRecordLoader = async (hash, privateKey) =>
-  recordFromRow(await loadContactRow(hash), privateKey);
+  return {
+    ...(await parseStats(row?.stats_blob ?? "", privateKey)),
+    ...countFieldsFromRow(row),
+  };
+};
 
 /** The plaintext count columns for one contact — readable without the private
  * key and without touching the (possibly corrupt) encrypted stats blob. Lets a
@@ -269,15 +278,15 @@ const unreadableNotesReported = seenBefore();
  *  {@link getRepairFallbackRecord} instead of throwing, so the real booking
  *  counts and the record's repair link stay visible. `context` names the
  *  caller in the logged detail (e.g. "contact history", "contact history
- *  editor"). A database failure is not an unreadable note: the row read stays
- *  outside the catch, so it surfaces as the database error it is. */
+ *  editor"). Any other failure — a database error, for one — is not an
+ *  unreadable note, so it propagates. */
 export const getContactRecordOrRepair: (
   context: string,
 ) => ContactRecordLoader = (context) => async (hash, privateKey) => {
-  const row = await loadContactRow(hash);
   try {
-    return await recordFromRow(row, privateKey);
+    return await getContactRecord(hash, privateKey);
   } catch (error) {
+    if (!(error instanceof UnreadableStatsNoteError)) throw error;
     if (!unreadableNotesReported(`${context}:${hash}`)) {
       logError({
         code: ErrorCode.DECRYPT_FAILED,
