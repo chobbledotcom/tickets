@@ -2,6 +2,11 @@
 
 import { DatabaseBusyError } from "#db/client.ts";
 import {
+  classifyDatabaseError,
+  databaseErrorFingerprint,
+  isDatabaseError,
+} from "#db/errors.ts";
+import {
   MigrationInProgressError,
   MissingSettingsTableError,
 } from "#db/migrations/errors.ts";
@@ -52,6 +57,7 @@ import {
   logRequest,
 } from "#shared/logger.ts";
 import { reportMaintenanceFailure } from "#shared/maintenance/report.ts";
+import { redactPath } from "#shared/redact-path.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
 import { SessionKeyError } from "#shared/session-private-key.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
@@ -203,10 +209,17 @@ const handleRoutingError = async (
     return await databaseBusyResponse(method);
   }
 
+  const kind = classifyDatabaseError(error);
+  const code = isDatabaseError(error)
+    ? ErrorCode.DB_CONNECTION
+    : ErrorCode.CDN_REQUEST;
   logError({
-    code: ErrorCode.CDN_REQUEST,
+    code,
     detail: formatRequestError(method, path, error),
     error,
+    // A transport failure's message names the connection's IP, port, and
+    // database host, so the report must group by kind and route instead.
+    fingerprint: databaseErrorFingerprint(kind, code, method, redactPath(path)),
   });
   if (
     getRethrowErrors() &&

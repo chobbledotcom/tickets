@@ -194,7 +194,7 @@ describe("the admin scanner page template", () => {
     // The client sends no queued check-in older than this window: past it
     // the server's replay record is gone. The page is the only response
     // that carries it, and it carries it once.
-    expect(html).toContain('data-scan-operation-retention-days="7"');
+    assertStringIncludes(html, 'data-scan-operation-retention-days="7"');
     expect(times(html, "data-scan-operation-retention-days=")).toBe(1);
   });
 
@@ -212,7 +212,7 @@ describe("the admin scanner page template", () => {
     // The sync rewrites the count in place; the live region is the only
     // announcement a screen reader gets, and it reads the count, not the
     // whole panel.
-    expect(html).toContain('aria-live="polite"');
+    assertStringIncludes(html, 'aria-live="polite"');
     expect(times(html, "aria-live=")).toBe(1);
   });
 

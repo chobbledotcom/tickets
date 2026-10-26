@@ -86,9 +86,9 @@ export class Badge {
 }
 ```
 
-A class that a module exports as its default has no name. The report reaches
-it through that default export, so its fields sit under `default`, as
-`default.total`.
+A class that a module exports as its default without a name has no name. The
+report reaches it through that default export, so its fields sit under
+`default`, as `default.total`.
 
 An object type nested inside one counts too, because `report.nested.deep`
 reaches it. A generic that holds one hands it on. So `Array<{ id: number }>` and
