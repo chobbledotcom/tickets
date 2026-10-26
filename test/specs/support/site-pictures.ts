@@ -65,6 +65,7 @@ const regionHtml = (
   const start = html.indexOf(openTag);
   if (start === -1) throw new Error(`the page renders no ${region}`);
   const end = html.indexOf(closeTag, start);
+  if (end === -1) throw new Error(`the page renders no ${region}`);
   return html.slice(start, end);
 };
 
