@@ -24,11 +24,12 @@ import {
   recordPath,
 } from "./isolation-state.ts";
 
-/** Is this record's run started, its child signalable, and its folder still
- * somebody's? Fresh claims are only ever the run's own — see isolation-lock. */
+/** Is this record's run started, its supervisor signalable, and its folder
+ * still somebody's? Fresh claims are only ever the run's own — see
+ * isolation-lock. */
 export const runIsOwned = async (record: MutationRunRecord): Promise<boolean> =>
   record.status === "running" &&
-  record.pid !== undefined &&
+  record.supervisorPid !== undefined &&
   (await runClaimIsFresh(record));
 
 type RemoveRunResult =

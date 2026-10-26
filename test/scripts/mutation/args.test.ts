@@ -227,7 +227,7 @@ describe("parseArgs", () => {
 
   test("rejects too many positional arguments", () => {
     const parsed = parseArgs(["a.ts", "b.ts", "c.ts"]);
-    // Anchored: a bare `.toContain` would still pass if the message were
+    // Anchored: a plain substring check would still pass if the message were
     // accidentally prefixed (e.g. `error += …` leaving a `null` prefix).
     expect(parsed.error).toMatch(/^Too many positional arguments \(3\)\./);
   });

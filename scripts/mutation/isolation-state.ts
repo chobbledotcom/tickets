@@ -84,6 +84,7 @@ export const MutationRunRecordSchema = v.object({
   pid: v.optional(v.number()),
   root: v.string(),
   status: MutationRunStatusSchema,
+  supervisorPid: v.optional(v.number()),
   updatedAt: v.string(),
   workRoot: v.string(),
 });
@@ -244,20 +245,23 @@ export const newRunRecord = (
 export const statusForExitCode = (code: number): MutationRunStatus =>
   code === 0 ? "passed" : code === 130 ? "interrupted" : "failed";
 
+/** The run is going, under the child that does the work and the supervisor
+ * that owns its folder. The supervisor outlives the child, and `--kill`
+ * signals it — see `signalRun`. */
 export const markRunning = (
   record: MutationRunRecord,
-  pid: number,
+  pids: { pid: number; supervisorPid: number },
   updatedAt = nowIso(),
 ): MutationRunRecord => ({
   ...record,
-  pid,
+  ...pids,
   status: "running",
   updatedAt,
 });
 
-/** The record once its child has ended: the pid is dropped, so nothing can
- * signal a process id that may since be somebody else's while the supervisor
- * finishes the run's copy-back. */
+/** The record once its child has ended: the child's pid is dropped, so the
+ * record never names an id that may already be somebody else's. The
+ * supervisor's stays, since the supervisor is still finishing the run. */
 export const markChildEnded = (
   record: MutationRunRecord,
   updatedAt = nowIso(),

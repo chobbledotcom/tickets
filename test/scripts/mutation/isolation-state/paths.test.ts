@@ -2,8 +2,11 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  copyBackLockPath,
   copyMutationSnapshot,
   copyStaticWorkspace,
+  MUTATION_CLAIM_FILE,
+  MUTATION_RECORD_FILE,
   rewriteMutationArgs,
   shouldCopySnapshotPath,
 } from "#scripts/mutation/isolation-state.ts";
@@ -96,6 +99,16 @@ describe("mutation isolation paths", () => {
     });
   });
 
+  test("keeps the run's file names fixed, across runs and processes", () => {
+    // One process writes these files and another — a kill, a clean, the
+    // child — finds them by name alone, so the names are a contract.
+    expect(MUTATION_RECORD_FILE).toBe("run.json");
+    expect(MUTATION_CLAIM_FILE).toBe("claim");
+    expect(copyBackLockPath("/repo")).toBe(
+      "/repo/.mutation-runs/copy-back.lock",
+    );
+  });
+
   test("states which paths belong in a snapshot", () => {
     expect(shouldCopySnapshotPath("")).toBe(true);
     expect(shouldCopySnapshotPath("src/shared/dates.ts")).toBe(true);
@@ -103,6 +116,7 @@ describe("mutation isolation paths", () => {
     expect(shouldCopySnapshotPath(".jscpd-report/index.html")).toBe(false);
     expect(shouldCopySnapshotPath(".devenv/bash-bash")).toBe(false);
     expect(shouldCopySnapshotPath(".container-work/deno-cache")).toBe(false);
+    expect(shouldCopySnapshotPath(".diagnostics/trace.json")).toBe(false);
     expect(shouldCopySnapshotPath("coverage-test/lcov.info")).toBe(false);
     expect(shouldCopySnapshotPath("local.db-wal")).toBe(false);
     expect(shouldCopySnapshotPath("src/ui/static/order.js")).toBe(false);
