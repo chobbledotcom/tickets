@@ -4,9 +4,17 @@
  * report as unread lives in its own file, which the build writes beside it.
  */
 export const defaulted = `
-export default class extends BaseClass {
-  static heldByTheUnnamed = 1;
+// The base the default class borrows its fields from. The file does not
+// export it, so the walk meets its members only through the class below.
+class BehindTheDefault {
+  onTheBase = 1;
+  static carriedToTheDefault = 1;
+  static passedOnTheBase = 1;
+}
+
+export default class extends BehindTheDefault {
   handedOver = 1;
+  static carriedOnTheClass = 1;
 }
 `;
 

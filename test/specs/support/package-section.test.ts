@@ -1,4 +1,5 @@
 // jscpd:ignore-start
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -56,11 +57,11 @@ describe("the package section helpers", () => {
   test("slices the section from its attribute to its own close", () => {
     expect(section.startsWith('data-package-section="7">')).toBe(true);
     expect(section.endsWith("</fieldset>")).toBe(true);
-    expect(section).not.toContain("</main>");
+    assert(!section.includes("</main>"));
   });
 
   test("keeps the rows that follow a member's nested fieldset inside", () => {
-    expect(section).toContain(memberLabel("Lantern", 2));
+    assertStringIncludes(section, memberLabel("Lantern", 2));
   });
 
   test("slices a section that holds no nested fieldset whole", () => {
@@ -93,18 +94,18 @@ describe("the package section helpers", () => {
 
   test("slices one member's row out of the section", () => {
     const row = rowSlice("Tent");
-    expect(row).toContain('alt="Bedroll"');
-    expect(row).toContain(memberLabel("Tent", 1));
-    expect(row).not.toContain("Lantern");
+    assertStringIncludes(row, 'alt="Bedroll"');
+    assertStringIncludes(row, memberLabel("Tent", 1));
+    assert(!row.includes("Lantern"));
     // A member that is itself a parent keeps its child selector in its row.
-    expect(row).toContain('<fieldset class="child-selector"');
-    expect(row).toContain("</fieldset></div>");
+    assertStringIncludes(row, '<fieldset class="child-selector"');
+    assertStringIncludes(row, "</fieldset></div>");
   });
 
   test("slices the last member's row to the section's end", () => {
     const row = rowSlice("Lantern");
-    expect(row).toContain(memberLabel("Lantern", 2));
-    expect(row).not.toContain('alt="Bedroll"');
+    assertStringIncludes(row, memberLabel("Lantern", 2));
+    assert(!row.includes('alt="Bedroll"'));
     expect(row.endsWith("</fieldset>")).toBe(true);
   });
 
@@ -125,7 +126,7 @@ describe("the package section helpers", () => {
     expect(row.startsWith('<div class="ticket-row package-member">')).toBe(
       true,
     );
-    expect(row).toContain('alt="Bedroll"');
+    assertStringIncludes(row, 'alt="Bedroll"');
   });
 
   test("fails loudly when the member's label sits outside any row", () => {
@@ -153,7 +154,7 @@ describe("the package section helpers", () => {
           '<img src="/image/bedroll.webp" alt="Bedroll">',
       );
     const row = memberRowHtml(packageSectionHtml(hoisted, group), "Tent");
-    expect(row).not.toContain('alt="Bedroll"');
+    assert(!row.includes('alt="Bedroll"'));
   });
 
   test("fails loudly when the section shows no row for the member", () => {

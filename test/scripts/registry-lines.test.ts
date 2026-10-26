@@ -7,6 +7,10 @@ describe("entryLines", () => {
     expect(entryLines("one\ntwo")).toEqual(["one", "two"]);
   });
 
+  test("strips the carriage return a CRLF checkout leaves on each line", () => {
+    expect(entryLines("one\r\ntwo\r\n")).toEqual(["one", "two"]);
+  });
+
   test("drops a blank line and a line of only spaces", () => {
     expect(entryLines("one\n\n   \ntwo")).toEqual(["one", "two"]);
   });

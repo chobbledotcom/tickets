@@ -5,17 +5,21 @@ import { stub } from "@std/testing/mock";
 import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { buildFlashCookie } from "#shared/cookies.ts";
+import { initSentry } from "#shared/sentry.ts";
 import { getHeader } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withMigrationLock } from "#test-utils/db-helpers/migration-lock.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import { resetSentry, sentryRequestBody } from "#test-utils/sentry.ts";
 import { testCookie } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import { expectTemporaryError } from "#test-utils/temporary-error.ts";
+import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 const deleteSetting = async (key: string): Promise<void> => {
   const { getDb } = await import("#db/client.ts");
@@ -189,6 +193,39 @@ describeWithEnv("request pipeline", { db: true }, () => {
       await expectTemporaryError(true)(response);
     });
   }
+
+  test("an exhausted transport failure keeps the auto-refresh page and groups its report", async () => {
+    const { getDb } = await import("#db/client.ts");
+    using _env = withEnv({
+      SENTRY_URL: "https://abc123@bugs.example.test/2",
+      TEST_EXPECT_ERROR: "1",
+    });
+    await initSentry();
+    const fetchStub = stubFetch(() => new Response("{}", { status: 200 }));
+    try {
+      using _fault = stub(getDb(), "execute", () => {
+        throw new TypeError(
+          "error sending request from 85.208.99.12:41022 for https://mydb.aws-eu-west-1.turso.io/v2/pipeline (203.0.113.7:443): client error (SendRequest): connection closed before message completed",
+        );
+      });
+
+      const response = await withVirtualBackoff(() =>
+        handleRequest(mockRequest("/ticket/nonexistent")),
+      );
+      await expectTemporaryError(true)(response);
+      expect(errors.contains("E_DB_CONNECTION")).toBe(true);
+      // The fingerprint leaves the connection's IP, port, and database host
+      // out, so every event of one transport kind on one route groups into a
+      // single bug-catcher issue.
+      assertStringIncludes(
+        sentryRequestBody(fetchStub.calls),
+        '"fingerprint":["E_DB_CONNECTION","db-transport","transport-send","GET","/ticket/[redacted]"]',
+      );
+    } finally {
+      fetchStub.restore();
+      resetSentry();
+    }
+  });
 
   test("rethrows unexpected errors in test mode", async () => {
     const { getDb } = await import("#db/client.ts");

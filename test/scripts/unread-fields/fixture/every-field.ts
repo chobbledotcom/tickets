@@ -278,8 +278,8 @@ export const EVERY_FIELD: readonly string[] = [
   "WrittenThroughParens.filledBehindACast",
   "WrittenThroughParens.filledBehindSatisfies",
   "WrittenThroughParens.filledInsideParens",
-  "default.fromAClass",
   "default.handedOver",
+  "default.onTheBase",
   "default.silent",
   "typeof BothSides.heldByTheClass",
   "typeof HasAStatic.passedDownToItsChildren",
@@ -296,5 +296,7 @@ export const EVERY_FIELD: readonly string[] = [
   "typeof Registry.onlyNamesAKey",
   "typeof ShadowsItsBase.writtenOnTheBase",
   "typeof ShadowsItsBase.writtenOnTheChild",
-  "typeof default.heldByTheUnnamed",
+  "typeof default.carriedOnTheClass",
+  "typeof default.carriedToTheDefault",
+  "typeof default.passedOnTheBase",
 ];
