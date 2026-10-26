@@ -16,13 +16,11 @@ import {
   saveRecord,
   unreadableRecord,
 } from "#test/specs/support/contact-records.ts";
+import { emailFor } from "#test/specs/support/emails.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
-
-/** Everyone a story talks about has an email the site files them under. */
-const emailFor = (who: string): string => `${who.toLowerCase()}@example.com`;
 
 /** Bookings the organiser took by hand, seeded on the record that cannot be
  * read. Repairing the note must leave this count alone too. */

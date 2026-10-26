@@ -17,6 +17,7 @@ import {
   regionShowsPicture,
   uploadsAPicture,
 } from "#test/specs/support/attendee-images.ts";
+import { emailFor } from "#test/specs/support/emails.ts";
 
 /** The words the picture question asks, with the reference the picture is
  * named by. The story's subject is the picture, so the prose around it stays
@@ -50,7 +51,7 @@ const booksOnto = async (
 ): Promise<void> => {
   await organiserAddsBooking(world, listingName, {
     day: dayFromToday(world, startsIn),
-    email: `${who.toLowerCase()}@example.com`,
+    email: emailFor(who),
     who,
   });
   world.things.remember(
@@ -85,7 +86,7 @@ When(
     listingName: string,
   ): Promise<void> {
     await organiserAddsBooking(this, listingName, {
-      email: `${who.toLowerCase()}@example.com`,
+      email: emailFor(who),
       who,
     });
     this.things.remember(
