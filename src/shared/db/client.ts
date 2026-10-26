@@ -143,8 +143,7 @@ const executeWithRoundTripGuard = executeWithRoundTrip((_statement, execute) =>
 );
 
 /** Count and retry a bare client statement. Transaction statements use only the
- * round-trip guard above: the transaction runner owns the retry decision for
- * the whole unit (see {@link retryOnTransientDatabaseError}). */
+ * round-trip guard above: the transaction runner owns the retry decision. */
 const executeWithTransientRetry = executeWithRoundTrip((statement, execute) =>
   retryOnTransientDatabaseError(execute, {
     isRead: isReadSql(sqlOf(statement)),
