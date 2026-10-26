@@ -68,6 +68,18 @@ export const describeWithBrowser = (
   });
 };
 
+/** The test owner's session cookie as its name-value pair, the way a
+ * browser context's cookie and a fetch's Cookie header both carry it. A
+ * malformed cookie string is a broken test fixture, not an empty header. */
+export const testOwnerCookiePair = async (): Promise<[string, string]> => {
+  const pair = (await testCookie()).split(";", 1)[0];
+  const splitAt = pair?.indexOf("=") ?? -1;
+  if (pair === undefined || splitAt < 1 || splitAt === pair.length - 1) {
+    throw new Error("The test owner cookie is malformed");
+  }
+  return [pair.slice(0, splitAt), pair.slice(splitAt + 1)];
+};
+
 /** A fresh signed-in page on the app's own address, closed with the run. The
  * context carries the test owner's cookie. Reduced motion skips the app's
  * cross-document view transition, whose cross-fade keeps a freshly loaded
@@ -81,18 +93,8 @@ export const withSignedInPage = async <T>(
     baseURL: baseUrl,
     reducedMotion: "reduce",
   });
-  const [pair] = (await testCookie()).split(";", 1);
-  const splitAt = pair?.indexOf("=") ?? -1;
-  if (pair === undefined || splitAt < 1 || splitAt === pair.length - 1) {
-    throw new Error("The test owner cookie is malformed");
-  }
-  await context.addCookies([
-    {
-      name: pair.slice(0, splitAt),
-      url: baseUrl,
-      value: pair.slice(splitAt + 1),
-    },
-  ]);
+  const [name, value] = await testOwnerCookiePair();
+  await context.addCookies([{ name, url: baseUrl, value }]);
   const page = await context.newPage();
   try {
     return await run(page);
