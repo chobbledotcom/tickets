@@ -312,9 +312,9 @@ describe("attendee filter and order SQL", () => {
 });
 
 describe("attendee SELECT — exact generated SQL", () => {
-  // These pin the whole generated string, not just fragments, so any mutation
-  // to a column, separator, COALESCE wrapper, ledger subquery, WHERE clause,
-  // join keyword, or ORDER BY is caught — a `toContain` check can't see a
+  // These pin the whole generated string, not a fragment. The test catches
+  // any change to a column, separator, COALESCE wrapper, ledger subquery,
+  // WHERE clause, join keyword, or ORDER BY. A fragment match cannot see a
   // dropped separator or an inserted token.
 
   test("the full field set produces the exact column list (all three ledger subqueries inline)", () => {

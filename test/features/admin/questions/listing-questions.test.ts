@@ -131,7 +131,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       assertStringIncludes(body, "assigned to 1 listing");
       assert(!body.includes("assigned to 1 listings"));
       // Exact message: the singular suffix is "" (not "s" and not anything
-      // else), so `toContain` alone can't catch a corrupted empty suffix.
+      // else), so a substring check alone cannot catch a corrupted suffix.
       const log = await getAllActivityLog(10);
       const entry = log.find((e) => e.message.includes("assigned to"));
       expect(entry?.message).toBe(
