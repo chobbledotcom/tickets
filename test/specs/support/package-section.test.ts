@@ -38,6 +38,16 @@ describe("the package section helpers", () => {
 
   const section = packageSectionHtml(pageWithNestedMemberRow(), group);
 
+  /** The member's row slice, with the claim every row test shares: the slice
+   * starts at the row's own opening tag. */
+  const rowSlice = (name: string): string => {
+    const row = memberRowHtml(section, name);
+    expect(row.startsWith('<div class="ticket-row package-member">')).toBe(
+      true,
+    );
+    return row;
+  };
+
   test("slices the section from its attribute to its own close", () => {
     expect(section.startsWith('data-package-section="7">')).toBe(true);
     expect(section.endsWith("</fieldset>")).toBe(true);
@@ -79,21 +89,34 @@ describe("the package section helpers", () => {
   });
 
   test("slices one member's row out of the section", () => {
-    const row = memberRowHtml(section, "Tent");
-    expect(row.startsWith('<div class="ticket-row package-member">')).toBe(
-      true,
-    );
+    const row = rowSlice("Tent");
     expect(row).toContain('alt="Bedroll"');
     expect(row).toContain(
       '<label>Tent <span class="package-member-qty">&times;1</span></label>',
     );
     expect(row).not.toContain("Lantern");
-  });
-
-  test("keeps the member's nested child selector in its row", () => {
-    const row = memberRowHtml(section, "Tent");
+    // A member that is itself a parent keeps its child selector in its row.
     expect(row).toContain('<fieldset class="child-selector"');
     expect(row).toContain("</fieldset></div>");
+  });
+
+  test("slices the last member's row to the section's end", () => {
+    const row = rowSlice("Lantern");
+    expect(row).toContain(
+      '<label>Lantern <span class="package-member-qty">&times;2</span></label>',
+    );
+    expect(row).not.toContain('alt="Bedroll"');
+    expect(row.endsWith("</fieldset>")).toBe(true);
+  });
+
+  test("fails loudly when the member's label sits outside any row", () => {
+    const rowless = section.replace(
+      '<div class="ticket-row package-member">',
+      "",
+    );
+    expect(() => memberRowHtml(rowless, "Tent")).toThrow(
+      "renders Tent outside a row",
+    );
   });
 
   test("does not count a picture hoisted above the rows as the row's own", () => {
