@@ -159,10 +159,13 @@ describe("chain to effect", () => {
     ).toEqual(["pure/leaky.ts", "io/store.ts", "io/client.ts"]);
   });
 
-  test("answers null when no root is reachable", () => {
+  test("names a one-hop chain from a middle file to the root", () => {
     expect(
       chainToEffect(graph, new Set(["io/client.ts"]), "io/store.ts"),
     ).toEqual(["io/store.ts", "io/client.ts"]);
+  });
+
+  test("answers null when no root is reachable", () => {
     expect(
       chainToEffect(graph, new Set(["somewhere/else.ts"]), "pure/leaky.ts"),
     ).toBe(null);
