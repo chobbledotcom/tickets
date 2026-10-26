@@ -27,6 +27,7 @@ import {
   contentMultipartRoute,
   requireContentOr,
   withAuth,
+  type AuthSession,
 } from "#routes/auth.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
@@ -50,7 +51,6 @@ import {
   isListingType,
   type ListingWithCount,
 } from "#types";
-import type { AuthSession } from "../auth.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { getListingAndGroups } from "./listing-page-data.ts";
 import {

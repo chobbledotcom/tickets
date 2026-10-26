@@ -89,18 +89,20 @@ describeWithEnv("db: listings — the daily switch", { db: true }, () => {
       execute: () =>
         Promise.reject(new Error("the database stopped responding")),
     };
-    const failure = await withTransaction(async () =>
-      moveUndatedBookingsToDayTx(
-        failingTx,
-        listing.id,
-        listing.name,
-        "2026-11-05",
-        1,
-      ).then(
-        () => null,
-        (error: unknown) => error,
-      ),
-    );
+    const failure = await withTransaction(async () => {
+      try {
+        await moveUndatedBookingsToDayTx(
+          failingTx,
+          listing.id,
+          listing.name,
+          "2026-11-05",
+          1,
+        );
+        return null;
+      } catch (error) {
+        return error;
+      }
+    });
     expect(failure).toBeInstanceOf(Error);
     expect(failure).toHaveProperty(
       "message",

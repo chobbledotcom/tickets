@@ -107,6 +107,7 @@ export const duplicateTestListing = async (
 export const updateTestListing = async (
   listingId: number,
   updates: Partial<Omit<ListingInput, "groupIds">> & {
+    assignUndatedTo?: string;
     groupId?: number;
     groupIds?: number[];
   },
