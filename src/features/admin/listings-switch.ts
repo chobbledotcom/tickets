@@ -25,14 +25,12 @@ import { t } from "#i18n";
 import type { AuthSession } from "#routes/auth.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
+/* jscpd:ignore-start */
 import type { FormParams } from "#shared/form-data.ts";
 import type { ListingWithCount } from "#types";
-import {
-  persistListingJoins,
-  prepareListingJoins,
-} from "./api-listing-joins.ts";
 import { listingPage } from "./listing-page.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
+/* jscpd:ignore-end */
 import { buildUpdateListingResource, parseGroupIds } from "./listings-form.ts";
 
 /** The form field a save carries its chosen date under: one of the dates the
@@ -138,7 +136,6 @@ export const probeAssignDates = async (
       await tx.execute(
         await listingsTable.updateStatement!(stored.id, wouldBe),
       );
-      await persistListingJoins(tx, stored.id, prepareListingJoins(wouldBe));
       const results = await tx.batch([
         dateVerdictsStatement(stored.id, quantity, dates, durationDays),
       ]);

@@ -9,6 +9,7 @@ import {
   wouldBeStartDates,
 } from "#routes/admin/listings-switch.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { inputFor } from "#test/shared/listings-actions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -85,9 +86,11 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
       maximumDaysAfter: 30,
       minimumDaysBefore: 2,
     });
+    // The input carries none of the calendar fields, so the stored row's
+    // window and days stand in for everything the submission left out.
     const offered = await wouldBeStartDates(
       stored,
-      wouldBeInput(stored, { customisableDays: false, durationDays: 1 }),
+      inputFor({ customisableDays: false, durationDays: 1 }),
     );
     const fromStored = await bookableStartDates(stored.id);
     expect(offered).toEqual(fromStored);
@@ -129,7 +132,13 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
 
   test("a probe write that fails for another reason propagates untouched", async () => {
     const listing = await createTestListing({ name: "Mine" });
-    const clash = wouldBeInput(listing, { groupIds: [999999] });
+    const taken = await createTestListing({ name: "Taken" });
+    // The same blind slug index as the other listing: the probe's row write
+    // violates the unique index, and the failure is no capacity verdict.
+    const clash = wouldBeInput(listing, {
+      slug: taken.slug,
+      slugIndex: taken.slug_index,
+    });
     await expect(
       probeAssignDates(listing, clash, ["2026-11-05"], 1, 1),
     ).rejects.toThrow();

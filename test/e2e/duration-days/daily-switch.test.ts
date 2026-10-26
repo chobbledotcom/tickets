@@ -247,5 +247,57 @@ describeWithEnv(
       // The type select carries the organiser's switch, not the stored row.
       expect(type).toBe("daily");
     });
+
+    test("a switch form that fails validation stops with the edit error", async () => {
+      const listing = await hallWithTwoBookings();
+      const { postListingEdit } = await import(
+        "#test-utils/listing-parents/helpers.ts"
+      );
+      const response = await postListingEdit(listing.id, {
+        listingType: "daily",
+        name: "",
+      });
+      expect(response.status).toBe(400);
+      const page = await response.text();
+      // The edit error page, not the assign card: the form never parsed.
+      expect(page).toContain("Listing name is required");
+    });
+
+    test("a confirmed switch that strips the page's reach is refused", async () => {
+      // The listing is a child page that sells an opt-in add-on. Unchecking
+      // "bookable by itself" takes its page away, so the reachability guard
+      // refuses the confirmed switch and the assign page carries the reason.
+      const parent = await createTestListing({
+        bookableDays: allDays,
+        durationDays: 2,
+        listingType: "daily",
+        name: "Parent page",
+      });
+      const listing = await hallWithTwoBookings();
+      await (await import("#test-utils/parents.ts")).postChildren(parent.id, [
+        listing.id,
+      ]);
+      const { optInAddOnForListings } = await import(
+        "#test-utils/modifiers.ts"
+      );
+      // The add-on links after the edge, mirroring the solo-child fixture: an
+      // edge created under an existing add-on is refused outright.
+      await optInAddOnForListings("Listing extra", [listing.id]);
+
+      const { postListingEdit } = await import(
+        "#test-utils/listing-parents/helpers.ts"
+      );
+      const day = (await bookableStartDates(listing.id))[0]!;
+      const response = await postListingEdit(listing.id, {
+        assignUndatedTo: day!,
+        bookableAlone: false,
+        durationDays: 2,
+        listingType: "daily",
+      });
+      expect(response.status).toBe(400);
+      const page = await response.text();
+      expect(page).toContain("assign_undated_to");
+      expect(page).toContain("Listing extra");
+    });
   },
 );
