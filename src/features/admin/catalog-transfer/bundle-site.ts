@@ -53,7 +53,7 @@ export type ValidationContext = {
   listingIndexByName: Map<string, number>;
   listingRefs: ReadonlyMap<ListingBody, ListingRefs>;
   memberRefs: ReadonlyMap<GroupBody, ReadonlyMap<string, Resolved>>;
-  optInAddOnsByGroup: ReadonlyMap<number, OptInAddOn[]>;
+  optInAddOnsByGroup: ReadonlyMap<number, GroupOptIns>;
   siteGroupById: Map<number, Group>;
   /** The site groups the document's listings join. */
   siteGroupIds: readonly number[];
@@ -66,12 +66,16 @@ export type ValidationContext = {
  * decrypted name for the refusal message. */
 export type OptInAddOn = { id: number; name: string };
 
+/** What one site group carries in opt-in add-ons. `addOnIds` mirrors
+ * `addOns` for the membership probe. */
+export type GroupOptIns = { addOnIds: Set<number>; addOns: OptInAddOn[] };
+
 /** The opt-in add-ons one group carries. The loader gives every requested
  * group an entry, so a missing entry means a broken read. */
-export const optInAddOnsOnGroup = (
-  addOnsByGroup: ReadonlyMap<number, OptInAddOn[]>,
+export const groupOptIns = (
+  addOnsByGroup: ReadonlyMap<number, GroupOptIns>,
   groupId: number,
-): OptInAddOn[] =>
+): GroupOptIns =>
   requireValue(addOnsByGroup.get(groupId), "Group add-ons missing");
 
 /** The group-scoped opt-in add-ons covering `groupIds`, one query, names
@@ -81,11 +85,13 @@ export const optInAddOnsOnGroup = (
 const optInAddOnsByGroupId = async (
   groupIds: readonly number[],
 ): Promise<ValidationContext["optInAddOnsByGroup"]> => {
-  const byGroup = new Map<number, { id: number; name: string }[]>();
+  const byGroup = new Map<number, GroupOptIns>();
   if (groupIds.length === 0) return byGroup;
   // Every requested group gets an entry, so the checks read one without a
   // fallback.
-  for (const groupId of groupIds) byGroup.set(groupId, []);
+  for (const groupId of groupIds) {
+    byGroup.set(groupId, { addOnIds: new Set(), addOns: [] });
+  }
   const rows = await queryAll<{
     group_id: number;
     modifier_id: number;
@@ -101,11 +107,14 @@ const optInAddOnsByGroupId = async (
     [...groupIds],
   );
   for (const row of rows) {
-    const addOns = optInAddOnsOnGroup(byGroup, row.group_id);
-    addOns.push({
-      id: row.modifier_id,
-      name: await modifiersTable.readColumn("name", row.name, row.modifier_id),
-    });
+    const optIns = groupOptIns(byGroup, row.group_id);
+    const name = await modifiersTable.readColumn(
+      "name",
+      row.name,
+      row.modifier_id,
+    );
+    optIns.addOns.push({ id: row.modifier_id, name });
+    optIns.addOnIds.add(row.modifier_id);
   }
   return byGroup;
 };
