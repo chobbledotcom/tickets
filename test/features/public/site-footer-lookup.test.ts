@@ -166,6 +166,12 @@ describeWithEnv(
           await handleRequest(mockRequest(`/order?select_${listing.id}=1`)),
           /^\/ticket\//,
         );
+        // An embedded booking page renders, but the layout drops the footer
+        // on it, so it pays no footer lookup either.
+        const embedded = await assertPublicHtml(
+          `/ticket/${listing.slug}?iframe=true`,
+        );
+        assert(!embedded.includes(footerTag));
       });
       // The requests ran real reads, so an empty recording would prove nothing.
       expect(sqls.length).toBeGreaterThan(0);
