@@ -30,7 +30,11 @@ import {
   signedSumCase,
 } from "#accounting/projection-sql.ts";
 import { type LedgerRange, occurredAtRange } from "#accounting/range.ts";
-import { selectByEventGroup, selectTransfers } from "#accounting/rows.ts";
+import {
+  selectByEventGroup,
+  selectTransfers,
+  selectTransfersScope,
+} from "#accounting/rows.ts";
 import {
   inPlaceholders,
   queryAll,
@@ -41,6 +45,7 @@ import {
   type TxScope,
 } from "#db/client.ts";
 import {
+  boundSlots,
   numberedStatement,
   type SqlParameter,
 } from "#db/numbered-statement.ts";
@@ -63,24 +68,26 @@ const legMatchesAccount = (
 ): string =>
   `${LEG_COLUMNS[role].type} = ${bind(acct.type)} AND ${LEG_COLUMNS[role].id} = ${bind(acct.id)}`;
 
-const accountsScope = (accounts: readonly AccountRef[]): WhereClause => {
-  const parts = [...Map.groupBy(accounts, ({ type }) => type)].map(
-    ([type, sameType]) => {
-      const ids = sameType.map(({ id }) => id);
-      const placeholders = inPlaceholders(ids);
-      return {
-        args: [type, ...ids, type, ...ids],
-        clause:
-          `(${LEG_COLUMNS.source.type} = ? AND ${LEG_COLUMNS.source.id} IN (${placeholders})) OR ` +
-          `(${LEG_COLUMNS.dest.type} = ? AND ${LEG_COLUMNS.dest.id} IN (${placeholders}))`,
-      };
-    },
-  );
-  return {
-    args: parts.flatMap(({ args }) => args),
-    clause: parts.map(({ clause }) => `(${clause})`).join(" OR "),
-  };
-};
+/** The WHERE scope for "every transfer touching any of these accounts".
+ *  One group per account type. Each group's id list binds once and serves
+ *  the source and dest arms. */
+const accountsScope = (
+  bind: SqlParameter,
+  accounts: readonly AccountRef[],
+): string =>
+  [...Map.groupBy(accounts, ({ type }) => type)]
+    .map(([type, sameType]) => {
+      const typeToken = bind(type);
+      const idSlots = boundSlots(
+        bind,
+        sameType.map(({ id }) => id),
+      );
+      return (
+        `((${LEG_COLUMNS.source.type} = ${typeToken} AND ${LEG_COLUMNS.source.id} IN (${idSlots}))` +
+        ` OR (${LEG_COLUMNS.dest.type} = ${typeToken} AND ${LEG_COLUMNS.dest.id} IN (${idSlots})))`
+      );
+    })
+    .join(" OR ");
 
 /** Every transfer touching any requested account, grouped by account key. */
 export const transfersByAccounts = async (
@@ -89,9 +96,9 @@ export const transfersByAccounts = async (
   const requested = uniqueBy(accountKey)([...accounts]);
   if (requested.length === 0) return new Map();
   const wanted = new Set(requested.map(accountKey));
-  const transfers = await selectTransfers(queryBatch, {
-    where: [accountsScope(requested)],
-  });
+  const transfers = await selectTransfersScope(queryBatch, (bind) =>
+    accountsScope(bind, requested),
+  );
   const touching = transfers.flatMap((transfer) =>
     uniqueBy(accountKey)([transfer.source, transfer.destination])
       .filter((account) => wanted.has(accountKey(account)))
