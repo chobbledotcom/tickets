@@ -1,5 +1,5 @@
 /* jscpd:ignore-start -- imports */
-import type { TlaAtom } from "#scripts/verify-models/data.ts";
+import type { TlaRecord } from "#scripts/verify-models/data.ts";
 import type {
   MachineEvent,
   MachineMovesReader,
@@ -9,6 +9,16 @@ import type {
 import { attemptTransition } from "#shared/schema-atlas/types.ts";
 
 /* jscpd:ignore-end */
+
+export const representativeFields = {
+  declaredState: "Str",
+  sampleTag: "Str",
+} as const;
+
+type RepresentativeFact<Node extends string, Details> = Details & {
+  readonly declaredState: Node;
+  readonly sampleTag: string;
+};
 
 /** A required move must throw on failure. Only declared refusals can return null. */
 const runDeclaredMove = <State, Node extends string, Event extends string>(
@@ -28,7 +38,7 @@ export const collectMachineFacts = <
   State,
   NodeId extends string,
   EventId extends string,
-  Details extends readonly TlaAtom[],
+  Details extends TlaRecord,
   AttemptFact,
 >(
   nodes: readonly MachineNode<State, NodeId>[],
@@ -41,18 +51,18 @@ export const collectMachineFacts = <
     target: State | null,
   ) => AttemptFact | null,
 ): {
-  representatives: (readonly [NodeId, string, ...Details])[];
+  representatives: RepresentativeFact<NodeId, Details>[];
   attempts: AttemptFact[];
 } => {
-  const representatives: (readonly [NodeId, string, ...Details])[] = [];
+  const representatives: RepresentativeFact<NodeId, Details>[] = [];
   const attempts: AttemptFact[] = [];
   for (const node of nodes) {
     for (const representative of node.reps) {
-      representatives.push([
-        node.id,
-        representative.tag,
+      representatives.push({
         ...representativeDetails(representative.state),
-      ]);
+        declaredState: node.id,
+        sampleTag: representative.tag,
+      });
       for (const event of events) {
         const target = runDeclaredMove(moves, node.id, representative, event);
         const fact = attemptFact(representative, event, target);

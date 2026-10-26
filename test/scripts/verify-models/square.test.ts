@@ -8,7 +8,7 @@ import {
 } from "#payment/square-link-end-machine-spec.ts";
 import { squareModelData } from "#scripts/verify-models/square.ts";
 import { requireValue } from "#shared/required-value.ts";
-import { members, tuples } from "#test-utils/tla-data.ts";
+import { members, records } from "#test-utils/tla-data.ts";
 
 /* jscpd:ignore-end */
 
@@ -30,73 +30,70 @@ const representativeOf = (id: string) =>
 describe("Square link end checker data", () => {
   test("records real accepted transitions and unchanged refused attempts", async () => {
     const data = await squareModelData();
-    const attempts = tuples(data, "LinkAttempts");
-    expect(attempts).toContainEqual([
-      "unwritten",
-      "checkout_created",
-      "pending",
-      "no_row_yet",
-      true,
-    ]);
-    expect(attempts).toContainEqual([
-      "pending",
-      "claim_due",
-      "ending",
-      "unclaimed",
-      true,
-    ]);
-    expect(attempts).toContainEqual([
-      "ending",
-      "delete_inconclusive",
-      "pending",
-      "lease_held",
-      true,
-    ]);
-    expect(attempts).toContainEqual([
-      "ending",
-      "lease_expired",
-      "pending",
-      "lease_held",
-      true,
-    ]);
-    expect(attempts).toContainEqual([
-      "pending",
-      "delete_answered_cancelled",
-      "pending",
-      "unclaimed",
-      false,
-    ]);
-    expect(attempts).toContainEqual([
-      "ending",
-      "payment_completed",
-      "ending",
-      "lease_held",
-      false,
-    ]);
-    expect(attempts).toContainEqual([
-      "gone",
-      "checkout_created",
-      "gone",
-      "row_deleted",
-      false,
-    ]);
+    const attempts = records(data, "LinkAttempts");
+    expect(attempts).toContainEqual({
+      accepted: true,
+      eventId: "checkout_created",
+      sampleTag: "no_row_yet",
+      sourceState: "unwritten",
+      targetState: "pending",
+    });
+    expect(attempts).toContainEqual({
+      accepted: true,
+      eventId: "claim_due",
+      sampleTag: "unclaimed",
+      sourceState: "pending",
+      targetState: "ending",
+    });
+    expect(attempts).toContainEqual({
+      accepted: true,
+      eventId: "delete_inconclusive",
+      sampleTag: "lease_held",
+      sourceState: "ending",
+      targetState: "pending",
+    });
+    expect(attempts).toContainEqual({
+      accepted: true,
+      eventId: "lease_expired",
+      sampleTag: "lease_held",
+      sourceState: "ending",
+      targetState: "pending",
+    });
+    expect(attempts).toContainEqual({
+      accepted: false,
+      eventId: "delete_answered_cancelled",
+      sampleTag: "unclaimed",
+      sourceState: "pending",
+      targetState: "pending",
+    });
+    expect(attempts).toContainEqual({
+      accepted: false,
+      eventId: "payment_completed",
+      sampleTag: "lease_held",
+      sourceState: "ending",
+      targetState: "ending",
+    });
+    expect(attempts).toContainEqual({
+      accepted: false,
+      eventId: "checkout_created",
+      sampleTag: "row_deleted",
+      sourceState: "gone",
+      targetState: "gone",
+    });
     expect(members(data, "HandleStates")).toContain("pending");
     expect(members(data, "HandleStates")).not.toContain("gone");
     expect(members(data, "CheckableStates")).toContain("ending");
     expect(members(data, "CheckableStates")).not.toContain("unwritten");
-    expect(tuples(data, "LinkEvents")).toContainEqual([
-      "checkout_created",
-      "create",
-      false,
-    ]);
-    expect(tuples(data, "LinkEvents")).toContainEqual([
-      "payment_completed",
-      "complete",
-      false,
-    ]);
-    expect(data).toMatch(/\bTRUE\b/);
-    expect(data).toMatch(/\bFALSE\b/);
-    expect(data).not.toMatch(/\b(?:true|false)\b/);
+    expect(records(data, "LinkEvents")).toContainEqual({
+      eventId: "checkout_created",
+      kind: "create",
+      movesMoney: false,
+    });
+    expect(records(data, "LinkEvents")).toContainEqual({
+      eventId: "payment_completed",
+      kind: "complete",
+      movesMoney: false,
+    });
   });
 
   test("does not turn a failed required move into a refusal", async () => {
@@ -117,33 +114,33 @@ describe("Square link end checker data", () => {
       return row;
     });
     const data = await squareModelData();
-    const attempts = tuples(data, "LinkAttempts");
-    expect(attempts).toContainEqual([
-      "pending",
-      "delete_inconclusive",
-      "gone",
-      "unclaimed",
-      true,
-    ]);
-    expect(attempts).toContainEqual([
-      "ending",
-      "delete_inconclusive",
-      "gone",
-      "lease_held",
-      true,
-    ]);
-    expect(attempts).toContainEqual([
-      "pending",
-      "payment_completed",
-      "gone",
-      "unclaimed",
-      true,
-    ]);
-    expect(tuples(data, "LinkRepresentatives")).toContainEqual([
-      "pending",
-      "unclaimed",
-      "pending",
-    ]);
+    const attempts = records(data, "LinkAttempts");
+    expect(attempts).toContainEqual({
+      accepted: true,
+      eventId: "delete_inconclusive",
+      sampleTag: "unclaimed",
+      sourceState: "pending",
+      targetState: "gone",
+    });
+    expect(attempts).toContainEqual({
+      accepted: true,
+      eventId: "delete_inconclusive",
+      sampleTag: "lease_held",
+      sourceState: "ending",
+      targetState: "gone",
+    });
+    expect(attempts).toContainEqual({
+      accepted: true,
+      eventId: "payment_completed",
+      sampleTag: "unclaimed",
+      sourceState: "pending",
+      targetState: "gone",
+    });
+    expect(records(data, "LinkRepresentatives")).toContainEqual({
+      declaredState: "pending",
+      sampleTag: "unclaimed",
+      storedState: "pending",
+    });
     expect(representative.state.state).toBe(originalState);
   });
 
@@ -157,13 +154,13 @@ describe("Square link end checker data", () => {
       }
       return original(row);
     });
-    expect(tuples(await squareModelData(), "LinkAttempts")).toContainEqual([
-      "pending",
-      "checkout_created",
-      "pending",
-      "unclaimed",
-      false,
-    ]);
+    expect(records(await squareModelData(), "LinkAttempts")).toContainEqual({
+      accepted: false,
+      eventId: "checkout_created",
+      sampleTag: "unclaimed",
+      sourceState: "pending",
+      targetState: "pending",
+    });
     expect(representativeOf("pending").state.state).toBe("pending");
   });
 
@@ -188,23 +185,23 @@ describe("Square link end checker data", () => {
     });
     try {
       const data = await squareModelData();
-      expect(tuples(data, "LinkRepresentatives")).toContainEqual([
-        "gone",
-        "row_deleted",
-        "pending",
-      ]);
-      expect(tuples(data, "LinkEvents")).toContainEqual([
-        "claim_due",
-        "check",
-        true,
-      ]);
-      expect(tuples(data, "LinkAttempts")).toContainEqual([
-        "pending",
-        "claim_due",
-        "ending",
-        "row_deleted",
-        true,
-      ]);
+      expect(records(data, "LinkRepresentatives")).toContainEqual({
+        declaredState: "gone",
+        sampleTag: "row_deleted",
+        storedState: "pending",
+      });
+      expect(records(data, "LinkEvents")).toContainEqual({
+        eventId: "claim_due",
+        kind: "check",
+        movesMoney: true,
+      });
+      expect(records(data, "LinkAttempts")).toContainEqual({
+        accepted: true,
+        eventId: "claim_due",
+        sampleTag: "row_deleted",
+        sourceState: "pending",
+        targetState: "ending",
+      });
     } finally {
       Object.defineProperty(row, "state", stateDescriptor);
       Object.defineProperty(event, "movesMoney", moneyDescriptor);
@@ -212,44 +209,74 @@ describe("Square link end checker data", () => {
   });
 
   test("executes raw replies while retaining independent external evidence", async () => {
-    const facts = tuples(await squareModelData(), "ReplyFacts");
-    expect(facts).toContainEqual([
-      "cancelled",
-      "cancelled",
-      "delete_answered_cancelled",
-    ]);
-    expect(facts).toContainEqual([
-      "missing",
-      "missing",
-      "delete_answered_missing",
-    ]);
-    expect(facts).toContainEqual(["completed", "paid", "delete_refused_paid"]);
-    expect(facts).toContainEqual(["paid", "paid", "delete_refused_paid"]);
+    const facts = records(await squareModelData(), "ReplyFacts");
+    expect(facts).toContainEqual({
+      eventId: "delete_answered_cancelled",
+      expectedEvidence: "cancelled",
+      sampleTag: "cancelled",
+    });
+    expect(facts).toContainEqual({
+      eventId: "delete_answered_missing",
+      expectedEvidence: "missing",
+      sampleTag: "missing",
+    });
+    for (const sampleTag of ["completed", "paid"]) {
+      expect(facts).toContainEqual({
+        eventId: "delete_refused_paid",
+        expectedEvidence: "paid",
+        sampleTag,
+      });
+    }
     for (const witness of [
       "success_without_id",
       "unreadable",
       "unpaid",
       "unrelated_failure",
     ]) {
-      expect(facts).toContainEqual([witness, "none", "delete_inconclusive"]);
+      expect(facts).toContainEqual({
+        eventId: "delete_inconclusive",
+        expectedEvidence: "none",
+        sampleTag: witness,
+      });
     }
   });
 
   test("distinguishes native expiry from the strict retention boundary", async () => {
-    const facts = tuples(await squareModelData(), "AgeFacts");
-    expect(facts).toContainEqual(["native_before", true, false, false]);
-    expect(facts).toContainEqual(["native_at", false, false, false]);
-    expect(facts).toContainEqual(["retention_before", false, false, false]);
-    expect(facts).toContainEqual(["retention_at", false, false, false]);
-    expect(facts).toContainEqual(["retention_after", false, true, true]);
+    const facts = records(await squareModelData(), "AgeFacts");
+    expect(facts).toContainEqual({
+      ageState: "native_before",
+      mayPay: true,
+      prunable: false,
+      requiredMarginElapsed: false,
+    });
+    for (const ageState of ["native_at", "retention_before", "retention_at"]) {
+      expect(facts).toContainEqual({
+        ageState,
+        mayPay: false,
+        prunable: false,
+        requiredMarginElapsed: false,
+      });
+    }
+    expect(facts).toContainEqual({
+      ageState: "retention_after",
+      mayPay: false,
+      prunable: true,
+      requiredMarginElapsed: true,
+    });
   });
 
   test("allows time to cross safety boundaries without moving backwards", async () => {
-    const moves = tuples(await squareModelData(), "AgeMoves");
+    const moves = records(await squareModelData(), "AgeMoves");
     for (const later of ["native_at", "retention_at", "margin_after"]) {
-      expect(moves).toContainEqual(["zero", later]);
+      expect(moves).toContainEqual({ sourceAge: "zero", targetAge: later });
     }
-    expect(moves).not.toContainEqual(["margin_after", "zero"]);
-    expect(moves).not.toContainEqual(["native_at", "native_before"]);
+    expect(moves).not.toContainEqual({
+      sourceAge: "margin_after",
+      targetAge: "zero",
+    });
+    expect(moves).not.toContainEqual({
+      sourceAge: "native_at",
+      targetAge: "native_before",
+    });
   });
 });

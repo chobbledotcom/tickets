@@ -11,61 +11,66 @@ import {
   type RecoveryNode,
   recoveryCheckoutIdAgrees,
 } from "#payment/sumup-recovery-machine-spec.ts";
-import { collectMachineFacts } from "#scripts/verify-models/attempt.ts";
+import {
+  collectMachineFacts,
+  representativeFields,
+} from "#scripts/verify-models/attempt.ts";
 import {
   type ModelDataSource,
+  moveFields,
+  type TlaFact,
   tlaModule,
+  tlaRecords,
   tlaSet,
-  tlaTuples,
 } from "#scripts/verify-models/data.ts";
 import { movesIn } from "#shared/schema-atlas/machine-spec.ts";
 
 /* jscpd:ignore-end */
 
-type RepresentativeFact = readonly [
-  state: string,
-  hasCheckoutId: boolean,
-  checkoutIdAgrees: boolean,
-];
-
-type MoveFact = readonly [
-  source: string,
-  representative: string,
-  sourceHasCheckoutId: boolean,
-  event: string,
-  target: string,
-  targetHasCheckoutId: boolean,
-  targetCheckoutIdAgrees: boolean,
-];
+const nodeFields = {
+  moneyOwed: "Str",
+  prunable: "Bool",
+  state: "Str",
+} as const;
+const recoveryRepresentativeFields = {
+  ...representativeFields,
+  checkoutIdAgrees: "Bool",
+  hasCheckoutId: "Bool",
+  storedState: "Str",
+} as const;
+const recoveryMoveFields = {
+  ...moveFields,
+  sampleTag: "Str",
+  sourceHasCheckoutId: "Bool",
+  targetCheckoutIdAgrees: "Bool",
+  targetHasCheckoutId: "Bool",
+} as const;
 
 const declared = movesIn(RECOVERY_MOVES);
 
-/** Execute every representative/event pair. Only opaque checkout-id values
- * are abstracted away: their presence and the real reader's agreement result
- * remain separate facts. A declared move with an invalid output must throw,
- * not disappear as a refusal. Mirror sweeps still check refused cells. */
+// Checkout-id presence and the reader's agreement are independent observations.
 export const sumupModelData: ModelDataSource = async () => {
   const facts = collectMachineFacts(
     RECOVERY_NODES,
     RECOVERY_EVENTS,
     declared,
-    (state): RepresentativeFact => [
-      state.recoveryState,
-      state.sumupId !== "",
-      recoveryCheckoutIdAgrees(state),
-    ],
-    (representative, event, to): MoveFact | null => {
+    (state) => ({
+      checkoutIdAgrees: recoveryCheckoutIdAgrees(state),
+      hasCheckoutId: state.sumupId !== "",
+      storedState: state.recoveryState,
+    }),
+    (representative, event, to): TlaFact<typeof recoveryMoveFields> | null => {
       if (to === null) return null;
       const from = representative.state;
-      return [
-        from.recoveryState,
-        representative.tag,
-        from.sumupId !== "",
-        event.id,
-        to.recoveryState,
-        to.sumupId !== "",
-        recoveryCheckoutIdAgrees(to),
-      ];
+      return {
+        eventId: event.id,
+        sampleTag: representative.tag,
+        sourceHasCheckoutId: from.sumupId !== "",
+        sourceState: from.recoveryState,
+        targetCheckoutIdAgrees: recoveryCheckoutIdAgrees(to),
+        targetHasCheckoutId: to.sumupId !== "",
+        targetState: to.recoveryState,
+      };
     },
   );
   const checkEvents = pipe(
@@ -73,11 +78,11 @@ export const sumupModelData: ModelDataSource = async () => {
     map((event) => event.id),
   )(RECOVERY_EVENTS);
   const nodeFacts = map(
-    (node: RecoveryNode): readonly [string, string, boolean] => [
-      node.id,
-      node.owesMoney,
-      node.prunable,
-    ],
+    (node: RecoveryNode): TlaFact<typeof nodeFields> => ({
+      moneyOwed: node.owesMoney,
+      prunable: node.prunable,
+      state: node.id,
+    }),
   )(RECOVERY_NODES);
   return tlaModule("SumupRecoveryData", [
     `RecoveryStates == ${tlaSet(map((node: RecoveryNode) => node.id)(RECOVERY_NODES))}`,
@@ -85,8 +90,12 @@ export const sumupModelData: ModelDataSource = async () => {
     `CheckEvents == ${tlaSet(checkEvents)}`,
     `CheckableStates == ${tlaSet(RECOVERY_CHECKABLE_NODES)}`,
     `PrunableStates == ${tlaSet(RECOVERY_PRUNABLE_NODES)}`,
-    `\\* @type: Set(<<Str, Str, Bool>>);\nRecoveryNodeFacts == ${tlaTuples(nodeFacts)}`,
-    `\\* @type: Set(<<Str, Str, Str, Bool, Bool>>);\nRecoveryRepresentatives == ${tlaTuples(facts.representatives)}`,
-    `\\* @type: Set(<<Str, Str, Bool, Str, Str, Bool, Bool>>);\nRecoveryMoves == ${tlaTuples(facts.attempts)}`,
+    tlaRecords("RecoveryNodeFacts", nodeFields, nodeFacts),
+    tlaRecords(
+      "RecoveryRepresentatives",
+      recoveryRepresentativeFields,
+      facts.representatives,
+    ),
+    tlaRecords("RecoveryMoves", recoveryMoveFields, facts.attempts),
   ]);
 };

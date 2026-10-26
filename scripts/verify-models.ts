@@ -1,6 +1,7 @@
 /** Check the live machine models with the pinned Apalache package from devenv. */
 import { join } from "node:path";
 import { projectRoot } from "#scripts/project-root.ts";
+import { makeScratchDir } from "#scripts/scratch.ts";
 import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
 import { reviewModelData } from "#scripts/verify-models/review.ts";
 import { squareModelData } from "#scripts/verify-models/square.ts";
@@ -20,12 +21,11 @@ const checks = [
     name: "every legal state and next edge",
   },
 ];
-const scratch = join(projectRoot, ".scratch");
-await Deno.mkdir(scratch, { recursive: true });
-const work = await Deno.makeTempDir({
-  dir: scratch,
-  prefix: "machine-proofs-",
-});
+const work = await makeScratchDir("machine-proofs-");
+await Deno.copyFile(
+  join(projectRoot, "verification/ModelRules.tla"),
+  join(work, "ModelRules.tla"),
+);
 for (const model of models) {
   await Deno.copyFile(
     join(projectRoot, `verification/${model.module}.tla`),

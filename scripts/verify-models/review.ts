@@ -8,67 +8,71 @@ import {
   reviewNodeOf,
 } from "#payment/review-machine-spec.ts";
 import {
+  attemptFields,
   type ModelDataSource,
+  type TlaFact,
   tlaModule,
+  tlaRecords,
   tlaSet,
-  tlaTuples,
 } from "#scripts/verify-models/data.ts";
 import { attemptTransition } from "#shared/schema-atlas/types.ts";
 
 /* jscpd:ignore-end */
 
-type NodeFact = readonly [
-  node: string,
-  held: boolean,
-  seen: boolean,
-  reason: string,
-];
-type EventFact = readonly [
-  event: string,
-  action: string,
-  reason: string,
-  movesMoney: boolean,
-];
-type Attempt = readonly [
-  source: string,
-  event: string,
-  target: string,
-  representative: string,
-  accepted: boolean,
-  sameCaseId: boolean,
-  sameReason: boolean,
-];
+const nodeFields = {
+  held: "Bool",
+  reason: "Str",
+  seen: "Bool",
+  state: "Str",
+} as const;
+const eventFields = {
+  action: "Str",
+  eventId: "Str",
+  movesMoney: "Bool",
+  reason: "Str",
+} as const;
+const reviewAttemptFields = {
+  ...attemptFields,
+  sameCaseId: "Bool",
+  sameReason: "Bool",
+} as const;
+type NodeFact = TlaFact<typeof nodeFields>;
+type EventFact = TlaFact<typeof eventFields>;
+type Attempt = TlaFact<typeof reviewAttemptFields>;
 
-const nodeFact = (slot: ReviewSlot): NodeFact => [
-  slot === undefined ? "none" : `${reviewNodeOf(slot)}(${slot.reason.kind})`,
-  slot !== undefined,
-  slot?.acknowledgedAt !== undefined,
-  slot?.reason.kind ?? "",
-];
+const nodeFact = (slot: ReviewSlot): NodeFact => ({
+  held: slot !== undefined,
+  reason: slot?.reason.kind ?? "",
+  seen: slot?.acknowledgedAt !== undefined,
+  state:
+    slot === undefined ? "none" : `${reviewNodeOf(slot)}(${slot.reason.kind})`,
+});
 
 /** Event names declare the operation and its evidence reason, not its moves. */
 const eventFact = (event: ReviewMachineEvent): EventFact => {
   if (event.id === "acknowledge") {
-    return [event.id, "acknowledge", "", event.movesMoney];
+    return {
+      action: "acknowledge",
+      eventId: event.id,
+      movesMoney: event.movesMoney,
+      reason: "",
+    };
   }
   for (const action of ["open", "retire"]) {
     const prefix = `${action}_`;
     if (event.id.startsWith(prefix)) {
-      return [
-        event.id,
+      return {
         action,
-        event.id.slice(prefix.length),
-        event.movesMoney,
-      ];
+        eventId: event.id,
+        movesMoney: event.movesMoney,
+        reason: event.id.slice(prefix.length),
+      };
     }
   }
   throw new Error(`Unknown review operation ${event.id}`);
 };
 
-/** Execute every representative/event pair, including refused attempts.
- * UUIDs are abstracted only after comparing the actual before/after values.
- * This is the review slot: wrong-reason settlement no-ops on payment rows
- * remain separate production behavior, covered by their direct row tests. */
+/** Compare actual case identity and reason before abstracting the slot. */
 export const reviewModelData: ModelDataSource = async () => {
   const nodes = new Map<string, NodeFact>();
   const attempts: Attempt[] = [];
@@ -83,17 +87,17 @@ export const reviewModelData: ModelDataSource = async () => {
         const accepted = result !== null;
         const after = accepted ? result : input;
         const target = nodeFact(after);
-        nodes.set(source[0], source);
-        nodes.set(target[0], target);
-        attempts.push([
-          source[0],
-          event.id,
-          target[0],
-          representative.tag,
+        nodes.set(source.state, source);
+        nodes.set(target.state, target);
+        attempts.push({
           accepted,
-          caseId === after?.caseId,
-          reason === after?.reason.kind,
-        ]);
+          eventId: event.id,
+          sameCaseId: caseId === after?.caseId,
+          sameReason: reason === after?.reason.kind,
+          sampleTag: representative.tag,
+          sourceState: source.state,
+          targetState: target.state,
+        });
       }
     }
   }
@@ -101,8 +105,8 @@ export const reviewModelData: ModelDataSource = async () => {
   const states = [...nodes.keys()];
   return tlaModule("PaymentReviewData", [
     `ReviewStates == ${tlaSet(states)}`,
-    `\\* @type: Set(<<Str, Bool, Bool, Str>>);\nReviewNodes == ${tlaTuples([...nodes.values()])}`,
-    `\\* @type: Set(<<Str, Str, Str, Bool>>);\nReviewEvents == ${tlaTuples(events)}`,
-    `\\* @type: Set(<<Str, Str, Str, Str, Bool, Bool, Bool>>);\nReviewAttempts == ${tlaTuples(attempts)}`,
+    tlaRecords("ReviewNodes", nodeFields, [...nodes.values()]),
+    tlaRecords("ReviewEvents", eventFields, events),
+    tlaRecords("ReviewAttempts", reviewAttemptFields, attempts),
   ]);
 };

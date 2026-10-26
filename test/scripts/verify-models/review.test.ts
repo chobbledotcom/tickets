@@ -12,6 +12,7 @@ import {
 } from "#payment/review-machine-spec.ts";
 import { reviewModelData } from "#scripts/verify-models/review.ts";
 import { requireValue } from "#shared/required-value.ts";
+import { records } from "#test-utils/tla-data.ts";
 
 /* jscpd:ignore-end */
 
@@ -27,32 +28,68 @@ describe("payment review checker data", () => {
   test("keeps the absent slot and reason-refined open and seen facts", async () => {
     const data = await reviewModelData();
 
-    expect(data).toContain('<<"none", FALSE, FALSE, "">>');
+    const nodes = records(data, "ReviewNodes");
+    const events = records(data, "ReviewEvents");
+    expect(nodes).toContainEqual({
+      held: false,
+      reason: "",
+      seen: false,
+      state: "none",
+    });
     for (const reason of reasons) {
-      expect(data).toContain(`<<"open(${reason})", TRUE, FALSE, "${reason}">>`);
-      expect(data).toContain(`<<"seen(${reason})", TRUE, TRUE, "${reason}">>`);
-      expect(data).toContain(
-        `<<"open_${reason}", "open", "${reason}", FALSE>>`,
-      );
-      expect(data).toContain(
-        `<<"retire_${reason}", "retire", "${reason}", FALSE>>`,
-      );
+      expect(nodes).toContainEqual({
+        held: true,
+        reason,
+        seen: false,
+        state: `open(${reason})`,
+      });
+      expect(nodes).toContainEqual({
+        held: true,
+        reason,
+        seen: true,
+        state: `seen(${reason})`,
+      });
+      for (const action of ["open", "retire"]) {
+        expect(events).toContainEqual({
+          action,
+          eventId: `${action}_${reason}`,
+          movesMoney: false,
+          reason,
+        });
+      }
     }
-    expect(data).toContain('<<"acknowledge", "acknowledge", "", FALSE>>');
+    expect(events).toContainEqual({
+      action: "acknowledge",
+      eventId: "acknowledge",
+      movesMoney: false,
+      reason: "",
+    });
   });
 
   test("records new cases and refused reopening without losing attempts", async () => {
     const data = await reviewModelData();
 
     for (const reason of reasons) {
-      expect(data).toContain(
-        `<<"none", "open_${reason}", "open(${reason})", "empty", TRUE, FALSE, FALSE>>`,
-      );
+      expect(records(data, "ReviewAttempts")).toContainEqual({
+        accepted: true,
+        eventId: `open_${reason}`,
+        sameCaseId: false,
+        sameReason: false,
+        sampleTag: "empty",
+        sourceState: "none",
+        targetState: `open(${reason})`,
+      });
       for (const source of ["open", "seen"]) {
         for (const heldReason of reasons) {
-          expect(data).toContain(
-            `<<"${source}(${heldReason})", "open_${reason}", "${source}(${heldReason})", "${heldReason}", FALSE, TRUE, TRUE>>`,
-          );
+          expect(records(data, "ReviewAttempts")).toContainEqual({
+            accepted: false,
+            eventId: `open_${reason}`,
+            sameCaseId: true,
+            sameReason: true,
+            sampleTag: heldReason,
+            sourceState: `${source}(${heldReason})`,
+            targetState: `${source}(${heldReason})`,
+          });
         }
       }
     }
@@ -61,16 +98,35 @@ describe("payment review checker data", () => {
   test("acknowledgement preserves the actual case and reason and refuses absent or seen cases", async () => {
     const data = await reviewModelData();
 
-    expect(data).toContain(
-      '<<"none", "acknowledge", "none", "empty", FALSE, TRUE, TRUE>>',
-    );
+    const attempts = records(data, "ReviewAttempts");
+    expect(attempts).toContainEqual({
+      accepted: false,
+      eventId: "acknowledge",
+      sameCaseId: true,
+      sameReason: true,
+      sampleTag: "empty",
+      sourceState: "none",
+      targetState: "none",
+    });
     for (const reason of reasons) {
-      expect(data).toContain(
-        `<<"open(${reason})", "acknowledge", "seen(${reason})", "${reason}", TRUE, TRUE, TRUE>>`,
-      );
-      expect(data).toContain(
-        `<<"seen(${reason})", "acknowledge", "seen(${reason})", "${reason}", FALSE, TRUE, TRUE>>`,
-      );
+      expect(attempts).toContainEqual({
+        accepted: true,
+        eventId: "acknowledge",
+        sameCaseId: true,
+        sameReason: true,
+        sampleTag: reason,
+        sourceState: `open(${reason})`,
+        targetState: `seen(${reason})`,
+      });
+      expect(attempts).toContainEqual({
+        accepted: false,
+        eventId: "acknowledge",
+        sameCaseId: true,
+        sameReason: true,
+        sampleTag: reason,
+        sourceState: `seen(${reason})`,
+        targetState: `seen(${reason})`,
+      });
     }
   });
 
@@ -78,17 +134,36 @@ describe("payment review checker data", () => {
     const data = await reviewModelData();
 
     for (const reason of reasons) {
-      expect(data).toContain(
-        `<<"none", "retire_${reason}", "none", "empty", FALSE, TRUE, TRUE>>`,
-      );
+      const attempts = records(data, "ReviewAttempts");
+      expect(attempts).toContainEqual({
+        accepted: false,
+        eventId: `retire_${reason}`,
+        sameCaseId: true,
+        sameReason: true,
+        sampleTag: "empty",
+        sourceState: "none",
+        targetState: "none",
+      });
       for (const source of ["open", "seen"]) {
-        expect(data).toContain(
-          `<<"${source}(${reason})", "retire_${reason}", "none", "${reason}", TRUE, FALSE, FALSE>>`,
-        );
+        expect(attempts).toContainEqual({
+          accepted: true,
+          eventId: `retire_${reason}`,
+          sameCaseId: false,
+          sameReason: false,
+          sampleTag: reason,
+          sourceState: `${source}(${reason})`,
+          targetState: "none",
+        });
         const wrongReason = reasons.find((other) => other !== reason);
-        expect(data).toContain(
-          `<<"${source}(${wrongReason})", "retire_${reason}", "${source}(${wrongReason})", "${wrongReason}", FALSE, TRUE, TRUE>>`,
-        );
+        expect(attempts).toContainEqual({
+          accepted: false,
+          eventId: `retire_${reason}`,
+          sameCaseId: true,
+          sameReason: true,
+          sampleTag: wrongReason,
+          sourceState: `${source}(${wrongReason})`,
+          targetState: `${source}(${wrongReason})`,
+        });
       }
     }
   });
@@ -102,9 +177,15 @@ describe("payment review checker data", () => {
     const data = await reviewModelData();
 
     for (const reason of reasons) {
-      expect(data).toContain(
-        `<<"open(${reason})", "acknowledge", "open(${reason})", "${reason}", TRUE, FALSE, TRUE>>`,
-      );
+      expect(records(data, "ReviewAttempts")).toContainEqual({
+        accepted: true,
+        eventId: "acknowledge",
+        sameCaseId: false,
+        sameReason: true,
+        sampleTag: reason,
+        sourceState: `open(${reason})`,
+        targetState: `open(${reason})`,
+      });
     }
   });
 
@@ -129,12 +210,24 @@ describe("payment review checker data", () => {
     );
     const data = await reviewModelData();
 
-    expect(data).toContain(
-      '<<"open(shared_reference)", "acknowledge", "seen(partially_returned_obligation)", "shared_reference", TRUE, TRUE, FALSE>>',
-    );
-    expect(data).toContain(
-      '<<"open(partially_returned_obligation)", "acknowledge", "seen(shared_reference)", "partially_returned_obligation", TRUE, TRUE, FALSE>>',
-    );
+    expect(records(data, "ReviewAttempts")).toContainEqual({
+      accepted: true,
+      eventId: "acknowledge",
+      sameCaseId: true,
+      sameReason: false,
+      sampleTag: "shared_reference",
+      sourceState: "open(shared_reference)",
+      targetState: "seen(partially_returned_obligation)",
+    });
+    expect(records(data, "ReviewAttempts")).toContainEqual({
+      accepted: true,
+      eventId: "acknowledge",
+      sameCaseId: true,
+      sameReason: false,
+      sampleTag: "partially_returned_obligation",
+      sourceState: "open(partially_returned_obligation)",
+      targetState: "seen(shared_reference)",
+    });
   });
 
   test("carries declared money metadata for every action instead of supplying a constant", async () => {
@@ -144,14 +237,22 @@ describe("payment review checker data", () => {
         Object.defineProperty(event, "movesMoney", { value: true });
       }
       const data = await reviewModelData();
-      expect(data).toContain('<<"acknowledge", "acknowledge", "", TRUE>>');
+      const events = records(data, "ReviewEvents");
+      expect(events).toContainEqual({
+        action: "acknowledge",
+        eventId: "acknowledge",
+        movesMoney: true,
+        reason: "",
+      });
       for (const reason of reasons) {
-        expect(data).toContain(
-          `<<"open_${reason}", "open", "${reason}", TRUE>>`,
-        );
-        expect(data).toContain(
-          `<<"retire_${reason}", "retire", "${reason}", TRUE>>`,
-        );
+        for (const action of ["open", "retire"]) {
+          expect(events).toContainEqual({
+            action,
+            eventId: `${action}_${reason}`,
+            movesMoney: true,
+            reason,
+          });
+        }
       }
     } finally {
       for (const [index, event] of REVIEW_EVENTS.entries()) {

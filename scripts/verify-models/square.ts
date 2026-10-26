@@ -7,12 +7,17 @@ import {
   LINK_END_NODES,
   SquareLinkEndStateSchema,
 } from "#payment/square-link-end-machine-spec.ts";
-import { collectMachineFacts } from "#scripts/verify-models/attempt.ts";
 import {
+  collectMachineFacts,
+  representativeFields,
+} from "#scripts/verify-models/attempt.ts";
+import {
+  attemptFields,
   type ModelDataSource,
+  type TlaFact,
   tlaModule,
+  tlaRecords,
   tlaSet,
-  tlaTuples,
 } from "#scripts/verify-models/data.ts";
 import type { FetchResult } from "#shared/fetch.ts";
 import { WEBHOOK_RETRY_WINDOW_DAYS } from "#shared/limits.ts";
@@ -26,142 +31,177 @@ import { squareLinkEndEventOf } from "#shared/square/link-end.ts";
 
 /* jscpd:ignore-end */
 
-type RepresentativeFact = readonly [state: string];
-type AttemptFact = readonly [
-  source: string,
-  event: string,
-  target: string,
-  tag: string,
-  accepted: boolean,
-];
-type ReplyWitness = readonly [
-  label: string,
-  evidence: "none" | "cancelled" | "missing" | "paid",
-  status: number,
-  text: string,
-];
+const linkRepresentativeFields = {
+  ...representativeFields,
+  storedState: "Str",
+} as const;
+const eventFields = {
+  eventId: "Str",
+  kind: "Str",
+  movesMoney: "Bool",
+} as const;
+const replyFields = {
+  eventId: "Str",
+  expectedEvidence: "Str",
+  sampleTag: "Str",
+} as const;
+const ageFields = {
+  ageState: "Str",
+  mayPay: "Bool",
+  prunable: "Bool",
+  requiredMarginElapsed: "Bool",
+} as const;
+const ageMoveFields = { sourceAge: "Str", targetAge: "Str" } as const;
 
-// These are provider-contract witnesses, not expectations derived from the
-// classifier's event names. The observed event remains separate in ReplyFacts.
+type ReplyWitness = {
+  sampleTag: string;
+  expectedEvidence: "none" | "cancelled" | "missing" | "paid";
+  status: number;
+  text: string;
+};
+
+// Expected provider evidence must not be derived from the classifier's answer.
 const replyWitnesses: readonly ReplyWitness[] = [
-  ["cancelled", "cancelled", 200, '{"cancelled_order_id":"order"}'],
-  ["missing", "missing", 404, '{"errors":[]}'],
-  [
-    "completed",
-    "paid",
-    400,
-    '{"errors":[{"code":"BAD_REQUEST","detail":"Order is COMPLETED and cannot be canceled"}]}',
-  ],
-  [
-    "paid",
-    "paid",
-    409,
-    '{"errors":[{"code":"ORDER_NOT_OPEN","detail":"Order has a PAID payment"}]}',
-  ],
-  ["success_without_id", "none", 200, '{"id":"link"}'],
-  ["unreadable", "none", 200, "not json"],
-  [
-    "unpaid",
-    "none",
-    400,
-    '{"errors":[{"code":"BAD_REQUEST","detail":"Order is UNPAID and cannot be canceled"}]}',
-  ],
-  [
-    "unrelated_failure",
-    "none",
-    400,
-    '{"errors":[{"code":"INVALID_VALUE","detail":"The field is wrong"}]}',
-  ],
+  {
+    expectedEvidence: "cancelled",
+    sampleTag: "cancelled",
+    status: 200,
+    text: '{"cancelled_order_id":"order"}',
+  },
+  {
+    expectedEvidence: "missing",
+    sampleTag: "missing",
+    status: 404,
+    text: '{"errors":[]}',
+  },
+  {
+    expectedEvidence: "paid",
+    sampleTag: "completed",
+    status: 400,
+    text: '{"errors":[{"code":"BAD_REQUEST","detail":"Order is COMPLETED and cannot be canceled"}]}',
+  },
+  {
+    expectedEvidence: "paid",
+    sampleTag: "paid",
+    status: 409,
+    text: '{"errors":[{"code":"ORDER_NOT_OPEN","detail":"Order has a PAID payment"}]}',
+  },
+  {
+    expectedEvidence: "none",
+    sampleTag: "success_without_id",
+    status: 200,
+    text: '{"id":"link"}',
+  },
+  {
+    expectedEvidence: "none",
+    sampleTag: "unreadable",
+    status: 200,
+    text: "not json",
+  },
+  {
+    expectedEvidence: "none",
+    sampleTag: "unpaid",
+    status: 400,
+    text: '{"errors":[{"code":"BAD_REQUEST","detail":"Order is UNPAID and cannot be canceled"}]}',
+  },
+  {
+    expectedEvidence: "none",
+    sampleTag: "unrelated_failure",
+    status: 400,
+    text: '{"errors":[{"code":"INVALID_VALUE","detail":"The field is wrong"}]}',
+  },
 ];
 const declared = movesIn(LINK_END_MOVES);
 
-/** A failed declared move is not a refusal. Clone each input so a changed
- * argument cannot erase the source evidence. */
 export const squareModelData: ModelDataSource = async () => {
   const facts = collectMachineFacts(
     LINK_END_NODES,
     LINK_END_EVENTS,
     declared,
-    (state): RepresentativeFact => [state.state],
-    (representative, event, target): AttemptFact => [
-      representative.state.state,
-      event.id,
-      target === null ? representative.state.state : target.state,
-      representative.tag,
-      target !== null,
-    ],
+    (state) => ({ storedState: state.state }),
+    (representative, event, target): TlaFact<typeof attemptFields> => ({
+      accepted: target !== null,
+      eventId: event.id,
+      sampleTag: representative.tag,
+      sourceState: representative.state.state,
+      targetState: target === null ? representative.state.state : target.state,
+    }),
   );
   const replyFacts = map(
-    ([label, evidence, status, text]: ReplyWitness): readonly [
-      string,
-      string,
-      string,
-    ] => {
+    (witness: ReplyWitness): TlaFact<typeof replyFields> => {
       const answer: FetchResult = {
         headers: new Headers(),
-        ok: status >= 200 && status < 300,
-        status,
-        text,
+        ok: witness.status >= 200 && witness.status < 300,
+        status: witness.status,
+        text: witness.text,
       };
-      return [label, evidence, squareLinkEndEventOf(answer)];
+      return {
+        eventId: squareLinkEndEventOf(answer),
+        expectedEvidence: witness.expectedEvidence,
+        sampleTag: witness.sampleTag,
+      };
     },
   )(replyWitnesses);
 
-  // Keep the expected margin independent. An unsafe retention change must not
-  // redefine the property that checks it.
+  // The required margin is independent of the actual retention cutoff.
   const expectedMargin =
     SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS;
-  const ages: readonly (readonly [string, number])[] = [
-    ["zero", 0],
-    ["native_before", SQUARE_NATIVE_LIFETIME_MS - 1],
-    ["native_at", SQUARE_NATIVE_LIFETIME_MS],
-    ["native_after", SQUARE_NATIVE_LIFETIME_MS + 1],
-    ["retention_before", SQUARE_LINK_RETENTION_MS - 1],
-    ["retention_at", SQUARE_LINK_RETENTION_MS],
-    ["retention_after", SQUARE_LINK_RETENTION_MS + 1],
-    ["margin_before", expectedMargin - 1],
-    ["margin_at", expectedMargin],
-    ["margin_after", expectedMargin + 1],
+  const ages = [
+    { ageState: "zero", milliseconds: 0 },
+    { ageState: "native_before", milliseconds: SQUARE_NATIVE_LIFETIME_MS - 1 },
+    { ageState: "native_at", milliseconds: SQUARE_NATIVE_LIFETIME_MS },
+    { ageState: "native_after", milliseconds: SQUARE_NATIVE_LIFETIME_MS + 1 },
+    {
+      ageState: "retention_before",
+      milliseconds: SQUARE_LINK_RETENTION_MS - 1,
+    },
+    { ageState: "retention_at", milliseconds: SQUARE_LINK_RETENTION_MS },
+    { ageState: "retention_after", milliseconds: SQUARE_LINK_RETENTION_MS + 1 },
+    { ageState: "margin_before", milliseconds: expectedMargin - 1 },
+    { ageState: "margin_at", milliseconds: expectedMargin },
+    { ageState: "margin_after", milliseconds: expectedMargin + 1 },
   ];
   const ageFacts = map(
-    ([label, age]: readonly [string, number]): readonly [
-      string,
-      boolean,
-      boolean,
-      boolean,
-    ] => [
-      label,
-      age < SQUARE_NATIVE_LIFETIME_MS,
-      age > SQUARE_LINK_RETENTION_MS,
-      age > expectedMargin,
-    ],
+    (age: (typeof ages)[number]): TlaFact<typeof ageFields> => ({
+      ageState: age.ageState,
+      mayPay: age.milliseconds < SQUARE_NATIVE_LIFETIME_MS,
+      prunable: age.milliseconds > SQUARE_LINK_RETENTION_MS,
+      requiredMarginElapsed: age.milliseconds > expectedMargin,
+    }),
   )(ages);
-  const ageMoves: (readonly [string, string])[] = [];
-  for (const [source, fromAge] of ages) {
-    for (const [target, toAge] of ages) {
-      if (fromAge <= toAge) ageMoves.push([source, target]);
+  const ageMoves: TlaFact<typeof ageMoveFields>[] = [];
+  for (const source of ages) {
+    for (const target of ages) {
+      if (source.milliseconds <= target.milliseconds) {
+        ageMoves.push({
+          sourceAge: source.ageState,
+          targetAge: target.ageState,
+        });
+      }
     }
   }
   const events = map(
-    (
-      event: (typeof LINK_END_EVENTS)[number],
-    ): readonly [string, string, boolean] => [
-      event.id,
-      event.kind,
-      event.movesMoney,
-    ],
+    (event: (typeof LINK_END_EVENTS)[number]): TlaFact<typeof eventFields> => ({
+      eventId: event.id,
+      kind: event.kind,
+      movesMoney: event.movesMoney,
+    }),
   )(LINK_END_EVENTS);
   return tlaModule("SquareLinkEndData", [
     `LinkStates == ${tlaSet(map((node: (typeof LINK_END_NODES)[number]) => node.id)(LINK_END_NODES))}`,
     `HandleStates == ${tlaSet(SquareLinkEndStateSchema.options)}`,
     `CheckableStates == ${tlaSet(LINK_END_CHECKABLE_NODES)}`,
-    `\\* @type: Set(<<Str, Str, Str>>);\nLinkRepresentatives == ${tlaTuples(facts.representatives)}`,
-    `\\* @type: Set(<<Str, Str, Bool>>);\nLinkEvents == ${tlaTuples(events)}`,
-    `\\* @type: Set(<<Str, Str, Str, Str, Bool>>);\nLinkAttempts == ${tlaTuples(facts.attempts)}`,
-    `\\* @type: Set(<<Str, Str, Str>>);\nReplyFacts == ${tlaTuples(replyFacts)}`,
-    `AgeStates == ${tlaSet(map(([label]: readonly [string, number]) => label)(ages))}`,
+    tlaRecords(
+      "LinkRepresentatives",
+      linkRepresentativeFields,
+      facts.representatives,
+    ),
+    tlaRecords("LinkEvents", eventFields, events),
+    tlaRecords("LinkAttempts", attemptFields, facts.attempts),
+    tlaRecords("ReplyFacts", replyFields, replyFacts),
+    `AgeStates == ${tlaSet(map((age: (typeof ages)[number]) => age.ageState)(ages))}`,
     'AgeStart == "zero"',
-    `\\* @type: Set(<<Str, Bool, Bool, Bool>>);\nAgeFacts == ${tlaTuples(ageFacts)}`,
-    `\\* @type: Set(<<Str, Str>>);\nAgeMoves == ${tlaTuples(ageMoves)}`,
+    tlaRecords("AgeFacts", ageFields, ageFacts),
+    tlaRecords("AgeMoves", ageMoveFields, ageMoves),
   ]);
 };

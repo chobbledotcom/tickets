@@ -10,6 +10,7 @@ import { REFUND_EVENTS } from "#payment/refund-machine-spec.ts";
 import { ROW_NODES } from "#payment/row-machine-spec.ts";
 import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
 import { requireValue } from "#shared/required-value.ts";
+import { records } from "#test-utils/tla-data.ts";
 
 /* jscpd:ignore-end */
 
@@ -79,16 +80,14 @@ describe("payment proof data", () => {
   test("emits an unsafe send as a false fact instead of dropping its edge", async () => {
     using _arm = changeArm((before) => before);
     const model = await paymentModel();
-    expect(model.authorityMoves).toContainEqual([
-      "ready",
-      "arm",
-      "ready",
-      false,
-      true,
-    ]);
-    expect(modelData(model)).toContain(
-      '<<"ready", "arm", "ready", FALSE, TRUE>>',
-    );
+    const unsafeMove = {
+      armed: false,
+      eventId: "arm",
+      requestKept: true,
+      sourceState: "ready",
+      targetState: "ready",
+    };
+    expect(records(modelData(model), "AuthMoves")).toContainEqual(unsafeMove);
   });
 
   for (const [field, change] of changedRequests) {
@@ -98,16 +97,14 @@ describe("payment proof data", () => {
         request: change(after.request),
       }));
       const model = await paymentModel();
-      expect(model.authorityMoves).toContainEqual([
-        "ready",
-        "arm",
-        "send_armed",
-        true,
-        false,
-      ]);
-      expect(modelData(model)).toContain(
-        '<<"ready", "arm", "send_armed", TRUE, FALSE>>',
-      );
+      const unsafeMove = {
+        armed: true,
+        eventId: "arm",
+        requestKept: false,
+        sourceState: "ready",
+        targetState: "send_armed",
+      };
+      expect(records(modelData(model), "AuthMoves")).toContainEqual(unsafeMove);
     });
   }
 });

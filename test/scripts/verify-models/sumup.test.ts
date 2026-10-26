@@ -10,20 +10,40 @@ import {
 } from "#payment/sumup-recovery-machine-spec.ts";
 import { sumupModelData } from "#scripts/verify-models/sumup.ts";
 import { requireValue } from "#shared/required-value.ts";
-import { members, tuples } from "#test-utils/tla-data.ts";
+import { members, records } from "#test-utils/tla-data.ts";
 
 /* jscpd:ignore-end */
 
 describe("SumUp recovery checker data", () => {
   test("keeps paid evidence separate from money that can be pruned", async () => {
     const data = await sumupModelData();
-    const facts = tuples(data, "RecoveryNodeFacts");
+    const facts = records(data, "RecoveryNodeFacts");
 
-    expect(facts).toContainEqual(["owed", "yes", false]);
-    expect(facts).toContainEqual(["waiting", "unknown", false]);
-    expect(facts).toContainEqual(["finished", "no", true]);
-    expect(facts).toContainEqual(["unpaid", "no", true]);
-    expect(facts).toContainEqual(["staged", "no", true]);
+    expect(facts).toContainEqual({
+      moneyOwed: "yes",
+      prunable: false,
+      state: "owed",
+    });
+    expect(facts).toContainEqual({
+      moneyOwed: "unknown",
+      prunable: false,
+      state: "waiting",
+    });
+    expect(facts).toContainEqual({
+      moneyOwed: "no",
+      prunable: true,
+      state: "finished",
+    });
+    expect(facts).toContainEqual({
+      moneyOwed: "no",
+      prunable: true,
+      state: "unpaid",
+    });
+    expect(facts).toContainEqual({
+      moneyOwed: "no",
+      prunable: true,
+      state: "staged",
+    });
     expect(members(data, "PrunableStates")).toEqual(
       expect.arrayContaining(["staged", "unpaid", "finished"]),
     );
@@ -33,67 +53,63 @@ describe("SumUp recovery checker data", () => {
     expect(members(data, "PrunableStates")).not.toEqual(
       expect.arrayContaining(["waiting"]),
     );
-    expect(data).toMatch(/\bTRUE\b/);
-    expect(data).toMatch(/\bFALSE\b/);
-    expect(data).not.toMatch(/\b(?:true|false)\b/);
   });
 
   test("carries checkout id presence and reader agreement into live moves", async () => {
     const data = await sumupModelData();
-    const representatives = tuples(data, "RecoveryRepresentatives");
-    const moves = tuples(data, "RecoveryMoves");
+    const representatives = records(data, "RecoveryRepresentatives");
+    const moves = records(data, "RecoveryMoves");
 
-    expect(data).toContain('NoCheckoutIdState == "staged"');
-    expect(representatives).toContainEqual([
-      "staged",
-      "no_checkout_id",
-      "staged",
-      false,
-      true,
-    ]);
-    expect(representatives).toContainEqual([
-      "waiting",
-      "live_checkout",
-      "waiting",
-      true,
-      true,
-    ]);
-    expect(moves).toContainEqual([
-      "staged",
-      "no_checkout_id",
-      false,
-      "checkout_created",
-      "waiting",
-      true,
-      true,
-    ]);
-    expect(moves).toContainEqual([
-      "waiting",
-      "live_checkout",
-      true,
-      "read_paid_settled",
-      "finished",
-      true,
-      true,
-    ]);
-    expect(moves).toContainEqual([
-      "waiting",
-      "live_checkout",
-      true,
-      "read_paid_unsettled",
-      "owed",
-      true,
-      true,
-    ]);
-    expect(moves).toContainEqual([
-      "waiting",
-      "live_checkout",
-      true,
-      "read_paid_unreadable",
-      "waiting",
-      true,
-      true,
-    ]);
+    expect(representatives).toContainEqual({
+      checkoutIdAgrees: true,
+      declaredState: "staged",
+      hasCheckoutId: false,
+      sampleTag: "no_checkout_id",
+      storedState: "staged",
+    });
+    expect(representatives).toContainEqual({
+      checkoutIdAgrees: true,
+      declaredState: "waiting",
+      hasCheckoutId: true,
+      sampleTag: "live_checkout",
+      storedState: "waiting",
+    });
+    expect(moves).toContainEqual({
+      eventId: "checkout_created",
+      sampleTag: "no_checkout_id",
+      sourceHasCheckoutId: false,
+      sourceState: "staged",
+      targetCheckoutIdAgrees: true,
+      targetHasCheckoutId: true,
+      targetState: "waiting",
+    });
+    expect(moves).toContainEqual({
+      eventId: "read_paid_settled",
+      sampleTag: "live_checkout",
+      sourceHasCheckoutId: true,
+      sourceState: "waiting",
+      targetCheckoutIdAgrees: true,
+      targetHasCheckoutId: true,
+      targetState: "finished",
+    });
+    expect(moves).toContainEqual({
+      eventId: "read_paid_unsettled",
+      sampleTag: "live_checkout",
+      sourceHasCheckoutId: true,
+      sourceState: "waiting",
+      targetCheckoutIdAgrees: true,
+      targetHasCheckoutId: true,
+      targetState: "owed",
+    });
+    expect(moves).toContainEqual({
+      eventId: "read_paid_unreadable",
+      sampleTag: "live_checkout",
+      sourceHasCheckoutId: true,
+      sourceState: "waiting",
+      targetCheckoutIdAgrees: true,
+      targetHasCheckoutId: true,
+      targetState: "waiting",
+    });
     expect(members(data, "RecoveryStates")).toEqual(
       expect.arrayContaining(["staged", "waiting", "owed", "finished"]),
     );
@@ -124,29 +140,30 @@ describe("SumUp recovery checker data", () => {
   });
 
   test("omits refusals and continues through later representatives and events", async () => {
-    const moves = tuples(await sumupModelData(), "RecoveryMoves");
-    expect(moves.some(([source]) => source === "finished")).toBe(false);
-    expect(moves.some(([source]) => source === "unpaid")).toBe(false);
+    const moves = records(await sumupModelData(), "RecoveryMoves");
+    expect(moves.some((move) => move.sourceState === "finished")).toBe(false);
+    expect(moves.some((move) => move.sourceState === "unpaid")).toBe(false);
     expect(
       moves.some(
-        ([source, , , event]) =>
-          source === "staged" && event === "read_pending",
+        (move) =>
+          move.sourceState === "staged" && move.eventId === "read_pending",
       ),
     ).toBe(false);
     expect(
       moves.some(
-        ([source, , , event]) => source === "owed" && event === "read_pending",
+        (move) =>
+          move.sourceState === "owed" && move.eventId === "read_pending",
       ),
     ).toBe(false);
-    expect(moves).toContainEqual([
-      "owed",
-      "unaccounted_for",
-      true,
-      "read_unavailable",
-      "owed",
-      true,
-      true,
-    ]);
+    expect(moves).toContainEqual({
+      eventId: "read_unavailable",
+      sampleTag: "unaccounted_for",
+      sourceHasCheckoutId: true,
+      sourceState: "owed",
+      targetCheckoutIdAgrees: true,
+      targetHasCheckoutId: true,
+      targetState: "owed",
+    });
   });
 
   test("preserves a checkout-id-free output from an allowed live transition", async () => {
@@ -160,15 +177,15 @@ describe("SumUp recovery checker data", () => {
       value: "staged",
     });
     try {
-      expect(tuples(await sumupModelData(), "RecoveryMoves")).toContainEqual([
-        "staged",
-        "no_checkout_id",
-        false,
-        "read_pending",
-        "staged",
-        false,
-        true,
-      ]);
+      expect(records(await sumupModelData(), "RecoveryMoves")).toContainEqual({
+        eventId: "read_pending",
+        sampleTag: "no_checkout_id",
+        sourceHasCheckoutId: false,
+        sourceState: "staged",
+        targetCheckoutIdAgrees: true,
+        targetHasCheckoutId: false,
+        targetState: "staged",
+      });
     } finally {
       if (original) {
         Object.defineProperty(RECOVERY_MOVES.staged, "read_pending", original);
@@ -190,8 +207,14 @@ describe("SumUp recovery checker data", () => {
     Object.defineProperty(row, "sumupId", { ...original, value: "" });
     try {
       expect(
-        tuples(await sumupModelData(), "RecoveryRepresentatives"),
-      ).toContainEqual(["finished", "accounted_for", "finished", false, false]);
+        records(await sumupModelData(), "RecoveryRepresentatives"),
+      ).toContainEqual({
+        checkoutIdAgrees: false,
+        declaredState: "finished",
+        hasCheckoutId: false,
+        sampleTag: "accounted_for",
+        storedState: "finished",
+      });
     } finally {
       Object.defineProperty(row, "sumupId", original);
     }

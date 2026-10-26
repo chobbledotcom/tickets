@@ -1,4 +1,23 @@
-export type TlaAtom = string | boolean;
+type TlaAtom = string | boolean;
+
+export type TlaRecord = Readonly<Record<string, TlaAtom>>;
+type TlaRecordSchema = Readonly<Record<string, "Str" | "Bool">>;
+type FieldValues = { Str: string; Bool: boolean };
+export type TlaFact<Schema extends TlaRecordSchema> = {
+  readonly [Field in keyof Schema]: FieldValues[Schema[Field]];
+};
+
+export const moveFields = {
+  eventId: "Str",
+  sourceState: "Str",
+  targetState: "Str",
+} as const;
+
+export const attemptFields = {
+  ...moveFields,
+  accepted: "Bool",
+  sampleTag: "Str",
+} as const;
 
 export type ModelDataSource = () => Promise<string>;
 
@@ -12,8 +31,23 @@ const atom = (value: TlaAtom): string =>
 export const tlaSet = (values: readonly string[]): string =>
   `{${values.map(atom).join(", ")}}`;
 
-export const tlaTuples = (rows: readonly (readonly TlaAtom[])[]): string =>
-  `{\n${rows.map((row) => `  <<${row.map(atom).join(", ")}>>`).join(",\n")}\n}`;
+const record = (value: TlaRecord): string =>
+  `[${Object.entries(value)
+    .map(([field, value]) => `${field} |-> ${atom(value)}`)
+    .join(", ")}]`;
+
+/** One field declaration supplies both the fact type and the checker type. */
+export const tlaRecords = <const Schema extends TlaRecordSchema>(
+  name: string,
+  schema: Schema,
+  values: readonly TlaFact<Schema>[],
+): string => {
+  const fields = Object.entries(schema)
+    .map(([field, type]) => `${field}: ${type}`)
+    .join(", ");
+  const alias = `${name.charAt(0).toLowerCase()}${name.slice(1)}Fact`;
+  return `\\* @typeAlias: ${alias} = { ${fields} };\n\\* @type: Set($${alias});\n${name} == {\n${values.map(record).join(",\n")}\n}`;
+};
 
 export const tlaModule = (
   name: string,

@@ -15,13 +15,24 @@ import {
   currentContracts,
   type DumpedMachine,
 } from "#scripts/contract-drift/dump.ts";
-import { tlaModule, tlaSet, tlaTuples } from "#scripts/verify-models/data.ts";
+import {
+  moveFields,
+  type TlaFact,
+  tlaModule,
+  tlaRecords,
+  tlaSet,
+} from "#scripts/verify-models/data.ts";
 import { attemptTransition } from "#shared/schema-atlas/types.ts";
 
 /* jscpd:ignore-end */
 
-type Move = readonly [source: string, event: string, target: string];
-type AuthorityMove = readonly [...Move, armed: boolean, requestKept: boolean];
+const authorityMoveFields = {
+  ...moveFields,
+  armed: "Bool",
+  requestKept: "Bool",
+} as const;
+type Move = TlaFact<typeof moveFields>;
+type AuthorityMove = TlaFact<typeof authorityMoveFields>;
 
 export interface PaymentModel {
   readonly authorityMoves: readonly AuthorityMove[];
@@ -36,7 +47,13 @@ export interface PaymentModel {
 
 const movesOf = (machine: DumpedMachine): Move[] =>
   Object.entries(machine.edges).flatMap(([source, edges]) =>
-    edges.map((edge): Move => [source, edge.event, edge.to]),
+    edges.map(
+      (edge): Move => ({
+        eventId: edge.event,
+        sourceState: source,
+        targetState: edge.to,
+      }),
+    ),
   );
 
 const sameRequest = (
@@ -58,20 +75,27 @@ const appendRefundMoves = (
   for (const event of REFUND_EVENTS) {
     const next = attemptTransition(event.run, state);
     if (next === null) continue;
-    authorityMoves.push([
-      node,
-      event.id,
-      refundNodeOf(next),
-      !event.movesMoney || next.kind === "send_armed",
-      !event.movesMoney || sameRequest(state.request, next.request),
-    ]);
+    authorityMoves.push({
+      armed: !event.movesMoney || next.kind === "send_armed",
+      eventId: event.id,
+      requestKept:
+        !event.movesMoney || sameRequest(state.request, next.request),
+      sourceState: node,
+      targetState: refundNodeOf(next),
+    });
     if (event.movesMoney) sendAuthorityNames.push(next.kind);
   }
 };
 
 const refundMoves = (start: string) => {
   const authorityMoves: AuthorityMove[] = [
-    ["absent", "charge_created", start, true, true],
+    {
+      armed: true,
+      eventId: "charge_created",
+      requestKept: true,
+      sourceState: "absent",
+      targetState: start,
+    },
   ];
   const sendAuthorityNames: string[] = [];
   for (const node of REFUND_NODES) {
@@ -122,6 +146,6 @@ export const modelData = (model: PaymentModel): string =>
     `AuthorityStates == ${tlaSet(model.authorityStates)}`,
     `ClaimedRows == ${tlaSet(model.claimedRows)}`,
     `RowStart == ${JSON.stringify(model.rowStart)}`,
-    `\\* @type: Set(<<Str, Str, Str>>);\nRowMoves == ${tlaTuples(model.rowMoves)}`,
-    `\\* @type: Set(<<Str, Str, Str, Bool, Bool>>);\nAuthMoves == ${tlaTuples(model.authorityMoves)}`,
+    tlaRecords("RowMoves", moveFields, model.rowMoves),
+    tlaRecords("AuthMoves", authorityMoveFields, model.authorityMoves),
   ]);
