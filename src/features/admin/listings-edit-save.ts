@@ -17,6 +17,7 @@ import {
   type ListingAggregateValues,
   listingAggregates,
 } from "#db/listings/aggregates.ts";
+import type { AssignPlan } from "#db/listings/daily-switch.ts";
 import { t } from "#i18n";
 import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculation.ts";
 import {
@@ -101,6 +102,7 @@ export const handleListingEditSuccess = async (
   aggregateValues: ListingAggregateValues | null,
   formData: FormData,
   id: number,
+  assign?: AssignPlan,
 ): Promise<Response> => {
   if (aggregateValues) {
     await listingAggregates.update(id, aggregateValues);
@@ -109,12 +111,21 @@ export const handleListingEditSuccess = async (
     row,
     existing.duration_days,
   );
+  const movedNotice =
+    assign === undefined
+      ? ""
+      : t("listings_table.switch_daily_undated_given_suffix", {
+          count: assign.count,
+          date: assign.date,
+        });
   await logActivity(`Listing '${row.name}' updated`, row);
   return processUploadsAndRedirect(
     formData,
     id,
     entityReturnPath("/admin/listings", row.id),
-    t("listings_table.listing_updated", { warning: durationWarning }),
+    t("listings_table.listing_updated", {
+      warning: durationWarning + movedNotice,
+    }),
     existing.attachment_url,
   );
 };

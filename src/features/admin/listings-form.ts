@@ -15,6 +15,11 @@ import {
 } from "#db/groups/membership.ts";
 import { copyPackageMemberOverridesTx } from "#db/groups.ts";
 import { syncListingPrices } from "#db/listing-price-sync.ts";
+import {
+  type AssignPlan,
+  moveUndatedBookingsToDayTx,
+  wouldBeStaySpanDays,
+} from "#db/listings/daily-switch.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
@@ -38,6 +43,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import {
   generateUniqueListingSlug,
   keepDailyListingDate,
+  refuseUndatedListingSwitch,
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { defineResource } from "#shared/rest/resource.ts";
@@ -326,17 +332,39 @@ export const buildCreateListingResource = (form: FormParams) =>
 
 /** Build a per-request listings update resource (includes the slug field).
  * `stored` is the row the save must not clobber: a daily listing's hidden date
- * box submits empty, and that empty date keeps the stored one. */
+ * box submits empty, and that empty date keeps the stored one. `assign` is the
+ * confirmed switch move: date every undated booking, then let the save commit
+ * the type flip. Without it, a bare switch is refused while undated bookings
+ * remain. */
 export const buildUpdateListingResource = (
   form: FormParams,
   stored: ListingWithCount,
+  assign?: AssignPlan,
 ) =>
   defineResource({
     afterCommit: syncListingPrices,
-    afterWrite: writeListingJoins,
+    afterWrite:
+      assign === undefined
+        ? writeListingJoins
+        : async (tx, id, input) => {
+            await writeListingJoins(tx, id, input);
+            await moveUndatedBookingsToDayTx(
+              tx,
+              id,
+              stored.name,
+              assign.date,
+              wouldBeStaySpanDays(input),
+            );
+          },
     // The add-on reachability half of the save refuses inside the row write's
     // transaction, so two concurrent page-removing saves cannot both commit.
-    checkTx: listingSaveOrphanedAddOnTx,
+    // Without a confirmed move, a type switch that leaves undated bookings
+    // behind is refused here too. This is the backstop for a booking that
+    // landed between the form's count and this write.
+    checkTx:
+      assign === undefined
+        ? refuseUndatedListingSwitch
+        : listingSaveOrphanedAddOnTx,
     form: getListingEditForm(),
     table: listingsTable,
     toInput: async (values: ListingEditFormValues) => {

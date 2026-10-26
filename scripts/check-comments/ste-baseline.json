@@ -2622,10 +2622,10 @@
     "semicolon": 1
   },
   "src/ui/templates/admin/listings/types.ts": {
-    "banned-modal": 2,
-    "long-sentence": 1,
+    "banned-modal": 1,
     "contraction": 2,
-    "semicolon": 2
+    "semicolon": 2,
+    "long-sentence": 1
   },
   "src/ui/templates/admin/logistics.tsx": {
     "long-sentence": 1,

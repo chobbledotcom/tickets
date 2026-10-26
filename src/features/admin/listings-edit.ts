@@ -10,7 +10,10 @@ import { logActivity } from "#db/activity-log.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { anyHiddenPackageGroup, groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { adjustListingIncome } from "#db/listings/aggregates.ts";
+import {
+  adjustListingIncome,
+  type ListingAggregateValues,
+} from "#db/listings/aggregates.ts";
 import {
   getListingWithCount,
   getStoredListingWithCount,
@@ -47,6 +50,7 @@ import {
   isListingType,
   type ListingWithCount,
 } from "#types";
+import type { AuthSession } from "../auth.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { getListingAndGroups } from "./listing-page-data.ts";
 import {
@@ -61,6 +65,10 @@ import {
   parseListingForm,
 } from "./listings-form.ts";
 import { copyDuplicatedChildEdges } from "./listings-parents.ts";
+import {
+  planListingTypeSwitch,
+  renderListingSwitchAssignPage,
+} from "./listings-switch.ts";
 import { processUploadsAndRedirect } from "./listings-uploads.ts";
 import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 /* jscpd:ignore-end */
@@ -303,26 +311,71 @@ export const handleAdminListingEditPost: TypedRouteHandler<
       if (!aggregates.ok) {
         return renderListingEditError(id, session, form, aggregates.error);
       }
-
-      // Build a resource that includes the slug field. Uniqueness is enforced
-      // by validateListingInput when existingId is set.
-      const result = await buildUpdateListingResource(form, existing).update(
-        id,
-        form,
-      );
-      if (result.ok) {
-        return handleListingEditSuccess(
-          result.row,
-          existing,
-          aggregates.input,
-          formData,
-          id,
-        );
-      }
-      if ("notFound" in result) return notFoundResponse();
-      return renderListingEditError(id, session, form, result.error);
+      return saveListingEdit(existing, id, session, form, aggregates, formData);
     }),
   );
+
+/** The save path after the form parses: plan the type switch, save, and render
+ * the outcome. */
+const saveListingEdit = async (
+  existing: ListingWithCount,
+  id: number,
+  session: AuthSession,
+  form: ReturnType<typeof parseListingForm>,
+  aggregates: { input: ListingAggregateValues | null; ok: true },
+  formData: FormData,
+): Promise<Response> => {
+  // A switch to booked-by-the-day that leaves bookings without a day
+  // cannot save. The POST serves the assign page (nothing written), or
+  // carries the organiser's confirmed move into the save below.
+  const step = await planListingTypeSwitch(existing, form);
+  if (step.kind === "invalid") {
+    return renderListingEditError(id, session, form, step.error);
+  }
+  if (step.kind === "page") {
+    return renderListingSwitchAssignPage(
+      existing,
+      session,
+      form,
+      step.page,
+      step.error,
+      step.status,
+    );
+  }
+  const confirmed = step.kind === "assign" ? step : null;
+
+  // Build a resource that includes the slug field. Uniqueness is enforced
+  // by validateListingInput when existingId is set.
+  const result = await buildUpdateListingResource(
+    form,
+    existing,
+    confirmed?.plan,
+  ).update(id, form);
+  if (result.ok) {
+    return handleListingEditSuccess(
+      result.row,
+      existing,
+      aggregates.input,
+      formData,
+      id,
+      confirmed?.plan,
+    );
+  }
+  if ("notFound" in result) return notFoundResponse();
+  if (confirmed) {
+    // The organiser is mid-switch, not mid-edit: a refused move (or any
+    // save the move cannot fix) is the assign page's business.
+    return renderListingSwitchAssignPage(
+      existing,
+      session,
+      form,
+      confirmed.page,
+      result.error,
+      400,
+    );
+  }
+  return renderListingEditError(id, session, form, result.error);
+};
 
 /**
  * Handle POST /admin/listing/:id/income — post a manual `writeoff` adjustment so
