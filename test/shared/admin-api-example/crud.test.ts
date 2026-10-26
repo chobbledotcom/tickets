@@ -258,6 +258,7 @@ describe("documented admin CRUD endpoints", () => {
       ["attendees"],
       ["group"],
       ["holiday"],
+      ["status"],
       ["question"],
       ["page"],
     ]);
@@ -268,7 +269,7 @@ describe("documented admin CRUD endpoints", () => {
       (e: EndpointDoc) => e.method === "DELETE",
     );
 
-    expect(deletes.length).toBe(8);
+    expect(deletes.length).toBe(9);
     for (const endpoint of deletes) {
       expect(JSON.parse(endpoint.response)).toEqual({ status: "ok" });
     }

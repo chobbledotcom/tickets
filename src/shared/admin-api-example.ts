@@ -25,7 +25,10 @@ import type {
 } from "#routes/admin/api-listing-body.ts";
 import {
   ADMIN_API_RESOURCES,
+  type AdminApiAttendeeStatus,
+  type AdminApiCreateAttendeeStatusBody,
   type AdminApiOptionBody,
+  type AdminApiUpdateAttendeeStatusBody,
 } from "#shared/admin-api-resources.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
@@ -155,6 +158,38 @@ const ADMIN_API_HOLIDAY_UPDATE_BODY = {
 
 const ADMIN_API_HOLIDAY_DELETE_BODY = {
   confirm_identifier: "Christmas",
+} satisfies DeleteBody;
+
+// =============================================================================
+// Attendee-status examples (owner only)
+// =============================================================================
+
+/** Example status response: the seeded default every new site starts with. */
+const ADMIN_API_EXAMPLE_ATTENDEE_STATUS = {
+  id: 1,
+  is_paid_default: true,
+  is_public_default: true,
+  is_reservation: false,
+  name: "Confirmed",
+  reservation_amount: "0",
+} satisfies AdminApiAttendeeStatus;
+
+/** The create body a caller copies: a reservation the caller adds beside the
+ *  seeded default, with a deposit of a quarter of the total. */
+const ADMIN_API_ATTENDEE_STATUS_CREATE_BODY = {
+  is_paid_default: false,
+  is_public_default: false,
+  is_reservation: true,
+  name: "Reserved",
+  reservation_amount: "25%",
+} satisfies AdminApiCreateAttendeeStatusBody;
+
+const ADMIN_API_ATTENDEE_STATUS_UPDATE_BODY = {
+  name: "Reserved seat",
+} satisfies AdminApiUpdateAttendeeStatusBody;
+
+const ADMIN_API_ATTENDEE_STATUS_DELETE_BODY = {
+  confirm_identifier: "Reserved",
 } satisfies DeleteBody;
 
 // =============================================================================
@@ -397,6 +432,24 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     listResponse: { holidays: [ADMIN_API_EXAMPLE_HOLIDAY] },
     singular: "holiday",
     updateBody: ADMIN_API_HOLIDAY_UPDATE_BODY,
+  }),
+  ...crudDocs({
+    createBody: ADMIN_API_ATTENDEE_STATUS_CREATE_BODY,
+    deleteBody: ADMIN_API_ATTENDEE_STATUS_DELETE_BODY,
+    desc: [
+      "List all attendee statuses (owner only)",
+      "Get one attendee status by ID (owner only)",
+      "Create an attendee status (owner only)",
+      "Update an attendee status (owner only, all fields optional)",
+      "Delete an attendee status (owner only, requires name confirmation)",
+    ],
+    entry: ADMIN_API_RESOURCES["attendee-statuses"],
+    example: ADMIN_API_EXAMPLE_ATTENDEE_STATUS,
+    listResponse: {
+      "attendee-statuses": [ADMIN_API_EXAMPLE_ATTENDEE_STATUS],
+    },
+    singular: "status",
+    updateBody: ADMIN_API_ATTENDEE_STATUS_UPDATE_BODY,
   }),
   ...QUESTION_ENDPOINTS,
   ...SITE_PAGE_ENDPOINTS,
