@@ -33,22 +33,13 @@ import {
   createTestEditorSession,
   createTestManagerSession,
   getTestSession,
+  postFormAs,
 } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** GET `path` with the given session cookie. */
 const getAs = (path: string, cookie: string): Promise<Response> =>
   awaitTestRequest(path, { cookie });
-
-/** POST a urlencoded form to `path` with a signed CSRF token and cookie. */
-const postFormAs = async (
-  path: string,
-  cookie: string,
-  data: Record<string, string> = {},
-): Promise<Response> => {
-  const csrf_token = await signCsrfToken();
-  return handleRequest(mockFormRequest(path, { ...data, csrf_token }, cookie));
-};
 
 /** POST a multipart form to `path` with a signed CSRF token and cookie. */
 const postMultipartAs = async (

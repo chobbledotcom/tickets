@@ -22,7 +22,7 @@
   "test/integration/db/attendees/create-attendee-atomic.test.ts": 655,
   "test/integration/db/migration-restore/helpers.ts": 508,
   "test/integration/server/catalog-transfer.test.ts": 827,
-  "test/integration/server/editor.test.ts": 741,
+  "test/integration/server/editor.test.ts": 732,
   "test/integration/server/feeds.test.ts": 653,
   "test/integration/server/parents-duplicate.test.ts": 560,
   "test/integration/server/parents-e2e.test.ts": 654,
