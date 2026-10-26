@@ -1,6 +1,6 @@
-/** The semantic diff between two contract dumps: which machine moves and
- * money flags changed. Pure data in, report lines out, so the tests pin
- * every change kind. */
+/** The semantic diff between two contract dumps: which machine moves,
+ * money flags, and declared moves tables changed. Pure data in, report
+ * lines out, so the tests pin every change kind. */
 
 import { unique } from "#fp";
 import {

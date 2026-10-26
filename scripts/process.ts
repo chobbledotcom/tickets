@@ -48,6 +48,20 @@ export const captureOutput = async (
   };
 };
 
+/** Run a command whose output is piped, and hand back its stdout text. A
+ * failed child throws with the label and its stderr, so the caller's error
+ * names the cause. */
+export const captureStdoutOrThrow = async (
+  command: Deno.Command,
+  label: string,
+): Promise<string> => {
+  const output = await captureOutput(command);
+  if (!output.success) {
+    throw new Error(`${label} failed: ${output.code}: ${output.stderr.trim()}`);
+  }
+  return output.stdout;
+};
+
 export const removeTree = (path: string): Promise<void> =>
   Deno.remove(path, { recursive: true });
 

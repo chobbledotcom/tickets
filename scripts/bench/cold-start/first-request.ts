@@ -18,6 +18,7 @@
 
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
 import { emptyListsFor } from "#fp";
+import { prepareBootDatabase } from "./prepare-db.ts";
 import { serveAndDrain } from "./serve-request.ts";
 import { spawnChildJson } from "./spawn-child.ts";
 import { median, medianAbsoluteDeviation } from "./strip-lib.ts";
@@ -76,11 +77,7 @@ if (scenario === undefined) {
 /** Create and fully migrate a database file, then complete site setup. */
 const prepareDatabase = async (): Promise<void> => {
   // Dynamic imports: nothing may read the environment before main sets it.
-  const { createClient } = await import("@libsql/client");
   const { setAdminFeatureEnabled } = await import("#db/admin-features.ts");
-  const { setDb } = await import("#db/client.ts");
-  const { initDb } = await import("#db/migrations.ts");
-  const { settings } = await import("#db/settings.ts");
   const { setFastPbkdf2ForTest } = await import("#crypto/hashing.ts");
   const { setRsaKeySizeForTest } = await import("#crypto/hybrid.ts");
   const { setSuppressDebugLogs } = await import("#shared/log-settings.ts");
@@ -96,9 +93,11 @@ const prepareDatabase = async (): Promise<void> => {
   setSuppressDebugLogs(true);
 
   // `main` sets DB_URL before calling prepareDatabase.
-  setDb(createClient({ url: requiredEnv("DB_URL") }));
-  await initDb({ allowMissingSettings: true });
-  await settings.setup.complete("benchadmin", "bench-password-123", "GB");
+  await prepareBootDatabase(
+    requiredEnv("DB_URL"),
+    "benchadmin",
+    "bench-password-123",
+  );
   await setAdminFeatureEnabled("site", true);
   const ids = await seedBenchmarkCatalogue();
   await scenario.prepare?.(ids);
