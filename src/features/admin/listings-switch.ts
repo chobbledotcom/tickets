@@ -27,15 +27,12 @@ import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 /* jscpd:ignore-start */
 import type { FormParams } from "#shared/form-data.ts";
+/* jscpd:ignore-end */
+import { ASSIGN_UNDATED_FIELD } from "#templates/admin/listings/assign-day-card.tsx";
 import type { ListingWithCount } from "#types";
 import { listingPage } from "./listing-page.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
-/* jscpd:ignore-end */
 import { buildUpdateListingResource, parseGroupIds } from "./listings-form.ts";
-
-/** The form field a save carries its chosen date under: one of the dates the
- * card offered. Absent on the first POST that lands on the page. */
-export const ASSIGN_UNDATED_FIELD = "assign_undated_to";
 
 /** What the assign card shows: the warning's count, the dates offered, and
  * the date already chosen on a re-render. It also records whether any date
