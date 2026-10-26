@@ -4,7 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { requireSuccess } from "#shared/result.ts";
+import { requireEntityImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 
@@ -40,7 +40,7 @@ const importListingOverride = (
 const importStoredListing = async (listing: Record<string, unknown>) => {
   const result = await importCatalog({ kind: "listing", listing, version: 1 });
   if (!result.ok) throw new Error(result.error);
-  const stored = await getListingWithCount(result.value.id);
+  const stored = await getListingWithCount(requireEntityImport(result).id);
   if (!stored) throw new Error("listing not found after import");
   return stored;
 };
@@ -92,7 +92,7 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
       "Host Pkg 2",
       2,
     );
-    const imported = requireSuccess(result);
+    const imported = requireEntityImport(result);
     expect(imported).toMatchObject({
       kind: "listing",
       name: "Custom Joiner 2",

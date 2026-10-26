@@ -11,14 +11,16 @@
 
 import {
   CATALOG_TRANSFER_VERSION,
+  type CatalogBundle,
   type GroupTransfer,
   type ListingTransfer,
 } from "#routes/admin/catalog-transfer/schema.ts";
 
 /**
  * A listing export/import blob. Shows the listing's own transferable columns
- * (prices are in the smallest currency unit — pence/cents) and its membership of
- * a package group, with per-member price and quantity overrides.
+ * (prices are in the smallest currency unit — pence/cents) and its membership
+ * of a package group. The membership carries per-member price and quantity
+ * overrides.
  *
  * `parents` is empty here on purpose: this listing is a member of the "Weekend
  * Pass" package, and the importer forbids a package member from also being an
@@ -66,6 +68,29 @@ export const CATALOG_GROUP_EXAMPLE: GroupTransfer = {
   version: CATALOG_TRANSFER_VERSION,
 };
 
+/** A transfer without its envelope fields: the item shape a bundle holds. */
+const transferBodyOf = <T extends { kind: string; version: number }>(
+  transfer: T,
+): Omit<T, "kind" | "version"> => {
+  const { kind, version, ...body } = transfer;
+  return body;
+};
+
+/**
+ * A bundle blob: many listings and groups in one document. It carries the two
+ * single-file examples as items, with the envelope fields (kind, version)
+ * held once at the top. The listing references the bundle's own group by
+ * name, and the group lists the bundle's own listings as members — the
+ * relationships resolve inside the document, so the import creates the whole
+ * subtree even when the target site holds none of it yet.
+ */
+export const CATALOG_BUNDLE_EXAMPLE: CatalogBundle = {
+  groups: [transferBodyOf(CATALOG_GROUP_EXAMPLE)],
+  kind: "bundle",
+  listings: [transferBodyOf(CATALOG_LISTING_EXAMPLE)],
+  version: CATALOG_TRANSFER_VERSION,
+};
+
 /** The listing example rendered as pretty-printed JSON for the guide. */
 export const CATALOG_LISTING_EXAMPLE_JSON: string = JSON.stringify(
   CATALOG_LISTING_EXAMPLE,
@@ -76,6 +101,13 @@ export const CATALOG_LISTING_EXAMPLE_JSON: string = JSON.stringify(
 /** The group example rendered as pretty-printed JSON for the guide. */
 export const CATALOG_GROUP_EXAMPLE_JSON: string = JSON.stringify(
   CATALOG_GROUP_EXAMPLE,
+  null,
+  2,
+);
+
+/** The bundle example rendered as pretty-printed JSON for the guide. */
+export const CATALOG_BUNDLE_EXAMPLE_JSON: string = JSON.stringify(
+  CATALOG_BUNDLE_EXAMPLE,
   null,
   2,
 );

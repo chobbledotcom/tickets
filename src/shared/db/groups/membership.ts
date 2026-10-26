@@ -16,6 +16,7 @@ import {
   memberBlockKey,
   packageMemberMessage,
   packageMemberQuantityBroken,
+  packageMemberQuantityError,
   sitePlanMemberError,
 } from "#shared/package-membership.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -207,24 +208,13 @@ export const memberCapErrorTx = async (
   listing: ListingState,
   quantity?: number,
 ): Promise<string | null> => {
-  const broken = packageMemberQuantityBroken({
+  const member = {
     max_quantity: listing.maxQuantity,
     min_quantity: listing.minQuantity,
     quantity,
-  });
-  if (broken === null) return null;
-  const name = await decrypt(listing.name);
-  return broken.reason === "cap"
-    ? t("error.package_member_cap", {
-        max_quantity: listing.maxQuantity,
-        name,
-        quantity: broken.quantity,
-      })
-    : t("error.package_member_min", {
-        min_quantity: listing.minQuantity,
-        name,
-        quantity: broken.quantity,
-      });
+  };
+  if (packageMemberQuantityBroken(member) === null) return null;
+  return packageMemberQuantityError(await decrypt(listing.name), member);
 };
 
 /** The pick-count refusals for a save's submitted member quantities, judged

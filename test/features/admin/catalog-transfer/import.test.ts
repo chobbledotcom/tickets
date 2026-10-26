@@ -6,6 +6,7 @@ import { getGroupPackagePrices, getListingsByGroupId } from "#db/groups.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
+import { requireEntityImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -27,7 +28,7 @@ describeWithEnv("catalog group import", { db: true }, () => {
     });
     if (!result.ok) throw new Error(result.error);
     expect(
-      (await getListingsByGroupId(result.value.id)).map(
+      (await getListingsByGroupId(requireEntityImport(result).id)).map(
         (listing) => listing.id,
       ),
     ).toEqual([member.id]);
@@ -77,7 +78,9 @@ describeWithEnv("catalog group import", { db: true }, () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
-    const [stored] = await getGroupPackagePrices(result.value.id);
+    const [stored] = await getGroupPackagePrices(
+      requireEntityImport(result).id,
+    );
     if (!stored) throw new Error("The imported group membership is missing");
     expect({
       listing_id: stored.listing_id,

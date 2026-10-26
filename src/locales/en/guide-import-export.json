@@ -6,7 +6,10 @@
   "guide.a.how_do_i_export_catalog": "<p>Open the listing's <strong>Actions</strong> tab (or a group's detail page) and choose <strong>Export</strong>. You download a <code>.json</code> file named after the listing or group.</p><p>Editors do not see the webhook address in their copies, because that field is hidden from them everywhere.</p>",
   "guide.q.how_do_i_import_catalog": "How do I load a listing or group?",
   "guide.a.how_do_i_import_catalog": "<p>Go to <strong>Listings</strong> or <strong>Groups</strong> and choose <strong>Import</strong>, then upload the file. The file's <code>kind</code> says whether a listing or a group is created.</p><p>Any parent listings and groups it names must already exist here, and the incoming name cannot match an existing listing or group. If anything is wrong, the page tells you exactly which field.</p><p>Import is switched off in demo mode.</p>",
+  "guide.q.how_do_i_import_bundle": "Can I load many listings at once?",
+  "guide.a.how_do_i_import_bundle": "<p>Yes. A <strong>bundle</strong> file holds many listings and groups in one document, with the relationships between them. The import creates everything in one step, or nothing when one item is wrong — the message names each failing item and its field.</p><p>Names inside the bundle point at the bundle's own items first, so the file can carry listings and the groups they belong to together.</p>",
   "guide.q.what_is_in_catalog_file": "What's inside the file?",
   "guide.a.what_is_in_catalog_file": "<p>The file carries what you sell, and nothing else: the structure and the pricing. Everything is joined by <strong>name</strong>, never by number, because names survive a move between sites and numbers do not.</p><p>Pictures, file attachments, attendees, and any money or booking history are left out on purpose — a copy describes what you sell, not the records tied to one site. The file carries a version number, so a file from a different version is refused rather than loaded wrongly.</p>",
-  "guide.q.catalog_json_shape": "What does the file look like?"
+  "guide.q.catalog_json_shape": "What does the file look like?",
+  "guide.q.catalog_bundle_shape": "What does a bundle file look like?"
 }

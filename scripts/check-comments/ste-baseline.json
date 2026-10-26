@@ -15,9 +15,6 @@
   "src/features/admin/attendee-page-data.ts": {
     "long-sentence": 1
   },
-  "src/features/admin/catalog-transfer/schema.ts": {
-    "long-sentence": 1
-  },
   "src/features/admin/deliveries.ts": {
     "long-sentence": 1
   },
@@ -1395,8 +1392,7 @@
     "participle": 1
   },
   "src/shared/db/slug-registry.ts": {
-    "long-sentence": 5,
-    "contraction": 1,
+    "long-sentence": 3,
     "banned-modal": 2
   },
   "src/shared/db/slugged-content-input.ts": {

@@ -35,6 +35,7 @@ import {
   type AdminLevel,
   availableDayCounts,
   type DayPricedListing,
+  type ListingType,
   parseDayPrices,
 } from "#types";
 import { type ImportedMembership, writeMembershipsTx } from "./membership.ts";
@@ -144,8 +145,8 @@ export const memberDayOverrideKey = (
 };
 
 /** The error message for a package member whose day-price override targets a
- *  day count the member does not offer. Null when the override is valid. */
-const memberDayPriceError = (
+ * day count the member does not offer. Null when the override is valid. */
+export const memberDayPriceError = (
   memberName: string,
   ...args: Parameters<typeof memberDayOverrideKey>
 ): string | null => {
@@ -155,7 +156,33 @@ const memberDayPriceError = (
     : `"${memberName}" does not offer a ${key}-day booking, so it can't carry a package day-price override for it.`;
 };
 
-const listingDataToInput = (
+/** The listing fields the group-homogeneity rule reads. Shared by the
+ * single-group and bundle import paths, which assemble the member rows
+ * differently but apply the same rule. */
+export const membersHomogeneous = (
+  listings: readonly {
+    name: string;
+    listing_type: ListingType;
+    customisable_days: boolean;
+  }[],
+): string | null => {
+  const [first, ...rest] = listings;
+  if (!first) return null;
+  const typeMismatch = rest.find(
+    (listing) => listing.listing_type !== first.listing_type,
+  );
+  if (typeMismatch) {
+    return `All listings in a group must be the same type, but "${first.name}" is ${first.listing_type} and "${typeMismatch.name}" is ${typeMismatch.listing_type}.`;
+  }
+  const customMismatch = rest.find(
+    (listing) => listing.customisable_days !== first.customisable_days,
+  );
+  return customMismatch
+    ? `All listings in a group must agree on customisable days, but "${first.name}" and "${customMismatch.name}" differ.`
+    : null;
+};
+
+export const listingDataToInput = (
   data: ListingData,
   slug: string,
   slugIndex: string,
@@ -174,7 +201,7 @@ const listingDataToInput = (
   } as ListingInput;
 };
 
-const applyImportPolicy = (
+export const applyImportPolicy = (
   input: ListingInput,
   adminLevel: AdminLevel | undefined,
 ): ListingInput => {

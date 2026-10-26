@@ -35,16 +35,18 @@ import { okResult, type Result } from "#shared/result.ts";
 import {
   type AdminLevel,
   type DayPricedListing,
-  type ListingType,
   type ListingWithCount,
   parseDayPrices,
 } from "#types";
+import { importBundle } from "./bundle.ts";
+import type { ImportedBundle } from "./bundle-plan.ts";
 import {
   fail,
   type ImportedEntity,
   importListing,
   importTransactionFailure,
   memberDayOverrideKey,
+  membersHomogeneous,
   membershipSpec,
   missingMemberId,
   nameTakenError,
@@ -54,34 +56,12 @@ import {
 import { writeMembershipsTx } from "./membership.ts";
 import {
   CatalogTransferSchema,
+  formatBundleIssues,
   formatTransferIssues,
   type GroupTransfer,
 } from "./schema.ts";
 
 /* jscpd:ignore-end */
-
-const membersHomogeneous = (
-  listings: readonly {
-    name: string;
-    listing_type: ListingType;
-    customisable_days: boolean;
-  }[],
-): string | null => {
-  const [first, ...rest] = listings;
-  if (!first) return null;
-  const typeMismatch = rest.find(
-    (listing) => listing.listing_type !== first.listing_type,
-  );
-  if (typeMismatch) {
-    return `All listings in a group must be the same type, but "${first.name}" is ${first.listing_type} and "${typeMismatch.name}" is ${typeMismatch.listing_type}.`;
-  }
-  const customMismatch = rest.find(
-    (listing) => listing.customisable_days !== first.customisable_days,
-  );
-  return customMismatch
-    ? `All listings in a group must agree on customisable days, but "${first.name}" and "${customMismatch.name}" differ.`
-    : null;
-};
 
 const importedGroupMembersError = async (
   group: GroupTransfer["group"],
@@ -204,17 +184,34 @@ const importGroup = async (
   return okResult({ id, kind: "group", name: input.name });
 };
 
-/** Parses, validates, and applies one catalog transfer blob. */
+/** Parses, validates, and applies one catalog transfer blob — a single
+ * listing, a single group, or a bundle holding many of either. */
 export const importCatalog = async (
   blob: unknown,
   adminLevel?: AdminLevel,
-): Promise<Result<ImportedEntity>> => {
+): Promise<Result<ImportedEntity | ImportedBundle>> => {
   const parsed = v.safeParse(CatalogTransferSchema, blob);
-  if (!parsed.success) return fail(formatTransferIssues(parsed.issues));
+  if (!parsed.success) {
+    const isBundle =
+      typeof blob === "object" &&
+      blob !== null &&
+      "kind" in blob &&
+      blob.kind === "bundle";
+    return fail(
+      isBundle
+        ? formatBundleIssues(parsed.issues, blob)
+        : formatTransferIssues(parsed.issues),
+    );
+  }
   try {
-    return parsed.output.kind === "listing"
-      ? await importListing(parsed.output, adminLevel)
-      : await importGroup(parsed.output);
+    switch (parsed.output.kind) {
+      case "listing":
+        return await importListing(parsed.output, adminLevel);
+      case "group":
+        return await importGroup(parsed.output);
+      case "bundle":
+        return await importBundle(parsed.output, adminLevel);
+    }
   } catch (error) {
     return importTransactionFailure(error);
   }

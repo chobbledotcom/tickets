@@ -7,7 +7,7 @@ import { listingParents } from "#db/listing-parents.ts";
 import { requireListingWithCount } from "#db/listings/records.ts";
 import { getAllModifiers, modifierListings } from "#db/modifiers.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { requireSuccess } from "#shared/result.ts";
+import { requireEntityImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -75,7 +75,7 @@ describeWithEnv(
         parents: ["Alone Base Parent"],
         version: 1,
       });
-      const imported = requireSuccess(result);
+      const imported = requireEntityImport(result);
       expect(imported).toMatchObject({ kind: "listing", name: "Alone Kid" });
       expect(await requireListingWithCount(imported.id)).toMatchObject({
         bookable_alone: true,
@@ -99,7 +99,7 @@ describeWithEnv(
         parents: ["Shared Parent"],
         version: 1,
       });
-      const imported = requireSuccess(result);
+      const imported = requireEntityImport(result);
       expect(imported).toMatchObject({ kind: "listing", name: "Fine Kid" });
       expect(await listingParents.getIds(imported.id)).toEqual([parent.id]);
     });
