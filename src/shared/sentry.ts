@@ -122,18 +122,19 @@ const eventTags = (context: ErrorContext): Record<string, string> => {
 };
 
 /**
- * How to group a report that carries no exception.
+ * How to group a report.
  *
- * A message report has no stack, so Sentry groups it by the message text — and
- * our text ends with a detail that names the image, the session, or the
- * amount. That made one issue per detail: forty separate "Broken image"
- * issues, none of them a place to look. Grouping by the error code and the
- * route puts every one of them in a single issue with forty events.
- *
- * A report that carries an exception keeps the SDK's own stack grouping, which
- * is already the right answer.
+ * A report whose caller picked a fingerprint groups by it. A message report
+ * has no stack, so Sentry groups it by the message text — and our text ends
+ * with a detail that names the image, the session, or the amount. That made
+ * one issue per detail: forty separate "Broken image" issues, none of them a
+ * place to look. Grouping by the error code and the route puts every one of
+ * them in a single issue with forty events.
+ * A report that carries an exception with no override keeps the SDK's own
+ * stack grouping, which is already the right answer.
  */
 const messageFingerprint = (context: ErrorContext): string[] => {
+  if (context.fingerprint !== undefined) return context.fingerprint;
   if (context.error !== undefined) return [];
   const trace = getRequestTrace();
   return trace ? [context.code, trace.method, trace.route] : [context.code];

@@ -875,10 +875,10 @@
     "banned-modal": 1
   },
   "src/shared/db/client.ts": {
-    "semicolon": 11,
-    "long-sentence": 14,
-    "contraction": 2,
-    "banned-modal": 10,
+    "semicolon": 10,
+    "long-sentence": 13,
+    "contraction": 1,
+    "banned-modal": 9,
     "present-perfect": 1,
     "wordy": 2
   },
