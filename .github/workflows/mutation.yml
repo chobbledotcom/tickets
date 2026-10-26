@@ -26,7 +26,7 @@ on:
         type: boolean
         default: false
       timeout:
-        description: "Per-mutant timeout floor in ms (blank = tool default)"
+        description: "Whole-run deadline in ms — the run fails if it is still going after this long (blank = tool default)"
         required: false
         default: ""
       jobs:
@@ -88,7 +88,7 @@ jobs:
           args=("$SOURCE" "$TEST")
           if [ "$EXHAUSTIVE" = "true" ]; then args+=(--exhaustive); fi
           if [ "$HARNESS" = "true" ]; then args+=(--harness); fi
-          if [ -n "$TIMEOUT" ]; then args+=(--timeout "$TIMEOUT"); fi
+          if [ -n "$TIMEOUT" ]; then args+=(--deadline "$TIMEOUT"); fi
           if [ -n "$JOBS" ]; then args+=(--jobs "$JOBS"); fi
           echo "::notice::deno task mutation ${args[*]}"
           deno task mutation "${args[@]}"
