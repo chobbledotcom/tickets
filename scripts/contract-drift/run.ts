@@ -87,29 +87,40 @@ export const defaultDriftDeps = (
  * base stays missing. */
 const mergeBaseWithMain = async (deps: DriftDeps): Promise<string> => {
   const mergeBase = ["merge-base", "origin/main", "HEAD"] as const;
-  let base = await deps.git(mergeBase);
-  if (!base.success) {
-    await deps.git(["fetch", "origin", "main:refs/remotes/origin/main"]);
-    base = await deps.git(mergeBase);
+  const first = await deps.git(mergeBase);
+  if (first.success) return first.stdout.trim();
+  const fetchMain = await deps.git([
+    "fetch",
+    "origin",
+    "main:refs/remotes/origin/main",
+  ]);
+  const second = await deps.git(mergeBase);
+  if (second.success) return second.stdout.trim();
+  const shallow = await deps.git(["rev-parse", "--is-shallow-repository"]);
+  let third: CapturedOutput | undefined;
+  if (shallow.stdout.trim() === "true") {
+    await deps.git([
+      "fetch",
+      "--unshallow",
+      "origin",
+      "+refs/heads/*:refs/remotes/origin/*",
+    ]);
+    third = await deps.git(mergeBase);
+    if (third.success) return third.stdout.trim();
   }
-  if (!base.success) {
-    const shallow = await deps.git(["rev-parse", "--is-shallow-repository"]);
-    if (shallow.stdout.trim() === "true") {
-      await deps.git([
-        "fetch",
-        "--unshallow",
-        "origin",
-        "+refs/heads/*:refs/remotes/origin/*",
-      ]);
-      base = await deps.git(mergeBase);
-    }
-  }
-  if (!base.success) {
-    throw new Error(
+  // Every failed git step's stderr travels with the error, so an auth or
+  // network failure names its cause instead of only the missing base.
+  throw new Error(
+    [
       "This checkout has no origin/main even after a fetch, so the base dump has no older tree to run in. Fetch origin/main or use a full checkout, then run the command again",
-    );
-  }
-  return base.stdout.trim();
+      first.stderr,
+      fetchMain.stderr,
+      ...(third === undefined ? [] : [third.stderr]),
+    ]
+      .map((line) => line.trim())
+      .filter((line) => line !== "")
+      .join("\n"),
+  );
 };
 
 /** Log one failed step and say the run failed. Null is the answer every

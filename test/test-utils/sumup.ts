@@ -193,10 +193,11 @@ export const withSumupCheckoutStatus = (
   reference: string,
   status: SumupCheckout["status"],
   transactionId = "txn_test",
+  over: Partial<SumupCheckout> = {},
 ) =>
   stub(sumupApi, "readCheckoutById", () =>
     Promise.resolve({
-      resource: sumupCheckout({ reference, status, transactionId }),
+      resource: sumupCheckout({ reference, status, transactionId, ...over }),
       status: "found" as const,
     }),
   );

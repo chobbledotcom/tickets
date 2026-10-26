@@ -155,6 +155,15 @@ export const requireEntityField = <Field extends string>(
   return required.ok ? okResult(required.value[field]) : required;
 };
 
+/** Read the required entity text field every catalog resource names `name`.
+ *  The entity-name rule over the shared field label keeps the stored row's
+ *  name on an update. */
+export const requireEntityName = (
+  body: Record<string, unknown>,
+  existing: { name: string } | null,
+): Result<string> =>
+  requireEntityField(body, "name", existing === null ? null : existing.name);
+
 /** Combine the two date results of one range in field order: the start date
  *  reports first, then the end date. */
 export const dateRange = (

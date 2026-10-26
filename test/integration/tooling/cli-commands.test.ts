@@ -61,6 +61,7 @@ describe("CLI describe", () => {
   test("answers one JSON-shaped document with every resource, verb, child, and route", () => {
     const doc = describeEntries(Object.entries(ADMIN_API_RESOURCES));
     expect(Object.keys(doc.resources).sort()).toEqual([
+      "attendee-statuses",
       "attributes",
       "groups",
       "holidays",

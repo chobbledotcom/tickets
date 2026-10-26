@@ -176,7 +176,7 @@ const buildUpdateStringFields = (
 });
 
 export const buildUpdateListingForm = (
-  updates: Partial<ListingInput>,
+  updates: Partial<ListingInput> & { assignUndatedTo?: string },
   existing: ListingWithCount,
 ): TestFormValues => {
   const closesAtParts = splitClosesAt(updates.closesAt, existing.closes_at);
@@ -194,5 +194,10 @@ export const buildUpdateListingForm = (
     ),
     date_date: dateParts.date,
     date_time: dateParts.time,
+    // A switch that must date undated bookings first carries the organiser's
+    // chosen day under this field; the save then moves them and flips.
+    ...(updates.assignUndatedTo === undefined
+      ? {}
+      : { assign_undated_to: updates.assignUndatedTo }),
   };
 };

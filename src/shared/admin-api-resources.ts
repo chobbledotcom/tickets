@@ -98,6 +98,46 @@ export const ListingRowSchema = v.looseObject({
 
 export type AdminApiListing = v.InferOutput<typeof ListingRowSchema>;
 
+/** The fields an attendee-status create carries. The three flags and the
+ *  reservation amount answer the stored-column defaults (off, "0") when a
+ *  caller leaves them out. */
+export const CreateAttendeeStatusBodySchema = v.object({
+  is_paid_default: v.optional(v.boolean()),
+  is_public_default: v.optional(v.boolean()),
+  is_reservation: v.optional(v.boolean()),
+  name: v.string(),
+  reservation_amount: v.optional(v.string()),
+});
+export type AdminApiCreateAttendeeStatusBody = v.InferOutput<
+  typeof CreateAttendeeStatusBodySchema
+>;
+
+/** The body an attendee-status update carries: every writable field optional. */
+export const UpdateAttendeeStatusBodySchema = v.partial(
+  v.object({
+    is_paid_default: v.boolean(),
+    is_public_default: v.boolean(),
+    is_reservation: v.boolean(),
+    name: v.string(),
+    reservation_amount: v.string(),
+  }),
+);
+export type AdminApiUpdateAttendeeStatusBody = v.InferOutput<
+  typeof UpdateAttendeeStatusBodySchema
+>;
+
+/** One attendee status as the admin API answers with it: the writable fields
+ *  plus its id. The row schema stays open — the server owns the rest of the
+ *  stored row (its sort order). */
+export const AttendeeStatusRowSchema = v.looseObject({
+  ...UpdateAttendeeStatusBodySchema.entries,
+  id: v.number(),
+});
+
+export type AdminApiAttendeeStatus = v.InferOutput<
+  typeof AttendeeStatusRowSchema
+>;
+
 /** The writable fields one site-page update carries, including the parent.
  *  The field list repeats the shape uptime-kuma's own schemas spell. The two
  *  domains share nothing, so the matcher's finding is marked. */
@@ -250,6 +290,16 @@ export type AdminApiResource = {
 const attributeEnvelope = v.looseObject({ attribute: AttributeRowSchema });
 
 export const ADMIN_API_RESOURCES = {
+  "attendee-statuses": {
+    createBodySchema: CreateAttendeeStatusBodySchema,
+    label: "Status",
+    listSchema: v.looseObject({
+      "attendee-statuses": v.array(AttendeeStatusRowSchema),
+    }),
+    path: "attendee-statuses",
+    singleSchema: v.looseObject({ status: AttendeeStatusRowSchema }),
+    updateBodySchema: UpdateAttendeeStatusBodySchema,
+  },
   attributes: {
     children: {
       options: {
@@ -324,6 +374,24 @@ export const ADMIN_API_RESOURCES = {
   },
   "site-pages": {
     createBodySchema: CreateSitePageBodySchema,
+    custom: {
+      // The fixed pages (home, contact and terms) are not site_pages rows.
+      // They are addressed by name: a client reads and updates each page's
+      // content. A fixed page cannot be created, deleted, or hidden, so the
+      // read and update verbs answer normally and the other two refuse.
+      "contact-delete": { method: "DELETE", subpath: "contact" },
+      "contact-get": { method: "GET", subpath: "contact" },
+      "contact-post": { method: "POST", subpath: "contact" },
+      "contact-put": { method: "PUT", subpath: "contact" },
+      "home-delete": { method: "DELETE", subpath: "home" },
+      "home-get": { method: "GET", subpath: "home" },
+      "home-post": { method: "POST", subpath: "home" },
+      "home-put": { method: "PUT", subpath: "home" },
+      "terms-delete": { method: "DELETE", subpath: "terms" },
+      "terms-get": { method: "GET", subpath: "terms" },
+      "terms-post": { method: "POST", subpath: "terms" },
+      "terms-put": { method: "PUT", subpath: "terms" },
+    },
     label: "Page",
     listSchema: v.looseObject({
       "site-pages": v.array(SitePageRowSchema),

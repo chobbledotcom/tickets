@@ -8,10 +8,9 @@ Feature: An organiser changes how long a stay lasts
   stretched or shortened to match a change, so the calendar and the bookings
   never disagree — except where the customer chose the length themselves,
   which is theirs to keep. A save that does not change the length leaves
-  every stay exactly as it was. Turning day bookings on never unbooks
-  anybody. A length saved on a listing that is not booked by the day is kept
-  for later. It rewrites no stays and writes nothing in the listing's
-  history.
+  every stay exactly as it was. A length saved on a listing that is not
+  booked by the day is kept for later. It rewrites no stays and writes
+  nothing in the listing's history.
 
   @rule:bookings.the-listing-page-says-how-long-stays-last
   @surface:admin
@@ -118,19 +117,6 @@ Feature: An organiser changes how long a stay lasts
       And a customer booked a 2-day Retreat stay starting in 10 days
       When the organiser lowers the longest Retreat stay to 4 days
       Then the organiser sees that stay still runs for 2 days
-
-  @rule:bookings.turning-day-bookings-on-keeps-everyone-who-booked
-  @surface:admin
-  Rule: Turning day bookings on keeps everyone who already booked
-    People who booked while the listing was an ordinary one stay listed,
-    places and all. Turning day bookings on never unbooks anybody.
-
-    @case:stay-length.turning-day-bookings-on-keeps-everyone-booked
-    Scenario: The organiser turns a fully booked listing into a by-the-day one
-      Given a Workshop that is not booked by the day, with room for 2 places
-      And two customers have each booked a Workshop place
-      When the organiser puts the Workshop on the day calendar
-      Then the Workshop attendee list still shows both customers
 
   @rule:bookings.a-length-saved-on-an-ordinary-listing-rewrites-nothing
   @surface:admin

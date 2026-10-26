@@ -25,6 +25,7 @@ import type { NamedSortOrderInput } from "#db/common-schema.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { col, defineCachedListTable, writeTableRow } from "#db/table.ts";
+import { t } from "#i18n";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
@@ -61,6 +62,38 @@ export type AttendeeStatusDeleteError =
   | "paid_default"
   | "status_in_use";
 
+/** The message a refused status save answers with, per the error code. Shared
+ *  by the dashboard form and the admin JSON API, so an API caller reads the
+ *  same refusal an operator reads on the settings page. */
+export const attendeeStatusSaveMessage = (
+  code: AttendeeStatusSaveError,
+): string => {
+  switch (code) {
+    case "paid_default_required":
+      return "Choose another paid default before clearing this one";
+    case "public_default_required":
+      return "Choose another public default before clearing this one";
+  }
+};
+
+/** The message a refused status delete answers with, per the error code. The
+ *  catalog-backed message reads its translation at call time, because this db
+ *  module loads before the message groups. */
+export const attendeeStatusDeleteMessage = (
+  code: AttendeeStatusDeleteError,
+): string => {
+  switch (code) {
+    case "last_status":
+      return "You must keep at least one status";
+    case "paid_default":
+      return "Choose another paid default before deleting this status";
+    case "public_default":
+      return "Choose another public default before deleting this status";
+    case "status_in_use":
+      return t("statuses.delete_in_use_no_target");
+  }
+};
+
 /** The prerequisite the delete command refuses on before any reassign:
  *  the one home of the order both the save and the delete page ask. */
 export type StatusDeleteBlocker = Exclude<
@@ -79,6 +112,27 @@ export const statusDeleteBlocker = (
   if (status.is_public_default) return "public_default";
   if (status.is_paid_default) return "paid_default";
   return null;
+};
+
+/** The other statuses and the blocker a delete of this status will be
+ *  refused on. The blocker is null when the delete can proceed. The delete
+ *  page and the JSON API both ask this before a delete, so they refuse
+ *  exactly the same statuses. Both callers have already loaded the status, so
+ *  a missing row is a broken race and throws loudly. */
+export const statusDeleteProspects = async (
+  id: number,
+): Promise<{
+  blocker: StatusDeleteBlocker | null;
+  others: readonly AttendeeStatus[];
+}> => {
+  const status = requireValue(
+    await getAttendeeStatus(id),
+    `Attendee status ${id} does not exist`,
+  );
+  const others = (await attendeeStatuses.getAll()).filter(
+    (other) => other.id !== id,
+  );
+  return { blocker: statusDeleteBlocker(status, others.length > 0), others };
 };
 
 /** Cached attendee_statuses table — only `name` is encrypted; writes

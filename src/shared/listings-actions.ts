@@ -19,6 +19,7 @@ import {
   listingParents,
 } from "#db/listing-parents.ts";
 import { syncListingPrices } from "#db/listing-price-sync.ts";
+import { refuseUndatedSwitchTx } from "#db/listings/daily-switch.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import {
   getListingWithCount,
@@ -31,7 +32,10 @@ import {
 } from "#db/name-registry.ts";
 import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
-import { deactivationOrphanedAddOnError } from "#shared/add-on-reachability.ts";
+import {
+  deactivationOrphanedAddOnError,
+  listingSaveOrphanedAddOnTx,
+} from "#shared/add-on-reachability.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { optionalFieldsSchema } from "#shared/catalog-fields/fields-schema.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -102,9 +106,7 @@ const validateMaxPrice = (input: ListingInput): string | null => {
     : null;
 };
 
-/** Validation facts a caller can preload when it validates many listings in
- * one request (the catalog bundle import). The group-member rows serve every
- * group compatibility check. The caller loads them once, not per listing. */
+/** Facts a caller preloads to validate many listings with one shared read. */
 export type ListingValidationContext = {
   siblingsByGroup?: Map<number, ListingWithCount[]>;
 };
@@ -170,8 +172,6 @@ const validateListingGroup: ListingUpdateCheck = async (
   // catalog import of a listing exported from a group-heavy site) stays under
   // the N+1 read guard: one cached groups load plus one sibling query for all
   // referenced groups, then the compatibility check runs in memory per group.
-  // A caller validating many listings at once passes its own preloaded map,
-  // so the query runs once per request rather than once per listing.
   const groupsById = await getGroupsById();
   const siblingsByGroup =
     preloaded?.siblingsByGroup ?? (await getListingsByGroupIds(groupIds));
@@ -482,4 +482,19 @@ export const toggleListingActive = async (
   );
   if (outcome !== null) return outcome;
   return { updated: (await getListingWithCount(listingId))! };
+};
+
+/** The listing save's in-transaction guard. It runs the add-on reachability
+ * half, and — unless this save carries a confirmed undated move — it refuses
+ * a type switch that leaves undated bookings behind. Both surfaces (the admin
+ * HTML form and the admin JSON API) run this hook. So a bare switch can never
+ * silently reopen a full listing through either one. */
+export const refuseUndatedListingSwitch = async (
+  tx: TxScope,
+  listingId: number,
+  input: ListingInput,
+): Promise<string | null> => {
+  const addOnRefusal = await listingSaveOrphanedAddOnTx(tx, listingId, input);
+  if (addOnRefusal !== null) return addOnRefusal;
+  return refuseUndatedSwitchTx(tx, listingId, input.listingType ?? "standard");
 };

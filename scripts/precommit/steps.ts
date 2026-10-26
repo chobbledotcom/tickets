@@ -64,6 +64,13 @@ const STEPS = [
     cmd: ["task", "check:empty-catch"],
     name: "check:empty-catch",
   },
+  // An unchecked `as` cast claims a shape nothing checked (see "Offensive
+  // Programming" in AGENTS.md). CI runs this step; the mirror test holds the
+  // two lists together, so precommit runs it too.
+  {
+    cmd: ["task", "check:double-casts"],
+    name: "check:double-casts",
+  },
   // Hold code and test files under the 500-line limit, against the accepted
   // list that only shrinks (see "Keep code and test files under ~400 lines"
   // in AGENTS.md).
@@ -77,6 +84,13 @@ const STEPS = [
   {
     cmd: ["task", "check:coverage-exclusions"],
     name: "check:coverage-exclusions",
+  },
+  // The dump module must also run against the base tree: a helper the branch
+  // adds is invisible to origin/main, and only this diff exercises that
+  // import (issue #2740).
+  {
+    cmd: ["task", "contract:diff"],
+    name: "contract:diff",
   },
   // Hold the repository Markdown to the mechanical half of the Simplified
   // Technical English rules, against per-document baselines that only fall
@@ -98,6 +112,14 @@ const STEPS = [
   // one by one while the report stayed advisory (see test/integration/
   // import-cycles.test.ts); once it reached zero the report became the gate.
   { cmd: ["task", "cycles"], name: "cycles" },
+  // The required status checks live in repository Settings, which no pull
+  // request can edit. The manifest at scripts/required-checks/checks.json is
+  // the reviewable record of the gate, and this step fails when the live
+  // ruleset and the manifest disagree (issue #2671).
+  {
+    cmd: ["task", "check:required-checks"],
+    name: "check:required-checks",
+  },
   { cmd: ["task", "verify:models"], name: "verify:models" },
   { cmd: ["task", "build:edge"], name: "build:edge" },
   {

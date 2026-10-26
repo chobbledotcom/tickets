@@ -6,6 +6,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
+  bookableStartDates,
   createDailyTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
@@ -37,10 +38,10 @@ describeWithEnv("e2e: multi-day bookings — edge cases", { db: true }, () => {
     });
 
     /**
-     * The story `@case:stay-length.turning-day-bookings-on-keeps-everyone-booked`
-     * proves the organiser still sees the people who booked. This keeps the
-     * direct capacity contract: the date-less bookings made before the change
-     * still fill the listing's date-less capacity read.
+     * The switch now asks for a day first (see the daily-switch suites and the
+     * story `@case:switch-to-daily.assigning-a-day-completes-the-switch`). This
+     * keeps the direct capacity contract the issue pinned: the bookings made
+     * before the switch take up room on the day the organiser gave them.
      */
     test("a listing flipped to daily counts bookings made before it had dates", async () => {
       const listing = await createDailyTestListing({
@@ -49,13 +50,17 @@ describeWithEnv("e2e: multi-day bookings — edge cases", { db: true }, () => {
         maximumDaysAfter: 30,
       });
       await bookAttendee(listing, { quantity: 2 });
+      const day = (await bookableStartDates(listing.id))[0]!;
 
       await updateTestListing(listing.id, {
+        assignUndatedTo: day,
         durationDays: 2,
         listingType: "daily",
       });
 
-      expect(await attendeesApi.hasAvailableSpots(listing.id, 1)).toBe(false);
+      expect(await attendeesApi.hasAvailableSpots(listing.id, 1, day)).toBe(
+        false,
+      );
     });
 
     test("checkGroupCapAfterDurationChange sort comparator with equal-start ranges", async () => {

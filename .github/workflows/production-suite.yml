@@ -1,0 +1,63 @@
+name: Production suite
+
+# Issue #2300: the production-shape checks stand as their own scheduled
+# suite, distinct from `deno task test`. The suite curates checks that ask
+# production-shaped questions — the edge-bundle boot smoke, the backup and
+# restore drills, the concurrent-reservation race, webhook replay and
+# idempotency, and the `deno audit` security scan — into one command
+# (`deno task suite:production`). It runs nightly and on demand; it does not
+# gate merges, so a slow or noisy leg never blocks a pull request.
+on:
+  schedule:
+    # Nightly at 04:23 UTC — an off-the-hour minute so the minute is not a
+    # peak for scheduled runs.
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+
+env:
+  STRIPE_MOCK_VERSION: "0.188.0"
+
+# The job only reads the checkout. Caching uses the Actions runtime token,
+# not this one.
+permissions:
+  contents: read
+
+# Every run step executes inside the `ci` devenv profile, evaluated by the
+# setup-devenv action, exactly like the `test` job in test.yml. The deno task
+# command stays byte-identical to the local one.
+defaults:
+  run:
+    shell: devenv --profile ci shell bash -- -e {0}
+
+jobs:
+  production-suite:
+    runs-on: ubicloud-standard-8
+    # The suite runs a curated slice of the integration suite plus a bundle
+    # build and boot. A wedged leg can hold a runner for hours with no
+    # failure text (issue #2225), so the job gives up loudly instead.
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up devenv
+        uses: ./.github/actions/setup-devenv
+        with:
+          profile: ci
+
+      # The suite's test legs run through the test harness, which downloads
+      # and starts stripe-mock. Caching .bin just avoids re-downloading it on
+      # every run.
+      - name: Cache stripe-mock
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .bin
+          key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
+
+      - name: Run the production suite
+        env:
+          DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+        run: deno task suite:production

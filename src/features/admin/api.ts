@@ -20,6 +20,7 @@ import {
 } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
 import { mapById, requiredMapValue } from "#fp";
+import { attendeeStatusApiRoutes } from "#routes/admin/api-attendee-statuses.ts";
 import { attributeApiRoutes } from "#routes/admin/api-attributes.ts";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
@@ -30,11 +31,11 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { ADMIN_API, CONTENT_API } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
-import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import {
   performListingDelete,
+  refuseUndatedListingSwitch,
   toggleListingActive,
   validateListingInput,
 } from "#shared/listings-actions.ts";
@@ -201,7 +202,9 @@ const listingApiRoutes = defineCrudApi<
   afterCommit: syncListingPrices,
   // The add-on reachability half of the save refuses inside the row write's
   // transaction, so two concurrent page-removing saves cannot both commit.
-  checkTx: listingSaveOrphanedAddOnTx,
+  // The API has no assign step, so a type switch that leaves undated
+  // bookings behind is refused here outright.
+  checkTx: refuseUndatedListingSwitch,
   customHandlers: {
     attendees: handleListingAttendees,
     deactivate: toggleActiveRoute(false),
@@ -250,6 +253,7 @@ const listingApiRoutes = defineCrudApi<
 });
 
 export const adminApiRoutes = {
+  ...attendeeStatusApiRoutes,
   ...attributeApiRoutes,
   ...holidayApiRoutes,
   ...groupApiRoutes,
