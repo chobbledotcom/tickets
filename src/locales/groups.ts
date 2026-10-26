@@ -34,9 +34,9 @@ export const JOIN_MESSAGE_GROUPS = [
   "validation",
 ] as const satisfies readonly MessageGroup[];
 
-/** The admin API imports its resource definitions as one router. The site
- *  pages resource reuses the form's own refusal messages, so the site-pages
- *  catalog joins the scope. */
+/** The admin API imports its resource definitions as one router. A resource
+ *  that reuses its form's own refusal messages adds that catalog to the
+ *  scope: site-pages and attendee-statuses both do. */
 export const ADMIN_API_MESSAGE_GROUPS = [
   "activity-log",
   "attendees",
@@ -49,6 +49,7 @@ export const ADMIN_API_MESSAGE_GROUPS = [
   "modifiers",
   "questions",
   "site-pages",
+  "statuses",
   "validation",
 ] as const satisfies readonly MessageGroup[];
 

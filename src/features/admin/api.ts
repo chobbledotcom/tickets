@@ -20,6 +20,7 @@ import {
 } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
 import { mapById, requiredMapValue } from "#fp";
+import { attendeeStatusApiRoutes } from "#routes/admin/api-attendee-statuses.ts";
 import { attributeApiRoutes } from "#routes/admin/api-attributes.ts";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
@@ -250,6 +251,7 @@ const listingApiRoutes = defineCrudApi<
 });
 
 export const adminApiRoutes = {
+  ...attendeeStatusApiRoutes,
   ...attributeApiRoutes,
   ...holidayApiRoutes,
   ...groupApiRoutes,

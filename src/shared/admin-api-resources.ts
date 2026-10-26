@@ -98,6 +98,46 @@ export const ListingRowSchema = v.looseObject({
 
 export type AdminApiListing = v.InferOutput<typeof ListingRowSchema>;
 
+/** The fields an attendee-status create carries. The three flags and the
+ *  reservation amount answer the stored-column defaults (off, "0") when a
+ *  caller leaves them out. */
+export const CreateAttendeeStatusBodySchema = v.object({
+  is_paid_default: v.optional(v.boolean()),
+  is_public_default: v.optional(v.boolean()),
+  is_reservation: v.optional(v.boolean()),
+  name: v.string(),
+  reservation_amount: v.optional(v.string()),
+});
+export type AdminApiCreateAttendeeStatusBody = v.InferOutput<
+  typeof CreateAttendeeStatusBodySchema
+>;
+
+/** The body an attendee-status update carries: every writable field optional. */
+export const UpdateAttendeeStatusBodySchema = v.partial(
+  v.object({
+    is_paid_default: v.boolean(),
+    is_public_default: v.boolean(),
+    is_reservation: v.boolean(),
+    name: v.string(),
+    reservation_amount: v.string(),
+  }),
+);
+export type AdminApiUpdateAttendeeStatusBody = v.InferOutput<
+  typeof UpdateAttendeeStatusBodySchema
+>;
+
+/** One attendee status as the admin API answers with it: the writable fields
+ *  plus its id. The row schema stays open — the server owns the rest of the
+ *  stored row (its sort order). */
+export const AttendeeStatusRowSchema = v.looseObject({
+  ...UpdateAttendeeStatusBodySchema.entries,
+  id: v.number(),
+});
+
+export type AdminApiAttendeeStatus = v.InferOutput<
+  typeof AttendeeStatusRowSchema
+>;
+
 /** The writable fields one site-page update carries, including the parent.
  *  The field list repeats the shape uptime-kuma's own schemas spell. The two
  *  domains share nothing, so the matcher's finding is marked. */
@@ -250,6 +290,16 @@ export type AdminApiResource = {
 const attributeEnvelope = v.looseObject({ attribute: AttributeRowSchema });
 
 export const ADMIN_API_RESOURCES = {
+  "attendee-statuses": {
+    createBodySchema: CreateAttendeeStatusBodySchema,
+    label: "Status",
+    listSchema: v.looseObject({
+      "attendee-statuses": v.array(AttendeeStatusRowSchema),
+    }),
+    path: "attendee-statuses",
+    singleSchema: v.looseObject({ status: AttendeeStatusRowSchema }),
+    updateBodySchema: UpdateAttendeeStatusBodySchema,
+  },
   attributes: {
     children: {
       options: {

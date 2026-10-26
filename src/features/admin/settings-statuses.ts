@@ -16,15 +16,15 @@ import { adminPattern } from "#shared/admin-surface.ts";
 
 import {
   type AttendeeStatus,
-  type AttendeeStatusDeleteError,
-  type AttendeeStatusSaveError,
   type AttendeeStatusWriteInput,
+  attendeeStatusDeleteMessage,
   attendeeStatuses,
   attendeeStatusOrder,
+  attendeeStatusSaveMessage,
   attendeeStatusWrites,
   getAttendeeStatus,
   heldAttendeeCount,
-  statusDeleteBlocker,
+  statusDeleteProspects,
 } from "#db/attendee-statuses.ts";
 import { catalogNameLengthError } from "#db/name-registry.ts";
 import { flatCollectionSwap } from "#db/ordered-collection.ts";
@@ -79,24 +79,11 @@ const parseStatusForm = (
   return error ? errorResult(error) : okResult(input);
 };
 
-const SAVE_ERRORS: Record<AttendeeStatusSaveError, string> = {
-  paid_default_required: "Choose another paid default before clearing this one",
-  public_default_required:
-    "Choose another public default before clearing this one",
-};
-
-const DELETE_ERRORS: Record<AttendeeStatusDeleteError, string> = {
-  last_status: "You must keep at least one status",
-  paid_default: "Choose another paid default before deleting this status",
-  public_default: "Choose another public default before deleting this status",
-  status_in_use: t("statuses.delete_in_use_no_target"),
-};
-
 const saveStatus = async (id: number | null, form: FormParams) => {
   const parsed = parseStatusForm(form);
   if (!parsed.ok) return parsed;
   const saved = await attendeeStatusWrites.save(id, parsed.value);
-  if (!saved.ok) return errorResult(SAVE_ERRORS[saved.error]);
+  if (!saved.ok) return errorResult(attendeeStatusSaveMessage(saved.error));
   return { ok: true as const, row: saved.value };
 };
 
@@ -109,7 +96,7 @@ const statusOperations: NamedOperations<AttendeeStatus> = {
     );
     return result.ok
       ? { ok: true }
-      : { error: DELETE_ERRORS[result.error], ok: false };
+      : { error: attendeeStatusDeleteMessage(result.error), ok: false };
   },
   loadOrNull: getAttendeeStatus,
   update: async (id, form) =>
@@ -154,13 +141,10 @@ const statusDeleteGet = (request: Request, id: number): Promise<Response> =>
   requireOwnerOr(request, async (session) => {
     const status = await getAttendeeStatus(id);
     if (status === null) return notFoundResponse();
-    const others = (await attendeeStatuses.getAll()).filter(
-      (other) => other.id !== id,
-    );
-    const blocker = statusDeleteBlocker(status, others.length > 0);
-    const retire = blocker
-      ? { blocked: DELETE_ERRORS[blocker] }
-      : await reassignChoice(id, others);
+    const prospects = await statusDeleteProspects(id);
+    const retire = prospects.blocker
+      ? { blocked: attendeeStatusDeleteMessage(prospects.blocker) }
+      : await reassignChoice(id, prospects.others);
     return htmlResponse(
       retireStatusDeletePage(status, retire, session, getFlash().error),
     );
