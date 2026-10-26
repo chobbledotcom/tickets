@@ -59,6 +59,13 @@ in
       git-hooks.enable = false;
     };
 
+    # The browser-contract job needs Chromium, and like the ci profile it
+    # must not run the commit-time Git hook.
+    profiles.browser.module = {
+      ticketsBrowserTools = true;
+      git-hooks.enable = false;
+    };
+
     languages.deno = {
       enable = true;
       package = deno;
