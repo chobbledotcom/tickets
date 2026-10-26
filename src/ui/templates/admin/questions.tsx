@@ -251,14 +251,11 @@ export const adminQuestionPage = (
       </WritableOnly>
 
       {question.display_type === "free_text" ? (
-        <p>
-          <em>
-            Free-text questions collect a typed answer, so they have no answer
-            options to manage — and can't change the price, because a price
-            modifier attaches to a chosen answer, which a typed answer has none
-            of.
-          </em>
-        </p>
+        <div class="prose">
+          <p>
+            <em>{t("questions.edit.free_text_note")}</em>
+          </p>
+        </div>
       ) : (
         <>
           <h2>{t("questions.edit.answers_heading")}</h2>

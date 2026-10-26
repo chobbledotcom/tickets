@@ -130,8 +130,10 @@ export const adminLedgerEntryEditPage = ({
     session,
     error,
     <>
-      <h1>{t("admin.ledger.edit.heading")}</h1>
-      <p>{humanDescription(transfer, accountCellFor(names))}</p>
+      <div class="prose">
+        <h1>{t("admin.ledger.edit.heading")}</h1>
+        <p>{humanDescription(transfer, accountCellFor(names))}</p>
+      </div>
       <LedgerEntryForm
         action={`/admin/ledger/entries/${transfer.id}/edit`}
         buttonText={t("common.save_changes")}

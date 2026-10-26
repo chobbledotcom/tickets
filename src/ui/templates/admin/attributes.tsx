@@ -223,14 +223,16 @@ export const adminAttributeOptionEditPage = (
       </SubmitButton>
     </>,
     <>
-      <h2>{t("attributes.edit_option.listings_heading")}</h2>
-      <p>
-        <small>
-          {t("attributes.edit_option.listings_count", {
-            count: listings.length,
-          })}
-        </small>
-      </p>
+      <div class="prose">
+        <h2>{t("attributes.edit_option.listings_heading")}</h2>
+        <p>
+          <small>
+            {t("attributes.edit_option.listings_count", {
+              count: listings.length,
+            })}
+          </small>
+        </p>
+      </div>
       <AttributeListingsTable
         emptyText={t("attributes.edit_option.listings_none")}
         listings={listings}

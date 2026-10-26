@@ -126,8 +126,10 @@ const MachineSection = ({ machine }: { machine: ViewMachine }): JSX.Element => (
     data-schema-atlas-machine={machine.id}
     id={machine.id}
   >
-    <h2>{machine.title}</h2>
-    <p>{machine.intro}</p>
+    <div class="prose">
+      <h2>{machine.title}</h2>
+      <p>{machine.intro}</p>
+    </div>
     <div class="schema-widget" data-schema-atlas={machine.id} hidden />
     <p class="schema-widget-hint">{t("schema.widget.hint")}</p>
     {machine.states.map((state) => (
@@ -152,8 +154,10 @@ const LiveCheckSection = ({
   anomalies: readonly SchemaAnomaly[];
 }): JSX.Element => (
   <section id="schema-check">
-    <h2>{t("schema.check.heading")}</h2>
-    <p>{t("schema.check.intro")}</p>
+    <div class="prose">
+      <h2>{t("schema.check.heading")}</h2>
+      <p>{t("schema.check.intro")}</p>
+    </div>
     {anomalies.length === 0 ? (
       <p>{t("schema.check.none")}</p>
     ) : (
@@ -183,8 +187,10 @@ const UnansweredMoneySection = ({
   unanswered: UnansweredSumupMoney;
 }): JSX.Element => (
   <section id="schema-unanswered">
-    <h2>{t("schema.unanswered.heading")}</h2>
-    <p>{t("schema.unanswered.intro")}</p>
+    <div class="prose">
+      <h2>{t("schema.unanswered.heading")}</h2>
+      <p>{t("schema.unanswered.intro")}</p>
+    </div>
     {unanswered.total === 0 ? (
       <p>{t("schema.unanswered.none")}</p>
     ) : (

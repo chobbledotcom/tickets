@@ -476,7 +476,9 @@ export const adminScannerDoorsPage = (
       </ProseHeading>
       {empty ? (
         <article>
-          <p>{t("admin.scanner.doors_empty")}</p>
+          <div class="prose">
+            <p>{t("admin.scanner.doors_empty")}</p>
+          </div>
         </article>
       ) : (
         <>
