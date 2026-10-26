@@ -1,13 +1,13 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { apiGet } from "#test-utils/parents.ts";
 import {
   apiBookPackage,
   bookingRows,
   customisablePackage,
   describePackageBooking,
-} from "../helpers.ts";
+} from "#test/features/api/packages/helpers.ts";
+import { apiGet } from "#test-utils/parents.ts";
 
 describePackageBooking(() => {
   test("POST requires a valid date for a dated bundle and a day count for a customisable one", async () => {

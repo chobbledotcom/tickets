@@ -1,13 +1,13 @@
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   describePackageBooking,
   expectPackageNeedsEmail,
   fixedPackage,
-} from "../helpers.ts";
+} from "#test/features/api/packages/helpers.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describePackageBooking(() => {
   test("POST rejects a booking missing the required contact fields", async () => {

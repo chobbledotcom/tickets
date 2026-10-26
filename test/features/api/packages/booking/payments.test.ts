@@ -7,7 +7,7 @@ import {
   describePackageBooking,
   fixedPackage,
   twoChildAddons,
-} from "../helpers.ts";
+} from "#test/features/api/packages/helpers.ts";
 
 describePackageBooking(() => {
   test("POST creates a paid checkout carrying the package id; a hidden package's items keep its name", async () => {

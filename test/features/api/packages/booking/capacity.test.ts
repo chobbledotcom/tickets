@@ -5,7 +5,7 @@ import {
   bookingRows,
   describePackageBooking,
   fixedPackage,
-} from "../helpers.ts";
+} from "#test/features/api/packages/helpers.ts";
 
 describePackageBooking(() => {
   test("POST books whole bundles at the cap and refuses more, stamping the group", async () => {

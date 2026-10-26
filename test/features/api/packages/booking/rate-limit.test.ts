@@ -1,9 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
+import {
+  apiBookPackage,
+  describePackageBooking,
+} from "#test/features/api/packages/helpers.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { apiBookPackage, describePackageBooking } from "../helpers.ts";
 
 describePackageBooking(() => {
   test("POST rate-limits bookings after too many attempts from one IP", async () => {

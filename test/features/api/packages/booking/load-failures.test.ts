@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
+import {
+  apiBookPackage,
+  bookingRows,
+  describePackageBooking,
+} from "#test/features/api/packages/helpers.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
-import {
-  apiBookPackage,
-  bookingRows,
-  describePackageBooking,
-} from "../helpers.ts";
 
 describePackageBooking(() => {
   test("POST keeps a package fact read failure after a free booking", async () => {

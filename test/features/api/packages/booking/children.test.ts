@@ -8,7 +8,7 @@ import {
   describePackageBooking,
   fixedPackage,
   twoChildAddons,
-} from "../helpers.ts";
+} from "#test/features/api/packages/helpers.ts";
 
 describePackageBooking(() => {
   for (const concealed of [false, true]) {

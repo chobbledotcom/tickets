@@ -4,7 +4,7 @@ import {
   apiBookPackage,
   describePackageBooking,
   fixedPackage,
-} from "../helpers.ts";
+} from "#test/features/api/packages/helpers.ts";
 
 describePackageBooking(() => {
   test("POST rejects an explicit quantity of 0 and malformed JSON", async () => {
