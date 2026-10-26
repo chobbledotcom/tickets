@@ -81,7 +81,7 @@ const withSupplied = (
 /** One writable text field: a value past the field's cap gets the form's own
  *  length refusal. The form reads submitted values trimmed, so the API trims
  *  too. */
-export const optionalTextField = (
+const optionalTextField = (
   body: Record<string, unknown>,
   key: keyof typeof FIELD_LABELS,
   stored: string,
