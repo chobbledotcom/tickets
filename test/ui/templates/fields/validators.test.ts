@@ -150,7 +150,7 @@ describe("fields validators", () => {
       maxlength: 250,
       minlength: 1,
       name: "username",
-      pattern: "[a-zA-Z0-9_\\-]+",
+      pattern: "[a-zA-Z0-9][a-zA-Z0-9_\\-]*",
       required: true,
       type: "text",
     });

@@ -41,7 +41,6 @@
   "test/shared/db/groups.test.ts": 777,
   "test/shared/db/logistics-run-sheet.test.ts": 660,
   "test/shared/db/migrations.test.ts": 632,
-  "test/shared/email.test.ts": 510,
   "test/shared/maintenance/runner.test.ts": 561,
   "test/shared/sentry.test.ts": 540,
   "test/shared/superuser.test.ts": 800,

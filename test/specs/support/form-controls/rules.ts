@@ -64,6 +64,19 @@ const whyTextIsTooShort: WhyFieldCannotCarry = (box, field, chosen) => {
   return `the ${field} box takes nothing shorter than ${least} characters`;
 };
 
+/** Why a box will not take text of this shape, or null when it will. A box
+ * that asks for a letter or digit first cannot send "-ada", however happily a
+ * post carrying one is accepted. A browser matches the whole value against the
+ * shape and never matches an empty one, so an empty box stays the required
+ * rule's answer. */
+const whyTextBreaksPattern: WhyFieldCannotCarry = (box, field, chosen) => {
+  const shape = attribute(box, "pattern");
+  if (shape === null || chosen === "") return null;
+  return new RegExp(`^(?:${shape})$`, "v").test(chosen)
+    ? null
+    : `the ${field} box takes nothing the shape "${shape}" refuses`;
+};
+
 /** Why one box on the page could not carry this value. */
 const whyBoxCannotCarry: WhyFieldCannotCarry = (box, field, chosen) => {
   if (hasFlag(box, "disabled")) return `the ${field} box is switched off`;
@@ -81,6 +94,7 @@ const whyBoxCannotCarry: WhyFieldCannotCarry = (box, field, chosen) => {
   }
   return (
     whyTextIsTooShort(box, field, chosen) ??
+    whyTextBreaksPattern(box, field, chosen) ??
     whyNumberIsOutOfRange(box, field, chosen)
   );
 };

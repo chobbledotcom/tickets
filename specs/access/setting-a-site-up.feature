@@ -33,6 +33,12 @@ Feature: Somebody sets a new site up
       Then they are told the site is set up
       And the owner they made can sign in
 
+    @case:setup.the-name-starts-with-punctuation
+    Scenario: The name starts with punctuation
+      Given nobody has set the site up
+      When somebody sets the site up typing a name that starts with a hyphen
+      Then the site is still not set up
+
   @rule:access.the-password-must-be-typed-the-same-twice
   Rule: The password must be typed the same twice
     The password is typed twice because losing it cannot be undone — nobody can

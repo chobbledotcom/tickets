@@ -5,6 +5,7 @@
 
 import { executeBatch, getDb, type SqlStatement } from "#db/client.ts";
 import { stringColumnSet } from "#db/query.ts";
+import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import { nowIso } from "#shared/now.ts";
 
 import {
@@ -91,6 +92,19 @@ export const markMigrationsApplied = async (
   await getDb().batch(migrationMarkerStatements(migrations), "write");
 };
 
+/** The rows one recording batch writes: a marker per applied migration, and
+ * the shared version bump that publishes the rows those migrations wrote.
+ * The migrations run outside the record spine — the images backfills, say —
+ * so recording them moves the shared version too. Every isolate then re-reads
+ * on its next request. */
+const appliedStatements = (
+  migrations: Migration[],
+  lockToken: string,
+): SqlStatement[] => [
+  ...ownedMigrationMarkerStatements(migrations, lockToken),
+  settingsVersionIncrement(),
+];
+
 /** Record migrations that finished before a later one failed, so the progress
  *  is not replayed on the next request. */
 export const recordCompletedProgress = (
@@ -98,7 +112,7 @@ export const recordCompletedProgress = (
   lockToken: string,
 ): Promise<void> =>
   executeWhileMigrationLockOwned(
-    ownedMigrationMarkerStatements(migrations, lockToken),
+    appliedStatements(migrations, lockToken),
     lockToken,
   );
 
@@ -111,7 +125,7 @@ export const recordMigrationBatch = (
 ): Promise<void> =>
   executeWhileMigrationLockOwned(
     [
-      ...ownedMigrationMarkerStatements(migrations, lockToken),
+      ...appliedStatements(migrations, lockToken),
       ...(finished ? ownedSchemaMarkerStatements(lockToken) : []),
       releaseMigrationLockStatement(lockToken),
     ],

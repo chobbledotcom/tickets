@@ -4,8 +4,10 @@ import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import {
   type EmailConfig,
+  type EmailDeliveryResult,
   type EmailMessage,
   hostEmail,
+  sendEmail,
 } from "#shared/email.ts";
 import {
   parseEmail,
@@ -37,6 +39,14 @@ export const minimalEmailMessage: EmailMessage = {
   text: "t",
   to: validEmail("a@b.com"),
 };
+
+/** Send a minimal message through one provider, so a provider test says only
+ * what differs: the provider and, when it matters, the message. */
+export const sendWithProvider = (
+  provider: EmailConfig["provider"],
+  msg: EmailMessage = minimalEmailMessage,
+): Promise<EmailDeliveryResult> =>
+  sendEmail({ ...testEmailConfig, provider }, msg);
 
 export const configureTestEmail = async (
   opts: { businessEmail?: string } = {},

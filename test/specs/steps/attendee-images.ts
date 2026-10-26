@@ -12,11 +12,14 @@ import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 import { setListingGroups } from "#db/groups.ts";
 import {
+  BANNER_BLOCK,
   NOTES_BLOCK,
   NOTES_SUMMARY,
   noteDeletePath,
   notedAboutWithPicture,
+  pictureCount,
   pictureTag,
+  regionFrom,
   regionShowsPicture,
 } from "#test/specs/support/attendee-images.ts";
 import { findOrCreateGroup, groupNamed } from "#test/specs/support/groups.ts";
@@ -108,12 +111,17 @@ When(
 Then(
   "the notes block above the tabs shows the {string} picture",
   function (this: TicketsWorld, _name: string): void {
+    const html = scenarioBrowser(this).currentHtml;
+    // The notes block sits in the page's top block, above the tab strip, and
+    // the note shows once: a copy moved below the tabs, or a second copy
+    // anywhere on the page, fails here.
     regionShowsPicture(
-      scenarioBrowser(this).currentHtml,
+      regionFrom(html, BANNER_BLOCK, "div"),
       NOTES_BLOCK,
       "section",
       this,
     );
+    expect(pictureCount(html, this)).toBe(1);
   },
 );
 

@@ -42,8 +42,11 @@ const referencedImageIds = (texts: ImageUrlTexts): number[] => [
 
 /** The per-isolate id→URL cache. The whole map is valid for one settings
  * version. Every images write bumps that version in its transaction, so a
- * write makes the next lookup drop the map. Apps live about 30 seconds, so
- * a warm entry dies before staleness matters. The version check is the only
+ * write makes the next lookup drop the map. The migration runner bumps it
+ * when it records a batch. Any other write to the images rows — an operator's
+ * out-of-band SQL — must bump the same SETTINGS_VERSION row. Otherwise the
+ * map stays until some spine write lands. Apps live about 30 seconds, so a
+ * warm entry dies before staleness matters. The version check is the only
  * staleness signal the cache needs. */
 const cacheBound = 200;
 

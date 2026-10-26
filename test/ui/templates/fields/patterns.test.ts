@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Field } from "#shared/forms/field.ts";
@@ -20,7 +21,10 @@ import {
   PHONE_INPUT_PATTERN,
   SUBDOMAIN_INPUT_PATTERN,
 } from "#templates/fields/ticket.ts";
-import { getSlugField } from "#templates/fields/validators.ts";
+import {
+  getSlugField,
+  getUsernameFieldBase,
+} from "#templates/fields/validators.ts";
 
 /**
  * Regression guard for HTML `pattern` attributes.
@@ -81,5 +85,20 @@ describe("HTML input pattern attributes compile under the RegExp `v` flag", () =
     const re = new RegExp(`^${SUBDOMAIN_INPUT_PATTERN}$`, "v");
     expect(re.test("my-shop")).toBe(true);
     expect(re.test("-bad")).toBe(false);
+  });
+
+  // The browser can only check the shape, and validateUsername refuses a
+  // leading hyphen or underscore. The login and invite boxes carry the same
+  // schema-shaped pattern as the setup field, so the browser refuses exactly
+  // what the server refuses.
+  test("the shared username pattern refuses what validateUsername refuses", () => {
+    const pattern = getUsernameFieldBase().pattern;
+    assert(pattern !== undefined, "the username field carries a pattern");
+    expectValidPattern(pattern);
+    const re = new RegExp(`^${pattern}$`, "v");
+    expect(re.test("Ab-9_z")).toBe(true);
+    expect(re.test("a-_b")).toBe(true);
+    expect(re.test("-ab")).toBe(false);
+    expect(re.test("_ab")).toBe(false);
   });
 });
