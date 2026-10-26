@@ -74,7 +74,8 @@ const checkSitePackageJoins = (
   for (const pair of pairs.byListing.get(nameKey(item))?.values() ?? []) {
     if (!("siteId" in pair.group)) continue;
     const group = context.siteGroupById.get(pair.group.siteId);
-    if (group === undefined || !group.is_package) continue;
+    if (group === undefined) continue;
+    if (!group.is_package) continue;
     const refusals = packageMemberRefusals(
       item,
       {
@@ -126,10 +127,13 @@ export const parentIsHiddenPackageMember = (
   context: ValidationContext,
 ): boolean => {
   if ("siteId" in ref) {
-    return (context.groupsByParentId.get(ref.siteId) ?? []).some((groupId) => {
+    const groupIds = context.groupsByParentId.get(ref.siteId) ?? [];
+    for (const groupId of groupIds) {
       const group = context.siteGroupById.get(groupId);
-      return group?.is_package && group.hide_package_listings;
-    });
+      if (group === undefined) continue;
+      if (group.is_package && group.hide_package_listings) return true;
+    }
+    return false;
   }
   return joinsGroupWhere(pairs, ref.bundleKey, context, (group) => {
     const { hidePackageListings, isPackage } = groupViewOf(group, context);

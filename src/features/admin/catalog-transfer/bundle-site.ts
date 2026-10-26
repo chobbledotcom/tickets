@@ -171,10 +171,13 @@ export const groupViewOf = (
   context: ValidationContext,
 ): { isPackage: boolean; hidePackageListings: boolean } => {
   if ("siteId" in ref) {
-    const row = context.siteGroupById.get(ref.siteId);
+    const row = requireValue(
+      context.siteGroupById.get(ref.siteId),
+      "Referenced group missing",
+    );
     return {
-      hidePackageListings: row?.hide_package_listings ?? false,
-      isPackage: row?.is_package ?? false,
+      hidePackageListings: row.hide_package_listings,
+      isPackage: row.is_package,
     };
   }
   const body = bundleGroupOf(ref, context).group;

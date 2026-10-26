@@ -77,6 +77,22 @@ describe("formatBundleIssues", () => {
     ).toBe('Invalid catalog file — "listing 1": listing.name: bad');
   });
 
+  test("falls back to the position when the kind's array is absent", () => {
+    expect(
+      formatBundleIssues([issueAt(["groups", 0, "group", "name"], "bad")], {
+        listings: [],
+      }),
+    ).toBe('Invalid catalog file — "group 1": group.name: bad');
+  });
+
+  test("falls back to the position when the body is not an object", () => {
+    expect(
+      formatBundleIssues([issueAt(["listings", 0, "listing", "name"], "bad")], {
+        listings: [{ listing: "oops" }],
+      }),
+    ).toBe('Invalid catalog file — "listing 1": listing.name: bad');
+  });
+
   test("falls back to the position when the item is not an object", () => {
     expect(
       formatBundleIssues([issueAt(["listings", 1, "listing", "name"], "bad")], {
@@ -104,7 +120,10 @@ describe("formatBundleIssues", () => {
   test("passes a non-item issue through unchanged and drops duplicates", () => {
     expect(
       formatBundleIssues(
-        [issueAt(["kind"], "Invalid input"), issueAt(["kind"], "Invalid input")],
+        [
+          issueAt(["kind"], "Invalid input"),
+          issueAt(["kind"], "Invalid input"),
+        ],
         {},
       ),
     ).toBe("Invalid catalog file — Invalid input");

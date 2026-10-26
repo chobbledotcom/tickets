@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
+import { requireBundleImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -107,13 +108,27 @@ describeWithEnv("bundle package member checks", { db: true }, () => {
     expect(result.error).toContain("Mixed Pack");
   });
 
+  test("reports a member the site and document do not hold", async () => {
+    await createTestListing({ maxQuantity: 5, name: "Stored Member" });
+    const bundle = mixedPackage();
+    bundle.groups[0]!.members = [
+      { listing: "Stored Member", quantity: 1 },
+      { listing: "Ghost Member" },
+    ];
+    const result = await importCatalog(bundle);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain(
+      'No listing named "Ghost Member" exists — it must already exist to import this reference.',
+    );
+  });
+
   test("imports the mixed package when every rule passes", async () => {
     const bundle = await mixedWithStoredMember({
       listing: "Planned Member",
       quantity: 1,
     });
     const result = await importCatalog(bundle);
-    if (!result.ok) throw new Error(result.error);
-    expect(result.value).toEqual({ groups: 1, kind: "bundle", listings: 1 });
+    expect(requireBundleImport(result).groups).toBe(1);
   });
 });

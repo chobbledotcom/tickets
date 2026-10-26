@@ -303,13 +303,9 @@ export const formatTransferIssues = (issues: TransferIssues): string => {
 /** The submitted items of one kind, when the raw document holds an array. */
 const rawItemsOf = (raw: unknown, kind: "listings" | "groups"): unknown[] => {
   if (typeof raw !== "object" || raw === null) return [];
-  if (kind === "listings" && "listings" in raw && Array.isArray(raw.listings)) {
-    return raw.listings;
-  }
-  if (kind === "groups" && "groups" in raw && Array.isArray(raw.groups)) {
-    return raw.groups;
-  }
-  return [];
+  const items = (raw as Record<string, unknown>)[kind];
+  if (!Array.isArray(items)) return [];
+  return items;
 };
 
 /** Read one segment of a raw bundle item: the item's name, when the raw
@@ -323,15 +319,12 @@ const rawBundleItemName = (
   const item = rawItemsOf(raw, kind)[index];
   if (typeof item !== "object" || item === null) return null;
   // A bundle item holds its name in the nested body ("listing": {...name}).
-  const body =
-    kind === "listings" && "listing" in item && typeof item.listing === "object"
-      ? item.listing
-      : kind === "groups" && "group" in item && typeof item.group === "object"
-        ? item.group
-        : undefined;
-  if (body === undefined || body === null || !("name" in body)) return null;
-  const name = body.name;
-  return typeof name === "string" && name.trim() !== "" ? name : null;
+  const record = item as Record<string, unknown>;
+  const body = record[kind === "listings" ? "listing" : "group"];
+  if (typeof body !== "object" || body === null) return null;
+  const name = (body as { name?: unknown }).name;
+  if (typeof name !== "string") return null;
+  return name.trim() === "" ? null : name;
 };
 
 /**
