@@ -1,4 +1,3 @@
-import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -19,6 +18,10 @@ import {
   createTestListing,
   listingWithTwoUndatedBookings,
 } from "#test-utils/db-helpers/listings.ts";
+import {
+  emptyResultSet,
+  stubResultSet,
+} from "#test-utils/db-helpers/result-set.ts";
 import type { ListingWithCount } from "#types";
 
 const input = (overrides: Partial<ListingInput> = {}): ListingInput =>
@@ -29,16 +32,6 @@ const input = (overrides: Partial<ListingInput> = {}): ListingInput =>
     name: "Hall",
     ...overrides,
   }) as ListingInput;
-
-/** A minimal libsql ResultSet for a stubbed batch read: no rows. */
-const emptyResultSet = (): ResultSet => ({
-  columns: [],
-  columnTypes: [],
-  lastInsertRowid: undefined,
-  rows: [],
-  rowsAffected: 0,
-  toJSON: () => ({}),
-});
 
 /** The booking rows of one listing, with their day windows. */
 const rawRows = async (
@@ -90,20 +83,21 @@ describeWithEnv("db: listings — the daily switch", { db: true }, () => {
     // the move's own batch then fails for a reason that is no capacity
     // refusal, and a log write after it would fail with another message.
     let call = 0;
-    const rowResult = (): ResultSet => ({
-      columns: [],
-      columnTypes: [],
-      lastInsertRowid: undefined,
-      rows: [
-        { attendeeId: 1, packageGroupId: 0, parentListingId: 0, quantity: 2 },
-      ],
-      rowsAffected: 0,
-      toJSON: () => ({}),
-    });
     const scriptedTx: TxScope = {
       batch: () => {
         call += 1;
-        if (call === 1) return Promise.resolve([rowResult()]);
+        if (call === 1) {
+          return Promise.resolve([
+            stubResultSet([
+              {
+                attendeeId: 1,
+                packageGroupId: 0,
+                parentListingId: 0,
+                quantity: 2,
+              },
+            ]),
+          ]);
+        }
         if (call === 2) {
           return Promise.reject(new Error("the database stopped responding"));
         }

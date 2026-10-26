@@ -127,7 +127,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     expect(offered).not.toEqual(await bookableStartDates(stored.id));
   });
 
-  test("the probe judges each offered date with the production capacity SQL", async () => {
+  test("the probe judges each offered date with the production per-day cap SQL", async () => {
     const listing = await createTestListing({ maxAttendees: 2 });
     await bookAttendee(listing, { date: "2026-11-05", quantity: 2 });
     const fits = await probeAssignDates(
