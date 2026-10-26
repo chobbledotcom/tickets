@@ -47,14 +47,18 @@ import type { CatalogBundle } from "./schema.ts";
 
 /** Fresh random slugs for `count` new rows, checked in one batched read.
  * Random collisions (within the batch or with the site) are near-impossible.
- * The retry mirrors the single-import generator's ten attempts. */
-const freshSlugs = async (
+ * The retry mirrors the single-import generator's ten attempts. The taken
+ * check is a parameter, so the exhaustion path is testable. */
+export const freshSlugs = async (
   count: number,
+  takenCheck: (
+    slugIndexes: readonly string[],
+  ) => Promise<Set<string>> = takenSlugIndexes,
 ): Promise<{ slug: string; slugIndex: BlindIndex }[]> => {
   for (const _attempt of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) {
     const slugs = Array.from({ length: count }, () => generateSlug());
     const slugIndexes = await Promise.all(slugs.map((slug) => hmacHash(slug)));
-    const taken = await takenSlugIndexes(slugIndexes);
+    const taken = await takenCheck(slugIndexes);
     if (taken.size === 0 && new Set(slugIndexes).size === slugIndexes.length) {
       return slugs.map((slug, index) => ({
         slug,
@@ -92,8 +96,9 @@ const requireSiteEntitiesTx = async (
   );
 };
 
-/** Throw when any id holds no row in `table`, with the given refusal. */
-const requireRowsTx = async (
+/** Throw when any id holds no row in `table`, with the given refusal. A
+ * vanished row can then become a silent orphan edge or membership. */
+export const requireRowsTx = async (
   tx: TxScope,
   table: "listings" | "groups",
   ids: readonly number[],
