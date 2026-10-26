@@ -192,21 +192,6 @@ const repeatedElementsOf = (
   return violations;
 };
 
-/** The text span of one top-level declaration: from its keyword to the close
- * of its first brace group, or to the end of the text when the declaration
- * carries no braces. `[-1, -1]` when the file declares no such name. */
-const declarationSpan = (blanked: string, name: string): [number, number] => {
-  const declared = blanked.match(
-    new RegExp(`\\b(?:const|let|var|function)\\s+${name}\\b`),
-  );
-  if (declared?.index === undefined) return [-1, -1];
-  const open = blanked.indexOf("{", declared.index);
-  const end = blanked.indexOf(";", declared.index);
-  if (open < 0 || (end >= 0 && end < open)) return [-1, -1];
-  const close = matchingBracket(blanked, open);
-  return close < 0 ? [-1, -1] : [declared.index, close + 1];
-};
-
 /** The local array literals of one file, by name: the values a statement can
  * receive through one of the argument uses below. The declaration's type
  * annotation, when it carries one, sits between the name and the `=`; it
@@ -238,23 +223,12 @@ type FoundBinds = { at: number; close: number; line: number; open: number };
 /** The repeated-bind violations of one source file. Within one `{ sql, args }`
  * statement, one comparable argument appearing twice means the statement
  * binds one value more than once; the numbered binder binds it once and
- * reuses the token. An allowed entry names a whole file, or `file:declaration`
- * for one top-level declaration — the clause assemblies whose parts cannot
- * convert alone. */
+ * reuses the token. */
 export const findRepeatedBinds = (
   relativePath: string,
   content: string,
-  allowed: readonly string[],
 ): string[] => {
   const blanked = blankSpans(content, true);
-  const exempt = (at: number): boolean =>
-    allowed.some((entry) => {
-      const separator = entry.lastIndexOf(":");
-      if (separator < 0) return relativePath === entry;
-      if (!relativePath.startsWith(entry.slice(0, separator))) return false;
-      const [start, end] = declarationSpan(blanked, entry.slice(separator + 1));
-      return start >= 0 && at >= start && at < end;
-    });
   const locals = localArrayLiterals(blanked);
   const blocks = matchedBlocks(blanked);
   const resolve = (name: string, at: number): LocalArray[] | undefined => {
@@ -263,7 +237,6 @@ export const findRepeatedBinds = (
   };
   const violations: string[] = [];
   const report = (found: FoundBinds): void => {
-    if (exempt(found.at)) return;
     violations.push(
       ...repeatedElementsOf(
         content,
@@ -409,19 +382,17 @@ export const findHandNumberedSql = (
 };
 
 /** The violations the two numbered-parameter rules report over one loaded
- * source tree: each detector over every file, the repeated-bind allowances
- * applied. `toRelative` names each file the way a finding reports it. */
+ * source tree: each detector over every file. `toRelative` names each file
+ * the way a finding reports it. */
 export const findNumberedBindViolations = (
   files: readonly string[],
   contents: ReadonlyMap<string, string>,
   toRelative: (file: string) => string,
-  allowed: readonly string[],
 ): string[] => [
   ...files.flatMap((file) =>
     findRepeatedBinds(
       toRelative(file),
       requiredMapValue(contents, file, `Missing source text for ${file}`),
-      allowed,
     ),
   ),
   ...files.flatMap((file) =>

@@ -88,12 +88,6 @@ export const ALLOWED_DUPLICATE_TYPE_SHAPES: {
 ];
 
 /**
- * Statements the repeated-bind rule may not judge. Format: "file" exempts a
- * whole file; "file:declaration" exempts one top-level declaration.
- */
-export const ALLOWED_REPEATED_BINDS: string[] = [];
-
-/**
  * Exports that exist only for tests to reach.
  *
  * Format: "file:exportName"
