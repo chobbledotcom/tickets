@@ -11,7 +11,6 @@ describe("repeated binds", () => {
   args: [listingId, PRICE_TYPE_BASE, listingId],
   sql: "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ? AND EXISTS (SELECT 1 FROM listings WHERE id = ?)",
 };`,
-        [],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:2: binds listingId more than once; numberedStatement binds it once and reuses the token",
@@ -23,7 +22,6 @@ describe("repeated binds", () => {
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "const statement = { args: [...ids, ...ids], sql: query };",
-        [],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:1: binds ids more than once; numberedStatement binds it once and reuses the token",
@@ -40,7 +38,6 @@ describe("repeated binds", () => {
 };
 const other = { args: [row.sessionId, row.slot], sql: row.sql };
 const typed = { args: [first.name, second.name], sql: namesSql };`,
-        [],
       ),
     ).toEqual([]);
   });
@@ -50,7 +47,6 @@ const typed = { args: [first.name, second.name], sql: namesSql };`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "const statement = { args: [nowIso(), nowIso()], sql: stampSql };",
-        [],
       ),
     ).toEqual([]);
   });
@@ -60,108 +56,8 @@ const typed = { args: [first.name, second.name], sql: namesSql };`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "function make(): { args: [string, number, string]; sql: string } {",
-        [],
       ),
     ).toEqual([]);
-  });
-
-  test("stays quiet on the allowed file", () => {
-    expect(
-      findRepeatedBinds(
-        "shared/accounting/queries.ts",
-        "const statement = { args: [type, ...ids, type, ...ids], sql: q };",
-        ["shared/accounting/queries.ts"],
-      ),
-    ).toEqual([]);
-  });
-
-  test("fires on a lookalike sibling of the allowed file", () => {
-    expect(
-      findRepeatedBinds(
-        "shared/accounting/queries.ts.extra",
-        "const statement = { args: [type, ...ids, type, ...ids], sql: q };",
-        ["shared/accounting/queries.ts"],
-      ),
-    ).toEqual([
-      "shared/accounting/queries.ts.extra:1: binds type more than once; numberedStatement binds it once and reuses the token",
-      "shared/accounting/queries.ts.extra:1: binds ids more than once; numberedStatement binds it once and reuses the token",
-    ]);
-  });
-
-  test("stays quiet on a lookalike sibling an allowed declaration entry names by file prefix", () => {
-    expect(
-      findRepeatedBinds(
-        "shared/accounting/queries.tsx",
-        `const accountsScope = (accounts: AccountRef[]): WhereClause => {
-  const part = { args: [type, ...ids, type, ...ids], clause };
-};`,
-        ["shared/accounting/queries.ts:accountsScope"],
-      ),
-    ).toEqual([]);
-  });
-
-  test("stays quiet on a repeat inside the allowed declaration", () => {
-    expect(
-      findRepeatedBinds(
-        "shared/accounting/queries.ts",
-        `const accountsScope = (accounts: AccountRef[]): WhereClause => {
-  const part = { args: [type, ...ids, type, ...ids], clause };
-  return { args: part.args, clause };
-};`,
-        ["shared/accounting/queries.ts:accountsScope"],
-      ),
-    ).toEqual([]);
-  });
-
-  test("fires on a repeat outside the allowed declaration", () => {
-    expect(
-      findRepeatedBinds(
-        "shared/accounting/queries.ts",
-        `const accountsScope = (accounts: AccountRef[]): WhereClause => {
-  const part = { args: [type, ...ids, type, ...ids], clause };
-};
-const transfersFor = { args: [id, id], sql: transferSql };`,
-        ["shared/accounting/queries.ts:accountsScope"],
-      ),
-    ).toEqual([
-      "shared/accounting/queries.ts:4: binds id more than once; numberedStatement binds it once and reuses the token",
-    ]);
-  });
-
-  test("fires when the allowed declaration has no brace group", () => {
-    expect(
-      findRepeatedBinds(
-        "shared/db/synthetic.ts",
-        "const scope = assemble;\nlet ids = [batchId, batchId];\nawait execute(writeSql, ids);",
-        ["shared/db/synthetic.ts:scope"],
-      ),
-    ).toEqual([
-      "shared/db/synthetic.ts:2: binds batchId more than once; numberedStatement binds it once and reuses the token",
-    ]);
-  });
-
-  test("fires when the allowed declaration never closes", () => {
-    expect(
-      findRepeatedBinds(
-        "shared/db/synthetic.ts",
-        "const scope = () => {\nconst statement = { args: [id, id], sql };",
-        ["shared/db/synthetic.ts:scope"],
-      ),
-    ).toEqual([
-      "shared/db/synthetic.ts:2: binds id more than once; numberedStatement binds it once and reuses the token",
-    ]);
-  });
-
-  test("fires when the allowed declaration is absent", () => {
-    expect(
-      findRepeatedBinds(
-        "shared/db/synthetic.ts",
-        "const statement = { args: [id, id], sql };",
-        ["shared/db/synthetic.ts:missing"],
-      ),
-    ).toEqual([
-      "shared/db/synthetic.ts:1: binds id more than once; numberedStatement binds it once and reuses the token",
-    ]);
   });
 
   test("skips an args array that never closes", () => {
@@ -169,7 +65,6 @@ const transfersFor = { args: [id, id], sql: transferSql };`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "const partial = { args: [listingId, listingId,",
-        [],
       ),
     ).toEqual([]);
   });
@@ -179,7 +74,6 @@ const transfersFor = { args: [id, id], sql: transferSql };`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "let args = [listingId, listingId];\nawait execute(writeSql, args);",
-        [],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:1: binds listingId more than once; numberedStatement binds it once and reuses the token",
@@ -191,7 +85,6 @@ const transfersFor = { args: [id, id], sql: transferSql };`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "const args: number[] = [listingId, listingId];\nawait execute(writeSql, args);",
-        [],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:1: binds listingId more than once; numberedStatement binds it once and reuses the token",
@@ -203,21 +96,8 @@ const transfersFor = { args: [id, id], sql: transferSql };`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "let broken = [listingId, listingId;\nawait execute(writeSql, broken);",
-        [],
       ),
     ).toEqual([]);
-  });
-
-  test("judges a file an allowed declaration does not name", () => {
-    expect(
-      findRepeatedBinds(
-        "shared/db/synthetic.ts",
-        "let args = [listingId, listingId];\nawait execute(writeSql, args);",
-        ["shared/accounting/queries.ts:accountsScope"],
-      ),
-    ).toEqual([
-      "shared/db/synthetic.ts:1: binds listingId more than once; numberedStatement binds it once and reuses the token",
-    ]);
   });
 
   test("stays quiet on a local array whose values are all distinct", () => {
@@ -225,7 +105,6 @@ const transfersFor = { args: [id, id], sql: transferSql };`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "const args = [listingId, priceType];\nawait execute(writeSql, args);",
-        [],
       ),
     ).toEqual([]);
   });
@@ -237,7 +116,6 @@ const transfersFor = { args: [id, id], sql: transferSql };`,
         `const args = [sessionId, sessionId];
 const statement = { args, sql };
 await tx.execute({ args, sql });`,
-        [],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:1: binds sessionId more than once; numberedStatement binds it once and reuses the token",
@@ -250,7 +128,6 @@ await tx.execute({ args, sql });`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "const ids = [batchId, batchId];\nconst statement = { args: ids, sql };",
-        [],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:1: binds batchId more than once; numberedStatement binds it once and reuses the token",
@@ -262,7 +139,6 @@ await tx.execute({ args, sql });`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "const extra = [ownerId, ownerId];\nconst statement = { args: [...extra], sql };",
-        [],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:2: binds ownerId more than once; numberedStatement binds it once and reuses the token",
@@ -276,7 +152,6 @@ await tx.execute({ args, sql });`,
         `const statement = { args: row.values, sql: row.sql };
 await execute(row.sql, row.values);
 await execute(row.sql);`,
-        [],
       ),
     ).toEqual([]);
   });
@@ -286,7 +161,6 @@ await execute(row.sql);`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "let args = [listingId, listingId];\nawait execute(writeSql",
-        [],
       ),
     ).toEqual([]);
   });
@@ -296,7 +170,6 @@ await execute(row.sql);`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "await execute(writeSql, [sessionId, sessionId]);",
-        [],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:1: binds sessionId more than once; numberedStatement binds it once and reuses the token",
@@ -314,7 +187,6 @@ await execute(row.sql);`,
           "  [...pair, ...pair, ...pair, ...pair],",
           ");",
         ].join("\n"),
-        [],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:4: binds acct.type more than once; numberedStatement binds it once and reuses the token",
@@ -330,7 +202,6 @@ await execute(row.sql);`,
           "const ids = [batchId, batchId];",
           "const rows = await queryAll<Row>(readSql, ids);",
         ].join("\n"),
-        [],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:1: binds batchId more than once; numberedStatement binds it once and reuses the token",
@@ -342,7 +213,6 @@ await execute(row.sql);`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "const row = await executeReturningRow<Lockout>(writeSql, [id, id]);",
-        [],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:1: binds id more than once; numberedStatement binds it once and reuses the token",
@@ -354,7 +224,6 @@ await execute(row.sql);`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "const ids = await queryIdColumn(readSql, [ownerId, ownerId]);",
-        [],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:1: binds ownerId more than once; numberedStatement binds it once and reuses the token",
@@ -366,7 +235,6 @@ await execute(row.sql);`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "await execute(writeSql, [listingId, listingId",
-        [],
       ),
     ).toEqual([]);
   });
@@ -376,7 +244,6 @@ await execute(row.sql);`,
       findRepeatedBinds(
         "shared/db/synthetic.ts",
         "const count = queryOne < expected ? readSql : writeSql;",
-        [],
       ),
     ).toEqual([]);
   });
@@ -389,7 +256,6 @@ await execute(row.sql);`,
           "await execute(writeSql, [sessionId, priceType]);",
           "const row = await requireOne<Row>(readSql, [type, id]);",
         ].join("\n"),
-        [],
       ),
     ).toEqual([]);
   });
@@ -410,7 +276,6 @@ await execute(row.sql);`,
           "  return statement;",
           "};",
         ].join("\n"),
-        [],
       ),
     ).toEqual([]);
   });
@@ -429,7 +294,6 @@ await execute(row.sql);`,
           "  return execute(otherSql, ids);",
           "};",
         ].join("\n"),
-        [],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:2: binds batchId more than once; numberedStatement binds it once and reuses the token",
@@ -446,7 +310,6 @@ await execute(row.sql);`,
           "  return () => execute(writeSql, ids);",
           "};",
         ].join("\n"),
-        [],
       ),
     ).toEqual([
       "shared/db/synthetic.ts:2: binds ownerId more than once; numberedStatement binds it once and reuses the token",
