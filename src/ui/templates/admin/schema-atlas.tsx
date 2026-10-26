@@ -83,11 +83,13 @@ const viewMachine = (
  * and every way the record can move next. */
 const StateArticle = ({ state }: { state: ViewState }): JSX.Element => (
   <article class="schema-state" data-schema-state={state.id}>
-    <h3>
-      {state.label}
-      {state.start && ` · ${t("schema.state.start")}`}
-    </h3>
-    <p>{state.detail}</p>
+    <div class="prose">
+      <h3>
+        {state.label}
+        {state.start && ` · ${t("schema.state.start")}`}
+      </h3>
+      <p>{state.detail}</p>
+    </div>
     {state.facts.some(Boolean) && (
       <dl class="schema-facts">
         {state.facts.map((fact) => (

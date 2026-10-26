@@ -107,11 +107,13 @@ export const adminLedgerEntryNewPage = ({
       icon="plus"
       returnUrl={returnUrl}
     >
-      <h1>{t("admin.ledger.add.heading")}</h1>
-      <p>
-        {t("admin.ledger.add.account")}{" "}
-        <strong>{accountLabelText(account, names)}</strong>
-      </p>
+      <div class="prose">
+        <h1>{t("admin.ledger.add.heading")}</h1>
+        <p>
+          {t("admin.ledger.add.account")}{" "}
+          <strong>{accountLabelText(account, names)}</strong>
+        </p>
+      </div>
     </LedgerEntryForm>,
   );
 

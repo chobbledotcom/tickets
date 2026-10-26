@@ -237,9 +237,9 @@ export const adminImageEditPage = ({
         {SaveChangesButton()}
       </CsrfForm>
       {!isReadOnly() && (
-        <>
+        <div class="prose">
           <h2>{t("entity.danger_zone")}</h2>
-          <p class="prose">
+          <p>
             <ActionButton
               href={`/admin/images/${image.id}/delete`}
               icon="trash-2"
@@ -248,7 +248,7 @@ export const adminImageEditPage = ({
               {t("images.delete.link")}
             </ActionButton>
           </p>
-        </>
+        </div>
       )}
     </>,
   );
