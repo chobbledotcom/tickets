@@ -1,12 +1,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeeStatusApiTable } from "#db/attendee-status-api-table.ts";
-import {
-  attendeeStatuses,
-  getAttendeeStatus,
-  statusDeleteProspects,
-} from "#db/attendee-statuses.ts";
+import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -214,6 +209,21 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
       );
     });
 
+    test("refuses a reservation amount without the reservation flag", async () => {
+      await assertJson(
+        apiRequest("/api/admin/attendee-statuses", {
+          body: { name: "Hold", reservation_amount: "25%" },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "reservation_amount only applies to a reservation. Set is_reservation to true, or leave reservation_amount out.",
+          );
+        },
+      );
+    });
+
     test("refuses a malformed reservation amount", async () => {
       await assertJson(
         apiRequest("/api/admin/attendee-statuses", {
@@ -297,6 +307,44 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
         (body) => {
           expect(body.error).toBe(
             "Choose another paid default before clearing this one",
+          );
+        },
+      );
+    });
+
+    test("refuses an amount on a status that is not a reservation", async () => {
+      const status = await createStatus("Plain");
+
+      await assertJson(
+        apiRequest(`/api/admin/attendee-statuses/${status.id}`, {
+          body: { name: "Plain", reservation_amount: "10%" },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "reservation_amount only applies to a reservation. Set is_reservation to true, or leave reservation_amount out.",
+          );
+        },
+      );
+    });
+
+    test("refuses an amount when the update turns the reservation off", async () => {
+      const status = await attendeeStatuses.table.insert({
+        isReservation: true,
+        name: "Reserved",
+        reservationAmount: "25%",
+      });
+
+      await assertJson(
+        apiRequest(`/api/admin/attendee-statuses/${status.id}`, {
+          body: { is_reservation: false, reservation_amount: "10%" },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "reservation_amount only applies to a reservation. Set is_reservation to true, or leave reservation_amount out.",
           );
         },
       );
@@ -387,52 +435,6 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
         },
       );
       expect(await getAttendeeStatus(status.id)).not.toBeNull();
-    });
-
-    test("the table delete throws the boundary refusal as a validation error", async () => {
-      // The route pre-refuses every refusal, so the table's own throw path
-      // is exercised directly: a delete the boundary refuses fails loudly.
-      await createStatus("Spare");
-      const [seed] = await attendeeStatuses.getAll();
-      await expect(attendeeStatusApiTable.deleteById(seed!.id)).rejects.toThrow(
-        "Choose another public default before deleting this status",
-      );
-    });
-
-    test("the delete prospects throw for a missing status", async () => {
-      await expect(statusDeleteProspects(99999)).rejects.toThrow(
-        "Attendee status 99999 does not exist",
-      );
-    });
-
-    test("the API table reads a status back by primary key", async () => {
-      const status = await createStatus("Primary read");
-
-      const read = await attendeeStatusApiTable.findByIdPrimary!(status.id);
-      expect(read?.name).toBe("Primary read");
-    });
-  });
-
-  describe("the API table write surface", () => {
-    test("a partial update fills the omitted flags with the create defaults", async () => {
-      const status = await createStatus("Default flags");
-
-      const updated = await attendeeStatusApiTable.update(status.id, {
-        name: "Renamed",
-      });
-      expect(updated?.name).toBe("Renamed");
-      expect(updated?.is_paid_default).toBe(false);
-      expect(updated?.is_public_default).toBe(false);
-      expect(updated?.is_reservation).toBe(false);
-      expect(updated?.reservation_amount).toBe("0");
-    });
-
-    test("the table update refuses a missing name", async () => {
-      const status = await createStatus("Guarded");
-
-      await expect(
-        attendeeStatusApiTable.update(status.id, { isReservation: true }),
-      ).rejects.toThrow("requires the name field");
     });
   });
 

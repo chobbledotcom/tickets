@@ -32,8 +32,11 @@ const attendeeStatusSaveOrThrow = async (
 };
 
 /** Delete a status through the boundary, throwing the operator-facing message
- *  as a validation error when the boundary refuses. */
+ *  as a validation error when the boundary refuses. A row a concurrent delete
+ *  already removed is already gone, so the delete answers nothing — the same
+ *  idempotent no-op a plain table's DELETE gives. */
 const attendeeStatusDeleteOrThrow = async (id: number): Promise<void> => {
+  if ((await attendeeStatuses.table.findByIdPrimary!(id)) === null) return;
   const result = await attendeeStatusWrites.delete(id);
   if (!result.ok) {
     throw new TransactionValidationError(
@@ -87,8 +90,15 @@ export const attendeeStatusApiTable: Table<
     if (name === undefined) {
       throw new Error("attendeeStatusApiTable.update requires the name field");
     }
+    // A row deleted between the route's lookup and this write leaves nothing
+    // to update. The Table contract answers null, and the factory turns that
+    // into a clean not-found.
+    const statusId = Number(id);
+    if ((await attendeeStatuses.table.findByIdPrimary!(statusId)) === null) {
+      return null;
+    }
     return attendeeStatusSaveOrThrow(
-      Number(id),
+      statusId,
       toFullStatusWrite({ ...input, name }),
     );
   },

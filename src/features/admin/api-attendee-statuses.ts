@@ -40,15 +40,26 @@ const FLAG_FIELDS = [
   ["is_reservation", "isReservation"],
 ] as const;
 
+/** The refusal for an amount on a write whose status is not a reservation.
+ *  The form stores an amount only beside the reservation flag. A body that
+ *  carries one without the flag asks for a row the form cannot hold. */
+const AMOUNT_WITHOUT_RESERVATION =
+  "reservation_amount only applies to a reservation. Set is_reservation to true, or leave reservation_amount out.";
+
 /** The amount a status stores: "0" for a non-reservation, the caller's
- *  validated value for a reservation. */
+ *  validated value for a reservation. An amount sent for a non-reservation
+ *  is refused, never dropped. */
 const reservationAmountFrom = (
   body: Record<string, unknown>,
   isReservation: boolean,
   stored: string,
 ): Result<string> => {
-  if (!isReservation) return okResult("0");
   const raw = body.reservation_amount;
+  if (!isReservation) {
+    return raw === undefined
+      ? okResult("0")
+      : errorResult(AMOUNT_WITHOUT_RESERVATION);
+  }
   if (raw !== undefined && typeof raw !== "string") {
     return errorResult("reservation_amount must be a string");
   }
