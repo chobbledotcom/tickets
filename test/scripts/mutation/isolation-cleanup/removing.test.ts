@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { removeFinishedRuns } from "#scripts/mutation/isolation-cleanup.ts";
+import { stub } from "@std/testing/mock";
+import {
+  removeFinishedRuns,
+  removeWorkSnapshot,
+} from "#scripts/mutation/isolation-cleanup.ts";
 import { withRunClaimGuard } from "#scripts/mutation/isolation-lock.ts";
 import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
@@ -9,6 +13,7 @@ import {
   newRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
 import {
+  captureConsole,
   LONG_AGO,
   removeRunClaim,
   runIdNamed,
@@ -27,7 +32,9 @@ describe("deleting the runs that are finished with", () => {
         root,
         LONG_AGO.toISOString(),
       );
-      await writeRunRecord(markRunning(asRead, Deno.pid));
+      await writeRunRecord(
+        markRunning(asRead, { pid: Deno.pid, supervisorPid: Deno.pid }),
+      );
       await writeRunClaim(asRead);
 
       expect((await removeFinishedRuns([asRead])).skipped).toEqual([asRead]);
@@ -66,7 +73,7 @@ describe("deleting the runs that are finished with", () => {
       // record. The supervisor's claim is what says the run is still someone's.
       const settling = markRunning(
         newRunRecord(runIdNamed("settling"), [], root, LONG_AGO.toISOString()),
-        99_999_999,
+        { pid: 99_999_999, supervisorPid: 99_999_999 },
         LONG_AGO.toISOString(),
       );
       await writeRunRecord(settling);
@@ -96,6 +103,25 @@ describe("deleting the runs that are finished with", () => {
       await removeRunClaim(finished);
       expect((await removeFinishedRuns([finished])).removed).toEqual([
         finished,
+      ]);
+    });
+  });
+
+  test("reports the snapshot it cannot remove", async () => {
+    await withTempDir(async (root) => {
+      const record = newRunRecord(runIdNamed("busy"), [], root);
+      await Deno.mkdir(record.workRoot, { recursive: true });
+
+      const remove = Deno.remove;
+      using _remove = stub(Deno, "remove", ((path, options) =>
+        String(path) === record.workRoot
+          ? Promise.reject(new Error("work is busy"))
+          : remove(path, options)) as typeof Deno.remove);
+
+      const { errors } = await captureConsole(() => removeWorkSnapshot(record));
+
+      expect(errors).toEqual([
+        `Failed to remove the snapshot of ${record.id}: work is busy`,
       ]);
     });
   });

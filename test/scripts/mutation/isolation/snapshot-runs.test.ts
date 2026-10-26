@@ -92,7 +92,9 @@ describe("running mutation inside a snapshot", () => {
       })();
 
       expect(run.errors).toEqual([
-        `Failed to remove the snapshot of ${(await readOnlyRunRecord(root)).id}: work is busy`,
+        `Failed to remove the snapshot of ${
+          (await readOnlyRunRecord(root)).id
+        }: work is busy`,
       ]);
     });
   });
@@ -223,7 +225,11 @@ describe("running mutation inside a snapshot", () => {
   test("publishes the pid-less record the moment the child ends", async () => {
     await withTempDir(async (root) => {
       await writeFakeMutationScript(root, "Deno.exit(0);\n");
-      const written: { pid?: number; status: string }[] = [];
+      const written: {
+        pid?: number;
+        status: string;
+        supervisorPid?: number;
+      }[] = [];
       const writeTextFile = Deno.writeTextFile;
       using _write = stub(Deno, "writeTextFile", ((
         target: string | URL,
@@ -243,10 +249,16 @@ describe("running mutation inside a snapshot", () => {
       await captureSimpleSnapshotMutation(root);
 
       // The pid leaves the written record the moment the child ends — before
-      // the kept files come back — so --kill can never trust it late.
+      // the kept files come back — so --kill can never trust it late. The
+      // supervisor's stays: --kill reaches the run through it to the end.
       const running = written.filter((record) => record.status === "running");
       expect(running.at(0)?.pid).toBeGreaterThan(0);
+      expect(running.at(0)?.supervisorPid).toBe(Deno.pid);
+      // The child is its own process, never the supervisor: a record that
+      // named the supervisor as its child would mislead a stray-run hunt.
+      expect(running.at(0)?.pid).not.toBe(Deno.pid);
       expect(running.at(-1)?.pid).toBeUndefined();
+      expect(running.at(-1)?.supervisorPid).toBe(Deno.pid);
     });
   });
 

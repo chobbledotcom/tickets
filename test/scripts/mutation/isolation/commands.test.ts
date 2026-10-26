@@ -80,7 +80,10 @@ describe("mutation isolation commands", () => {
       const copying = newRunRecord(runIdNamed("copying"), [], root);
       const running = markRunning(
         newRunRecord(runIdNamed("running"), [], root),
-        Deno.pid,
+        {
+          pid: Deno.pid,
+          supervisorPid: Deno.pid,
+        },
       );
       // Records with nobody's claim behind them, so all cleanable — even ones
       // written moments ago, and even when the process id in them is alive.
@@ -129,7 +132,7 @@ describe("mutation isolation commands", () => {
           root,
           LONG_AGO.toISOString(),
         ),
-        Deno.pid,
+        { pid: Deno.pid, supervisorPid: Deno.pid },
         LONG_AGO.toISOString(),
       );
       await writeRunRecord(staleReused);

@@ -51,7 +51,7 @@ describe("mutation isolation command parsing and listing", () => {
   test("selects records by target", () => {
     const running = markRunning(
       newRunRecord("mutation-running", ["src/a.ts"], "/repo"),
-      10,
+      { pid: 10, supervisorPid: 10 },
     );
     const copying = newRunRecord("mutation-copying", ["src/c.ts"], "/repo");
     const passed = markFinished(
@@ -82,7 +82,7 @@ describe("mutation isolation command parsing and listing", () => {
     // A whole id wins outright, even when it also starts another run's id.
     const longer = markRunning(
       newRunRecord("mutation-running-again", ["src/f.ts"], "/repo"),
-      12,
+      { pid: 12, supervisorPid: 12 },
     );
     expect(selectedRuns([...records, longer], "mutation-running")).toEqual([
       running,
@@ -94,7 +94,7 @@ describe("mutation isolation command parsing and listing", () => {
   test("formats list output", () => {
     const running = markRunning(
       newRunRecord("mutation-running", ["src/a.ts"], "/repo"),
-      10,
+      { pid: 10, supervisorPid: 10 },
     );
 
     expect(visibleStatus(running, false)).toBe("stale");
@@ -109,7 +109,7 @@ describe("mutation isolation command parsing and listing", () => {
     // Several arguments are spaced out the way they were typed.
     const twoArgs = markRunning(
       newRunRecord("mutation-two", ["src/a.ts", "test/a.test.ts"], "/repo"),
-      11,
+      { pid: 11, supervisorPid: 11 },
     );
     expect(
       formatRunList([twoArgs], new Set(["mutation-two"]), "/repo"),
