@@ -319,7 +319,7 @@ describe("ticketViewPage ticket cards", () => {
     });
   });
 
-  test("renders an unresolved card description's img#N reference with no source", async () => {
+  test("renders an unresolved card description's reference as its alt text", async () => {
     await withRequestContext(() => {
       const cards = [
         {
@@ -332,8 +332,9 @@ describe("ticketViewPage ticket cards", () => {
       const html = ticketViewPage(cards);
       assertStringIncludes(
         html,
-        '<div class="ticket-card-description"><p><img src="" alt="Poster"></p>',
+        '<div class="ticket-card-description"><p>Poster</p>',
       );
+      assert(!html.includes('<img src=""'));
     });
   });
 });

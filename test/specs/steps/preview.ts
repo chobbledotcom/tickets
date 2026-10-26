@@ -55,7 +55,7 @@ Then(
   function (this: TicketsWorld): void {
     assertStringIncludes(
       whatTheyWereTold(this, PREVIEWER),
-      '<img src="" alt="Ghost">',
+      "<p>Have a look. Ghost</p>",
     );
   },
 );
@@ -63,6 +63,7 @@ Then(
 Then(
   "the preview shows no picture at all",
   function (this: TicketsWorld): void {
+    assert(!whatTheyWereTold(this, PREVIEWER).includes("<img"));
     assert(!whatTheyWereTold(this, PREVIEWER).includes("/image/"));
   },
 );

@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
+import { expectAltTextPreview } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { testCookie } from "#test-utils/session.ts";
@@ -32,10 +33,9 @@ describeWithEnv("POST /admin/markdown-preview", { db: true }, () => {
     );
   });
 
-  test("leaves an img#N reference the image table lacks with no source", async () => {
+  test("renders an img#N reference the image table lacks as its alt text", async () => {
     const response = await postPreview("![Ghost](img#99999)");
 
-    expect(response.status).toBe(200);
-    assertStringIncludes(await response.text(), '<img src="" alt="Ghost">');
+    await expectAltTextPreview(response, "Ghost");
   });
 });
