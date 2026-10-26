@@ -216,6 +216,14 @@ describe("resolveImageReferences", () => {
     );
   });
 
+  test("keeps a repeated definition line when it resolves the first one", () => {
+    expect(
+      resolveImageReferences("[5]: img#5\n\n[5]: img#7\n\n![A][5]", urls),
+    ).toBe(
+      "[5]: https://tickets.example/image/poster.webp\n\n[5]: img#7\n\n![A](https://tickets.example/image/poster.webp)",
+    );
+  });
+
   test("keeps the written form of a reference-style picture the table lacks", () => {
     expect(
       resolveImageReferences("![Poster][poster]\n\n[poster]: img#7", urls),

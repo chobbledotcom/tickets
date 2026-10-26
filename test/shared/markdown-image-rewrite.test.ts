@@ -57,6 +57,12 @@ describe("rewriteImageDestinations", () => {
     );
   });
 
+  test("keeps a repeated definition line the table does not resolve", () => {
+    expect(
+      rewriteImageDestinations("[5]: img#9\n\n[5]: img#7\n\n![A][5]", toPoster),
+    ).toBe("[5]: img#9\n\n[5]: img#7\n\n![A][5]");
+  });
+
   test("resolves a reference-style picture the prose surrounds", () => {
     expect(
       rewriteImageDestinations("See ![A][5] now.\n\n[5]: img#5", toPoster),

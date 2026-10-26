@@ -13,6 +13,10 @@ Deno.test("TLA comments nest and leave token boundaries intact", () => {
     tokenizeTla("left right next").map(({ text }) => text),
     ["left", "right", "next"],
   );
+  assertEquals(
+    tokenizeTla("left \\* comment at EOF").map(({ text }) => text),
+    ["left"],
+  );
   assertNotEquals(
     prepareSource("a", "left right").encoded,
     prepareSource("a", "leftright").encoded,
@@ -69,6 +73,10 @@ Deno.test("TLA identifiers, literals and maximal operators remain distinct", () 
   assertEquals(
     tokenizeTla("x^+ (+) y <: z").map(({ text }) => text),
     ["x", "^+", "(+)", "y", "<:", "z"],
+  );
+  assertEquals(
+    tokenizeTla("---- MODULE Example ----\n====").map(({ text }) => text),
+    ["----", "MODULE", "Example", "----", "===="],
   );
   assertNotEquals(
     prepareSource("a", "123name").encoded,
@@ -129,6 +137,7 @@ Deno.test("Malformed lexical input fails rather than disappearing", () => {
     '"unterminated',
     '"line\nbreak"',
     String.raw`"bad\q"`,
+    '"bad\\',
     "(* unfinished",
     "*)",
     "😀",

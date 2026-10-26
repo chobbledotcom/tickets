@@ -23,7 +23,7 @@ const encodeToken = (token: TlaToken): string => {
 };
 
 export const prepareSource = (name: string, source: string): PreparedSource => {
-  const tokens = tokenizeTla(source);
+  const tokens = tokenizeTla(source, name);
   return { encoded: tokens.map(encodeToken).join("\n"), name, source, tokens };
 };
 
@@ -92,20 +92,20 @@ export const translateReport = (
   integer(total.tokens, 1);
   if (!Array.isArray(report.duplicates))
     throw new Error("Missing jscpd duplicates");
-  const translateFile = (value: unknown): CloneFile => {
-    const file = object(value);
+  const sourceFor = (file: Record<string, unknown>): PreparedSource => {
     const prepared =
       typeof file.name === "string" ? sources.get(file.name) : undefined;
     if (!prepared)
       throw new Error(`Unknown prepared source: ${String(file.name)}`);
-    return sourceRange(prepared, file);
+    return prepared;
   };
   const duplicates = report.duplicates.map((value: unknown) => {
     const clone = object(value);
-    const firstFile = translateFile(clone.firstFile);
-    const secondFile = translateFile(clone.secondFile);
-    const prepared = sources.get(String(object(clone.firstFile).name));
-    if (!prepared) throw new Error("Missing clone source");
+    const originalFirst = object(clone.firstFile);
+    const prepared = sourceFor(originalFirst);
+    const firstFile = sourceRange(prepared, originalFirst);
+    const originalSecond = object(clone.secondFile);
+    const secondFile = sourceRange(sourceFor(originalSecond), originalSecond);
     return {
       ...clone,
       firstFile,

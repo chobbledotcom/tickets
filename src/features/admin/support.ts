@@ -9,7 +9,7 @@ import { defineRoutes } from "#routes/router.ts";
  */
 
 /* jscpd:ignore-start */
-import { addPageImageUrls } from "#db/images.ts";
+import { addPageImageUrls } from "#db/image-urls.ts";
 import { t } from "#i18n";
 import { formPost, OWNER_FORM, ownerResponsePage } from "#routes/auth.ts";
 import { requireMessageField } from "#routes/csrf.ts";

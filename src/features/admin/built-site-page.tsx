@@ -3,7 +3,7 @@
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
-import { addPageImageUrls } from "#db/images.ts";
+import { addPageImageUrls } from "#db/image-urls.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
@@ -18,6 +18,7 @@ import {
   type FlankingNav,
   wrapAroundNeighbours,
 } from "#shared/entity-pages/core.ts";
+import { savedFormValueOrNull } from "#shared/forms/saved-data.ts";
 import { loadSiteSecretsStatus } from "#shared/site-secrets.ts";
 import { loadSiteSupportMessage } from "#shared/site-support-message.ts";
 import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
@@ -79,7 +80,13 @@ const supportMessageTab = loadedPanelTab(
   "built_sites.support_message_title",
   async (site) => {
     const message = await loadSiteSupportMessage(site);
-    if (message.ok) await addPageImageUrls([message.value]);
+    // The panel renders the stashed draft when one exists. That includes
+    // the read-failed case, where only the draft renders, so the page's
+    // image table must carry the draft's img#N references too.
+    await addPageImageUrls([
+      savedFormValueOrNull("support_message"),
+      message.ok ? message.value : null,
+    ]);
     return { message };
   },
   (site, { message }) => <SupportMessagePanel site={site} state={message} />,

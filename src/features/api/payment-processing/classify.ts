@@ -5,7 +5,7 @@
  */
 
 /* jscpd:ignore-start -- import block */
-import { addPageImageUrls } from "#db/images.ts";
+import { addPageImageUrls } from "#db/image-urls.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { isSessionRejection } from "#payment/validated-session.ts";

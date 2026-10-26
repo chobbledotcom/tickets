@@ -67,7 +67,7 @@ const radix = /^\\(?:[bB][01]+|[oO][0-7]+|[hH][0-9a-fA-F]+)/;
 const namedOperator = /^\\[A-Za-z]+/;
 const punctuation = /^[!#$%&'()*+,\-./:;<=>?@[\]^`{|}~¬∧∨≠≤≥∈∉⊆⊂∪∩∀∃⇒⇔×]/u;
 
-type Cursor = SourceLocation & { source: string };
+type Cursor = SourceLocation & { source: string; sourceName: string };
 
 const location = ({ column, line, position }: Cursor): SourceLocation => ({
   column,
@@ -76,7 +76,9 @@ const location = ({ column, line, position }: Cursor): SourceLocation => ({
 });
 
 const fail = (cursor: Cursor, message: string): never => {
-  throw new Error(`${message} at ${cursor.line}:${cursor.column}`);
+  throw new Error(
+    `${cursor.sourceName}:${cursor.line}:${cursor.column}: ${message}`,
+  );
 };
 
 const newlineWidth = (cursor: Cursor, end: number): number => {
@@ -186,8 +188,17 @@ const readToken = (cursor: Cursor, rest: string): TlaToken => {
   return finishToken(cursor, "operator", text);
 };
 
-export const tokenizeTla = (source: string): TlaToken[] => {
-  const cursor: Cursor = { column: 1, line: 1, position: 0, source };
+export const tokenizeTla = (
+  source: string,
+  sourceName = "<input>",
+): TlaToken[] => {
+  const cursor: Cursor = {
+    column: 1,
+    line: 1,
+    position: 0,
+    source,
+    sourceName,
+  };
   const tokens: TlaToken[] = [];
   while (cursor.position < source.length) {
     const rest = source.slice(cursor.position);

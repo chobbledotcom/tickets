@@ -71,11 +71,12 @@ export const checkTla = async (inputs: readonly string[]): Promise<number> => {
       JSON.parse(await Deno.readTextFile(reportPath)),
       sources,
     );
-    await Deno.mkdir(".scratch/tla-cpd-report", { recursive: true });
-    await Deno.writeTextFile(
-      ".scratch/tla-cpd-report/jscpd-report.json",
-      JSON.stringify(report, null, 2),
+    const publishedPath = join(
+      await makeScratchDir("tla-cpd-report-"),
+      "jscpd-report.json",
     );
+    await Deno.writeTextFile(publishedPath, JSON.stringify(report, null, 2));
+    console.log(`TLA CPD report: ${publishedPath}`);
     const duplicates = report.duplicates;
     if (!Array.isArray(duplicates))
       throw new Error("Missing translated clones");

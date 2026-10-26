@@ -1,0 +1,122 @@
+/** The effect vocabulary and the pure core, as data.
+ *
+ * A module carries an effect when it can reach — through static or
+ * dynamic imports — one of that effect's roots, or is one itself. The
+ * graph lives in `graph.ts`; this file only declares the boundaries.
+ *
+ * A new boundary module (a new SDK wrapper, a new socket) joins the root
+ * list of its effect here. A module joins `PURE_MODULES` deliberately: it
+ * must hold no path to any root, and leaving the list is a visible
+ * change. */
+
+/** One operational effect a module can carry. `db` reaches the database,
+ * `net` opens a network connection, `clock` reads the wall clock. */
+export type EffectName = "clock" | "db" | "net";
+
+/** The modules that open each boundary, by alias specifier. */
+export const EFFECT_ROOTS: Readonly<Record<EffectName, readonly string[]>> = {
+  clock: ["#shared/now.ts"],
+  db: ["#db/client.ts", "#db/database-client.ts"],
+  net: [
+    "#db/database-client.ts",
+    "#shared/fetch.ts",
+    "#shared/sentry-sdk.ts",
+    "#shared/storage.ts",
+    "#shared/stripe.ts",
+    "#shared/turso-api.ts",
+    "#shared/update.ts",
+    "#shared/uptime-kuma/socket.ts",
+  ],
+};
+
+/** The pure core: modules that must not reach any effect root. These are
+ * the pure domain rules the docs name — the money paths, the machines,
+ * the schemas, and their helpers. */
+export const PURE_MODULES: readonly string[] = [
+  "#accounting/accounts.ts",
+  "#accounting/conflicts.ts",
+  "#accounting/kinds.ts",
+  "#accounting/range.ts",
+  "#booking/node-order.ts",
+  "#booking/order-span.ts",
+  "#booking/page-packages.ts",
+  "#booking/payment-plan.ts",
+  "#booking/remaining-tickets.ts",
+  "#booking/signed-metadata.ts",
+  "#booking/ticket-moves.ts",
+  "#booking/tree.ts",
+  "#fp",
+  "#fp-strings",
+  "#payment/admit-move.ts",
+  "#payment/admit-refund.ts",
+  "#payment/claim.ts",
+  "#payment/conflict.ts",
+  "#payment/diagnose.ts",
+  "#payment/money.ts",
+  "#payment/placeholder-refund.ts",
+  "#payment/provider-call.ts",
+  "#payment/provider-read.ts",
+  "#payment/provider-reference.ts",
+  "#payment/refund-attempt.ts",
+  "#payment/refund-authority-choice.ts",
+  "#payment/refund-authority-lifecycle.ts",
+  "#payment/refund-authority-state.ts",
+  "#payment/refund-authority.ts",
+  "#payment/refund-conflict-decision.ts",
+  "#payment/refund-generation.ts",
+  "#payment/refund-network.ts",
+  "#payment/refund-state.ts",
+  "#payment/refund.ts",
+  "#payment/resource-id.ts",
+  "#payment/resources.ts",
+  "#payment/review-machine-spec.ts",
+  "#payment/review.ts",
+  "#payment/row-machine-spec.ts",
+  "#payment/row-state.ts",
+  "#payment/row-transitions.ts",
+  "#payment/square-link-end-machine-spec.ts",
+  "#payment/sumup-recovery-machine-spec.ts",
+  "#shared/bytes.ts",
+  "#shared/capacity-fit.ts",
+  "#shared/capacity-rules.ts",
+  "#shared/countries.ts",
+  "#shared/csv/index.ts",
+  "#shared/group-capacity.ts",
+  "#shared/largest-remainder.ts",
+  "#shared/ledger/account.ts",
+  "#shared/ledger/legs.ts",
+  "#shared/ledger/project.ts",
+  "#shared/ledger/reconcile.ts",
+  "#shared/ledger/reverse.ts",
+  "#shared/ledger/types.ts",
+  "#shared/ledger/validate.ts",
+  "#shared/listing-defaults.ts",
+  "#shared/markdown.ts",
+  "#shared/order/evaluate.ts",
+  "#shared/order/options.ts",
+  "#shared/payment-crypto.ts",
+  "#shared/payment-idempotency.ts",
+  "#shared/phone.ts",
+  "#shared/provider-refunds/work.ts",
+  "#shared/provider-types.ts",
+  "#shared/schema-atlas/machine-spec.ts",
+  "#shared/schema-atlas/payment-review.ts",
+  "#shared/schema-atlas/row-lifecycle.ts",
+  "#shared/schema-atlas/square-link-end.ts",
+  "#shared/schema-atlas/sumup-recovery.ts",
+  "#shared/schema-atlas/types.ts",
+  "#shared/slug.ts",
+  "#shared/validation/coordinates.ts",
+  "#shared/validation/date-string.ts",
+  "#shared/validation/date.ts",
+  "#shared/validation/guard.ts",
+  "#shared/validation/kind.ts",
+  "#shared/validation/list.ts",
+  "#shared/validation/number.ts",
+  "#shared/validation/parse.ts",
+  "#shared/validation/stored-json.ts",
+  "#shared/validation/string.ts",
+  "#shared/validation/succeeds.ts",
+  "#shared/validation/timestamp.ts",
+  "#types",
+];

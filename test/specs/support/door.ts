@@ -40,7 +40,11 @@ export interface DoorAnswer {
   listingName?: string;
   max?: number;
   name?: string;
+  /** The numbers an over-admitted check-in answers: what the delivery
+   * named, what its landing admitted, and what the booking holds. */
+  overAdmission?: { admitted: number; bought: number; named: number };
   quantity?: number;
+  remaining?: number;
   status: string;
   total?: number;
 }
@@ -163,27 +167,17 @@ export const cookiesOf = (browser: TestBrowser): string =>
     .map(([name, value]) => `${name}=${value}`)
     .join("; ");
 
-/** Send one scanned ticket to a door's JSON API, carrying one browser's own
+/** Post one JSON body to a door's scan API, carrying one browser's own
  * cookies and the one-use code off that browser's page — the request the
  * door page's own script sends. Every door reader stands on this. */
-export const sendDoorScan = async (
+export const sendDoorJson = async (
   scanPath: string,
   browser: TestBrowser,
-  ticket: string,
-  choices: DoorChoice = {},
+  body: Record<string, unknown>,
 ): Promise<DoorAnswer> => {
   const response = await handleRequest(
     new Request(`http://localhost${scanPath}`, {
-      body: JSON.stringify({
-        token: ticket,
-        ...(choices.letInAnyway === undefined
-          ? {}
-          : { force: choices.letInAnyway }),
-        ...(choices.confirmedTheirId === undefined
-          ? {}
-          : { id_verified: choices.confirmedTheirId }),
-        ...(choices.tickets === undefined ? {} : { quantity: choices.tickets }),
-      }),
+      body: JSON.stringify(body),
       headers: {
         "content-type": "application/json",
         cookie: cookiesOf(browser),
@@ -195,6 +189,25 @@ export const sendDoorScan = async (
   );
   return (await expectAccepted(response).json()) as DoorAnswer;
 };
+
+/** Send one scanned ticket to a door's JSON API: the body the door page's
+ * own script builds for a scan. Every door reader stands on this. */
+export const sendDoorScan = async (
+  scanPath: string,
+  browser: TestBrowser,
+  ticket: string,
+  choices: DoorChoice = {},
+): Promise<DoorAnswer> =>
+  sendDoorJson(scanPath, browser, {
+    token: ticket,
+    ...(choices.letInAnyway === undefined
+      ? {}
+      : { force: choices.letInAnyway }),
+    ...(choices.confirmedTheirId === undefined
+      ? {}
+      : { id_verified: choices.confirmedTheirId }),
+    ...(choices.tickets === undefined ? {} : { quantity: choices.tickets }),
+  });
 
 /** Post one scanned ticket to a scanner page's own JSON door, as the page's
  * own script would. The page is opened first so the code and cookies are its
@@ -220,6 +233,15 @@ export type ShowTicketAtDoor = (
   ticket: string,
   choices?: DoorChoice,
 ) => Promise<DoorAnswer>;
+
+/** One queued check-in an offline page holds for the connection: the body
+ * the page's own script builds, the door it belongs to, and the path it
+ * posts to when the connection returns. */
+export interface QueuedDelivery {
+  body: Record<string, unknown>;
+  listing: string;
+  scanPath: string;
+}
 
 /** One door's scan, from the paths its own pages live at. Both the listing
  * door and the group door stand on this. */

@@ -23,9 +23,12 @@ import {
 } from "#db/client.ts";
 import { queryColumnSet } from "#db/query.ts";
 import { settings } from "#db/settings.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { namedError } from "#shared/named-error.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { normalizePhone } from "#shared/phone.ts";
+import { seenBefore } from "#shared/seen-before.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
@@ -160,21 +163,31 @@ const EMPTY_STATS: ContactStats = {
   lastSubject: "",
 };
 
+/** The stored stats note is unreadable: the owner-key decryption failed, or
+ * the decrypted text does not match the stored-JSON shape. The plaintext count
+ * columns stay readable, so the caller can offer a repair. A database failure
+ * is never this error. */
+class UnreadableStatsNoteError extends namedError("UnreadableStatsNoteError") {}
+
 const parseStats = async (
   blob: OwnerKeyEncrypted | "",
   privateKey: CryptoKey,
 ): Promise<ContactStats> => {
   if (!blob) return EMPTY_STATS;
-  const { c, n, s, t } = statsJson.read(
-    await decryptWithOwnerKey(blob, privateKey),
-    "contact_preferences.stats_blob",
-  );
-  return {
-    adminNotes: n ?? "",
-    contactCount: c ?? 0,
-    lastContact: t ?? "",
-    lastSubject: s ?? "",
-  };
+  try {
+    const { c, n, s, t } = statsJson.read(
+      await decryptWithOwnerKey(blob, privateKey),
+      "contact_preferences.stats_blob",
+    );
+    return {
+      adminNotes: n ?? "",
+      contactCount: c ?? 0,
+      lastContact: t ?? "",
+      lastSubject: s ?? "",
+    };
+  } catch (error) {
+    throw new UnreadableStatsNoteError(errorMessage(error));
+  }
 };
 
 const loadStatsBlobs = async (
@@ -212,13 +225,15 @@ const countFieldsFromRow = (
   visits: row?.visits ?? 0,
 });
 
+/** One contact's stored row: the plaintext counters plus the owner-encrypted
+ * note. */
+type ContactRow = CountColumnsRow & { stats_blob: OwnerKeyEncrypted | "" };
+
 export const getContactRecord: ContactRecordLoader = async (
   hash,
   privateKey,
 ) => {
-  const row = await queryOne<
-    CountColumnsRow & { stats_blob: OwnerKeyEncrypted | "" }
-  >(
+  const row = await queryOne<ContactRow>(
     "SELECT visits, public_booking_count, admin_booking_count, stats_blob FROM contact_preferences WHERE contact_hash = ?",
     [hash],
   );
@@ -253,22 +268,31 @@ export const getRepairFallbackRecord = async (
   ...(await getContactCountFields(hash)),
 });
 
-/** {@link getContactRecord}, but a corrupt/undecryptable note must not take
- *  down the caller: log it for repair and fall back to
+/** Notes already reported as unreadable in this process, keyed by reader
+ * context and hash. One unrepaired row must not write a log line on every
+ * read. */
+const unreadableNotesReported = seenBefore();
+
+/** {@link getContactRecord}, but an unreadable encrypted note must not take
+ *  down the caller: log it once per process and fall back to
  *  {@link getRepairFallbackRecord} instead of throwing, so the real booking
  *  counts and the record's repair link stay visible. `context` names the
  *  caller in the logged detail (e.g. "contact history", "contact history
- *  editor"). */
+ *  editor"). Any other failure — a database error, for one — is not an
+ *  unreadable note, so it propagates. */
 export const getContactRecordOrRepair: (
   context: string,
 ) => ContactRecordLoader = (context) => async (hash, privateKey) => {
   try {
     return await getContactRecord(hash, privateKey);
   } catch (error) {
-    logError({
-      code: ErrorCode.DECRYPT_FAILED,
-      detail: `${context} ${base64ToBase64Url(hash)}: ${error}`,
-    });
+    if (!(error instanceof UnreadableStatsNoteError)) throw error;
+    if (!unreadableNotesReported(`${context}:${hash}`)) {
+      logError({
+        code: ErrorCode.DECRYPT_FAILED,
+        detail: `${context} ${base64ToBase64Url(hash)}: ${error}`,
+      });
+    }
     return getRepairFallbackRecord(hash);
   }
 };

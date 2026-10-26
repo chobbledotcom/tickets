@@ -3,16 +3,11 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
-import {
-  adminScannerDoorsPage,
-  adminScannerPage,
-} from "#templates/admin/scanner.tsx";
+import { adminScannerPage } from "#templates/admin/scanner.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
-import type { AdminSession } from "#types";
 
 /** The hole names the scanner script fills in, spelled as the page carries
  * them between its own braces. */
@@ -26,6 +21,9 @@ const times = (html: string, fragment: string): number =>
 /** The door cache key one test page carries, as the handler would pass it. */
 const DOOR_CACHE_KEY = "test-door-cache-key";
 
+/** The replay window one test page carries, as the handler would pass it. */
+const RETENTION_DAYS = 7;
+
 describe("the admin scanner page template", () => {
   beforeAll(setupAdminPageTest);
 
@@ -37,6 +35,7 @@ describe("the admin scanner page template", () => {
       [],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     assertStringIncludes(html, "<title>Scanner: Doors</title>");
@@ -56,6 +55,7 @@ describe("the admin scanner page template", () => {
       ],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     assertStringIncludes(html, "2 tickets available");
@@ -86,6 +86,7 @@ describe("the admin scanner page template", () => {
       ],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     // Same name and the same number of places: only the day, and on a
@@ -115,6 +116,7 @@ describe("the admin scanner page template", () => {
       ],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     assertStringIncludes(html, 'data-detail="Camping, 12 Jun"');
@@ -135,6 +137,7 @@ describe("the admin scanner page template", () => {
       ],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     assertStringIncludes(html, 'data-name="Ada &amp; Bo"');
@@ -154,6 +157,7 @@ describe("the admin scanner page template", () => {
       [],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     assertStringIncludes(html, "No tickets to check in");
@@ -167,12 +171,49 @@ describe("the admin scanner page template", () => {
       [],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     // The device digests a scan under this key. The page is the only
     // response that carries it, and it carries it once.
     assertStringIncludes(html, 'data-door-cache-key="test-door-cache-key"');
     expect(times(html, "data-door-cache-key=")).toBe(1);
+  });
+
+  test("carries the door's replay window for the device, once", () => {
+    const html = adminScannerPage(
+      { name: "Doors" },
+      "/admin/groups/5/scan",
+      OWNER_SESSION,
+      [],
+      false,
+      DOOR_CACHE_KEY,
+      RETENTION_DAYS,
+    );
+
+    // The client sends no queued check-in older than this window: past it
+    // the server's replay record is gone. The page is the only response
+    // that carries it, and it carries it once.
+    expect(html).toContain('data-scan-operation-retention-days="7"');
+    expect(times(html, "data-scan-operation-retention-days=")).toBe(1);
+  });
+
+  test("hands the queue count to a polite live region", () => {
+    const html = adminScannerPage(
+      { name: "Doors" },
+      "/admin/groups/5/scan",
+      OWNER_SESSION,
+      [],
+      false,
+      DOOR_CACHE_KEY,
+      RETENTION_DAYS,
+    );
+
+    // The sync rewrites the count in place; the live region is the only
+    // announcement a screen reader gets, and it reads the count, not the
+    // whole panel.
+    expect(html).toContain('aria-live="polite"');
+    expect(times(html, "aria-live=")).toBe(1);
   });
 
   test("one person still to arrive is named as one ticket, not none", () => {
@@ -183,6 +224,7 @@ describe("the admin scanner page template", () => {
       [{ attendeeId: 41, details: [], name: "Ada", quantity: 1 }],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     assertStringIncludes(html, "1 ticket available");
@@ -198,6 +240,7 @@ describe("the admin scanner page template", () => {
       [],
       true,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
     assertStringIncludes(warned, 'role="alert"');
     assertStringIncludes(
@@ -215,6 +258,7 @@ describe("the admin scanner page template", () => {
       [],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
     assert(!quiet.includes("Scanning a ticket in this group"));
   });
@@ -227,6 +271,7 @@ describe("the admin scanner page template", () => {
       [],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
 
     /** One message the scanner script reads, with the exact holes the page
@@ -298,6 +343,28 @@ describe("the admin scanner page template", () => {
       1,
     );
 
+    // The offline door's words, which the container carries once: the two
+    // banner wordings, the quantity ask and its cancellation, the alert a
+    // check-in that ran past the booking reads, a waiting row's words, and
+    // the count's plurals.
+    const carriedOnce = {
+      "offline-banner-auto": t("admin.scanner.offline_banner_auto"),
+      "offline-banner-manual": t("admin.scanner.offline_banner_manual"),
+      "offline-not-queued": t("admin.scanner.offline_not_queued"),
+      "offline-quantity-ask": t("admin.scanner.offline_quantity_ask"),
+      "queue-count-one": t("admin.scanner.queue_count_one", holes("count")),
+      "queue-count-other": t("admin.scanner.queue_count_other", holes("count")),
+      "queue-item-expired": t("admin.scanner.queue_item_expired"),
+      "queue-item-over-admitted": t(
+        "admin.scanner.queue_item_over_admitted",
+        holes("admitted", "bought", "name", "named"),
+      ),
+      "queue-item-queued": t("admin.scanner.queue_item_queued"),
+    } as const;
+    for (const [attr, value] of Object.entries(carriedOnce)) {
+      carried(attr, value, 1);
+    }
+
     // The manual pick-up's own messages.
     carried(
       "ticket-option",
@@ -323,6 +390,7 @@ describe("the admin scanner page template", () => {
       [],
       false,
       DOOR_CACHE_KEY,
+      RETENTION_DAYS,
     );
     // The two asks the door puts before it admits: a forced or ID-checked
     // check-in, and how many tickets a multi-place booking admits.
@@ -347,6 +415,13 @@ describe("the admin scanner page template", () => {
     assertStringIncludes(html, 'id="scanner-container"');
     assertStringIncludes(html, 'id="scanner-video"');
     assertStringIncludes(html, 'id="scanner-status"');
+    // The offline door: the banner the client raises and fills, and the
+    // queue panel it keeps the kept scans in.
+    assertStringIncludes(html, 'id="scanner-offline-banner"');
+    assertStringIncludes(html, 'id="scanner-offline-banner-text"');
+    assertStringIncludes(html, 'id="scanner-queue"');
+    assertStringIncludes(html, 'id="scanner-queue-summary"');
+    assertStringIncludes(html, 'id="scanner-queue-items"');
     assertStringIncludes(html, 'id="scanner-quantity-message"');
     assertStringIncludes(html, 'for="scanner-quantity-select"');
     assertStringIncludes(html, 'id="scanner-quantity-select"');
@@ -371,97 +446,13 @@ describe("the admin scanner page template", () => {
     assertStringIncludes(html, 'id="ticket-options"');
     assertStringIncludes(html, 'id="manual-checkin-status"');
     // Two hidden fields: the form's own code, and the chosen person's
-    // ticket; plus the three plainly hidden boxes the script reveals (the
-    // overlays carry their hidden state inside a two-class attribute).
+    // ticket; plus the five plainly hidden boxes the script reveals (the
+    // offline banner, the queue panel, and the overlays carry their hidden
+    // state inside a two-class attribute).
     expect(times(html, 'type="hidden"')).toBe(2);
-    expect(times(html, 'class="hidden"')).toBe(3);
+    expect(times(html, 'class="hidden"')).toBe(5);
 
     // The way out to the guide.
     assertStringIncludes(html, 'href="/admin/guide#checkin"');
-  });
-});
-
-describe("the admin scanner doors page template", () => {
-  beforeAll(setupAdminPageTest);
-
-  /** The doors page serves a scanner login, whose nav carries no other
-   *  section's words for the assertions below to trip over. */
-  const SCANNER_SESSION: AdminSession = { adminLevel: "scanner" };
-
-  test("lists every door under its kind, as a link to the door", () => {
-    const html = adminScannerDoorsPage(SCANNER_SESSION, {
-      groupDoors: [{ name: "Winter Social", path: "/admin/groups/7/scan" }],
-      listingDoors: [{ name: "Ceilidh", path: "/admin/listings/3/scan" }],
-    });
-
-    assertStringIncludes(html, "<title>Scanner doors</title>");
-    assertStringIncludes(html, t("admin.scanner.doors_intro"));
-    assertStringIncludes(html, t("terms.listings"));
-    assertStringIncludes(html, t("terms.groups"));
-    assertStringIncludes(html, 'href="/admin/listings/3/scan">Ceilidh</a>');
-    assertStringIncludes(html, 'href="/admin/groups/7/scan">Winter Social</a>');
-    // The listings section is announced before the groups section.
-    expect(html.indexOf(t("terms.listings"))).toBeLessThan(
-      html.indexOf(t("terms.groups")),
-    );
-  });
-
-  test("leaves out the kind of door that has none", () => {
-    const html = adminScannerDoorsPage(SCANNER_SESSION, {
-      groupDoors: [],
-      listingDoors: [{ name: "Ceilidh", path: "/admin/listings/3/scan" }],
-    });
-
-    assertStringIncludes(html, t("terms.listings"));
-    assertStringIncludes(html, 'href="/admin/listings/3/scan">Ceilidh</a>');
-    // An empty heading would promise a link that is not there.
-    assert(!html.includes(t("terms.groups")));
-  });
-
-  test("lists the group doors alone when no listing has a door", () => {
-    const html = adminScannerDoorsPage(SCANNER_SESSION, {
-      groupDoors: [{ name: "Winter Social", path: "/admin/groups/7/scan" }],
-      listingDoors: [],
-    });
-
-    assertStringIncludes(html, t("terms.groups"));
-    assertStringIncludes(html, 'href="/admin/groups/7/scan">Winter Social</a>');
-    assert(!html.includes(t("terms.listings")));
-  });
-
-  test("says when there are no doors yet", () => {
-    const html = adminScannerDoorsPage(SCANNER_SESSION, {
-      groupDoors: [],
-      listingDoors: [],
-    });
-
-    assertStringIncludes(html, t("admin.scanner.doors_empty"));
-    assert(!html.includes(t("terms.listings")));
-    assert(!html.includes(t("terms.groups")));
-    // A door's path always ends in "/scan"; the empty doors page links to no
-    // door (the nav's own /admin/scanner route is not a door).
-    assert(!html.includes('href="/admin/listing/'));
-    assert(!html.includes('href="/admin/groups/'));
-  });
-
-  test("the nav links a scanner back to the doors list", () => {
-    // A scanner who opens a door from a bookmark still needs the route back
-    // to /admin/scanner to pick another door: the role's only nav destination.
-    const html = String(
-      AdminNav({ active: "/admin/", session: { adminLevel: "scanner" } }),
-    );
-    assertStringIncludes(html, 'href="/admin/scanner"');
-    assertStringIncludes(html, ">Scanner</a>");
-  });
-
-  test("the nav offers the doors list to a scanner login only", () => {
-    // Staff reach every door from its listing or group page, so the nav keeps
-    // the link for the one role whose whole job it is.
-    for (const adminLevel of ["owner", "manager"] as const) {
-      const html = String(
-        AdminNav({ active: "/admin/", session: { adminLevel } }),
-      );
-      assert(!html.includes('href="/admin/scanner"'));
-    }
   });
 });

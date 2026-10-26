@@ -73,6 +73,9 @@ Deno.test("JSON clone reports name original sources and contain original fragmen
 });
 
 Deno.test("Missing or empty prepared-token analysis and unknown sources fail closed", () => {
+  const sources = new Map([
+    ["/prepared/0.txt", prepareSource("source.tla", "a b")],
+  ]);
   for (const report of [
     {},
     { duplicates: [], statistics: { total: { sources: 0, tokens: 0 } } },
@@ -82,8 +85,12 @@ Deno.test("Missing or empty prepared-token analysis and unknown sources fail clo
       duplicates: [{ firstFile: { name: "unknown" } }],
       statistics: { total: { sources: 1, tokens: 1 } },
     },
+    {
+      duplicates: [{ firstFile: { name: 7 } }],
+      statistics: { total: { sources: 1, tokens: 1 } },
+    },
   ]) {
-    assertThrows(() => translateReport(report, new Map()));
+    assertThrows(() => translateReport(report, sources));
   }
 });
 
@@ -97,5 +104,13 @@ Deno.test("A report that omits a selected source fails", () => {
         ["/prepared/1.txt", prepared],
       ]),
     ),
+  );
+});
+
+Deno.test("Malformed TLA diagnostics name the source and location", () => {
+  assertThrows(
+    () => prepareSource("verification/broken.tla", '"unfinished'),
+    Error,
+    "verification/broken.tla:1:1",
   );
 });

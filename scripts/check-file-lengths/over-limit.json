@@ -22,7 +22,7 @@
   "test/integration/db/attendees/create-attendee-atomic.test.ts": 655,
   "test/integration/db/migration-restore/helpers.ts": 508,
   "test/integration/server/catalog-transfer.test.ts": 827,
-  "test/integration/server/editor.test.ts": 741,
+  "test/integration/server/editor.test.ts": 732,
   "test/integration/server/feeds.test.ts": 653,
   "test/integration/server/parents-duplicate.test.ts": 560,
   "test/integration/server/parents-e2e.test.ts": 654,
@@ -45,8 +45,6 @@
   "test/shared/maintenance/runner.test.ts": 561,
   "test/shared/sentry.test.ts": 540,
   "test/shared/superuser.test.ts": 800,
-  "test/test-utils/assertions.ts": 704,
   "test/test-utils/mocks.ts": 569,
-  "test/test-utils/parents.ts": 537,
   "e2e-payments/src/cucumber/steps/booking.ts": 637
 }

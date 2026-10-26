@@ -70,15 +70,19 @@ export interface SnapshotRun {
 
 const MUTATION_ENTRY_SCRIPT = "scripts/mutation.ts";
 
+/** Signal a run through its supervisor, never through the child's pid: the
+ * child may have exited moments ago, and the record may not have caught up,
+ * so its id may already be somebody else's. The supervisor is alive for the
+ * whole run and stops its own child through the handle it holds. */
 const signalRun = async (
   record: MutationRunRecord,
   force: boolean,
 ): Promise<boolean> => {
-  if (!(await runIsOwned(record)) || record.pid === undefined) {
+  if (!(await runIsOwned(record)) || record.supervisorPid === undefined) {
     return false;
   }
   try {
-    Deno.kill(record.pid, force ? "SIGKILL" : "SIGTERM");
+    Deno.kill(record.supervisorPid, force ? "SIGKILL" : "SIGTERM");
     return true;
   } catch {
     return false;
@@ -214,7 +218,10 @@ export const runInSnapshot = async (
           ...INHERIT_STDIO,
         }).spawn();
         child = spawned;
-        record = markRunning(record, spawned.pid);
+        record = markRunning(record, {
+          pid: spawned.pid,
+          supervisorPid: Deno.pid,
+        });
         await writeRunRecord(record);
         console.log(`Mutation child pid ${spawned.pid}`);
 

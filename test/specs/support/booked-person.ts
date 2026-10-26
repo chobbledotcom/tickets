@@ -35,5 +35,6 @@ export const personBookedOnListing = async (
     places,
   );
   rememberListing(world, listing, created.listing);
+  world.things.remember("record", who, created.attendee.id);
   return created;
 };

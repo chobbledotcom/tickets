@@ -19,7 +19,7 @@ import {
   packageMemberMaps,
   readGroupMembersWith,
 } from "#db/groups.ts";
-import { addPageImageUrls } from "#db/images.ts";
+import { addPageImageUrls } from "#db/image-urls.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import {
   getRefundPaymentReferencesForAttendee,

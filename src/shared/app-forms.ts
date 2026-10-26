@@ -9,8 +9,8 @@ import {
 import { applyFlash, requireCsrfFormWithMessage } from "#routes/csrf.ts";
 import {
   errorRedirect,
-  htmlResponse,
   notFoundResponse,
+  publicPageResponse,
   redirect,
 } from "#routes/response.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -235,14 +235,17 @@ type PublicFormRouteConfig<TValues, TParams> = {
 };
 
 /** Render a public page that carries a form: sign a CSRF token for it, pick
- * up any flashed message, and return the page HTML. The GET-side partner of
- * {@link createFormRoute} (the join and demo-reset pages use both). */
+ * up any flashed message, and return the page HTML. The join page renders the
+ * site footer, so its images resolve like every other public page's. The
+ * demo-reset page renders no footer and gains nothing from the lookup. The
+ * GET-side partner of {@link createFormRoute} (the join and demo-reset pages
+ * use both). */
 export const publicFormPage = async (
   request: Request,
   render: (flash: Flash) => string,
 ): Promise<Response> => {
   await signCsrfToken();
-  return htmlResponse(render(applyFlash(request)));
+  return publicPageResponse(() => render(applyFlash(request)));
 };
 
 /** CSRF-only (no auth): validate a typed form, then dispatch. */

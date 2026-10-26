@@ -9,7 +9,7 @@ import {
   hashEmail,
   hashPhone,
 } from "#db/contact-preferences.ts";
-import { addPageImageUrls } from "#db/images.ts";
+import { addPageImageUrls } from "#db/image-urls.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type {
   ContactChannelData,

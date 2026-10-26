@@ -6,7 +6,7 @@ import type { EvidencePages } from "#scripts/specs/evidence/pages.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import type { ApiAnswer } from "#test/specs/support/booking-api.ts";
 import type { ThingForSale } from "#test/specs/support/bundles.ts";
-import type { DoorAnswer } from "#test/specs/support/door.ts";
+import type { DoorAnswer, QueuedDelivery } from "#test/specs/support/door.ts";
 import type {
   PutsThingsBack,
   RemembersThings,
@@ -188,12 +188,18 @@ export interface TicketsWorld extends World, EvidencePages {
   orderSent?: BookingAttempt;
   otherBuyerQuestions?: { id: number; text: string }[];
   placeholderId?: number;
+  /** The answer the door held before its latest send, so a step can hold a
+   * resend beside the landing it repeated. */
+  previousDoorAnswer?: DoorAnswer;
   providerCharges: Map<string, ChargeMoney>;
   /** What the email provider answers in this story, when it is not the
    * ordinary "it took the message" — a refusal, or a network failure. */
   providerReply?: Response | Error;
   questionChoices?: { byLabel: Record<string, string>; field: string };
   questionId?: number;
+  /** The queued check-in an offline story holds: the body the page's own
+   * script built, the door it belongs to, and the path it posts to. */
+  queuedDelivery?: QueuedDelivery;
   raceListing?: string;
   raceLoser?: BookingAttempt;
   raceWinners?: number;

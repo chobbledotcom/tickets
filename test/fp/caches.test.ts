@@ -358,6 +358,7 @@ describe("fp caches and resources", () => {
             resolveFetch = resolve;
           }),
         100,
+        () => 0,
       );
       const fetchPromise = cache.getAll();
       cache.invalidate();
