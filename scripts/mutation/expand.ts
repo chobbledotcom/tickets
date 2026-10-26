@@ -11,8 +11,11 @@ import { globToRegExp, join, normalize, SEPARATOR } from "@std/path";
 import { statOrNull } from "#scripts/not-found.ts";
 import { collectFiles } from "#scripts/walk-files.ts";
 
-/** Glob metacharacters; a path segment with none is a fixed directory name. */
-const GLOB_CHARS = /[*?{}[\]]/;
+/** Glob metacharacters; a path segment with none is a fixed directory name.
+ *  The extglob brackets (`!`, `(`, `)`) and the escape prefix `\` join the
+ *  rest. A segment such as `+(a|b)` ends the fixed prefix instead of reading
+ *  as one folder name. */
+const GLOB_CHARS = /[*?{}[\]!()\\]/;
 
 /**
  * The leading, glob-free directory of `glob` — where a walk can start without
