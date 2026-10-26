@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 
 import { Given, Then, When } from "@cucumber/cucumber";
-import { assertStringIncludes } from "@std/assert";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 // jscpd:ignore-end
 
@@ -145,10 +145,14 @@ Then(
     const queue = page.match(
       /<div class="hidden" id="scanner-queue">([\s\S]*?)<\/div>/,
     );
-    expect(queue?.[1]).toContain(
+    assertStringIncludes(
+      queue?.[1] ?? "",
       '<p aria-live="polite" id="scanner-queue-summary"></p>',
     );
-    expect(queue?.[1]).toContain('<ul id="scanner-queue-items"></ul>');
+    assertStringIncludes(
+      queue?.[1] ?? "",
+      '<ul id="scanner-queue-items"></ul>',
+    );
   },
 );
 
@@ -262,7 +266,7 @@ const notesRegionShowsOneNote = (
   const region = regionFrom(html, openMarker, tag);
   expect(region).not.toBe("");
   if (guest !== undefined) {
-    expect(region).toContain(guest);
+    assertStringIncludes(region, guest);
   }
   expect(
     region.split(overAdmissionNoteText(named, admitted, bought)),
@@ -405,7 +409,7 @@ Then(
       html,
       `<span class="badge-ok">${t("admin.attendee_table.checked_in_badge")}</span>`,
     );
-    expect(html).not.toContain(`of ${total})`);
+    assert(!html.includes(`of ${total})`));
   },
 );
 
