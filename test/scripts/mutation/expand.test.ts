@@ -52,6 +52,35 @@ describe("the files a glob names", () => {
     });
   });
 
+  test("names the files an extglob folder accepts", async () => {
+    await withTempDir(async (dir) => {
+      await writeFile(join(dir, "src", "a", "x.ts"));
+      await writeFile(join(dir, "src", "b", "x.ts"));
+      await writeFile(join(dir, "src", "c", "x.ts"));
+
+      const found = await expandFrom(dir, ["src/+(a|b)/x.ts"]);
+
+      expect(found.map((path) => relative(dir, path))).toEqual([
+        join("src", "a", "x.ts"),
+        join("src", "b", "x.ts"),
+      ]);
+    });
+  });
+
+  test("reads an escape prefix the way the matcher does", async () => {
+    await withTempDir(async (dir) => {
+      await writeFile(join(dir, "src", "a@b.ts"));
+      await writeFile(join(dir, "src", "a\\@b.ts"));
+
+      // `\@` reads as a plain `@` to the matcher, and a doubled `\\` reads as
+      // one backslash. Read as one fixed name, the single escape looks for a
+      // file that carries the backslash itself, and that file is not there.
+      expect(await expandFrom(dir, ["src/a\\@b.ts", "src/a\\\\@b.ts"])).toEqual(
+        [join(dir, "src", "a@b.ts"), join(dir, "src", "a\\@b.ts")],
+      );
+    });
+  });
+
   test("names no files when the folder is not there", async () => {
     await withTempDir(async (dir) => {
       // A test file that moved is still named by a branch's committed diff, so
@@ -69,6 +98,23 @@ describe("the files a glob names", () => {
 
       expect(await expandFrom(dir, ["a.ts/*.ts"])).toEqual([]);
     });
+  });
+
+  test("names a file for every plain character a glob segment can carry", async () => {
+    for (let code = 0x20; code <= 0x7e; code++) {
+      const char = String.fromCharCode(code);
+      // A separator cannot sit inside a name, and the escape prefix points
+      // past itself; the test above covers it.
+      if (char === "/" || char === "\\") continue;
+      await withTempDir(async (dir) => {
+        const name = `a${char}b.ts`;
+        await writeFile(join(dir, "src", name));
+
+        expect(await expandFrom(dir, [`src/${name}`])).toEqual([
+          join(dir, "src", name),
+        ]);
+      });
+    }
   });
 
   test("matches from where it is asked when the glob starts with a star", async () => {
