@@ -9,7 +9,7 @@ import {
   sameMembership,
 } from "#routes/admin/catalog-transfer/bundle-plan.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import type { ListingWithCount } from "#types";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** The minimal ListingInput a plan needs for the pure helpers. */
 const planInput = (over: Partial<ListingInput> = {}): ListingInput =>
@@ -55,7 +55,7 @@ describe("bundle plan helpers", () => {
   });
 
   test("edgeListingOfRow projects the stored row's edge fields", () => {
-    const row = {
+    const row = testListingWithCount({
       assign_built_site: true,
       customisable_days: true,
       day_prices: { "1": 600 },
@@ -65,7 +65,7 @@ describe("bundle plan helpers", () => {
       min_quantity: 1,
       months_per_unit: 1,
       name: "Stored",
-    } as unknown as ListingWithCount;
+    });
     expect(edgeListingOfRow(row)).toEqual({
       assign_built_site: true,
       customisable_days: true,
