@@ -44,7 +44,7 @@ import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
  * `batch()` — a zero-row capacity statement is not itself an error and would
  * otherwise commit alongside the unconditional PII/DELETE writes.
  */
-const CAPACITY_GUARD = {
+export const CAPACITY_GUARD = {
   args: [] as [],
   sql: `INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
         SELECT NULL, NULL, 1 WHERE changes() = 0`,
@@ -209,7 +209,7 @@ const oldPinOf = (
 /** The UPDATE statement for one existing line. Unconditional (no capacity
  *  guard) when the caller opted into overbooking OR the line is an unchanged
  *  no-op preserve; capacity-checked + guarded otherwise. */
-const updateStatementFor = (
+export const updateStatementFor = (
   line: DesiredListingLine,
   attendeeId: number,
   oldPin: {

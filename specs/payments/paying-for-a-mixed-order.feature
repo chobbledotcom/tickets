@@ -22,3 +22,18 @@ Feature: One payment covers a mixed order
       And the Cabin has earned 8.00 — once in the kit and once on its own
       And the Hampers have earned 30.00
       And the organiser sees the Cabin booked both ways
+
+  @rule:payments.a-bundle-charges-a-blank-part-at-its-own-price
+  Rule: A part with a blank bundle price charges its own price
+    A bundle price is blank when the part should simply sell for what it
+    always costs. A buyer who pays for that bundle is charged the overridden
+    part's bundle price plus the blank part's own price — never nothing for
+    the blank part.
+
+    @case:mixed-order.a-blank-part-charges-its-own-price
+    Scenario: A customer pays for a bundle holding an overridden part and a blank one
+      Given a Weekend holding a Tent at 40.00, sold in it at 25.00, and a Breakfast at 10.00 with no Weekend price
+      When a customer pays for one Weekend in one order
+      Then the customer owes nothing
+      And the Tent has earned 25.00 in the Weekend
+      And the Breakfast has earned 10.00 in the Weekend

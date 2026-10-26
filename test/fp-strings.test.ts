@@ -4,7 +4,6 @@ import {
   endsWithAny,
   includesAny,
   sortedByString,
-  sortedPairs,
   startsWithAny,
 } from "#fp-strings";
 
@@ -26,42 +25,6 @@ describe("sortedByString", () => {
     expect(
       sortedByString((row: { at: string }) => row.at, "desc")(rows),
     ).toEqual([{ at: "2026-03-01" }, { at: "2026-01-01" }]);
-  });
-});
-
-describe("sortedPairs", () => {
-  test("orders the pairs by key and leaves the input alone", () => {
-    const pairs: [string, number][] = [
-      ["b", 2],
-      ["a", 1],
-      ["c", 3],
-    ];
-    expect(sortedPairs(pairs)).toEqual([
-      ["a", 1],
-      ["b", 2],
-      ["c", 3],
-    ]);
-    expect(pairs).toEqual([
-      ["b", 2],
-      ["a", 1],
-      ["c", 3],
-    ]);
-  });
-
-  test("merges the two halves of a larger set into key order", () => {
-    // Sixty-four keys so the sort merges runs instead of only inserting,
-    // with the larger keys first, so the merge meets an inversion.
-    const pairs = Array.from({ length: 64 }, (_, index): [string, number] => [
-      `k${String((index + 32) % 64).padStart(2, "0")}`,
-      index,
-    ]);
-    const sorted = sortedPairs(pairs);
-    expect(sorted.map(([key]) => key)).toEqual(
-      Array.from(
-        { length: 64 },
-        (_, index) => `k${String(index).padStart(2, "0")}`,
-      ),
-    );
   });
 });
 

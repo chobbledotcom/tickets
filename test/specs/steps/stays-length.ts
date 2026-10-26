@@ -5,7 +5,13 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
+import {
+  adminBrowser,
+  keepsWhatTheOrganiserSaw,
+  openAdminPage,
+  savesServedForm,
+  scenarioBrowser,
+} from "#test/specs/support/browser.ts";
 import {
   attribute,
   boxFor,
@@ -283,10 +289,16 @@ Given(
 When(
   "the organiser puts the {word} on the day calendar",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    await organiserSavesListing(this, name, (served) => {
+    // A listing with bookings that hold no day cannot switch yet: the save
+    // comes back as the assign page instead of the saved flash, so this step
+    // keeps whatever the organiser was served.
+    const browser = await adminBrowser(this);
+    await browser.visit(`/admin/listing/${listingIdNamed(this, name)}/edit`);
+    await savesServedForm(browser, (served) => {
       expectCanReallySend(served, { listing_type: "daily" });
       return { listing_type: "daily" };
     });
+    keepsWhatTheOrganiserSaw(this, browser);
   },
 );
 

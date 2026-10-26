@@ -26,6 +26,9 @@ export interface ThingsByKind {
   browser: TestBrowser;
   /** Things sold together under one name. */
   bundle: Group;
+  /** A calendar day a story pinned down by name — the day a booking holds,
+   * or the day a move gave some bookings. */
+  day: string;
   /** The days a listing's own page offered, the last time it was looked at. */
   daysOffered: string[];
   /** One group door the story opened, kept by the name it calls the group. */

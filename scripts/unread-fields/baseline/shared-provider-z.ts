@@ -3,7 +3,7 @@ import {
   identitiesAt,
 } from "#scripts/unread-fields/identity.ts";
 
-const RESOURCE_FIELDS = ["fields", "parseInput", "table"] as const;
+const RESOURCE_FIELDS = ["fields", "table"] as const;
 const SETTINGS_IDENTITY_FIELDS = ["name"] as const;
 const SETTINGS_CONFIG_FIELDS = SETTINGS_IDENTITY_FIELDS;
 const KEYED_SETTINGS_CONFIG_FIELDS = [

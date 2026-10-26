@@ -518,8 +518,13 @@ automatic.
   head into the base in a throwaway worktree. It runs typecheck and the test
   suite on the merged tree, then removes the worktree. The boss runs it
   before a pull request is ready. The head CI and this check must both pass
+- `deno task check:required-checks` — fail when the merge queue's required
+  status checks in repository Settings no longer match the manifest at
+  `scripts/required-checks/checks.json`. The manifest is the reviewable
+  record of the gate (issue #2671).
 - `deno task contract:diff [base]` — print the semantic drift of this
-  branch's declared contracts (machine moves and money flags) against `base`,
+  branch's declared contracts (machine moves, money flags, and declared
+  moves tables) against `base`,
   the commit this branch and `origin/main` share by default. The task fetches
   the history it needs. An explicit `base` is read as the checkout holds it.
   Run `git fetch origin main` first for a current explicit base. Drift is a
@@ -538,6 +543,11 @@ automatic.
   to a module that opens the database, the network, or the wall clock. The
   finding names the import chain, and the fix is to split the IO shell out
   or drop the pure entry
+- `deno task suite:production` — run the production-shape checks as one
+  scheduled suite, separate from `deno task test`: the edge-bundle boot
+  smoke, the backup and restore drills, the concurrent-reservation race,
+  webhook replay and idempotency, and a `deno audit --level=critical`
+  security report (issue #2300).
 - `deno task grade:code [<file-or-dir>] [--csv <path>] [--no-jev]` — score
   source files against these rules. With no target, it grades every module under
   `src/`. `--no-jev` runs the mechanical checks only. A grade is advice, not a

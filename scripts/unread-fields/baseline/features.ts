@@ -138,11 +138,9 @@ export const FEATURE_BASELINE: readonly FindingIdentity[] = [
     inCatalogTransfer("ListingTransfer", "listing"),
     inCatalogTransfer("CatalogTransfer", "listing"),
   ])([
-    "bookableDays",
     "description",
     "location",
     "maxAttendees",
-    "minimumDaysBefore",
     "nonTransferable",
     "useDefaults",
     "usesLogistics",

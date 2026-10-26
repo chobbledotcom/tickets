@@ -1,12 +1,9 @@
 import * as v from "valibot";
+import { uniqueNamesSchema } from "#scripts/unique-names.ts";
 
 const RegisteredValuesSchema = v.pipe(
-  v.array(v.pipe(v.string(), v.trim(), v.nonEmpty())),
+  uniqueNamesSchema("Registered values"),
   v.minLength(1),
-  v.check(
-    (values) => new Set(values).size === values.length,
-    "Registered values must be unique",
-  ),
 );
 
 export const SpecRegistrySchema = v.strictObject({

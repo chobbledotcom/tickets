@@ -316,5 +316,15 @@
   "listings_table.choices_updated": "{label} updated",
   "listings_table.listing_updated": "Listing updated{warning}",
   "listings_table.name_label": "Listing name",
-  "listings_table.duration_capacity_warning": " Warning: group capacity exceeded on {overDay}"
+  "listings_table.duration_capacity_warning": " Warning: group capacity exceeded on {overDay}",
+  "listings_table.switch_daily_undated_heading": "{count, plural, one {1 booking has no day} other {# bookings have no day}}",
+  "listings_table.switch_daily_undated_body": "You are switching this listing to Daily. Each booking without a day needs one before the switch can finish. Pick one date below. Saving moves every booking without a day to that date and finishes the switch.",
+  "listings_table.switch_daily_undated_pick": "Move these bookings to",
+  "listings_table.switch_daily_undated_pick_placeholder": "Pick a date",
+  "listings_table.switch_daily_undated_pick_error": "Pick a date to move the bookings to.",
+  "listings_table.switch_daily_undated_refused": "The {name} does not have room for {count, plural, one {1 more place} other {# more places}} on {date}. Nothing was saved. Pick a date with room for everyone.",
+  "listings_table.switch_daily_undated_none_fits": "No date has room for all {count} bookings. Nothing was saved. Make room on a date, then save again.",
+  "listings_table.switch_daily_undated_no_dates": "This listing has no bookable dates, so there is no date to give these bookings.",
+  "listings_table.switch_daily_undated_given_suffix": " — {count, plural, one {1 booking was given {date}.} other {# bookings were given {date}.}}",
+  "listings_table.switch_daily_undated_guard": "This listing has {count, plural, one {1 booking with no day} other {# bookings with no day}}. Give each booking a day before switching to Daily."
 }
