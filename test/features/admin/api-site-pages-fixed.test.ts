@@ -7,6 +7,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
+import { UpdateSitePageBodySchema } from "#shared/admin-api-resources.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -167,6 +168,42 @@ describeWithEnv("Admin API - Site pages fixed", { db: true }, () => {
       );
       await settingsAsStored();
       expect(settings.homepageText).toBe("Existing");
+    });
+
+    test("refuses every content-page write field except content", async () => {
+      // The cases come from the declared update body. A field the schema
+      // gains must get the refusal here, or this test fails.
+      for (const field of Object.keys(UpdateSitePageBodySchema.entries)) {
+        if (field === "content") continue;
+        await assertJson(
+          apiRequest("/api/admin/site-pages/home", {
+            body: { [field]: 1 },
+            method: "PUT",
+          }),
+          400,
+          (body) => {
+            expect(body.error).toBe(`${field} cannot change on a fixed page`);
+          },
+        );
+      }
+    });
+
+    test("keeps stored text past the cap when the update body is silent", async () => {
+      // The terms editor stores text with no length cap, so the stored terms
+      // can be longer than the cap a supplied value must meet. A silent body
+      // keeps that stored text. The cap check applies to a supplied value
+      // only.
+      const stored = "y".repeat(MAX_TEXTAREA_LENGTH + 1);
+      await settings.update.terms(stored);
+      await assertJson(
+        apiRequest("/api/admin/site-pages/terms", { body: {}, method: "PUT" }),
+        200,
+        (body) => {
+          expect(body.page).toEqual({ content: stored, name: "terms" });
+        },
+      );
+      await settingsAsStored();
+      expect(settings.terms).toBe(stored);
     });
 
     test("refuses a non-string content value with the field message", async () => {

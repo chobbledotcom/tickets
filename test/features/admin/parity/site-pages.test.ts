@@ -351,4 +351,18 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
     await settingsAsStored();
     expect(settings.homepageText).toBe("Editor home");
   });
+
+  test("a manager is refused on the fixed-page routes", async () => {
+    const managerCookie = await createTestManagerSession();
+    const read = await apiGetAs("/api/admin/site-pages/home", managerCookie);
+    expect(read.status).toBe(403);
+    const updated = await apiPutAs(
+      "/api/admin/site-pages/home",
+      { content: "No" },
+      managerCookie,
+    );
+    expect(updated.status).toBe(403);
+    await settingsAsStored();
+    expect(settings.homepageText).toBe("");
+  });
 });
