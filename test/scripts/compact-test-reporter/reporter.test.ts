@@ -102,11 +102,9 @@ Deno.test("compact TAP reporter buffers pretty JSON diagnostic blocks", () => {
   const summary = reporter.finish();
 
   expect(summary.failed).toBe(1);
-  assertStringIncludes(
-    summary.failures[0]?.message ?? "",
-    "JSON details survived",
-  );
-  expect(summary.failures[0]?.location).toEqual({
+  const failure = summary.failures[0]!;
+  assertStringIncludes(failure.message, "JSON details survived");
+  expect(failure.location).toEqual({
     column: 5,
     file: "test/json.test.ts",
     line: 34,
@@ -150,12 +148,10 @@ Deno.test("compact TAP reporter parses YAML diagnostic blocks and suppresses par
   const summary = reporter.finish();
 
   expect(summary.failed).toBe(1);
-  expect(summary.failures[0]?.name).toBe("fails with YAML");
-  assertStringIncludes(
-    summary.failures[0]?.message ?? "",
-    "YAML details survived",
-  );
-  expect(summary.failures[0]?.location).toEqual({
+  const failure = summary.failures[0]!;
+  expect(failure.name).toBe("fails with YAML");
+  assertStringIncludes(failure.message, "YAML details survived");
+  expect(failure.location).toEqual({
     column: 7,
     file: "test/yaml.test.ts",
     line: 56,

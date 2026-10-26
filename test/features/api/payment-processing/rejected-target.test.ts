@@ -144,7 +144,7 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
       "SELECT COUNT(*) AS total FROM attendees",
       [],
     );
-    return Number(row?.total ?? 0);
+    return Number(row!.total);
   };
 
   it("stores the ghost, posts both legs, and records the authority", async () => {

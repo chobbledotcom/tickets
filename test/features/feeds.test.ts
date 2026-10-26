@@ -81,14 +81,10 @@ describeWithEnv("listing feed contracts", { db: true }, () => {
       .split("BEGIN:VLISTING\r\n")
       .find((entry) => entry.includes(`UID:package-${bundle.id}@`));
     expect(packageEntry).toBeDefined();
-    assertStringIncludes(
-      packageEntry!.split("\r\nEND:VLISTING")[0] ?? "",
-      "SUMMARY:Weekend bundle",
-    );
-    assert(
-      !(packageEntry!.split("\r\nEND:VLISTING")[0] ?? "").includes("LOCATION:"),
-    );
-    assertStringIncludes(packageEntry ?? "", "\r\nEND:VLISTING");
+    const listed = packageEntry!.split("\r\nEND:VLISTING")[0]!;
+    assertStringIncludes(listed, "SUMMARY:Weekend bundle");
+    assert(!listed.includes("LOCATION:"));
+    assertStringIncludes(packageEntry!, "\r\nEND:VLISTING");
   });
 
   test("uses newlines between RSS documents, items, and details", async () => {

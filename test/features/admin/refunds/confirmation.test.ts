@@ -64,7 +64,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
       entry.message.includes("Payment marked as refunded"),
     );
     expect(confirmations).toHaveLength(1);
-    const confirmationMessage = confirmations[0]?.message ?? "";
+    const confirmationMessage = confirmations[0]!.message;
     assert(!confirmationMessage.includes(refund.attendeeName));
     assert(!confirmationMessage.includes(refund.reference.reference));
     const notes = await getNotesFor(target, refund.privateKey);

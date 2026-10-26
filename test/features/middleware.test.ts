@@ -132,7 +132,7 @@ describe("buildCspHeader", () => {
           .find((directive) => directive.startsWith("form-action "));
         expect(formAction).toBeDefined();
         for (const origin of providerCheckoutFormOrigins(provider, sandbox)) {
-          assertStringIncludes(formAction ?? "", origin);
+          assertStringIncludes(formAction!, origin);
         }
       });
     }

@@ -129,7 +129,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         /id="settings-business-email"[\s\S]*?<\/form>/,
       );
       expect(formMatch).toBeDefined();
-      assertStringIncludes(formMatch?.[0] ?? "", "Business email updated");
+      assertStringIncludes(formMatch![0], "Business email updated");
     });
 
     test("does not show success on non-matching forms", async () => {

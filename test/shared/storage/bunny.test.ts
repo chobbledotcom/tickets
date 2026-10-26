@@ -57,12 +57,13 @@ describeWithEnv("Bunny storage", STORAGE_TEST_ENV, () => {
         const raw = new Uint8Array([1, 2, 3, 4]);
         expect(await uploadRaw(raw, "raw-upload.bin")).toBe("raw-upload.bin");
         expect(requests).toHaveLength(1);
-        expect(requests[0]?.method).toBe("PUT");
-        assertStringIncludes(requests[0]?.url ?? "", "/raw-upload.bin");
-        expect(requests[0]?.headers.get("content-type")).toBe(
+        const request = requests[0]!;
+        expect(request.method).toBe("PUT");
+        assertStringIncludes(request.url, "/raw-upload.bin");
+        expect(request.headers.get("content-type")).toBe(
           "application/octet-stream",
         );
-        expect(new Uint8Array(await requests[0]!.arrayBuffer())).toEqual(raw);
+        expect(new Uint8Array(await request.arrayBuffer())).toEqual(raw);
       },
     );
   });

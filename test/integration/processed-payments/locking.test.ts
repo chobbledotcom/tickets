@@ -50,7 +50,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       const result = await getProcessedPayment("cs_processed_123");
       expect(result?.payment_session_id).toBe("cs_processed_123");
       expect(result?.attendee_id).toBe(ctx.attendeeId);
-      assert(!result?.payment_reference.includes("pi_cs_processed_123"));
+      assert(!result!.payment_reference.includes("pi_cs_processed_123"));
       expect(result?.processed_at).toBeDefined();
     });
 

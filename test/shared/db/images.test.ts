@@ -93,7 +93,7 @@ describeWithEnv("db > images", { db: true }, () => {
       expect(raw?.filename.startsWith("enc:")).toBe(true);
       expect(raw?.filename_thumb.startsWith("enc:")).toBe(true);
       expect(raw?.alt_text.startsWith("enc:")).toBe(true);
-      assert(!raw?.name.includes("Hero"));
+      assert(!raw!.name.includes("Hero"));
 
       expect(await getImageById(image.id)).toEqual(image);
       expect(await getAllImages()).toEqual([image]);
