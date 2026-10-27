@@ -302,6 +302,32 @@ describe("defineEntityPage", () => {
     assert(!html.includes("entity.tab."));
   });
 
+  test("refuses an Actions tab without a recordId", () => {
+    expect(() =>
+      defineEntityPage({
+        destination: "holiday",
+        load: def.load,
+        navActive: def.navActive,
+        tabs: [
+          {
+            labelKey: "entity.tab.actions",
+            sections: [
+              {
+                actions: [
+                  { danger: true, destination: "holidayDelete", labelKey: "x" },
+                ],
+                kind: "actions",
+                titleKey: "entity.tab.actions",
+              },
+            ],
+            slug: "actions",
+          },
+        ],
+        titleOf: def.titleOf,
+      }),
+    ).toThrow('Entity page "holiday" has an Actions tab but no recordId');
+  });
+
   test("deleteActionTab renders one write-only danger action", async () => {
     const deletePage = defineEntityPage({
       ...def,
@@ -333,7 +359,7 @@ describe("defineEntityPage", () => {
       editSlug: "",
       load: def.load,
       navActive: def.navActive,
-      recordId: def.recordId,
+      recordId: (entity) => entity.id,
     });
     const response = await editPage.renderEditError(
       7,

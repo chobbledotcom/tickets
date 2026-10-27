@@ -168,8 +168,9 @@ export interface EntityPageDef<E, Id extends EntityId = number> {
   /** Extra content rendered inside the prose block beside the page `<h1>`
    *  (for example, the attendee page's "Add a note" link). */
   proseExtra?: SlotLoader<E>;
-  /** The record's id, for deriving an action's address from its destination. */
-  recordId: RecordIdOf<E>;
+  /** The record's id, for deriving an action's address from its destination.
+   * Required only when a tab carries actions. */
+  recordId?: RecordIdOf<E>;
   tabs: readonly TabDef<E>[];
   /** Flanking controls around the `<h1>`, for example a built-site pager whose
    * arrows keep the viewer on the same tab. */
@@ -180,11 +181,14 @@ export interface EntityPageDef<E, Id extends EntityId = number> {
 /** The record's id, for deriving an action's address from its destination. */
 type RecordIdOf<E> = (entity: E) => string | number;
 
+/** The record id, absent on a page with no Actions tab. */
+type MaybeRecordIdOf<E> = RecordIdOf<E> | undefined;
+
 const resolveActions = <E>(
   actions: readonly ActionDef<E>[],
   entity: E,
   ctx: PageCtx,
-  recordId: RecordIdOf<E>,
+  recordId: MaybeRecordIdOf<E>,
 ): ResolvedAction[] =>
   actions
     .filter(
@@ -198,9 +202,11 @@ const resolveActions = <E>(
     .map((action) => ({
       danger: action.danger === true,
       descriptionKey: action.descriptionKey,
+      // `recordId` is set whenever a page carries actions: `defineEntityPage`
+      // refuses an Actions tab without one, so this call always lands.
       href: action.href
         ? action.href(entity, ctx)
-        : adminRecordPath(action.destination, recordId(entity)),
+        : adminRecordPath(action.destination, recordId!(entity)),
       icon: action.icon,
       labelKey: action.labelKey,
     }));
@@ -212,7 +218,7 @@ const loadSection = async <E>(
   section: Section<E>,
   entity: E,
   ctx: PageCtx,
-  recordId: RecordIdOf<E>,
+  recordId: MaybeRecordIdOf<E>,
 ): Promise<LoadedSection> => {
   switch (section.kind) {
     case "summary":
@@ -307,7 +313,7 @@ const loadPageSections = async <E>(
   entity: E,
   ctx: PageCtx,
   panel: SlotLoader<E> | undefined,
-  recordId: RecordIdOf<E>,
+  recordId: MaybeRecordIdOf<E>,
 ): Promise<LoadedSection[]> => {
   if (panel) return [{ html: await panel(entity, ctx), kind: "custom" }];
   return Promise.all(
@@ -320,6 +326,16 @@ const loadPageSections = async <E>(
 export const defineEntityPage = <E, Id extends EntityId = number>(
   def: EntityPageDef<E, Id>,
 ): EntityPage<E, Id> => {
+  // An action's address derives from the record id, so a page with an Actions
+  // tab must name how to read it. A page without one never needs it.
+  const hasActionTab = def.tabs.some((tab) =>
+    tab.sections.some((section) => section.kind === "actions"),
+  );
+  if (hasActionTab && def.recordId === undefined) {
+    throw new Error(
+      `Entity page "${def.destination}" has an Actions tab but no recordId`,
+    );
+  }
   const basePath = (id: Id): string => adminRecordPath(def.destination, id);
   const route = adminDestination(def.destination);
   const guard = recordPageGuardFor(route, def.audience);
