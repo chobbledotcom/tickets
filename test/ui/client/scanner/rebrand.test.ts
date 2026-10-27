@@ -10,6 +10,7 @@
  * words the lookups must land on.
  */
 
+import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
@@ -68,6 +69,16 @@ describe("scanner messages under the ticket-to-booking rebrand", {
     );
     await whenTextShows(h.statusEl, "Booking not found");
     await done;
+  });
+
+  test("says booking when the ticket has no door at all", () => {
+    const h = fresh();
+
+    h.module.handleResult(h.statusEl, { status: "wrong_listing" }, h.messages);
+
+    expect(h.statusEl.textContent).toBe(
+      "This booking has no door to check in at.",
+    );
   });
 
   test("asks how many bookings at the quantity ask", async () => {

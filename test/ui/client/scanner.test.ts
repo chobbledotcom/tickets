@@ -182,4 +182,23 @@ describe("scanner bundle", {
     expect(h.statusEl.textContent).toBe("Scan failed");
     assertStringIncludes(h.statusEl.className, "scanner-status-error");
   });
+
+  test("says the no-door refusal from its own words when the page carries none", () => {
+    // The page always carries the attribute; this is the copy the client
+    // falls back to when a broken page omits it, and it must stay the
+    // page's own words.
+    const h = fresh();
+    el(h.document, "scanner-container").removeAttribute("data-message-no-door");
+
+    h.module.handleResult(
+      h.statusEl,
+      { name: "Ada", status: "wrong_listing" },
+      h.messages,
+    );
+
+    expect(h.statusEl.textContent).toBe(
+      "This ticket has no door to check in at.",
+    );
+    assertStringIncludes(h.statusEl.className, "scanner-status-error");
+  });
 });
