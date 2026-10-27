@@ -20,7 +20,6 @@ import { t } from "#i18n";
 import { somebodyBooksThroughTheSite } from "#test/specs/support/booking-setup.ts";
 // jscpd:ignore-start
 import {
-  openAdminPage,
   opensAdminPageAt,
   organiserSendsAndIsTold,
   wordsOnPageFrom,
@@ -31,14 +30,13 @@ import {
   tickedCheckboxes,
 } from "#test/specs/support/form-controls/reading.ts";
 import { takeDownFromActions } from "#test/specs/support/form-controls.ts";
-import { listingIdNamed } from "#test/specs/support/listings.ts";
+import { listingPage } from "#test/specs/support/listings.ts";
 import type {
   ActOnOneThing,
   AsksAboutOneThing,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
-import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
 
 /** The listing every scenario here buys a place on. */
@@ -105,18 +103,6 @@ export const adaBooks = async (
     expect(await timesTheSiteHasSeen(way)).toBe(1);
   }
 };
-
-/** One listing's own page, or one of the pages behind it, open in front of the
- * organiser. Everything they do to a listing starts here. */
-const listingPage = (
-  world: TicketsWorld,
-  name: string,
-  behind = "",
-): Promise<TestBrowser> =>
-  openAdminPage(
-    world,
-    `/admin/listing/${listingIdNamed(world, name)}${behind}`,
-  );
 
 /** The organiser deletes a listing, following the way in they really have: its
  * own page, the Actions tab behind it, then typing the name to confirm. */

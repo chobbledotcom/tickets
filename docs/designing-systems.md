@@ -104,7 +104,12 @@ These checks serve different purposes.
   length:
   - `verification/JointState.tla` checks the indexed-reference claim guard and
     the actual refund money-edge results. A money edge must arm a durable
-    authority and preserve its request.
+    authority and preserve its request. Only a money edge can arm a send, so
+    conclusive not-sent evidence and owner decisions never re-arm a send and
+    never replay. An automatic keyed replay keeps the exact request inside its
+    provider window, and a keyless request never replays automatically. A
+    refund row is deleted only when the refund authority is completed and
+    locally recorded.
   - `verification/SumupRecovery.tla` checks that records with unaccounted money
     cannot be pruned. Risky records retain a check path. Paid and terminal
     evidence cannot move backwards.
@@ -114,6 +119,12 @@ These checks serve different purposes.
   - `verification/SquareLinkEnd.tla` keeps cancel handles while links can accept
     payment. Inconclusive replies and expired leases retain retry work. Native
     expiry and the webhook window bound age pruning.
+  - `verification/TwoWorkers.tla` models two runs on one payment row. A run
+    that fell behind cannot release or overwrite the claim of the run that
+    replaced it. The settle fence compares command identity, claim time and
+    phase separately, so a fence that omits any one of them never clears the
+    stored claim. A take replaces a claim only on an absent or expired row.
+    Lease expiry never cancels a provider request that is already in flight.
   The models trust representative coverage and event annotations.
   The Square model also trusts the configured provider lifetime. Claim
   admission remains a model assumption. Mirror tests and database tests check

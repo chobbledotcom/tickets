@@ -1,7 +1,8 @@
 /**
  * The tabbed /admin/listing/:id entity page (edit-pages.md, slice 2). The
- * deactivated banner shows on every tab. Sub-action POST handlers keep their
- * own routes, so this file owns only the GET surface.
+ * banner holds the deactivated alert and the listing's notes, so neither
+ * hides behind one tab. Sub-action POST handlers keep their own routes, so
+ * this file owns only the GET surface.
  */
 
 import { settings } from "#db/settings.ts";
@@ -11,6 +12,7 @@ import {
   defineEntityPage,
   type EntityPage,
   prepareOwnerFields,
+  type SlotLoader,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import { panelTab, writeFormTab } from "#routes/admin/entity-write-tab.ts";
@@ -19,7 +21,7 @@ import type { AdminFeatureKey } from "#shared/admin-features.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { targetQuery } from "#shared/bulk-email-targets/registry.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
-import { ListingDeactivatedBanner } from "#templates/admin/listings/overview.tsx";
+import { ListingBanner } from "#templates/admin/listings/overview.tsx";
 import {
   CONTENT_ADMIN_LEVELS,
   isContentRole,
@@ -27,6 +29,7 @@ import {
   isPaidListing,
   isStaffRole,
 } from "#types";
+import { listingNoteFeature } from "./catalog-notes.ts";
 import {
   type LoadedListing,
   listingHasEmailableAttendees,
@@ -166,16 +169,30 @@ const ownerFeatureWriteTab = (
       isOwnerRole(session.adminLevel) && settings.features[feature],
   );
 
+/** The listing's banner wiring comes from its note feature. The loader below
+ * composes the deactivated alert above the shared notes section, so it cannot
+ * use the feature's whole-banner helper. */
+const loadBanner: SlotLoader<LoadedListing> = async ({ listing }, ctx) => {
+  const notes = await listingNoteFeature.page.notesFor(listing, ctx.session);
+  return ListingBanner({
+    active: listing.active,
+    deleteHref: listingNoteFeature.page.noteDeleteUrl,
+    isOwner: isOwnerRole(ctx.session.adminLevel),
+    notes,
+  });
+};
+
 /** The tabbed listing page. */
 export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
   audience: CONTENT_ADMIN_LEVELS,
-  banner: ({ listing }) =>
-    Promise.resolve(ListingDeactivatedBanner({ active: listing.active })),
+  banner: loadBanner,
   destination: "listing",
   load: (id) => loadListingForPage(id),
   // A single listing is a page *within* the Listings section: `{ section }`
   // highlights that top link and leaves the "Add"/"Import" sub-nav out.
   navActive: { section: adminPattern("listings") },
+  proseExtra: ({ listing }, ctx) =>
+    listingNoteFeature.page.proseExtra(listing, ctx),
   tabs: [
     overviewTab,
     panelTab(

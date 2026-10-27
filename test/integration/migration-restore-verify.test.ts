@@ -70,15 +70,18 @@ describeWithEnv(
       // now owns the triggers that keep saved feature data and visibility in step.
       // The built-site marker drop is also removal-only. The activity backfill
       // completion migration is data-only and covered by its direct tests. The
-      // note-entities migration rebuilds system_notes around its new
+      // The note-entities migration rebuilds system_notes around its new
       // entity_type/entity_id pair, owning no additive objects to drop and
-      // restore; it has its own migration test. The checked_in count migration
+      // restore; it has its own migration test. The group/listing
+      // note-entities CHECK rebuild likewise recreates system_notes to relax
+      // its CHECK, owning no additive objects to drop and restore; it has its
+      // own migration test. The checked_in count migration
       // is data-only and covered by its own migration test. The holiday date
       // padding migration is data-only and covered by its own migration test.
       // The custom CSS Bunny fonts backfill is data-only and covered by its
       // own migration test. The listing-fields trim backfill is data-only and
       // covered by its own migration test.
-      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 27);
+      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 28);
     });
 
     test("restores triggers attached to a dropped table", async () => {

@@ -60,6 +60,7 @@
   "questions.listing.no_questions": "No questions created yet. Create questions first.",
   "questions.listing.manage": "Manage questions",
   "questions.assign_to_listings": "Assign to Listings",
+  "questions.no_listings": "No listings yet.",
   "questions.assign_all_listings": "Assign to all listings",
   "questions.linked_all_listings": "Linked {type} (all):",
   "questions.save_listings": "Save listings",

@@ -15,6 +15,7 @@ import {
 import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { allBalances } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
+import { articleOutOf } from "#test/specs/support/browser.ts";
 import { adminGet } from "#test-utils/session.ts";
 // jscpd:ignore-end
 
@@ -157,11 +158,8 @@ export const assertRenderedModifierRevenue: CheckMoneyShown = async (
 /** Slice the `#income-ledger` reconciliation article out of a listing detail
  *  page, so a figure is asserted WITHIN the breakdown and can't accidentally
  *  match an unrelated figure elsewhere on the page. */
-export const incomeLedgerArticle = (html: string): string => {
-  const start = html.indexOf('id="income-ledger"');
-  expect(start).toBeGreaterThan(-1);
-  return html.slice(start, html.indexOf("</article>", start));
-};
+export const incomeLedgerArticle = (html: string): string =>
+  articleOutOf(html, "income-ledger");
 
 // -- Leg helpers ---------------------------------------------------------- //
 

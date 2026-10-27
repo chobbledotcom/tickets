@@ -16,6 +16,7 @@ import type { SystemNote } from "#db/notes/types.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
+import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
 import { renderField } from "#shared/forms/rendering.tsx";
@@ -109,9 +110,15 @@ const NoteActions = ({
 /**
  * One note as a box: a red alert for a `system` note (so a refunded-but-stored
  * booking can't be missed), a neutral box for an `owner` note. The "×" opens the
- * delete confirmation, returning to the attendee page.
+ * delete confirmation, returning to the record page.
  */
-const NoteBox = ({ isOwner, note }: NoteViewProps): JSX.Element => {
+const NoteBox = ({
+  deleteHref,
+  isOwner,
+  note,
+}: NoteViewProps & {
+  deleteHref: (note: SystemNote) => string;
+}): JSX.Element => {
   const isSystem = note.type === "system";
   return (
     <div
@@ -122,7 +129,7 @@ const NoteBox = ({ isOwner, note }: NoteViewProps): JSX.Element => {
         <a
           aria-label={t("notes.delete")}
           class="system-note-dismiss"
-          href={deleteNoteUrl(note, attendeeUrl(note.entity_id))}
+          href={deleteHref(note)}
           title={t("notes.delete")}
         >
           ×
@@ -138,43 +145,54 @@ const NoteBox = ({ isOwner, note }: NoteViewProps): JSX.Element => {
 };
 
 /**
- * The notes block on the attendee page: every note (oldest first). Renders
- * nothing when the attendee has no notes, so the page carries no empty
+ * The notes block on a record's page: every note (oldest first). Renders
+ * nothing when the record has no notes, so the page carries no empty
  * `.attendee-notes` section. The "Add a note" link lives beside the page
  * heading (see {@link AddNoteLink}), not here.
  */
-export const AttendeeNotesSection = ({
+export const NotesSection = ({
+  deleteHref,
   notes,
   isOwner,
-}: NotesViewProps): JSX.Element | null =>
+}: NotesViewProps & {
+  /** Mint one note's are-you-sure delete URL, returning to the record page. */
+  deleteHref: (note: SystemNote) => string;
+}): JSX.Element | null =>
   notes.length === 0 ? null : (
     <section class="attendee-notes">
       {notes.map((note) => (
-        <NoteBox isOwner={isOwner} note={note} />
+        <NoteBox deleteHref={deleteHref} isOwner={isOwner} note={note} />
       ))}
     </section>
   );
 
+/** The notes block on the attendee page: {@link NotesSection} with the
+ * attendee's own delete URLs. */
+export const AttendeeNotesSection = ({
+  notes,
+  isOwner,
+}: NotesViewProps): JSX.Element | null =>
+  NotesSection({
+    deleteHref: (note) => deleteNoteUrl(note, attendeeUrl(note.entity_id)),
+    isOwner,
+    notes,
+  });
+
 /**
- * The "Add a note" link shown next to the attendee's page heading. Returns to
- * the attendee page after adding.
+ * The "Add a note" link shown next to a record's page heading. Returns to
+ * the record page after adding.
  */
-export const AddNoteLink = ({
-  attendeeId,
-}: {
-  attendeeId: number;
-}): JSX.Element => (
+export const AddNoteLink = ({ href }: { href: string }): JSX.Element => (
   <p>
-    <a
-      href={withReturnUrl(
-        `/admin/attendee/${attendeeId}/note`,
-        attendeeUrl(attendeeId),
-      )}
-    >
-      {t("notes.add_link")}
-    </a>
+    <a href={href}>{t("notes.add_link")}</a>
   </p>
 );
+
+/** The prose-extra slot for a record page: the "Add a note" link beside the
+ * heading, hidden in read-only mode. `href` carries the note page URL with its
+ * return-url query. */
+export const addNoteLinkProse = (href: string): Promise<JSX.Element | null> =>
+  Promise.resolve(isReadOnly() ? null : AddNoteLink({ href }));
 
 /**
  * A red expandable shown above an attendee list when any listed attendee has
@@ -209,22 +227,29 @@ export const AttendeeNotesSummary = ({
   );
 };
 
-/** The operator add-note page. */
+/** The operator add-note page. `noteAction` is the record kind's POST target
+ * (for example `/admin/questions/7/note`), and `activeSection` the nav section
+ * the note pages belong to. */
 export const adminNoteNewPage = ({
-  attendeeId,
-  attendeeName,
+  recordName,
   session,
   returnUrl,
   error,
-}: { attendeeId: number; attendeeName: string } & NotePageProps): string =>
+  noteAction,
+  activeSection,
+}: {
+  recordName: string;
+  noteAction: string;
+  activeSection: string;
+} & NotePageProps): string =>
   renderAdminPageSpec({
-    active: { section: "/admin/attendees" },
+    active: { section: activeSection },
     body: (
       <>
         <div class="prose">
-          <h1>{t("notes.add_heading", { name: attendeeName })}</h1>
+          <h1>{t("notes.add_heading", { name: recordName })}</h1>
         </div>
-        <CsrfForm action={`/admin/attendee/${attendeeId}/note`}>
+        <CsrfForm action={noteAction}>
           {hiddenInputs([["return_url", returnUrl]])}
           <Raw
             html={renderField({
@@ -262,12 +287,16 @@ export const adminNoteDeletePage = ({
   session,
   returnUrl,
   error,
+  noteAction,
+  activeSection,
 }: {
   note: SystemNote;
+  noteAction: (note: SystemNote) => string;
+  activeSection: string;
 } & NotePageProps): string =>
   ConfirmPage({
-    action: noteDeleteAction(note),
-    active: { section: "/admin/attendees" },
+    action: noteAction(note),
+    active: { section: activeSection },
     buttonText: t("notes.delete_submit"),
     children: (
       <>
