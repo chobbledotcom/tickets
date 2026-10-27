@@ -1,5 +1,5 @@
 {
-  "src/features/admin/attendee-form-model.ts": 565,
+  "src/features/admin/attendee-form-model.ts": 547,
   "src/features/auth.ts": 743,
   "src/fp.ts": 585,
   "src/shared/db/attendees/servicing.ts": 905,

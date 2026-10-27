@@ -19,7 +19,7 @@ import {
   type PackagePricesByListingId,
   parseLines,
 } from "#routes/admin/attendee-form-lines.ts";
-import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
+import { listPriceOrder, type PricedOrder } from "#shared/checkout-pricing.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { DAY_MS } from "#shared/now.ts";
@@ -462,32 +462,14 @@ export const toCreateInput = (
  * gross as a `sale` leg (income) with no `payment`/`fee` leg. The manual-add
  * poster reconciles the owner-entered outstanding balance on top.
  */
-export const toLedgerOrder = (parsed: ParsedAttendeeForm): PricedOrder => {
-  const lines: PricedLine[] = parsed.lines
-    .filter(isBookedLine)
-    .map((line): PricedLine => {
-      const listing = line.listing!;
-      const unitPrice = line.packagePrice ?? listing.unit_price;
-      return {
-        chargedUnitAmount: unitPrice,
-        item: {
-          listingId: line.listingId,
-          name: listing.name,
-          quantity: line.quantity!,
-          slug: listing.slug,
-          unitPrice,
-        },
-        quantity: line.quantity!,
-      };
-    });
-  return {
-    extras: [],
-    fullSubtotal: 0,
-    lines,
-    modifierApplications: [],
-    total: 0,
-  };
-};
+export const toLedgerOrder = (parsed: ParsedAttendeeForm): PricedOrder =>
+  listPriceOrder(
+    parsed.lines.filter(isBookedLine).map((line) => ({
+      listing: line.listing!,
+      quantity: line.quantity!,
+      ...(line.packagePrice === null ? {} : { unitPrice: line.packagePrice }),
+    })),
+  );
 
 /**
  * Desired final-state lines for the atomic edit — one per retained editor
