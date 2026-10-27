@@ -9,6 +9,7 @@ import {
   REVENUE,
   type RowAccountType,
   type SingletonAccountType,
+  TAX,
   WRITEOFF_TYPE,
 } from "#accounting/accounts.ts";
 import { isTransferKind, KIND, type TransferKind } from "#accounting/kinds.ts";
@@ -235,6 +236,11 @@ const TRANSFER_PRESENTATION: Record<TransferKind, TransferPresentation> = {
     description: accountDescription("admin.ledger.human.refund_sale", REVENUE),
     eventKey: "admin.ledger.event.refund_sale",
   },
+  [KIND.refundVat]: {
+    amount: negativeAmount,
+    description: textDescription("admin.ledger.human.refund_vat"),
+    eventKey: "admin.ledger.event.refund_vat",
+  },
   [KIND.reversal]: {
     amount: positiveAmount,
     description: fallbackHumanDescription,
@@ -249,6 +255,11 @@ const TRANSFER_PRESENTATION: Record<TransferKind, TransferPresentation> = {
     amount: serviceCostAmount,
     description: serviceCostDescription,
     eventKey: "admin.ledger.event.service_cost",
+  },
+  [KIND.vat]: {
+    amount: positiveAmount,
+    description: textDescription("admin.ledger.human.vat"),
+    eventKey: "admin.ledger.event.vat",
   },
 };
 
@@ -311,6 +322,7 @@ const STATEMENT_BALANCE_KEYS: Record<StatementAccountType, string> = {
   [FEE_INCOME]: "admin.ledger.balance",
   [MODIFIER]: "admin.ledger.balance",
   [REVENUE]: "admin.ledger.income_balance",
+  [TAX]: "admin.ledger.balance",
   [WRITEOFF_TYPE]: "admin.ledger.balance",
 };
 

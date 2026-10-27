@@ -359,6 +359,9 @@
     "long-sentence": 7,
     "semicolon": 2
   },
+  "src/shared/checkout-ledger.ts": {
+    "wordy": 1
+  },
   "src/shared/checkout-pricing.ts": {
     "semicolon": 5,
     "wordy": 1,

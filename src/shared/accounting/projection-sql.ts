@@ -158,6 +158,7 @@ export const orderTotalSubquery = (type: string, idExpr: string): string =>
     KIND.sale,
     KIND.modifier,
     KIND.fee,
+    KIND.vat,
     MANUAL_ATTENDEE_CHARGE,
   ]);
 

@@ -20,6 +20,7 @@ export const MODIFIER = "modifier";
 export const FEE_INCOME = "fee_income";
 export const EXTERNAL = "external";
 export const WRITEOFF_TYPE = "writeoff";
+export const TAX = "tax";
 
 /**
  * The row-backed account types — each account of these types belongs to one
@@ -43,6 +44,7 @@ export const isRowAccountType = guardFor(RowAccountTypeSchema);
 export const SingletonAccountTypeSchema = v.picklist([
   EXTERNAL,
   FEE_INCOME,
+  TAX,
   WRITEOFF_TYPE,
 ]);
 export type SingletonAccountType = v.InferOutput<
@@ -64,6 +66,9 @@ export const BOOKING_FEE_INCOME: AccountRef = account(FEE_INCOME, "booking");
  * figure without a phantom world payment.
  */
 export const WRITEOFF: AccountRef = account(WRITEOFF_TYPE, "default");
+
+/** VAT collected on a booking's ticket sales, held for the operator to remit. */
+export const TAX_VAT: AccountRef = account(TAX, "vat");
 
 /**
  * Build the account constructor for one type of row-backed account. The row id
@@ -107,6 +112,7 @@ export const modifierAccount = rowAccount(MODIFIER);
 export const SINGLETON_ACCOUNTS: Record<SingletonAccountType, AccountRef> = {
   [EXTERNAL]: WORLD,
   [FEE_INCOME]: BOOKING_FEE_INCOME,
+  [TAX]: TAX_VAT,
   [WRITEOFF_TYPE]: WRITEOFF,
 };
 

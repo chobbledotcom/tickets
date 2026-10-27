@@ -8,6 +8,7 @@ import {
   FEE_INCOME,
   MODIFIER,
   REVENUE,
+  TAX,
   WRITEOFF_TYPE,
 } from "#accounting/accounts.ts";
 import { MANUAL_ATTENDEE_PAYMENT } from "#accounting/manual-entries.ts";
@@ -40,6 +41,7 @@ describe("statementBalanceKey", () => {
         FEE_INCOME,
         MODIFIER,
         REVENUE,
+        TAX,
         WRITEOFF_TYPE,
         "future_account_type",
       ].map((type) => statementBalanceKey(account(type, "1"))),
@@ -50,6 +52,7 @@ describe("statementBalanceKey", () => {
       "admin.ledger.balance",
       "admin.ledger.balance",
       "admin.ledger.income_balance",
+      "admin.ledger.balance",
       "admin.ledger.balance",
       "admin.ledger.balance",
     ]);

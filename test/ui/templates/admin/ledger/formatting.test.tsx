@@ -46,6 +46,35 @@ describe("admin ledger formatting", () => {
     test("names a transfer with no kind at all", () => {
       expect(transferEventLabel(transfer({ kind: "" }))).toBe("No event type");
     });
+
+    test("names the VAT kinds", () => {
+      expect(transferEventLabel(transfer({ kind: KIND.vat }))).toBe(
+        "Value added tax",
+      );
+      expect(transferEventLabel(transfer({ kind: KIND.refundVat }))).toBe(
+        "Value added tax refunded",
+      );
+    });
+  });
+
+  describe("humanDescription for VAT", () => {
+    test("reads as tax recorded for the vat leg", () => {
+      const html = describeTransfer({
+        destination: account("tax", "vat"),
+        kind: KIND.vat,
+        source: account(ATTENDEE, 1),
+      });
+      assertStringIncludes(html, "Value added tax recorded");
+    });
+
+    test("reads as tax refunded for the refund_vat leg", () => {
+      const html = describeTransfer({
+        destination: account(ATTENDEE, 1),
+        kind: KIND.refundVat,
+        source: account("tax", "vat"),
+      });
+      assertStringIncludes(html, "Value added tax refunded");
+    });
   });
 
   describe("humanDescription for a service cost", () => {

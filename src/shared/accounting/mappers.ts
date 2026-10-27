@@ -8,8 +8,10 @@
 import {
   attendeeAccount,
   BOOKING_FEE_INCOME,
+  MODIFIER,
   modifierAccount,
   revenueAccount,
+  TAX_VAT,
   WORLD,
 } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
@@ -18,7 +20,8 @@ import {
   MANUAL_ATTENDEE_WRITEOFF,
 } from "#accounting/manual-entries.ts";
 import { eventGroup, legReference, type RefPart } from "#accounting/refs.ts";
-import { sumByKey } from "#fp";
+import { sumByKey, sumOf } from "#fp";
+import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 import type {
   AccountRef,
   Transfer,
@@ -59,10 +62,29 @@ const REFUND_KIND: Readonly<Record<string, string>> = {
   [KIND.sale]: KIND.refundSale,
   [MANUAL_ATTENDEE_CHARGE]: KIND.refundManualAttendeeCharge,
   [MANUAL_ATTENDEE_WRITEOFF]: KIND.refundManualAttendeeWriteoff,
+  [KIND.vat]: KIND.refundVat,
 };
 
 const refundKind = (kind: string): string =>
   REFUND_KIND[kind] ?? `refund_${kind}`;
+
+/**
+ * The VAT facts a booking carries. Either a rate applied to the booking's
+ * taxable total in one of two directions, or an already-computed amount:
+ *
+ * - `add_to_total`: the sale/modifier amounts are ex-VAT and the tax is charged
+ *   on top. The posted total is the subtotal plus VAT.
+ * - `calculate_from_total`: the sale/modifier amounts include VAT, and
+ *   `mapBooking` splits the tax out so income stays ex-VAT.
+ * - `{ amount }`: the caller already worked the tax out and reduced the lines
+ *   itself if the prices included it. `mapBooking` just posts it.
+ *
+ * `rate` is a fraction (0.2 is 20%). The booking fee never carries VAT.
+ */
+export type VatFacts =
+  | { readonly mode: "add_to_total"; readonly rate: number }
+  | { readonly mode: "calculate_from_total"; readonly rate: number }
+  | { readonly amount: number };
 
 /**
  * The money facts of one booking, decoupled from the checkout pricing types.
@@ -70,6 +92,7 @@ const refundKind = (kind: string): string =>
  * signed effect (negative = discount). `amountPaid` is the cash actually received
  * now (a deposit, or the full amount). `eventId` is any stable per-booking id
  * (for example the payment reference) — it is hashed into the references, never stored.
+ * `vat` is the booking's VAT facts. A booking without `vat` charges no tax.
  */
 export type BookingFacts = {
   readonly attendeeId: number;
@@ -79,6 +102,7 @@ export type BookingFacts = {
   readonly modifiers: ReadonlyArray<{ modifierId: number; delta: number }>;
   readonly bookingFee: number;
   readonly amountPaid: number;
+  readonly vat?: VatFacts;
 };
 
 type LegSpec = {
@@ -121,6 +145,86 @@ const modifierLeg = (
       };
 };
 
+/** The booking's taxable total: ticket sales plus net modifier effect. The
+ *  booking fee never carries VAT. A discount (negative delta) lowers the base. */
+const taxableBase = (facts: BookingFacts): number =>
+  sumOf((line: BookingFacts["lines"][number]) => line.gross)(facts.lines) +
+  sumOf((modifier: BookingFacts["modifiers"][number]) => modifier.delta)(
+    facts.modifiers,
+  );
+
+/** The VAT amount a booking carries, derived from its facts. A booking without
+ *  facts, or with a zero/negative taxable base, posts no tax. */
+const vatAmountFor = (facts: BookingFacts): number => {
+  const vat = facts.vat;
+  if (vat === undefined) return 0;
+  if ("amount" in vat) return vat.amount;
+  const base = taxableBase(facts);
+  if (base <= 0) return 0;
+  return vat.mode === "add_to_total"
+    ? Math.round(base * vat.rate)
+    : Math.round((base * vat.rate) / (1 + vat.rate));
+};
+
+/** The single attendee→`tax:vat` leg, dropped when the tax is zero. */
+const vatLegSpec = (vatAmount: number, attendee: AccountRef): LegSpec[] =>
+  vatAmount > 0
+    ? [
+        {
+          amount: vatAmount,
+          destination: TAX_VAT,
+          kind: KIND.vat,
+          refParts: [KIND.vat],
+          source: attendee,
+        },
+      ]
+    : [];
+
+/**
+ * The booking's legs with VAT applied. It adds an extra attendee→`tax:vat`
+ * leg. In `calculate_from_total` mode it also reduces the sale/surcharge
+ * amounts by their share of the tax, so income stays ex-VAT. The tax is split
+ * by largest remainder, so every reduced amount stays a whole minor unit.
+ * The shares sum exactly to the VAT leg.
+ */
+const withVat = (
+  facts: BookingFacts,
+  attendee: AccountRef,
+  sales: LegSpec[],
+  modifiers: LegSpec[],
+): { modifiers: LegSpec[]; sales: LegSpec[]; vat: LegSpec[] } => {
+  const vatAmount = vatAmountFor(facts);
+  if (facts.vat === undefined || "amount" in facts.vat || vatAmount <= 0) {
+    return { modifiers, sales, vat: vatLegSpec(vatAmount, attendee) };
+  }
+  if (facts.vat.mode === "add_to_total") {
+    return { modifiers, sales, vat: vatLegSpec(vatAmount, attendee) };
+  }
+  // calculate_from_total: the sale and surcharge amounts include VAT.
+  const vatable = [
+    ...sales,
+    ...modifiers.filter((spec) => spec.destination.type === MODIFIER),
+  ];
+  const allocation = largestRemainderAllocation(
+    vatable.map((spec) => spec.amount),
+    vatAmount,
+  );
+  const shareOf = new Map(
+    vatable.map((spec, index) => [spec, allocation[index]!]),
+  );
+  const reduce = (spec: LegSpec): LegSpec => {
+    const share = shareOf.get(spec);
+    return share === undefined
+      ? spec
+      : { ...spec, amount: spec.amount - share };
+  };
+  return {
+    modifiers: modifiers.map(reduce),
+    sales: sales.map(reduce),
+    vat: vatLegSpec(vatAmount, attendee),
+  };
+};
+
 const bookingLegSpecs = (
   facts: BookingFacts,
   attendee: AccountRef,
@@ -154,7 +258,26 @@ const bookingLegSpecs = (
     refParts: [KIND.payment],
     source: WORLD,
   });
-  return [...sales, ...modifiers, ...fee, ...payment];
+  const vat = withVat(facts, attendee, sales, modifiers);
+  return [...vat.sales, ...vat.modifiers, ...fee, ...payment, ...vat.vat];
+};
+
+/** The malformed-facts messages a booking's VAT facts carry, or none. A
+ *  pre-computed amount is a money value like any other, so it gets the same
+ *  finite/non-negative/integer checks the rest of the facts get. */
+const vatFactsProblems = (vat: VatFacts): string[] => {
+  if ("amount" in vat) {
+    const problems: string[] = [];
+    const value = vat.amount;
+    if (!Number.isFinite(value)) problems.push("non-finite vat amount");
+    else if (value < 0) problems.push("negative vat amount");
+    else if (!Number.isSafeInteger(value))
+      problems.push("non-integer vat amount");
+    return problems;
+  }
+  return !Number.isFinite(vat.rate) || vat.rate <= 0
+    ? [`invalid vat rate ${vat.rate}`]
+    : [];
 };
 
 /**
@@ -192,6 +315,9 @@ const assertValidFacts = (facts: BookingFacts): void => {
   }
   requireAmount("bookingFee", facts.bookingFee);
   requireAmount("amountPaid", facts.amountPaid);
+  if (facts.vat !== undefined) {
+    problems.push(...vatFactsProblems(facts.vat));
+  }
   if (problems.length > 0) {
     throw new Error(`mapBooking: invalid facts (${problems.join(", ")})`);
   }

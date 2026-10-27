@@ -6,6 +6,7 @@ import {
   BOOKING_FEE_INCOME,
   modifierAccount,
   revenueAccount,
+  TAX_VAT,
   WORLD,
 } from "#accounting/accounts.ts";
 import {
@@ -78,6 +79,28 @@ describeWithEnv("accounting > mapRefund", { encryptionKey: true }, () => {
     expect(balanceOf(BOOKING_FEE_INCOME)(all)).toBe(0);
     expect(balanceOf(attendeeAccount(3))(all)).toBe(0);
     expect(balanceOf(WORLD)(all)).toBe(0); // cash in, then back out
+  });
+
+  test("reverses the vat leg like every other leg", async () => {
+    const order = await bookingOrder({
+      amountPaid: 12000,
+      lines: [{ gross: 10000, listingId: 1 }],
+      vat: { mode: "add_to_total", rate: 0.2 },
+    });
+    const { all, refund } = await refundAndAll(order);
+
+    // The refund relabels the vat leg `refund_vat` and swaps its ends.
+    const vatRefund = refund.filter((leg) => leg.kind === "refund_vat");
+    expect(vatRefund.length).toBe(1);
+    expect(vatRefund[0]!.amount).toBe(2000);
+    expect(vatRefund[0]!.source).toEqual(TAX_VAT);
+    expect(vatRefund[0]!.destination).toEqual(attendeeAccount(3));
+
+    // Booking + refund zero the tax account, the revenue and the attendee.
+    expect(balanceOf(TAX_VAT)(all)).toBe(0);
+    expect(balanceOf(revenueAccount(1))(all)).toBe(0);
+    expect(balanceOf(attendeeAccount(3))(all)).toBe(0);
+    expect(balanceOf(WORLD)(all)).toBe(0);
   });
 
   test("cancels a deposit booking: full gross reversed, deposit returned", async () => {

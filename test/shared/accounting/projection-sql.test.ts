@@ -146,12 +146,13 @@ describe("order amount subqueries", () => {
     );
   });
 
-  test("includes fees and manual charges in the full order total", () => {
+  test("includes fees, VAT and manual charges in the full order total", () => {
     expect(orderTotalSubquery(ATTENDEE, "a.id")).toBe(
       expectedTotal([
         KIND.sale,
         KIND.modifier,
         KIND.fee,
+        KIND.vat,
         MANUAL_ATTENDEE_CHARGE,
       ]),
     );

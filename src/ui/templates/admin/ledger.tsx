@@ -118,6 +118,7 @@ export const ledgerNamesForAccountType = (
 const SINGLETON_LABEL_KEYS: Record<SingletonAccountType, string> = {
   external: "admin.ledger.account.external",
   fee_income: "admin.ledger.account.fee_income",
+  tax: "admin.ledger.account.tax",
   writeoff: "admin.ledger.account.writeoff",
 };
 

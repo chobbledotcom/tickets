@@ -6,6 +6,7 @@ import {
   BOOKING_FEE_INCOME,
   modifierAccount,
   revenueAccount,
+  TAX_VAT,
   WORLD,
 } from "#accounting/accounts.ts";
 import { mapBooking } from "#accounting/mappers.ts";
@@ -223,6 +224,153 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
       ),
     ).toBe(
       "mapBooking: invalid facts (empty eventId, negative bookingFee, negative amountPaid)",
+    );
+  });
+
+  test("adds a vat leg on top in add-to-total mode: sale stays ex-VAT, total includes the tax", async () => {
+    const legs = (
+      await mapBooking(
+        facts({
+          amountPaid: 0,
+          lines: [{ gross: 10000, listingId: 1 }],
+          vat: { mode: "add_to_total", rate: 0.2 },
+        }),
+      )
+    ).map(asTransfer);
+
+    const sale = soleLegOf("sale")(legs);
+    expect(sale.amount).toBe(10000); // ex-VAT income
+    const vat = soleLegOf("vat")(legs);
+    expect(vat.amount).toBe(2000);
+    expect(vat.source).toEqual(attendeeAccount(3));
+    expect(vat.destination).toEqual(TAX_VAT);
+    // The attendee owes subtotal + VAT; the tax account accumulates the tax.
+    expect(balanceOf(attendeeAccount(3))(legs)).toBe(-12000);
+    expect(balanceOf(revenueAccount(1))(legs)).toBe(10000);
+    expect(balanceOf(TAX_VAT)(legs)).toBe(2000);
+  });
+
+  test("splits VAT out of an inclusive total so income stays ex-VAT", async () => {
+    const legs = (
+      await mapBooking(
+        facts({
+          amountPaid: 0,
+          lines: [{ gross: 12000, listingId: 1 }],
+          vat: { mode: "calculate_from_total", rate: 0.2 },
+        }),
+      )
+    ).map(asTransfer);
+
+    // 12000 includes 20% VAT: 10000 ex-VAT sale + 2000 tax.
+    expect(soleLegOf("sale")(legs).amount).toBe(10000);
+    expect(soleLegOf("vat")(legs).amount).toBe(2000);
+    expect(balanceOf(attendeeAccount(3))(legs)).toBe(-12000);
+    expect(balanceOf(revenueAccount(1))(legs)).toBe(10000);
+    expect(balanceOf(TAX_VAT)(legs)).toBe(2000);
+  });
+
+  test("splits an inclusive VAT total across several sale legs by largest remainder", async () => {
+    const legs = (
+      await mapBooking(
+        facts({
+          amountPaid: 0,
+          lines: [
+            { gross: 6000, listingId: 1 },
+            { gross: 6000, listingId: 2 },
+          ],
+          vat: { mode: "calculate_from_total", rate: 0.2 },
+        }),
+      )
+    ).map(asTransfer);
+
+    expect(soleLegOf("vat")(legs).amount).toBe(2000);
+    const saleAmounts = legs
+      .filter((leg) => leg.kind === "sale")
+      .map((leg) => leg.amount)
+      .sort((a, b) => a - b);
+    expect(saleAmounts).toEqual([5000, 5000]);
+    expect(balanceOf(attendeeAccount(3))(legs)).toBe(-12000);
+  });
+
+  test("posts a pre-computed VAT amount as the vat leg", async () => {
+    const legs = (
+      await mapBooking(
+        facts({
+          amountPaid: 0,
+          lines: [{ gross: 10000, listingId: 1 }],
+          vat: { amount: 1500 },
+        }),
+      )
+    ).map(asTransfer);
+
+    expect(soleLegOf("sale")(legs).amount).toBe(10000);
+    expect(soleLegOf("vat")(legs).amount).toBe(1500);
+    expect(balanceOf(attendeeAccount(3))(legs)).toBe(-11500);
+    expect(balanceOf(TAX_VAT)(legs)).toBe(1500);
+  });
+
+  test("charges VAT on the net modifier base, not the booking fee", async () => {
+    const legs = (
+      await mapBooking(
+        facts({
+          amountPaid: 12640,
+          bookingFee: 1000,
+          lines: [{ gross: 10000, listingId: 1 }],
+          modifiers: [
+            { delta: -500, modifierId: 10 },
+            { delta: 200, modifierId: 11 },
+          ],
+          vat: { mode: "add_to_total", rate: 0.2 },
+        }),
+      )
+    ).map(asTransfer);
+
+    // Taxable base = 10000 + 200 − 500 = 9700 → 1940 VAT at 20%.
+    expect(soleLegOf("vat")(legs).amount).toBe(1940);
+    expect(balanceOf(revenueAccount(1))(legs)).toBe(10000);
+    expect(balanceOf(TAX_VAT)(legs)).toBe(1940);
+    // A fully-paid VAT booking nets the attendee to zero: tickets 9700
+    // + 1000 fee + 1940 VAT, all paid.
+    expect(balanceOf(attendeeAccount(3))(legs)).toBe(0);
+  });
+
+  test("posts no vat leg when a discount wipes out the taxable base", async () => {
+    const legs = await mapBooking(
+      facts({
+        amountPaid: 0,
+        lines: [{ gross: 10000, listingId: 1 }],
+        modifiers: [{ delta: -10000, modifierId: 10 }],
+        vat: { mode: "add_to_total", rate: 0.2 },
+      }),
+    );
+    expect(legs.some((leg) => leg.kind === "vat")).toBe(false);
+  });
+
+  test("rejects a non-positive VAT rate", async () => {
+    assertStringIncludes(
+      await rejectionMessage(
+        mapBooking(
+          facts({
+            lines: [{ gross: 10000, listingId: 1 }],
+            vat: { mode: "add_to_total", rate: 0 },
+          }),
+        ),
+      ),
+      "invalid vat rate 0",
+    );
+  });
+
+  test("rejects a negative pre-computed VAT amount", async () => {
+    assertStringIncludes(
+      await rejectionMessage(
+        mapBooking(
+          facts({
+            lines: [{ gross: 10000, listingId: 1 }],
+            vat: { amount: -5 },
+          }),
+        ),
+      ),
+      "negative vat amount",
     );
   });
 });
