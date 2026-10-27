@@ -17,7 +17,7 @@ VARIABLES
   \* @type: Bool;
   allReplaysSafe,
   \* @type: Bool;
-  allReplayEvidenceDistinct,
+  onlyMoneySends,
   \* @type: Bool;
   rowDeleted
 
@@ -28,26 +28,22 @@ TypeOK ==
   /\ allSendsArmed \in BOOLEAN
   /\ allRequestsPreserved \in BOOLEAN
   /\ allReplaysSafe \in BOOLEAN
-  /\ allReplayEvidenceDistinct \in BOOLEAN
+  /\ onlyMoneySends \in BOOLEAN
   /\ rowDeleted \in BOOLEAN
 
 ClaimRequiresReference == rowState \in ClaimedRows => referencePresent
 AuthorityRequiresReference == authorityState # "absent" => referencePresent
 
-\* The conclusive not-sent evidence and the two owner decisions are separate
-\* from an automatic replay. None may re-arm a send.
-NotSentOrOwnerEvents ==
-  {"proved_not_sent", "owner_confirms_not_sent", "owner_confirms_returned"}
-
 \* @type: ($authMovesFact) => Bool;
 ReplaySafe(move) ==
   ~move.replay \/ (move.keyed /\ move.requestKept /\ move.inWindow)
 
+\* Only a move that sends money can arm a send or be the automatic replay.
+\* Conclusive not-sent evidence and owner decisions are not money moves, so
+\* they never re-arm a send and never replay.
 \* @type: ($authMovesFact) => Bool;
-NotSentOrOwnerDistinct(move) ==
-  IF move.eventId \in NotSentOrOwnerEvents
-  THEN ~move.replay /\ move.targetState # "send_armed"
-  ELSE TRUE
+OnlyMoneySends(move) ==
+  ~move.movesMoney => (~move.replay /\ move.targetState # "send_armed")
 
 \* @type: (Str) => Bool;
 Prunable(state) == state \in PrunableStates
@@ -57,7 +53,7 @@ Safety ==
   /\ allSendsArmed
   /\ allRequestsPreserved
   /\ allReplaysSafe
-  /\ allReplayEvidenceDistinct
+  /\ onlyMoneySends
   /\ ClaimRequiresReference
   /\ AuthorityRequiresReference
   /\ (rowDeleted => Prunable(authorityState))
@@ -69,13 +65,13 @@ Init ==
   /\ allSendsArmed = TRUE
   /\ allRequestsPreserved = TRUE
   /\ allReplaysSafe = TRUE
-  /\ allReplayEvidenceDistinct = TRUE
+  /\ onlyMoneySends = TRUE
   /\ rowDeleted = FALSE
 
 AttachReference ==
   /\ referencePresent' = TRUE
   /\ UNCHANGED <<rowState, authorityState, allSendsArmed, allRequestsPreserved,
-                 allReplaysSafe, allReplayEvidenceDistinct, rowDeleted>>
+                 allReplaysSafe, onlyMoneySends, rowDeleted>>
 
 RowStep ==
   \E move \in RowMoves :
@@ -84,7 +80,7 @@ RowStep ==
     /\ rowState' = move.targetState
     /\ UNCHANGED <<authorityState, referencePresent, allSendsArmed,
                    allRequestsPreserved, allReplaysSafe,
-                   allReplayEvidenceDistinct, rowDeleted>>
+                   onlyMoneySends, rowDeleted>>
 
 \* Callback refund work does not require a held row claim.
 AuthStep ==
@@ -95,8 +91,7 @@ AuthStep ==
     /\ allSendsArmed' = ChecksStillPass(allSendsArmed, move.armed)
     /\ allRequestsPreserved' = ChecksStillPass(allRequestsPreserved, move.requestKept)
     /\ allReplaysSafe' = ChecksStillPass(allReplaysSafe, ReplaySafe(move))
-    /\ allReplayEvidenceDistinct' =
-         ChecksStillPass(allReplayEvidenceDistinct, NotSentOrOwnerDistinct(move))
+    /\ onlyMoneySends' = ChecksStillPass(onlyMoneySends, OnlyMoneySends(move))
     /\ UNCHANGED <<rowState, referencePresent, rowDeleted>>
 
 \* Deletion needs the refund authority fully recorded. Unfinished work and
@@ -107,12 +102,12 @@ Delete ==
   /\ rowDeleted' = TRUE
   /\ UNCHANGED <<rowState, authorityState, referencePresent, allSendsArmed,
                  allRequestsPreserved, allReplaysSafe,
-                 allReplayEvidenceDistinct>>
+                 onlyMoneySends>>
 
 Next ==
   (~rowDeleted /\ (AttachReference \/ RowStep \/ AuthStep)) \/ Delete \/
   UNCHANGED <<rowState, authorityState, referencePresent, allSendsArmed,
-              allRequestsPreserved, allReplaysSafe, allReplayEvidenceDistinct,
+              allRequestsPreserved, allReplaysSafe, onlyMoneySends,
               rowDeleted>>
 
 InductionStart == Safety

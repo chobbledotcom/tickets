@@ -328,21 +328,21 @@ src/shared/payment-provider-status.ts::providerMode.stripe~0bfh0wn  ?? → || au
 # behaves as one an hour later; the past-window rep is expired by its
 # request's own closed window, not by when it was armed; and the
 # next-action instant is stored by transitions, never compared.
-src/shared/payment/refund-machine-spec.ts::NEXT~0t2ipiv 60000→0 audited:0jevsrl # stored by transitions, never compared to NOW
-src/shared/payment/refund-machine-spec.ts::armedPastWindow~0fsqlbf 3600000→0 audited:0jevsrl # expiry comes from EXPIRED_KEYED's window, not the armed moment
+src/shared/payment/refund-machine-spec.ts::NEXT~0t2ipiv 60000→0 audited:1n1486k # stored by transitions, never compared to NOW
+src/shared/payment/refund-machine-spec.ts::armedPastWindow~0fsqlbf 3600000→0 audited:1n1486k # expiry comes from EXPIRED_KEYED's window, not the armed moment
 
 # refund-machine-spec.ts representative tags on nodes whose cells are all
 # plain: no split names them, so the tag only labels one conformance case;
 # production reads only the representative state. (The tags that split
 # cells DO name sit on send_armed/observing and are killed by the table
 # checks.)
-src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1wbd2os keyed→"" audited:0jevsrl # tag labels one conformance case; no split names it
-src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~0z99ikg keyless→"" audited:0jevsrl # tag labels one conformance case; no split names it
-src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~10afzhu keyed_expired→"" audited:0jevsrl # tag labels one conformance case; no split names it
-src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~122j3pc keyless_possibly_sent→"" audited:0jevsrl # tag labels one conformance case; no split names it
-src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1nd1r6c keyed_rejected→"" audited:0jevsrl # tag labels one conformance case; no split names it
-src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~0ktfgvw keyed_unreadable→"" audited:0jevsrl # tag labels one conformance case; no split names it
-src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1hsgkm2 keyed_window_expired→"" audited:0jevsrl # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1wbd2os keyed→"" audited:1n1486k # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~0z99ikg keyless→"" audited:1n1486k # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~10afzhu keyed_expired→"" audited:1n1486k # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~122j3pc keyless_possibly_sent→"" audited:1n1486k # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1nd1r6c keyed_rejected→"" audited:1n1486k # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~0ktfgvw keyed_unreadable→"" audited:1n1486k # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1hsgkm2 keyed_window_expired→"" audited:1n1486k # tag labels one conformance case; no split names it
 
 # refund-provider-authorization.ts: the permit is the symbol's identity;
 # the description only names it in debugger output.

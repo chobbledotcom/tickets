@@ -95,6 +95,7 @@ describe("payment proof data", () => {
       eventId: "arm",
       inWindow: true,
       keyed: true,
+      movesMoney: true,
       replay: false,
       requestKept: true,
       sourceState: "ready",
@@ -115,6 +116,7 @@ describe("payment proof data", () => {
         eventId: "arm",
         inWindow: true,
         keyed: true,
+        movesMoney: true,
         replay: false,
         requestKept: false,
         sourceState: "ready",
@@ -134,6 +136,7 @@ describe("payment proof data", () => {
         eventId: "replay",
         inWindow: true,
         keyed: true,
+        movesMoney: true,
         replay: true,
         requestKept: false,
         sourceState: "send_armed",
@@ -151,6 +154,7 @@ describe("payment proof data", () => {
       eventId: "replay",
       inWindow: true,
       keyed: false,
+      movesMoney: true,
       replay: true,
       requestKept: true,
       sourceState: "send_armed",
@@ -172,7 +176,28 @@ describe("payment proof data", () => {
       eventId: "replay",
       inWindow: false,
       keyed: true,
+      movesMoney: true,
       replay: true,
+      requestKept: true,
+      sourceState: "send_armed",
+      targetState: "send_armed",
+    });
+  });
+
+  test("emits a not-sent proof that re-arms a send as a false fact", async () => {
+    const notSentEvent = requireValue(
+      REFUND_EVENTS.find(({ id }) => id === "proved_not_sent"),
+      "The proved not sent event is absent",
+    );
+    using _evidence = stub(notSentEvent, "run", (state) => state);
+    const model = await paymentModel();
+    expect(records(modelData(model), "AuthMoves")).toContainEqual({
+      armed: true,
+      eventId: "proved_not_sent",
+      inWindow: true,
+      keyed: true,
+      movesMoney: false,
+      replay: false,
       requestKept: true,
       sourceState: "send_armed",
       targetState: "send_armed",

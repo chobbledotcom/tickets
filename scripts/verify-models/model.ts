@@ -32,6 +32,7 @@ const authorityMoveFields = {
   armed: "Bool",
   inWindow: "Bool",
   keyed: "Bool",
+  movesMoney: "Bool",
   replay: "Bool",
   requestKept: "Bool",
 } as const;
@@ -116,6 +117,7 @@ const appendRefundMoves = (
       eventId: event.id,
       inWindow: inWindowOf(state, next),
       keyed: state.request.capability === "keyed",
+      movesMoney: event.movesMoney,
       replay: event.id === "replay",
       requestKept:
         !event.movesMoney || sameRequest(state.request, next.request),
@@ -133,6 +135,7 @@ const refundMoves = (start: string) => {
       eventId: "charge_created",
       inWindow: true,
       keyed: false,
+      movesMoney: false,
       replay: false,
       requestKept: true,
       sourceState: "absent",
