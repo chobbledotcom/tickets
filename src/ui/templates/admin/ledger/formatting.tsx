@@ -209,6 +209,22 @@ const TRANSFER_PRESENTATION: Record<TransferKind, TransferPresentation> = {
     description: textDescription("admin.ledger.human.refund_fee"),
     eventKey: "admin.ledger.event.refund_fee",
   },
+  [KIND.refundManualAttendeeCharge]: {
+    amount: negativeAmount,
+    description: accountDescription(
+      "admin.ledger.human.refund_manual_attendee_charge",
+      ATTENDEE,
+    ),
+    eventKey: "admin.ledger.event.refund_manual_attendee_charge",
+  },
+  [KIND.refundManualAttendeeWriteoff]: {
+    amount: positiveAmount,
+    description: accountDescription(
+      "admin.ledger.human.refund_manual_attendee_writeoff",
+      ATTENDEE,
+    ),
+    eventKey: "admin.ledger.event.refund_manual_attendee_writeoff",
+  },
   [KIND.refundModifier]: {
     amount: modifierAmount,
     description: modifierDescription,
@@ -263,10 +279,11 @@ export const transferEventLabel = (transfer: Transfer): string =>
 /** The operator's own description suffix for an owner-entered entry, or ""
  * when the leg carries none or is not an owner-entered entry. The loader
  * decrypts the memo before the template renders it. */
-export const ledgerEntryMemo = (transfer: Transfer): string =>
-  transfer.memo && isManualLedgerEntryType(transfer.kind ?? "")
-    ? ` ${transfer.memo}.`
-    : "";
+export const ledgerEntryMemo = (transfer: Transfer): string => {
+  if (!transfer.memo || !isManualLedgerEntryType(transfer.kind ?? ""))
+    return "";
+  return ` ${transfer.memo}.`;
+};
 
 export const humanDescription = (
   transfer: Transfer,

@@ -132,6 +132,18 @@ describe("HumanLedgerTable", () => {
           kind: "future_kind",
           source: account("attendee", 1),
         }),
+        transfer({
+          destination: account("attendee", 1),
+          id: 20,
+          kind: "refund_manual_attendee_charge",
+          source: account("writeoff", "default"),
+        }),
+        transfer({
+          destination: account("writeoff", "default"),
+          id: 21,
+          kind: "refund_manual_attendee_writeoff",
+          source: account("attendee", 1),
+        }),
       ],
       refs,
     );
@@ -154,6 +166,8 @@ describe("HumanLedgerTable", () => {
       "Option income reduced for",
       "Service event cost added for",
       "Service event cost reduced for",
+      "Extra amount no longer owed by",
+      "Amount owed again by",
     ]) {
       assertStringIncludes(html, phrase);
     }
@@ -173,6 +187,10 @@ describe("HumanLedgerTable", () => {
     assertStringIncludes(rows[4] ?? "", "−£50");
     assertStringIncludes(rows[18] ?? "", "−£50");
     assertStringIncludes(rows[19] ?? "", "+£50");
+    // The reversed owner charge lowers the debt. The reversed write-off
+    // raises it again.
+    assertStringIncludes(rows[21] ?? "", "−£50");
+    assertStringIncludes(rows[22] ?? "", "+£50");
   });
 
   test("uses attendee-balance wording for adjustment legs against writeoff", () => {
@@ -263,5 +281,7 @@ describe("HumanLedgerTable", () => {
     ).toBe("");
     // A leg with no memo shows none.
     expect(ledgerEntryMemo(transfer({ id: 11 }))).toBe("");
+    // A leg with a memo but no kind at all is not an owner-entered entry.
+    expect(ledgerEntryMemo(transfer({ id: 12, memo: "stray note" }))).toBe("");
   });
 });
