@@ -48,8 +48,7 @@ const NOW = 1_750_000_000_000;
 const NEXT = NOW + 60_000;
 const REQUEST_INDEX = "spec-refund-request";
 
-/** One keyed request generation. `replayUntil` is what makes the
- * expired-window exits reachable or not. */
+/** One keyed request generation. `replayUntil` sets its replay window. */
 const keyedRequest = (
   replayUntil: number,
 ): Extract<RefundRequestGeneration, { capability: "keyed" }> => ({
@@ -58,7 +57,8 @@ const keyedRequest = (
   identityIndex: REQUEST_INDEX,
   replayUntil,
 });
-const KEYED = keyedRequest(NOW + 3_600_000);
+/** A keyed request whose window closes exactly at the send time, so a replay at the deadline is still inside it. */
+const KEYED = keyedRequest(NOW);
 const KEYLESS: RefundRequestGeneration = {
   capability: "keyless",
   generation: 1,

@@ -104,7 +104,11 @@ These checks serve different purposes.
   length:
   - `verification/JointState.tla` checks the indexed-reference claim guard and
     the actual refund money-edge results. A money edge must arm a durable
-    authority and preserve its request.
+    authority and preserve its request. An automatic keyed replay keeps the
+    exact request inside its provider window, and a keyless request never
+    replays automatically. Conclusive not-sent evidence and owner decisions
+    never re-arm a send. A refund row is deleted only when the refund
+    authority is completed and locally recorded.
   - `verification/SumupRecovery.tla` checks that records with unaccounted money
     cannot be pruned. Risky records retain a check path. Paid and terminal
     evidence cannot move backwards.
