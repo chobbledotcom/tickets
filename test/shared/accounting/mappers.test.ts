@@ -24,6 +24,18 @@ import { describeWithEnv } from "#test-utils/db.ts";
 describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
   const theModifierLeg = soleLegOf("modifier");
 
+  /** Asserts a single-listing VAT booking's common shape: the ex-VAT sale, the
+   * vat leg amount, and the attendee's outstanding balance including the tax. */
+  const expectVatBooking = (
+    legs: Transfer[],
+    vatAmount: number,
+    attendeeOwed: number,
+  ): void => {
+    expect(soleLegOf("sale")(legs).amount).toBe(10000);
+    expect(soleLegOf("vat")(legs).amount).toBe(vatAmount);
+    expect(balanceOf(attendeeAccount(3))(legs)).toBe(attendeeOwed);
+  };
+
   test("books gross, modifiers, fee and payment; a paid booking nets to zero", async () => {
     const legs = (await mapBooking(facts(paidBookingNettingToZero))).map(
       asTransfer,
@@ -238,14 +250,10 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
       )
     ).map(asTransfer);
 
-    const sale = soleLegOf("sale")(legs);
-    expect(sale.amount).toBe(10000); // ex-VAT income
+    expectVatBooking(legs, 2000, -12000);
     const vat = soleLegOf("vat")(legs);
-    expect(vat.amount).toBe(2000);
     expect(vat.source).toEqual(attendeeAccount(3));
     expect(vat.destination).toEqual(TAX_VAT);
-    // The attendee owes subtotal + VAT; the tax account accumulates the tax.
-    expect(balanceOf(attendeeAccount(3))(legs)).toBe(-12000);
     expect(balanceOf(revenueAccount(1))(legs)).toBe(10000);
     expect(balanceOf(TAX_VAT)(legs)).toBe(2000);
   });
@@ -262,9 +270,7 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
     ).map(asTransfer);
 
     // 12000 includes 20% VAT: 10000 ex-VAT sale + 2000 tax.
-    expect(soleLegOf("sale")(legs).amount).toBe(10000);
-    expect(soleLegOf("vat")(legs).amount).toBe(2000);
-    expect(balanceOf(attendeeAccount(3))(legs)).toBe(-12000);
+    expectVatBooking(legs, 2000, -12000);
     expect(balanceOf(revenueAccount(1))(legs)).toBe(10000);
     expect(balanceOf(TAX_VAT)(legs)).toBe(2000);
   });
@@ -303,9 +309,7 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
       )
     ).map(asTransfer);
 
-    expect(soleLegOf("sale")(legs).amount).toBe(10000);
-    expect(soleLegOf("vat")(legs).amount).toBe(1500);
-    expect(balanceOf(attendeeAccount(3))(legs)).toBe(-11500);
+    expectVatBooking(legs, 1500, -11500);
     expect(balanceOf(TAX_VAT)(legs)).toBe(1500);
   });
 

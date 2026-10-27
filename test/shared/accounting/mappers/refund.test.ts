@@ -15,7 +15,7 @@ import {
   mapRefund,
 } from "#accounting/mappers.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
-import type { Transfer } from "#shared/ledger/types.ts";
+import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import {
   asTransfer,
   facts,
@@ -26,6 +26,16 @@ import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("accounting > mapRefund", { encryptionKey: true }, () => {
   const REFUND_AT = "2026-06-22T00:00:00.000Z";
+
+  /** Asserts every named account returns to a zero balance after the refund. */
+  const expectZeroBalances = (
+    all: Transfer[],
+    accounts: AccountRef[],
+  ): void => {
+    for (const acct of accounts) {
+      expect(balanceOf(acct)(all)).toBe(0);
+    }
+  };
 
   const bookingOrder = async (
     overrides: Partial<BookingFacts> = {},
@@ -72,13 +82,16 @@ describeWithEnv("accounting > mapRefund", { encryptionKey: true }, () => {
   test("reverses every leg so revenue, the attendee and cash return to zero", async () => {
     const order = await bookingOrder(paidBookingNettingToZero);
     const { all } = await refundAndAll(order);
-    expect(balanceOf(revenueAccount(1))(all)).toBe(0);
-    expect(balanceOf(revenueAccount(2))(all)).toBe(0);
-    expect(balanceOf(modifierAccount(10))(all)).toBe(0);
-    expect(balanceOf(modifierAccount(11))(all)).toBe(0);
-    expect(balanceOf(BOOKING_FEE_INCOME)(all)).toBe(0);
-    expect(balanceOf(attendeeAccount(3))(all)).toBe(0);
-    expect(balanceOf(WORLD)(all)).toBe(0); // cash in, then back out
+    // Cash came in, then went back out; every account nets to zero.
+    expectZeroBalances(all, [
+      revenueAccount(1),
+      revenueAccount(2),
+      modifierAccount(10),
+      modifierAccount(11),
+      BOOKING_FEE_INCOME,
+      attendeeAccount(3),
+      WORLD,
+    ]);
   });
 
   test("reverses the vat leg like every other leg", async () => {
@@ -97,10 +110,12 @@ describeWithEnv("accounting > mapRefund", { encryptionKey: true }, () => {
     expect(vatRefund[0]!.destination).toEqual(attendeeAccount(3));
 
     // Booking + refund zero the tax account, the revenue and the attendee.
-    expect(balanceOf(TAX_VAT)(all)).toBe(0);
-    expect(balanceOf(revenueAccount(1))(all)).toBe(0);
-    expect(balanceOf(attendeeAccount(3))(all)).toBe(0);
-    expect(balanceOf(WORLD)(all)).toBe(0);
+    expectZeroBalances(all, [
+      TAX_VAT,
+      revenueAccount(1),
+      attendeeAccount(3),
+      WORLD,
+    ]);
   });
 
   test("cancels a deposit booking: full gross reversed, deposit returned", async () => {

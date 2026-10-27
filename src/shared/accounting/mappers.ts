@@ -194,10 +194,12 @@ const withVat = (
   modifiers: LegSpec[],
 ): { modifiers: LegSpec[]; sales: LegSpec[]; vat: LegSpec[] } => {
   const vatAmount = vatAmountFor(facts);
-  if (facts.vat === undefined || "amount" in facts.vat || vatAmount <= 0) {
-    return { modifiers, sales, vat: vatLegSpec(vatAmount, attendee) };
-  }
-  if (facts.vat.mode === "add_to_total") {
+  if (
+    facts.vat === undefined ||
+    "amount" in facts.vat ||
+    vatAmount <= 0 ||
+    facts.vat.mode === "add_to_total"
+  ) {
     return { modifiers, sales, vat: vatLegSpec(vatAmount, attendee) };
   }
   // calculate_from_total: the sale and surcharge amounts include VAT.
