@@ -5,12 +5,9 @@
  * an agreed per-unit `price`. The body can record `payments` already received.
  * It can carry named `adjustments` (one-off charges or writeoffs). The ledger
  * posts every leg at creation, so the projected balance is right from birth.
- * It never emails the buyer. The operator re-sends from the admin page, so the
- * owed-email flag is set the same way. The attendee rows, their listing lines,
- * the contact activity, and the ledger legs all commit in one transaction. A
- * caller-chosen `ticketToken` makes a retried create a no-op. The attendee
- * under that token already exists, so the create is skipped and the existing
- * booking is returned.
+ * It never emails the buyer. The operator re-sends from the admin page. The
+ * attendee rows, their listing lines, and the ledger legs commit together. A
+ * caller-chosen `ticketToken` makes a retried create a no-op.
  */
 
 /* jscpd:ignore-start */
