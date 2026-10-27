@@ -10,13 +10,7 @@ import { createOwnerNote, deleteNotes, getNote } from "#db/notes/queries.ts";
 import { type NoteEntity, noteTargets } from "#db/notes/target.ts";
 import type { SystemNote } from "#db/notes/types.ts";
 import { t } from "#i18n";
-import {
-  AUTH_FORM,
-  type AuthSession,
-  formGuard,
-  requireSessionOr,
-  withAuth,
-} from "#routes/auth.ts";
+import type { AuthSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { createEntityHandler } from "#routes/entity.ts";
 import {
@@ -33,10 +27,16 @@ import {
   adminNoteDeletePage,
   adminNoteNewPage,
 } from "#templates/admin/attendee-notes.tsx";
+import { type AuthOption, resolveAuth } from "./confirmation.ts";
 
 export interface RecordNoteRoutesConfig<Record extends { id: number }> {
   /** The nav section the note pages highlight (the record's own section). */
   activeSection: string;
+  /** Who can use this record kind's note routes: "any" (the staff floor
+   * `requireSessionOr` enforces) or "owner". A record's notes never reach
+   * past its own page's audience. An owner-only record passes "owner":
+   * wider note routes widen the record page's own audience floor. */
+  auth: AuthOption<AuthSession>;
   /** The kind of record the notes are about. */
   entityKind: NoteEntity;
   /** Load one record by id, or null when it does not exist. */
@@ -123,6 +123,7 @@ export const recordNoteRoutes = <Record extends { id: number }>(
 ): RecordNoteHandlers => {
   const { activeSection, entityKind, loadRecord, nameOf, noteBasePath } =
     config;
+  const { requireSession, withForm } = resolveAuth(config.auth);
   const targetOf = noteTargets.of(entityKind);
   const recordReturn = returnTo(config.recordPagePath);
 
@@ -162,7 +163,7 @@ export const recordNoteRoutes = <Record extends { id: number }>(
     );
 
   const addGet: RecordNoteHandlers["addGet"] = (request, id) =>
-    requireSessionOr(request, (session) =>
+    requireSession(request, (session) =>
       withLoadedRecord(id, session, (record) =>
         renderAddNote(
           record,
@@ -174,7 +175,7 @@ export const recordNoteRoutes = <Record extends { id: number }>(
     );
 
   const addPost: RecordNoteHandlers["addPost"] = (request, id) =>
-    withAuth(request, AUTH_FORM, async (session, form) =>
+    withForm(request, async (session, form) =>
       withLoadedRecord(id, session, async (record) => {
         const note = form.getString("note").trim();
         const returnUrl = form.getString("return_url");
@@ -208,8 +209,8 @@ export const recordNoteRoutes = <Record extends { id: number }>(
     loadNote,
   );
   const noteHandlers = {
-    get: noteEntityHandler(requireSessionOr),
-    post: noteEntityHandler(formGuard(AUTH_FORM)),
+    get: noteEntityHandler(requireSession),
+    post: noteEntityHandler(withForm),
   };
 
   const deleteGet: RecordNoteHandlers["deleteGet"] = (request, id, noteId) =>

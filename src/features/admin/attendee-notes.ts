@@ -15,6 +15,9 @@ import { bindNoteRoutes, recordNoteRoutes } from "./record-notes.ts";
 /** The attendee's add/delete note routes. */
 const attendeeNoteRoutes = recordNoteRoutes({
   activeSection: adminPattern("attendees"),
+  // Attendee pages are staff-visible, and the note routes declare the same
+  // staff floor the "any" shorthand enforces.
+  auth: "any",
   entityKind: "attendee",
   loadRecord: async (attendeeId) =>
     getAttendeeOrNull(attendeeId, await requireRequestPrivateKey()),

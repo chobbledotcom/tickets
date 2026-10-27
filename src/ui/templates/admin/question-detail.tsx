@@ -46,7 +46,7 @@ const QuestionListingAssignment = ({
   if (allListings.length === 0) {
     return (
       <p>
-        <em>No listings yet.</em>
+        <em>{t("questions.no_listings")}</em>
       </p>
     );
   }

@@ -348,4 +348,4 @@ src/features/admin/api-attendees.ts::resolveStatusId~1ns133z  No public default 
 # Shared record-note routes (features/admin/record-notes.ts): the loader
 # answers a Record object (always truthy) or null, so both operators send
 # null to the 404 response and agree on every object.
-src/features/admin/record-notes.ts::recordNoteRoutes.loadRecordOr404~0v35mfs  ?? → || audited:0cqgkdb # loadRecord answers Record | null; every Record is an object (truthy), null is not a value a 404-worthy call yields under ?? that || would not also send — both map null to notFoundResponse
+src/features/admin/record-notes.ts::recordNoteRoutes.loadRecordOr404~0v35mfs  ?? → || audited:0rwz1ej # loadRecord answers Record | null; every Record is an object (truthy), null is not a value a 404-worthy call yields under ?? that || would not also send — both map null to notFoundResponse

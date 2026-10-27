@@ -68,6 +68,8 @@ export const AREAS_M_Z = {
       answerEdit: "/admin/questions/:id/answers/:answerId/edit",
       answerRecalculate: "/admin/questions/:id/answers/:answerId/recalculate",
       questionDelete: "/admin/questions/:id/delete",
+      questionNote: "/admin/questions/:id/note",
+      questionNoteDelete: "/admin/questions/:id/note/:noteId/delete",
     },
   },
   scanner: {

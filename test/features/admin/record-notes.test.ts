@@ -84,6 +84,8 @@ describe("bindNoteRoutes", () => {
  *  serve in this test. */
 const questionNoteRoutes = recordNoteRoutes({
   activeSection: adminPattern("questions"),
+  // The routes under test keep the staff-generic gate the factory ships with.
+  auth: "any",
   entityKind: "question",
   loadRecord: (id) => getQuestionWithAnswers(id),
   nameOf: (question) => questionTextFlat(question.text),
