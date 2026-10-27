@@ -185,6 +185,11 @@ const openQuestionPage = opensAdminPageAt(
   (world) => `/admin/questions/${askedQuestion(world).id}`,
 );
 
+/** The question's Actions tab, open — where the delete lives. */
+const openQuestionActionsPage = opensAdminPageAt(
+  (world) => `/admin/questions/${askedQuestion(world).id}/actions`,
+);
+
 /** Whether the question's own page offers a way to add answer choices. A
  * written question has none to offer, so its page must not either. */
 export const questionPageOffersChoices = async (
@@ -192,10 +197,10 @@ export const questionPageOffersChoices = async (
 ): Promise<boolean> =>
   (await openQuestionPage(world)).pageText.includes("Add answer");
 
-/** The owner takes the question down from its own page, typing text to
- * confirm, and keeps what the site said. */
+/** The owner takes the question down from its own Actions tab, typing text
+ * to confirm, and keeps what the site said. */
 export const ownerTakesQuestionDown = takesDownFromOwnPage(
-  openQuestionPage,
+  openQuestionActionsPage,
   "Delete question",
 );
 
