@@ -11,7 +11,6 @@ import {
   BOXES_WITH_A_DEFAULT,
   emailTheSiteWouldSend,
   firstFixedWordsOf,
-  ownerAlreadyWrote,
   ownerWrites,
   SITES_OWN_WORDING,
   subjectShownBehindTheBox,
@@ -60,7 +59,11 @@ const WROTE_EARLIER: EmailContent = {
 
 Given(
   "the owner has written their own confirmation email",
-  (): Promise<void> => ownerAlreadyWrote("confirmation", WROTE_EARLIER),
+  function (this: TicketsWorld): Promise<void> {
+    return ownerWrites(this, "confirmation", WROTE_EARLIER, {
+      throughTheForm: false,
+    });
+  },
 );
 
 When(

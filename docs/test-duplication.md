@@ -6,7 +6,7 @@ setting we can choose, and records the decision taken and what is left to do.
 **Decided and shipped.** The reusable helpers under `test/test-utils` are
 scanned at **40 tokens**, alongside `src/`, by `.jscpd.helpers.json`. The
 Cucumber support helpers under `test/specs/support` are scanned twice: at **19
-tokens** alongside `src/`, and at **18 tokens** on their own by
+tokens** alongside `src/`, and at **17 tokens** on their own by
 `.jscpd.support.json`. See [Where we are](#where-we-are) for the remaining
 steps.
 
@@ -25,7 +25,7 @@ lower number is a tighter net.
 | --------------------- | -------------------------------- | --------- |
 | `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19        |
 | `.jscpd.specs.json`   | `src` + `test/specs/support`     | 19        |
-| `.jscpd.support.json` | `test/specs/support`             | 18        |
+| `.jscpd.support.json` | `test/specs/support`             | 17        |
 | `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
 | `.jscpd.test.json`    | `test`                           | 48        |
 | `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
@@ -126,7 +126,7 @@ clean at 19 and cannot go below it:
 
 So the number in _that_ config cannot come down. The support helpers therefore
 get a second scan of their own, `.jscpd.support.json`, which drops `src/` and
-holds them at 18. **19 is where the shared config sits, not where the helpers
+holds them at 17. **19 is where the shared config sits, not where the helpers
 have to stay.**
 
 ### What the curries cost, and where the helpers are now
@@ -137,7 +137,7 @@ Every family the 46 fell into was merged. The counts, measured after each step:
 | --------- | ------------ | --------- |
 | 19        | 0            | 0         |
 | 18        | —            | 0         |
-| 17        | —            | 4         |
+| 17        | 9            | 0         |
 | 16        | 78           | 11        |
 
 The merges, in the order they landed: `opensAdminPageAt` adopted at the four
@@ -151,6 +151,26 @@ the erase form and Refund All curried; the named step types `ActOnOneThing`,
 `savesServedForm`, `expectNotBooked`; and the named shapes `PageRead`,
 `StoredCounts`, `LineWithoutItsThing`, `FillsInServedForm` and
 `SavesNamedThingsForm`.
+
+The step down to 17 cleared nine pairs:
+
+- The admins that opened a listing page went through `openAdminPage` or
+  `withAdminPage` instead of spelling out `adminBrowser` and `visit`.
+- `expectPartOnSaleAlone` stopped re-reading the listing it had just opened.
+- The second choice question became `askingAnother(ownerAsksChoiceQuestion)`.
+- The duplicated `somethingForSale` became one helper in `listings.ts` with a
+  `ForSaleOptions` shape.
+- The email wording helpers merged into one `ownerWrites` with a direct-store
+  path.
+- `featureListOn` and `incomeLedgerArticle` share `articleOutOf` in
+  `browser.ts`.
+- Ticking one box and saving is `sendOneBox` in `form-controls.ts`.
+- A stay listing goes through `putsOnSaleByTheDay`.
+- The merge-race checks apply `withPaidAndFreeAttendees` to named checks of
+  one `OnPaidAndFreeAttendees` type.
+- The scan caught two twins this work made. `listingPage` is now one helper
+  shared by the admin add-ons and privacy journeys. `ownerChangesPassword`
+  opens its page through `withAdminPage`.
 
 Two helpers keep their own shape, and say why in a comment. `deposits.ts` joins
 a person's names with a hyphen, so its address is a different address, not the
@@ -289,11 +309,8 @@ of 19,000 lines costs about one second.
 - **Done.** Every curry family in `test/specs/support` merged, and
   `.jscpd.support.json` added at 18 tokens. The pairs at 16 tokens went from 78
   to 11.
-- **Next.** Take `.jscpd.support.json` to 17. Four pairs, and each needs a
-  judgement: two unrelated bodies behind one parameter list want a named type,
-  and `somethingForSale` is exported twice, from `editors.ts` and
-  `shown-code.ts`, with different options. That last one is a real unification,
-  not a signature coincidence.
+- **Done.** `.jscpd.support.json` tightened to 17 tokens, and the nine pairs it
+  surfaced merged (see the list above).
 - **Next.** Take `.jscpd.helpers.json` to 36 tokens. 17 pairs, mostly whole
   helpers that duplicate a sibling.
 - **Then.** 32, 28, and below. Classify each band before you price it, and reach

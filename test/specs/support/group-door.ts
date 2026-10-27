@@ -9,8 +9,7 @@
  */
 
 // jscpd:ignore-start
-import { assert, assertArrayIncludes } from "@std/assert";
-import { t } from "#i18n";
+import { assertArrayIncludes } from "@std/assert";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import {
   type DoorPaths,
@@ -22,7 +21,7 @@ import {
   checkboxValueOffered,
   tickedCheckboxes,
 } from "#test/specs/support/form-controls/reading.ts";
-import { fillInAndSend } from "#test/specs/support/form-controls.ts";
+import { sendOneBox } from "#test/specs/support/form-controls.ts";
 import {
   listingIdNamed,
   rememberListing,
@@ -135,13 +134,7 @@ export const groupDoorChecksInAll = async (
   groupName: string,
 ): Promise<void> => {
   const browser = await openAdminPage(world, groupEditPage(world, groupName));
-  const page = browser.currentHtml;
-  const tickWorth = checkboxValueOffered(page, EVERY_LISTING_BOX);
-  // Turning on is only a real turn-on for a box that started clear.
-  assert(!tickedCheckboxes(page, EVERY_LISTING_BOX).includes(tickWorth));
-  await fillInAndSend(browser, {}, t("common.save_changes"), {
-    [EVERY_LISTING_BOX]: [tickWorth],
-  });
+  await sendOneBox(browser, browser.currentHtml, EVERY_LISTING_BOX, true);
 };
 
 /** The group's own edit page keeps the box the organiser saved ticked

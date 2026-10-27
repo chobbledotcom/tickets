@@ -12,14 +12,13 @@ import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
   listingIdNamed,
   organiserSavesFields,
-  rememberListing,
+  putsOnSaleByTheDay,
 } from "#test/specs/support/listings.ts";
 import type {
   ReadAboutOneThing,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { testDate } from "#test-utils/dates.ts";
-import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { Attendee, Listing } from "#types";
 // jscpd:ignore-end
 
@@ -67,8 +66,8 @@ export const openStayListing = async (
     customerPicksDays?: boolean;
     groupId?: number;
   } = {},
-): Promise<Listing> => {
-  const listing = await createDailyTestListing({
+): Promise<Listing> =>
+  putsOnSaleByTheDay(world, name, {
     durationDays: days,
     maxAttendees: placesADay,
     ...(options.bookAheadDays === undefined
@@ -77,7 +76,6 @@ export const openStayListing = async (
     // Room to book several places at once, and the site's own thank-you page, so
     // a story reads what the customer is actually shown.
     maxQuantity: placesADay,
-    name,
     thankYouUrl: "",
     ...(options.groupId === undefined ? {} : { groupId: options.groupId }),
     // A listing whose customers choose their own length needs a price for each
@@ -91,8 +89,6 @@ export const openStayListing = async (
         }
       : {}),
   });
-  return rememberListing(world, name, listing);
-};
 
 /** Set how many days each stay covers — the listing's length box, through its
  * own edit form, so a page that stops offering the field fails the story. On a

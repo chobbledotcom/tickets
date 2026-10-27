@@ -5,7 +5,9 @@
  * the stories.
  */
 
+import { assert } from "@std/assert";
 import { t } from "#i18n";
+import { boxOffered } from "#test/specs/support/form-controls/reading.ts";
 import {
   expectCanReallySend,
   expectCanReallyTick,
@@ -62,6 +64,23 @@ export const fillInAndSend = async (
   expectCanReallyTick(form, ticked);
   expectNothingInsistedIsEmpty(form, values);
   await browser.submitForm({ ...values, ...ticked }, buttonText);
+};
+
+/** Tick or clear one box on the page in front of the browser and save it.
+ * The box's own value is read off the page, and a tick only lands when the
+ * box started clear, a clear only when it started ticked — so a save that
+ * silently dropped the box fails here. */
+export const sendOneBox = async (
+  browser: FillsInForms,
+  html: string,
+  field: string,
+  tick: boolean,
+): Promise<void> => {
+  const box = boxOffered(html, field);
+  assert(tick ? !box.ticked : box.ticked);
+  await fillInAndSend(browser, {}, t("common.save_changes"), {
+    [field]: tick ? [box.value] : [],
+  });
 };
 
 /** Somebody takes a thing down from its own admin page, typing its name to
