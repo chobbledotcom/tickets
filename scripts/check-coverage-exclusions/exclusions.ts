@@ -30,12 +30,6 @@ export const COVERAGE_EXCLUSIONS: readonly string[] = [
   // staticAssetsAreUpToDate are both unit-tested, each arm, in
   // test/scripts/static-asset-cache.test.ts.
   "scripts/static-assets/prepare.ts",
-  // The e2e-payments config snapshot reads env vars at module-load time. The
-  // bool/num helpers and the forceTunnel/needsTunnel branches are exercised by
-  // the live Cucumber free target run plus the direct secrets/config-log tests,
-  // but coverage only sees the module-load path the test runner took —
-  // not the alternative env states the harness boots in for each target.
-  "e2e-payments/src/config.ts",
   // Deno's coverage merger mis-attributes this file once several test
   // isolates load it: the merged lcov records FNDA:34,leadingWhitespaceLength
   // while the function's own body line reads DA:16,0 — internally impossible.
