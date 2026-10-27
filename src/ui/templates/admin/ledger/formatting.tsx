@@ -260,6 +260,14 @@ const presentationFor = (transfer: Transfer): TransferPresentation => {
 export const transferEventLabel = (transfer: Transfer): string =>
   t(presentationFor(transfer).eventKey);
 
+/** The operator's own description suffix for an owner-entered entry, or ""
+ * when the leg carries none or is not an owner-entered entry. The loader
+ * decrypts the memo before the template renders it. */
+export const ledgerEntryMemo = (transfer: Transfer): string =>
+  transfer.memo && isManualLedgerEntryType(transfer.kind ?? "")
+    ? ` ${transfer.memo}.`
+    : "";
+
 export const humanDescription = (
   transfer: Transfer,
   accountCell: AccountCell,

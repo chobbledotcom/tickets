@@ -18,4 +18,9 @@ describe("readableMemo", () => {
   test("leaves a plaintext memo (a PII-free reason code) untouched", async () => {
     expect(await readableMemo("provider refund")).toBe("provider refund");
   });
+
+  test("leaves an empty or absent memo empty", async () => {
+    expect(await readableMemo("")).toBe("");
+    expect(await readableMemo(undefined)).toBe("");
+  });
 });

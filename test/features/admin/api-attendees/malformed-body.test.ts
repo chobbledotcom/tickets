@@ -163,6 +163,22 @@ describeWithEnv(
         ],
         [
           {
+            adjustments: [5],
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Shape adjust",
+          },
+          "adjustments[0] must name a description and an amount",
+        ],
+        [
+          {
+            adjustments: [{ amount: 100, description: "x".repeat(201) }],
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Long adjust",
+          },
+          "adjustments[0].description must be 200 characters or fewer",
+        ],
+        [
+          {
             adjustments: "nope",
             lines: [{ listingId: listing.id, quantity: 1 }],
             name: "Bad adjust",

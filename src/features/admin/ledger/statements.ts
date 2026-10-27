@@ -34,17 +34,12 @@ export const accountFromRoute = (
 /** A memo the statement can show the reader: plaintext stays as stored, and an
  * owner-key-encrypted memo (an operator-entered description) is decrypted for
  * display. The prefix check keeps a PII-free plaintext memo (a refund reason
- * code) from being parsed as ciphertext. */
+ * code) from being parsed as ciphertext. A missing memo reads as empty. */
 export const readableMemo = async (
   memo: string | undefined,
-): Promise<string | undefined> => {
-  if (
-    memo === undefined ||
-    memo === "" ||
-    !memo.startsWith(ENCRYPTION_PREFIX)
-  ) {
-    return memo;
-  }
+): Promise<string> => {
+  if (memo === undefined || memo === "") return "";
+  if (!memo.startsWith(ENCRYPTION_PREFIX)) return memo;
   return decrypt(memo as EnvKeyEncrypted<string>);
 };
 
@@ -53,12 +48,10 @@ export const loadAccountLedger = async (
 ): Promise<AccountLedgerData> => {
   const transfers = await transfersByAccount(account);
   const readable = await Promise.all(
-    transfers.map(async (transfer) => {
-      const memo = await readableMemo(transfer.memo);
-      // Keep a memo-less transfer untouched: `memo: undefined` must not become
-      // an explicit property on a transfer that carries none.
-      return memo === undefined ? { ...transfer } : { ...transfer, memo };
-    }),
+    transfers.map(async (transfer) => ({
+      ...transfer,
+      memo: await readableMemo(transfer.memo),
+    })),
   );
   return {
     account,

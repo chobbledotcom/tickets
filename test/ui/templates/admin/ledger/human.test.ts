@@ -1,7 +1,9 @@
 import { assert, assertStringIncludes } from "@std/assert";
+import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { KIND } from "#accounting/kinds.ts";
 import { account } from "#shared/ledger/account.ts";
+import { ledgerEntryMemo } from "#templates/admin/ledger/formatting.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { ledgerRows, names, renderLedger, transfer } from "./helpers.ts";
 
@@ -238,5 +240,28 @@ describe("HumanLedgerTable", () => {
     assertStringIncludes(rows[3] ?? "", "−£50");
     assertStringIncludes(rows[4] ?? "", "−£50");
     assertStringIncludes(rows[5] ?? "", "+£50");
+  });
+
+  test("the operator's description suffix names only owner-entered entries", () => {
+    // A manual attendee charge shows its memo as the description suffix.
+    expect(
+      ledgerEntryMemo(
+        transfer({
+          destination: account("writeoff", "default"),
+          id: 9,
+          kind: "manual_attendee_charge",
+          memo: "Delivery",
+          source: account("attendee", 1),
+        }),
+      ),
+    ).toBe(" Delivery.");
+    // A checkout leg with a memo (a refund reason code) shows none.
+    expect(
+      ledgerEntryMemo(
+        transfer({ id: 10, kind: KIND.refundCash, memo: "provider refund" }),
+      ),
+    ).toBe("");
+    // A leg with no memo shows none.
+    expect(ledgerEntryMemo(transfer({ id: 11 }))).toBe("");
   });
 });

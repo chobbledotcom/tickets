@@ -1,4 +1,3 @@
-import { isManualLedgerEntryType } from "#accounting/manual-entries.ts";
 import { t } from "#i18n";
 import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { sameAccount } from "#shared/ledger/account.ts";
@@ -8,6 +7,7 @@ import { ledgerEntryAddHref } from "#shared/ledger-links.ts";
 import {
   type AccountCell,
   humanDescription,
+  ledgerEntryMemo,
   shownFigure,
   statementBalanceKey,
 } from "#templates/admin/ledger/formatting.tsx";
@@ -37,17 +37,12 @@ const counterparty = (line: StatementLine, account: AccountRef): AccountRef =>
 const statementActivity = (
   line: StatementLine,
   accountCell: AccountCell,
-): JSX.Element => {
-  const { memo } = line.transfer;
-  return (
-    <>
-      {humanDescription(line.transfer, accountCell)}
-      {memo && isManualLedgerEntryType(line.transfer.kind ?? "") ? (
-        <> {memo}.</>
-      ) : null}
-    </>
-  );
-};
+): JSX.Element => (
+  <>
+    {humanDescription(line.transfer, accountCell)}
+    {ledgerEntryMemo(line.transfer)}
+  </>
+);
 
 export type AccountLedgerData = {
   account: AccountRef;
