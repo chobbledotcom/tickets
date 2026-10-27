@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # These steps need network access outside the Nix sandbox.
-deno install --allow-scripts
+bash scripts/ci/deno-install.sh
 deno task build:static
 mkdir -p .container-work
 DENO_DIR="$PWD/.container-work/deno-cache" deno cache src/index.ts
