@@ -1,7 +1,7 @@
 import type { FormParams } from "#shared/form-data.ts";
 
 /** From a form's number-array `field`, keep only the ids that belong to an
- * `allowed` option, so a crafted form can't link an id that isn't offered. */
+ * `allowed` option, so a crafted form cannot link an id that is not offered. */
 export const selectedIdsFromForm = (
   form: FormParams,
   field: string,

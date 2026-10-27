@@ -63,10 +63,10 @@ export const imageUseTargets: RecordTargets<ImageUseItemType> =
 
 export type OrderedImage = Image & { sort_order: number };
 
-/** Encrypted filename column: sealed on write; on read, a value that will not
- * decrypt to a real filename becomes the broken-image marker (reported, never
- * thrown — one broken record must not take down every page that lists images).
- * The `as` cast is the same sanctioned read boundary as col.encrypted. */
+/** Encrypted filename column: sealed on write. On read, a value that will not
+ * decrypt to a real filename becomes the broken-image marker. It is reported,
+ * never thrown. One broken record must not take down every page that lists
+ * images. The `as` cast is the same sanctioned read boundary as col.encrypted. */
 const encryptedFilenameText = (label: string): ColumnDef<NonEmptyString> =>
   col.converted<NonEmptyString>({
     read: (raw: InValue, rowId?: unknown) =>

@@ -1,4 +1,4 @@
-/** Post exact refund-ledger plans after provider money has returned. */
+/** Post exact refund-ledger plans after provider money returns. */
 
 import {
   postTransferGroupBatches,
@@ -36,8 +36,9 @@ const postComputedRefund = async (
 
 /**
  * Record every safe reversal for one attendee and name the outcome of each
- * returned provider reference. A failure is logged and returned as unrecorded;
- * money already returned by the provider must not become an HTTP 500.
+ * returned provider reference. A failure is logged and returned as
+ * unrecorded. Money already returned by the provider must not become an
+ * HTTP 500.
  */
 export const recordAttendeeRefund = async (
   attendeeId: number,

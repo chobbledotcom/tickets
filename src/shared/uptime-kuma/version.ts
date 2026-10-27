@@ -47,7 +47,7 @@ type VersionCapture = {
  * Captures a `info` event from Kuma, staying open through the first
  * version-less frame until the version-bearing one arrives, then checks the
  * server is supported. Resolves on a supported version or throws once the
- * versioned `info` event has been seen.
+ * versioned `info` event is seen.
  */
 export const captureVersion = (socket: UptimeKumaSocket): VersionCapture => {
   let listener: SocketListener;

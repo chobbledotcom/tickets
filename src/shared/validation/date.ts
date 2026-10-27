@@ -3,9 +3,9 @@ import * as v from "valibot";
 /**
  * A calendar month in strict `YYYY-MM` form, month `01`–`12` — the shape the
  * date pickers round-trip as their paged-month query param. valibot has no
- * `isoMonth` action, so the format lives in one regex here rather than being
- * re-spelt (more laxly — a bare `\d{2}` month accepts `00` and `99`) at each
- * query-string boundary.
+ * `isoMonth` action. The format lives in one regex here rather than being
+ * re-spelt at each query-string boundary. A bare `\d{2}` month is laxer: it
+ * accepts `00` and `99`.
  */
 export const IsoMonthSchema = v.pipe(
   v.string(),

@@ -15,7 +15,7 @@ const yesNoControls: ReadonlySet<Field["type"]> = new Set([
 ]);
 
 /** How one form field draws an entity's stored value. A stored boolean
- * becomes the "1" its box or yes option sends; every other value is the
+ * becomes the "1" its box or yes option sends. Every other value is the
  * form's own text. A formatter, where one is given, still decides for its
  * field. */
 const valueForField = (field: Field, raw: unknown): string | number | null =>

@@ -37,8 +37,9 @@ export const ProseHeading = ({
 type HtmlProps = { html: string };
 
 /** One paragraph of trusted HTML — `<p><Raw html=.../></p>`. Owned here so the
- *  same `<p>`-wrapped `<Raw>` isn't re-authored (and re-detected as a clone)
- *  wherever a page drops a rich-text paragraph into a prose block. */
+ *  same `<p>`-wrapped `<Raw>` is not re-authored (and re-detected as a clone)
+ *  wherever a page drops a rich-text paragraph into a prose block. Keep this
+ *  one `<Raw>` wrapper so the clone check sees one shape. */
 export const RawParagraph = ({ html }: HtmlProps): JSX.Element => (
   <p>
     <Raw html={html} />

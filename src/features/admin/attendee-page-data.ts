@@ -359,9 +359,9 @@ const loadPathNames = async (
 ): Promise<
   Pick<AttendeeFormTemplateData, "packageNamesById" | "parentNamesById">
 > => {
-  // Path labels: package names for "via <package>" (a row tagged with a
-  // since-deleted package falls back to its id in the template), parent
-  // names for "add-on under <parent>".
+  // Path labels: package names for "via <package>", and parent names for
+  // "add-on under <parent>". A row tagged with a since-deleted package falls
+  // back to its id in the template.
   const parentIds = new Set(
     lines.map((line) => line.parentListingId).filter((id) => id > 0),
   );

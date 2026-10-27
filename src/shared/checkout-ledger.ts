@@ -18,7 +18,7 @@ import {
   type PricedOrder,
 } from "#shared/checkout-pricing.ts";
 
-/** The per-order facts the pure pricing can't supply (id, clock). */
+/** The per-order facts the pure pricing cannot supply (id, clock). */
 export type BookingLedgerContext = {
   readonly attendeeId: number;
   readonly occurredAt: string;
@@ -45,7 +45,7 @@ export const bookingFactsFromOrder = (
 
 /**
  * For a booking where NOTHING was collected and NO booking fee is charged. The
- * customer simply OWES the order.
+ * customer OWES the order.
  *
  * The gross `lines` and `modifierApplications` survive, because a surcharge
  * add-on is still owed. Everything else is dropped and the total forced to

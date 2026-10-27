@@ -2,7 +2,7 @@
  * Request-scoped session memoization via AsyncLocalStorage
  *
  * Caches the result of getAuthenticatedSession so that multiple calls
- * within the same request (e.g. routeAdmin pre-check + route handler)
+ * within the same request (for example, routeAdmin pre-check + route handler)
  * only hit the database once.
  */
 

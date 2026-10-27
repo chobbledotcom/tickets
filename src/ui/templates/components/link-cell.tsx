@@ -1,8 +1,8 @@
 import type { Child } from "#jsx/jsx-runtime.ts";
 
 /**
- * A link to one row's own page, showing what the row is called. Every admin
- * collection names its rows this way, so a table only says where the row
+ * A link to one row's own page. The link shows what the row is called. Every
+ * admin collection names its rows this way, so a table only says where the row
  * lives and what to call it. A row that is switched off dims its own link
  * through `classOf`.
  */

@@ -140,7 +140,7 @@ const alreadyHandledSession = (
  * The booking-session ledger preflight: the durable ledger — not the prunable
  * processed_payments row — is the source of truth for "already honoured".
  * Before validating, pricing, or refunding, resolve what it already records.
- * Returns the replay outcome for a session it has seen: a live booking replays
+ * Returns the replay outcome for a session it saw: a live booking replays
  * as success, and an orphaned one is acknowledged. Null means the session was
  * never recorded, so process it fresh. The single guard that stops a late
  * replay from refunding a live ticket through the deleted-listing,

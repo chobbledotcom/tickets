@@ -38,7 +38,7 @@ const listingRecalculateRows = recalculateRowsFor<ListingAggregateField>(
   getListingAggregateFields,
 );
 
-/** The drift-notice copy plus the drifted running totals; the "fix it" link is
+/** The drift-notice copy plus the drifted running totals. The "fix it" link is
  * included only when a recalculate page is reachable. Shared by the inline
  * notice and the listing table row. */
 const listingAggregateNotice = (

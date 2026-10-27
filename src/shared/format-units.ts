@@ -6,7 +6,7 @@
 type Rung = readonly [size: number, suffix: string];
 
 /** Build a formatter that names a number in the biggest rung it reaches,
- * rounded to a whole number of them, and falls back to `baseSuffix` below the
+ * rounded to a whole number of them. It falls back to `baseSuffix` below the
  * smallest rung. Every human-readable size and duration below is one of these. */
 const laddered =
   (rungs: readonly Rung[], baseSuffix: string): ((value: number) => string) =>

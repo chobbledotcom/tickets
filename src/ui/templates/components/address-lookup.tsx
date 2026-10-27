@@ -17,7 +17,7 @@ import type { AddressLookupProviderDefinition } from "#shared/address-lookup/typ
 /**
  * Pull a search value out of an existing address so the box starts pre-filled.
  * When the address ends with ", <valid postcode>" (as saved addresses do), the
- * trailing postcode is offered to the search box; otherwise "".
+ * trailing postcode is offered to the search box. Otherwise "".
  */
 const initialSearchFrom = (
   definition: AddressLookupProviderDefinition,

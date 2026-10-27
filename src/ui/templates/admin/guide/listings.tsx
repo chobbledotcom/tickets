@@ -14,9 +14,9 @@ import {
 /* jscpd:ignore-end */
 
 /** The markdown text-formatting help section. Exported so the standalone
- * `/admin/formatting` help page (reachable by content roles, including editors
- * who can't open the staff-only full guide) renders the same content as the
- * guide's Text Formatting section. */
+ * `/admin/formatting` help page renders the same content as the guide's Text
+ * Formatting section. Content roles can reach that page, including editors
+ * who cannot open the staff-only full guide. */
 export const textFormattingSection: GuideSection = {
   entries: [
     faq("fields_support_formatting"),

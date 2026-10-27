@@ -2,8 +2,8 @@
  * Render a run of labelled text inputs from a field list.
  *
  * Forms that carry their fields as data — the wallet settings forms and the
- * duplicate-group form — share this one loop over {@link TextField} instead of
- * each mapping over it themselves.
+ * duplicate-group form — share this one loop over {@link TextField}. They do
+ * not each map over it themselves.
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";

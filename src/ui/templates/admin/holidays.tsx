@@ -31,7 +31,7 @@ import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
 
 /** Columns for the holidays table — declared once so the header order and
- *  cell order can't drift apart. */
+ *  cell order cannot drift apart. */
 const holidayColumns = (): TableColumn<Holiday>[] => [
   writableNameColumn(
     (holiday) => adminPath("holiday", { id: holiday.id }),

@@ -7,7 +7,7 @@ import { saveFormComponent } from "#templates/components/save-form.tsx";
  *  icon/label from `submitIcon`/`submitLabel`. Built from {@link saveFormComponent}
  *  so the form scaffold lives in one place. Several admin new-resource pages
  *  (groups, built-sites) pass exactly this shape to {@link errorAdminPage}.
- *  Extra `children` (e.g. an agent selector) render between the fields and the
+ *  Extra `children` (for example, an agent selector) render between the fields and the
  *  submit button when given. */
 export const NewResourceForm = saveFormComponent<{
   action: string;

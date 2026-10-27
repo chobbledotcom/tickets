@@ -1,8 +1,8 @@
 /**
  * Send one email and report whether the provider accepted it.
  *
- * `email.ts` is imported on demand so callers on the every-request path (the
- * message forms, the superuser settings nag) don't drag the email rendering
+ * `email.ts` is imported on demand. Callers on the every-request path (the
+ * message forms, the superuser settings nag) do not drag the email rendering
  * stack into the eager cold-start graph.
  */
 

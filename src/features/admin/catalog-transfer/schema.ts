@@ -153,8 +153,8 @@ const ListingFieldsSchema = v.strictObject(
 );
 
 /** Drop day-price keys beyond the listing's own duration: the form only reads
- * `day_price_1..durationDays`. A stored/blob entry above that (for example
- * duration 2 with a "5" price) is inert and must not silently activate if the
+ * `day_price_1..durationDays`. A stored or blob entry above that (for
+ * example, duration 2 with a "5" price) is inert. It must not activate if the
  * duration is later raised. Filtered (not rejected) to mirror the form, which
  * just ignores the extra inputs. */
 const filterDayPricesToDuration = (

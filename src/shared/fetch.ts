@@ -55,7 +55,7 @@ const responseText = async (
 /**
  * Headers for a JSON API request: the given auth header(s) plus a JSON
  * content type. Each API client supplies its own auth scheme (a bearer token,
- * an access key, …); this keeps the JSON content-type in one place.
+ * an access key, …). This keeps the JSON content-type in one place.
  */
 export const jsonHeaders: (
   auth: Record<string, string>,

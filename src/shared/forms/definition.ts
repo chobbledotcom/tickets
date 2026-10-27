@@ -160,7 +160,7 @@ export const defineForm = <
 };
 
 /** Wrap a per-request fields builder in the per-request form getter a fields
- *  module ends with: every call builds a fresh form from a fresh field list,
+ *  module ends with. Every call builds a fresh form from a fresh field list,
  *  so translated labels follow the active request. The getter takes the same
  *  arguments as the fields builder it wraps. */
 export const defineFieldsForm =

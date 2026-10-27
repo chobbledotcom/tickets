@@ -43,8 +43,8 @@ export const savedFormValue = (name: string): string =>
   currentRequestStore()?.savedForm?.form?.getString(name) ?? "";
 
 /** The submitted value of one field exactly as the operator sent it, or null
- * when this form never carried the field — the distinction a pre-filled
- * field needs: a submitted empty string is the buyer's choice, an absent
+ * when this form never carried the field. A pre-filled field needs this
+ * distinction: a submitted empty string is the buyer's choice, an absent
  * field is not. Markdown fields keep their indentation because no trimming
  * happens here. */
 export const savedFormValueOrNull = (name: string): string | null => {

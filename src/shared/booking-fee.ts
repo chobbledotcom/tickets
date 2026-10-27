@@ -28,9 +28,9 @@ export const itemsSubtotal = (
   )(items);
 
 /**
- * The subtotal the booking fee is charged on: an explicit `feeSubtotal`
- * override (used by reservation deposits — fee on the full order — and balance
- * payments — no fee) or the item subtotal otherwise.
+ * The subtotal the booking fee is charged on. An explicit `feeSubtotal`
+ * override names it, used by reservation deposits (fee on the full order) and
+ * balance payments (no fee). Otherwise the item subtotal names it.
  */
 export const feeSubtotalFor = (intent: {
   items: ReadonlyArray<{ unitPrice: number; quantity: number }>;

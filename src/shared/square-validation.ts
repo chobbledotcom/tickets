@@ -10,8 +10,8 @@
 
 /**
  * Application ID/secret prefixes. These namespaces are distinct from access
- * tokens, location IDs, and webhook keys, so a value starting with one of
- * these in any of those fields is unambiguously the wrong credential.
+ * tokens, location IDs, and webhook keys. A value starting with one of these
+ * in any of those fields is unambiguously the wrong credential.
  * (Note: legacy access tokens are `sq0atp-`, which is intentionally NOT here.)
  */
 const APP_CREDENTIAL_PREFIXES = [
@@ -23,8 +23,8 @@ const APP_CREDENTIAL_PREFIXES = [
 
 /**
  * Allowlist of every Square access token format we know of. Permissive by
- * design — Square does not guarantee token format, so we accept all known
- * prefixes (current, legacy, and JWT) with no length limit and only reject
+ * design. Square does not guarantee token format, so we accept all known
+ * prefixes (current, legacy, and JWT) with no length limit. We only reject
  * values that look like nothing Square issues.
  */
 

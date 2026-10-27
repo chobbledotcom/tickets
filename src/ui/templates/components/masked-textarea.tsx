@@ -4,7 +4,7 @@
  * Used by the Apple Wallet and Google Wallet settings forms to render their
  * `-----BEGIN ...-----` blocks. When the field is already configured, the
  * textarea body shows the mask sentinel placeholder rather than the stored
- * (encrypted) value; otherwise empty.
+ * (encrypted) value. Otherwise empty.
  */
 
 import { MASK_SENTINEL } from "#db/settings/mask.ts";

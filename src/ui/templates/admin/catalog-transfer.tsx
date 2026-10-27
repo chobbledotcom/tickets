@@ -1,7 +1,7 @@
 /**
- * Admin "import a listing or group" page — a single upload form that accepts a
- * JSON blob exported from this or another site (the blob's `kind` decides
- * whether a listing or a group is created).
+ * Admin "import a listing or group" page — a single upload form that accepts
+ * a JSON blob exported from this or another site. The blob's `kind` decides
+ * whether a listing or a group is created.
  */
 
 /* jscpd:ignore-start */

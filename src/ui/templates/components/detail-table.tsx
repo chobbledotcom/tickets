@@ -3,7 +3,7 @@
  * shell for the read-only key/value summary tables on admin detail pages
  * (per-user, per-API-key, per-listing, per-group, per-entity).
  *
- * Shared {@link DetailRow} data is rendered through {@link LabelledRow}; pages
+ * Shared {@link DetailRow} data is rendered through {@link LabelledRow}. Pages
  * can also pass custom JSX rows as children when their table needs different
  * cells. The custom rows come first, followed by the shared rows.
  */

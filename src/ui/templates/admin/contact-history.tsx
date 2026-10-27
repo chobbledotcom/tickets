@@ -1,9 +1,9 @@
 /**
  * The contact-record editor's form panel, rendered inside the entity-page
  * frame at /admin/history/:hmac. Surfaces the raw per-source booking counts,
- * message stats and the owner-encrypted private note so the operator can
- * inspect and repair a contact's aggregated history directly — the hidden DB
- * row made malleable.
+ * message stats and the owner-encrypted private note. The operator can
+ * inspect and repair a contact's aggregated history directly. The hidden DB
+ * row is made malleable.
  */
 
 import type { ContactRecord } from "#db/contact-preferences.ts";

@@ -1,5 +1,5 @@
 /**
- * Agents are stored per booking line, and the per-attendee
+ * Agents are stored per booking line. The per-attendee
  * `split_logistics_agents` flag records whether the operator entered one pair
  * for the whole order or a distinct pair per delivered listing.
  *
@@ -52,7 +52,7 @@ const rowToAssignment = (row: AssignmentRow): LogisticsAssignment => ({
 /** Map query rows that each carry an `attendee_id`/`listing_id` pair into a
  * result that always begins with those two camelCase fields plus caller-
  * supplied extras. Shared with `logistics-run-sheet.ts` so the booking-ref
- * prefix can't drift between the assignment read and the run-sheet read. */
+ * prefix cannot drift between the assignment read and the run-sheet read. */
 export const mapBookingRows = <
   Row extends { attendee_id: number; listing_id: number },
   Extra extends Record<string, unknown>,

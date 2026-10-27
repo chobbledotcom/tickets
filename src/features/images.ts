@@ -1,9 +1,9 @@
 /**
  * Image proxy route — serves encrypted images from Bunny CDN.
  * GET /image/:filename — downloads, decrypts, and serves the image.
- * A broken image (the broken-image marker, a file missing from storage, or a
- * stored file that will not decrypt) serves a 1×1 red pixel instead of failing,
- * and the missing/unreadable cases are reported as errors.
+ * A broken image serves a 1×1 red pixel instead of failing. The broken-image
+ * marker, a file missing from storage, or a stored file that will not decrypt
+ * all count as broken. The missing or unreadable cases are reported as errors.
  */
 
 import { decryptBytes } from "#crypto/encryption.ts";

@@ -8,9 +8,9 @@ import {
 import type { Trigger } from "./types.ts";
 
 /**
- * The per-row delta a listing-aggregate trigger adds to / subtracts from
- * tickets_count for a NEW/OLD row: +1 only when that row is a real ticket, so
- * toggling a line 0↔n nets out correctly via the OLD/NEW deltas.
+ * The per-row delta a listing-aggregate trigger adds to or subtracts from
+ * tickets_count for a NEW/OLD row. It is +1 only when that row is a real
+ * ticket. Toggling a line 0↔n nets out correctly via the OLD/NEW deltas.
  */
 const ticketCountTriggerDelta = (row: "NEW" | "OLD"): string =>
   `CASE WHEN ${ticketCountPredicateFor(
@@ -31,9 +31,10 @@ const LISTING_AGGREGATE_USES = {
  * The UPDATE trigger is scoped to `OF quantity, listing_id`, so the frequent
  * check-in, refund and price writes do not fire it.
  *
- * booked_quantity counts every row, the quantity = 0 sentinel included, which
- * adds nothing. tickets_count counts only quantity > 0, so the sentinel keeps
- * its attendee↔listing link without inflating the ticket total.
+ * `booked_quantity` counts every row, the quantity = 0 sentinel included,
+ * which adds nothing. `tickets_count` counts only quantity > 0, so the
+ * sentinel keeps its attendee↔listing link without inflating the ticket
+ * total.
  */
 const LISTING_AGGREGATE_TRIGGERS: Trigger[] = [
   {
@@ -157,9 +158,9 @@ const ANSWER_AGGREGATE_USES = {
  * Answer aggregate triggers keep answers.times_selected in step with the
  * attendee_answers join table, the same way the listing and modifier triggers
  * maintain their aggregates. Each attendee_answers row is one selection, so the
- * count is COUNT(*) per answer_id. The UPDATE trigger is scoped to OF answer_id
- * — the only column whose change moves a selection between answers — and it
- * subtracts the OLD answer's contribution and adds the NEW answer's so a
+ * count is COUNT(*) per answer_id. The UPDATE trigger is scoped to OF
+ * answer_id — the only column whose change moves a selection between answers.
+ * It subtracts the OLD answer's contribution and adds the NEW answer's. A
  * reassigned row stays correct.
  *
  * Semantics mirror the previous COUNT(*) query over attendee_answers exactly.

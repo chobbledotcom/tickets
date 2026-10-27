@@ -4,7 +4,7 @@
  *
  * Used by the show-public-api and external-order settings
  * forms, which all share the exact same `common.yes`/`common.no` pair.
- * Composed from two `RadioOption`s so the per-option shape can't drift from
+ * Composed from two `RadioOption`s so the per-option shape cannot drift from
  * the standalone radio component.
  */
 

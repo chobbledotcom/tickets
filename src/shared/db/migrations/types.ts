@@ -29,9 +29,9 @@ export type Migration = {
   id: string;
   description: string;
   up: () => Promise<void>;
-  /** Runs after up(); a failure leaves the migration unrecorded for retry. */
+  /** Runs after up(). A failure leaves the migration unrecorded for retry. */
   verify: () => Promise<void>;
-  /** Objects this migration owns; drives verify() and the restore tests. */
+  /** Objects this migration owns. These drive verify() and the restore tests. */
   requires?: SchemaRequirement;
 };
 

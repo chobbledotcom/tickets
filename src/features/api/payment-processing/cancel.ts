@@ -52,9 +52,9 @@ const retryHrefFor = async (
       (await groupBookable(group, await getVisibleGroupMembers(group)));
     if (bundleServes) return `/ticket/${group.slug}`;
   }
-  // Falling back to the member's own page needs the purchase to have named
-  // it: a standalone path, or a package that showed its listings. A concealed
-  // or unresolved package is no evidence of permission.
+  // Falling back to the member's own page needs a purchase that named it: a
+  // standalone path, or a package that showed its listings. A concealed or
+  // unresolved package is no evidence of permission.
   const disclosureGroupIds = bookedPathGroupIds(
     intent.items,
     intent.allocations ?? [],

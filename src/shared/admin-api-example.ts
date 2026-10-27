@@ -266,7 +266,7 @@ const ADMIN_API_EXAMPLE_OPTION_RENAMED = {
 /** Example attendee booking row, exactly as the attendees endpoint answers
  * with it: the decrypted roster row minus the sealed PII blob and its blind
  * index. A standard listing holds no booking date, so both span fields are
- * null; a daily listing would carry its booked day number instead. */
+ * null. A daily listing carries its booked day number instead. */
 const ADMIN_API_EXAMPLE_ATTENDEE = {
   address: "12 Main Street, Springfield",
   attachment_downloads: 0,

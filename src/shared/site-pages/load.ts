@@ -1,8 +1,8 @@
 /**
  * The site-pages "acquire ring": the one DB read that both the admin data
  * builders and the public nav share. Loads the nav-row projection and the item
- * edges together and folds them into the forest, keeping the DB access out of
- * the pure {@link buildForest} core.
+ * edges together and folds them into the forest. This keeps the DB access out
+ * of the pure {@link buildForest} core.
  */
 
 import { getAllPageItems } from "#db/site-page-items.ts";

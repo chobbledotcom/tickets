@@ -60,9 +60,10 @@ const DataControllerAgreement = (): JSX.Element => (
 );
 
 /**
- * Shared shell for the setup and join password forms: a titled page with a
- * prose heading and intro, the flash message, the rendered form fields, then
- * whatever extra controls and submit button the page adds as `children`.
+ * Shared shell for the setup and join password forms. The page holds a titled
+ * prose heading and intro, the flash message, and the rendered form fields.
+ * Whatever extra controls and submit button the page adds arrive as
+ * `children`.
  */
 export const AuthFormPage = ({
   title,

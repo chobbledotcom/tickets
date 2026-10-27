@@ -100,7 +100,7 @@ export const isValidAppleSigningPair = async (
   signingCertPem: string,
   signingKeyPem: string,
 ): Promise<boolean> =>
-  // Any successful sign-and-verify proves the pair; empty bytes keep this
+  // Any successful sign-and-verify proves the pair. Empty bytes keep this
   // check independent of pass content.
   (await createAppleSignature(signingCertPem, signingKeyPem)(new Uint8Array()))
     .matchesCertificate;
@@ -114,8 +114,8 @@ export const signManifest = async (
 ): Promise<Uint8Array> => {
   const signingTime = startOfHour(new Date());
   const manifest = new TextEncoder().encode(manifestData);
-  // The WWDR intermediate is embedded, not used to verify the RSA signature;
-  // Apple has issued both RSA and ECC WWDR certificates.
+  // The WWDR intermediate is embedded, not used to verify the RSA signature.
+  // Apple issued both RSA and ECC WWDR certificates.
   const wwdrCertificate = readCertificateBytes(wwdrCertPem);
   const manifestDigest = await digest(manifest);
   const attributes = [

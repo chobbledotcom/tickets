@@ -1,12 +1,12 @@
 /**
  * Address lookup service — the IO shell around the provider definitions.
  *
- * One lookup is: normalise the search per the provider's rules → check the
- * encrypted address_cache by HMAC blind index → on a miss, fetch from the
- * provider with the stored API key and cache what came back. Provider
+ * One lookup runs as follows: normalise the search per the provider's rules.
+ * Then check the encrypted address_cache by HMAC blind index. On a miss, fetch
+ * from the provider with the stored API key and cache what came back. Provider
  * failures are logged with their detail but reported to the caller as a
- * generic translated message, so upstream error bodies never reach the
- * public form.
+ * generic translated message. Upstream error bodies never reach the public
+ * form.
  */
 
 import {

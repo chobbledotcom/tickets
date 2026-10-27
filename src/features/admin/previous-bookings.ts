@@ -71,7 +71,7 @@ const previousBookingRow = (
 });
 
 /**
- * Load the other bookings this contact has made.
+ * Load the other bookings this contact made.
  *
  * The table is deliberately a shown-history preview, not an unbounded audit.
  * Each contact channel contributes only its newest token window. Empty and

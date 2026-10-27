@@ -15,11 +15,11 @@ import { type DayPrices, MAX_DURATION_DAYS } from "#types";
 
 /** Parse one package-price input to minor units. The form-level validation
  *  ({@link validatePackageMemberForm}) has already refused a non-numeric or
- *  negative value, so only a blank input falls through to `null` — "no
- *  override; use the listing's own price". An explicit `0` is a real value:
- *  the listing is FREE within this package, distinct from "no override".
- *  {@link parseOptionalMinorUnits} is exactly this optional-field shape
- *  (blank ⇒ unset, never a real 0) and enforces the whole-string,
+ *  negative value, so only a blank input falls through to `null`. `null` means
+ *  "no override", and the listing's own price applies. An explicit `0` is a
+ *  real value: the listing is FREE within this package, distinct from "no
+ *  override". {@link parseOptionalMinorUnits} is exactly this optional-field
+ *  shape (blank ⇒ unset, never a real 0) and enforces the whole-string,
  *  currency-decimal rule. */
 const parsePackagePrice = (raw: string): number | null =>
   parseOptionalMinorUnits(raw);

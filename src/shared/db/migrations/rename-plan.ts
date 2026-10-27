@@ -2,9 +2,9 @@ import type { LegacyRenamePlan } from "./rename-utils.ts";
 
 /**
  * The table and column renames that turned the legacy "event" domain into
- * "listing". Lives in its own small module (not in the dated rename migration)
- * because the always-loaded migration machinery needs it for the baseline
- * reconcile, while the dated migration modules load lazily.
+ * "listing". Lives in its own small module (not in the dated rename migration).
+ * The always-loaded migration machinery needs it for the baseline reconcile.
+ * The dated migration modules load lazily.
  */
 export const EVENT_TO_LISTING_RENAME_PLAN: LegacyRenamePlan = {
   columnRenames: [

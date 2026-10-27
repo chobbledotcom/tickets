@@ -5,7 +5,7 @@
  *
  * The runtime adds one trap. It can re-attach a finished request's context to
  * later, unrelated work. A post-request read is meaningless here, because
- * pending work is flushed before the response is sent, so a leaked store is
+ * pending work is flushed before the response is sent. A leaked store is
  * always that trap, and a read treats it as outside a scope.
  *
  * This is the only module allowed to touch `AsyncLocalStorage`.
@@ -29,8 +29,8 @@ export type PromiseTask<T> = () => Promise<T>;
  */
 export type Scope<S extends object> = {
   /** Run `fn` with `store` bound to the scope. The store dies when `fn`
-   * finishes (for an async `fn`, when its promise settles), so it must be a
-   * fresh object per call — reusing one throws. */
+   * finishes (for an async `fn`, when its promise settles). It must be a
+   * fresh object per call. Reusing one throws. */
   run: <T>(store: S, fn: () => T) => T;
   /** The current scope's store while it is still running: `undefined` outside
    * any scope, and `undefined` when the inherited scope already ended (the
@@ -92,8 +92,8 @@ export const createScopedValue = <V>(fallback: () => V): ScopedValue<V> => {
 };
 
 /** A scoped on/off switch: `runUnder(fn)` holds the switch on for `fn`'s
- * calls, and `read()` answers whether the current async scope has it on —
- * false outside every scope. The one shape behind every "these calls answer
+ * calls, and `read()` answers whether the current async scope has it on.
+ * False outside every scope. The one shape behind every "these calls answer
  * differently inside this scope" flag (a build's dry-run answers, database
  * reads taken on the primary). */
 export const createBooleanScope = (): {

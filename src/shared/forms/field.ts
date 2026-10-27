@@ -60,8 +60,8 @@ export type InputFieldType =
   | "datetime-local"
   | "money";
 
-/** An either/or pair with another control, declared as data: while this
- *  field holds, the paired-controls script disables the counterpart and
+/** An either/or pair with another control, declared as data. While this
+ *  field holds, the paired-controls script disables the counterpart. It
  *  shows the refusal that explains the boundary beside it. */
 export type ExclusivePair = { other: string; why: string };
 
@@ -161,7 +161,7 @@ export type FileField<
   }
 >;
 
-/** A field's `type` controls exactly which properties it may carry. */
+/** A field's `type` controls exactly which properties it can carry. */
 export type Field<
   TName extends string = string,
   TSection extends string = string,
@@ -176,9 +176,9 @@ export type Field<
  *  length, so they answer to the default input limit. The other input types
  *  (number, money, date, datetime) parse what they accept and already reject
  *  unusable values, and a browser ignores maxlength on them anyway. Passwords
- *  are excluded: a login or current-password control must accept a credential
- *  of any length an older site let its owner set, so capping it locks that
- *  owner out. Fields that CHOOSE a new password declare their own maxlength. */
+ *  are excluded. A login or current-password control must accept a credential
+ *  of any length an older site let its owner set. Capping it locks that owner
+ *  out. Fields that CHOOSE a new password declare their own maxlength. */
 const FREE_TEXT_INPUT_TYPES: readonly string[] = ["text", "email", "url"];
 
 /** Text inputs obey the fixed ceiling. Textareas can declare a larger content budget. */

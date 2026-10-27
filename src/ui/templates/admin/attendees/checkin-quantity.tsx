@@ -1,7 +1,7 @@
 /** The quantity page a roster Check In / Check Out link opens for a booking
- * line that holds more than one ticket: pick how many tickets to admit or
- * release, then submit. The check-in select offers what the line still
- * owes; the check-out select offers what it still holds admitted. */
+ * line that holds more than one ticket. Pick how many tickets to admit or
+ * release, then submit. The check-in select offers what the line still owes.
+ * The check-out select offers what it still holds admitted. */
 
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { t } from "#i18n";

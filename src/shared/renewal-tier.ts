@@ -1,6 +1,6 @@
-/** Which listings can sell renewal months. A tier listing qualifies when it is
- *  purchase-only, hidden, active, priced by the month, and not itself a site
- *  plan — a dual-role listing would assign a new site and extend a renewal. */
+/** Which listings can sell renewal months. A tier listing qualifies when it
+ *  is purchase-only, hidden, active, priced by the month, and not itself a
+ *  site plan. A dual-role listing assigns a new site and extends a renewal. */
 
 import { getAllListings } from "#db/listings/records.ts";
 import { sort } from "#fp";

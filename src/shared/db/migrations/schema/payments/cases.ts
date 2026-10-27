@@ -21,8 +21,8 @@ export const paymentCaseTable = paymentRecord("payment_cases", {
     ["alerted_revision", wholeNumberOrNull()],
     ["alert_sent_at", wholeNumberOrNull()],
     ["alert_sent_revision", wholeNumberOrNull()],
-    // An empty claim would match another empty one, so two workers could
-    // both send the owner the same alert.
+    // An empty claim matches another empty one, so two workers can both
+    // send the owner the same alert.
     ["alert_lease_token", wordsOrNull()],
     ["alert_lease_expires_at", wholeNumberOrNull()],
     ["evidence", encryptedPaymentColumn("evidence")],
