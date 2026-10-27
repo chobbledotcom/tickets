@@ -71,10 +71,13 @@ export const createDomInstaller = (
     },
     installDom: (bodyHtml: string): Window => {
       const window = new Window({
-        // Tests exercise DOM wiring only — never let an injected <script src>
-        // or <link> stylesheet start a real fetch of its URL.
+        // Tests exercise DOM wiring only — never let an injected <script src>,
+        // <link> stylesheet, or <iframe src> start a real fetch of its URL.
         settings: {
           disableCSSFileLoading: true,
+          // Deprecated in happy-dom but still the gate that keeps an injected
+          // iframe from opening a child page (and its navigation timer).
+          disableIframePageLoading: true,
           disableJavaScriptEvaluation: true,
           disableJavaScriptFileLoading: true,
         },

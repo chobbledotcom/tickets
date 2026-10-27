@@ -29,6 +29,14 @@ describe("happy-dom helpers", () => {
     }
   });
 
+  test("an injected iframe never opens a child page", () => {
+    installDom('<iframe src="https://fair.example/ticket/sunday"></iframe>');
+    const iframe = requireElement<HTMLIFrameElement>(document, "iframe");
+    // Opening the child page starts a real navigation with its own timer,
+    // which the window close can race and leak. The page must stay inert.
+    expect(iframe.contentWindow).toBeNull();
+  });
+
   test("fireEvent dispatches the event at the target", () => {
     const window = installDom("<button></button>");
     const button = requireElement<HTMLButtonElement>(document, "button");
