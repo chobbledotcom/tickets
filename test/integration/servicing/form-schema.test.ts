@@ -11,7 +11,8 @@
  *   • normalises by `kind='servicing'` — contact / status / balance fields
  *     are coerced empty / null / zero server-side regardless of what the POST
  *     body carried (§3 / §19 contract guard);
- *   • reuses `validateAttendeeBlock` (exported from `attendee-form-model.ts`)
+ *   • reuses `validateAttendeeBlock` (exported from
+ *     `attendee-form-validation.ts`)
  *     for the name-required rule so name-only is valid and a blank name is
  *     rejected (`error.name_required`).
  *
@@ -19,7 +20,8 @@
  *   - `#routes/admin/servicing/form-model.ts` — `buildServicingFieldSchema`,
  *     `parseServicingForm`, `normalizeServicingForSave`,
  *     `ServicingCreateInput`.
- *   - `#routes/admin/attendee-form-model.ts` — the shared `validateAttendeeBlock`.
+ *   - `#routes/admin/attendee-form-validation.ts` — the shared
+ *     `validateAttendeeBlock`.
  */
 // jscpd:ignore-start
 import { expect } from "@std/expect";
@@ -31,8 +33,8 @@ import {
   DAY_COUNT_FIELD,
   parseAttendeeForm,
   START_DATE_FIELD,
-  validateAttendeeBlock,
 } from "#routes/admin/attendee-form-model.ts";
+import { validateAttendeeBlock } from "#routes/admin/attendee-form-validation.ts";
 import {
   buildServicingFieldSchema,
   normalizeServicingForSave,

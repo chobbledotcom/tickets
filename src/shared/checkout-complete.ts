@@ -6,8 +6,8 @@
  * batch via {@link bookingBatchPlan} + `createBookingAtomic`, so a
  * fully-discounted or zero-deposit free booking records exactly the same ledger
  * facts a paid one does — the two paths differ only in where the currency,
- * business time, and event id come from. The admin manual-add still posts inside
- * its create transaction via {@link manualAddLedgerPoster}.
+ * business time, and event id come from. The admin manual-add (form and JSON
+ * API) posts inside its create transaction via {@link apiCreateLedgerPoster}.
  */
 
 /* jscpd:ignore-start */
@@ -99,30 +99,6 @@ export const postBookingLegsTx = async (
     );
   }
 };
-
-/**
- * The creation work for an admin manual attendee add. The add form
- * captures per-listing quantities (so each line's GROSS is its listing price ×
- * quantity) but no amount-paid or outstanding-balance field — so this records
- * the same shape of legs a real booking does with nothing collected: the gross
- * `sale` legs (recognising income, exactly the live path's
- * {@link owedOrderForLedger}) and NO `payment`/`fee` leg. The attendee is left
- * owing the full gross; an operator records any already-paid portion afterwards
- * through the ledger (an auditable `writeoff`/`payment` correction), so the form
- * never sets a balance. A zero-gross add (free listings) owes nothing.
- */
-export const manualAddLedgerPoster =
-  (order: PricedOrder): AttendeeCreationWork =>
-  async (tx, attendeeId) => {
-    const legs = await mapBooking(
-      bookingFactsFromOrder(owedOrderForLedger(order), {
-        attendeeId,
-        eventId: String(attendeeId),
-        occurredAt: nowIso(),
-      }),
-    );
-    await postBookingLegsTx(tx, attendeeId, legs);
-  };
 
 /** One named one-off amount an API create records. `amount` is signed minor
  * units: positive bills the attendee (a charge), negative forgives part of the

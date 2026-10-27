@@ -12,7 +12,12 @@ import {
 } from "#db/attendee-statuses.ts";
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import { getListingsById } from "#db/listings/records.ts";
-import { quantityOverCap } from "#shared/booking-inputs.ts";
+import {
+  parseAdjustments,
+  parseLinePrice,
+  parsePayments,
+  quantityOverCap,
+} from "#shared/booking-inputs.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import type { CreateAdjustment } from "#shared/checkout-complete.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
@@ -63,9 +68,6 @@ const LINE_SCHEMA = v.object({
   listingId: integerAtLeast(1),
   quantity: integerAtLeast(1),
 });
-
-/** One payment a create records: a positive minor-unit amount received. */
-const PAYMENT_SCHEMA = v.object({ amount: integerAtLeast(1) });
 
 /** A text field, "" when absent. A non-text value is refused, never dropped. */
 const optionalText = (raw: unknown, label: string): Result<string> =>
@@ -122,21 +124,6 @@ const parseContact = (body: Record<string, unknown>): Result<ContactInfo> => {
     phone: phone.value,
     special_instructions: instructions.value,
   });
-};
-
-/** The optional per-unit price, or its refusal. Absent means the listing's own
- * list price. Zero is a deliberate free line, like a stored zero override. */
-const parseLinePrice = (
-  raw: unknown,
-  at: string,
-): Result<number | undefined> => {
-  if (raw === undefined) return okResult(undefined);
-  if (typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0) {
-    return errorResult(
-      `${at}.price must be a whole number of pence or cents from 0`,
-    );
-  }
-  return okResult(raw);
 };
 
 /** The standard-line refusal, or null when the line carries none of the
@@ -206,70 +193,6 @@ const parseLine = (
     quantity: line.quantity,
   });
 };
-
-/** Parse every element of an optional array, or the first refusal. Absent
- *  parses to an empty array. */
-const parseEach = <T>(
-  raw: unknown,
-  label: string,
-  parseOne: (item: unknown, at: string) => Result<T>,
-): Result<T[]> => {
-  if (raw === undefined) return okResult([]);
-  if (!Array.isArray(raw)) return errorResult(`${label} must be an array`);
-  const values: T[] = [];
-  for (const [index, item] of raw.entries()) {
-    const parsed = parseOne(item, `${label}[${index}]`);
-    if (!parsed.ok) return parsed;
-    values.push(parsed.value);
-  }
-  return okResult(values);
-};
-
-/** The payments a create records, or the refusal. Each is one cash amount
- * already received (minor units). Absent means nothing was collected. */
-const parsePayments = (raw: unknown): Result<number[]> =>
-  parseEach(raw, "payments", (item, at) => {
-    const parsed = v.safeParse(PAYMENT_SCHEMA, item);
-    if (!parsed.success) {
-      return errorResult(
-        `${at}.amount must be a positive whole number of pence or cents`,
-      );
-    }
-    return okResult(parsed.output.amount);
-  });
-
-/** One adjustment's refusal, or the validated entry. */
-const parseAdjustment = (
-  item: unknown,
-  at: string,
-): Result<CreateAdjustment> => {
-  if (item === null || typeof item !== "object" || Array.isArray(item)) {
-    return errorResult(`${at} must name a description and an amount`);
-  }
-  const { amount, description } = item as Record<string, unknown>;
-  if (typeof description !== "string" || description === "") {
-    return errorResult(`${at}.description must be text`);
-  }
-  if (description.length > 200) {
-    return errorResult(`${at}.description must be 200 characters or fewer`);
-  }
-  if (
-    typeof amount !== "number" ||
-    !Number.isSafeInteger(amount) ||
-    amount === 0
-  ) {
-    return errorResult(
-      `${at}.amount must be a whole number of pence or cents, not zero`,
-    );
-  }
-  return okResult({ amount, description });
-};
-
-/** The named one-off adjustments, or the refusal. Each names an amount
- * (signed minor units, never zero) and a description. A positive amount bills
- * the attendee. A negative one forgives part of the debt. */
-const parseAdjustments = (raw: unknown): Result<CreateAdjustment[]> =>
-  parseEach(raw, "adjustments", parseAdjustment);
 
 /** The status a create body asks for. A named status resolves by name. When
  * the body names none, the attendee takes the public default, the same

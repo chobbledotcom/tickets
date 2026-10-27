@@ -6,8 +6,8 @@ import { resolveSharedDates } from "#routes/admin/attendee-form-dates.ts";
 import {
   toCreateInput,
   toDesiredLines,
-  validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
+import { validateParsedForm } from "#routes/admin/attendee-form-validation.ts";
 import {
   line,
   parsedBase,

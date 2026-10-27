@@ -43,6 +43,7 @@ const bookedLine = (
   packageGroupId: 0,
   packagePrice: null,
   parentListingId: 0,
+  priceRaw: "",
   quantity,
 });
 
