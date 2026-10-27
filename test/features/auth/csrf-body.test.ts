@@ -13,7 +13,6 @@ import { it as test } from "@std/testing/bdd";
 import {
   ADMIN_API,
   AUTH_FORM,
-  AUTH_MULTIPART,
   SCANNER_JSON,
   withAuth,
 } from "#routes/auth.ts";
@@ -249,7 +248,7 @@ carriesItsTokenInAField("a form submission", formBody, (request) =>
 );
 
 carriesItsTokenInAField("a multipart submission", multipartBody, (request) =>
-  withAuth(request, AUTH_MULTIPART, (_session, formData) =>
+  withAuth(request, { body: "multipart" }, (_session, formData) =>
     Promise.resolve(new Response(String(formData.get("hello")))),
   ),
 );
