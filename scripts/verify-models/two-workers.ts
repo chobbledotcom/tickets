@@ -19,6 +19,7 @@ import {
   tlaRecords,
   tlaSet,
 } from "#scripts/verify-models/data.ts";
+import { requireValue } from "#shared/required-value.ts";
 
 /* jscpd:ignore-end */
 
@@ -105,8 +106,10 @@ const heldFence = (fence: Fence): HeldRowClaim => ({
 /** The four fences one run can try: its exact hold, then each of the three
  *  comparison facts changed on its own. */
 const fencesFor = (run: Run): readonly Fence[] => {
-  const other = RUNS.find((candidate) => candidate.id !== run.id);
-  if (other === undefined) throw new Error("A second worker is absent");
+  const other = requireValue(
+    RUNS.find((candidate) => candidate.id !== run.id),
+    "The second worker is absent",
+  );
   const variants: readonly (readonly [string, string, string])[] = [
     [run.commandId, run.writtenAt, "checking"],
     [other.commandId, run.writtenAt, "checking"],
