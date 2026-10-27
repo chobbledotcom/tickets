@@ -2090,10 +2090,10 @@
     "present-perfect": 2
   },
   "src/shared/storage.ts": {
-    "long-sentence": 7,
+    "long-sentence": 6,
     "contraction": 4,
-    "semicolon": 5,
-    "wordy": 3,
+    "semicolon": 4,
+    "wordy": 2,
     "banned-modal": 2
   },
   "src/shared/stream-chunks.ts": {
