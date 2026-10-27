@@ -35,8 +35,10 @@ describeWithEnv("bundle name checks", { db: true }, () => {
       {
         item: "Taken",
         reasons: [
-          'A listing or group named "Taken" already exists — rename or remove it before importing.',
+          // The site-plan refusal leads, matching the single import's guard
+          // order: a built-site plan never imports, whatever its name.
           "Listings that assign a site on booking can't be imported. Create 'Taken' on this site instead.",
+          'A listing or group named "Taken" already exists — rename or remove it before importing.',
         ],
       },
     ]);

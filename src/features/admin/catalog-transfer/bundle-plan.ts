@@ -18,6 +18,7 @@ import {
   packageMemberQuantityError,
 } from "#shared/package-membership.ts";
 import type { DayPricedListing, DayPrices, ListingWithCount } from "#types";
+import { siteIdsOfRefs } from "./bundle-refs.ts";
 import { memberDayPriceError } from "./import-listing.ts";
 import type { GroupBody } from "./schema.ts";
 
@@ -100,9 +101,7 @@ const sameDayPrices = (a: DayPrices, b: DayPrices): boolean => {
 /** The site group ids inside a list of membership pairs: the site rows the
  * write links the listings to. */
 export const siteGroupIdsOfPairs = (pairs: Iterable<PlannedPair>): number[] =>
-  [...pairs].flatMap((pair) =>
-    "siteId" in pair.group ? [pair.group.siteId] : [],
-  );
+  siteIdsOfRefs([...pairs].map((pair) => pair.group));
 
 /** The stored listing row projected onto the edge-compatibility shape. */
 export const edgeListingOfRow = (row: ListingWithCount): EdgeListing => ({

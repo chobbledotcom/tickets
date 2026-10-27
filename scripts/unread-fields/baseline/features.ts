@@ -132,10 +132,5 @@ export const FEATURE_BASELINE: readonly FindingIdentity[] = [
     "groupName",
     "promoCodesEnabled",
   ]),
-  ...identitiesAt([
-    inCatalogTransfer("ListingTransfer"),
-    inCatalogTransfer("GroupTransfer"),
-    inCatalogTransfer("CatalogTransfer"),
-    inCatalogTransfer("CatalogBundle"),
-  ])(["version"]),
+  ...identitiesAt([inCatalogTransfer("CatalogBundle")])(["version"]),
 ];

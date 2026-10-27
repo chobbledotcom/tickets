@@ -168,7 +168,9 @@ export const buildContext = async (
   for (const [body, refs] of listingRefs) {
     fail.failIf(
       body.listing.name,
-      firstReferenceError(refs.groups) ?? firstReferenceError(refs.parents),
+      // The single import resolves a listing's parents before its groups, so
+      // the shared phase reports in that order too.
+      firstReferenceError(refs.parents) ?? firstReferenceError(refs.groups),
     );
   }
   for (const [body, refs] of memberRefs) {

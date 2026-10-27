@@ -101,4 +101,28 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
       new Map([[2, 500]]),
     );
   });
+
+  test("accepts a package join that declares no day-price override", async () => {
+    // No `dayPrices` on the membership: the override checker refuses nothing
+    // without reading the member's offered spans, and no group day prices
+    // are written for the member.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Host Pkg 3",
+    });
+    const result = await importCatalog({
+      groups: [{ group: "Host Pkg 3" }],
+      kind: "listing",
+      listing: { ...customisable, maxAttendees: 1, name: "Custom Joiner 3" },
+      version: 1,
+    });
+    const imported = requireEntityImport(result);
+    expect(imported).toMatchObject({
+      kind: "listing",
+      name: "Custom Joiner 3",
+    });
+    expect(
+      (await getGroupDayPrices(group.id)).get(imported.id),
+    ).toBeUndefined();
+  });
 });

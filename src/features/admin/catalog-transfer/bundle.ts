@@ -1,12 +1,14 @@
 /**
  * Bundle import entry. Validation reads every fact before the first database
- * write. Then one transaction creates everything.
+ * write. Then one transaction creates everything. One item or many follow
+ * the same path.
  *
- * The write uses a few statement batches, never one round trip per item. One
- * batch inserts the listings and groups. Each insert reports its new id
- * through RETURNING. A second batch writes the memberships, day prices, and
- * parent edges. A third syncs the price mirror. A 60-listing bundle costs
- * single-digit round trips, and any failure rolls the whole import back.
+ * The write runs in a few statement batches, never one round trip per item.
+ * Listings and groups insert first (RETURNING their new ids). Memberships
+ * and day prices go next, then parent edges. Any failure rolls the whole
+ * import back. Between the batches the write re-runs the single import's
+ * guards against the transaction's state. A mid-import edit cannot land an
+ * orphan row.
  */
 
 /* jscpd:ignore-start -- imports */
@@ -20,9 +22,16 @@ import {
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
+import {
+  requireMembershipValidation,
+  validateMembershipPairsTx,
+} from "#db/groups/membership.ts";
 import { groups } from "#db/groups.ts";
+import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
+import { requireListingChildrenPackageCheck } from "#db/listing-parents.ts";
 import { syncListingPricesForIds } from "#db/listing-price-sync.ts";
 import { dayCountPriceStatements } from "#db/listing-prices.ts";
+import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { normalizeEntityName as nameKey } from "#db/name-registry.ts";
 import { takenSlugIndexes } from "#db/slug-registry.ts";
@@ -30,18 +39,18 @@ import { TransactionValidationError } from "#db/transaction.ts";
 import { unique } from "#fp";
 import { t } from "#i18n";
 import { requireValue } from "#shared/required-value.ts";
-import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { generateSlug } from "#shared/slug.ts";
 import type { AdminLevel } from "#types";
 import {
+  type BundleFailure,
   type BundlePlan,
   type BundleRef,
   describeFailure,
-  type ImportedBundle,
   siteGroupIdsOfPairs,
 } from "./bundle-plan.ts";
-import { validateBundle } from "./bundle-validate.ts";
-import { groupDataToInput } from "./import-listing.ts";
+import { siteIdsOfRefs } from "./bundle-refs.ts";
+import { type BundleValidation, validateBundle } from "./bundle-validate.ts";
+import { groupDataToInput, type ImportedEntity } from "./import-listing.ts";
 import { type ImportedMembership, membershipStatements } from "./membership.ts";
 import type { CatalogBundle } from "./schema.ts";
 
@@ -71,35 +80,9 @@ export const freshSlugs = async (
   throw new Error("Failed to generate unique slugs for the bundle import");
 };
 
-/** The rows this import links to that already exist on the site. */
-type SiteEntityRefs = {
-  groupIds: readonly number[];
-  listingIds: readonly number[];
-};
-
 /** Refuse when a row this import links to no longer exists at write time.
  * The link tables carry no foreign key, so a vanished row can become a silent
  * orphan edge or membership. */
-const requireSiteEntitiesTx = async (
-  tx: TxScope,
-  refs: SiteEntityRefs,
-): Promise<void> => {
-  await requireRowsTx(
-    tx,
-    "listings",
-    refs.listingIds,
-    "catalog_transfer.parent_missing",
-  );
-  await requireRowsTx(
-    tx,
-    "groups",
-    refs.groupIds,
-    "catalog_transfer.group_missing",
-  );
-};
-
-/** Throw when any id holds no row in `table`, with the given refusal. A
- * vanished row can then become a silent orphan edge or membership. */
 export const requireRowsTx = async (
   tx: TxScope,
   table: "listings" | "groups",
@@ -155,25 +138,18 @@ const plannedIdsOf = <Plan>(
 ): ReadonlyMap<string, number> =>
   new Map(plans.map((plan, index) => [nameKey(nameOf(plan)), ids[index]!]));
 
-/** Create every planned row in one transaction. */
+/** Create every planned row in one transaction. Before the edges commit,
+ *  re-run the single import's own write guards against the transaction's
+ *  state. A row deleted or flipped mid-import rolls the whole import back.
+ *  No orphan edge or membership remains. Returns one created entity per
+ *  planned row, in plan order. */
 const writeBundle = async (
   plan: BundlePlan,
   slugs: readonly { slug: string; slugIndex: BlindIndex }[],
-): Promise<void> => {
+): Promise<ImportedEntity[]> => {
   const { edges, groupPlans, listingPlans, pairs } = plan;
   const listingCount = listingPlans.length;
-  await withTransaction(async (tx) => {
-    const siteListingIds = unique(
-      [
-        ...pairs.map((pair) => pair.listing),
-        ...edges.map((edge) => edge.parent),
-      ].flatMap((ref) => ("siteId" in ref ? [ref.siteId] : [])),
-    );
-    const siteGroupIds = unique(siteGroupIdsOfPairs(pairs));
-    await requireSiteEntitiesTx(tx, {
-      groupIds: siteGroupIds,
-      listingIds: siteListingIds,
-    });
+  return withTransaction(async (tx) => {
     const listingStatements = await Promise.all(
       listingPlans.map((listingPlan, index) =>
         listingsTable.insertStatement!({
@@ -231,7 +207,21 @@ const writeBundle = async (
         parentId: listingIdOf(edge.parent),
       });
     }
-    const edgeStatement = parentEdgeStatement(edgeRows);
+    // The rows the memberships and edges link to must still exist. `listing_
+    // parents` and `group_listings` carry no foreign key, so a vanished row
+    // becomes a silent orphan edge or membership.
+    await requireRowsTx(
+      tx,
+      "listings",
+      unique(siteIdsOfRefs(edges.map((edge) => edge.parent))),
+      "catalog_transfer.parent_missing",
+    );
+    await requireRowsTx(
+      tx,
+      "groups",
+      siteGroupIdsOfPairs(pairs),
+      "catalog_transfer.group_missing",
+    );
     await tx.batch([
       ...listingPlans.flatMap((listingPlan, index) =>
         dayCountPriceStatements(
@@ -240,34 +230,89 @@ const writeBundle = async (
         ),
       ),
       ...membershipStatements(memberships),
-      ...(edgeStatement === null ? [] : [edgeStatement]),
     ]);
+    // The memberships must hold against the transaction's own state. A member
+    // deleted, turned into a built-site plan, or flipped to another type after
+    // the document was read rolls the whole import back. This is the same
+    // recheck the single-item write runs, over exactly the pairs this import
+    // creates.
+    requireMembershipValidation(
+      await validateMembershipPairsTx(tx)(
+        memberships.map(({ groupId, listingId }) => ({ groupId, listingId })),
+      ),
+    );
+    // Each child's edges re-run the edge write's own guards against the
+    // transaction's state: parent existence, nesting, and the package
+    // conflicts. The field and add-on reachability rules then run once for
+    // every edge together.
+    const parentIdsByChild = new Map<number, number[]>();
+    for (const edge of edgeRows) {
+      const parents = parentIdsByChild.get(edge.childId) ?? [];
+      parents.push(edge.parentId);
+      parentIdsByChild.set(edge.childId, parents);
+    }
+    for (const [childId, parentIds] of parentIdsByChild) {
+      requireListingChildrenPackageCheck(
+        await guardEdgeWriteTx({
+          childIds: [childId],
+          contract: "parents",
+          missingParentError: t("catalog_transfer.parent_missing"),
+          parentIds,
+          tx,
+        }),
+      );
+    }
+    // The field rules and the add-on reachability run once for every edge
+    // together, against the transaction's state. The await matters: an
+    // unawaited refusal can throw after this transaction commits.
+    await requireCurrentRelationshipRules(tx, edgeRows);
+    const edgeStatement = parentEdgeStatement(edgeRows);
+    if (edgeStatement !== null) await tx.execute(edgeStatement);
     await syncListingPricesForIds(listingIds, tx);
+    return [
+      ...listingPlans.map((listingPlan, index) => ({
+        id: listingIds[index]!,
+        kind: "listing" as const,
+        name: listingPlan.input.name,
+      })),
+      ...groupPlans.map((groupPlan, index) => ({
+        id: groupIds[index]!,
+        kind: "group" as const,
+        name: groupPlan.body.group.name,
+      })),
+    ];
   });
 };
 
-/** Creates every item of an already shape-validated bundle document, or
- * reports every failing item and creates nothing. */
-export const importBundle = async (
+/** What one import attempt answers: every created item in plan order, or
+ *  the validation's own failing items with their reasons. The caller formats
+ *  the failures and picks the result shape, so one listing and an array of
+ *  listings run this same path end to end. */
+export type BundleOutcome =
+  | { created: ImportedEntity[]; ok: true }
+  | Exclude<BundleValidation, { ok: true }>;
+
+/** The operator-facing message for a bundle that failed validation: every
+ *  failing item, named, with each of its reasons. */
+export const formatBundleFailures = (
+  failures: readonly BundleFailure[],
+): string =>
+  `${t("catalog_transfer.bundle_failed")} ${failures
+    .map(describeFailure)
+    .join("; ")}`;
+
+/** Validates and writes a shape-validated bundle document — one listing, one
+ *  group, or many of either: every failing item and nothing, or every created
+ *  item. */
+export const importBundleItems = async (
   bundle: CatalogBundle,
   adminLevel: AdminLevel | undefined,
-): Promise<Result<ImportedBundle>> => {
+): Promise<BundleOutcome> => {
   const validation = await validateBundle(bundle, adminLevel);
-  if (!validation.ok) {
-    return errorResult(
-      `${t("catalog_transfer.bundle_failed")} ${validation.failures
-        .map(describeFailure)
-        .join("; ")}`,
-    );
-  }
+  if (!validation.ok) return validation;
   const { plan } = validation;
   const slugs = await freshSlugs(
     plan.listingPlans.length + plan.groupPlans.length,
   );
-  await writeBundle(plan, slugs);
-  return okResult({
-    groups: plan.groupPlans.length,
-    kind: "bundle",
-    listings: plan.listingPlans.length,
-  });
+  return { created: await writeBundle(plan, slugs), ok: true };
 };

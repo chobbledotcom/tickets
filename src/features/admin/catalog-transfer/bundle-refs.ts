@@ -95,8 +95,13 @@ export const siteParentIdsOf = (
 ): number[] =>
   [...listingRefs.values()].flatMap((refs) => siteIdsOf(refs.parents));
 
-/** The site ids inside a resolved reference map. */
-export const siteIdsOf = (resolved: ReadonlyMap<string, Resolved>): number[] =>
-  [...resolved.values()].flatMap((reference) =>
+/** The site ids a list of references resolved to: references naming a
+ * document item rather than a site row contribute nothing. */
+export const siteIdsOfRefs = (refs: Iterable<Resolved>): number[] =>
+  [...refs].flatMap((reference) =>
     "siteId" in reference ? [reference.siteId] : [],
   );
+
+/** The site ids inside a resolved reference map. */
+export const siteIdsOf = (resolved: ReadonlyMap<string, Resolved>): number[] =>
+  siteIdsOfRefs(resolved.values());

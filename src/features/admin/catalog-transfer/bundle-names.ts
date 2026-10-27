@@ -81,11 +81,14 @@ export const checkItemNames = async (
   }
 
   const siteIndex = await loadCatalogNameIndex();
+  // The single imports take the name before its length (the listing form's
+  // validator does the same), so the shared phase reports in that order.
   const nameProblem = async (name: string): Promise<string | null> =>
-    catalogNameLengthError(name) ??
-    ((await isNameTakenAnywhere(name)) ? nameTakenError(name) : null);
+    ((await isNameTakenAnywhere(name)) ? nameTakenError(name) : null) ??
+    catalogNameLengthError(name);
   for (const body of bundle.listings) {
-    fail.failIf(body.listing.name, await nameProblem(body.listing.name));
+    // A built-site plan never imports, whatever its name — the same refusal
+    // the single import raises before its name checks.
     fail.failIf(
       body.listing.name,
       body.listing.assignBuiltSite
@@ -94,6 +97,7 @@ export const checkItemNames = async (
           })
         : null,
     );
+    fail.failIf(body.listing.name, await nameProblem(body.listing.name));
   }
   for (const body of bundle.groups) {
     fail.failIf(body.group.name, await nameProblem(body.group.name));

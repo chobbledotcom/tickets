@@ -1,196 +1,43 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
-import { decrypt } from "#crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import {
-  inPlaceholders,
-  resultRows,
-  type TxScope,
-  writeRowInTransaction,
-} from "#db/client.ts";
-import {
-  requireMembershipValidation,
-  validateListingGroupMembershipsTx,
-} from "#db/groups/membership.ts";
-import {
-  generateUniqueGroupSlug,
-  groups,
-  packageMembersError,
-} from "#db/groups.ts";
-import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
-import {
-  catalogNameLengthError,
-  isNameTakenAnywhere,
-  loadCatalogNameIndex,
-} from "#db/name-registry.ts";
-import {
-  refuseTheWriteOn,
-  TransactionValidationError,
-} from "#db/transaction.ts";
-import { identity, mapById } from "#fp";
-import { t } from "#i18n";
-import { sitePlanMemberError } from "#shared/package-membership.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { okResult, type Result } from "#shared/result.ts";
-import {
-  type AdminLevel,
-  type DayPricedListing,
-  type ListingWithCount,
-  parseDayPrices,
-} from "#types";
-import { importBundle } from "./bundle.ts";
-import type { ImportedBundle } from "./bundle-plan.ts";
+import type { AdminLevel } from "#types";
+import { formatBundleFailures, importBundleItems } from "./bundle.ts";
+import type { BundleFailure, ImportedBundle } from "./bundle-plan.ts";
 import {
   fail,
-  groupDataToInput,
   type ImportedEntity,
-  importListing,
   importTransactionFailure,
-  memberDayOverrideKey,
-  membersHomogeneous,
-  membershipSpec,
-  missingMemberId,
-  nameTakenError,
-  resolveNames,
-  withNewId,
 } from "./import-listing.ts";
-import { writeMembershipsTx } from "./membership.ts";
 import {
+  type CatalogBundle,
   CatalogTransferSchema,
   formatBundleIssues,
   formatTransferIssues,
-  type GroupTransfer,
 } from "./schema.ts";
 
 /* jscpd:ignore-end */
 
-const importedGroupMembersError = async (
-  group: GroupTransfer["group"],
-  memberIds: readonly number[],
-  listings: readonly ListingWithCount[],
-): Promise<string | null> => {
-  const listingById = mapById(identity<ListingWithCount>)(listings);
-  const memberListings = memberIds.map((id) => listingById.get(id)!);
-  // A built-site plan member joins no group — ordinary or package — so the
-  // whole import refuses, as a direct membership write does.
-  const sitePlan = memberListings.find((listing) => listing.assign_built_site);
-  if (sitePlan) return sitePlanMemberError(sitePlan.name);
-  const homogeneityError = membersHomogeneous(memberListings);
-  if (homogeneityError) return homogeneityError;
-  if (!group.isPackage) return null;
-  return packageMembersError(memberListings, group.hidePackageListings);
-};
+/** The entity kind a single-item import answers with, or undefined for a
+ *  bundle document. */
+const singleEntityKind = (
+  output: v.InferOutput<typeof CatalogTransferSchema>,
+): ImportedEntity["kind"] | undefined =>
+  output.kind === "bundle" ? undefined : output.kind;
 
-/** Day-price override validation inside the write transaction. A listing
- *  whose day counts changed between the pre-tx read and this write rolls
- *  back. The import then never commits an override for a day count the
- *  listing no longer offers. Reads the member listings through the
- *  transaction so the day-count check sees the current state, not the
- *  request-level cache. */
-const importedGroupDayPriceErrorTx = async (
-  tx: TxScope,
-  memberIds: readonly number[],
-  members: GroupTransfer["members"],
-): Promise<string | null> => {
-  const rows = resultRows<
-    Omit<DayPricedListing, "day_prices"> & {
-      id: number;
-      name: EnvKeyEncrypted;
-      day_prices: string;
-    }
-  >(
-    await tx.execute({
-      args: [...memberIds],
-      sql: `SELECT listing.id, listing.name, listing.customisable_days,
-                   listing.duration_days,
-                   COALESCE((
-                     SELECT json_group_object(
-                       listingPrice.price_id, listingPrice.unit_price)
-                       FROM listing_prices AS listingPrice
-                      WHERE listingPrice.listing_id = listing.id
-                        AND listingPrice.price_type = 'day_count'
-                   ), '{}') AS day_prices
-            FROM listings AS listing
-           WHERE listing.id IN (${inPlaceholders(memberIds)})`,
-    }),
-  );
-  const listingById = mapById(identity<(typeof rows)[number]>)(rows);
-  const missing = missingMemberId(memberIds, listingById);
-  if (missing !== null)
-    throw new TransactionValidationError(t("catalog_transfer.member_missing"));
-  for (let i = 0; i < members.length; i++) {
-    const memberId = memberIds[i]!;
-    const member = listingById.get(memberId)!;
-    const parsedDayPrices = parseDayPrices(member.day_prices);
-    const overrideKey = memberDayOverrideKey(members[i]!.dayPrices, {
-      ...member,
-      day_prices: parsedDayPrices,
-    });
-    if (overrideKey !== null) {
-      return `"${await decrypt(member.name)}" does not offer a ${overrideKey}-day booking, so it can't carry a package day-price override for it.`;
-    }
-  }
-  return null;
-};
+/** The one message a single-item import reports: the first failing guard for
+ *  its item, exactly as the single-item write raised it. */
+const firstSingleFailure = (failures: readonly BundleFailure[]): string =>
+  requireValue(failures[0]?.reasons[0], "Import failure missing");
 
-const importGroup = async (
-  transfer: GroupTransfer,
-): Promise<Result<ImportedEntity>> => {
-  const { group, members } = transfer;
-  if (await isNameTakenAnywhere(group.name))
-    return fail(nameTakenError(group.name));
-  const groupLengthError = catalogNameLengthError(group.name);
-  if (groupLengthError) return fail(groupLengthError);
-
-  const index = await loadCatalogNameIndex();
-  const memberResolve = resolveNames(
-    index.listing,
-    members.map((member) => member.listing),
-    "listing",
-  );
-  if ("error" in memberResolve) return fail(memberResolve.error);
-
-  const listings = await requireListingsWithCountsByIds(memberResolve.ids);
-  const memberError = await importedGroupMembersError(
-    group,
-    memberResolve.ids,
-    listings,
-  );
-  if (memberError) return fail(memberError);
-
-  const { slug, slugIndex } = await generateUniqueGroupSlug();
-  const input = groupDataToInput(group, slug, slugIndex);
-  const specs = members.map((member, index) => ({
-    ...membershipSpec(
-      member.packagePrice,
-      member.quantity,
-      member.dayPrices,
-      group.isPackage ?? false,
-    ),
-    listingId: memberResolve.ids[index]!,
-  }));
-  const id = await writeRowInTransaction(
-    await groups.table.insertStatement!(input),
-    null,
-    async (tx, newId) => {
-      if (group.isPackage) {
-        const dayError = await importedGroupDayPriceErrorTx(
-          tx,
-          memberResolve.ids,
-          members,
-        );
-        refuseTheWriteOn(dayError);
-      }
-      await writeMembershipsTx(tx, withNewId(specs, "groupId", newId));
-      requireMembershipValidation(
-        await validateListingGroupMembershipsTx(tx)(memberResolve.ids, [newId]),
-      );
-    },
-  );
-  return okResult({ id, kind: "group", name: input.name });
-};
-
-/** Parses, validates, and applies one catalog transfer blob — a single
- * listing, a single group, or a bundle holding many of either. */
+/**
+ * Parses, validates, and applies one catalog transfer blob. A single listing
+ * and a single group import as a bundle of one. They run the same validation
+ * phases, the same write, and the same guards an array of listings runs.
+ * Their result and failure messages keep the single-item shapes the routes
+ * flash.
+ */
 export const importCatalog = async (
   blob: unknown,
   adminLevel?: AdminLevel,
@@ -208,15 +55,54 @@ export const importCatalog = async (
         : formatTransferIssues(parsed.issues),
     );
   }
+  const output = parsed.output;
+  const single = singleEntityKind(output);
+  const bundle: CatalogBundle =
+    output.kind === "bundle"
+      ? output
+      : output.kind === "listing"
+        ? {
+            groups: [],
+            kind: "bundle",
+            listings: [
+              {
+                groups: output.groups,
+                listing: output.listing,
+                parents: output.parents,
+              },
+            ],
+            version: output.version,
+          }
+        : {
+            groups: [{ group: output.group, members: output.members }],
+            kind: "bundle",
+            listings: [],
+            version: output.version,
+          };
   try {
-    switch (parsed.output.kind) {
-      case "listing":
-        return await importListing(parsed.output, adminLevel);
-      case "group":
-        return await importGroup(parsed.output);
-      case "bundle":
-        return await importBundle(parsed.output, adminLevel);
+    const outcome = await importBundleItems(bundle, adminLevel);
+    if (!outcome.ok) {
+      return fail(
+        single === undefined
+          ? formatBundleFailures(outcome.failures)
+          : firstSingleFailure(outcome.failures),
+      );
     }
+    if (single === undefined) {
+      return okResult({
+        groups: outcome.created.filter((entity) => entity.kind === "group")
+          .length,
+        kind: "bundle",
+        listings: outcome.created.filter((entity) => entity.kind === "listing")
+          .length,
+      });
+    }
+    return okResult(
+      requireValue(
+        outcome.created.find((entity) => entity.kind === single),
+        `Imported ${single} missing`,
+      ),
+    );
   } catch (error) {
     return importTransactionFailure(error);
   }
