@@ -94,7 +94,7 @@ export const isReadOnly = (): boolean => {
   return isReadOnlyFromCutoff(Date.now(), cutoff);
 };
 
-/** Check if the site should show a pre-expiry warning banner */
+/** Check if the site shows a pre-expiry warning banner */
 export const isReadOnlyWarning = (): boolean => {
   if (isReadOnly()) return false;
   const cutoff = getEnv("READ_ONLY_FROM");

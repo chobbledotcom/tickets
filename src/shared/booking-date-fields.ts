@@ -2,9 +2,9 @@
  * Shared booking date and duration rules — the one row shape every booking
  * surface writes. The payment flows (paid webhook, store-and-refund
  * placeholder) and the public availability/free-booking paths route through
- * here, and the duration cell is the declared span table's own
- * {@link parentResolvedDuration}, so a listing's range policy can never
- * drift between surfaces.
+ * here. The duration cell is the declared span table's own
+ * {@link parentResolvedDuration}. A listing's range policy can never drift
+ * between surfaces.
  *
  * This module is pure: callers pass the listing facts and the chosen date/day
  * count, it returns the two fields. No database, no settings.

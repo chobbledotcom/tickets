@@ -1,8 +1,8 @@
 /**
  * Editor for a single contact_preferences record, keyed by its HMAC blind
- * index. Surfaces the raw per-source booking counts, message stats and the
- * owner-encrypted private note so the operator can inspect and repair a
- * contact's aggregated history directly — the hidden DB row made malleable.
+ * index. Surfaces the raw per-source booking counts, message stats, and the
+ * owner-encrypted private note. The operator can inspect and repair a
+ * contact's aggregated history directly. The hidden DB row is made malleable.
  */
 
 import type { ContactRecord } from "#db/contact-preferences.ts";

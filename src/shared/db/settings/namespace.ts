@@ -2,7 +2,7 @@
  * Assembly of the `settings` namespace from its separate parts.
  *
  * Each part contributes getters, so the parts merge by property descriptor. A
- * spread would call every getter once, at assembly time, and freeze the answer
+ * spread calls every getter once, at assembly time, and freezes the answer
  * it returned then.
  */
 

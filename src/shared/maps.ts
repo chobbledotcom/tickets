@@ -1,8 +1,9 @@
 /**
  * Generic map-link helpers. Given a free-text place query (typically an
- * address), build "open in maps" URLs for the major providers so links work on
- * both Android/desktop (Google) and Apple devices. Kept provider-agnostic and
- * UI-free so it can be reused anywhere a location needs a directions link.
+ * address), build "open in maps" URLs for the major providers. Links then
+ * work on both Android/desktop (Google) and Apple devices. Kept
+ * provider-agnostic and UI-free so it can be reused anywhere a location needs
+ * a directions link.
  */
 
 /** A labelled map link to one provider. */

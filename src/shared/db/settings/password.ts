@@ -1,9 +1,9 @@
 /**
- * Owner password change — unwrap the DATA_KEY with the account's current
- * scheme (v2 from raw password, v1 from its stored hash), then re-wrap under
- * the v2 password-bound KEK. Updates the user row, drops every existing
- * session (force re-login), and returns false when the unwrap fails (a wrong
- * current password).
+ * Owner password change: unwrap the DATA_KEY with the account's current
+ * scheme, then re-wrap under the v2 password-bound KEK. The scheme is v2 from
+ * the raw password, or v1 from its stored hash. Updates the user row, drops
+ * every existing session (force re-login), and returns false when the unwrap
+ * fails (a wrong current password).
  */
 
 import { encrypt } from "#crypto/encryption.ts";

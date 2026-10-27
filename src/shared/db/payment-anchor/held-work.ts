@@ -1,4 +1,4 @@
-/** Find the anchor rows a payment's money work could still be sitting on. */
+/** Find the anchor rows a payment's money work can still sit on. */
 
 import { inPlaceholders, queryAllPrimary } from "#db/client.ts";
 import {

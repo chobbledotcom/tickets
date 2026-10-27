@@ -3,8 +3,8 @@
 
 /** The page holds the turn of the question now showing, or the last one
  * answered. The camera loop (the scanner bundle) and the manual form (the
- * admin bundle) each carry their own copy of this module, so the turn lives
- * on the page, not in the module: one queue for every dialog on the door. A
+ * admin bundle) each carry their own copy of this module. The turn lives on
+ * the page, not in the module. One queue serves every dialog on the door. A
  * dialog that fails leaves the turn failed, so every later ask on that
  * broken page throws the same way instead of hanging the door. */
 const page = globalThis as typeof globalThis & {
@@ -20,8 +20,8 @@ const queue = {
 
 /** Open one door question once every earlier one is answered. The camera
  * loop and the manual form share the door's dialogs, so questions queue one
- * behind the other, and a single click answers exactly the prompt the
- * operator sees, never a hidden second question. */
+ * behind the other. A single click answers exactly the prompt the operator
+ * sees. It never answers a hidden second question. */
 export const askInTurn = <T>(open: () => Promise<T>): Promise<T> => {
   const answer = (async () => {
     await queue.wait();

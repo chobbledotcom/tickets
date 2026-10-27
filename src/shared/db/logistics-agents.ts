@@ -3,7 +3,8 @@
  *
  * A logistics agent is a simple named entity (typically a van) used to record
  * who drops off and collects equipment-hire bookings. Names are encrypted at
- * rest, matching the treatment of other owner-entered labels (e.g. holidays).
+ * rest, matching the treatment of other owner-entered labels (for example,
+ * holidays).
  */
 
 import { decrypt, encrypt } from "#crypto/encryption.ts";
@@ -16,7 +17,7 @@ export type LogisticsAgentInput = {
   name: string;
 };
 
-/** Cached logistics_agents table — name is encrypted, id is generated; writes
+/** Cached logistics_agents table: name is encrypted, id is generated. Writes
  * auto-invalidate the cache. */
 export const logisticsAgents = defineCachedListTable<
   LogisticsAgent,

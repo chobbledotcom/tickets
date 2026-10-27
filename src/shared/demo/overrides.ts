@@ -39,7 +39,7 @@ export const ATTENDEE_DEMO_FIELDS: DemoFieldMap = {
 };
 
 /** Servicing-event fields — name only, and a servicing reason rather than a
- * person's name, so demo mode doesn't turn "Boiler Service" into "Bob Smith". */
+ * person's name, so demo mode does not turn "Boiler Service" into "Bob Smith". */
 export const SERVICING_DEMO_FIELDS: DemoFieldMap = {
   name: DEMO_SERVICING_NAMES,
 };
@@ -68,8 +68,8 @@ export const SITE_HOME_DEMO_FIELDS: DemoFieldMap = {
   website_title: DEMO_WEBSITE_TITLES,
 };
 
-/** Attendee Logistics tab fields: the address is masked like the attendee
- * form's, and the pinned latitude/longitude are cleared outright — an exact
+/** Attendee Logistics tab fields. The address is masked like the attendee
+ * form's, and the pinned latitude/longitude are cleared outright. An exact
  * real-world location is PII even beside a masked address. */
 export const LOGISTICS_DEMO_FIELDS: DemoFieldMap = {
   address: DEMO_ADDRESSES,
@@ -110,9 +110,9 @@ export const applyDemoOverrides = (
   return form;
 };
 
-/** Apply demo-mode overrides to the form, then run the loader — the shared
- * prelude of the attendee submit handlers, which 404 when the loader finds
- * nothing (a stale id racing a delete). */
+/** Apply demo-mode overrides to the form, then run the loader. This is the
+ * shared prelude of the attendee submit handlers. They 404 when the loader
+ * finds nothing (a stale id racing a delete). */
 export const loadAfterDemoOverrides = async <T>(
   form: FormParams,
   mapping: DemoFieldMap,

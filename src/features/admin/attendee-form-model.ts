@@ -228,7 +228,7 @@ const clampDayCount = (raw: number | null): number =>
 /**
  * The status an attendee resolves to: their submitted choice, or the public
  * default (the status new bookings start in) when none was given. The form
- * offers no "no status" choice, so a missing value — only reachable from a
+ * offers no "no status" choice. A missing value — only reachable from a
  * hand-crafted POST — is coerced back to the default rather than clearing it.
  */
 export const resolveStatusId = (

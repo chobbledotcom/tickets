@@ -1,8 +1,8 @@
 /**
  * Raw DB write/read helpers for the settings table.
  *
- * Each writer persists the value, mirrors it into the in-memory raw cache (so
- * the rest of this request reads its own write), and bumps the shared
+ * Each writer persists the value and mirrors it into the in-memory raw cache,
+ * so the rest of this request reads its own write. It also bumps the shared
  * `settings_version` so other isolates reload on their next request.
  *
  * `encryptedUpdate` and `plaintextUpdate` lift a writer into the
@@ -43,7 +43,7 @@ export const settingUpsert = (key: string, value: string): SqlStatement => ({
   sql: SETTINGS_UPSERT_SQL,
 });
 
-/** Notify other isolates after this request has mirrored a settings change. */
+/** Notify other isolates after this request mirrors a settings change. */
 const afterSettingChange = async (sync: () => void): Promise<void> => {
   sync();
   await bumpSettingsVersion();
@@ -143,8 +143,8 @@ export const writeEncrypted: SettingWriter = makeWriter(encrypt);
 
 /**
  * Factory: run `writer` then mirror the value into the snapshot. Accepts any
- * string key so it satisfies `EncryptedUpdateFn` for wallet factories; callers
- * always pass a `CONFIG_KEYS.*` value that is a real snapshot field.
+ * string key so it satisfies `EncryptedUpdateFn` for wallet factories.
+ * Callers always pass a `CONFIG_KEYS.*` value that is a real snapshot field.
  */
 const stringUpdate = async (
   writer: (key: string, value: string) => Promise<void>,

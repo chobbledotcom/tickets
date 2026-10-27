@@ -48,8 +48,9 @@ export const buildOgTags = (
   return tags.join("\n");
 };
 
-/** Build the OG head extra for the ticket page from its header bits, or
- * `undefined` when there is no header image / name / base url to tag from. */
+/** Build the OG head extra for the ticket page from its header bits.
+ * Returns `undefined` when there is no header image, name, or base url to tag
+ * from. */
 export const ticketPageHeadExtra = (
   headerImage: ItemImageColumns | null,
   headerName: string | undefined,

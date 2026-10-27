@@ -46,9 +46,9 @@ type ScannerMessages = {
 };
 
 /** The check-in message templates shared by both the camera scanner container
- *  and the manual-checkin form, as `data-message-*` attributes to spread onto
- *  each (each form then adds its own extra messages). Keeping the common set
- *  here stops the two attribute lists drifting apart. */
+ *  and the manual-checkin form. They arrive as `data-message-*` attributes to
+ *  spread onto each form (each form then adds its own extra messages).
+ *  Keeping the common set here stops the two attribute lists drifting apart. */
 const sharedScanMessageAttrs = (
   messageTemplates: ScannerMessages,
 ): Record<string, string> => ({
@@ -440,7 +440,7 @@ export const adminScannerPage = (
 };
 
 /** One section of the doors page, or nothing when that kind of door has no
- *  doors — an empty heading promises a link that is not there. */
+ *  doors. An empty heading promises a link that is not there. */
 const doorsSection = (
   heading: string,
   doors: ScannerDoor[],

@@ -167,7 +167,7 @@ const aggregateDemand = (
 };
 
 /** Check a whole booking batch in one preflight query. Every read pins to
- * the primary: production callers treat `false` as final, so a replica that
+ * the primary. Production callers treat `false` as final, so a replica that
  * has not replayed a cancellation yet must not reject an order that fits.
  * The guarded write still catches the opposite error, so no oversell is
  * possible either way. */

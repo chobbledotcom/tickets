@@ -3,7 +3,7 @@
  * under each one, in the order a reader sees them.
  *
  * A section names its routes by id. The route itself — its pattern and the
- * role that reaches it — is declared once in `areas.ts`, so a link here can
+ * role that reaches it — is declared once in `areas.ts`. A link here can
  * never point somewhere its target refuses.
  */
 

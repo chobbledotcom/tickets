@@ -131,11 +131,11 @@ const unprovisionedPanel = (site: BuiltSite): JSX.Element =>
     <OverrideDeadlineForm site={site} />,
   ]);
 
-/** Reserved but unconfirmed: the token's URL push never reached the site, so
- * the only way forward is provisioning again — the route re-pushes the
+/** Reserved but unconfirmed: the token's URL push never reached the site.
+ * The only way forward is provisioning again. The route re-pushes the
  * reserved token with the months the operator enters. Deadline edits stay
- * out of reach: storing a cutoff here would make the provision retry refuse
- * while the site still has no renewal link. */
+ * out of reach. Storing a cutoff here makes the provision retry refuse while
+ * the site still has no renewal link. */
 const pendingRenewalPanel = (site: BuiltSite): JSX.Element =>
   deadlinePanel(site, [
     <ErrorNote>{t("built_sites.provision_pending_note")}</ErrorNote>,

@@ -10,7 +10,7 @@ import { sumByKey } from "#fp";
 
 /**
  * Computes package limits from the booking tree.
- * The database still makes the final overbooking check; this only decides the
+ * The database still makes the final overbooking check. This only decides the
  * limit shown to the buyer and used when the form is submitted.
  */
 

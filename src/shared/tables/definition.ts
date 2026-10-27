@@ -89,7 +89,7 @@ export const attachTableRenderers = <TRow, TContext, TKey extends string>(
   return { columns, layout };
 };
 
-/** Look up a column by key, throwing loudly if it isn't in the table's set.
+/** Look up a column by key, throwing loudly if it is not in the table's set.
  *  Used by the renderer and by tests that exercise a saved layout. */
 export const columnOrThrow = <TRow, TContext, TKey extends string>(
   table: TableDefinition<TRow, TContext, TKey>,

@@ -1,8 +1,8 @@
 /**
  * Links between agent users and the logistics agents (vans/crews) they drive.
  *
- * Many-to-many via `user_logistics_agents`: one agent user may cover several
- * logistics agents, and one logistics agent may be driven by several users.
+ * Many-to-many via `user_logistics_agents`: one agent user can cover several
+ * logistics agents, and one logistics agent can be driven by several users.
  * The set of agents assigned to a user decides which bookings appear on that
  * user's delivery run sheet (`/admin/deliveries`).
  */

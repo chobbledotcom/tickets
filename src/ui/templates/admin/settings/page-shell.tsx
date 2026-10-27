@@ -1,7 +1,7 @@
 /**
  * Shared opener for the settings-family pages (settings, advanced settings,
  * debug). Each one is a themed admin page that always closes with the settings
- * guide footer; this shell owns that shape so each page only declares its
+ * guide footer. This shell owns that shape, so each page only declares its
  * title, nav path, and body.
  */
 

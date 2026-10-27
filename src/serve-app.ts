@@ -2,13 +2,13 @@
  * Shared production request handler for the server entry points.
  *
  * The Bunny edge entry (`edge.ts`), the Deno Deploy entry (`deploy.ts`), and
- * the local dev entry (`index.ts`) all wrap the router identically: boot the
- * app once, run `handleRequest`, and turn any unhandled error into a logged
- * generic 503 rather than letting it crash the isolate. Kept here so every
- * entry point shares one implementation — and so the boot/serve behaviour is
- * unit-testable (`test/serve-app.test.ts`) while the entry files stay
- * logic-free one-liners. Each platform hands over the client IP its own way,
- * so each entry point has its own adapter.
+ * the local dev entry (`index.ts`) all wrap the router identically. They boot
+ * the app once, run `handleRequest`, and turn any unhandled error into a
+ * logged generic 503 rather than letting it crash the isolate. Kept here so
+ * every entry point shares one implementation, and so the boot/serve
+ * behaviour is unit-testable (`test/serve-app.test.ts`) while the entry files
+ * stay logic-free one-liners. Each platform hands over the client IP its own
+ * way, so each entry point has its own adapter.
  */
 
 import { setN1GuardNotifyOnly } from "#db/query-log.ts";
@@ -65,12 +65,13 @@ const initialize = once((): Promise<boolean> => {
   const requestStartedAt = performance.now();
   // Throws synchronously, before `once` memoizes — a failed boot is retried.
   validateBootChecks();
-  // In production a request must never be killed by the N+1 guard: report it
-  // to the error log instead of throwing (dev/test keep the default throw).
+  // In production a request must never be killed by the N+1 guard. Report it
+  // to the error log instead of throwing. Dev and test keep the default
+  // throw.
   setN1GuardNotifyOnly(true);
   const bootFinishedAt = performance.now();
   // Start Sentry error reporting (no-op unless SENTRY_URL is configured).
-  // Loads the SDK lazily; the returned promise is awaited before serving so
+  // Loads the SDK lazily. The returned promise is awaited before serving so
   // an error in the very first request still reaches Sentry.
   const sentryReady = initSentry();
   return logStartedAfter(sentryReady, requestStartedAt, bootFinishedAt);

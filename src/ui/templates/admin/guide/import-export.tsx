@@ -2,10 +2,10 @@
  * Admin guide — Import & Export (catalog transfer) section.
  *
  * The JSON examples are the schema-derived constants from
- * `#shared/catalog-transfer-example.ts` — the same shape the real exporter
- * produces and the real importer accepts — so the guide never drifts from the
- * format. Import and export share one format, so one pair of examples documents
- * both directions.
+ * `#shared/catalog-transfer-example.ts`. They match the shape the real
+ * exporter produces and the real importer accepts, so the guide never drifts
+ * from the format. Import and export share one format, so one pair of examples
+ * documents both directions.
  */
 
 import {

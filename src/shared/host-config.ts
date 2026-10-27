@@ -18,7 +18,7 @@ export interface HostConfigOverride<T> {
 /**
  * Read a host setting out of the environment, unless a test put one in front
  * of it. `setOverride(null)` clears the override rather than storing an empty
- * one, because that is what `lazyRef` does with null — so a test cannot say
+ * one, because that is what `lazyRef` does with null. A test then cannot say
  * "the host has none" over an environment that provides one.
  */
 export const createHostConfigOverride = <T>(

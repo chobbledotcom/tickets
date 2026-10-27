@@ -1,13 +1,13 @@
 /**
  * Opening a batch of sealed values in order. Both the owner-sealed note rows
  * and the contact's stored token lines open one entry at a time with the
- * same private key; this holds that "open each, keep the order" step in one
+ * same private key. This holds that "open each, keep the order" step in one
  * place so the two readers cannot drift.
  */
 
 import { mapParallel } from "#fp";
 
-/** Open every row with the shared buyer-of-decryption key, keeping order. */
+/** Open every row with the shared buyer-of-decryption key. The order is kept. */
 export const openEach =
   <Row, Opened>(
     openOne: (row: Row, privateKey: CryptoKey) => Promise<Opened>,

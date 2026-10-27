@@ -2,11 +2,12 @@
 /// <reference lib="dom.iterable" />
 /** Booking-form running total.
  *
- * Progressively enhances the "show total" button — which, without JS, POSTs the
- * booking inputs to /calculate and opens the rendered summary in a new tab —
- * into an inline fetch that drops the summary into the page and re-runs whenever
- * the form changes. PII fields are stripped from the request: a quote only needs
- * the pricing inputs, and the server ignores contact details anyway. */
+ * Progressively enhances the "show total" button into an inline fetch. Without
+ * JS, the button POSTs the booking inputs to /calculate and opens the rendered
+ * summary in a new tab. The inline fetch drops the summary into the page and
+ * re-runs whenever the form changes. PII fields are stripped from the request:
+ * a quote only needs the pricing inputs, and the server ignores contact
+ * details anyway. */
 
 const PII_FIELDS = [
   "name",
@@ -42,9 +43,9 @@ export const initRunningTotal = (): void => {
   // The calculate endpoint to post to (the button's no-JS new-tab target).
   const action = button.formAction;
   // Take over the form submit: render inline instead of opening a new tab.
-  // With JS the total updates live, so the button is redundant — hide it via
-  // the shared .hidden class and show the inline summary instead, one or the
-  // other rather than both.
+  // With JS the total updates live, so the button is redundant. Hide it via
+  // the shared .hidden class and show the inline summary instead. One or the
+  // other, rather than both.
   button.type = "button";
   button.classList.add("hidden");
 

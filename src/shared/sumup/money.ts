@@ -62,7 +62,7 @@ type SumupRefundRead =
   | { resource: RefundObservation; status: "found" }
   | { reason: "malformed_money" | "unsupported_status"; status: "invalid" };
 
-/** Read one refund event without dropping one that might have moved money. */
+/** Read one refund event without dropping one that moved money. */
 const readSumupRefund = (
   event: SumupTransactionMoney["refundEvents"][number],
   currency: string,

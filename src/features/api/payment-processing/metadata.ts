@@ -65,7 +65,7 @@ const wholeNumberField = (raw: string): number | undefined =>
  *
  * Everything here arrives as text a provider handed back, so the assembled
  * booking is parsed against the schema before anyone sees it. A drifted,
- * tampered, or foreign blob fails here rather than after the buyer has paid.
+ * tampered, or foreign blob fails here rather than after the buyer pays.
  * The empty date the metadata uses for "no date" becomes null on the way in.
  */
 export const extractIntent = (

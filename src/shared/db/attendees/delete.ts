@@ -25,9 +25,9 @@ type ListingContribution = {
 
 /**
  * Per-listing aggregate contributions of an attendee's lines, summed so the
- * hold-delete restore can add them back after deleting. tickets_count counts
+ * hold-delete restore can add them back after deleting. `tickets_count` counts
  * only quantity > 0 rows (mirroring the delete trigger, which now subtracts 0
- * for a no-quantity line — see {@link ticketCountSumExpr}); booked_quantity
+ * for a no-quantity line — see {@link ticketCountSumExpr}). `booked_quantity`
  * sums over all rows. Exported for the shared-predicate guard test.
  */
 export const ATTENDEE_LISTING_CONTRIBUTIONS_SQL = `SELECT listing_id,
@@ -136,7 +136,7 @@ export const repointAttendeeDependents = (
  * Delete an attendee and all dependent data tied to the attendee record.
  *
  * The payment rows this destroys are read for live work first, inside the same
- * transaction that removes them, so a refund the operator has not finished — or
+ * transaction that removes them. A refund the operator has not finished — or
  * a payment the owner still has to look at — stops the delete instead of
  * disappearing with it. One batch inside the transaction keeps the write lock
  * held for a single round trip however many dependent tables there are.

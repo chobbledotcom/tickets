@@ -32,7 +32,7 @@ type BookingOrder = {
 };
 
 /** Get the item's paid amount when this checkout carries paid amounts. Pricing
- * has no line for an existing zero-unit signed item, so only that amount may be
+ * has no line for an existing zero-unit signed item, so only that amount can be
  * absent. */
 const paidAmountForOrNull = <T extends CheckoutItem>(
   item: T,

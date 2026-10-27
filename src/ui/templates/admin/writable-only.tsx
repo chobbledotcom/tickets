@@ -2,7 +2,7 @@ import { type Child, SafeHtml } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { SpanOrLink } from "#templates/components/actions.tsx";
 
-// Returns an empty SafeHtml (not null) in read-only mode: the JSX factory
+// Returns an empty SafeHtml (not null) in read-only mode. The JSX factory
 // wraps a component's return value with `new SafeHtml(result)`, so a `null`
 // return serialises to the literal text "null" instead of disappearing.
 // An empty SafeHtml keeps these controls truly hidden on read-only pages.

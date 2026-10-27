@@ -1,7 +1,7 @@
 /**
  * Field-length limits and helpers for settings whose stored value carries an
  * API-secret prefix. Kept narrow so callers that only need a limit (such as a
- * form field's `maxlength`) don't pull in the whole settings namespace.
+ * form field's `maxlength`) do not pull in the whole settings namespace.
  */
 
 export const MAX_EMAIL_TEMPLATE_LENGTH = 51_200;

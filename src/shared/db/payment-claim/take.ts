@@ -83,7 +83,7 @@ export type LoadedRefundAttendee = {
   readonly references: readonly TaggedRefundPaymentReference[];
 };
 
-/** Exact row-backed facts a pure pre-claim gate may recheck under the lock. */
+/** Exact row-backed facts a pure pre-claim gate can recheck under the lock. */
 export type RefundClaimAdmissionFacts = {
   readonly attendees: readonly LoadedRefundAttendee[];
   readonly returned: ReadonlySet<string>;

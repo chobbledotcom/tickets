@@ -3,11 +3,11 @@
  *
  * An image record whose stored filename cannot be read is a data problem to
  * repair, not a reason to take the whole page down. Every place that decrypts
- * an image filename goes through the helpers here: a filename that reads back
- * fine is returned as-is, and a broken one is reported loudly (error log,
- * ntfy, Sentry, activity log — via `logError`) and swapped for
- * {@link BROKEN_IMAGE_FILENAME}, whose image URL serves {@link BROKEN_IMAGE_PNG}
- * — a 1×1 red pixel — so the page still renders and the red pixel points an
+ * an image filename goes through the helpers here. A filename that reads back
+ * fine is returned as-is. A broken one is reported loudly (error log, ntfy,
+ * Sentry, activity log — via `logError`) and swapped for
+ * {@link BROKEN_IMAGE_FILENAME}. Its image URL serves {@link BROKEN_IMAGE_PNG}
+ * — a 1×1 red pixel — so the page still renders. The red pixel points an
  * operator at the record to fix.
  */
 
@@ -34,7 +34,7 @@ export const BROKEN_IMAGE_PNG: Uint8Array = fromBase64(
 );
 
 /** Report a broken image through the classified error log (which also reaches
- * ntfy, Sentry, and the admin activity log). Images should never go missing or
+ * ntfy, Sentry, and the admin activity log). Images never go missing or
  * become unreadable, so every fallback to the red pixel is reported this way. */
 export const reportBrokenImage = (detail: string, error?: unknown): void => {
   logError({
@@ -47,7 +47,7 @@ export const reportBrokenImage = (detail: string, error?: unknown): void => {
 /**
  * Decrypt a stored image filename that must exist. When the stored value will
  * not decrypt, or decrypts to an empty value, this reports the broken record
- * (naming `source`, e.g. "image 12 filename") and returns
+ * (naming `source`, for example "image 12 filename") and returns
  * {@link BROKEN_IMAGE_FILENAME} instead of failing the page.
  */
 export const decryptImageFilename = async (

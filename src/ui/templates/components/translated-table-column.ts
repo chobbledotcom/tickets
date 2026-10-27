@@ -9,8 +9,8 @@ export const translatedTableHeader =
 
 /** Build a keyed table column whose header is translated when rendered.
  *  `extras` carries the optional column properties a plain heading does not
- *  need — the column kind `class`, free-form class names, per-cell attributes
- *  — so a column with those still has one declaration. */
+ *  need: the column kind `class`, free-form class names, and per-cell
+ *  attributes. A column with those still has one declaration. */
 export const translatedTableColumn = <
   TRow,
   const TKey extends string,

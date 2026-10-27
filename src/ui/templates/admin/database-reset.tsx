@@ -13,7 +13,7 @@ import { layoutPage } from "#templates/layout-page.tsx";
 export const RESET_DATABASE_PHRASE =
   "The site will be fully reset and all data will be lost.";
 
-/** Error message when the confirmation phrase doesn't match */
+/** Error message when the confirmation phrase does not match */
 export const RESET_PHRASE_MISMATCH_ERROR =
   "Confirmation phrase does not match. Please type the exact phrase to confirm reset.";
 
