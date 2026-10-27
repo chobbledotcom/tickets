@@ -94,15 +94,15 @@ export const entityReturnPath = (sectionPath: string, id: number): string => {
 /** The write routes whose GET is not a write form. The built-site
  * support-message tab renders the stored message for a read-only viewer, so
  * read-only mode must keep serving its GET instead of redirecting it. */
-const READ_ONLY_SAFE_WRITE_PATTERNS = new Set([
-  "/admin/built-sites/:id/support-message",
-]);
+const READ_ONLY_SAFE_WRITE_PATTERNS: Record<string, true> = {
+  "/admin/built-sites/:id/support-message": true,
+};
 
 export const readOnlyGetRoutePatterns = (): readonly string[] =>
   Object.values(ADMIN_SURFACE.destinations)
     .filter(
       (route) =>
         route.intent === "write-form" &&
-        !READ_ONLY_SAFE_WRITE_PATTERNS.has(route.pattern),
+        !(route.pattern in READ_ONLY_SAFE_WRITE_PATTERNS),
     )
     .map((route) => route.pattern);
