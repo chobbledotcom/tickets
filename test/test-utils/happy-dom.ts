@@ -75,8 +75,9 @@ export const createDomInstaller = (
         // <link> stylesheet, or <iframe src> start a real fetch of its URL.
         settings: {
           disableCSSFileLoading: true,
-          // Deprecated in happy-dom but still the gate that keeps an injected
-          // iframe from opening a child page (and its navigation timer).
+          // Deprecated in happy-dom but still the gate that keeps any iframe
+          // in the window from opening a child page (and its navigation
+          // timer).
           disableIframePageLoading: true,
           disableJavaScriptEvaluation: true,
           disableJavaScriptFileLoading: true,

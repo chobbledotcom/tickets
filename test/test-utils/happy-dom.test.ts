@@ -37,6 +37,16 @@ describe("happy-dom helpers", () => {
     expect(iframe.contentWindow).toBeNull();
   });
 
+  test("an iframe the test appends never opens a child page", () => {
+    installDom("");
+    const iframe = document.createElement("iframe");
+    iframe.src = "https://fair.example/ticket/sunday";
+    document.body.append(iframe);
+    // The embed loader creates and appends its iframe after install. This
+    // path must stay inert too.
+    expect(iframe.contentWindow).toBeNull();
+  });
+
   test("fireEvent dispatches the event at the target", () => {
     const window = installDom("<button></button>");
     const button = requireElement<HTMLButtonElement>(document, "button");
