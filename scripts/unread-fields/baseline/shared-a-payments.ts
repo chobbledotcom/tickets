@@ -308,8 +308,7 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
     inRefundMachine("RefundNode", "reps", way("[]"), "state"),
     inRefundMachine("RefundMachineEvent", "run", way("()"), way("state")),
     inRefundMachine("RefundMachineEvent", "run", way("()"), way("result")),
-  ])(["armedAt", "lastObservedAt", "proof"]),
-  ...identitiesAt([inRefundState("SendArmedRefundState")])(["armedAt"]),
+  ])(["lastObservedAt", "proof"]),
   ...identitiesAt([inRefundState("ObservingRefundState")])(["lastObservedAt"]),
   ...identitiesAt([inRefundState("CompletedRefundState")])(["proof"]),
   ...identitiesAt([
@@ -317,7 +316,7 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
       "src/shared/payment/refund-authority.ts",
       [{ name: "ActiveSentRefundState" }],
     ],
-  ])(["armedAt", "lastObservedAt"]),
+  ])(["lastObservedAt"]),
   ...identitiesAt([
     inOptionDemand("OptionVerdict", "outcome", "alternatives", way("[]")),
   ])(["dayCount"]),

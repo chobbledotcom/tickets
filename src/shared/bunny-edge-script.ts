@@ -1,13 +1,14 @@
 /** Bunny edge script (compute script) client: create, publish, set and list
  *  secrets, and deploy new code. Shared by the site builder and self-update. */
 
+import * as v from "valibot";
 import {
   type BunnyApiError,
   type BunnyApiResult,
+  bunnyClient,
   bunnyGetJson,
-  bunnyJsonRequest,
+  bunnyRequest,
   okOrError,
-  parseBunnyError,
 } from "#shared/bunny-api.ts";
 import { getBunnyScriptId } from "#shared/config.ts";
 import type { FetchResult } from "#shared/fetch.ts";
@@ -17,8 +18,7 @@ const computeScriptRequest = (
   path: string,
   method: string,
   body: string,
-): Promise<FetchResult> =>
-  bunnyJsonRequest(`https://api.bunny.net${path}`, body, method);
+): Promise<FetchResult> => bunnyRequest(path, method, body);
 
 /** POST/PUT to /compute/script/{id}/{action} */
 const scriptAction = (
@@ -47,6 +47,14 @@ interface CreateEdgeScriptResult {
   scriptId: number;
 }
 
+/** The create response's `DefaultHostname` is optional: a script without a
+ * linked pull zone reports none, and the caller defaults it to empty. */
+const CreateEdgeScriptResponseSchema = v.object({
+  DefaultHostname: v.optional(v.string()),
+  Id: v.number(),
+  LinkedPullZones: v.array(v.object({ Id: v.number() })),
+});
+
 /**
  * Create a new Bunny edge script with the given name and code.
  * ScriptType 2 = standalone (no linked pull zone auto-created by default).
@@ -56,27 +64,35 @@ export const createEdgeScriptImpl = async (
   name: string,
   code: string,
 ): Promise<CreateEdgeScriptResult | { ok: false; error: string }> => {
-  const response = await computeScriptRequest(
+  const result = await bunnyClient.request(
     "/compute/script",
-    "POST",
-    JSON.stringify({
-      Code: code,
-      CreateLinkedPullZone: true,
-      Name: name,
-      ScriptType: 1,
-    }),
+    {
+      body: JSON.stringify({
+        Code: code,
+        CreateLinkedPullZone: true,
+        Name: name,
+        ScriptType: 1,
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    },
+    CreateEdgeScriptResponseSchema,
+    "Create edge script",
   );
-
-  if (!response.ok) {
-    return parseBunnyError(response, "Create edge script");
+  if (!result.ok) return result.error;
+  const { DefaultHostname, Id, LinkedPullZones } = result.value;
+  const [linkedPullZone] = LinkedPullZones;
+  if (linkedPullZone === undefined) {
+    return {
+      error: "Create edge script returned an invalid response",
+      ok: false,
+    };
   }
-
-  const data = JSON.parse(response.text);
   return {
-    defaultHostname: data.DefaultHostname ?? "",
+    defaultHostname: DefaultHostname ?? "",
     ok: true,
-    pullZoneId: data.LinkedPullZones[0].Id,
-    scriptId: data.Id,
+    pullZoneId: linkedPullZone.Id,
+    scriptId: Id,
   };
 };
 
@@ -97,15 +113,17 @@ export const setEdgeScriptSecretImpl = async (
   );
 
 /** A secret as reported by the Bunny API (name + metadata only — never the value). */
-export interface EdgeScriptSecret {
-  Id: number;
-  LastModified: string;
-  Name: string;
-}
+export const EdgeScriptSecretSchema = v.object({
+  Id: v.number(),
+  LastModified: v.string(),
+  Name: v.string(),
+});
 
-interface ListEdgeScriptSecretsResponse {
-  Secrets: EdgeScriptSecret[] | null;
-}
+export type EdgeScriptSecret = v.InferOutput<typeof EdgeScriptSecretSchema>;
+
+const ListEdgeScriptSecretsResponseSchema = v.object({
+  Secrets: v.nullable(v.array(EdgeScriptSecretSchema)),
+});
 
 type ListSecretsResult =
   | { ok: true; secrets: EdgeScriptSecret[] }
@@ -118,8 +136,9 @@ type ListSecretsResult =
 export const listEdgeScriptSecretsImpl = async (
   scriptId: number | string,
 ): Promise<ListSecretsResult> => {
-  const result = await bunnyGetJson<ListEdgeScriptSecretsResponse>(
+  const result = await bunnyGetJson(
     `/compute/script/${encodeURIComponent(scriptId)}/secrets`,
+    ListEdgeScriptSecretsResponseSchema,
     "List secrets",
   );
   if (!result.ok) return result;

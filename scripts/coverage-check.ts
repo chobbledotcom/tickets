@@ -4,6 +4,7 @@
  */
 
 import { sortedNumbers } from "#fp";
+import { escapeAnnotationValue } from "#scripts/check-report.ts";
 import { requireValue } from "#shared/required-value.ts";
 // Files excluded from coverage enforcement live in
 // ./check-coverage-exclusions/exclusions.ts. The exclusion ratchet
@@ -71,9 +72,6 @@ const formatRanges = (nums: number[]): string => {
   flushRange();
   return ranges.join(", ");
 };
-
-const escapeAnnotationValue = (value: string): string =>
-  value.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
 
 /** Check a coverage metric (lines or branches) in an lcov record */
 const metricFailure = (

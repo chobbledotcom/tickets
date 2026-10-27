@@ -1,6 +1,7 @@
 /* jscpd:ignore-start -- imports */
 import { filter, map, pipe, requiredMapValue, unique } from "#fp";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
+import { refundLifecycleFor } from "#payment/refund-authority-lifecycle.ts";
 import type {
   RefundAuthorityState,
   RefundRequestGeneration,
@@ -29,6 +30,10 @@ import { attemptTransition } from "#shared/schema-atlas/types.ts";
 const authorityMoveFields = {
   ...moveFields,
   armed: "Bool",
+  inWindow: "Bool",
+  keyed: "Bool",
+  movesMoney: "Bool",
+  replay: "Bool",
   requestKept: "Bool",
 } as const;
 type Move = TlaFact<typeof moveFields>;
@@ -39,6 +44,7 @@ export interface PaymentModel {
   readonly authorityStates: readonly string[];
   readonly claimedRows: readonly string[];
   readonly claimMirror: string;
+  readonly prunableStates: readonly string[];
   readonly rowMoves: readonly Move[];
   readonly rowStart: string;
   readonly rowStates: readonly string[];
@@ -66,6 +72,37 @@ const sameRequest = (
   (before.capability !== "keyed" ||
     (after.capability === "keyed" && before.replayUntil === after.replayUntil));
 
+/** Node ids whose representatives all share one flag, or throw on a mix.
+ * `holder` is the machine's plain name, `field` the two states being told
+ * apart, so a mixed node names itself in the error. */
+const nodeIdsWhere = <State>(
+  nodes: readonly { id: string; reps: readonly { state: State }[] }[],
+  holder: string,
+  field: string,
+  holds: (state: State) => boolean,
+): string[] =>
+  pipe(
+    filter((node: { id: string; reps: readonly { state: State }[] }) => {
+      const values = node.reps.map(({ state }) => holds(state));
+      if (values.some(Boolean) !== values.every(Boolean)) {
+        throw new Error(`${holder} node ${node.id} mixes ${field}`);
+      }
+      return values.every(Boolean);
+    }),
+    map((node) => node.id),
+  )(nodes);
+
+/** Whether a send lands inside the keyed request's replay window. The
+ * deadline itself is inside: the window closes only strictly past it. */
+const inWindowOf = (
+  state: RefundAuthorityState,
+  next: RefundAuthorityState,
+): boolean => {
+  if (state.request.capability !== "keyed") return true;
+  if (next.kind !== "send_armed") return true;
+  return next.armedAt <= state.request.replayUntil;
+};
+
 const appendRefundMoves = (
   node: string,
   state: RefundAuthorityState,
@@ -78,6 +115,10 @@ const appendRefundMoves = (
     authorityMoves.push({
       armed: !event.movesMoney || next.kind === "send_armed",
       eventId: event.id,
+      inWindow: inWindowOf(state, next),
+      keyed: state.request.capability === "keyed",
+      movesMoney: event.movesMoney,
+      replay: event.id === "replay",
       requestKept:
         !event.movesMoney || sameRequest(state.request, next.request),
       sourceState: node,
@@ -92,6 +133,10 @@ const refundMoves = (start: string) => {
     {
       armed: true,
       eventId: "charge_created",
+      inWindow: true,
+      keyed: false,
+      movesMoney: false,
+      replay: false,
       requestKept: true,
       sourceState: "absent",
       targetState: start,
@@ -115,24 +160,28 @@ export const paymentModel = async (): Promise<PaymentModel> => {
     "refund",
     "The refund machine is absent",
   );
-  const claimedRows = pipe(
-    filter((node: (typeof ROW_NODES)[number]) => {
-      const holds = node.reps.map(({ state }) => state.claim !== undefined);
-      if (holds.some(Boolean) !== holds.every(Boolean)) {
-        throw new Error(
-          `Row node ${node.id} mixes claimed and unclaimed states`,
-        );
-      }
-      return holds.every(Boolean);
-    }),
-    map((node) => node.id),
-  )(ROW_NODES);
+  const claimedRows = nodeIdsWhere(
+    ROW_NODES,
+    "Row",
+    "claimed and unclaimed states",
+    (state) => state.claim !== undefined,
+  );
   const { authorityMoves, sendAuthorityNames } = refundMoves(refund.start);
+  // A refund state is eligible for deletion only when the lifecycle declares
+  // it prunable: completed and locally recorded. Every representative of one
+  // node must agree.
+  const prunableRefundStates = nodeIdsWhere(
+    REFUND_NODES,
+    "Refund",
+    "prunable and unprunable states",
+    (state) => refundLifecycleFor(state).prunable,
+  );
   return {
     authorityMoves,
     authorityStates: ["absent", ...refund.states],
     claimedRows,
     claimMirror: CLAIM_MIRROR,
+    prunableStates: ["absent", ...prunableRefundStates],
     rowMoves: movesOf(row),
     rowStart: row.start,
     rowStates: row.states,
@@ -145,6 +194,7 @@ export const modelData = (model: PaymentModel): string =>
     `RowStates == ${tlaSet(model.rowStates)}`,
     `AuthorityStates == ${tlaSet(model.authorityStates)}`,
     `ClaimedRows == ${tlaSet(model.claimedRows)}`,
+    `PrunableStates == ${tlaSet(model.prunableStates)}`,
     `RowStart == ${JSON.stringify(model.rowStart)}`,
     tlaRecords("RowMoves", moveFields, model.rowMoves),
     tlaRecords("AuthMoves", authorityMoveFields, model.authorityMoves),
