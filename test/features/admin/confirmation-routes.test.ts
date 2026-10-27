@@ -88,7 +88,9 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       identifierLabel: "Name",
       load: () => Promise.resolve({ name: "Alpha" }),
       onConfirm: () => Promise.resolve(),
-      path: "/admin/test/:id/delete",
+      // An owner-only declared write: the default shorthand resolves to its
+      // audience, so an owner session gets through and a manager is refused.
+      path: "/admin/holidays/:id/delete",
       render: (_model, _session, error) =>
         Promise.resolve(`page${error ? `:${error}` : ""}`),
       successMessage: "deleted",
@@ -214,7 +216,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       expect(response.status).toBe(302);
       assertStringIncludes(
         response.headers.get("location") ?? "",
-        "/admin/test/1/delete",
+        "/admin/holidays/1/delete",
       );
       expectFlash(
         response,
@@ -351,7 +353,10 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       );
       expect(blocked.status).toBe(403);
 
-      const anyResponse = await build({ auth: "any" }).get(
+      const anyResponse = await build({
+        auth: "any",
+        path: "/admin/attendees/:attendeeId/delete",
+      }).get(
         mockRequest("/admin/test/1/delete", {
           headers: { cookie: managerCookie },
         }),
@@ -359,7 +364,10 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       );
       expect(await anyResponse.text()).toBe("page");
 
-      const anyPost = await build({ auth: "any" }).post(
+      const anyPost = await build({
+        auth: "any",
+        path: "/admin/attendees/:attendeeId/delete",
+      }).post(
         mockFormRequest(
           "/admin/test/1/delete",
           { confirm_identifier: "Alpha", csrf_token: csrf },

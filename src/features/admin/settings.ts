@@ -1,4 +1,4 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 /**
  * Admin settings route map - aggregates the owner-only settings handlers
  * from the per-feature settings-*.ts modules into a single route table.
@@ -63,7 +63,7 @@ import {
 } from "#routes/admin/settings-wallets.ts";
 
 /** Settings routes */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/features/:slug": handleFeatureGet,
   "GET /admin/listing-defaults": handleListingDefaultsGet,
   "GET /admin/settings": handleAdminSettingsGet,

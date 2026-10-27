@@ -34,10 +34,14 @@ import {
   type EditEntityPage,
 } from "#routes/admin/entity-write-tab.ts";
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
-import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
+import {
+  crudRoutes,
+  defineAdminRoutes,
+  entityTabRoutes,
+} from "#routes/admin/route-tables.ts";
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeCode, validateCalcValue } from "#shared/price-modifier.ts";
@@ -355,7 +359,7 @@ const handleModifierRecalculatePost: TypedRouteHandler<
 
 /** Modifier routes. The edit POST restates the standard key with its own
  * handler. */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   ...crudRoutes(adminPattern("modifiers"), crud),
   ...entityTabRoutes(adminPattern("modifier"), modifierPage),
   "GET /admin/modifiers/recalculate/:modifierId": handleModifierRecalculateGet,

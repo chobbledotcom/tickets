@@ -182,22 +182,21 @@ export const createRouter = (
   };
 };
 
+/** The typed call signature of a route-table factory: each handler's params
+ * are checked against the literal route key that binds it. */
+export type RouteTableFactory = <T extends string>(
+  routes: { [K in T]: TypedRouteHandler<K> },
+) => Record<string, RouteHandlerFn>;
+
 /**
  * Define routes with typed params inferred from route pattern strings.
  * Params ending in "Id" or named "id" are typed as number; all others as string.
  *
- * Uses overloads to bridge typed handlers and the runtime handler map without
- * `as unknown as`. The call signature enforces per-route param types at the
- * call site; the implementation signature accepts the general RouteHandlerFn
- * map that createRouter expects.
+ * The call signature enforces per-route param types at the call site; the
+ * implementation accepts the general RouteHandlerFn map that createRouter
+ * expects. The implementation's parameter is wider than the call signature's,
+ * which is why the cast stays out of sight behind the named type.
  */
-export function defineRoutes<T extends string>(
-  routes: { [K in T]: TypedRouteHandler<K> },
-): Record<string, RouteHandlerFn>;
-// Implementation accepts any function-valued record; the overload signature
-// above enforces type safety at call sites.
-export function defineRoutes(
+export const defineRoutes: RouteTableFactory = (
   routes: Record<string, (...args: never) => unknown>,
-): Record<string, RouteHandlerFn> {
-  return routes as Record<string, RouteHandlerFn>;
-}
+): Record<string, RouteHandlerFn> => routes as Record<string, RouteHandlerFn>;

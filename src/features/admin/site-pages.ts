@@ -1,4 +1,4 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
 /**
  * Admin CRUD for user-created content Pages, under Site → Pages. Owner +
@@ -311,7 +311,7 @@ const pageItemOrder = createOrderedCollectionHandlers({
 
 // ─── Routes ─────────────────────────────────────────────────────
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/site/pages": content.list,
   "GET /admin/site/pages/:id": content.entity,
   "GET /admin/site/pages/:id/:tab": content.entityTab,

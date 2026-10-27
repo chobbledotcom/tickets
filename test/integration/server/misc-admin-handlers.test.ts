@@ -59,7 +59,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     test("createActionHandler supports custom error mapping", async () => {
       const response = await runActionHandler(
         {
-          auth: "any" as const,
+          pattern: "/admin/attendees",
           execute: () => Promise.reject(new Error("kaboom")),
           message: "unused",
           onError: (error) =>
@@ -76,7 +76,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     test("createActionHandler maps non-Error throws to redirect flashes", async () => {
       const response = await runActionHandler(
         {
-          auth: "any" as const,
+          pattern: "/admin/attendees",
           execute: () => Promise.reject("plain string failure"),
           message: "unused",
           successRedirect: "/admin/attendees/1",
@@ -94,7 +94,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const handler = createActionHandler({
-        auth: "owner" as const,
+        pattern: "/admin/backup/create",
         execute: () => Promise.resolve(),
         message: "Owner action completed",
         successRedirect: "/admin/test-owner",
@@ -117,7 +117,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const handler = createActionHandler({
-        auth: "any" as const,
+        pattern: "/admin/attendees",
         bodyMode: "multipart" as const,
         execute: () => Promise.resolve(),
         message: "Multipart action completed",
@@ -145,7 +145,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const handler = createActionHandler({
-        auth: "owner" as const,
+        pattern: "/admin/backup/create",
         bodyMode: "multipart" as const,
         execute: () => Promise.resolve(),
         message: "Owner multipart action completed",
@@ -170,7 +170,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     test("createActionHandler redacts string secret from activity log", async () => {
       const response = await runActionHandler(
         {
-          auth: "any" as const,
+          pattern: "/admin/attendees",
           execute: () => Promise.resolve(),
           message: "API key sk_test_123 created",
           redactedSecret: "sk_test_123",
@@ -188,7 +188,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     test("createActionHandler redacts dynamic secret from activity log", async () => {
       const response = await runActionHandler(
         {
-          auth: "any" as const,
+          pattern: "/admin/attendees",
           execute: () => Promise.resolve(),
           message: (_session, form) =>
             `API key ${form.getString("api_key")} created`,
@@ -209,7 +209,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     test("createActionHandler logs with fixed listingId when configured", async () => {
       const response = await runActionHandler(
         {
-          auth: "any" as const,
+          pattern: "/admin/attendees",
           execute: () => Promise.resolve(),
           listingId: 42,
           message: "Fixed listing action",
@@ -227,7 +227,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     test("createActionHandler computes listingId from submitted form", async () => {
       const response = await runActionHandler(
         {
-          auth: "any" as const,
+          pattern: "/admin/attendees",
           execute: () => Promise.resolve(),
           listingId: (form) =>
             Number.parseInt(form.getString("listing_id"), 10),

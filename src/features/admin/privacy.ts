@@ -32,6 +32,7 @@ import {
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { refundEvidenceActionAllowed } from "#payment/refund-authority-lifecycle.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import {
   OWNER_FORM,
   ownerResponsePage,
@@ -46,7 +47,6 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { ownerFormHandler } from "#shared/app-forms.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
@@ -309,7 +309,7 @@ const handleErasePost = ownerFormHandler(async ({ form }) => {
 });
 
 /** Privacy routes */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/privacy": handlePrivacyGet,
   "GET /admin/privacy/refunds/:id": handleRefundCaseGet,
   "POST /admin/privacy/erase": handleErasePost,

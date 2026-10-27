@@ -1,4 +1,4 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
 /**
  * Owner notes are encrypted with the owner public key. The read paths derive
@@ -19,6 +19,7 @@ export const attendeeNoteFeature = recordNoteFeature({
   activeSection: adminPattern("attendees"),
   auth: "any",
   entityKind: "attendee",
+  notePattern: "/admin/attendee/:attendeeId/note",
   loadRecord: async (attendeeId) =>
     getAttendeeOrNull(attendeeId, await requireRequestPrivateKey()),
   nameOf: (attendee) => attendee.name,
@@ -26,7 +27,7 @@ export const attendeeNoteFeature = recordNoteFeature({
   recordPagePath: (attendeeId) => `/admin/attendees/${attendeeId}`,
 });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   ...bindNoteRoutes(
     "/admin/attendee",
     "attendeeId",

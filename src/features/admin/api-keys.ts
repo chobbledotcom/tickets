@@ -1,6 +1,9 @@
 /* jscpd:ignore-start */
-import { entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import {
+  defineAdminRoutes,
+  entityTabRoutes,
+} from "#routes/admin/route-tables.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-end */
 /**
@@ -73,7 +76,7 @@ const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
  */
 const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
   createActionHandler({
-    auth: "owner",
+    pattern: "/admin/api-keys",
     execute: async (session, form) => {
       const name = form.getString("name");
       if (!name) {
@@ -164,7 +167,7 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
     ),
   );
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   ...entityTabRoutes(adminPattern("apiKey"), apiKeyPage),
   "GET /admin/api-keys": handleApiKeysGet,
   "GET /admin/api-keys/:apiKeyId/delete": (request, { apiKeyId }) =>

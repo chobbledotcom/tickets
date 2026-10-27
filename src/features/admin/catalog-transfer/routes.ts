@@ -1,5 +1,7 @@
 /* jscpd:ignore-start -- imports */
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 
 /**
  * Admin routes for catalog import/export.
@@ -151,7 +153,7 @@ const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> =
   });
 
 /** Catalog import/export routes. */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/catalog/import": handleImportGet,
   "GET /admin/groups/:id/export.json": handleGroupExport,
   "GET /admin/listing/:id/export.json": handleListingExport,

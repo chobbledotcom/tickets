@@ -1,5 +1,7 @@
 /* jscpd:ignore-start */
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 
 /**
  * Admin session management routes
@@ -33,7 +35,7 @@ const handleAdminSessionsPost = gatedPost(OWNER_FORM)(async (session) => {
 });
 
 /** Session management routes */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/sessions": handleAdminSessionsGet,
   "POST /admin/sessions": handleAdminSessionsPost,
 });

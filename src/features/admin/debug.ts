@@ -1,5 +1,7 @@
 /* jscpd:ignore-start */
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 
 /* jscpd:ignore-end */
 /**
@@ -323,7 +325,7 @@ const handleSentryTestPost: TypedRouteHandler<"POST /admin/debug/sentry"> =
   });
 
 /** Debug routes */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/debug": handleAdminDebugGet,
   "POST /admin/debug/sentry": handleSentryTestPost,
 });

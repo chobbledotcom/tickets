@@ -52,6 +52,10 @@ export interface RecordNoteRoutesConfig<Record extends { id: number }> {
    * past its own page's audience. An owner-only record passes "owner":
    * wider note routes widen the record page's own audience floor. */
   auth: AuthOption<AuthSession>;
+  /** The add-note route this kind serves, as declared. Its audience is what
+   * the shorthand resolves to, so the role is written once, in the admin
+   * surface. */
+  notePattern: string;
   /** The kind of record the notes are about. */
   entityKind: NoteEntity;
   /** Load one record by id, or null when it does not exist. */
@@ -160,7 +164,10 @@ export const recordNoteFeature = <Record extends { id: number }>(
 ): RecordNoteFeature<Record> => {
   const { activeSection, entityKind, loadRecord, nameOf, noteBasePath } =
     config;
-  const { requireSession, withForm } = resolveAuth(config.auth);
+  const { requireSession, withForm } = resolveAuth(
+    config.auth,
+    config.notePattern,
+  );
   const targetOf = noteTargets.of(entityKind);
   const recordReturn = returnTo(config.recordPagePath);
 

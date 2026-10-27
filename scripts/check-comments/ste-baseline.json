@@ -187,7 +187,7 @@
   },
   "src/features/router.ts": {
     "long-sentence": 1,
-    "semicolon": 3
+    "semicolon": 2
   },
   "src/features/settings-bundles.ts": {
     "long-sentence": 3,

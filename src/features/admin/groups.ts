@@ -1,7 +1,9 @@
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import { entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { defineRoutes } from "#routes/router.ts";
+import {
+  defineAdminRoutes,
+  entityTabRoutes,
+} from "#routes/admin/route-tables.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 
 /**
@@ -266,7 +268,7 @@ const groupImageHandlers = createItemImageHandlers({
   path: (id) => `/admin/groups/${id}/images`,
 });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/groups": crud.listGet,
 
   // The detail + edit pages are one tabbed entity page now: `/admin/groups/:id`

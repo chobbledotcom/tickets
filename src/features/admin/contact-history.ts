@@ -1,4 +1,5 @@
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 
 /**
  * The entity page for a single contact_preferences record, keyed by its HMAC
@@ -138,7 +139,7 @@ const handleContactHistoryPost: TypedRouteHandler<
     return redirect(`/admin/history/${hmac}`, t("contact_history.saved"), true);
   });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/history/:hmac": (request, { hmac }) =>
     contactHistoryEntityPage.renderTab(request, hmac, ""),
   "POST /admin/history/:hmac": handleContactHistoryPost,

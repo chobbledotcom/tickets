@@ -87,6 +87,7 @@ const groupNoteFeature = recordNoteFeature({
   // The routes under test keep the staff-generic gate the factory ships with.
   auth: "any",
   entityKind: "group",
+  notePattern: "/admin/groups/:id/note",
   loadRecord: (id) => getGroupById(id),
   nameOf: (group) => group.name,
   noteBasePath: (id) => `/admin/groups/${id}/note`,

@@ -1,4 +1,4 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
 /**
  * Delivery run sheet routes.
@@ -288,7 +288,7 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
     );
   });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/deliveries": handleDeliveriesGet,
   "POST /admin/deliveries/mark": handleDeliveriesMark,
 });

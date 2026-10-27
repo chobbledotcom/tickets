@@ -1,7 +1,8 @@
 /* jscpd:ignore-start */
 
 import { fieldById } from "#fp";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 
 /**
  * Admin user management routes - owner only
@@ -394,7 +395,7 @@ const userDelete = createConfirmedHandlers<DisplayUser>({
   successRedirect: "/admin/users",
 });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/user/new": handleUserNewGet,
   "GET /admin/users": handleUsersGet,
   "GET /admin/users/:id": handleUserManageGet,

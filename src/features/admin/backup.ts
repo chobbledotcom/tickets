@@ -12,9 +12,10 @@ import {
 } from "#db/backup-storage.ts";
 import { t } from "#i18n";
 import { createActionHandler } from "#routes/admin/actions.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { ownerPage, requireOwnerOr } from "#routes/auth.ts";
 import { downloadResponse, htmlResponse } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { formatBytes } from "#shared/format-units.ts";
@@ -99,7 +100,7 @@ const handleBackupGet: TypedRouteHandler<"GET /admin/backup"> = ownerPage(
 
 const handleBackupCreate: TypedRouteHandler<"POST /admin/backup/create"> =
   createActionHandler({
-    auth: "owner",
+    pattern: "/admin/backup/create",
     execute: async () => {
       // Refuse up front when the dump cannot fit the request's subrequest
       // allowance, instead of crashing partway through the table reads.
@@ -131,7 +132,7 @@ const handleBackupDownload: TypedRouteHandler<
     return downloadResponse(body, filename, "application/zip");
   });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/backup": handleBackupGet,
   "GET /admin/backup/download/:filename": handleBackupDownload,
   "POST /admin/backup/create": handleBackupCreate,

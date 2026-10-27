@@ -25,9 +25,8 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { requiredMapValue } from "#fp";
 import { ADMIN_AREA_LOADERS } from "#routes/admin/area-loaders.ts";
 import type { AdminDestinationDef } from "#shared/admin-surface/definitions.ts";
-import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
+import { ADMIN_SURFACE, oneServedPath } from "#shared/admin-surface.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { oneServedPath } from "#test-utils/admin-surface.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
@@ -44,13 +43,19 @@ const SERVED = 200;
 
 const declared = Object.values(ADMIN_SURFACE.destinations);
 
+/** Pages, the destinations the router answers with a GET of their own. A
+ * write (a settings sub-form, a reorder move, an image upload, a scan) is its
+ * own route with its own gate, and the write walks below ask it with its
+ * method. Only views are walked as pages. */
+const pages = declared.filter((destination) => destination.intent === "view");
+
 /** Pages that answer about the role alone, with no record to look up first. */
-const roleOnly = declared.filter(
+const roleOnly = pages.filter(
   (destination) => !destination.pattern.includes(":"),
 );
 
 /** Pages for one record, where the gate runs before the record is fetched. */
-const recordPages = declared.filter((destination) =>
+const recordPages = pages.filter((destination) =>
   destination.pattern.includes(":"),
 );
 
@@ -58,37 +63,13 @@ const recordPages = declared.filter((destination) =>
  * areas are absent for every role and refuse nobody in particular. */
 const FEATURE_OFF_AREAS = new Set(["builder", "builtSites"]);
 
-/**
- * Tabs of a record page, and the role each one hides from. The page admits
- * the role — its floor is every role that reaches any of its tabs — and then
- * the tab hides itself, which reads as a page that is not there.
- *
- * Pinned by role, not by page, so a tab that stops hiding itself shows up
- * here rather than passing as some other kind of refusal.
- */
-const HIDDEN_TABS = new Set([
-  "listingAttributes:editor",
-  "listingAttributes:manager",
-  "listingQr:editor",
-  "listingQuestions:editor",
-  "listingQuestions:manager",
-]);
-
-/**
- * What a route answers a role it excludes: forbidden, or absent when the page
- * is switched off here or the tab hides itself. A hidden tab only hides the
- * page; the write at the same path is its own route with its own gate, so it
- * still refuses outright.
- */
+/** What a route answers a role it excludes: forbidden, or absent when the
+ * page is switched off here. */
 const refusalFor = (
   destination: AdminDestinationDef,
-  adminLevel: AdminLevel,
-  channel: "page" | "write",
-): number =>
-  FEATURE_OFF_AREAS.has(destination.area) ||
-  (channel === "page" && HIDDEN_TABS.has(`${destination.id}:${adminLevel}`))
-    ? GONE
-    : FORBIDDEN;
+  _adminLevel: AdminLevel,
+  _channel: "page" | "write",
+): number => (FEATURE_OFF_AREAS.has(destination.area) ? GONE : FORBIDDEN);
 
 /** Every method and path the admin serves that is not a GET. */
 const writeRoutes = async (): Promise<Map<string, string>> => {
@@ -177,12 +158,21 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   const writableRoutes = (): AdminDestinationDef[] =>
     declared.filter((one) => methods.has(one.pattern));
 
-  /** The same routes, less the one that ends the session the walk is using.
-   * Asking `POST /admin/logout` as a role it admits succeeds, and every later
-   * request in that walk is then signed out. Logging out is proved by
+  /** The JSON scanner APIs, whose Content-Type middleware answers 400 before
+   * the role gate runs — this suite's form body can neither be admitted nor
+   * refused by the role, so the gates are proved by the scanner feature
+   * suite instead of here. */
+  const JSON_API_WRITE_IDS = new Set(["groupScan", "listingScan"]);
+
+  /** The same routes, less the ones this suite cannot ask: the session-ending
+   * logout, and the JSON scanner APIs. Asking `POST /admin/logout` as a role
+   * it admits succeeds, and every later request in that walk is then signed
+   * out. Logging out is proved by
    * `test/features/admin/auth/logout.test.ts`. */
   const insiderWritableRoutes = (): AdminDestinationDef[] =>
-    writableRoutes().filter((one) => one.id !== "logout");
+    writableRoutes().filter(
+      (one) => one.id !== "logout" && !JSON_API_WRITE_IDS.has(one.id),
+    );
 
   const askOutsiders = async (
     destinations: readonly AdminDestinationDef[],
@@ -202,8 +192,8 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     // would otherwise make this suite pass by testing nothing.
     // The scanner's ticket-cache reads are record routes like their scanner
     // pages: the gate runs before the record lookup, so the matrix walks them.
-    expect(roleOnly.length).toBe(64);
-    expect(recordPages.length).toBe(97);
+    expect(roleOnly.length).toBe(50);
+    expect(recordPages.length).toBe(29);
   });
 
   test("never serves a page to a role it does not declare", async () => {
@@ -248,8 +238,10 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     // The token is real, so a request that gets past the role gate would go
     // on to do the write. Nothing is written while this passes, and a gate
     // that admits too much shows up as an answer that is not a refusal.
-    const wrong = await askOutsiders(writableRoutes(), (one) =>
-      requiredMapValue(methods, one.pattern, `No method for ${one.pattern}`),
+    const wrong = await askOutsiders(
+      writableRoutes().filter((one) => !JSON_API_WRITE_IDS.has(one.id)),
+      (one) =>
+        requiredMapValue(methods, one.pattern, `No method for ${one.pattern}`),
     );
     expect(wrong).toEqual([]);
   });
@@ -280,19 +272,19 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   });
 
   test("covers the write routes the surface declares", () => {
-    expect(writableRoutes().length).toBe(97);
-    expect(insiderWritableRoutes().length).toBe(96);
+    expect(writableRoutes().length).toBe(198);
+    expect(insiderWritableRoutes().length).toBe(195);
   });
 });
 
 describe("the routes this suite cannot ask", () => {
   test("are the writes at a path no route declares", async () => {
     // A write with no declared path takes its roles from its handler alone,
-    // and nothing above compares the two. The count is stated so the gap
-    // cannot widen unnoticed.
+    // and nothing above compares the two. Every write now declares a path, so
+    // the gap cannot widen unnoticed.
     const paths = new Set(declared.map((one) => one.pattern));
     const methods = await writeRoutes();
     const undeclared = [...methods.keys()].filter((path) => !paths.has(path));
-    expect(undeclared.length).toBe(101);
+    expect(undeclared).toEqual([]);
   });
 });
