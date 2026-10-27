@@ -185,14 +185,15 @@ describeWithEnv("checkout-complete > postBookingLegsTx", { db: true }, () => {
       b: { id: string; type: string },
     ): boolean => a.type === b.type && a.id === b.id;
     for (const leg of refund) {
-      // Every reversal matches one original: same amount, endpoints swapped.
-      const original = orderLegs.find(
+      // Every reversal matches exactly one original: same amount, endpoints
+      // swapped.
+      const matching = orderLegs.filter(
         (candidate) =>
           candidate.amount === leg.amount &&
           sameAccountSide(candidate.source, leg.destination) &&
           sameAccountSide(candidate.destination, leg.source),
       );
-      expect(original).toBeDefined();
+      expect(matching).toHaveLength(1);
       expect(leg.kind?.startsWith("refund_")).toBe(true);
     }
     // The cash leg comes back as refund_cash (the payment relabel), never a
