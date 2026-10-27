@@ -2,7 +2,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { RATCHET_GUIDE } from "#scripts/check-test-quality/gate.ts";
-import { gateExit } from "#scripts/check-test-quality.ts";
+import { gateExit } from "#scripts/check-test-quality/run.ts";
 import type { EnvironmentValues } from "#scripts/environment-values.ts";
 import { withEnvironment } from "#scripts/test-environment.ts";
 import { capturedCheckOutput } from "#test-utils/check-script.ts";
