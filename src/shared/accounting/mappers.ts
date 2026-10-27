@@ -69,17 +69,12 @@ const refundKind = (kind: string): string =>
   REFUND_KIND[kind] ?? `refund_${kind}`;
 
 /**
- * The VAT facts a booking carries. Either a rate applied to the booking's
- * taxable total in one of two directions, or an already-computed amount:
- *
- * - `add_to_total`: the sale/modifier amounts are ex-VAT and the tax is charged
- *   on top. The posted total is the subtotal plus VAT.
- * - `calculate_from_total`: the sale/modifier amounts include VAT, and
- *   `mapBooking` splits the tax out so income stays ex-VAT.
- * - `{ amount }`: the caller already worked the tax out and reduced the lines
- *   itself if the prices included it. `mapBooking` just posts it.
- *
- * `rate` is a fraction (0.2 is 20%). The booking fee never carries VAT.
+ * The VAT facts a booking carries: a rate in `add_to_total` or
+ * `calculate_from_total` mode, or a pre-computed `amount`. Add-to-total
+ * charges the tax on top of ex-VAT amounts. Calculate-from-total splits the
+ * tax out of amounts that include it, so income stays ex-VAT. `{ amount }`
+ * posts the caller's own tax figure. `rate` is a fraction (0.2 is 20%).
+ * The booking fee never carries VAT.
  */
 export type VatFacts =
   | { readonly mode: "add_to_total"; readonly rate: number }
