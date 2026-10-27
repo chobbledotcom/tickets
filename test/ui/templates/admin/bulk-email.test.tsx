@@ -20,7 +20,10 @@ describe("bulkEmailTemplateDeletePage", () => {
       html,
       "Are you sure you want to delete the saved template with subject:",
     );
-    assertStringIncludes(html, "<strong>March offers &amp; news</strong>");
+    assertStringIncludes(
+      html,
+      "with subject: <strong>March offers &amp; news</strong>",
+    );
     assertStringIncludes(html, "<p>Type the template subject to confirm:</p>");
     assertStringIncludes(
       html,
