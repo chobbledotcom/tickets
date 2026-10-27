@@ -329,7 +329,6 @@ src/shared/payment-provider-status.ts::providerMode.stripe~0bfh0wn  ?? → || au
 # request's own closed window, not by when it was armed; and the
 # next-action instant is stored by transitions, never compared.
 src/shared/payment/refund-machine-spec.ts::NEXT~0t2ipiv 60000→0 audited:0jevsrl # stored by transitions, never compared to NOW
-src/shared/payment/refund-machine-spec.ts::KEYED~1io4set 3600000→0 audited:0jevsrl # strict comparisons keep a window at exactly NOW live
 src/shared/payment/refund-machine-spec.ts::armedPastWindow~0fsqlbf 3600000→0 audited:0jevsrl # expiry comes from EXPIRED_KEYED's window, not the armed moment
 
 # refund-machine-spec.ts representative tags on nodes whose cells are all

@@ -57,7 +57,7 @@ const keyedRequest = (
   identityIndex: REQUEST_INDEX,
   replayUntil,
 });
-/** A keyed request whose window closes exactly at the send time, so a replay at the deadline is still inside it. */
+/** A keyed request whose replay window closes exactly at the send time. */
 const KEYED = keyedRequest(NOW);
 const KEYLESS: RefundRequestGeneration = {
   capability: "keyless",
