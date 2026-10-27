@@ -182,6 +182,14 @@ describe("ListingDataSchema datetime", () => {
     }
   });
 
+  test("rejects a year below 100", () => {
+    // Date.UTC maps the years 0 to 99 onto 1900 to 1999. The rolled date keeps
+    // its month and day, so only the year comparison rejects these.
+    for (const date of ["0000-01-01T00:00", "0099-06-05T10:30"]) {
+      expect(parseDate(date).success).toBe(false);
+    }
+  });
+
   test("rejects out-of-range time parts", () => {
     for (const date of [
       "2026-06-05T24:00",
@@ -273,6 +281,18 @@ describe("ListingDataSchema day prices", () => {
     }
   });
 
+  test("joins a field's repeated messages with a semicolon", () => {
+    const result = parseDayPrices({ weekday: 100 });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(formatTransferIssues(result.issues)).toBe(
+        "Invalid catalog file — dayPrices.weekday: " +
+          "day count must be a positive whole number; " +
+          `day count must be between 1 and ${MAX_DURATION_DAYS}`,
+      );
+    }
+  });
+
   test("rejects a zero day-count key", () => {
     expect(parseDayPrices({ 0: 100 }).success).toBe(false);
   });
@@ -359,6 +379,17 @@ describe("ListingTransferSchema version", () => {
       kind: "listing",
       listing: { maxAttendees: 1, name: "Thing" },
       version: CATALOG_TRANSFER_VERSION,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("accepts a blob written at version 1", () => {
+    // The version is a wire contract with saved files: pin its literal, so a
+    // changed constant cannot pass its own self-referential check.
+    const result = v.safeParse(ListingTransferSchema, {
+      kind: "listing",
+      listing: { maxAttendees: 1, name: "Thing" },
+      version: 1,
     });
     expect(result.success).toBe(true);
   });
