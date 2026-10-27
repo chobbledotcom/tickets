@@ -80,6 +80,7 @@ describe("Cucumber story catalog", () => {
       "payments.ended-checkout-try-again",
       "payments.free-bookings",
       "payments.income-figures-explained",
+      "payments.no-tax-on-ordinary-bookings",
       "payments.one-payment-many-listings",
       "payments.only-owners-refund",
       "payments.paying-a-deposit",
