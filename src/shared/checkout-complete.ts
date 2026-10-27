@@ -10,8 +10,17 @@
  * its create transaction via {@link manualAddLedgerPoster}.
  */
 
+/* jscpd:ignore-start */
+import { attendeeAccount, WORLD, WRITEOFF } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
 import { ledgerTx } from "#accounting/ledger-tx.ts";
-import { mapBooking } from "#accounting/mappers.ts";
+import {
+  MANUAL_ATTENDEE_CHARGE,
+  MANUAL_ATTENDEE_WRITEOFF,
+} from "#accounting/manual-entries.ts";
+import { bookingEventGroup, mapBooking } from "#accounting/mappers.ts";
+import { legReference, type RefPart } from "#accounting/refs.ts";
+import { encrypt } from "#crypto/encryption.ts";
 import type {
   AttendeeCreationWork,
   BookingBatchPlan,
@@ -20,11 +29,15 @@ import { type TxScope, update } from "#db/client.ts";
 import type { ModifierUsage } from "#db/modifier-usage.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
+  type BookingLedgerContext,
   bookingFactsFromOrder,
   owedOrderForLedger,
 } from "#shared/checkout-ledger.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
+import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
+
+/* jscpd:ignore-end */
 
 /**
  * The attendee id stitched into the booking facts when building legs for the
@@ -109,4 +122,110 @@ export const manualAddLedgerPoster =
       }),
     );
     await postBookingLegsTx(tx, attendeeId, legs);
+  };
+
+/** One named one-off amount an API create records. `amount` is signed minor
+ * units: positive bills the attendee (a charge), negative forgives part of the
+ * debt (a writeoff). `description` is the label the Ledger tab shows. */
+export type CreateAdjustment = {
+  amount: number;
+  description: string;
+};
+
+/** The money an API create records beyond the priced lines: payments already
+ * received, and named one-off adjustments. */
+export type CreateReceipts = {
+  adjustments: CreateAdjustment[];
+  payments: number[];
+};
+
+/** One API-create leg (a payment or an adjustment) sharing the booking event
+ * group. A distinct per-leg reference keeps each independent for refunds and
+ * display. */
+const apiCreateLeg = async (
+  ctx: BookingLedgerContext,
+  group: string,
+  refParts: RefPart[],
+  leg: {
+    amount: number;
+    destination: AccountRef;
+    kind: string;
+    memo?: string | undefined;
+    source: AccountRef;
+  },
+): Promise<TransferInput> => {
+  const { memo, ...rest } = leg;
+  return {
+    ...rest,
+    ...(memo === undefined ? {} : { memo }),
+    eventGroup: group,
+    occurredAt: ctx.occurredAt,
+    reference: await legReference(refParts),
+  };
+};
+
+/** One adjustment leg, in the exact shape a manual attendee charge or writeoff
+ * posts. The WRITEOFF contra sits on the far side. The manual entry kind makes
+ * the order total count a charge, and the Ledger tab labels it. The operator's
+ * description is free text, so it is owner-key encrypted before the `memo`
+ * column stores it. */
+const adjustmentLeg = async (
+  attendee: AccountRef,
+  adjustment: CreateAdjustment,
+  index: number,
+  ctx: BookingLedgerContext,
+  group: string,
+): Promise<TransferInput> => {
+  const charge = adjustment.amount > 0;
+  return apiCreateLeg(ctx, group, ["api-adjustment", ctx.eventId, index], {
+    amount: Math.abs(adjustment.amount),
+    destination: charge ? WRITEOFF : attendee,
+    kind: charge ? MANUAL_ATTENDEE_CHARGE : MANUAL_ATTENDEE_WRITEOFF,
+    memo: await encrypt(adjustment.description),
+    source: charge ? attendee : WRITEOFF,
+  });
+};
+
+/**
+ * The creation work for an API attendee create. Unlike the manual-add form,
+ * the create body can carry a per-line price override, payments already
+ * received, and named adjustments. The poster records every leg of the money
+ * at creation. It posts the gross `sale` legs at the lines' prices. It posts
+ * one `payment` leg per received payment. It posts the charge/writeoff contra
+ * legs. All legs share one event group, so a refund that reads the posted legs
+ * back reverses every one of them exactly.
+ */
+export const apiCreateLedgerPoster =
+  (order: PricedOrder, receipts: CreateReceipts): AttendeeCreationWork =>
+  async (tx, attendeeId) => {
+    const ctx: BookingLedgerContext = {
+      attendeeId,
+      eventId: String(attendeeId),
+      occurredAt: nowIso(),
+    };
+    const legs = await mapBooking(
+      bookingFactsFromOrder(owedOrderForLedger(order), ctx),
+    );
+    const group = await bookingEventGroup(ctx.eventId);
+    const attendee = attendeeAccount(attendeeId);
+    await postBookingLegsTx(tx, attendeeId, [
+      ...legs,
+      // One payment leg per received payment: cash from the world into the
+      // attendee.
+      ...(await Promise.all(
+        receipts.payments.map((amount, index) =>
+          apiCreateLeg(ctx, group, ["api-payment", ctx.eventId, index], {
+            amount,
+            destination: attendee,
+            kind: KIND.payment,
+            source: WORLD,
+          }),
+        ),
+      )),
+      ...(await Promise.all(
+        receipts.adjustments.map((adjustment, index) =>
+          adjustmentLeg(attendee, adjustment, index, ctx, group),
+        ),
+      )),
+    ]);
   };

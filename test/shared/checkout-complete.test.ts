@@ -1,10 +1,20 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { mapBooking } from "#accounting/mappers.ts";
+import {
+  bookingEventGroup,
+  mapBooking,
+  mapRefund,
+} from "#accounting/mappers.ts";
+import { transfersByEventGroup } from "#accounting/queries.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { loadExistingLines } from "#db/attendees/atomic-update.ts";
 import { withTransaction } from "#db/client.ts";
-import { postBookingLegsTx } from "#shared/checkout-complete.ts";
+import {
+  apiCreateLedgerPoster,
+  postBookingLegsTx,
+} from "#shared/checkout-complete.ts";
+import { listPriceOrder } from "#shared/checkout-pricing.ts";
+import { account } from "#shared/ledger/account.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -94,5 +104,102 @@ describeWithEnv("checkout-complete > postBookingLegsTx", { db: true }, () => {
     expect(await stampOfFirstLine(attendeeId)).toBe(
       firstOrderLegs[0]!.eventGroup,
     );
+  });
+
+  test("apiCreateLedgerPoster posts the sale at custom prices plus payments and adjustments", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 5,
+      name: "API Poster Fair",
+      unitPrice: 500,
+    });
+    const order = listPriceOrder([{ listing, quantity: 2, unitPrice: 400 }]);
+    const made = await attendeesApi.createAttendeeAtomic(
+      {
+        bookings: [{ listingId: listing.id, quantity: 2 }],
+        email: "api@example.com",
+        name: "API Poster",
+        remainingBalance: 250,
+      },
+      apiCreateLedgerPoster(order, {
+        adjustments: [
+          { amount: 100, description: "Delivery" },
+          { amount: -50, description: "Loyalty" },
+        ],
+        payments: [600],
+      }),
+    );
+    if (!made.success) throw new Error("booking setup failed");
+    const attendeeId = made.attendees[0]!.id;
+
+    const legs = await transfersByEventGroup(
+      await bookingEventGroup(String(attendeeId)),
+    );
+    // Sale at the agreed 400/unit, the payment, the charge and the writeoff:
+    // one event group, so a refund reverses every one of them together.
+    const byKind = (kind: string) => legs.filter((leg) => leg.kind === kind);
+    expect(byKind("sale")[0]!.amount).toBe(800);
+    expect(byKind("sale")[0]!.destination).toEqual(
+      account("revenue", listing.id),
+    );
+    expect(byKind("payment")[0]!.amount).toBe(600);
+    expect(byKind("payment")[0]!.source).toEqual(account("external", "world"));
+    expect(byKind("manual_attendee_charge")[0]!.amount).toBe(100);
+    expect(byKind("manual_attendee_writeoff")[0]!.amount).toBe(50);
+    expect(new Set(legs.map((leg) => leg.eventGroup)).size).toBe(1);
+  });
+
+  test("a refund of an API-created order reverses every posted leg exactly", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 5,
+      name: "API Refund Fair",
+      unitPrice: 500,
+    });
+    const order = listPriceOrder([{ listing, quantity: 1 }]);
+    const made = await attendeesApi.createAttendeeAtomic(
+      {
+        bookings: [{ listingId: listing.id, quantity: 1 }],
+        email: "refund@example.com",
+        name: "API Refund",
+        remainingBalance: 550,
+      },
+      apiCreateLedgerPoster(order, {
+        adjustments: [{ amount: 200, description: "Delivery" }],
+        payments: [150],
+      }),
+    );
+    if (!made.success) throw new Error("booking setup failed");
+    const attendeeId = made.attendees[0]!.id;
+    const orderLegs = await transfersByEventGroup(
+      await bookingEventGroup(String(attendeeId)),
+    );
+    expect(orderLegs.length).toBe(3);
+
+    const refund = await mapRefund({
+      occurredAt: "2026-06-22T09:00:00.000Z",
+      orderLegs,
+      postedBy: "test",
+    });
+    expect(refund).toHaveLength(orderLegs.length);
+    const sameAccountSide = (
+      a: { id: string; type: string },
+      b: { id: string; type: string },
+    ): boolean => a.type === b.type && a.id === b.id;
+    for (const leg of refund) {
+      // Every reversal matches one original: same amount, endpoints swapped.
+      const original = orderLegs.find(
+        (candidate) =>
+          candidate.amount === leg.amount &&
+          sameAccountSide(candidate.source, leg.destination) &&
+          sameAccountSide(candidate.destination, leg.source),
+      );
+      expect(original).toBeDefined();
+      expect(leg.kind?.startsWith("refund_")).toBe(true);
+    }
+    // The cash leg comes back as refund_cash (the payment relabel), never a
+    // generic refund_payment.
+    const cashReturn = refund.find(
+      (leg) => leg.destination.type === "external",
+    );
+    expect(cashReturn!.kind).toBe("refund_cash");
   });
 });

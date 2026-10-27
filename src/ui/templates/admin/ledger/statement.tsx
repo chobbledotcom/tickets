@@ -1,3 +1,4 @@
+import { isManualLedgerEntryType } from "#accounting/manual-entries.ts";
 import { t } from "#i18n";
 import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { sameAccount } from "#shared/ledger/account.ts";
@@ -5,6 +6,7 @@ import type { StatementLine } from "#shared/ledger/project.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import { ledgerEntryAddHref } from "#shared/ledger-links.ts";
 import {
+  type AccountCell,
   humanDescription,
   shownFigure,
   statementBalanceKey,
@@ -29,6 +31,24 @@ const counterparty = (line: StatementLine, account: AccountRef): AccountRef =>
     ? line.transfer.source
     : line.transfer.destination;
 
+/** One statement row's activity line: the human description, plus the
+ * operator's own description when an owner-entered entry carries one (an
+ * API-created adjustment). The loader decrypts the memo first. */
+const statementActivity = (
+  line: StatementLine,
+  accountCell: AccountCell,
+): JSX.Element => {
+  const { memo } = line.transfer;
+  return (
+    <>
+      {humanDescription(line.transfer, accountCell)}
+      {memo && isManualLedgerEntryType(line.transfer.kind ?? "") ? (
+        <> {memo}.</>
+      ) : null}
+    </>
+  );
+};
+
 export type AccountLedgerData = {
   account: AccountRef;
   lines: StatementLine[];
@@ -48,7 +68,7 @@ const AccountStatementTable = ({
     columns: [
       timeColumn((line: StatementLine) => line.transfer.occurredAt),
       {
-        cell: (line) => humanDescription(line.transfer, accountCell),
+        cell: (line) => statementActivity(line, accountCell),
         headerKey: "admin.ledger.col.activity",
         key: "activity",
       },

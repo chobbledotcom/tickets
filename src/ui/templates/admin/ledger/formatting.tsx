@@ -19,7 +19,7 @@ import {
 import { t } from "#i18n";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 
-type AccountCell = (account: AccountRef) => JSX.Element | string;
+export type AccountCell = (account: AccountRef) => JSX.Element | string;
 
 const humanAccount = (transfer: Transfer, type: string): AccountRef | null => {
   if (transfer.source.type === type) return transfer.source;

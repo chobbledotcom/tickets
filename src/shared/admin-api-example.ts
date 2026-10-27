@@ -194,12 +194,17 @@ const ADMIN_API_ATTENDEE_STATUS_DELETE_BODY = {
 } satisfies DeleteBody;
 
 /** The create body a caller copies: one booking line on a standard listing,
- *  with the attendee's contact fields and the status by name. */
+ *  with the attendee's contact fields and the status by name. The line carries
+ *  an agreed per-unit `price` (minor units), the body records a `payment`
+ *  already received, and a named `adjustment` bills the delivery. All amounts
+ *  are minor units. */
 const ADMIN_API_ATTENDEE_CREATE_BODY = {
   address: "12 Main Street, Springfield",
+  adjustments: [{ amount: 250, description: "Delivery" }],
   email: "jane@example.com",
-  lines: [{ listingId: 4, quantity: 2 }],
+  lines: [{ listingId: 4, price: 4500, quantity: 2 }],
   name: "Jane Doe",
+  payments: [{ amount: 9000 }],
   phone: "+1 555 0123",
   special_instructions: "Vegetarian",
   status: "Confirmed",
