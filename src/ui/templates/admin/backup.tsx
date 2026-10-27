@@ -145,15 +145,17 @@ const renderBody = (state: BackupPageState): JSX.Element => (
         </ProseSection>
 
         <section>
-          <h2>{t("backup.existing_backups_heading")}</h2>
-          <p>
-            {state.storageZone
-              ? t("backup.stored_in_zone", {
-                  folder: state.backupFolder,
-                  zone: state.storageZone,
-                })
-              : t("backup.stored_in_folder", { folder: state.backupFolder })}
-          </p>
+          <div class="prose">
+            <h2>{t("backup.existing_backups_heading")}</h2>
+            <p>
+              {state.storageZone
+                ? t("backup.stored_in_zone", {
+                    folder: state.backupFolder,
+                    zone: state.storageZone,
+                  })
+                : t("backup.stored_in_folder", { folder: state.backupFolder })}
+            </p>
+          </div>
           {state.listingError ? (
             <p>
               <em>

@@ -1,10 +1,9 @@
 /** The machine that ends an unpaid Square checkout's payment link.
  *
  * A Square payment link stays payable for 180 days unless somebody ends it.
- * The site therefore stores one cancel handle per unpaid checkout, and a task
- * ends each link at its window. The row is the whole machine: it exists
- * exactly while its link can still take payment. It leaves the table the
- * moment Square proves the link ended, was already gone, or was paid.
+ * The site stores one cancel handle per unpaid checkout. A task ends the
+ * link at its window. A confirmed end or payment removes the handle.
+ * Native expiry plus the webhook retry window also permits age cleanup.
  *
  * `pending` and `ending` are the stored words. `unwritten` and `gone` are
  * the virtual ends of the map: a row that does not exist yet, and a row
@@ -43,9 +42,8 @@ export type SquareLinkEndRow = {
   readonly state: SquareLinkEndNodeId;
 };
 
-/** Whether the link behind a node can still take payment. The safety
- * property is stated over this fact: a row whose link can still take payment
- * is never pruned by retention, however old it gets. */
+/** Whether the link behind a node can take payment before native expiry.
+ * Age can make a stored link unpayable without a provider reply. */
 export type LinkTakesPayment = "no" | "until_square_answers" | "yes";
 
 export type SquareLinkEndNode = MachineNode<

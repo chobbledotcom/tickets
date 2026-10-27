@@ -1,7 +1,7 @@
 /** The declared contracts this repository pins in code, as one plain JSON
- * shape: every state machine's states, moves, and money flags, plus the
- * joint-state seam. `deno task contract:diff` dumps this shape from the
- * head and from a base worktree, then reports the semantic changes.
+ * shape: every state machine's states, moves, and money flags. `deno task
+ * contract:diff` dumps this shape from the head and from a base worktree,
+ * then reports the semantic changes.
  *
  * This module also runs inside the base worktree, which holds an older
  * tree. Each machine's events and declared table load lazily, per machine
@@ -14,7 +14,6 @@
 
 import * as v from "valibot";
 import { sort } from "#fp";
-import { ILLEGAL_JOINT_STATES } from "#payment/joint-state.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import type { AtlasMachine } from "#shared/schema-atlas/types.ts";
 
@@ -56,24 +55,11 @@ export const DumpedMachineSchema = v.object({
 });
 export type DumpedMachine = v.InferOutput<typeof DumpedMachineSchema>;
 
-/** One entry of the declared seam: a joint state the flows say cannot
- * exist. */
-export const DumpedJointStateSchema = v.object({
-  authority: v.string(),
-  rows: v.array(v.string()),
-});
-export type DumpedJointState = v.InferOutput<typeof DumpedJointStateSchema>;
-
 /** Every declared contract in one shape, so two checkouts can diff. */
 export const ContractsSchema = v.object({
-  jointStates: v.array(DumpedJointStateSchema),
   machines: v.record(v.string(), DumpedMachineSchema),
 });
 export type Contracts = v.InferOutput<typeof ContractsSchema>;
-
-/** How one joint-state entry reads in a report. */
-export const jointStateKey = (state: DumpedJointState): string =>
-  `${state.authority} cannot sit on ${state.rows.join(", ")}`;
 
 /** The events whose label keys name a machine's edges, by machine id. */
 type MachineEvents = readonly {
@@ -85,20 +71,31 @@ type MachineEvents = readonly {
 /** One machine's declared table, validated into the dump's shape, or
  * undefined when the module that holds it does not exist in this tree: a
  * branch can introduce a table the base never had, and the base dump then
- * reports no table, which the differ reports as an added table. Any other
- * failure stops the dump. */
+ * reports no table, which the differ reports as an added table. The loader
+ * that imports the table hands over its specifier, and only an error that
+ * names that module reads as no table — a missing import one level deeper
+ * stops the dump, because it is a break, not an absent table (issue
+ * #2740). Any other failure stops the dump. */
 export const declaredTableOrNone = async (
   machineId: string,
   load: () => unknown,
+  tableModuleSpecifier?: string,
 ): Promise<DumpedDeclaredMoves | undefined> => {
   let table: unknown;
   try {
     table = await load();
   } catch (error) {
-    if (error instanceof TypeError && /module not found/i.test(error.message)) {
-      return;
+    // The error quotes the module bare ("#test/…") or resolved
+    // ("file:///…/test/…"); both carry the path without the "#".
+    const missingTableModule =
+      tableModuleSpecifier !== undefined &&
+      error instanceof TypeError &&
+      /module not found/i.test(error.message) &&
+      error.message.includes(tableModuleSpecifier.replace(/^#/, ""));
+    if (!missingTableModule) {
+      throw error;
     }
-    throw error;
+    return;
   }
   const parsed = v.safeParse(DumpedDeclaredMovesSchema, table);
   if (!parsed.success) {
@@ -119,13 +116,20 @@ type MachineContract = {
 type MachineLoader = () => Promise<MachineContract>;
 
 /** One machine's declared contract: its events beside its declared table,
- * the table read through the dump's own validator. */
+ * the table read through the dump's own validator. A table that comes from
+ * its own module carries that module's specifier, so a not-found error can
+ * be matched against the module it names. */
 const machineContract = async (
   machineId: string,
   events: MachineEvents,
   table: () => unknown,
+  tableModuleSpecifier?: string,
 ): Promise<MachineContract> => ({
-  declaredMoves: await declaredTableOrNone(machineId, table),
+  declaredMoves: await declaredTableOrNone(
+    machineId,
+    table,
+    tableModuleSpecifier,
+  ),
   events,
 });
 
@@ -136,18 +140,26 @@ const MACHINE_LOADERS: Readonly<Record<string, MachineLoader>> = {
     ),
   review: () =>
     import("#payment/review-machine-spec.ts").then((m) =>
-      machineContract("review", m.REVIEW_EVENTS, () =>
-        import(
-          "#test/shared/payment/review-machine-spec/expected-moves.ts"
-        ).then((t) => t.EXPECTED_MOVES),
+      machineContract(
+        "review",
+        m.REVIEW_EVENTS,
+        () =>
+          import(
+            "#test/shared/payment/review-machine-spec/expected-moves.ts"
+          ).then((t) => t.EXPECTED_MOVES),
+        "#test/shared/payment/review-machine-spec/expected-moves.ts",
       ),
     ),
   row: () =>
     import("#payment/row-machine-spec.ts").then((m) =>
-      machineContract("row", m.ROW_EVENTS, () =>
-        import("#test/shared/payment/row-machine-spec/expected-moves.ts").then(
-          (t) => t.EXPECTED_MOVES,
-        ),
+      machineContract(
+        "row",
+        m.ROW_EVENTS,
+        () =>
+          import(
+            "#test/shared/payment/row-machine-spec/expected-moves.ts"
+          ).then((t) => t.EXPECTED_MOVES),
+        "#test/shared/payment/row-machine-spec/expected-moves.ts",
       ),
     ),
   square_link_ends: () =>
@@ -269,12 +281,6 @@ export const contractsFromAtlas = async (
     dumped[machine.id] = dumpMachine(machine, events, declaredMoves);
   }
   return {
-    jointStates: ILLEGAL_JOINT_STATES.map((entry) => ({
-      authority: entry.authority,
-      rows: sortedStrings(entry.rows),
-    })).sort((left, right) =>
-      jointStateKey(left).localeCompare(jointStateKey(right)),
-    ),
     machines: dumped,
   };
 };

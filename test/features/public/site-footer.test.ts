@@ -317,13 +317,14 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
       return realExecute(statement);
     });
     // The database refused the footer's lookup, so the page still answers
-    // and the footer keeps the reference's alt text.
+    // and the footer shows the reference's alt text with no picture to load.
     const html = await expectHtmlResponse(
       await withRequestContext(() => temporaryErrorResponse("GET")),
       503,
-      '<img src="" alt="FooterBrokenRead">',
+      "<p>Note.FooterBrokenRead</p>",
     );
     assert(!html.includes(`<img src="/image/${image.filename}"`));
+    assert(!html.includes("<img"));
   });
 
   test("the footer's img#N reference resolves on the migration page", async () => {

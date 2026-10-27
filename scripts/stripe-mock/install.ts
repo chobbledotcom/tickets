@@ -8,7 +8,11 @@ import { type StaleClaimSettings, withClaim } from "#scripts/stale-claim.ts";
 
 /* jscpd:ignore-end */
 
-const STRIPE_MOCK_VERSION = "0.188.0";
+/** The stripe-mock release this repo pins. Every workflow that caches
+ * `.bin` names the same release in its STRIPE_MOCK_VERSION env — the
+ * workflow-env test holds the two sides together. */
+export const STRIPE_MOCK_VERSION = "0.188.0";
+
 const INSTALL_LOCK_RETRY_MS = 50;
 const INSTALL_LOCK_TIMEOUT_MS = 60_000;
 const INSTALL_LOCK_STALE_MS = 30_000;

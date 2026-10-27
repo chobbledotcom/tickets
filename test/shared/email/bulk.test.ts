@@ -345,7 +345,7 @@ describe("sendBulkEmails", () => {
     );
     const result = await sendBulkEmails(postmark, payload(1));
 
-    const [reason] = result.responses[0]?.outcome.reasons ?? [];
+    const [reason] = result.responses[0]!.outcome.reasons;
     expect(reason).toBe("Postmark error 406: Recipient [redacted] is inactive");
   });
 

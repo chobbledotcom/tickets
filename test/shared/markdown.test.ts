@@ -71,7 +71,8 @@ describe("markdown", () => {
     test("strips data: URLs from images", () => {
       const result = renderMarkdown("![x](data:text/html,<script>)");
       assert(!result.includes("data:text/html"));
-      assertStringIncludes(result, 'src=""');
+      assert(!result.includes("<img"));
+      assertStringIncludes(result, "<p>x</p>");
     });
 
     test("keeps safe https links", () => {
@@ -98,10 +99,11 @@ describe("markdown", () => {
       assertStringIncludes(result, 'alt="poster"');
     });
 
-    test("renders an img#N reference with no table entry as an empty src", () => {
+    test("renders an img#N reference with no table entry as its alt text", () => {
       const result = renderMarkdown("![poster](img#9)");
-      assertStringIncludes(result, 'src=""');
-      assertStringIncludes(result, 'alt="poster"');
+      assert(!result.includes("<img"));
+      assert(!result.includes("src="));
+      assertStringIncludes(result, "<p>poster</p>");
     });
 
     test("strips an img#N reference when the mapped URL is unsafe", () => {
@@ -379,12 +381,13 @@ describe("markdown", () => {
       );
     });
 
-    test("renders no image source when the table lacks the id", () => {
+    test("renders the alt text when the table lacks the id", () => {
       const result = renderMarkdown(
         "![Hero](img#7)",
         new Map([[9, "/image/other.webp"]]),
       );
-      assertStringIncludes(result, '<img src="" alt="Hero">');
+      assertStringIncludes(result, "<p>Hero</p>");
+      assert(!result.includes("<img"));
       assert(!result.includes("/image/"));
     });
 
@@ -413,21 +416,17 @@ describe("markdown", () => {
       });
     });
 
-    test("renders no image source before any page-image write", async () => {
+    test("renders the alt text before any page-image write", async () => {
       await withRequestContext(() => {
-        assertStringIncludes(
-          renderMarkdown("![Hero](img#7)"),
-          '<img src="" alt="Hero">',
-        );
+        assertStringIncludes(renderMarkdown("![Hero](img#7)"), "<p>Hero</p>");
+        assert(!renderMarkdown("![Hero](img#7)").includes("<img"));
       });
     });
 
     test("keeps a page-image write outside a request a no-op", () => {
       mergePageImageUrls(new Map([[7, "/image/hero.webp"]]));
-      assertStringIncludes(
-        renderMarkdown("![Hero](img#7)"),
-        '<img src="" alt="Hero">',
-      );
+      assertStringIncludes(renderMarkdown("![Hero](img#7)"), "<p>Hero</p>");
+      assert(!renderMarkdown("![Hero](img#7)").includes("<img"));
     });
 
     test("keeps a img#id link target as the author wrote it", () => {

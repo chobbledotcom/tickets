@@ -5,16 +5,16 @@
  * helper built on them is timed and counted without asking.
  */
 
-import {
-  type Client,
-  type InStatement,
-  type InValue,
-  LibsqlError,
-  type ResultSet,
-  type Transaction,
-  type TransactionMode,
+import type {
+  Client,
+  InStatement,
+  InValue,
+  ResultSet,
+  Transaction,
+  TransactionMode,
 } from "@libsql/client";
 import { createDatabaseClient } from "#db/database-client.ts";
+import { classifyDatabaseError, DATABASE_RETRY } from "#db/errors.ts";
 import { beginTransaction, wrapExecute } from "#db/libsql-call.ts";
 import { mustReadFromPrimary } from "#db/primary-reads.ts";
 import {
@@ -143,10 +143,10 @@ const executeWithRoundTripGuard = executeWithRoundTrip((_statement, execute) =>
 );
 
 /** Count and retry a bare client statement. Transaction statements use only the
- * round-trip guard above because their surrounding write must not be replayed. */
+ * round-trip guard above: the transaction runner owns the retry decision. */
 const executeWithTransientRetry = executeWithRoundTrip((statement, execute) =>
   retryOnTransientDatabaseError(execute, {
-    retryUpstream: isReadSql(sqlOf(statement)),
+    isRead: isReadSql(sqlOf(statement)),
   }),
 );
 
@@ -257,46 +257,31 @@ const transientErrorBackoffMs = (): readonly number[] =>
  *  file database retries longer, where no subrequest budget binds. */
 export const DATABASE_MAX_ATTEMPTS = TRANSIENT_ERROR_BACKOFF_MS.length + 1;
 
-/** SQLite has a single writer, so a contended write surfaces as SQLITE_BUSY —
- *  thrown immediately by the local driver as "database is locked" when a bare
- *  statement can't take the lock, or at an interactive transaction's commit as
- *  "cannot commit transaction - SQL statements in progress" when another writer
- *  still holds the connection. Both carry SQLITE_BUSY in the message. */
-const isDatabaseLocked = (error: unknown): boolean =>
-  error instanceof Error &&
-  /SQLITE_BUSY|database is locked/i.test(error.message);
-
-/** The libsql server briefly rejecting a fresh connection (421) or its gateway
- *  timing out / becoming momentarily unreachable (502/503/504), which the
- *  client surfaces as a SERVER_ERROR LibsqlError naming the HTTP status. Worth
- *  a retry on a read; a genuine client or server fault (400/500) would only be
- *  replayed by one. */
-const TRANSIENT_UPSTREAM_STATUS_RE =
-  /Server returned HTTP status (?:421|502|503|504)\b/;
-
-const isTransientUpstreamError = (error: unknown): boolean =>
-  error instanceof LibsqlError &&
-  error.code === "SERVER_ERROR" &&
-  TRANSIENT_UPSTREAM_STATUS_RE.test(error.message);
-
 /**
- * The one place two retry rules are spelled out:
+ * The one place the retry rules run. {@link DATABASE_RETRY} says how often
+ * each kind retries on a read and on a write:
  *
- * - SQLITE_BUSY always retries. The lock was never taken, so nothing ran.
- * - A fleeting upstream 421/502/503/504 retries on READS ONLY. On a write the
- *   same response can arrive after the write landed, so a replay would
- *   double-apply.
- *
- * Every other error propagates at once.
+ * - SQLITE_BUSY always retries — the lock was never taken, so nothing ran.
+ *   When its retries run out, the failure surfaces as DatabaseBusyError.
+ * - A fleeting upstream 421/502/503/504 retries on READS ONLY: on a write
+ *   it can arrive after the write landed, so a replay can double-apply.
+ * - A transport failure retries on reads like an upstream status. On a
+ *   write only a Connect failure retries, one attempt — nothing left the
+ *   edge. A SendRequest failure can arrive after the statement ran.
  */
 const retryOnTransientDatabaseError = <T>(
   run: () => Promise<T>,
-  { retryUpstream }: { retryUpstream: boolean },
+  { isRead }: { isRead: boolean },
 ): Promise<T> =>
-  retryWithBackoff(run, transientErrorBackoffMs(), (error, { willRetry }) => {
-    if (retryUpstream && isTransientUpstreamError(error)) return;
-    if (!isDatabaseLocked(error)) throw error;
-    if (!willRetry) throw new DatabaseBusyError();
+  retryWithBackoff(run, transientErrorBackoffMs(), (error, { attempt }) => {
+    const kind = classifyDatabaseError(error);
+    const rule = DATABASE_RETRY[kind][isRead ? "read" : "write"];
+    // A "ladder" rule walks the database's whole transient backoff ladder,
+    // whose length is its retry count.
+    const retries = rule === "ladder" ? transientErrorBackoffMs().length : rule;
+    if (attempt < retries) return;
+    if (kind === "locked") throw new DatabaseBusyError();
+    throw error;
   });
 
 /** A single-statement runner: takes the SQL and its optional bound args and
@@ -511,12 +496,12 @@ const runBatch = async (
   statements: SqlStatement[],
   mode: TransactionMode,
   invalidate: boolean,
-  retryUpstream: boolean,
+  isRead: boolean,
 ): Promise<ResultSet[]> => {
   const sqls = statements.map(({ sql }) => sql);
   const results = await trackSql(sqls, () =>
     retryOnTransientDatabaseError(() => getDb().batch(statements, mode), {
-      retryUpstream,
+      isRead,
     }),
   );
   for (const stmt of statements) {
@@ -559,21 +544,24 @@ const requireReadStatements = (statements: readonly InStatement[]): void => {
 };
 
 /** Create a batch executor for a fixed or per-call transaction mode.
- *  `retryUpstream` belongs to the executor rather than being re-derived per
- *  statement: the read executors always retry, the write ones never do — see
+ *  `isRead` belongs to the executor rather than being re-derived per
+ *  statement: the read executors retry every kind a read may replay, the
+ *  write ones only the kinds that provably never ran — see
  *  {@link retryOnTransientDatabaseError} for why. */
 const batchFor =
   (
     mode: TransactionMode | (() => TransactionMode),
-    retryUpstream: boolean,
+    isRead: boolean,
   ): BatchExecutor =>
   async (statements) => {
-    if (retryUpstream) requireReadStatements(statements);
+    // The async body turns a smuggled write into a rejected promise, not a
+    // synchronous throw.
+    if (isRead) requireReadStatements(statements);
     return runBatch(
       statements,
       typeof mode === "function" ? mode() : mode,
       true,
-      retryUpstream,
+      isRead,
     );
   };
 
@@ -715,8 +703,9 @@ export const withTransaction = <T>(work: TransactionWork<T>): Promise<T> => {
       {
         // A transaction holds writes: an upstream failure at begin or commit
         // may arrive after they landed, so a retried transaction would replay
-        // them. Only retry lock contention, which never ran anything.
-        retryUpstream: false,
+        // them. Only the kinds that provably never ran anything retry — lock
+        // contention, and a Connect failure that never left the edge.
+        isRead: false,
       },
     );
   })();
@@ -741,7 +730,7 @@ export const useTransaction = <T>(
  * however many round trips the work makes. Statements must be SELECTs — a
  * write smuggled into the scope throws before it reaches the database. The
  * snapshot never commits: it ends by closing; cache invalidation does not
- * apply because nothing was written. An upstream failure replays the whole
+ * apply because nothing was written. A transient failure replays the whole
  * attempt on a fresh transaction, so `work` must be safe to run twice, as
  * with {@link withTransaction}.
  */
@@ -768,7 +757,7 @@ export const withReadSnapshot: TransactionRunner = (work) =>
       }
     },
     // Every statement inside is a read, so a retried attempt cannot double-apply.
-    { retryUpstream: true },
+    { isRead: true },
   );
 
 /**

@@ -260,10 +260,9 @@
     "banned-modal": 2
   },
   "src/features/public/ticket-submit.ts": {
-    "long-sentence": 5,
-    "banned-modal": 4,
-    "contraction": 2,
-    "semicolon": 4,
+    "long-sentence": 3,
+    "banned-modal": 3,
+    "semicolon": 3,
     "wordy": 1
   },
   "src/features/public/ticket-submit/parse.ts": {
@@ -876,10 +875,10 @@
     "banned-modal": 1
   },
   "src/shared/db/client.ts": {
-    "semicolon": 11,
-    "long-sentence": 14,
-    "contraction": 2,
-    "banned-modal": 10,
+    "semicolon": 10,
+    "long-sentence": 13,
+    "contraction": 1,
+    "banned-modal": 9,
     "present-perfect": 1,
     "wordy": 2
   },
@@ -1317,7 +1316,7 @@
     "present-perfect": 1
   },
   "src/shared/db/schema-anomaly-scan.ts": {
-    "long-sentence": 3
+    "long-sentence": 2
   },
   "src/shared/db/sessions.ts": {
     "long-sentence": 3,
@@ -2216,7 +2215,7 @@
     "wordy": 2,
     "contraction": 2,
     "banned-modal": 11,
-    "semicolon": 17
+    "semicolon": 16
   },
   "src/shared/update.ts": {
     "long-sentence": 4,
@@ -2623,10 +2622,10 @@
     "semicolon": 1
   },
   "src/ui/templates/admin/listings/types.ts": {
-    "banned-modal": 2,
-    "long-sentence": 1,
+    "banned-modal": 1,
     "contraction": 2,
-    "semicolon": 2
+    "semicolon": 2,
+    "long-sentence": 1
   },
   "src/ui/templates/admin/logistics.tsx": {
     "long-sentence": 1,

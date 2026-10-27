@@ -24,7 +24,7 @@
   "logout.title": "Log out",
   "logout.confirm_heading": "Are you sure you want to log out?",
   "logout.confirm_body": "You will need to log in again to manage tickets.",
-  "fields.login.username_title": "Letters, numbers, hyphens, and underscores only",
+  "fields.login.username_title": "Letters, numbers, hyphens, and underscores only. Start with a letter or number.",
   "fields.login.password": "Password",
   "fields.change_password.current": "Current password",
   "fields.change_password.new": "New password",

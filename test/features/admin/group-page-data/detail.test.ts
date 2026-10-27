@@ -5,6 +5,7 @@ import { postTransfers } from "#accounting/store.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { account } from "#shared/ledger/account.ts";
+import { requireValue } from "#shared/required-value.ts";
 import {
   expectHtmlResponse,
   expectStatus,
@@ -198,10 +199,14 @@ describeWithEnv(
         const addForm = findForms(html).find(
           (form) => form.action === `/admin/groups/${target.id}/add-listings`,
         );
+        const addFormBody = requireValue(
+          addForm,
+          "the group's add-listings form",
+        ).body;
         // The listing already in Group A is offered as an add candidate…
-        assertStringIncludes(addForm?.body ?? "", `value="${inOtherGroup.id}"`);
+        assertStringIncludes(addFormBody, `value="${inOtherGroup.id}"`);
         // …while the target's own member is not (no add-form checkbox for it).
-        assert(!(addForm?.body ?? "").includes(`value="${ownMember.id}"`));
+        assert(!addFormBody.includes(`value="${ownMember.id}"`));
       });
 
       test("group revenue comes from the ledger and survives attendee deletion", async () => {

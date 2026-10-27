@@ -11,12 +11,15 @@ import {
   releaseClaimRows,
   staleClaimSlot,
 } from "#test-utils/payment-claim.ts";
+import { checkPaymentSeam } from "#test-utils/payment-seam.ts";
 import { bookedWithPayment } from "#test-utils/processed-payments.ts";
 
 describeWithEnv(
   "db > taking a payment claim > resuming a stalled run",
   { db: true, encryptionKey: true },
   () => {
+    checkPaymentSeam();
+
     test("a stalled checking fence can be resumed", async () => {
       const attendeeId = await bookedWithPayment(
         "sess-inherit-unresolved",

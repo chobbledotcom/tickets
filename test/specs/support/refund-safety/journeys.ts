@@ -33,7 +33,7 @@ import { completePaidCheckout } from "#test-utils/order-journey.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { makeSumupClient, withSumupClient } from "#test-utils/sumup.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-import type { PaymentProviderType } from "#types";
+import type { Listing, PaymentProviderType } from "#types";
 import { refundSafety, type SafetyBooking, safetyBooking } from "./state.ts";
 
 // jscpd:ignore-end
@@ -118,14 +118,18 @@ const sumupCheckoutRequest = v.object({
   checkout_reference: v.string(),
 });
 
-const setupSumupPayment = async (): Promise<void> => {
-  await settings.update.sumup.apiKey("sumup_refund_story");
-  await settings.update.sumup.merchantCode("SUMUP_STORY");
-  await settings.update.paymentProvider("sumup");
-};
-
-const completeSumupPayment: CompletePublicPayment = async (filled, name) => {
-  const checkoutId = `co_safety_${name}`;
+/** The buyer presses the public page's real Continue button; the site hands
+ * the checkout to SumUp and the buyer lands on SumUp's hosted checkout. The
+ * site has written its checkout down for recovery by now, and nothing has
+ * been paid or booked. The story's SumUp account must already be set up. */
+export const openSumupHostedCheckout = async (
+  filled: FilledOrder,
+  checkoutId: string,
+): Promise<{
+  amountMinor: number;
+  browser: TestBrowser;
+  reference: string;
+}> => {
   let amount: number | null = null;
   let reference: string | null = null;
   let browser: TestBrowser | null = null;
@@ -146,9 +150,28 @@ const completeSumupPayment: CompletePublicPayment = async (filled, name) => {
     },
   );
   const missingCheckout = "The public booking never reached SumUp";
-  const paidAmount = requireValue<number>(amount, missingCheckout);
-  const checkoutReference = requireValue<string>(reference, missingCheckout);
-  const completedBrowser = requireValue<TestBrowser>(browser, missingCheckout);
+  return {
+    amountMinor: requireValue<number>(amount, missingCheckout),
+    browser: requireValue<TestBrowser>(browser, missingCheckout),
+    reference: requireValue<string>(reference, missingCheckout),
+  };
+};
+
+/** Point the site's payment provider at a SumUp account, so its checkouts go
+ * through SumUp. */
+export const setupSumupPayment = async (): Promise<void> => {
+  await settings.update.sumup.apiKey("sumup_refund_story");
+  await settings.update.sumup.merchantCode("SUMUP_STORY");
+  await settings.update.paymentProvider("sumup");
+};
+
+const completeSumupPayment: CompletePublicPayment = async (filled, name) => {
+  const checkoutId = `co_safety_${name}`;
+  const {
+    amountMinor: paidAmount,
+    browser: completedBrowser,
+    reference: checkoutReference,
+  } = await openSumupHostedCheckout(filled, checkoutId);
   const transactionId = `txn_safety_${name}`;
   const readCheckout = stub(sumupApi, "readCheckoutById", (id) => {
     expect(id).toBe(checkoutId);
@@ -194,6 +217,34 @@ const PUBLIC_PAYMENT_DRIVERS = {
   sumup: { complete: completeSumupPayment, setup: setupSumupPayment },
 } satisfies Record<RefundStoryProvider, PublicPaymentDriver>;
 
+/** One public purchase a story names by its own words. */
+export interface PublicPurchase {
+  readonly listingName: string;
+  readonly pounds: string;
+  readonly who: string;
+}
+
+/** The provider's account set up, one place on sale, and the buyer's filled-in
+ * booking form waiting on Continue — the shared front half of every public
+ * purchase journey. */
+export const sellAndFillPublicBooking = async (
+  world: TicketsWorld,
+  provider: RefundStoryProvider,
+  purchase: PublicPurchase,
+): Promise<{ filled: FilledOrder; listing: Listing }> => {
+  await PUBLIC_PAYMENT_DRIVERS[provider].setup();
+  const listing = await sellPlacesAt(
+    world,
+    purchase.listingName,
+    purchase.pounds,
+  );
+  const filled = await visitorFillsInBooking(listing, {
+    email: `${safeName(purchase.who)}@example.com`,
+    who: purchase.who,
+  });
+  return { filled, listing };
+};
+
 /** Buy one paid place from the public page, then let its real callback finish. */
 export const buyPaidPlaceThroughPublicPage = async (
   world: TicketsWorld,
@@ -203,10 +254,9 @@ export const buyPaidPlaceThroughPublicPage = async (
   provider: RefundStoryProvider,
 ): Promise<SafetyBooking> => {
   const driver = PUBLIC_PAYMENT_DRIVERS[provider];
-  await driver.setup();
-  const listing = await sellPlacesAt(world, listingName, pounds);
-  const filled = await visitorFillsInBooking(listing, {
-    email: `${safeName(who)}@example.com`,
+  const { filled, listing } = await sellAndFillPublicBooking(world, provider, {
+    listingName,
+    pounds,
     who,
   });
   const name = safeName(`${who}_${listingName}`);

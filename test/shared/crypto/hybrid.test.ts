@@ -121,7 +121,7 @@ describe("RSA key pair and hybrid encryption", () => {
 
       await expect(
         hybridDecrypt("invalid" as OwnerKeyEncrypted, sharedPrivKey),
-      ).rejects.toThrow("Invalid hybrid encrypted data format");
+      ).rejects.toThrow(/^Invalid hybrid encrypted data format$/);
     });
 
     it("throws on wrong number of parts", async () => {

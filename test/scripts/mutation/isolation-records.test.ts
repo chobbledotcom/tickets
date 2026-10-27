@@ -19,6 +19,7 @@ import {
   withTempDir,
   writeMovedRunRecord,
 } from "#test/scripts/mutation/isolation-helpers.ts";
+import { pathExists } from "#test-utils/files.ts";
 
 describe("the record a mutation run keeps on disk", () => {
   test("keeps the last complete record readable while writing a new one", async () => {
@@ -40,7 +41,9 @@ describe("the record a mutation run keeps on disk", () => {
         await rename(from, to);
       }) as typeof Deno.rename);
 
-      const writing = writeRunRecord(markRunning(record, 4242));
+      const writing = writeRunRecord(
+        markRunning(record, { pid: 4242, supervisorPid: 4243 }),
+      );
       // Read only once the swap is under way, or this would prove nothing.
       await swapping.promise;
       expect(await readRunRecord(recordPath("swap", root))).toMatchObject({
@@ -52,6 +55,29 @@ describe("the record a mutation run keeps on disk", () => {
       expect(await readRunRecord(recordPath("swap", root))).toMatchObject({
         pid: 4242,
         status: "running",
+      });
+    });
+  });
+
+  test("takes its temp file back away when the swap fails", async () => {
+    await withTempDir(async (root) => {
+      const record = newRunRecord(runIdNamed("swap"), [], root);
+      await writeRunRecord(record);
+      const recordFile = recordPath(runIdNamed("swap"), root);
+
+      // The swap dies, so the write must not leave run.json.writing behind
+      // for the next write to truncate in silence.
+      using _rename = stub(Deno, "rename", (async () => {
+        throw new Error("the target file is locked");
+      }) as typeof Deno.rename);
+
+      await expect(writeRunRecord(record)).rejects.toThrow(
+        "the target file is locked",
+      );
+      expect(await pathExists(`${recordFile}.writing`)).toBe(false);
+      // The record already on disk is still the last complete one.
+      expect(await readRunRecord(recordFile)).toMatchObject({
+        status: "copying",
       });
     });
   });

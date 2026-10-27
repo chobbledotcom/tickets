@@ -27,7 +27,6 @@ import type { FormValues } from "#shared/forms/definition.ts";
 import { isProvisioned, isReservedRenewal } from "#shared/renewal-helpers.ts";
 import { getQualifyingTierListings } from "#shared/renewal-tier.ts";
 import { defineResource } from "#shared/rest/resource.ts";
-/* jscpd:ignore-end */
 import { siteHostingAccess } from "#shared/site-hosting.ts";
 import { rotateRenewalToken } from "#shared/site-renewal.ts";
 import { provisionSiteScheduler } from "#shared/site-scheduler.ts";

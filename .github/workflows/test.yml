@@ -6,10 +6,12 @@ name: Test
 # only adds cost, and one more chance for a stalled runner to time the queue
 # out.
 #
-# The merge queue gates on these two checks. Ruleset 21611101 ("Deletions,
-# pushes & merges") marks `checks` and `test` as required status checks for
-# `main`, with a strict policy. A red run here holds the merge until it
-# passes.
+# The merge queue gates on these three checks. Ruleset 21611101 ("Deletions,
+# pushes & merges") marks `checks`, `specs`, and `test` as required status
+# checks for `main`, with a strict policy. A red run here holds the merge
+# until it passes. The manifest scripts/required-checks/checks.json records
+# the three names, and `deno task check:required-checks` fails when this
+# ruleset and the manifest disagree (issue #2671).
 on:
   push:
     branches-ignore: [main, "gh-readonly-queue/**"]
@@ -19,7 +21,9 @@ env:
   STRIPE_MOCK_VERSION: "0.188.0"
 
 # Both jobs only read the checkout. Caching and artifact upload use the Actions
-# runtime token, not this one.
+# runtime token, not this one. The required-checks gate reads the branch
+# ruleset, which is public data, so `contents: read` carries it (issue
+# #2671).
 permissions:
   contents: read
 
@@ -32,8 +36,9 @@ defaults:
     shell: devenv --profile ci shell bash -- -e {0}
 
 # Three jobs that run side by side. The static checks and the suite mirror
-# `getSteps()` in scripts/precommit/steps.ts — if you add a step there, add it
-# to whichever job it belongs to here. Nothing in the suite reads what the
+# `getSteps()` in scripts/precommit/steps.ts; the suite holds both sides to
+# that claim (test/scripts/precommit-steps.test.ts), so a step added there
+# must land in the job that runs it here. Nothing in the suite reads what the
 # static checks produce, so running them beside the suite instead of ahead of
 # it takes their time off the critical path. The specs job runs the Cucumber
 # journeys, which no precommit step runs, so the journeys pass or fail as
@@ -82,6 +87,10 @@ jobs:
       - name: Check module import names
         run: deno task check:imports
 
+
+      - name: Check the pure core against the effect table
+        run: deno task check:effects
+
       - name: Check for alias exports
         run: deno task check:alias-exports
 
@@ -102,6 +111,11 @@ jobs:
       - name: Check the coverage exclusion list only shrinks
         run: deno task check:coverage-exclusions
 
+      # A helper the branch adds is invisible to the base tree; running the
+      # dump against it here is what exercises that import (issue #2740).
+      - name: Check contract drift against the base tree
+        run: deno task contract:diff
+
       - name: Check technical English in Markdown
         run: deno task check:ste
 
@@ -113,6 +127,17 @@ jobs:
 
       - name: Check for import cycles
         run: deno task cycles
+
+      # The manifest at scripts/required-checks/checks.json is the reviewable
+      # record of the merge queue's gate; this step fails when Settings and
+      # the manifest disagree (issue #2671).
+      - name: Check the required status checks match the manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: deno task check:required-checks
+
+      - name: Check machine safety models
+        run: deno task verify:models
 
       - name: Build edge bundle
         run: deno task build:edge
@@ -129,6 +154,11 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          # The contract-drift tests run the dump in a worktree at the merge
+          # base on origin/main, which a one-commit checkout does not hold
+          # (issue #2740). A full checkout also keeps the suite from fetching
+          # inside a test.
+          fetch-depth: 0
 
       - name: Set up devenv
         uses: ./.github/actions/setup-devenv
@@ -159,6 +189,42 @@ jobs:
         with:
           name: coverage-report
           path: coverage/html/
+
+  # The served-page browser contracts need Chromium, and no other job runs
+  # `test:screenshot-contract`. This is the one place a broken or flaky
+  # journey on a served page goes red (issue #2743).
+  browser-contracts:
+    runs-on: ubicloud-standard-8
+    timeout-minutes: 20
+
+    # The browser profile carries Chromium, whose path the contracts read
+    # through CHROMIUM_EXECUTABLE.
+    defaults:
+      run:
+        shell: devenv --profile browser shell bash -- -e {0}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up devenv
+        uses: ./.github/actions/setup-devenv
+        with:
+          profile: browser
+
+      # The task's test:files legs run through the test harness, which
+      # downloads and starts stripe-mock. Caching .bin avoids the download
+      # on every run.
+      - name: Cache stripe-mock
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .bin
+          key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
+
+      - name: Run the browser contracts
+        run: deno task test:screenshot-contract
 
   specs:
     runs-on: ubicloud-standard-8

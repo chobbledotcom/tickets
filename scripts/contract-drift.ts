@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run --allow-run --allow-read --allow-write --allow-env
 /** Print this branch's contract drift against a base ref: which machine
- * moves, money flags, and joint-state invariants changed.
+ * moves, money flags, and declared moves tables changed.
  *
  *     deno task contract:diff [base]
  *

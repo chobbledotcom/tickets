@@ -15,6 +15,7 @@ import {
   heldSessionIds,
 } from "#test-utils/payment-claim.ts";
 import { getCompleteRefundPaymentReferencesForAttendee } from "#test-utils/payment-references.ts";
+import { checkPaymentSeam } from "#test-utils/payment-seam.ts";
 import {
   bookedWithPayment,
   finalizeProcessedPayment,
@@ -80,6 +81,8 @@ describeWithEnv(
   "db > taking a payment claim > shared payment references",
   { db: true, encryptionKey: true },
   () => {
+    checkPaymentSeam();
+
     test("two rows on one attendee expose one shared representation", async () => {
       const attendeeId = await bookedWithPayment(
         "sess-same-attendee-a",

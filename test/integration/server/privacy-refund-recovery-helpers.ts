@@ -10,7 +10,6 @@ import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { foundCharge, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
-/* jscpd:ignore-end */
 
 export const refundCasePath = (id: number): string =>
   `/admin/privacy/refunds/${id}`;

@@ -14,8 +14,6 @@ import {
   LOWER_SEND_TEST_PATHS,
   PARALLEL_AUTHORITY_FORMS,
   REFUND_AUTHORITY_ARCHITECTURE_FILES,
-  REFUND_AUTHORITY_SOURCE_PATHS,
-  REFUND_AUTHORITY_TEST_PATHS,
   TEST_AUTHORITY_BUILDING_PATHS,
 } from "./refund-authority-architecture-fixtures.ts";
 
@@ -223,19 +221,6 @@ describe("provider-refund architecture", () => {
     );
     expect(pathsMatching(files, couldBuildRefundAuthority)).toEqual(
       TEST_AUTHORITY_BUILDING_PATHS,
-    );
-  });
-
-  test("the durable authority's production and test entry points stay explicit", async () => {
-    const authorityName = /\brequestProviderRefunds?\b/;
-    expect(pathsContaining(await sourceFiles(), authorityName)).toEqual(
-      REFUND_AUTHORITY_SOURCE_PATHS,
-    );
-    const tests = (await codeFilesUnder(testRoot)).filter(
-      ({ path }) => !REFUND_AUTHORITY_ARCHITECTURE_FILES.has(path),
-    );
-    expect(pathsContaining(tests, authorityName)).toEqual(
-      REFUND_AUTHORITY_TEST_PATHS,
     );
   });
 

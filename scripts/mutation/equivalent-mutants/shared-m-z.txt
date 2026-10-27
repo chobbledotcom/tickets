@@ -383,12 +383,12 @@ src/shared/package-privacy.ts::ctxStandInNames~1w3noud  ?? → || audited:1xmpj4
 # caller; arrays are objects and pass both forms unchanged.
 src/shared/square/link-end.ts::jsonOrNull~06gum1e  && → || audited:0icyc17 # JSON.parse yields primitive|object|array; a primitive's property reads give undefined, so the caller reads the same answer either way
 
-# The Square link-end machine has no split move. Representative tags label only
-# the test matrix, and `expected` ignores its tag for every plain or absent cell.
-src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1jt9shd  row_deleted → "" audited:0ui14cg # tag labels one conformance case; production reads only the representative state
-src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~0g7esyv  lease_held → "" audited:0ui14cg # tag labels one conformance case; production reads only the representative state
-src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1toq277  unclaimed → "" audited:0ui14cg # tag labels one conformance case; production reads only the representative state
-src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1fvh6yn  no_row_yet → "" audited:0ui14cg # tag labels one conformance case; production reads only the representative state
+# Each node has one representative. Its tag only labels graph cases and proof
+# identities. Plain moves ignore it. All proof joins use that same label.
+src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1jt9shd  row_deleted → "" audited:1v2pwty # This opaque label stays the same on both sides of each proof join.
+src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~0g7esyv  lease_held → "" audited:1v2pwty # This opaque label stays the same on both sides of each proof join.
+src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1toq277  unclaimed → "" audited:1v2pwty # This opaque label stays the same on both sides of each proof join.
+src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1fvh6yn  no_row_yet → "" audited:1v2pwty # This opaque label stays the same on both sides of each proof join.
 
 # machine-spec.ts's moveOrRefuse passes "" as the split-shape tag on purpose:
 # a split cell is looked up per rep tag, and every rep tag the machines
@@ -396,3 +396,8 @@ src/shared/payment/square-link-end-machine-spec.ts::LINK_END_NODES.reps~1fvh6yn 
 # matches a split shape — any other non-empty sentinel behaves identically.
 # A machine that declared an "" tag would break its own atlas labeling first.
 src/shared/schema-atlas/machine-spec.ts::moveOrRefuse.to~0qwc62v  →"mutated" audited:035cpor # perRep[""] and perRep["mutated"] are both undefined for every declared tag, so both refuse
+
+# Square uses fixed call budgets: 50 - 8 - 8 - 3 = 31 before its queue read.
+# All three expressions below produce ten links. The module takes no input.
+src/shared/square/limits.ts::SQUARE_LINK_EXPIRY_BATCH~1mbbncc  - → / audited:1njegg8 # floor((31 - 1) / 3) = floor((31 / 1) / 3) = 10.
+src/shared/square/limits.ts::SQUARE_LINK_EXPIRY_BATCH~1mbbncc  1 → 0 audited:1njegg8 # floor((31 - 1) / 3) = floor((31 - 0) / 3) = 10.

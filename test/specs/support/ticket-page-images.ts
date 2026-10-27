@@ -15,6 +15,10 @@ import {
   putsPlainThingOnSale,
 } from "#test/specs/support/listings.ts";
 import {
+  memberRowHtml,
+  packageSectionHtml,
+} from "#test/specs/support/package-section.ts";
+import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -53,25 +57,14 @@ export const sellsReadableThing = async (
 
 /** The image tag a resolved reference renders, as the served page carries it.
  * The head's description echoes the raw words, so only this body tag proves
- * the lookup ran: a page whose lookup did not run renders the tag with no
- * source instead. */
+ * the lookup ran: a page whose lookup did not run renders the name as plain
+ * text instead. */
 export const resolvedImageTag = (image: Image): string =>
   `<img src="/image/${image.filename}" alt="${image.name}">`;
 
 /** The page shows the image itself. */
 export const expectShownImage = (html: string, image: Image): void => {
   assertStringIncludes(html, resolvedImageTag(image));
-};
-
-/** The named package's own section on a served page: the fieldset the page
- * renders for it, where its description and each member's row show. */
-export const packageSectionHtml = (html: string, group: Group): string => {
-  const start = html.indexOf(`data-package-section="${group.id}"`);
-  if (start < 0) {
-    throw new Error(`the page shows no section for the package ${group.name}`);
-  }
-  const end = html.indexOf("</fieldset>", start);
-  return html.slice(start, end + "</fieldset>".length);
 };
 
 /** The package a story set up, by the story's name for it. */
@@ -95,13 +88,12 @@ export const expectShownImageInPackageSection = async (
     (await visitorReadsMixedPage(world, packageName, extraName)).currentHtml,
     packageGroupNamed(world, packageName),
   );
-  if (memberName !== undefined) {
-    assertStringIncludes(
-      section,
-      `<label>${memberName} <span class="package-member-qty">`,
-    );
+  if (memberName === undefined) {
+    expectShownImage(section, await imageNamed(image));
+    return;
   }
-  expectShownImage(section, await imageNamed(image));
+  // The picture shows in that member's own row, not anywhere in the section.
+  expectShownImage(memberRowHtml(section, memberName), await imageNamed(image));
 };
 
 /** A visitor reads the shared page the story set up, by the page's name. */

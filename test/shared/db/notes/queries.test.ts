@@ -68,7 +68,7 @@ describeWithEnv("db > notes", { db: true }, () => {
 
     const notes = await loadNotesForListing(listing.id, getTestPrivateKey);
     expect(notes).toHaveLength(1);
-    expect(notes[0]?.note).toBe("Note on this listing");
+    expect(notes[0]!.note).toBe("Note on this listing");
   });
 
   test("loadNotesForListing returns [] without a key unwrap when none exist", async () => {
@@ -128,14 +128,14 @@ describeWithEnv("db > notes", { db: true }, () => {
     // The symmetric encryption format is the enc:1: envelope, not the plaintext.
     const stored = await rawNote(attendeeId);
     expect(stored?.note.startsWith("enc:")).toBe(true);
-    assert(!stored?.note.includes("system secret"));
+    assert(!stored!.note.includes("system secret"));
 
     const ownerAttendee = await makeAttendee("Owner Target");
     await createOwnerNote(attendeeNotes(ownerAttendee), "owner secret");
     const ownerStored = await rawNote(ownerAttendee);
     // The owner hybrid-RSA envelope is hyb:1:, again never the plaintext.
     expect(ownerStored?.note.startsWith("hyb:")).toBe(true);
-    assert(!ownerStored?.note.includes("owner secret"));
+    assert(!ownerStored!.note.includes("owner secret"));
   });
 
   test("keeps only the first app-written note for one indexed name", async () => {

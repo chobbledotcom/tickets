@@ -20,11 +20,9 @@ const inOptionDemand = ownerAt("src/shared/booking/option-demand.ts");
 const LISTING_INPUT_FIELDS = [
   "attachmentName",
   "attachmentUrl",
-  "bookableDays",
   "description",
   "location",
   "maxAttendees",
-  "minimumDaysBefore",
   "nonTransferable",
   "useDefaults",
   "usesLogistics",
@@ -237,9 +235,6 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
   ...identitiesAt([
     ["src/shared/payment/claim.ts", [{ name: "IndexedRefundClaimDecision" }]],
   ])(["indexes", "kind"]),
-  ...identitiesAt([
-    ["src/shared/payment/joint-state.ts", [{ name: "IllegalJointState" }]],
-  ])(["authority", "reason", "rows"]),
   ...identitiesAt([
     ["src/shared/payment/refund-attempt.ts", [{ name: "RefundActionResult" }]],
   ])(["admission"]),

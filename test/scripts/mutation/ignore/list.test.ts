@@ -71,6 +71,40 @@ describe("mutation ignore list", () => {
     expect(loaded.keys.has("src/example.ts::readSetting ??→||")).toBe(true);
   });
 
+  /** A Windows checkout writes the registry with `\r\n` line endings. The
+   * carriage return is the line ending, never entry content, so a CRLF
+   * registry loads exactly like an LF one. */
+  test("loads a registry written with CRLF line endings like an LF one", async () => {
+    using temp = tempFile({ prefix: "mutation-ignore-" });
+    await Deno.writeTextFile(
+      temp.path,
+      [
+        "# known equivalent mutants",
+        "",
+        "src/example.ts::readSetting ?? → ||  audited:041pxgm # nullish and or equivalent here",
+        "src/example.ts::fn12 ?? → ||  audited:041pxgm",
+      ]
+        .map((line) => `${line}\r\n`)
+        .join(""),
+    );
+
+    const loaded = await loadIgnoreList([temp.path]);
+
+    expect(loaded.entries).toEqual([
+      {
+        key: "src/example.ts::readSetting ??→||",
+        sourcePath: "src/example.ts",
+        stamp: "audited:041pxgm",
+      },
+      {
+        key: "src/example.ts::fn12 ??→||",
+        sourcePath: "src/example.ts",
+        stamp: "audited:041pxgm",
+      },
+    ]);
+    expect(loaded.keys.has("src/example.ts::readSetting ??→||")).toBe(true);
+  });
+
   /** A line that neither parses nor reads as a comment is a record that would
    * otherwise stop suppressing its mutant without saying so. */
   test("fails on a line that is neither a comment nor an entry", async () => {

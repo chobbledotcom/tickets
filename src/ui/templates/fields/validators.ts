@@ -153,7 +153,7 @@ export const getUsernameFieldBase = (): InputField<"username"> & {
   maxlength: MAX_INPUT_LENGTH,
   minlength: 1,
   name: "username",
-  pattern: "[a-zA-Z0-9_\\-]+",
+  pattern: "[a-zA-Z0-9][a-zA-Z0-9_\\-]*",
   required: true,
   title: t("fields.login.username_title"),
   type: "text",

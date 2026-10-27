@@ -141,31 +141,6 @@ describe("contract dump", () => {
     }
   });
 
-  test("dumps the declared joint states", async () => {
-    expect((await currentContracts()).jointStates).toEqual([
-      {
-        authority: "absent",
-        rows: [
-          "claim",
-          "claim_review",
-          "claim_review_unrecorded",
-          "claim_unrecorded",
-        ],
-      },
-      {
-        authority: "send_armed",
-        rows: [
-          "free_finalized",
-          "free_reserved",
-          "review",
-          "review_unrecorded",
-          "settled",
-          "unrecorded",
-        ],
-      },
-    ]);
-  });
-
   test("refuses a machine the loaders do not know", async () => {
     await expect(contractsFromAtlas([machineWith([])])).rejects.toThrow(
       "Machine m joined the atlas; the drift dump must learn its events and declared moves",
@@ -278,12 +253,86 @@ describe("declaredTableOrNone", () => {
 
   test("reads a table module the tree does not have as no table", async () => {
     expect(
-      await declaredTableOrNone("m", () => {
+      await declaredTableOrNone(
+        "m",
+        () => {
+          throw new TypeError(
+            'Module not found "file:///tree/test/shared/payment/m/expected-moves.ts"',
+          );
+        },
+        "#test/shared/payment/m/expected-moves.ts",
+      ),
+    ).toBeUndefined();
+  });
+
+  test("reads a bare quoted specifier as no table too", async () => {
+    expect(
+      await declaredTableOrNone(
+        "m",
+        () => {
+          throw new TypeError(
+            'Module not found "#test/shared/payment/m/expected-moves.ts"',
+          );
+        },
+        "#test/shared/payment/m/expected-moves.ts",
+      ),
+    ).toBeUndefined();
+  });
+
+  test("reads a module the real loader cannot find as no table", async () => {
+    // The synthetic errors above pin the matcher's logic; this one pins the
+    // agreement to the runtime: Deno's own not-found error for a mapped
+    // specifier must carry the bare path the matcher looks for.
+    const specifier = "#test/shared/payment/m/no-such-table-module.ts";
+    expect(
+      await declaredTableOrNone("m", () => import(specifier), specifier),
+    ).toBeUndefined();
+  });
+
+  test("hands every test-module table load its own specifier", async () => {
+    // The specifier must name the very module the load imports, or the base
+    // dump misreads a missing table (or a break one level below it, issue
+    // #2740). The load keeps a literal import — a variable specifier would
+    // ask the base-dump child for read permission it does not hold — so this
+    // holds the two spellings together: each test-module specifier appears
+    // exactly twice, once in its import and once as the load's module name.
+    const source = await Deno.readTextFile("scripts/contract-drift/dump.ts");
+    const loads = [...source.matchAll(/import\(\s*"([^"]+)"\s*\)/g)]
+      .map((match) => match[1])
+      .filter((specifier): specifier is string => specifier !== undefined)
+      .filter((specifier) => specifier.startsWith("#test/"));
+    expect(loads.length).toBeGreaterThan(0);
+    for (const specifier of loads) {
+      const spellings = source.split(`"${specifier}"`).length - 1;
+      expect(
+        spellings,
+        `"${specifier}" must appear twice: in its import and as the load's module name`,
+      ).toBe(2);
+    }
+  });
+
+  test("stops when a module one level below the table is missing", async () => {
+    await expect(
+      declaredTableOrNone(
+        "m",
+        () => {
+          throw new TypeError(
+            'Module not found "file:///tree/test/shared/payment/m/its-helper.ts"',
+          );
+        },
+        "#test/shared/payment/m/expected-moves.ts",
+      ),
+    ).rejects.toThrow("its-helper.ts");
+  });
+
+  test("stops on a missing module when the load names no specifier", async () => {
+    await expect(
+      declaredTableOrNone("m", () => {
         throw new TypeError(
-          'Module not found "file:///tree/expected-moves.ts"',
+          'Module not found "file:///tree/test/shared/payment/m/expected-moves.ts"',
         );
       }),
-    ).toBeUndefined();
+    ).rejects.toThrow("Module not found");
   });
 
   test("stops on a failure that is not a missing module", async () => {

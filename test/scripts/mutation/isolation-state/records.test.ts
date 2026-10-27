@@ -21,8 +21,16 @@ describe("mutation isolation run records", () => {
     expect(record.status).toBe("copying");
     expect(record.workRoot).toBe(workRoot(id, "/repo"));
 
-    const running = markRunning(record, 42, "2026-07-09T12:35:00.000Z");
-    expect(running).toMatchObject({ pid: 42, status: "running" });
+    const running = markRunning(
+      record,
+      { pid: 42, supervisorPid: 43 },
+      "2026-07-09T12:35:00.000Z",
+    );
+    expect(running).toMatchObject({
+      pid: 42,
+      status: "running",
+      supervisorPid: 43,
+    });
     expect(markFinished(running, 0)).toMatchObject({
       exitCode: 0,
       status: "passed",
@@ -40,15 +48,17 @@ describe("mutation isolation run records", () => {
   test("drops the pid once the child has ended", () => {
     const running = markRunning(
       newRunRecord("ended", [], "/repo"),
-      42,
+      { pid: 42, supervisorPid: 43 },
       "2026-07-09T12:35:00.000Z",
     );
 
     const ended = markChildEnded(running, "2026-07-09T12:36:00.000Z");
 
-    // The id may be somebody else's at any moment now, so nothing —
-    // --kill above all — may keep treating it as this run's child.
+    // The child's id may be somebody else's at any moment now, so nothing may
+    // keep treating it as this run's child. The supervisor's stays: --kill
+    // reaches the run through it while the supervisor winds the run down.
     expect(ended.pid).toBeUndefined();
+    expect(ended.supervisorPid).toBe(43);
     expect(ended.status).toBe("running");
     expect(ended.updatedAt).toBe("2026-07-09T12:36:00.000Z");
   });

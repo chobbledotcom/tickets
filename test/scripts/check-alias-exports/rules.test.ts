@@ -22,8 +22,9 @@ describe("check-alias-exports rules", () => {
   /** What one CheckinEntry rename of TokenEntry looks like. */
   const expectCheckinEntryRename = (issues: AliasExportIssue[]): void => {
     expect(issues).toHaveLength(1);
-    expect(issues[0]?.exported).toBe("CheckinEntry");
-    expect(issues[0]?.target).toBe("TokenEntry");
+    const issue = issues[0]!;
+    expect(issue.exported).toBe("CheckinEntry");
+    expect(issue.target).toBe("TokenEntry");
   };
 
   test("flags an exported const whose whole value is one imported name", () => {
@@ -101,9 +102,10 @@ describe("check-alias-exports rules", () => {
       'export { TokenEntry as CheckinEntry } from "#routes/tickets/token-utils.ts";\n',
     );
     expect(issues).toHaveLength(1);
-    expect(issues[0]?.exported).toBe("CheckinEntry");
-    expect(issues[0]?.target).toBe("TokenEntry");
-    assertStringIncludes(issues[0]?.fix ?? "", "its own module");
+    const issue = issues[0]!;
+    expect(issue.exported).toBe("CheckinEntry");
+    expect(issue.target).toBe("TokenEntry");
+    assertStringIncludes(issue.fix, "its own module");
   });
 
   test("lets a wrapper that adds something stand", () => {

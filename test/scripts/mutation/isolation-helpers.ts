@@ -29,13 +29,26 @@ export const runIdNamed = (label: string): string => {
   return `mutation-20260709T123456Z-${mixed.toString(16).padStart(8, "0")}`;
 };
 
-/** A run that says it is going, under the pid given. */
+/** A run that says it is going, under the pid given: the test process stands
+ * in for both the child and its supervisor unless they are named apart. */
 export const runningRun = (
   label: string,
   root: string,
   pid: number,
-): ReturnType<typeof markRunning> =>
-  markRunning(newRunRecord(runIdNamed(label), [], root), pid);
+): MutationRunRecord =>
+  markRunning(newRunRecord(runIdNamed(label), [], root), {
+    pid,
+    supervisorPid: pid,
+  });
+
+/** A run that says it is going with the child's pid and its supervisor's
+ * named apart, so a test can tell which one an action reached. */
+export const runningRunApart = (
+  label: string,
+  root: string,
+  pids: { pid: number; supervisorPid: number },
+): MutationRunRecord =>
+  markRunning(newRunRecord(runIdNamed(label), [], root), pids);
 
 /** A run that says it is going but never wrote down a pid, so nothing can be
  * asked about whether it really is. */

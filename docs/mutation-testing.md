@@ -27,15 +27,18 @@ written over the run's source file, tested in a fresh `deno test` subprocess,
 then restored. The normal `deno task mutation` command first copies the current
 checkout (including dirty source/test edits, excluding `.git`, cache/report
 folders, local databases, secrets, and generated assets) to
-`.mutation-runs/<id>/work`; test-stage writes and per-mutant bundle rebuilds
+`.mutation-runs/<id>/work`. Test-stage writes and per-mutant bundle rebuilds
 happen inside that copy, not the live files. Static worker copies are deleted
 before tests start. A run deletes its main copy as soon as it ends — reporting
 the failure if it cannot — so `.mutation-runs/` does not fill up with checkout
 copies. While a run is going — and until the _next_ run starts — it has a small
-`.mutation-runs/<id>/run.json` holding the child PID/status, so a stray run is
-easy to find and stop. Starting a run clears out the folders of every earlier
-run that is no longer going, including any whose `run.json` is unreadable
-because it was killed mid-write:
+`.mutation-runs/<id>/run.json` with the child's and the supervisor's PID and
+the run status, so a stray run is easy to find and stop. `--kill` signals the
+supervisor, and the supervisor stops its own child through the process handle
+it holds. The child's pid is never signalled: the child can exit at any
+moment, and another process can then own its pid. Starting a run clears out
+the folders of every earlier run that is no longer going, including any whose
+`run.json` is unreadable because it was killed mid-write:
 
 ```bash
 deno task mutation --list

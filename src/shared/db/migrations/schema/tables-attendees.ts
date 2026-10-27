@@ -64,6 +64,11 @@ export const attendeeTables: [name: string, table: Table][] = [
           name: "idx_attendees_kind",
         },
         {
+          columns: ["kind"],
+          name: "idx_attendees_pending_flags",
+          where: "email_pending > 0 OR webhooks_pending > 0",
+        },
+        {
           columns: ["ticket_token_index"],
           name: "idx_attendees_ticket_token_index",
           unique: true,

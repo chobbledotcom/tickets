@@ -20,6 +20,7 @@
   "questions.edit.new_answer_placeholder": "e.g. Medium",
   "questions.edit.add_answer": "Add answer",
   "questions.edit.no_answers": "No answers yet. Add at least 2 answer options.",
+  "questions.edit.free_text_note": "Free-text questions collect a typed answer, so they have no answer options to manage — and can't change the price, because a price modifier attaches to a chosen answer, which a typed answer has none of.",
   "questions.delete.link": "Delete question",
   "questions.delete.heading": "Delete question",
   "questions.delete.warning": "This will permanently delete the question, all its answers, and all attendee responses.",

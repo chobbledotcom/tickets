@@ -68,11 +68,13 @@ const ComposeForm = ({
         <a href={`/admin/attendees/${attendee.id}`}>{t("sms.contact.back")}</a>
       </p>
 
-      <h2>{t("sms.contact.heading", { name: attendee.name })}</h2>
-      <p>
-        <strong>{t("sms.contact.phone_label")}</strong>{" "}
-        {attendee.phone || t("sms.contact.no_phone")}
-      </p>
+      <div class="prose">
+        <h2>{t("sms.contact.heading", { name: attendee.name })}</h2>
+        <p>
+          <strong>{t("sms.contact.phone_label")}</strong>{" "}
+          {attendee.phone || t("sms.contact.no_phone")}
+        </p>
+      </div>
 
       {!configured && <Raw html={t("sms.contact.not_configured")} />}
 
@@ -110,7 +112,9 @@ export const smsPage = (session: AdminSession, opts: SmsPageOptions): string =>
     active: "/admin/",
     body: (
       <>
-        <p>{t("sms.queue.awaiting", { count: opts.queueCount })}</p>
+        <div class="prose">
+          <p>{t("sms.queue.awaiting", { count: opts.queueCount })}</p>
+        </div>
 
         {opts.target && (
           <Raw

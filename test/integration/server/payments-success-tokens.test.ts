@@ -18,8 +18,6 @@ import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 
 /* jscpd:ignore-end */
 
-/* jscpd:ignore-end */
-
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("payment success token verification", () => {
     test("returns error for tokens param with only delimiters", async () => {

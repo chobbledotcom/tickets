@@ -15,14 +15,24 @@ import {
 import { matchingBracket } from "#test/scripts/code-quality/brackets.ts";
 import {
   argumentUses,
+  nameDeclarations,
+  sqlCarryingStarts,
   sqlTextArgumentStarts,
 } from "#test/scripts/code-quality/helper-binds.ts";
+import {
+  matchedBlocks,
+  visibleDeclaration,
+} from "#test/scripts/code-quality/scopes.ts";
 
 /** The one file whose own job is to emit `?N` tokens. */
 const NUMBERED_STATEMENT_PATH = "shared/db/numbered-statement.ts";
 
 /** A digit directly after a `?`: a hand-written parameter number. */
 const HAND_NUMBERED_TOKEN = /\?[0-9]/;
+
+/** The name a token before a string span ends with: the constant an
+ *  assignment to that name holds. */
+const TOKEN_BEFORE = /([A-Za-z_$][\w$]*)$/;
 
 /** The element shapes a repeated-bind check can compare: a variable or member
  * chain, a quoted literal, a number, or the same under one spread. A call may
@@ -182,21 +192,6 @@ const repeatedElementsOf = (
   return violations;
 };
 
-/** The text span of one top-level declaration: from its keyword to the close
- * of its first brace group, or to the end of the text when the declaration
- * carries no braces. `[-1, -1]` when the file declares no such name. */
-const declarationSpan = (blanked: string, name: string): [number, number] => {
-  const declared = blanked.match(
-    new RegExp(`\\b(?:const|let|var|function)\\s+${name}\\b`),
-  );
-  if (declared?.index === undefined) return [-1, -1];
-  const open = blanked.indexOf("{", declared.index);
-  const end = blanked.indexOf(";", declared.index);
-  if (open < 0 || (end >= 0 && end < open)) return [-1, -1];
-  const close = matchingBracket(blanked, open);
-  return close < 0 ? [-1, -1] : [declared.index, close + 1];
-};
-
 /** The local array literals of one file, by name: the values a statement can
  * receive through one of the argument uses below. The declaration's type
  * annotation, when it carries one, sits between the name and the `=`; it
@@ -221,57 +216,6 @@ const localArrayLiterals = (blanked: string): Map<string, LocalArray[]> => {
   return literals;
 };
 
-/** One matched `{`…`}` pair of the blanked text. Strings, comments, and
- * regular expressions arrive pre-blanked, so no phantom brace pairs. */
-type Block = { close: number; open: number };
-
-/** Every matched brace pair of one file, in source order. */
-const matchedBlocks = (blanked: string): Block[] => {
-  const blocks: Block[] = [];
-  const opens: number[] = [];
-  for (let at = 0; at < blanked.length; at++) {
-    if (blanked[at] === "{") opens.push(at);
-    if (blanked[at] === "}") {
-      const open = opens.pop();
-      if (open !== undefined) blocks.push({ close: at, open });
-    }
-  }
-  return blocks;
-};
-
-/** The innermost block that holds `at`, or undefined for the file itself.
- * Blocks arrive in the order their `}` closes, so the innermost block that
- * holds a position is the first one that holds it. */
-const innermostBlockAt = (blocks: Block[], at: number): Block | undefined =>
-  blocks.find((block) => block.open < at && at < block.close);
-
-/** The one declaration of a name that reaches a use at `at`: the innermost
- * scope that declares the name wins, and inside it the declaration that
- * precedes the use. A declaration in an unrelated scope never reaches the
- * use, and a same-scope declaration after the use shadows it to nothing. */
-const visibleDeclaration = (
-  blocks: Block[],
-  declarations: LocalArray[] | undefined,
-  at: number,
-): LocalArray | undefined => {
-  if (declarations === undefined) return;
-  const scopes = [
-    ...blocks
-      .filter((block) => block.open < at && at < block.close)
-      .sort((one, other) => other.open - one.open),
-    undefined,
-  ];
-  for (const scope of scopes) {
-    const inScope = declarations.filter(
-      (declaration) => innermostBlockAt(blocks, declaration.start) === scope,
-    );
-    if (inScope.length > 0) {
-      return inScope.filter((declaration) => declaration.start < at).at(-1);
-    }
-  }
-  return;
-};
-
 /** One args array a statement binds: where the array sits, the line it is
  * written on, and the position of the use that reached it. */
 type FoundBinds = { at: number; close: number; line: number; open: number };
@@ -279,23 +223,12 @@ type FoundBinds = { at: number; close: number; line: number; open: number };
 /** The repeated-bind violations of one source file. Within one `{ sql, args }`
  * statement, one comparable argument appearing twice means the statement
  * binds one value more than once; the numbered binder binds it once and
- * reuses the token. An allowed entry names a whole file, or `file:declaration`
- * for one top-level declaration — the clause assemblies whose parts cannot
- * convert alone. */
+ * reuses the token. */
 export const findRepeatedBinds = (
   relativePath: string,
   content: string,
-  allowed: readonly string[],
 ): string[] => {
   const blanked = blankSpans(content, true);
-  const exempt = (at: number): boolean =>
-    allowed.some((entry) => {
-      const separator = entry.lastIndexOf(":");
-      if (separator < 0) return relativePath === entry;
-      if (!relativePath.startsWith(entry.slice(0, separator))) return false;
-      const [start, end] = declarationSpan(blanked, entry.slice(separator + 1));
-      return start >= 0 && at >= start && at < end;
-    });
   const locals = localArrayLiterals(blanked);
   const blocks = matchedBlocks(blanked);
   const resolve = (name: string, at: number): LocalArray[] | undefined => {
@@ -304,7 +237,6 @@ export const findRepeatedBinds = (
   };
   const violations: string[] = [];
   const report = (found: FoundBinds): void => {
-    if (exempt(found.at)) return;
     violations.push(
       ...repeatedElementsOf(
         content,
@@ -389,9 +321,13 @@ const followsSqlProperty = (blanked: string, at: number): boolean => {
  * the only writer of `?N` tokens, so SQL text never spells one itself; the
  * prose comments that kept such numbering honest are comments, which the
  * string-span walk never reads. The walk judges SQL text only: a template
- * literal, an `sql:` property's string, or the statement string a SQL helper
- * call carries. Every other string is prose, and the walk skips it. A
- * template's SQL text is checked with its interpolations blanked, and each
+ * literal, an `sql:` property's string, the statement string a SQL helper
+ * call carries, or a quoted string an assignment holds for the `sql` name
+ * or for a constant whose visible declaration a SQL helper call receives.
+ * The constant is the binding the scope resolution reaches: a same-named
+ * constant in an unrelated or shadowing scope is prose the rule does not
+ * judge. Every other string is prose, and the walk skips it. A template's
+ * SQL text is checked with its interpolations blanked, and each
  * interpolation's own string spans — the conditional fragments an assembly
  * writes — are checked in their place. */
 export const findHandNumberedSql = (
@@ -401,6 +337,13 @@ export const findHandNumberedSql = (
   if (relativePath === NUMBERED_STATEMENT_PATH) return [];
   const blanked = blankSpans(content, true);
   const statementStringStarts = sqlTextArgumentStarts(content, blanked);
+  const blocks = matchedBlocks(blanked);
+  const declarations = nameDeclarations(blanked);
+  const carrying = sqlCarryingStarts(blanked, blocks, declarations);
+  const sqlCarries = (name: string, at: number): boolean => {
+    const visible = visibleDeclaration(blocks, declarations.get(name), at);
+    return visible !== undefined && carrying.has(visible.start);
+  };
   const violations: string[] = [];
   const check = (start: number, end: number): void => {
     const text = content.slice(start, end);
@@ -414,10 +357,22 @@ export const findHandNumberedSql = (
       check(span.start, span.end);
     }
   };
+  const sqlAssigned = (at: number): boolean => {
+    let cursor = at;
+    while (cursor > 0 && /\s/.test(blanked[cursor - 1] as string)) cursor -= 1;
+    const before = cursor - 1;
+    if (before < 0) return false;
+    if (blanked[before] !== "=" || blanked[before - 1] === "=") return false;
+    const token = blanked.slice(0, before).trimEnd();
+    if (/\bsql$/.test(token)) return true;
+    const name = token.match(TOKEN_BEFORE);
+    return name !== null && sqlCarries(name[1] as string, at);
+  };
   const isSqlText = (at: number): boolean =>
     content[at] === "`" ||
     statementStringStarts.has(at) ||
-    followsSqlProperty(blanked, at);
+    followsSqlProperty(blanked, at) ||
+    sqlAssigned(at);
   for (const span of lexicalSpans(content)) {
     if (span.kind === "string" && isSqlText(span.start)) {
       check(span.start, span.end);
@@ -427,19 +382,17 @@ export const findHandNumberedSql = (
 };
 
 /** The violations the two numbered-parameter rules report over one loaded
- * source tree: each detector over every file, the repeated-bind allowances
- * applied. `toRelative` names each file the way a finding reports it. */
+ * source tree: each detector over every file. `toRelative` names each file
+ * the way a finding reports it. */
 export const findNumberedBindViolations = (
   files: readonly string[],
   contents: ReadonlyMap<string, string>,
   toRelative: (file: string) => string,
-  allowed: readonly string[],
 ): string[] => [
   ...files.flatMap((file) =>
     findRepeatedBinds(
       toRelative(file),
       requiredMapValue(contents, file, `Missing source text for ${file}`),
-      allowed,
     ),
   ),
   ...files.flatMap((file) =>

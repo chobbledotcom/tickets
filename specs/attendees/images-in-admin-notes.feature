@@ -16,7 +16,7 @@ Feature: The organiser reads notes that carry pictures
     note shows once, in the notes block in the page's top block above the
     tabs. Every summary holds its own copy.
 
-    @case:images-in-notes.the-banner-and-the-notes-section-each-show-it
+    @case:images-in-notes.the-notes-block-above-the-tabs-shows-it
     Scenario: The organiser opens the person's page
       Given the organiser noted about Ada "Called about parking" with a picture called "Poster"
       When the organiser opens Ada's page

@@ -1,11 +1,14 @@
 import type { InStatement } from "@libsql/client";
-import { assertStringIncludes } from "@std/assert";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { encrypt } from "#crypto/encryption.ts";
 import { getDb } from "#db/client.ts";
 import { addPageImageUrls, imageUrlsFor } from "#db/image-urls.ts";
 import { insertImageRecord } from "#db/images.ts";
+import { acquireMigrationLock } from "#db/migrations/lock.ts";
+import { recordMigrationBatch } from "#db/migrations/markers.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { settings } from "#db/settings.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
@@ -77,7 +80,11 @@ describeWithEnv(
       await withRequestContext(async () => {
         await addPageImageUrls(["plain text", null]);
 
-        assertStringIncludes(renderMarkdown("![Poster](img#7)"), 'src=""');
+        assertStringIncludes(
+          renderMarkdown("![Poster](img#7)"),
+          "<p>Poster</p>",
+        );
+        assert(!renderMarkdown("![Poster](img#7)").includes("<img"));
       });
     });
 
@@ -88,8 +95,9 @@ describeWithEnv(
 
       assertStringIncludes(
         renderMarkdown(`![Poster](img#${hero.id})`),
-        'src=""',
+        "<p>Poster</p>",
       );
+      assert(!renderMarkdown(`![Poster](img#${hero.id})`).includes("<img"));
     });
   },
 );
@@ -272,6 +280,53 @@ describeWithEnv(
         await imageUrlsFor([text]);
 
         expect(imageLookups()).toBe(2);
+      });
+    });
+
+    test("a recorded migration batch forces the next lookup to re-query", async () => {
+      const hero = await makeImage("Footer Migration");
+      const text = `![Foot](img#${hero.id})`;
+      const migratedId = hero.id + 1000;
+      const lease = await acquireMigrationLock(false);
+      if (!lease?.stored) throw new Error("the test holds no migration lease");
+
+      await withRequestContext(async () => {
+        enableQueryLog();
+        await imageUrlsFor([text]);
+        expect(imageLookups()).toBe(1);
+
+        // A migration writes its images rows outside the record spine — the
+        // way the first-class-images backfill did — and the runner then
+        // records the batch. Recording moves the shared version, so the next
+        // lookup cannot serve the table it held before the migration ran.
+        await getDb().execute({
+          args: [
+            migratedId,
+            await encrypt("migrated.png"),
+            await encrypt("migrated.png"),
+          ],
+          sql: "INSERT INTO images (id, name, filename, filename_thumb, alt_text) VALUES (?, 'Migrated', ?, ?, '')",
+        });
+        await recordMigrationBatch(
+          [
+            {
+              description: "Test migration whose batch must move the version.",
+              id: "2026-01-01_test_version_bump",
+              up: () => Promise.resolve(),
+              verify: () => Promise.resolve(),
+            },
+          ],
+          true,
+          lease.token,
+        );
+        await imageUrlsFor([text]);
+
+        expect(imageLookups()).toBe(2);
+
+        // The migration-written image is readable through the same lookup.
+        const migrated = await imageUrlsFor([`![Mig](img#${migratedId})`]);
+
+        expect(migrated.get(migratedId)).toBe("/image/migrated.png");
       });
     });
   },

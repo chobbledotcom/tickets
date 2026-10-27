@@ -16,6 +16,7 @@ import {
   protectedStateOf,
   referenceIndexOf,
 } from "#test-utils/payment-claim.ts";
+import { checkPaymentSeam } from "#test-utils/payment-seam.ts";
 import {
   bookedWithPayment,
   taggedPaymentReference,
@@ -26,6 +27,8 @@ describeWithEnv(
   "db > taking a payment claim > claiming",
   { db: true, encryptionKey: true },
   () => {
+    checkPaymentSeam();
+
     test("an unclaimed attendee's rows are claimed", async () => {
       const attendeeId = await bookedWithPayment("sess-a", "pi_a");
       const result = await claimCurrentAttendeeRows([attendeeId]);
@@ -205,6 +208,8 @@ describeWithEnv(
   "db > taking a payment claim > the reference index",
   { db: true, encryptionKey: true },
   () => {
+    checkPaymentSeam();
+
     test("is written beside the reference", async () => {
       await bookedWithPayment("sess-h", "pi_h");
       expect(await referenceIndexOf("sess-h")).toBe(

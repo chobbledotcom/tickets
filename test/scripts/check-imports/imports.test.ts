@@ -46,10 +46,24 @@ describe("topLevelImports", () => {
     );
   });
 
-  test("keeps an inline type import as a possible runtime load", () => {
+  test("erases an inline type import that names only types", () => {
     expect(importsIn('import { type A } from "#types";')[0]?.typeOnly).toBe(
+      true,
+    );
+    expect(
+      importsIn('import { type A, type B } from "#types";')[0]?.typeOnly,
+    ).toBe(true);
+  });
+
+  test("keeps an import that mixes a type name with a value name", () => {
+    expect(importsIn('import { type A, b } from "#types";')[0]?.typeOnly).toBe(
       false,
     );
+  });
+
+  test("keeps a default or namespace import at run time", () => {
+    expect(importsIn('import t from "#types";')[0]?.typeOnly).toBe(false);
+    expect(importsIn('import * as t from "#types";')[0]?.typeOnly).toBe(false);
   });
 
   test("marks a value import as surviving to run time", () => {
@@ -206,10 +220,15 @@ describe("topLevelImports", () => {
     );
   });
 
-  test("keeps an inline type re-export as a possible runtime load", () => {
+  test("erases an inline type re-export that names only types", () => {
     expect(importsIn('export { type A } from "#types";')[0]?.typeOnly).toBe(
-      false,
+      true,
     );
+  });
+
+  test("keeps an empty named import and re-export at run time", () => {
+    expect(importsIn('import {} from "#types";')[0]?.typeOnly).toBe(false);
+    expect(importsIn('export {} from "#types";')[0]?.typeOnly).toBe(false);
   });
 
   test("names no module for a local export", () => {

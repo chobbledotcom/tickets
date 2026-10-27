@@ -10,6 +10,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
+import { checkPaymentSeam } from "#test-utils/payment-seam.ts";
 import {
   bookedWithPayment,
   finalizeProcessedPayment,
@@ -74,6 +75,8 @@ describeWithEnv(
   "admin refund provider > the loaded payment set",
   { db: true, encryptionKey: true },
   () => {
+    checkPaymentSeam();
+
     setupErrorSpy();
 
     test("does not refund a payment row deleted after it was loaded", async () => {

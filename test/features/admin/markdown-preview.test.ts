@@ -5,6 +5,7 @@ import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
+import { expectAltTextPreview } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { createTestEditorSession } from "#test-utils/session.ts";
@@ -46,8 +47,6 @@ describeWithEnv("the admin markdown preview", { db: true }, () => {
         editor.cookie,
       ),
     );
-    expect(response.status).toBe(200);
-    const body = await response.text();
-    assertStringIncludes(body, '<img src="" alt="Ghost">');
+    await expectAltTextPreview(response, "Ghost");
   });
 });

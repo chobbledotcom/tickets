@@ -27,6 +27,7 @@ import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { protectedStateOf } from "#test-utils/payment-claim.ts";
 import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
+import { checkPaymentSeam } from "#test-utils/payment-seam.ts";
 import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import {
   finalizeProcessedPayment,
@@ -57,6 +58,8 @@ describeWithEnv(
   "admin refund provider > uncertain claim lifecycle",
   { db: true, encryptionKey: true },
   () => {
+    checkPaymentSeam();
+
     setupErrorSpy();
 
     test("holds an uncertain send through delete until fresh evidence settles it", async () => {

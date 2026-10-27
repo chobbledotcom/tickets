@@ -72,6 +72,18 @@ describe("the site picture helpers", () => {
     ).toThrow("the page renders no words of its own");
   });
 
+  test("fails loudly when the page's own words never close", () => {
+    expect(() =>
+      proseHtml('<main><div class="prose"><p>page words</p>'),
+    ).toThrow("the page renders no words of its own");
+  });
+
+  test("fails loudly when the footer never closes", () => {
+    expect(() =>
+      footerHtml('<main>words</main><footer class="site-footer"><p>footer'),
+    ).toThrow("the page renders no site footer");
+  });
+
   test("reads the story's picture inside the page's footer region", () => {
     expect(() =>
       expectFooterPicture(

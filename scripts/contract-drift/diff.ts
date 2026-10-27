@@ -1,15 +1,13 @@
 /** The semantic diff between two contract dumps: which machine moves,
- * money flags, and joint-state invariants changed. Pure data in, report
+ * money flags, and declared moves tables changed. Pure data in, report
  * lines out, so the tests pin every change kind. */
 
 import { unique } from "#fp";
 import {
   type Contracts,
   type DumpedDeclaredMoves,
-  type DumpedJointState,
   type DumpedMachine,
   type DumpedMoveCell,
-  jointStateKey,
   sortedStrings,
 } from "./dump.ts";
 
@@ -20,12 +18,6 @@ type EdgeRow = { actor: string; targets: Set<string> };
 /** Which side of a pair a line reports: what the base had and this tree
  * lost, or the other way round. */
 type DriftSide = "-" | "+";
-
-/** The word each side's state and invariant lines carry. */
-const REMOVED_OR_ADDED: Readonly<Record<DriftSide, string>> = {
-  "-": "removed",
-  "+": "added",
-};
 
 /** The words each side's state line carries. */
 const STATE_WORD: Readonly<Record<DriftSide, string>> = {
@@ -281,19 +273,6 @@ const listDrift = (
   );
 };
 
-/** The lines for the declared seam. */
-const jointDrift = (
-  before: readonly DumpedJointState[],
-  after: readonly DumpedJointState[],
-): string[] =>
-  driftBetween(
-    before,
-    after,
-    jointStateKey,
-    (side, state) =>
-      `${side} joint invariant ${REMOVED_OR_ADDED[side]}: ${jointStateKey(state)}`,
-  );
-
 /** Every semantic change between two contract dumps, one line per change. */
 export const driftLines = (base: Contracts, head: Contracts): string[] => {
   const lines: string[] = [];
@@ -322,7 +301,6 @@ export const driftLines = (base: Contracts, head: Contracts): string[] => {
       ...listDrift(pair, (machine) => machine.moneyEvents, MONEY_WORD),
     );
   }
-  lines.push(...jointDrift(base.jointStates, head.jointStates));
   return lines;
 };
 

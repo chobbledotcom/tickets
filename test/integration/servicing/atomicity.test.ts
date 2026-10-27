@@ -163,7 +163,7 @@ describeWithEnv(
       const row = await queryOne<{ c: number }>(
         "SELECT COUNT(*) AS c FROM attendees WHERE kind = 'servicing'",
       );
-      expect(Number(row?.c ?? 0)).toBe(0);
+      expect(Number(row!.c)).toBe(0);
     });
 
     test("update restores the prior state when answer saving fails (no half-applied edit)", async () => {

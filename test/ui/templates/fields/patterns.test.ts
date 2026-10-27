@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Field } from "#shared/forms/field.ts";
@@ -20,7 +21,11 @@ import {
   PHONE_INPUT_PATTERN,
   SUBDOMAIN_INPUT_PATTERN,
 } from "#templates/fields/ticket.ts";
-import { getSlugField } from "#templates/fields/validators.ts";
+import {
+  getSlugField,
+  getUsernameFieldBase,
+  validateUsername,
+} from "#templates/fields/validators.ts";
 
 /**
  * Regression guard for HTML `pattern` attributes.
@@ -81,5 +86,67 @@ describe("HTML input pattern attributes compile under the RegExp `v` flag", () =
     const re = new RegExp(`^${SUBDOMAIN_INPUT_PATTERN}$`, "v");
     expect(re.test("my-shop")).toBe(true);
     expect(re.test("-bad")).toBe(false);
+  });
+
+  // The browser can only check the shape, and validateUsername refuses a
+  // leading hyphen or underscore. The login and invite boxes carry the same
+  // schema-shaped pattern as the setup field, so the browser refuses exactly
+  // what the server refuses. Every shape the schema draws a line at is
+  // enumerated: leading punctuation, inner and trailing punctuation, the
+  // characters outside the set, and the length the maxlength attribute owns.
+  test("the shared username pattern refuses what validateUsername refuses", () => {
+    const pattern = getUsernameFieldBase().pattern;
+    assert(pattern !== undefined, "the username field carries a pattern");
+    expectValidPattern(pattern);
+    const re = new RegExp(`^${pattern}$`, "v");
+
+    for (const value of [
+      "a",
+      "Z",
+      "9",
+      "aB",
+      "0-0",
+      "a-b_c",
+      "aB-9_z",
+      "a-_b",
+      "abc-",
+      "abc_",
+      "a--b",
+      "a__b",
+      "-abc",
+      "_abc",
+      "-",
+      "_",
+      "-9",
+      "_9",
+      "x!",
+      "x.y",
+      "x y",
+      "x@y",
+      "x+y",
+      "üñï",
+      "日本語",
+      "xü",
+      "a\tb",
+      "a".repeat(250),
+      `${"a".repeat(249)}-`,
+      `-${"a".repeat(249)}`,
+      "9".repeat(250),
+    ]) {
+      expect(validateUsername(value) === null, `"${value}"`).toBe(
+        re.test(value),
+      );
+    }
+  });
+
+  // The setup field spells its pattern out beside the shared base, so the two
+  // copies must stay the same string: a drift would let the setup box and the
+  // login box disagree about one name.
+  test("the setup field carries the shared username pattern", () => {
+    const setupUsername = getSetupForm().fields.find(
+      (field) => field.name === "admin_username",
+    );
+    assert(setupUsername !== undefined, "the setup form has a username box");
+    expect(setupUsername.pattern).toBe(getUsernameFieldBase().pattern);
   });
 });

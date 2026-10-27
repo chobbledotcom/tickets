@@ -76,7 +76,7 @@ describe("how a run ended", () => {
     const end = ended({ aborted: true, hitDeadline: true });
 
     expect(end?.code).toBe(1);
-    assert(!end?.lines.join(" ").includes("Interrupted"));
+    assert(!end!.lines.join(" ").includes("Interrupted"));
   });
 
   test("still reports an operator's interrupt as an interrupt", () => {

@@ -11,8 +11,6 @@ import { PRUNE_SUMUP_RETENTION_MS } from "#shared/limits.ts";
 import { isoBefore } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
-// jscpd:ignore-end
-
 describeWithEnv("server > SumUp recovery pruning", { db: true }, () => {
   /** An ancient row in each state, well past the retention window. */
   const seedOldRows = async (): Promise<void> => {

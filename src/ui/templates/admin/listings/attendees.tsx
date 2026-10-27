@@ -211,15 +211,20 @@ export const AddAttendeeSection = ({
   listing: ListingWithCount;
   childNames?: string[];
 }): JSX.Element => (
-  <article>
-    <h2 id="add-attendee">{t("listings_table.add_attendee")}</h2>
-    {childNames.length > 0 && (
-      <p class="notice">
-        {t("listings_table.add_attendee_parent_warning", {
-          children: childNames.join(", "),
-        })}
-      </p>
-    )}
+  <ProseArticle
+    heading={<h2 id="add-attendee">{t("listings_table.add_attendee")}</h2>}
+    {...(childNames.length > 0
+      ? {
+          prose: (
+            <p class="notice">
+              {t("listings_table.add_attendee_parent_warning", {
+                children: childNames.join(", "),
+              })}
+            </p>
+          ),
+        }
+      : {})}
+  >
     <SaveForm
       action={`/admin/listing/${listing.id}/attendee`}
       submitIcon="plus"
@@ -237,7 +242,7 @@ export const AddAttendeeSection = ({
         )}
       />
     </SaveForm>
-  </article>
+  </ProseArticle>
 );
 
 export const completePaymentAttendees = (
