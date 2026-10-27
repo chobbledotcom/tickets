@@ -131,8 +131,8 @@ export const sendEncryptedMessage = async (
   }
   const client = defineApiClient({
     baseUrl,
-    fetchImpl: (url, init) =>
-      fetchTextFollowingSafeRedirects(url, init, fetchImpl),
+    fetchImpl: (url, buildInit) =>
+      fetchTextFollowingSafeRedirects(url, buildInit(), fetchImpl),
     headers: () => ({
       authorization: basicAuthHeader(config.username, config.password),
       "content-type": "application/json",

@@ -15,11 +15,17 @@ import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 /** How a client fetches one URL. The default is `fetchText`. A client that
  * answers from a site-build dry run, or follows safe redirects, substitutes
- * its own step. */
+ * its own step. The init is built lazily: a dry-run fetch can answer a canned
+ * body without ever reading the auth headers (the site-build dry run has no
+ * Bunny key set). */
 export type ApiClientFetch = (
   url: string,
-  init: RequestInit,
+  buildInit: () => RequestInit,
 ) => Promise<FetchResult>;
+
+/** The default fetch step: build the init and hand it to `fetchText`. */
+const defaultFetch: ApiClientFetch = (url, buildInit) =>
+  fetchText(url, buildInit());
 
 /** The shared request steps, configured for one API. */
 export type ApiClientConfig<E = string> = {
@@ -94,16 +100,16 @@ export const defineApiClient = <E = string>(
       defaultParseError(response, label, config.errorKeys) as E);
   const unreadableError: (label: string) => E =
     config.unreadableError ?? ((label) => defaultUnreadableError(label) as E);
-  const fetchImpl = config.fetchImpl ?? fetchText;
+  const fetchImpl = config.fetchImpl ?? defaultFetch;
 
   const raw = (path: string, init: RequestInit = {}): Promise<FetchResult> =>
-    fetchImpl(`${config.baseUrl}${path}`, {
+    fetchImpl(`${config.baseUrl}${path}`, () => ({
       ...init,
       headers: {
         ...config.headers(),
         ...(init.headers as Record<string, string> | undefined),
       },
-    });
+    }));
 
   /** One status-checked call: run the request, then either hand the answer to
    * `onOk` or report the parsed error. */

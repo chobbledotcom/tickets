@@ -149,8 +149,9 @@ test("a custom fetch implementation performs the request", async () => {
   const seen: string[] = [];
   const fetchImpl = async (
     url: string,
-    init: RequestInit,
+    buildInit: () => RequestInit,
   ): Promise<FetchResult> => {
+    const init = buildInit();
     seen.push(`${init.method} ${url}`);
     return { headers: new Headers(), ok: true, status: 200, text: "{}" };
   };

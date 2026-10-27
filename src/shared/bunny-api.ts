@@ -5,7 +5,10 @@
 
 /* jscpd:ignore-start -- import block */
 import type { GenericSchema } from "valibot";
-import { defineApiClient } from "#shared/api-client.ts";
+import {
+  defineApiClient,
+  type ApiClientFetch,
+} from "#shared/api-client.ts";
 import { dryRunOrFetchText } from "#shared/builder-dry-run.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
 import { type FetchResult, parseApiError } from "#shared/fetch.ts";
@@ -30,11 +33,10 @@ const bunnyHeaders = (): Record<string, string> => ({
 });
 
 /** The site-build dry-run fetch every Bunny API client uses: inside a build
- * it answers canned bodies, otherwise it delegates to the real fetch. */
-export const bunnyDryRunFetch = (
-  url: string,
-  init: RequestInit,
-): Promise<FetchResult> => dryRunOrFetchText(url, () => init);
+ * it answers canned bodies, otherwise it delegates to the real fetch. The
+ * init stays lazy so a canned answer never reads the auth headers. */
+export const bunnyDryRunFetch: ApiClientFetch = (url, buildInit) =>
+  dryRunOrFetchText(url, buildInit);
 
 /** Extract the Bunny-specific ErrorKey from a raw response body, if present. */
 const extractBunnyErrorKey = (text: string): string | undefined => {

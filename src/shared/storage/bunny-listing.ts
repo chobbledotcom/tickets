@@ -10,9 +10,9 @@ import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 const bunnyListingClient = (zoneName: string, zoneKey: string) =>
   defineApiClient({
     baseUrl: `https://storage.bunnycdn.com/${zoneName}`,
-    fetchImpl: async (url, init) => {
+    fetchImpl: async (url, buildInit) => {
       countExternalSubrequest("storage directory listing");
-      return readFetchResult(await fetch(url, init));
+      return readFetchResult(await fetch(url, buildInit()));
     },
     headers: () => ({ AccessKey: zoneKey }),
   });
