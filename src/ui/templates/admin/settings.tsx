@@ -21,9 +21,9 @@ import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { SuperuserForm } from "#templates/admin/settings/superuser.tsx";
 import type { AdminSession, PaymentProviderType, Theme } from "#types";
 
-/** The provider whose credentials form the page shows — the one taking new
- *  sales, or the one that owns the payments already taken — and what the
- *  site's stored credentials for it say. */
+/** The provider whose credentials form the page shows: the one taking new
+ *  sales, or the one that owns the payments already taken. It also carries
+ *  what the site's stored credentials for it say. */
 export type ShownPaymentProvider = {
   /** Whether the credentials this provider needs are stored. */
   readonly configured: boolean;

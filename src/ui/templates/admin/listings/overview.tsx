@@ -1,6 +1,10 @@
 import type { ListingOverviewStats } from "#db/listing-overview-stats.ts";
+import type { SystemNote } from "#db/notes/types.ts";
 import { t } from "#i18n";
-import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
+import {
+  AttendeeNotesSummary,
+  NotesSection,
+} from "#templates/admin/attendee-notes.tsx";
 import {
   buildStatDetailRows,
   calculateTotalRevenue,
@@ -26,6 +30,26 @@ export const ListingDeactivatedBanner = ({
   active ? null : (
     <ErrorNote>{t("listings_table.listing_deactivated_warning")}</ErrorNote>
   );
+
+/** The listing page's banner: the deactivated alert, then the listing's
+ * notes. The alert leads because it speaks about the record as a whole. The
+ * notes follow it on every tab, so no note hides behind one. */
+export const ListingBanner = ({
+  active,
+  deleteHref,
+  isOwner,
+  notes,
+}: {
+  active: boolean;
+  deleteHref: (note: SystemNote) => string;
+  isOwner: boolean;
+  notes: SystemNote[];
+}): JSX.Element => (
+  <>
+    {ListingDeactivatedBanner({ active })}
+    {NotesSection({ deleteHref, isOwner, notes })}
+  </>
+);
 
 export const overviewStatsFromAttendees = (
   listing: ListingWithCount,

@@ -3,9 +3,9 @@
  *
  * Safe URLs must be absolute https:// URLs with a real domain name. IP
  * literals, localhost-style names, and internal/private hostnames are all
- * rejected. This is hostname-based and best-effort: it does not resolve DNS,
- * so it does not defend against DNS rebinding, but it blocks the obvious
- * "fetch an internal service" cases and forces TLS.
+ * rejected. This is hostname-based and best-effort. It does not resolve DNS,
+ * so it does not defend against DNS rebinding. It blocks the obvious "fetch
+ * an internal service" cases and forces TLS.
  */
 
 import { endsWithAny } from "#fp-strings";
@@ -29,8 +29,9 @@ const isDomainHostname = (host: string): boolean =>
   host.includes(".") && !host.endsWith(".");
 
 /**
- * True when `raw` is a safe URL for the server to fetch: a syntactically valid
- * https:// URL whose host is a real domain name and not internal/private.
+ * True when `raw` is a safe URL for the server to fetch. It must be a
+ * syntactically valid https:// URL whose host is a real domain name and not
+ * internal/private.
  */
 export const isSafeServerFetchUrl = (raw: string): boolean => {
   if (!URL.canParse(raw)) return false;

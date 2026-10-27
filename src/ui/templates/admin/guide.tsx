@@ -96,10 +96,10 @@ export const adminGuidePage = (
 
 /**
  * Standalone markdown formatting-help page. The full guide is staff-only (its
- * body links to many owner/staff pages), but markdown formatting help is needed
- * by every content role — including editors — wherever a markdown field shows
- * the "Formatting help" hint. This renders just the editor-safe Text Formatting
- * section so that link never dead-ends.
+ * body links to many owner/staff pages), but markdown formatting help is
+ * needed by every content role, including editors. Wherever a markdown field
+ * shows the "Formatting help" hint, this renders just the editor-safe Text
+ * Formatting section so that link never dead-ends.
  */
 export const adminFormattingHelpPage = (adminSession: AdminSession): string =>
   guideShell({

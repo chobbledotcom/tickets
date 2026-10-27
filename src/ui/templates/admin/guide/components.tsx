@@ -93,7 +93,7 @@ export const Faq = ({ id }: { id: string }): JSX.Element => (
 export type GuideFaq = { faq: string };
 
 /** A hand-authored entry: a `guide.q.<custom>` question with a bespoke answer
- * body, used where the answer depends on host configuration or contains
+ * body. Use it where the answer depends on host configuration, or contains
  * rich/structured HTML that cannot be a static locale string. */
 export type GuideCustom = { custom: string; body: JSX.Element };
 

@@ -6,9 +6,9 @@ import { parseOrNull } from "#shared/validation/parse.ts";
  * Shared string value types.
  *
  * TypeScript cannot prove that an arbitrary runtime `string` is non-empty, so
- * callers that need that invariant should carry this branded type instead. The
- * only production paths into the brand are the helpers below, which validate at
- * the boundary and let downstream code avoid repeated empty-string checks.
+ * callers that need that invariant carry this branded type instead. The only
+ * production paths into the brand are the helpers below, which validate at the
+ * boundary and let downstream code avoid repeated empty-string checks.
  */
 export const NonEmptyTextSchema = v.pipe(v.string(), v.nonEmpty());
 export const NonEmptyStringSchema = v.pipe(
@@ -18,7 +18,7 @@ export const NonEmptyStringSchema = v.pipe(
 export const OptionalStringSchema = v.optional(v.string());
 export const OptionalNullableStringSchema = v.optional(v.nullable(v.string()));
 
-/** A piece of text that may be left out, but has to pass the test when it is
+/** A piece of text that can be left out, but has to pass the test when it is
  *  there. */
 type OptionalCheckedString = v.OptionalSchema<
   v.SchemaWithPipe<

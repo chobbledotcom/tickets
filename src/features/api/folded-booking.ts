@@ -246,8 +246,8 @@ const completeFoldedBooking = async (
   const total = foldedOrderTotal(items);
   const intent = foldedIntent(input);
   if (isPaymentsEnabled() && total > 0) {
-    // Reject a folded order whose parent or any child has exhausted capacity
-    // before creating a checkout session. The web paid path runs the same
+    // Reject a folded order whose parent or any child already exhausted
+    // capacity before creating a checkout session. The web paid path runs the same
     // `checkAvailability` preflight. Without it, the API hands back a checkout
     // URL for a sold-out order the webhook cannot create.
     const available = await checkAvailability(

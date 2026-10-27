@@ -1,5 +1,5 @@
 /**
- * The rows that record what has been applied: one marker per migration, plus
+ * The rows that record what was applied: one marker per migration, plus
  * the two settings rows naming the schema this build expects.
  */
 

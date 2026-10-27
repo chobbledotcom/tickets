@@ -5,7 +5,7 @@ import { formatCurrency } from "#shared/currency.ts";
 export type LabelledAmountProps = { label: Child; amount: number };
 
 /** A bold label followed by a formatted money amount — the shared inside of the
- *  order-total money lines. The public balance page wraps it in a `<p>`; the
+ *  order-total money lines. The public balance page wraps it in a `<p>`. The
  *  admin ledger summary wraps it in an `<li>`. */
 export const LabelledAmount = ({
   label,

@@ -4,7 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { requireSuccess } from "#shared/result.ts";
+import { requireEntityImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 
@@ -40,7 +40,7 @@ const importListingOverride = (
 const importStoredListing = async (listing: Record<string, unknown>) => {
   const result = await importCatalog({ kind: "listing", listing, version: 1 });
   if (!result.ok) throw new Error(result.error);
-  const stored = await getListingWithCount(result.value.id);
+  const stored = await getListingWithCount(requireEntityImport(result).id);
   if (!stored) throw new Error("listing not found after import");
   return stored;
 };
@@ -92,7 +92,7 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
       "Host Pkg 2",
       2,
     );
-    const imported = requireSuccess(result);
+    const imported = requireEntityImport(result);
     expect(imported).toMatchObject({
       kind: "listing",
       name: "Custom Joiner 2",
@@ -100,5 +100,29 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
     expect((await getGroupDayPrices(group.id)).get(imported.id)).toEqual(
       new Map([[2, 500]]),
     );
+  });
+
+  test("accepts a package join that declares no day-price override", async () => {
+    // No `dayPrices` on the membership: the override checker refuses nothing
+    // without reading the member's offered spans, and no group day prices
+    // are written for the member.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Host Pkg 3",
+    });
+    const result = await importCatalog({
+      groups: [{ group: "Host Pkg 3" }],
+      kind: "listing",
+      listing: { ...customisable, maxAttendees: 1, name: "Custom Joiner 3" },
+      version: 1,
+    });
+    const imported = requireEntityImport(result);
+    expect(imported).toMatchObject({
+      kind: "listing",
+      name: "Custom Joiner 3",
+    });
+    // No override rows exist for the group at all: the checker's early
+    // return leaves nothing written, not even an empty entry.
+    expect(await getGroupDayPrices(group.id)).toEqual(new Map());
   });
 });

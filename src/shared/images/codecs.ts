@@ -1,13 +1,13 @@
 /**
  * The `.wasm` bytes are initialised manually rather than left to jSquash's own
- * loader, which relies on `fetch` and filesystem paths that do not resolve
- * inside the single-file Bunny edge bundle.
+ * loader. That loader relies on `fetch` and filesystem paths that do not
+ * resolve inside the single-file Bunny edge bundle.
  *
  * This module is dynamically imported by the upload path, never at cold boot,
  * so the ~1MB of codec wasm compiles lazily and once per isolate. A transient
  * CDN failure stays retryable.
  *
- * The SIMD build is chosen when the runtime reports SIMD support, which mirrors
+ * The SIMD build is chosen when the runtime reports SIMD support. This mirrors
  * jSquash's own selection so the glue code and the wasm module always agree.
  */
 
@@ -35,7 +35,7 @@ const compileWasm = async (
   WebAssembly.compile((await bytes) as BufferSource);
 
 /** Pick the WebP encoder build matching the runtime's WASM SIMD support. The
- * SIMD build is meaningfully faster where available; the scalar build is the
+ * SIMD build is meaningfully faster where available. The scalar build is the
  * portable fallback. Split out so both arms are unit-testable without needing
  * to force `simd()`'s result. */
 export const pickEncoderBytes = async (

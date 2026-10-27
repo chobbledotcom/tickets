@@ -4,7 +4,7 @@ import { defineStoredJson } from "#shared/validation/stored-json.ts";
 /**
  * The admin features operators can choose to show. This one registry drives the
  * stored JSON shape, settings table, detail routes, copy, usage checks, and nav
- * visibility, so adding a feature means adding one complete entry here.
+ * visibility. Adding a feature means adding one complete entry here.
  */
 export const ADMIN_FEATURES = [
   {
@@ -89,7 +89,7 @@ const DEFAULT_ENABLED_FEATURES = Object.freeze(
 ) as EnabledFeatures;
 
 /** Parse the plain JSON setting. An absent row is the expected all-hidden
- * default; malformed or incomplete stored JSON is an error. */
+ * default. Malformed or incomplete stored JSON is an error. */
 export const parseEnabledFeatures = (value: string): EnabledFeatures =>
   value === ""
     ? DEFAULT_ENABLED_FEATURES

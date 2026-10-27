@@ -74,8 +74,8 @@ const createStripeCheckoutSession = makeCreateCheckoutSession(
   "stripe",
   (...args) => stripeApi.createCheckoutSession(...args),
   (session) => {
-    // Stripe ends its own page at the expiry we sent, and the create answer
-    // echoes it back: that time is the whole fact the answers prune reads.
+    // Stripe ends its own page at the expiry we sent. The create answer
+    // echoes that time back. It is the whole fact the answers prune reads.
     const linkEndsAt = isoFromUnixSeconds(session?.expires_at);
     return {
       id: session?.id,

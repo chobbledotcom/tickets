@@ -1,10 +1,10 @@
 import { errorMessage } from "#shared/error-message.ts";
 
 /**
- * Run a step that already reports success or failure as an `ok` outcome, and
- * turn a thrown exception into that same failure shape instead of crashing:
+ * Run a step that already reports success or failure as an `ok` outcome.
+ * Turn a thrown exception into that same failure shape instead of crashing:
  * `{ ok: false, error: "<label>: <message>" }`. For steps that call out to
- * external services (provider APIs, release downloads), where a network or
+ * external services such as provider APIs and release downloads. A network or
  * parse failure is a normal outcome the caller shows to the operator.
  */
 export const tryStep = async <Value extends { ok: boolean }>(

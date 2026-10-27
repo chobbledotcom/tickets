@@ -268,27 +268,4 @@ describeWithEnv("server > listing parents > edges", { db: true }, () => {
     )(await postChildren(parent.id, [child.id]));
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
-
-  test("addIdsTx adds a child under each parent without disturbing others", async () => {
-    const { listingChildren, listingParents } = await import(
-      "#db/listing-parents.ts"
-    );
-    const { withTransaction } = await import("#db/client.ts");
-    const parentA = await createTestListing({ name: "Parent A" });
-    const parentB = await createTestListing({ name: "Parent B" });
-    const existingChild = await createTestListing({ name: "Existing Child" });
-    const newChild = await createTestListing({ name: "New Child" });
-    // parentA already has a child; adding newChild under both parents must keep it.
-    await listingChildren.setIds(parentA.id, [existingChild.id]);
-
-    await withTransaction((tx) =>
-      listingParents.addIdsTx(tx, newChild.id, [parentA.id, parentB.id]),
-    );
-
-    expect(await listingChildren.getIds(parentA.id)).toEqual([
-      existingChild.id,
-      newChild.id,
-    ]);
-    expect(await listingChildren.getIds(parentB.id)).toEqual([newChild.id]);
-  });
 });

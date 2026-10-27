@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { requireListingWithCount } from "#db/listings/records.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { requireSuccess } from "#shared/result.ts";
+import { requireEntityImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /** Import a one-listing blob and assert it is rejected with a message naming
@@ -36,7 +36,9 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       },
       version: 1,
     });
-    const imported = await requireListingWithCount(requireSuccess(result).id);
+    const imported = await requireListingWithCount(
+      requireEntityImport(result).id,
+    );
     expect(imported.min_quantity).toBe(2);
   });
 
@@ -46,7 +48,9 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       listing: { maxAttendees: 1, name: "No Floor" },
       version: 1,
     });
-    const imported = await requireListingWithCount(requireSuccess(result).id);
+    const imported = await requireListingWithCount(
+      requireEntityImport(result).id,
+    );
     expect(imported.min_quantity).toBe(1);
   });
 
@@ -97,7 +101,7 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       },
       version: 1,
     });
-    const importedResult = requireSuccess(result);
+    const importedResult = requireEntityImport(result);
     const imported = await requireListingWithCount(importedResult.id);
     expect(imported.closes_at).toBe("2026-06-01T12:00:00.000Z");
     expect(imported.date).toBe("2026-06-02T09:00:00.000Z");
@@ -118,7 +122,9 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       listing: { closesAt: "2026-06-01T12:00", maxAttendees: 1, name: "NoSec" },
       version: 1,
     });
-    const imported = await requireListingWithCount(requireSuccess(result).id);
+    const imported = await requireListingWithCount(
+      requireEntityImport(result).id,
+    );
     expect(imported.closes_at).toBe("2026-06-01T12:00:00.000Z");
   });
 
@@ -177,7 +183,9 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       },
       version: 1,
     });
-    const imported = await requireListingWithCount(requireSuccess(result).id);
+    const imported = await requireListingWithCount(
+      requireEntityImport(result).id,
+    );
     expect(imported.closes_at).toBe("2030-01-01T00:00:00.500Z");
   });
 
@@ -187,7 +195,9 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       listing: { closesAt: "", maxAttendees: 1, name: "Open Listing" },
       version: 1,
     });
-    const imported = await requireListingWithCount(requireSuccess(result).id);
+    const imported = await requireListingWithCount(
+      requireEntityImport(result).id,
+    );
     expect(imported.closes_at).toBeNull();
   });
 
@@ -230,7 +240,9 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       },
       version: 1,
     });
-    const imported = await requireListingWithCount(requireSuccess(result).id);
+    const imported = await requireListingWithCount(
+      requireEntityImport(result).id,
+    );
     expect(imported.bookable_days).toEqual(["Monday", "Wednesday"]);
   });
 });

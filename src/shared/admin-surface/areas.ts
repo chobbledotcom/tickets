@@ -4,7 +4,7 @@
  * This is the one place an admin route is declared. Its nav (`sections.ts`)
  * and its serving module (`area-loaders.ts`) are keyed by the same area names.
  * The declarations themselves live in the two alphabetical halves beside this
- * file; join a new area to the half its name sorts into.
+ * file. Join a new area to the half its name sorts into.
  *
  * An area names the role that reaches it once. A route names a role only when
  * it differs from its area. `segments` lists a URL segment the area serves

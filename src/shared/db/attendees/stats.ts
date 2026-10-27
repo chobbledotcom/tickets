@@ -9,8 +9,8 @@ import type { ListingWithCount } from "#types";
 /**
  * Get aggregated statistics for active listings.
  * All three values are summed from the precomputed aggregate columns on
- * ListingWithCount (trigger-maintained), which are already in memory from the
- * caller's getAllListings() fetch — no additional DB query needed.
+ * ListingWithCount (trigger-maintained). Those columns are already in memory
+ * from the caller's getAllListings() fetch. No additional DB query is needed.
  */
 export const getActiveListingStats = (
   listings: ListingWithCount[],

@@ -168,6 +168,30 @@ describe("AccountStatementSection", () => {
     assertStringIncludes(rows[3] ?? "", ">£30<");
   });
 
+  test("shows the operator's own description on an owner-entered charge", () => {
+    const html = String(
+      AccountStatementSection({
+        ledger: {
+          account: acct,
+          lines: statementFor(acct)([
+            transfer({
+              destination: account("writeoff", "default"),
+              id: 5,
+              kind: "manual_attendee_charge",
+              memo: "Delivery",
+              source: account("attendee", 1),
+            }),
+          ]),
+          names: names({ attendees: new Map([[1, "Ada"]]) }),
+        },
+        returnUrl: "/admin/ledger/attendee/1",
+      }),
+    );
+    assertStringIncludes(html, "Extra amount now owed by");
+    assertStringIncludes(html, "Delivery");
+    assertStringIncludes(html, "Ada");
+  });
+
   test("renders the empty state row spanning all five columns", () => {
     const html = String(
       AccountStatementSection({

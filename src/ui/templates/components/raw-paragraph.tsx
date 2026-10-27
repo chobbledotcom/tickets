@@ -4,8 +4,8 @@
  *
  * Several admin pages render blocks of pre-rendered HTML copy this way
  * (the bulk-email TypeExplainer, the domain-payment warning, the privacy
- * page, etc.). The paragraph markup itself lives in {@link RawParagraph};
- * this helper only adds the `t()` lookup.
+ * page, etc.). The paragraph markup itself lives in {@link RawParagraph}.
+ * This helper only adds the `t()` lookup.
  */
 
 import { t } from "#i18n";

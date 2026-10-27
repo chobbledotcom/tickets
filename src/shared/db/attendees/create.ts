@@ -252,12 +252,12 @@ const createWith =
   };
 
 /** The refusal a failed write answers with. The guarded batch cannot say
- * which statement it aborted on, so the order is asked again on the primary
- * — every prefix of a typical order in one snapshot batch, a longer one
- * narrowing a bracket over a few stride batches — and the first line that
- * does not fit at the last batch's snapshot is named. Capacity that changed
- * between batches is honoured: a room freed names none, and a room consumed
- * names the earlier line it made unfit. */
+ * which statement it aborted on, so the order is asked again on the primary.
+ * The retry walks every prefix of a typical order in one snapshot batch, or
+ * a longer one narrowing a bracket over a few stride batches. The first line
+ * that does not fit at the last batch's snapshot is named. Capacity that
+ * changed between batches is honoured: a room freed names none, and a room
+ * consumed names the earlier line it made unfit. */
 const capacityFailure = async (
   bookings: AttendeeInput["bookings"],
 ): Promise<CreateAttendeeResult> => ({

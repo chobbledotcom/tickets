@@ -51,8 +51,8 @@ export type AdminListingQrPageOptions = {
   result?: AdminListingQrResult;
 };
 
-/** Render the price input. Can_pay_more listings use the configured min/max;
- *  fixed-price listings have no upper bound so the admin can set any override. */
+/** Render the price input. Can_pay_more listings use the configured min/max.
+ *  Fixed-price listings have no upper bound so the admin can set any override. */
 const PriceInput = ({
   listing,
   value,

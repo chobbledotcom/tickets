@@ -78,8 +78,8 @@ export const squareRequestInit = (
   };
 };
 
-/** Square names the buyer field it rejected in the answer body, and that is
- *  the one failure the buyer can act on, so its detail reads that body. */
+/** Square names the buyer field it rejected in the answer body. That field
+ *  is the one failure the buyer can act on, so its detail reads that body. */
 const squareCaller = providerCaller((body) =>
   providerDetail.square(readInvalidField(body)),
 );

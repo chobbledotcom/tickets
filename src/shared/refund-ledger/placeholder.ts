@@ -1,4 +1,4 @@
-/** Store the cash round-trip for a booking that could not be honoured. */
+/** Store the cash round-trip for a booking that was not honoured. */
 
 import { asOrderLegs, mapBooking, mapRefund } from "#accounting/mappers.ts";
 import { postTransferGroups } from "#accounting/store.ts";

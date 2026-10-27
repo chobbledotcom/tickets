@@ -1,14 +1,17 @@
 /**
- * Cross-table slug uniqueness. A slug must be unique across **listings, groups,
- * and site_pages** — they share the public URL namespace and the same blind-index
- * hash — so all three entity validators delegate here. Centralising it closes the
- * one-directional gap where a per-entity check only looked at a subset (letting a
- * later listing/group reuse a page's slug, or vice versa).
+ * Cross-table slug uniqueness. A slug must be unique across **listings,
+ * groups, and site_pages**. The three share the public URL namespace and the
+ * same blind-index hash, so all three entity validators delegate here.
+ * Centralising it closes the one-directional gap where a per-entity check
+ * looked at a subset. Without it, a later listing or group can reuse a page's
+ * slug, or the reverse.
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import {
+  inPlaceholders,
+  queryBatch,
   resultRows,
   rowExists,
   type SqlStatement,
@@ -25,8 +28,8 @@ export type SlugTable = "listings" | "groups" | "site_pages";
 
 /** Exhaustive {@link SitePageItemType} → {@link SlugTable} map. Adding a new
  *  slug-owning entity to {@link SitePageItemTypeSchema} forces a row here (a
- *  compile error), so the cross-table uniqueness check can't silently miss the
- *  new table the way a hand-listed `SlugTable[]` could. */
+ *  compile error). The cross-table uniqueness check then cannot miss the new
+ *  table the way a hand-listed `SlugTable[]` can. */
 const SLUG_TABLE_BY_TYPE: Record<SitePageItemType, SlugTable> = {
   group: "groups",
   listing: "listings",
@@ -166,6 +169,28 @@ export const isSlugTakenAnywhere = async (
   const slugIndex = await hmacHash(slug);
   const available = unclaimedSiteSlugCondition(slugIndex, exclude);
   return !(await rowExists(`SELECT 1 WHERE ${available.sql}`, available.args));
+};
+
+/** Which of these blind indexes does any slug-owning table already hold? One
+ * read per table in one batch — the batched form of
+ * {@link isSlugTakenAnywhere} for a caller that creates many slugged rows at
+ * once (the catalog bundle import), where one check per row would trip the
+ * N+1 read guard. */
+export const takenSlugIndexes = async (
+  slugIndexes: readonly string[],
+): Promise<Set<string>> => {
+  if (slugIndexes.length === 0) return new Set();
+  const results = await queryBatch(
+    SLUG_TABLES.map((table) => ({
+      args: [...slugIndexes],
+      sql: `SELECT slug_index FROM ${table} WHERE slug_index IN (${inPlaceholders(slugIndexes)})`,
+    })),
+  );
+  return new Set(
+    results.flatMap((result) =>
+      resultRows<{ slug_index: string }>(result!).map((row) => row.slug_index),
+    ),
+  );
 };
 
 /** `isSlugTakenAnywhere` for the rows one entity can edit — a listing edit must

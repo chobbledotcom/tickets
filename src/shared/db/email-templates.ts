@@ -3,8 +3,9 @@
  *
  * Subject and body are stored as owner-keypair-encrypted blobs — the same
  * approach used for bulk_email_draft in settings. Encryption and decryption
- * are handled at the route layer; this module only reads and writes the sealed
- * values as-is, so the table declares them as simple OwnerKeyEncrypted columns.
+ * are handled at the route layer. This module only reads and writes the
+ * sealed values as-is, so the table declares them as simple OwnerKeyEncrypted
+ * columns.
  */
 
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";

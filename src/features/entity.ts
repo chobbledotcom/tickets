@@ -16,7 +16,7 @@ import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 
 /**
  * Resolve a nullable promise, calling handler if found or returning 404.
- * Use for any route that loads a model and should 404 when missing.
+ * Use for any route that loads a model and returns 404 when missing.
  */
 export const orNotFound = async <T>(
   load: Promise<T | null>,

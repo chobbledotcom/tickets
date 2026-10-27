@@ -13,12 +13,13 @@ import {
 
 /**
  * The body of a wallet (Apple/Google) setup answer. Both wallets share the
- * same shape — an optional "already set up by the host" note, a plain-language
- * note saying who this set-up is for, the credential intro, the list of
- * required values, and a closing note — so the whole structure lives here once
- * and each call site supplies only what differs: the wallet name, the
- * developer account, how many values are needed, the host-configured id (with
- * its label), the localized note, and the list items themselves.
+ * same shape. It carries the optional "already set up by the host" note and
+ * a plain-language note saying who this set-up is for. It also carries the
+ * credential intro, the list of required values, and a closing note. The
+ * whole structure lives here once. Each call site supplies only what
+ * differs: the wallet name, the developer account, how many values are
+ * needed, the host-configured id (with its label), the localized note, and
+ * the list items themselves.
  */
 const WalletSetup = ({
   account,

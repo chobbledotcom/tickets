@@ -3,7 +3,7 @@
  *
  * Slugs are auto-generated 5-character strings from the alphabet
  * 0123456789abcdefgh (18 chars). Each slug must contain at least
- * 2 digits and 2 letters, giving ~1.15M possible combinations.
+ * 2 digits and 2 letters. This gives ~1.15M possible combinations.
  */
 
 import * as v from "valibot";

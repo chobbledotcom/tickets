@@ -1,9 +1,9 @@
 /**
  * Booking rate limiting.
  *
- * The public booking endpoint is unauthenticated and creates database rows,
- * sends emails, and fires webhooks, so it is throttled per IP to prevent
- * capacity griefing and registration/webhook flooding. Counters share the
+ * The public booking endpoint is unauthenticated. It creates database rows,
+ * sends emails, and fires webhooks, so it is throttled per IP. This prevents
+ * capacity griefing and registration or webhook flooding. Counters share the
  * `login_attempts` table but are namespaced so they never affect login lockouts.
  */
 

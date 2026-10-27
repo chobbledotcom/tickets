@@ -184,7 +184,7 @@ export const adminImagesPage = successListPage<Image[]>(
           ? imagesOrEmpty(images, () => renderTable(imageTable, images))
           : storageDisabledNotice()}
         {/* The images page is editor-reachable, but the guide is staff-only, so
-          gate the link by role — editors would otherwise get a 403. */}
+          gate the link by role — editors otherwise get a 403. */}
         <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#images">
           {t("images.guide_link")}
         </GuideFooter>
@@ -237,9 +237,9 @@ export const adminImageEditPage = ({
         {SaveChangesButton()}
       </CsrfForm>
       {!isReadOnly() && (
-        <>
+        <div class="prose">
           <h2>{t("entity.danger_zone")}</h2>
-          <p class="prose">
+          <p>
             <ActionButton
               href={`/admin/images/${image.id}/delete`}
               icon="trash-2"
@@ -248,7 +248,7 @@ export const adminImageEditPage = ({
               {t("images.delete.link")}
             </ActionButton>
           </p>
-        </>
+        </div>
       )}
     </>,
   );

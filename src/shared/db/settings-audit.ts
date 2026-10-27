@@ -1,13 +1,13 @@
 /**
  * Dev and test only. A route that reads a setting it never declared in its
- * prefix bundle gets a default or stale value SILENTLY, which is the failure
- * mode the on-demand system trades for. This proves the bundles are honest: at
- * the end of each request it asserts reads ⊆ loaded.
+ * prefix bundle gets a default or stale value SILENTLY. This is the failure
+ * mode the on-demand system trades for. This proves the bundles are honest:
+ * at the end of each request it asserts reads ⊆ loaded.
  *
- * It is a strict no-op in production: the bookkeeping state is only allocated
- * while the audit is explicitly enabled (the test harness turns it on), so
- * `recordSettingRead` / `recordSettingsLoaded` see no state and return
- * immediately — the only hot-path cost is one branch per read.
+ * It is a strict no-op in production. The bookkeeping state is only allocated
+ * while the audit is explicitly enabled (the test harness turns it on).
+ * `recordSettingRead` and `recordSettingsLoaded` see no state and return
+ * immediately. The only hot-path cost is one branch per read.
  */
 
 import { lazyRef } from "#fp";
@@ -24,7 +24,7 @@ export type AuditState = {
   loaded: Set<string>;
 };
 
-/** Off in production; the test harness turns it on. */
+/** Off in production. The test harness turns it on. */
 const [isAuditEnabled, setAuditEnabled] = lazyRef<boolean>(() => false);
 
 /** Enable/disable the audit. Pass `null` to reset to the default (off). */

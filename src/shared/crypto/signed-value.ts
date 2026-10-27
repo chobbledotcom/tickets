@@ -1,10 +1,10 @@
 /**
  * Verify a value signed with an embedded expiry timestamp.
  *
- * Signed attachment URLs and signed CSRF tokens share the same shape: an
- * integer seconds field, a validity window around "now", and an HMAC over a
- * message the caller rebuilds. This captures that whole tail once; each caller
- * supplies only what differs — its window and how it builds the message.
+ * Signed attachment URLs and signed CSRF tokens share the same shape. It has
+ * an integer seconds field, a validity window around "now", and an HMAC over
+ * a message the caller rebuilds. This captures that whole tail once. Each
+ * caller supplies only what differs: its window and how it builds the message.
  */
 
 import { hmacHash } from "#crypto/hashing.ts";

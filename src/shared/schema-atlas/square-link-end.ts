@@ -22,8 +22,8 @@ import type { AtlasMachine } from "#shared/schema-atlas/types.ts";
 
 /* jscpd:ignore-end */
 
-/** Where each node sits on the map: the row's life from left to right, the
- * lease in the middle, and both ways a row leaves on the right. */
+/** Where each node sits on the map. The row's life runs from left to right,
+ * with the lease in the middle. Both ways a row leaves on the right. */
 const LAYOUTS: MachineLayouts<string> = {
   ending: { x: 620, y: 240 },
   gone: { x: 900, y: 240 },

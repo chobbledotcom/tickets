@@ -25,14 +25,14 @@ const textHasAny =
   (text: string): boolean =>
     pieces.some((piece) => matches(text, piece));
 
-/** Whether the text starts with any of the given pieces, e.g. any known
- * prefix from a stored list. */
+/** Whether the text starts with any of the given pieces, for example any
+ * known prefix from a stored list. */
 export const startsWithAny = textHasAny((text, piece) =>
   text.startsWith(piece),
 );
 
-/** Whether the text ends with any of the given pieces, e.g. any known file
- * ending. */
+/** Whether the text ends with any of the given pieces, for example any known
+ * file ending. */
 export const endsWithAny = textHasAny((text, piece) => text.endsWith(piece));
 
 /** Whether the text contains any of the given pieces. */

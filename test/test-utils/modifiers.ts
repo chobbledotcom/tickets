@@ -50,6 +50,18 @@ export const optInAddOnForListings = async (
   }
 };
 
+/** Insert an active opt-in add-on scoped to the given group ids. */
+export const optInAddOnForGroups = async (
+  name: string,
+  groupIds: number[],
+): Promise<void> => {
+  const modifier = await insertModifier({ name });
+  await patchModifier(modifier.id, { scope: "groups", trigger: "optional" });
+  for (const groupId of groupIds) {
+    await linkModifierGroup(modifier.id, groupId);
+  }
+};
+
 /** An active, listings-scoped, opt-in modifier with no links yet. Links go
  * on later with `linkModifierListing`. */
 export const activeOptInAddOn = async (name: string) => {

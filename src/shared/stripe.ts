@@ -124,7 +124,7 @@ const createCheckoutSession = async (
     // Stripe ends its own page at this time, so no stored handle and no
     // task are needed: the checkout window is the whole fact. A short margin
     // keeps the window above Stripe's 30-minute floor once the request's own
-    // latency is counted, and the ceiling keeps a full-day window inside it.
+    // latency is counted. The ceiling keeps a full-day window inside it.
     expires_at: checkoutExpiry(nowSeconds(), CHECKOUT_WINDOW_MINUTES),
     line_items: lineItems,
     mode: "payment",
@@ -264,7 +264,7 @@ class StripeCheckoutReadError extends Error {
   }
 }
 
-/** A checkout Stripe says is gone is a genuine absence; anything else stops
+/** A checkout Stripe says is gone is a genuine absence. Anything else stops
  *  the read loudly, after one logged line naming what Stripe answered. */
 const checkoutReadFailure = (error: unknown): StripeCheckoutSession | null => {
   const failure = providerFailureOf(error);

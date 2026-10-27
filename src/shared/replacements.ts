@@ -2,7 +2,7 @@
  * One text change made of several replacements, applied in the order given.
  *
  * Kept in its own tiny, import-free module for the same reason as the HTML
- * escaper beside it: the browser bundles use it, and must not drag anything
+ * escaper beside it. The browser bundles use it, and must not drag anything
  * else in with it.
  */
 

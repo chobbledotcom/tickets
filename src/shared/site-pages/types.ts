@@ -9,7 +9,7 @@ import type { RecordTargetKey } from "#db/record-target.ts";
 import type { SitePageItem, SitePageItemType, SitePageNavRow } from "#types";
 
 /** A stable string key for any nav target — the composite `(kind, id)` the
- * whole system is keyed on. `sitePageItemTargets.key()` mints it; everything
+ * whole system is keyed on. `sitePageItemTargets.key()` mints it. Everything
  * compares by it. */
 export type TargetKey = RecordTargetKey<SitePageItemType>;
 
@@ -71,6 +71,6 @@ export interface NavModel {
   /** Root page nodes, ordered — spliced between Listings and Contact. */
   rootPageNodes: readonly NavNode[];
   /** Stacked ancestor sibling-sets for the active chain, root-first, each
-   * labelled by its page; empty when the current target has no parent page. */
+   * labelled by its page. Empty when the current target has no parent page. */
   submenuLevels: readonly NavLevel[];
 }

@@ -3,6 +3,6 @@ export interface ListingVisibility {
   hidden: boolean;
 }
 
-/** A listing that may be named and linked from public discovery surfaces. */
+/** A listing that can be named and linked from public discovery surfaces. */
 export const isPublicListing = (listing: ListingVisibility): boolean =>
   listing.active && !listing.hidden;

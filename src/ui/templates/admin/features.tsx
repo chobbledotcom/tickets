@@ -11,7 +11,7 @@ import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { BackButton } from "#templates/components/actions.tsx";
-import { TitledArticle } from "#templates/components/page-structure.tsx";
+import { ProseArticle } from "#templates/components/prose-article.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
@@ -49,10 +49,12 @@ export const FeaturesTable = ({
 }: {
   enabledFeatures: EnabledFeatures;
 }): JSX.Element => (
-  <TitledArticle id="settings-features" title={t("features.title")}>
-    <p>{t("features.intro")}</p>
+  <ProseArticle
+    heading={<h2 id="settings-features">{t("features.title")}</h2>}
+    prose={<p>{t("features.intro")}</p>}
+  >
     {renderTable(featureTable, featureRows(enabledFeatures))}
-  </TitledArticle>
+  </ProseArticle>
 );
 
 export const adminFeaturePage = ({
@@ -79,11 +81,13 @@ export const adminFeaturePage = ({
           {t("features.back_to_settings")}
         </BackButton>
       </p>
-      <h1>{t(feature.labelKey)}</h1>
+      <div class="prose">
+        <h1>{t(feature.labelKey)}</h1>
+        <p>{t(feature.descriptionKey)}</p>
+      </div>
       <Flash error={error} success={success} />
-      <p>{t(feature.descriptionKey)}</p>
       {inUse || isReadOnly() ? (
-        <>
+        <div class="prose">
           <p>
             <strong>{t("features.status_label")}</strong>{" "}
             {t(
@@ -96,7 +100,7 @@ export const adminFeaturePage = ({
               <p>{t("features.in_use_help")}</p>
             </>
           )}
-        </>
+        </div>
       ) : (
         <SaveForm
           action={`/admin/features/${feature.slug}`}

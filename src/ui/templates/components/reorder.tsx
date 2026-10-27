@@ -8,8 +8,8 @@
 import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
 
 /** The reorder inputs shared by {@link ReorderArrows} and the per-table cells
- *  that wrap it (e.g. `ReorderControls` in questions.tsx): a direction-to-path
- *  builder plus the row's `index` within `count` rows. */
+ *  that wrap it (for example, `ReorderControls` in questions.tsx): a
+ *  direction-to-path builder plus the row's `index` within `count` rows. */
 export type ReorderDirection = "up" | "down";
 
 export type ReorderProps = {
@@ -38,7 +38,7 @@ const ArrowButton = ({
 );
 
 /** The arrows for the row at `index` of `count`. `action` builds the POST path
- * for a direction; `titles`, when given, adds a tooltip per arrow. */
+ * for a direction. `titles`, when given, adds a tooltip per arrow. */
 export const ReorderArrows = ({
   action,
   index,

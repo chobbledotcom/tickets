@@ -1,4 +1,5 @@
 import { expect } from "@std/expect";
+import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#db/attendees/api.ts";
 import type { ExistingLine } from "#db/attendees/atomic-update.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
@@ -8,6 +9,7 @@ import { handleRequest } from "#routes";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import {
@@ -15,10 +17,48 @@ import {
   mockTicketFormRequest,
   testPageHtml,
 } from "#test-utils/mocks.ts";
+import { apiRequest } from "#test-utils/session.ts";
 import type { Attendee, Listing } from "#types";
 import { createDailyTestListing, createTestListing } from "./listings.ts";
 
 export { getAttendeesRaw };
+
+/** One POST create request carrying the minimal valid body for a listing. */
+export const createBooking = (
+  listingId: number,
+  body: Record<string, unknown> = {},
+): Promise<Response> =>
+  apiRequest("/api/admin/attendees", {
+    body: {
+      email: "ada@example.com",
+      lines: [{ listingId, quantity: 1 }],
+      name: "Ada Lovelace",
+      ...body,
+    },
+    method: "POST",
+  });
+
+/** The roster endpoint decrypts and answers every booking on the listing. */
+export const rosterAttendeeIds = async (
+  listingId: number,
+): Promise<number[]> => {
+  const roster = await assertJson(
+    apiRequest(`/api/admin/listings/${listingId}/attendees`),
+    200,
+  );
+  return roster.attendees.map((attendee: { id: number }) => attendee.id);
+};
+
+/** Stub the atomic attendee create to refuse with a capacity failure, for
+ *  tests of the create-refused path. */
+export const stubRefusedAtomicCreate = () =>
+  stub(attendeesApi, "createAttendeeAtomic", () =>
+    Promise.resolve({
+      listingIds: [],
+      reason: "capacity_exceeded" as const,
+      success: false,
+    }),
+  );
 
 export const expectNoAttendeesForListings = async (
   listingIds: number[],

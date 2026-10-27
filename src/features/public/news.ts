@@ -2,10 +2,10 @@
  * Public `/news` — the news list and the single post pages.
  *
  * Gate order matters, exactly like `/page/:slug`: `requirePublicSite` runs
- * FIRST, so a disabled site redirects to the admin login without leaking
+ * FIRST. A disabled site then redirects to the admin login without leaking
  * whether any posts (or a given post id) exist. The list 404s when there are
- * no posts at all — the nav only links `/news` once one exists, and a link we
- * would render must never 404.
+ * no posts at all. The nav only links `/news` once one exists. A link we
+ * render must never 404.
  */
 
 /* jscpd:ignore-start -- imports */

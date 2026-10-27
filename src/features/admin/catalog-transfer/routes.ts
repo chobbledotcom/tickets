@@ -121,6 +121,19 @@ const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> =
     if (!result.ok) return errorRedirect(IMPORT_PATH, result.error);
     const imported = result.value;
 
+    if (imported.kind === "bundle") {
+      await logActivity(
+        `Bundle import: ${imported.listings} listings and ${imported.groups} groups created`,
+      );
+      return redirect(
+        "/admin/listings",
+        t("catalog_transfer.imported_bundle", {
+          groups: imported.groups,
+          listings: imported.listings,
+        }),
+        true,
+      );
+    }
     if (imported.kind === "listing") {
       await logActivity(`Listing '${imported.name}' imported`, imported.id);
       return redirect(

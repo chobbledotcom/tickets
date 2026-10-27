@@ -8,7 +8,7 @@ export type NumberedSql = (bind: SqlParameter) => string;
 export const numberedStatement = (buildSql: NumberedSql): SqlStatement => {
   const args: InValue[] = [];
   // Two occurrences of one value read the same argument, so an already bound
-  // value reuses its token. Equal primitives are the same value; repeated
+  // value reuses its token. Equal primitives are the same value. Repeated
   // dates across cart buckets then collapse to one slot per distinct value.
   const byValue = new Map<InValue, SqlParameterToken>();
   const bind: SqlParameter = (value) => {

@@ -14,8 +14,8 @@ import type { ImageTarget } from "./types.ts";
 
 /**
  * Turns one uploaded image (its bytes plus mime) and a list of size/quality
- * targets into some result — the shared signature of both the raw transcoder
- * (WebP bytes out) and the storage wrapper (stored filenames out).
+ * targets into some result. This is the shared signature of both the raw
+ * transcoder (WebP bytes out) and the storage wrapper (stored filenames out).
  */
 export type ImageTargetTranscoder<Result> = (
   data: Uint8Array,
@@ -26,7 +26,7 @@ export type ImageTargetTranscoder<Result> = (
 /**
  * Decode `data` (of type `mime`) and produce one WebP buffer per target, in the
  * same order. Decoding happens once regardless of how many variants are asked
- * for; variants are encoded sequentially (the wasm codec is single-instance).
+ * for. Variants are encoded sequentially (the wasm codec is single-instance).
  */
 export const transcodeToWebp: ImageTargetTranscoder<Uint8Array[]> = async (
   data,

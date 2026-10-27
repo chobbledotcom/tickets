@@ -1,6 +1,6 @@
 /**
  * Re-encrypt legacy env-key activity-log messages to the owner key. A dump plus
- * DB_ENCRYPTION_KEY could otherwise read the whole history.
+ * DB_ENCRYPTION_KEY can otherwise read the whole history.
  *
  * Only the public key is needed, so it runs unattended.
  *

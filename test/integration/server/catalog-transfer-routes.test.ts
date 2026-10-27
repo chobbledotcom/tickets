@@ -122,7 +122,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       const response = await adminGet("/admin/catalog/import");
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, "Import a listing or group");
+      assertStringIncludes(html, "Import a catalog file");
       assertStringIncludes(html, 'name="catalog_file"');
     });
   });
@@ -245,6 +245,64 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       const location = response.headers.get("location") ?? "";
       assertStringIncludes(location, "/admin/catalog/import");
       assertStringIncludes(location, "flash=");
+    });
+
+    test("imports a bundle and flashes the created counts", async () => {
+      const response = await importUpload({
+        groups: [{ group: { name: "Bundle Day" }, members: [] }],
+        kind: "bundle",
+        listings: [
+          {
+            groups: [{ group: "Bundle Day" }],
+            listing: { maxAttendees: 10, name: "Bundle Act 1", unitPrice: 500 },
+            parents: [],
+          },
+          {
+            groups: [],
+            listing: { maxAttendees: 10, name: "Bundle Act 2", unitPrice: 700 },
+            parents: [],
+          },
+        ],
+        version: 1,
+      });
+      await expectFlashRedirect(
+        "/admin/listings",
+        "2 listings and 1 group imported.",
+      )(response);
+      // The activity log carries one line for the whole import.
+      const log = await getAllActivityLog();
+      expect(
+        log.some((entry) =>
+          entry.message.includes(
+            "Bundle import: 2 listings and 1 groups created",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    test("surfaces a bundle failure as a flash and creates nothing", async () => {
+      await createTestListing({ name: "Bundle Clash" });
+      const response = await importUpload({
+        groups: [],
+        kind: "bundle",
+        listings: [
+          {
+            groups: [],
+            listing: { maxAttendees: 5, name: "Bundle Clash" },
+            parents: [],
+          },
+        ],
+        version: 1,
+      });
+      await expectFlashRedirect(
+        "/admin/catalog/import",
+        'No records were created. Please fix these problems and upload the file again: "Bundle Clash": A listing or group named "Bundle Clash" already exists — rename or remove it before importing.',
+        false,
+      )(response);
+      // The pre-existing row is untouched; the import created nothing.
+      expect(
+        (await getAllListings()).filter((l) => l.name === "Bundle Clash"),
+      ).toHaveLength(1);
     });
   });
 });

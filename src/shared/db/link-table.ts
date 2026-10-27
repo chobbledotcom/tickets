@@ -32,9 +32,6 @@ type TxIdsWrite = (
 ) => Promise<void>;
 
 export type LinkTableSide = {
-  /** Add links for a key without touching its existing rows (one multi-row
-   * INSERT), inside an existing write transaction. No-op for an empty list. */
-  addIdsTx: TxIdsWrite;
   /** Remove every row for this key (used before deleting the record). */
   clear: (keyId: number) => Promise<void>;
   /** Copy all links from one key to another inside an existing write
@@ -122,7 +119,7 @@ export type LinkedIdsByKey = Map<number, number[]>;
 
 /** Reads the linked ids for several keys at once. Every key asked for comes
  * back, including keys with no links. An optional transaction reads the same
- * query through it, so a caller inside a write transaction sees its own
+ * query through it. A caller inside a write transaction then sees its own
  * earlier writes instead of the per-request cache. */
 type ReadIdsByKeys = (
   keyIds: readonly number[],
@@ -168,11 +165,6 @@ export const linkTableSide = (
   };
 
   const linkSide: LinkTableSide = {
-    addIdsTx: async (tx, keyId, ids) => {
-      const deduped = dedupe(ids);
-      if (deduped.length === 0) return;
-      await tx.execute(insertStatement(keyId, deduped));
-    },
     clear: (keyId) => deleteByField(table, keyColumn, keyId),
     copyLinksTx: async (tx, sourceKeyId, newKeyId) => {
       await tx.execute({
@@ -229,7 +221,7 @@ const emptyBothDirections = (
  * Both directions through a link table whose two columns name the same kind of
  * record — a listing's children and the parents it sits under.
  *
- * Both sides share one read and one memory of it, so asking each way round for
+ * Both sides share one read and one memory of it. Asking each way round for
  * the same records costs one round trip rather than two. Rows come back ordered
  * by key then value, which leaves every list here ascending.
  */

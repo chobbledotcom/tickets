@@ -1,10 +1,10 @@
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 
 /**
- * Editor for a single contact_preferences record, keyed by its HMAC blind
- * index (contact_hash). The attendee page's contact-history panel links here so
- * the operator can inspect and repair a contact's aggregated booking/message
- * counts and owner-encrypted private note directly.
+ * The entity page for a single contact_preferences record, keyed by its HMAC
+ * blind index (contact_hash). The attendee page's contact-history panel links
+ * here so the operator can inspect and repair a contact's aggregated
+ * booking/message counts and owner-encrypted private note directly.
  *
  *   GET  /admin/history/:hmac — render the record editor
  *   POST /admin/history/:hmac — save the edited record
@@ -19,13 +19,21 @@ import {
 import { addPageImageUrls } from "#db/image-urls.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse, redirect } from "#routes/response.ts";
+import {
+  customSection,
+  defineEntityPage,
+  type EntityPage,
+} from "#routes/admin/entity-pages.ts";
+import { AUTH_FORM, withAuth } from "#routes/auth.ts";
+import { redirect } from "#routes/response.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { contactHistoryPage } from "#templates/admin/contact-history.tsx";
+import {
+  ContactHistoryForm,
+  ContactHistoryProse,
+} from "#templates/admin/contact-history.tsx";
 
 /* jscpd:ignore-end */
 
@@ -54,31 +62,56 @@ const recordFromForm = (
   visits: nonNegativeInt(form, "visits"),
 });
 
-/** GET /admin/history/:hmac — render the contact record editor. Decrypting the
- * note needs the owner private key, so the session must hold one. */
-export const handleContactHistoryGet: TypedRouteHandler<
-  "GET /admin/history/:hmac"
-> = (request, { hmac }) =>
-  requireSessionOr(request, async (session) => {
-    const record = await loadForRepair(
-      fromContactHashParam(hmac),
-      await requireRequestPrivateKey(),
-    );
-    const flash = applyFlash(request);
-    await addPageImageUrls([record.adminNotes]);
-    return htmlResponse(
-      contactHistoryPage({
-        flashError: flash.error,
-        flashSuccess: flash.success,
-        hmac,
-        record,
-        session,
-      }),
-    );
+/** The editor's page entity: the route's HMAC blind index plus the loaded
+ * record, so the prose and form can show the contact's own hash. */
+type ContactHistoryEntity = { hmac: string; record: ContactRecord };
+
+/** The editor form, with the request's private key opening the record's note
+ * (the session must hold one). */
+const loadContactHistoryEntity = async (
+  hmac: string,
+): Promise<ContactHistoryEntity> => ({
+  hmac,
+  record: await loadForRepair(
+    fromContactHashParam(hmac),
+    await requireRequestPrivateKey(),
+  ),
+});
+
+/** The prose beside the heading: what the editor is for, and which contact. */
+const entityProse = ({ hmac }: ContactHistoryEntity): JSX.Element =>
+  ContactHistoryProse({ hmac });
+
+/** The editor form panel: the page's one section. The note's img#N references
+ * resolve through the image-url table before render. */
+const loadFormPanel = async ({
+  hmac,
+  record,
+}: ContactHistoryEntity): Promise<JSX.Element> => {
+  await addPageImageUrls([record.adminNotes]);
+  return ContactHistoryForm({ hmac, record });
+};
+
+/** The tabbed contact-record editor. */
+const contactHistoryEntityPage: EntityPage<ContactHistoryEntity, string> =
+  defineEntityPage({
+    destination: "contactHistory",
+    load: (hmac) => loadContactHistoryEntity(hmac),
+    navActive: { section: adminPattern("attendees") },
+    proseExtra: (entity) => Promise.resolve(entityProse(entity)),
+    tabs: [
+      {
+        intent: "write-form",
+        labelKey: "entity.tab.edit",
+        sections: [customSection(loadFormPanel)],
+        slug: "",
+      },
+    ],
+    titleOf: () => t("contact_history.title"),
   });
 
 /** POST /admin/history/:hmac — overwrite the contact record from the form. */
-export const handleContactHistoryPost: TypedRouteHandler<
+const handleContactHistoryPost: TypedRouteHandler<
   "POST /admin/history/:hmac"
 > = (request, { hmac }) =>
   withAuth(request, AUTH_FORM, async (session, form) => {
@@ -88,22 +121,25 @@ export const handleContactHistoryPost: TypedRouteHandler<
     const updated = recordFromForm(form, current);
     if (updated.adminNotes.length > MAX_TEXTAREA_LENGTH) {
       await addPageImageUrls([updated.adminNotes]);
-      return htmlResponse(
-        contactHistoryPage({
-          formError: t("contact_history.note_too_long", {
-            max: MAX_TEXTAREA_LENGTH,
-          }),
-          hmac,
-          record: updated,
-          session,
-        }),
-      );
+      return contactHistoryEntityPage.renderPage(session, hmac, "", {
+        panel: () =>
+          Promise.resolve(
+            ContactHistoryForm({
+              formError: t("contact_history.note_too_long", {
+                max: MAX_TEXTAREA_LENGTH,
+              }),
+              hmac,
+              record: updated,
+            }),
+          ),
+      });
     }
     await saveContactRecord(hash, updated);
     return redirect(`/admin/history/${hmac}`, t("contact_history.saved"), true);
   });
 
 export const adminHandlers = defineRoutes({
-  "GET /admin/history/:hmac": handleContactHistoryGet,
+  "GET /admin/history/:hmac": (request, { hmac }) =>
+    contactHistoryEntityPage.renderTab(request, hmac, ""),
   "POST /admin/history/:hmac": handleContactHistoryPost,
 });

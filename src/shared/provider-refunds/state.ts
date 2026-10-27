@@ -243,7 +243,7 @@ const conflictRefundedMoney = (
       }
     : row.refunded;
 
-/** Store the exact money behind a live disagreement. Fresh evidence may
+/** Store the exact money behind a live disagreement. Fresh evidence can
  * replace an ordinary ambiguity, but never a conclusive conflict choice. */
 export const answerProviderConflict = (charge: ChargeMoney): AnswerRefund =>
   changeRefundWhen(

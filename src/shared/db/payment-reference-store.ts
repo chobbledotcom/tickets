@@ -41,7 +41,7 @@ export const paymentReferenceIndex = (
 ): Promise<string> => hmacHash(paymentReferenceIndexInput(reference));
 
 /** Blind identities an unauthenticated writer can derive for one reference.
- * Tagged writes also check the old raw spelling; two known providers stay
+ * Tagged writes also check the old raw spelling. Two known providers stay
  * distinct because neither provider's tagged index appears in the other set. */
 export const matchingPaymentReferenceIndexes = async (
   reference: PaymentReference,

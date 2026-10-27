@@ -6,9 +6,10 @@
  * Auth: AccessKey header (same BUNNY_API_KEY as CDN API)
  */
 
+/* jscpd:ignore-start -- import block */
 import * as v from "valibot";
-import { dryRunOrFetchText } from "#shared/builder-dry-run.ts";
-import { parseBunnyError } from "#shared/bunny-api.ts";
+import { defineApiClient } from "#shared/api-client.ts";
+import { bunnyDryRunFetch } from "#shared/bunny-api.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
 import { jsonHeaders } from "#shared/fetch.ts";
 import {
@@ -18,7 +19,18 @@ import {
 } from "#shared/provider-types.ts";
 import { okResult, type Result } from "#shared/result.ts";
 
+/* jscpd:ignore-end */
+
 const DB_API_BASE = "https://api.bunny.net/database";
+
+/** The shared Bunny Database client: AccessKey auth, the Bunny `Message`
+ * error key, and the site-build dry-run seam. */
+const dbClient = defineApiClient({
+  baseUrl: DB_API_BASE,
+  errorKeys: ["Message"],
+  fetchImpl: bunnyDryRunFetch,
+  headers: () => jsonHeaders({ AccessKey: getBunnyApiKey() }),
+});
 
 /**
  * Storage region for new databases. Bunny only exposes two storage zones —
@@ -38,47 +50,39 @@ const DbConfigResponseSchema = v.object({
 
 type RegionConfig = v.InferOutput<typeof RegionConfigSchema>;
 
-interface CreateDbResponse {
-  db_id: string;
-}
+const CreateDbResponseSchema = v.object({ db_id: v.string() });
 
-interface GetDbResponse {
-  db: {
-    db_id: string;
-    name: string;
-    url: string;
-  };
-}
-
-/** Headers for all Bunny Database API requests. */
-const dbApiHeaders = (): Record<string, string> =>
-  jsonHeaders({ AccessKey: getBunnyApiKey() });
+const GetDbResponseSchema = v.object({
+  db: v.object({
+    db_id: v.string(),
+    name: v.string(),
+    url: v.string(),
+  }),
+});
 
 /** Just the node IDs from a list of regions Bunny reported. */
 const regionIds = (regions: RegionConfig[]): string[] =>
   regions.map((region) => region.id);
 
 /**
- * Ask Bunny which database regions it will accept right now, so a new database
- * runs on every one of Bunny's servers instead of a fixed list. Reading the
- * live config means new Bunny regions are used automatically, with no code
+ * Ask Bunny which database regions it will accept right now. A new database
+ * then runs on every one of Bunny's servers instead of a fixed list. Reading
+ * the live config means new Bunny regions are used automatically, with no code
  * change needed when Bunny adds a server.
  */
 const getAllRegions = async (): Promise<
   Result<{ primaryRegions: string[]; replicaRegions: string[] }>
 > => {
-  const res = await dryRunOrFetchText(`${DB_API_BASE}/v1/config`, () => ({
-    headers: dbApiHeaders(),
-  }));
-
-  if (!res.ok) {
-    return parseBunnyError(res, "Get database config");
-  }
-
-  const config = v.parse(DbConfigResponseSchema, JSON.parse(res.text));
+  const config = await dbClient.request(
+    "/v1/config",
+    { method: "GET" },
+    DbConfigResponseSchema,
+    "Get database config",
+  );
+  if (!config.ok) return config;
   return okResult({
-    primaryRegions: regionIds(config.primary_regions),
-    replicaRegions: regionIds(config.replica_regions),
+    primaryRegions: regionIds(config.value.primary_regions),
+    replicaRegions: regionIds(config.value.replica_regions),
   });
 };
 
@@ -94,55 +98,50 @@ const createDatabaseImpl: CreateDatabaseFn = async (name) => {
   }
 
   // 2. Create the database with all of Bunny's nodes as primaries and replicas
-  const createRes = await dryRunOrFetchText(
-    `${DB_API_BASE}/v2/databases`,
-    () => ({
+  const created = await dbClient.request(
+    "/v2/databases",
+    {
       body: JSON.stringify({
         name,
         primary_regions: regions.value.primaryRegions,
         replicas_regions: regions.value.replicaRegions,
         storage_region: STORAGE_REGION,
       }),
-      headers: dbApiHeaders(),
       method: "POST",
-    }),
+    },
+    CreateDbResponseSchema,
+    "Create database",
   );
-
-  if (!createRes.ok) {
-    return parseBunnyError(createRes, "Create database");
-  }
-
-  const createData: CreateDbResponse = JSON.parse(createRes.text);
-  const dbId = createData.db_id;
+  if (!created.ok) return created;
+  const dbId = created.value.db_id;
 
   // 3. Fetch database details to get the connection URL
-  const getRes = await dryRunOrFetchText(
-    `${DB_API_BASE}/v2/databases/${encodeURIComponent(dbId)}`,
-    () => ({ headers: dbApiHeaders() }),
+  const details = await dbClient.request(
+    `/v2/databases/${encodeURIComponent(dbId)}`,
+    { method: "GET" },
+    GetDbResponseSchema,
+    "Get database",
   );
-
-  if (!getRes.ok) {
-    return parseBunnyError(getRes, "Get database");
-  }
-
-  const getData: GetDbResponse = JSON.parse(getRes.text);
-  const dbUrl = getData.db.url;
+  if (!details.ok) return details;
+  const dbUrl = details.value.db.url;
 
   // 4. Generate a full-access token
-  const tokenRes = await dryRunOrFetchText(
-    `${DB_API_BASE}/v2/databases/${encodeURIComponent(dbId)}/auth/generate`,
-    () => ({
+  const tokenRes = await dbClient.fetch(
+    `/v2/databases/${encodeURIComponent(dbId)}/auth/generate`,
+    {
       body: JSON.stringify({ authorization: "full-access", expires_at: null }),
-      headers: dbApiHeaders(),
       method: "PUT",
-    }),
+    },
+    "Generate database token",
   );
+  if (!tokenRes.ok) return tokenRes;
 
-  if (!tokenRes.ok) {
-    return parseBunnyError(tokenRes, "Generate database token");
-  }
-
-  return databaseCredentialsFromResponse(dbId, dbUrl, tokenRes.text, "token");
+  return databaseCredentialsFromResponse(
+    dbId,
+    dbUrl,
+    tokenRes.value.text,
+    "token",
+  );
 };
 
 export const bunnyDbProvider: DatabaseProviderApi = {

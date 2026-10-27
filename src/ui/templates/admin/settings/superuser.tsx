@@ -9,9 +9,9 @@ import { SaveButton } from "#templates/components/actions.tsx";
 import type { SuperuserChoice } from "#types";
 
 /** A radio-label option for the superuser choice. `checkedValue` is the
- *  SuperuserChoice that should mark this option checked — note the radio's
- *  submitted value ("enable-superuser") differs from the stored choice
- *  ("enabled"), so they're passed separately. */
+ *  SuperuserChoice that marks this option checked. Note the radio's submitted
+ *  value ("enable-superuser") differs from the stored choice ("enabled"), so
+ *  they are passed separately. */
 const superuserChoiceOption = (
   choice: SuperuserChoice,
   checkedValue: SuperuserChoice,

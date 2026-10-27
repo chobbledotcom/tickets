@@ -7,8 +7,8 @@ import { t } from "#i18n";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 
-/** The HTML 403 body: a role refusal says the account cannot open the page;
- *  an owner-only refusal says only the owner account can. The audience fact
+/** The HTML 403 body: a role refusal says the account cannot open the page.
+ *  An owner-only refusal says only the owner account can. The audience fact
  *  comes from the same route declaration that the guards admit by. */
 const forbiddenBody = (detail?: ForbiddenDetail): string =>
   detail === "owner-only"

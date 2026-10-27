@@ -26,7 +26,7 @@ const groupToFieldValues = (
       max_attendees: (value) => value.max_attendees || null,
     },
     // A new group's form starts with its hidden-listings box ticked, matching
-    // the column default: the public group page offers hidden members until
+    // the column default. The public group page offers hidden members until
     // the operator unticks it.
     group === undefined ? { show_hidden_listings: "1" } : undefined,
   );
@@ -94,7 +94,7 @@ const packageMembersTable = defineTable<ListingWithCount, PackageMemberValues>([
   {
     cell: (listing, members) => {
       const member = members.get(listing.id);
-      // null/absent means no override; 0 means free.
+      // null/absent means no override. 0 means free.
       const override = member?.price ?? null;
       return (
         <>

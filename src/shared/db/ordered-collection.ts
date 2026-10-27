@@ -228,9 +228,9 @@ export type ScopedOrderedRowInsert<Input> = (
 ) => Promise<number>;
 
 /**
- * Insert a child row and give it the next place in its scoped order — one
- * transaction, with any extra writes (like the log line) riding along. A
- * failed order write or log rolls the insert back with it.
+ * Insert a child row and give it the next place in its scoped order. The
+ * insert and any extra writes (like the log line) ride in one transaction.
+ * A failed order write or log rolls the insert back with it.
  */
 export const insertScopedOrderedRow =
   <Input>(

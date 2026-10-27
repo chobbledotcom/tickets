@@ -1,6 +1,6 @@
 /**
- * Weekday name data — deliberately dependency-free so early-loaded, self-
- * contained modules (like the catalog transfer schema) can read the day
+ * Weekday name data — deliberately dependency-free. Early-loaded,
+ * self-contained modules (like the catalog transfer schema) can read the day
  * names without pulling in the timezone/settings-loading graph.
  */
 

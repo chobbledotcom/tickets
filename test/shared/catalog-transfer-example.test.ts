@@ -13,6 +13,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { CatalogTransferSchema } from "#routes/admin/catalog-transfer/schema.ts";
 import {
+  CATALOG_BUNDLE_EXAMPLE,
+  CATALOG_BUNDLE_EXAMPLE_JSON,
   CATALOG_GROUP_EXAMPLE,
   CATALOG_GROUP_EXAMPLE_JSON,
   CATALOG_LISTING_EXAMPLE,
@@ -30,6 +32,11 @@ describe("catalog transfer example", () => {
     expect(result.success).toBe(true);
   });
 
+  test("the bundle example parses as a valid catalog transfer blob", () => {
+    const result = v.safeParse(CatalogTransferSchema, CATALOG_BUNDLE_EXAMPLE);
+    expect(result.success).toBe(true);
+  });
+
   test("each example is canonical — parsing does not alter it", () => {
     // The rendered JSON is exactly the parsed (defaults-applied, transformed)
     // blob, so the guide never shows a shape that silently changes on import.
@@ -39,6 +46,9 @@ describe("catalog transfer example", () => {
     expect(v.parse(CatalogTransferSchema, CATALOG_GROUP_EXAMPLE)).toEqual(
       CATALOG_GROUP_EXAMPLE,
     );
+    expect(v.parse(CatalogTransferSchema, CATALOG_BUNDLE_EXAMPLE)).toEqual(
+      CATALOG_BUNDLE_EXAMPLE,
+    );
   });
 
   test("the rendered JSON is pretty-printed with two-space indenting", () => {
@@ -47,6 +57,9 @@ describe("catalog transfer example", () => {
     );
     expect(CATALOG_GROUP_EXAMPLE_JSON).toBe(
       JSON.stringify(CATALOG_GROUP_EXAMPLE, null, 2),
+    );
+    expect(CATALOG_BUNDLE_EXAMPLE_JSON).toBe(
+      JSON.stringify(CATALOG_BUNDLE_EXAMPLE, null, 2),
     );
     assertStringIncludes(CATALOG_LISTING_EXAMPLE_JSON, '\n  "kind": "listing"');
   });

@@ -8,9 +8,9 @@ export interface PagedRows<Row> {
 
 /**
  * Read every row from a paged reader, one page at a time, until a page says
- * nothing follows. `maxPages` is the walk's hard stop: a reader still
- * reporting more pages past it has a page cursor that stopped advancing, so
- * this throws rather than reading forever.
+ * nothing follows. `maxPages` is the walk's hard stop. A reader still
+ * reporting more pages past it has a page cursor that stopped advancing.
+ * This throws rather than reading forever.
  */
 export const readAllPages = async <Row>(
   maxPages: number,

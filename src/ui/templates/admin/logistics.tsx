@@ -35,7 +35,7 @@ import {
   CheckboxLabel,
   SectionFieldset,
 } from "#templates/components/aggregate-sections.tsx";
-import { TitledArticle } from "#templates/components/page-structure.tsx";
+import { ProseArticle } from "#templates/components/prose-article.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
@@ -59,8 +59,10 @@ const AgentsSection = ({
 }: {
   agents: LogisticsAgent[];
 }): JSX.Element => (
-  <TitledArticle title={t("logistics.agents_heading")}>
-    <p>{t("logistics.agents_hint")}</p>
+  <ProseArticle
+    heading={<h2>{t("logistics.agents_heading")}</h2>}
+    prose={<p>{t("logistics.agents_hint")}</p>}
+  >
     {agents.length === 0 ? (
       <p>{t("logistics.no_agents_yet")}</p>
     ) : (
@@ -80,7 +82,7 @@ const AgentsSection = ({
         </SectionFieldset>
       </SaveForm>
     </WritableOnly>
-  </TitledArticle>
+  </ProseArticle>
 );
 
 /**

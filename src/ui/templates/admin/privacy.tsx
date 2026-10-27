@@ -82,8 +82,10 @@ const OrphansForm = ({
         paymentWorkPage.previousCursor !== null ||
         paymentWorkPage.nextCursor !== null) && (
         <section>
-          <h3>{t("privacy.orphans.payment_work_heading")}</h3>
-          <p>{t("privacy.orphans.payment_work_intro")}</p>
+          <div class="prose">
+            <h3>{t("privacy.orphans.payment_work_heading")}</h3>
+            <p>{t("privacy.orphans.payment_work_intro")}</p>
+          </div>
           {paymentWorkPage.attendeeIds.length > 0 ? (
             <ul>
               {paymentWorkPage.attendeeIds.map((attendeeId) => (

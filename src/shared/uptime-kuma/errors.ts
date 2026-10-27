@@ -5,7 +5,7 @@ import { UptimeKumaError, type UptimeKumaErrorKind } from "./error.ts";
  * Mapping typed Kuma failures to catalog copy shown on the maintenance tab
  * and in flash messages.
  *
- * Messages returned by Kuma (plain `Error` values) are preserved as-is; only
+ * Messages returned by Kuma (plain `Error` values) are preserved as-is. Only
  * locally generated failures are translated through catalog keys.
  */
 

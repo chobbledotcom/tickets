@@ -129,9 +129,11 @@ export const adminSitePagesListPage = (
     session,
     successMessage,
     model.roots.length === 0 && model.nested.length === 0 ? (
-      <p>
-        <em>{t("site.pages.none")}</em>
-      </p>
+      <div class="prose">
+        <p>
+          <em>{t("site.pages.none")}</em>
+        </p>
+      </div>
     ) : (
       <>
         {/* A nested page always has a root ancestor, so reaching here (not the

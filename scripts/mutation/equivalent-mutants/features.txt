@@ -37,9 +37,9 @@ src/features/public/ticket-payment.ts::loadPagePackages~0vaeh8c  Missing package
 
 # attendee-form-model: `?? → ||` where the left operand can never be a
 # falsy-but-non-null value, so the two operators always agree.
-src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.existingBooking~1genp17  ?? → || audited:0ni0min # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
-src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.listing~1y7j49h  ?? → || audited:0ni0min # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
-src/features/admin/attendee-form-model.ts::isPaymentLockedLine~1cyk75e  ?? → || audited:0ni0min # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
+src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.existingBooking~1genp17  ?? → || audited:0uxwp16 # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
+src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.listing~1y7j49h  ?? → || audited:0uxwp16 # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
+src/features/admin/attendee-form-model.ts::isPaymentLockedLine~1cyk75e  ?? → || audited:0uxwp16 # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
 src/features/admin/booking-warnings.ts::computeWarnings.warns~1e9bm1v  ?? → || audited:0wzoevf # incompleteParents stores only a non-empty translated warning string, otherwise get returns undefined
 src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0axstbd  ?? → || audited:037kilh # remaining_balance is an integer; its only falsy value is 0, which equals the fallback
 src/features/admin/attendee-page-data.ts::assembleTemplateData.hasMixedTimings~1hmlq9c  ?? → || audited:037kilh # hasMixedTimings is boolean|undefined, and false equals the fallback
@@ -56,10 +56,12 @@ src/features/public/ticket-form.ts::listingsWithQuantity.withQty.qty~0q3jgeq  ??
 
 # attendee entity page: `?? → ||` where the operand's only falsy-non-null
 # value equals the "" fallback.
-src/features/admin/attendee-page.ts::attendeePage.tabs.sections.load~1e06wxq  ?? → || audited:0vp311s # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
+src/features/admin/attendee-page.ts::attendeePage.tabs.sections.load~1e06wxq  ?? → || audited:017u8kr # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
 src/shared/db/name-registry.ts::matchName.ids~140086l  ?? → || audited:1xvsf3q # matchName index.get(): number[]|undefined — an array is always truthy
 src/shared/db/name-registry.ts::isNameTakenAnywhere.ownedByOther~1x88e07  ?? → || audited:1xvsf3q # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
-src/features/admin/catalog-transfer/import.ts::importGroup.specs~0u7qcwn  ?? → || audited:19wxq88 # isPackage is boolean|undefined, and false equals the false fallback
+src/features/admin/catalog-transfer/bundle-groups.ts::validateGroups~0bnxwrf  ?? → || audited:1m08ncr # isPackage is boolean|undefined, and false equals the false fallback
+src/features/admin/catalog-transfer/bundle-site.ts::groupViewOf.isPackage~1hwf5fo  ?? → || audited:0qsndgn # isPackage is boolean|undefined, and false equals the false fallback
+src/features/admin/catalog-transfer/bundle-site.ts::collectPairs~0bnxwrf  ?? → || audited:0qsndgn # isPackage is boolean|undefined, and false equals the false fallback
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~0f9t11y  ?? → || audited:0jt0zem # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq1  ?? → || audited:0jt0zem # formatTransferIssues flat.nested: object|undefined — an object is always truthy
 
@@ -205,7 +207,7 @@ src/features/auth.ts::parseCsrfBody.err~0mxpuuo   → "mutated" audited:1bovven 
 src/features/auth.ts::parseCsrfBody~1gwik7o  ?? → || audited:1bovven # err is a Response object or null, and objects are always truthy
 src/features/admin/users.ts::toDisplayUser.inviteExpired~1fwmcbe  false → true audited:08ev9ii # the flag has one reader, userStatus, which answers "Active" from the activated flag before it looks at this one, so the value it takes for an activated user is never read
 src/features/admin/entity-write-tab.ts::defineEditEntityPage.extraTabs~1333wen  ?? → || audited:1gtnu6j # configuredExtraTabs is an array of tab definitions or undefined, and an array is always truthy, so || keeps exactly what ?? keeps
-src/features/admin/attendee-page.ts::loadEditPanel.data.returnUrl~0i4v0pb  ?? → || audited:0vp311s # URLSearchParams.get gives back a string or null, and the only falsy string is the empty fallback itself
+src/features/admin/attendee-page.ts::loadEditPanel.data.returnUrl~0i4v0pb  ?? → || audited:017u8kr # URLSearchParams.get gives back a string or null, and the only falsy string is the empty fallback itself
 src/features/admin/route-tables.ts::idParamOf.name~0rg3o3r   → "mutated" audited:1xymyec # the stand-in name for a path with no "/:" is only ever fed to the guard below, which throws for every name that is not "id" and does not end with "Id", and the message it throws names the pattern rather than the name
 
 # Route ordering (router.ts) — two array fallbacks, and a replacement string
@@ -311,12 +313,10 @@ src/features/admin/settings-domains.ts::runGuardedTask.run~0zdzaus  ?? → || au
 src/features/admin/guide.ts::handleAdminGuideGet.hostAppleWalletPassTypeId~0fwsjhh  ?? → || audited:0vr6gxg # the env builder gates every field truthy, and even a setHostConfigForTest override cannot reach the render: the sole consumer (WalletSetup in guide/tickets.tsx) gates its paragraph on `{configuredValue && …}`, so "" and null render identically
 src/features/admin/guide.ts::handleAdminGuideGet.hostGoogleWalletIssuerId~00ncc9m  ?? → || audited:0vr6gxg # the env builder gates every field truthy, and even a setHostConfigForTest override cannot reach the render: the sole consumer (WalletSetup in guide/tickets.tsx) gates its paragraph on `{configuredValue && …}`, so "" and null render identically
 src/features/admin/guide.ts::handleAdminGuideGet.hostEmailFromAddress~1owtz5h  ?? → || audited:0vr6gxg # getHostEmailConfigFromEnv gates on parseEmail-valid fields, and the sole guide consumer renders the value inside <code>: renderChild returns "" for null and for the empty string alike, so no override makes the two operators observable
-src/features/admin/attendee-form-model.ts::clampDayCount~0tzfryu  ?? → || audited:0ni0min # clampDurationDays clamps into [1, MAX_DURATION_DAYS], so raw values 0 and 1 both clamp to 1 — no input distinguishes the two operators
-src/features/admin/attendee-form-model.ts::clampDayCount~0tzfryu  1 → 0 audited:0ni0min # same clamp: a null raw clamps to 1 whether the fallback is 0 or 1, because clampDurationDays floors at 1
-src/features/admin/attendee-form-model.ts::resolveStatusId~07pfg6s  ?? → || audited:0ni0min # the two operators differ only at statusId 0, and the sole production caller (parseAttendeeForm) maps a non-positive raw to null before calling, so 0 never reaches the function
-src/features/admin/attendee-form-model.ts::resolveSharedDates.dated.duration~04xi3o1  ?? → || audited:0ni0min # bookingDurationDays returns null or a span of at least one whole day, never 0, so the nullish and falsy arms agree on every reachable value
-src/features/admin/attendee-form-model.ts::toLedgerOrder.fullSubtotal~16fny0e  0 → 1 audited:0ni0min # the manual-add order feeds only manualAddLedgerPoster, whose owedOrderForLedger reads total (forced to 0), extras (emptied), lines, and modifierApplications — never fullSubtotal
-src/features/admin/attendee-form-model.ts::toLedgerOrder.total~1qdsgd9  0 → 1 audited:0ni0min # owedOrderForLedger spreads the order and overwrites total with 0 before every consumer, so the value set here is never read
+src/features/admin/attendee-form-model.ts::clampDayCount~0tzfryu  ?? → || audited:0uxwp16 # clampDurationDays clamps into [1, MAX_DURATION_DAYS], so raw values 0 and 1 both clamp to 1 — no input distinguishes the two operators
+src/features/admin/attendee-form-model.ts::clampDayCount~0tzfryu  1 → 0 audited:0uxwp16 # same clamp: a null raw clamps to 1 whether the fallback is 0 or 1, because clampDurationDays floors at 1
+src/features/admin/attendee-form-model.ts::resolveStatusId~07pfg6s  ?? → || audited:0uxwp16 # the two operators differ only at statusId 0, and the sole production caller (parseAttendeeForm) maps a non-positive raw to null before calling, so 0 never reaches the function
+src/features/admin/attendee-form-model.ts::resolveSharedDates.dated.duration~04xi3o1  ?? → || audited:0uxwp16 # bookingDurationDays returns null or a span of at least one whole day, never 0, so the nullish and falsy arms agree on every reachable value
 src/features/admin/attendees-route-helpers.ts::loadPaymentReviewActionData.listingId~1glbb8m  ?? → || audited:09nlv1i # getFirstBooking returns a listing_attendees row, whose listingId comes from an AUTOINCREMENT key that starts at 1, so 0 never occurs and the nullish and falsy arms agree on every reachable value
 # Door-safe check-in projection: the fields it blanks are contact columns the
 # fixed DOOR_SAFE_COLUMNS layout never renders, so no rendered page can carry
@@ -337,3 +337,17 @@ src/features/admin/auth.ts::createLoginSession~11fciup  ?? → || audited:1k77c4
 # Contact history editor (features/admin/contact-history.ts): the counter
 # fallback runs on a strict non-negative integer or null.
 src/features/admin/contact-history.ts::nonNegativeInt~1sju92h  ?? → || audited:0mx51nm # getOptionalInt answers a non-negative integer or null; its only falsy value is 0, which equals the 0 fallback, so 0 ?? 0 = 0 || 0
+
+# Admin API attendee create (features/admin/api-attendees-parse.ts): the
+# daily-line count is clamped to the booking range, and a site always has a
+# public default status.
+src/features/admin/api-attendees-parse.ts::LINE_SCHEMA.durationDays~1x7kj9p  1 → 0  audited:1n1mrq1   # the schema's floor feeds clampDurationDays, which clamps to 1..MAX_DURATION_DAYS, so a slipped 0 stores the same one day
+src/features/admin/api-attendees-parse.ts::resolveLineDate.date~0ch97uo  ?? → ||  audited:02kcb1u   # date reaches the fallback only as undefined or a daily line's real calendar day; "" cannot arrive, because a non-daily line refuses any present date and a daily line demands a real YYYY-MM-DD day
+src/features/admin/api-attendees-parse.ts::parseLine.durationDays~1y2h8m9  ?? → ||  audited:1n1mrq1   # the line schema admits undefined or a whole number from 1, never a falsy non-null
+src/features/admin/api-attendees-parse.ts::parseLine.durationDays~1y2h8m9  1 → 0  audited:1n1mrq1   # the fallback feeds clampDurationDays, whose floor is 1
+src/features/admin/api-attendees-parse.ts::parseLine.durationDays~1aetpe1  1 → 0  audited:1n1mrq1   # the non-daily arm's count never escapes: a non-daily line's date is null, and the bookings map carries durationDays only for dated lines
+src/features/admin/api-attendees-parse.ts::resolveStatusId~1ns133z  No public default status is configured→""  audited:1n1mrq1   # the seed inserts a public default and the status save and delete refuse to remove the last one, so no write path can make the state the message names
+# Shared record-note routes (features/admin/record-notes.ts): the loader
+# answers a Record object (always truthy) or null, so both operators send
+# null to the 404 response and agree on every object.
+src/features/admin/record-notes.ts::recordNoteFeature.loadRecordOr404~0v35mfs  ?? → || audited:0s93yuw # loadRecord answers Record | null; every Record is an object (truthy), null is not a value a 404-worthy call yields under ?? that || would not also send — both map null to notFoundResponse

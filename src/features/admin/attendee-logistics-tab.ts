@@ -1,7 +1,7 @@
 /**
- * Data loaders for the attendee Logistics tab: the address + pinned-location
- * form values, the logistics start/end selectors, and the "Other Attendees"
- * list of bookings on the same dates.
+ * Data loaders for the attendee Logistics tab. They load the address and
+ * pinned-location form values, the logistics start/end selectors, and the
+ * "Other Attendees" list of bookings on the same dates.
  *
  * GET renders through the attendee entity page (attendee-page.ts). The POST
  * lives in attendee-logistics-routes.ts. This module is the seam between

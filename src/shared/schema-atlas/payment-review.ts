@@ -3,7 +3,7 @@
  *
  * The slots and transitions live in `review-machine-spec.ts`, where the
  * mirror test executes every (node × event × shape) cell against the real
- * review functions. This module only adds layout; one source feeds the map
+ * review functions. This module only adds layout. One source feeds the map
  * and the checks, so they cannot drift apart. */
 
 import {

@@ -2,7 +2,7 @@
 /// <reference lib="dom.iterable" />
 /** Either/or pairs declared in markup: while one control of a pair holds, the
  *  other renders disabled with the refusal that explains the boundary. The
- *  server-side save keeps its refusal as the authority; this is the affordance
+ *  server-side save keeps its refusal as the authority. This is the affordance
  *  that turns it into an obvious hint before the operator submits. */
 export const initPairedControls = (): void => {
   const controls = document.querySelectorAll<HTMLInputElement>(
@@ -31,7 +31,7 @@ export const initPairedControls = (): void => {
 
   const updatePair = (a: HTMLInputElement, b: HTMLInputElement) => {
     // Both ticked stays editable, so the operator can resolve a conflict the
-    // server re-rendered; one ticked grants the boundary to that side.
+    // server re-rendered. One ticked grants the boundary to that side.
     const both = a.checked && b.checked;
     a.disabled = !both && b.checked;
     b.disabled = !both && a.checked;

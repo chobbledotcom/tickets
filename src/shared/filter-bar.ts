@@ -1,8 +1,9 @@
 /**
  * The "header actions" row that sits above a table: a labelled bar of filter
- * links, e.g. "Showing: All / Standard / Daily" or "Agent: All / None / Van 1".
- * The active option is bold + underlined; the rest are links. Shared by the
- * listing-type and logistics-agent filters so both render identical markup.
+ * links. It shows, for example, "Showing: All / Standard / Daily" or "Agent:
+ * All / None / Van 1". The active option is bold and underlined. The rest are
+ * links. Shared by the listing-type and logistics-agent filters so both render
+ * identical markup.
  *
  * Labels are emitted verbatim, so callers must pre-escape any that can contain
  * user input (agent names) — fixed UI labels need no escaping.
@@ -21,7 +22,7 @@ export type FilterBarOption = {
 /**
  * Render a labelled filter bar as the `.table-actions` div shown above a
  * table. A null label renders the bare links, for a bar whose options already
- * name themselves (e.g. "All / Checked In / Checked Out").
+ * name themselves (for example, "All / Checked In / Checked Out").
  */
 export const renderFilterBar = (
   label: string | null,

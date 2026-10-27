@@ -20,7 +20,7 @@ export interface CommaSplit {
   /** Characters that open one nesting level, for example "(". */
   readonly openers: string;
   /** Characters that open a quoted value whose contents neither nest nor
-   * split; SQL doubling (a doubled quote) closes and reopens the value. */
+   * split. SQL doubling (a doubled quote) closes and reopens the value. */
   readonly quotes?: string;
   /** The first index the scan reads. */
   readonly start: number;
@@ -32,9 +32,9 @@ export interface CommaSplit {
 const levelStep = (char: string, openers: string, closers: string): number =>
   (openers.includes(char) ? 1 : 0) - (closers.includes(char) ? 1 : 0);
 
-/** The quote state after one character: an opening quote enters a quoted
- * value, a matching one exits it, and SQL doubling (a doubled quote) exits
- * and re-enters in one step. */
+/** The quote state after one character. An opening quote enters a quoted
+ * value, a matching one exits it. SQL doubling (a doubled quote) exits and
+ * re-enters in one step. */
 const quoteStateAfter = (
   quoted: string | null,
   char: string,
