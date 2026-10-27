@@ -11,7 +11,7 @@ import {
 } from "#accounting/accounts.ts";
 import { mapBooking } from "#accounting/mappers.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
-import type { TransferInput } from "#shared/ledger/types.ts";
+import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import {
   asTransfer,
   facts,
