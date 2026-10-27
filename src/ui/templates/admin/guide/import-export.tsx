@@ -8,7 +8,9 @@
  * documents both directions.
  */
 
+import { t } from "#i18n";
 import {
+  CATALOG_BUNDLE_EXAMPLE_JSON,
   CATALOG_GROUP_EXAMPLE_JSON,
   CATALOG_LISTING_EXAMPLE_JSON,
 } from "#shared/catalog-transfer-example.ts";
@@ -25,6 +27,7 @@ export const importExportSections = (): GuideSection[] => [
       faq("what_is_catalog_transfer"),
       faq("how_do_i_export_catalog"),
       faq("how_do_i_import_catalog"),
+      faq("how_do_i_import_bundle"),
       faq("what_is_in_catalog_file"),
       custom(
         "catalog_json_shape",
@@ -32,10 +35,11 @@ export const importExportSections = (): GuideSection[] => [
           <p>
             One shared shape covers both directions — the file you download on
             export is exactly what an import accepts. The top-level{" "}
-            <code>kind</code> is either <code>"listing"</code> or{" "}
-            <code>"group"</code>, and <code>version</code> stops a file from a
-            different version loading wrongly. Prices are whole numbers in the
-            smallest currency unit (pence for GBP, cents for USD).
+            <code>kind</code> is either <code>"listing"</code>,{" "}
+            <code>"group"</code>, or <code>"bundle"</code>, and{" "}
+            <code>version</code> stops a file from a different version loading
+            wrongly. Prices are whole numbers in the smallest currency unit
+            (pence for GBP, cents for USD).
           </p>
           <p>
             <strong>A listing</strong> — its own fields plus the groups it
@@ -62,6 +66,23 @@ export const importExportSections = (): GuideSection[] => [
             its own defaults. Only <code>name</code> (and a listing's{" "}
             <code>maxAttendees</code>) are always required.
           </p>
+        </>,
+      ),
+      custom(
+        "catalog_bundle_shape",
+        <>
+          <p>
+            A <code>bundle</code> holds many listings and groups in one file.
+            The <code>version</code> sits at the top, once. Every name inside
+            the document resolves there first, so the file can create a whole
+            subtree the site does not hold yet. The import is one transaction:
+            nothing is created when one item fails, and the message names each
+            failing item and its field.
+          </p>
+          <ExampleCode
+            code={CATALOG_BUNDLE_EXAMPLE_JSON}
+            label={t("guide.p.bundle_example_label")}
+          />
         </>,
       ),
     ],

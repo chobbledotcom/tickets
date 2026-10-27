@@ -122,30 +122,6 @@ describeWithEnv("db link-table", { db: true }, () => {
     });
   });
 
-  test("addIdsTx adds links without touching existing ones", async () => {
-    await byUser.setIds(1, [1]);
-    await withTransaction((tx) => byUser.addIdsTx(tx, 1, [3, 2, 3]));
-    expect(await byUser.getIds(1)).toEqual([1, 2, 3]);
-  });
-
-  test("addIdsTx with [] runs no statement", async () => {
-    let statements = 0;
-    await withTransaction(async (tx) => {
-      await byUser.addIdsTx(
-        {
-          ...tx,
-          execute: (stmt) => {
-            statements += 1;
-            return tx.execute(stmt);
-          },
-        },
-        1,
-        [],
-      );
-    });
-    expect(statements).toBe(0);
-  });
-
   test("clear removes every row for the key", async () => {
     await byUser.setIds(1, [4, 5]);
     await byUser.setIds(2, [4]);

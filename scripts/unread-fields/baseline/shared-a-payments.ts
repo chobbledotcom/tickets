@@ -20,12 +20,7 @@ const inOptionDemand = ownerAt("src/shared/booking/option-demand.ts");
 const LISTING_INPUT_FIELDS = [
   "attachmentName",
   "attachmentUrl",
-  "description",
-  "location",
   "maxAttendees",
-  "nonTransferable",
-  "useDefaults",
-  "usesLogistics",
 ] as const;
 
 export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
@@ -66,9 +61,6 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
   ...identitiesAt([
     ["src/shared/bunny-edge-script.ts", [{ name: "EdgeScriptSecret" }]],
   ])(["Id", "LastModified"]),
-  ...identitiesAt([
-    ["src/shared/catalog-fields/fields.ts", [{ name: "GroupInput" }]],
-  ])(["description", "hidden", "termsAndConditions"]),
   ...identitiesAt([
     ["src/shared/catalog-fields/fields.ts", [{ name: "ListingInput" }]],
   ])(LISTING_INPUT_FIELDS),

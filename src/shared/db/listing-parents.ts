@@ -46,10 +46,10 @@ const listingEdges = selfLinkTableSides(
 export const listingChildren = listingEdges.pointsAt;
 
 /** The parents a child is offered under, keyed by child id — the reverse
- * side. `addIdsTx` is the catalog-import writer for a freshly-created listing
- * that is a child of already-existing parents: additive (never a group-wide
- * delete), so it does not disturb a parent's other children the way a
- * `listingChildren.setIdsTx` replace does. */
+ * side of {@link listingChildren}. `getIds` reads them ascending, and
+ * `setIds`/`setIdsTx` replace the set. The catalog import writes a new
+ * child's edges through its own batched statement after the shared edge
+ * guards. */
 export const listingParents = listingEdges.pointedAtBy;
 
 /** Replaces child edges only when the transaction's package memberships allow
@@ -84,37 +84,6 @@ export const requireListingChildrenPackageCheck = (
   if (conflict) {
     throw new TransactionValidationError(packageChildEdgeError(conflict));
   }
-};
-
-/** Adds parent edges for a freshly-created child only when the transaction's
- *  package memberships allow them, and only when every parent still exists.
- *  Mirrors {@link setListingChildrenWithPackageCheckTx} from the child side: the
- *  child is `childId`, the parents are `parentIds`. A vanished parent rolls the
- *  write back rather than leaving an orphan edge to a deleted listing.
- *  `missingError` is the message thrown when a named parent no longer exists,
- *  supplied by the caller so this shared DB helper does not hardcode a
- *  catalog-import-specific message. */
-export const addParentEdgesWithPackageCheckTx = async (
-  tx: TxScope,
-  childId: number,
-  parentIds: readonly number[],
-  missingError: string,
-): Promise<void> => {
-  if (parentIds.length === 0) return;
-  requireListingChildrenPackageCheck(
-    await guardEdgeWriteTx({
-      childIds: [childId],
-      contract: "parents",
-      missingParentError: missingError,
-      parentIds,
-      tx,
-    }),
-  );
-  await requireCurrentRelationshipRules(
-    tx,
-    parentIds.map((parentId) => ({ childId, parentId })),
-  );
-  await listingParents.addIdsTx(tx, childId, parentIds);
 };
 
 /** The requested listing ids that have at least one link on a relationship

@@ -59,7 +59,9 @@ src/features/public/ticket-form.ts::listingsWithQuantity.withQty.qty~0q3jgeq  ??
 src/features/admin/attendee-page.ts::attendeePage.tabs.sections.load~1e06wxq  ?? → || audited:017u8kr # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
 src/shared/db/name-registry.ts::matchName.ids~140086l  ?? → || audited:1xvsf3q # matchName index.get(): number[]|undefined — an array is always truthy
 src/shared/db/name-registry.ts::isNameTakenAnywhere.ownedByOther~1x88e07  ?? → || audited:1xvsf3q # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
-src/features/admin/catalog-transfer/import.ts::importGroup.specs~0u7qcwn  ?? → || audited:19wxq88 # isPackage is boolean|undefined, and false equals the false fallback
+src/features/admin/catalog-transfer/bundle-groups.ts::validateGroups~0bnxwrf  ?? → || audited:1m08ncr # isPackage is boolean|undefined, and false equals the false fallback
+src/features/admin/catalog-transfer/bundle-site.ts::groupViewOf.isPackage~1hwf5fo  ?? → || audited:0qsndgn # isPackage is boolean|undefined, and false equals the false fallback
+src/features/admin/catalog-transfer/bundle-site.ts::collectPairs~0bnxwrf  ?? → || audited:0qsndgn # isPackage is boolean|undefined, and false equals the false fallback
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~0f9t11y  ?? → || audited:0jt0zem # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq1  ?? → || audited:0jt0zem # formatTransferIssues flat.nested: object|undefined — an object is always truthy
 

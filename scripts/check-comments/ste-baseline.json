@@ -629,7 +629,7 @@
   },
   "src/shared/db/listing-parents.ts": {
     "semicolon": 6,
-    "long-sentence": 12,
+    "long-sentence": 10,
     "banned-modal": 3,
     "contraction": 3
   },
@@ -937,8 +937,7 @@
     "participle": 1
   },
   "src/shared/db/slug-registry.ts": {
-    "long-sentence": 5,
-    "contraction": 1,
+    "long-sentence": 3,
     "banned-modal": 2
   },
   "src/shared/db/square-link-ends.ts": {
