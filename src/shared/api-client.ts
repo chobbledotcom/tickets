@@ -16,8 +16,7 @@ import { errorResult, okResult, type Result } from "#shared/result.ts";
 /** How a client fetches one URL. The default is `fetchText`. A client that
  * answers from a site-build dry run, or follows safe redirects, substitutes
  * its own step. The init is built lazily: a dry-run fetch can answer a canned
- * body without ever reading the auth headers (the site-build dry run has no
- * Bunny key set). */
+ * body without reading the auth headers. A dry run has no Bunny key set. */
 export type ApiClientFetch = (
   url: string,
   buildInit: () => RequestInit,
