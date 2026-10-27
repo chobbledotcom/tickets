@@ -72,6 +72,34 @@ export const verifyRef = (
 ): Promise<string | undefined> =>
   commandValue(run, ["rev-parse", "--verify", ref]);
 
+/** A function that reads a list of paths from a revision the merge base
+ * names. The coverage ratchet and the test-quality gate both collect their
+ * input files this way, so the signature gets a name instead of a copy. */
+export type MergeBaseListReader = (
+  run: RunCommand,
+  mergeBase: string,
+) => Promise<string[]>;
+
+/** The merge base of HEAD and origin/main, or throw when origin/main is
+ * absent so a ratchet never reads an empty base. `noun` names the check in
+ * the error, e.g. "ratchet". */
+export const mergeBaseOrThrow = async (
+  run: RunCommand,
+  noun: string,
+): Promise<string> => {
+  const mergeBase = await commandValue(run, [
+    "merge-base",
+    "HEAD",
+    "origin/main",
+  ]);
+  if (mergeBase === undefined) {
+    throw new Error(
+      `The ${noun} needs origin/main. Run git fetch origin main first.`,
+    );
+  }
+  return mergeBase;
+};
+
 /** True when `run` executes inside a git work tree. */
 export const isInsideWorkTree = async (run: RunCommand): Promise<boolean> =>
   (await runGit(run, ["rev-parse", "--is-inside-work-tree"])).success;

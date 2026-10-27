@@ -11,6 +11,7 @@ import {
   buildAttendeeEditForm,
   createTestAttendee,
   getAttendeesRaw,
+  stubRefusedAtomicCreate,
 } from "#test-utils/db-helpers/attendees.ts";
 import {
   createDailyTestListing,
@@ -37,26 +38,16 @@ describeWithEnv(
 
       test("create re-renders with error when atomic create fails with capacity_exceeded", async () => {
         const event = await createTestListing({ maxAttendees: 100 });
-        await withMocks(
-          () =>
-            stub(attendeesApi, "createAttendeeAtomic", () =>
-              Promise.resolve({
-                listingIds: [],
-                reason: "capacity_exceeded" as const,
-                success: false,
-              }),
-            ),
-          async () => {
-            const { response } = await adminFormPost("/admin/attendees/new", {
-              name: "Cap",
-              ...attendeeLineFields([
-                { eventId: event.id, quantity: Number("1") },
-              ]),
-            });
-            expect(response.status).toBe(200);
-            assertStringIncludes(await response.text(), "spots");
-          },
-        );
+        await withMocks(stubRefusedAtomicCreate, async () => {
+          const { response } = await adminFormPost("/admin/attendees/new", {
+            name: "Cap",
+            ...attendeeLineFields([
+              { eventId: event.id, quantity: Number("1") },
+            ]),
+          });
+          expect(response.status).toBe(200);
+          assertStringIncludes(await response.text(), "spots");
+        });
       });
 
       test("treats a non-numeric quantity as not booked", async () => {

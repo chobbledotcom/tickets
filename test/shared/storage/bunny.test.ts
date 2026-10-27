@@ -148,6 +148,26 @@ describeWithEnv("Bunny storage", STORAGE_TEST_ENV, () => {
     );
   });
 
+  test("a 200 listing body of the wrong shape is named as invalid", async () => {
+    await withBunnyStorageStub(
+      () => Response.json({ HttpCode: 200, Message: "Unexpected" }),
+      async () =>
+        await expect(listFiles("")).rejects.toThrow(
+          "Storage listing for the zone root returned an invalid response",
+        ),
+    );
+  });
+
+  test("a 200 listing body that is not JSON is named as invalid JSON", async () => {
+    await withBunnyStorageStub(
+      () => new Response("<html>gone</html>", { status: 200 }),
+      async () =>
+        await expect(listFiles("")).rejects.toThrow(
+          "Storage listing for the zone root returned invalid JSON",
+        ),
+    );
+  });
+
   test("an unauthorized listing surfaces as an error, not garbage", async () => {
     // Bunny answers a bad access key with a JSON error object; before the
     // status check this fed the object into the file filter and threw a

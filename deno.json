@@ -43,6 +43,7 @@
     "check:required-checks":
       "env -u LD_LIBRARY_PATH deno run --allow-read=scripts/required-checks --allow-run=gh scripts/required-checks/check.ts",
     "check:coverage-exclusions": "env -u LD_LIBRARY_PATH deno run --allow-read=. --allow-sys --allow-run=git scripts/check-coverage-exclusions.ts",
+    "check:test-quality": "env -u LD_LIBRARY_PATH deno run --allow-read=. --allow-env=GITHUB_ACTIONS --allow-run=git scripts/check-test-quality.ts",
     "check:comments": "deno run --allow-read=src scripts/check-comments.ts",
     "check:comment-ste": "deno run --allow-read=src,scripts/check-comments/ste-baseline.json --allow-write=scripts/check-comments/ste-baseline.json scripts/check-comments-ste.ts",
     "check:e2e-labels": "deno run --allow-read=src,e2e-payments scripts/check-e2e-labels.ts",

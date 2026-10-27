@@ -2,6 +2,7 @@
 
 /* jscpd:ignore-start */
 import * as v from "valibot";
+import { type ApiRequestInit, defineApiClient } from "#shared/api-client.ts";
 import {
   getTursoApiToken,
   getTursoGroup,
@@ -9,12 +10,7 @@ import {
   tursoDatabaseSlug,
 } from "#shared/config.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import {
-  type FetchResult,
-  fetchText,
-  jsonHeaders,
-  parseApiError,
-} from "#shared/fetch.ts";
+import { type FetchResult, jsonHeaders, parseApiError } from "#shared/fetch.ts";
 import type {
   CreateDatabaseFn,
   DatabaseCredentials,
@@ -106,18 +102,19 @@ export const createTursoApi = (
   apiToken: string,
   signal?: AbortSignal,
 ): TursoApi => {
-  const apiHeaders = (): Record<string, string> =>
-    jsonHeaders({ Authorization: `Bearer ${apiToken}` });
+  const client = defineApiClient({
+    baseUrl: TURSO_API_BASE,
+    headers: () => jsonHeaders({ Authorization: `Bearer ${apiToken}` }),
+  });
   /** Fetch a Turso API path. Cleanup deletes pass `interruptible: false`
    * so an aborted signal never prevents removal of an incomplete destination. */
   const fetchApi = (
     path: string,
-    init: RequestInit = {},
+    init: ApiRequestInit = {},
     interruptible = true,
   ): Promise<FetchResult> =>
-    fetchText(`${TURSO_API_BASE}${path}`, {
+    client.raw(path, {
       ...init,
-      headers: apiHeaders(),
       ...(interruptible && signal !== undefined ? { signal } : {}),
     });
 

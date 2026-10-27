@@ -7,6 +7,7 @@
  */
 
 /* jscpd:ignore-start */
+import { defineApiClient } from "#shared/api-client.ts";
 import {
   denoDeployAppSlug,
   getDenoDeployOrgId,
@@ -21,7 +22,6 @@ import {
   DenoRevisionSchema,
 } from "#shared/deno-deploy-schema.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { fetchText, parseApiError } from "#shared/fetch.ts";
 import type {
   HostingProviderApi,
   PrepareSiteFn,
@@ -40,19 +40,25 @@ const denoApiHeaders = (): Record<string, string> => ({
   "Content-Type": "application/json",
 });
 
+/** The shared Deno Deploy client: base URL, Bearer auth, and the standard
+ * status-and-message error parse. */
+const denoClient = defineApiClient({
+  baseUrl: DENO_API_BASE,
+  headers: denoApiHeaders,
+});
+
 const parseDenoRevision = (text: string): DenoRevision =>
   parseJson(DenoRevisionSchema, text);
 
+/** GET a Deno Deploy path and parse its body through `parse` (which throws
+ * on an unreadable answer, the way `parseJson` does). */
 const getDenoApi = async <T>(
   path: string,
   label: string,
   parse: (text: string) => T,
 ): Promise<Result<T>> => {
-  const res = await fetchText(`${DENO_API_BASE}/${path}`, {
-    headers: denoApiHeaders(),
-  });
-  if (!res.ok) return parseApiError(res, label);
-  return okResult(parse(res.text));
+  const res = await denoClient.fetch(path, {}, label);
+  return res.ok ? okResult(parse(res.value.text)) : res;
 };
 
 /**
@@ -63,15 +69,17 @@ const createAppImpl = async (
   slug: string,
 ): Promise<Result<{ appId: string; slug: string }>> => {
   const orgId = getDenoDeployOrgId();
-  const res = await fetchText(`${DENO_API_BASE}/apps`, {
-    body: JSON.stringify({ orgId, slug }),
-    headers: denoApiHeaders(),
-    method: "POST",
-  });
+  const res = await denoClient.fetch(
+    "/apps",
+    {
+      body: JSON.stringify({ orgId, slug }),
+      method: "POST",
+    },
+    "Create app",
+  );
+  if (!res.ok) return res;
 
-  if (!res.ok) return parseApiError(res, "Create app");
-
-  const data = parseJson(DenoAppIdentitySchema, res.text);
+  const data = parseJson(DenoAppIdentitySchema, res.value.text);
   return okResult({ appId: data.id, slug: data.slug });
 };
 
@@ -81,7 +89,7 @@ const getAppEnvVarsImpl = async (
   appId: string,
 ): Promise<Result<DenoEnvVar[]>> => {
   const result = await getDenoApi(
-    `apps/${encodeURIComponent(appId)}`,
+    `/apps/${encodeURIComponent(appId)}`,
     "Get app",
     (text) => parseJson(DenoAppEnvVarsSchema, text),
   );
@@ -129,19 +137,17 @@ const patchAppEnvVars = async (
   entries: DenoEnvVarUpdate[],
   label: string,
 ) => {
-  const patchRes = await fetchText(
-    `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}`,
+  const patchRes = await denoClient.send(
+    `/apps/${encodeURIComponent(appId)}`,
     {
       body: JSON.stringify({
         env_vars: entries.map(denoEnvVarPatch),
       }),
-      headers: denoApiHeaders(),
       method: "PATCH",
     },
+    label,
   );
-
-  if (!patchRes.ok) return parseApiError(patchRes, label);
-  return okResult(undefined);
+  return patchRes.ok ? okResult(undefined) : patchRes;
 };
 
 /**
@@ -184,7 +190,7 @@ const fetchRevision = async (
   revisionId: string,
 ): Promise<Result<DenoRevision>> =>
   getDenoApi(
-    `revisions/${encodeURIComponent(revisionId)}`,
+    `/revisions/${encodeURIComponent(revisionId)}`,
     "Get revision",
     parseDenoRevision,
   );
@@ -234,8 +240,8 @@ const deployCodeImpl: HostingProviderApi["publishSite"] = async (
   appId,
   code,
 ) => {
-  const res = await fetchText(
-    `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}/deploy`,
+  const res = await denoClient.fetch(
+    `/apps/${encodeURIComponent(appId)}/deploy`,
     {
       body: JSON.stringify({
         assets: {
@@ -244,13 +250,12 @@ const deployCodeImpl: HostingProviderApi["publishSite"] = async (
         config: { runtime: { entrypoint: "main.ts", type: "dynamic" } },
         production: true,
       }),
-      headers: denoApiHeaders(),
       method: "POST",
     },
+    "Deploy code",
   );
-
-  if (!res.ok) return parseApiError(res, "Deploy code");
-  return waitForRevision(parseDenoRevision(res.text));
+  if (!res.ok) return res;
+  return waitForRevision(parseDenoRevision(res.value.text));
 };
 
 /** Stubbable API for testing */

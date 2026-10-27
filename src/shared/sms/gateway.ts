@@ -12,6 +12,7 @@
  */
 
 import { settings } from "#db/settings.ts";
+import { defineApiClient } from "#shared/api-client.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { fetchTextFollowingSafeRedirects } from "#shared/safe-fetch.ts";
 import { DEFAULT_PBKDF2_ITERATIONS, encryptField } from "#shared/sms/e2e.ts";
@@ -128,17 +129,18 @@ export const sendEncryptedMessage = async (
   if (baseUrlError) {
     throw new Error(baseUrlError);
   }
-  const result = await fetchTextFollowingSafeRedirects(
-    `${baseUrl}${MESSAGES_PATH}`,
-    {
-      body: JSON.stringify(payload),
-      headers: {
-        authorization: basicAuthHeader(config.username, config.password),
-        "content-type": "application/json",
-      },
-      method: "POST",
-    },
-    fetchImpl,
-  );
+  const client = defineApiClient({
+    baseUrl,
+    fetchImpl: (url, buildInit) =>
+      fetchTextFollowingSafeRedirects(url, buildInit(), fetchImpl),
+    headers: () => ({
+      authorization: basicAuthHeader(config.username, config.password),
+      "content-type": "application/json",
+    }),
+  });
+  const result = await client.raw(MESSAGES_PATH, {
+    body: JSON.stringify(payload),
+    method: "POST",
+  });
   return { providerId: parseMessageId(result) };
 };

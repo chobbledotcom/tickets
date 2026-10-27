@@ -4,9 +4,9 @@
  * Only includes domain and error code - no personal or encrypted data
  */
 
+import { defineApiClient } from "#shared/api-client.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { getEnv } from "#shared/env.ts";
-import { fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logErrorLocal } from "#shared/logger.ts";
 
 /**
@@ -19,14 +19,19 @@ export const sendNtfyError = async (code: string): Promise<void> => {
   if (!ntfyUrl) return;
 
   const domain = getEffectiveDomain();
+  // The URL is the whole endpoint, not a base plus a path. The client owns
+  // the request headers and the fetch. The path is empty.
+  const client = defineApiClient({
+    baseUrl: ntfyUrl,
+    headers: () => ({
+      Tags: "warning",
+      Title: `${domain} error`,
+    }),
+  });
 
   try {
-    await fetchText(ntfyUrl, {
+    await client.raw("", {
       body: code,
-      headers: {
-        Tags: "warning",
-        Title: `${domain} error`,
-      },
       method: "POST",
     });
   } catch {

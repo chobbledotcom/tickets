@@ -32,8 +32,8 @@ src/shared/db/listing-relationship-validation.ts::listingById.day_prices~1ag3qoh
 # Group-cap sweep (attendees/update.ts): the boundary-delta accumulator is a
 # Map<string, number>; the only falsy-but-non-null number is 0 and the fallback
 # is 0, so `?? 0` and `|| 0` always agree.
-src/shared/db/attendees/update.ts::loadsAtBoundaries.deltas~0b895vw  ?? → || audited:0jo8xms # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
-src/shared/db/attendees/update.ts::loadsAtBoundaries.deltas~1kwldm9  ?? → || audited:0jo8xms # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
+src/shared/db/attendees/update.ts::loadsAtBoundaries.deltas~0b895vw  ?? → || audited:0nhsczc # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
+src/shared/db/attendees/update.ts::loadsAtBoundaries.deltas~1kwldm9  ?? → || audited:0nhsczc # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
 
 # attendees/tokens.ts — `?? → ||` sites where the operand is a Map#get() whose
 # value is always a truthy object or array (never a falsy-but-non-null value),
@@ -64,9 +64,9 @@ src/shared/db/capacity-batch.ts::addDemandToBucket~1bo0bmf  ?? → || audited:1a
 
 # Atomic line values use non-empty timestamps and numeric package ids. The
 # delete pin reads the same stored timestamp domain as the line key.
-src/shared/db/attendees/atomic-update.ts::lineBooking.packageGroupId~0djpbjh  ?? → || audited:0jn7yv5 # packageGroupId is undefined or a number; zero and the zero fallback produce the same value
-src/shared/db/attendees/atomic-update.ts::lineKeyFromBooking~08fp1gg  ?? → || audited:0jn7yv5 # start_at is null or a non-empty stored timestamp, so both operators produce the timestamp or an empty key part
-src/shared/db/attendees/atomic-update.ts::applyAttendeeAtomicEdit.args~16je2gx  ?? → || audited:0jn7yv5 # booking.start_at has the same null-or-non-empty timestamp domain when it becomes the delete pin
+src/shared/db/attendees/atomic-update.ts::lineBooking.packageGroupId~0djpbjh  ?? → || audited:049scuh # packageGroupId is undefined or a number; zero and the zero fallback produce the same value
+src/shared/db/attendees/atomic-update.ts::lineKeyFromBooking~08fp1gg  ?? → || audited:049scuh # start_at is null or a non-empty stored timestamp, so both operators produce the timestamp or an empty key part
+src/shared/db/attendees/atomic-update.ts::applyAttendeeAtomicEdit.args~16je2gx  ?? → || audited:049scuh # booking.start_at has the same null-or-non-empty timestamp domain when it becomes the delete pin
 
 # Attendee creation receives validated non-empty discriminators, dates, tokens,
 # and finite money values. Empty optional contact fields use empty fallbacks.
@@ -247,8 +247,9 @@ src/shared/db/link-table.ts::rowsToIdsByKeys~0a4lik4 Unexpected link key→"" au
 src/shared/db/listings/catalog.ts::getListingOfferFlags.row.alias~1hl3tuf  listing → "" audited:143g2p7 # the reader consumes the alias only through truthiness, so the empty string behaves exactly like an absent alias
 src/shared/db/listings/catalog.ts::getListingOfferFlags~1u79xgr  ?? → || audited:143g2p7 # read.one answers the row object or null, and every row object is truthy
 
-src/shared/db/attendees/queries.ts::getAttendeeRaw~10a7m9s  ?? → || audited:1g0izqw # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
-src/shared/db/attendees/queries.ts::getAttendeeNamesByIds~0i1nd31  false → true audited:1g0izqw # the paid flag gates payment_id inside decryptPiiBlob, and this reader returns only the name field
+src/shared/db/attendees/queries.ts::getAttendeeRaw~10a7m9s  ?? → || audited:1xidqhx # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
+src/shared/db/attendees/queries.ts::getAttendeeRawByToken~06djxiz  ?? → || audited:1xidqhx # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
+src/shared/db/attendees/queries.ts::getAttendeeNamesByIds~0i1nd31  false → true audited:1xidqhx # the paid flag gates payment_id inside decryptPiiBlob, and this reader returns only the name field
 
 # A booking event posts its legs once, together: the store rejects adding a
 # leg to an already-posted group (replay conflict), and mapBooking always
