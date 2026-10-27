@@ -1778,9 +1778,7 @@
     "semicolon": 2
   },
   "src/ui/templates/admin/questions.tsx": {
-    "long-sentence": 4,
-    "contraction": 1,
-    "banned-modal": 1
+    "long-sentence": 4
   },
   "src/ui/templates/admin/resource-pages.tsx": {
     "wordy": 5

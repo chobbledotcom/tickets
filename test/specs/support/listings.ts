@@ -28,6 +28,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
+import { enablePublicSite, setupStripe } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Listing } from "#types";
 // jscpd:ignore-end
@@ -56,6 +57,18 @@ export const rememberListingById = async (
 /** The id of the listing a story set up under this name. */
 export const listingIdNamed = (world: TicketsWorld, name: string): number =>
   listingNamed(world, name).id;
+
+/** One listing's own admin page, or one behind it, open in front of the
+ * organiser. Everything they do to a listing starts here. */
+export const listingPage = (
+  world: TicketsWorld,
+  name: string,
+  behind = "",
+): Promise<TestBrowser> =>
+  openAdminPage(
+    world,
+    `/admin/listing/${listingIdNamed(world, name)}${behind}`,
+  );
 
 /** Put something on sale and remember it by the story's name for it, curried
  * on how the thing is made — an ordinary listing, or one booked by the day.
@@ -92,6 +105,53 @@ export const putsPlainThingOnSale = (
   name: string,
   alsoSet: TestListingOverrides = {},
 ): Promise<Listing> => putsOnSale(world, name, { ...PLAIN_THING, ...alsoSet });
+
+/** What a story can say about a thing for sale, beyond its name. A price
+ * makes the thing a public listing with paying set up, so a code can be shown
+ * for it. */
+export interface ForSaleOptions {
+  /** The listing asks the customer for an email address. */
+  askForEmail?: boolean;
+  /** The listing lets a customer pay more than its price. */
+  canPayMore?: boolean;
+  /** Bookings forward to this address. */
+  forwardingTo?: string;
+  /** The price in pence. */
+  price?: number;
+}
+
+/** Something the site sells, kept under the name the story uses. With a price
+ * it is a public listing with paying set up; without one it is a plain thing
+ * the admin pages talk about. */
+export const somethingForSale = async (
+  world: TicketsWorld,
+  name: string,
+  options: ForSaleOptions = {},
+): Promise<void> => {
+  if (options.price !== undefined) {
+    await enablePublicSite();
+    await setupStripe();
+    rememberListing(
+      world,
+      name,
+      await createTestListing({
+        canPayMore: options.canPayMore ?? false,
+        // Nothing beyond a name is asked for unless the story says so, which
+        // is what makes a complete code able to skip the form entirely.
+        fields: options.askForEmail ? "email" : "",
+        maxAttendees: 10,
+        name,
+        unitPrice: options.price,
+      }),
+    );
+    return;
+  }
+  await putsPlainThingOnSale(world, name, {
+    ...(options.forwardingTo === undefined
+      ? {}
+      : { webhookUrl: options.forwardingTo }),
+  });
+};
 
 /** Something the site sells at a price, remembered under the name the story
  * calls it. The listing a money story starts from, so its price and its id are

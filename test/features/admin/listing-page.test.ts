@@ -35,6 +35,25 @@ describeWithEnv("the listing page", { db: true }, () => {
     assertArrayIncludes(tabsOf(html, listing.id), ["attendees"]);
   });
 
+  test("shows the notes banner above every tab and the add-note link", async () => {
+    const listing = await createTestListing({ name: "Noted listing" });
+    await adminFormPost(`/admin/listing/${listing.id}/note`, {
+      note: "Check the **wording**",
+    });
+
+    // The notes live in the page banner, so a non-overview tab shows them too.
+    const html = await (
+      await adminGet(`/admin/listing/${listing.id}/actions`)
+    ).text();
+    assertStringIncludes(html, "<strong>wording</strong>");
+    // The add-note link sits beside the heading, returning to the listing page.
+    assertStringIncludes(html, "Add a note");
+    assertStringIncludes(
+      html,
+      `/admin/listing/${listing.id}/note?return_url=%2Fadmin%2Flisting%2F${listing.id}`,
+    );
+  });
+
   test("marks the listings list as the section it belongs to", async () => {
     const listing = await createTestListing({ name: "Section" });
 

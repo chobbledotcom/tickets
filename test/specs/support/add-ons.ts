@@ -13,7 +13,6 @@ import { groups, setListingGroups } from "#db/groups.ts";
 import { t } from "#i18n";
 // jscpd:ignore-start
 import {
-  adminBrowser,
   type OpensASalesPage,
   openAsNewcomer,
   opensSalesPagesAt,
@@ -27,6 +26,7 @@ import {
 import {
   listingIdNamed,
   listingNamed,
+  listingPage,
   rememberListing,
   setBoxOnListing,
 } from "#test/specs/support/listings.ts";
@@ -172,24 +172,13 @@ export const offerChoiceThroughAddOnGroup = async (
   await linkModifierGroup(charge.id, group.id);
 };
 
-/** The organiser's browser on one of their listing's own admin pages. */
-const adminListingPage = async (
-  world: TicketsWorld,
-  name: string,
-  page: string,
-): Promise<TestBrowser> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(`/admin/listing/${listingIdNamed(world, name)}/${page}`);
-  return browser;
-};
-
 /** The organiser unticks sell-on-its-own on the real edit form and keeps
  * what the site said — a refused save is a message, not a thrown-away send. */
 export const tryStopSellingOnItsOwn: ChangeOneThing<void> = async (
   world,
   name,
 ) => {
-  const browser = await adminListingPage(world, name, "edit");
+  const browser = await listingPage(world, name, "/edit");
   // The send must carry nothing for the box: the form's own ticked value
   // would ride along and the site would never see the untick.
   await organiserSendsAndIsTold(world, browser, {}, "Save Changes", {
@@ -202,7 +191,7 @@ export const tryStopSellingOnItsOwn: ChangeOneThing<void> = async (
  * a message on that page, and the thing stays on sale. */
 export const tryTakeOffSale: ActOnOneThing = async (world, name) => {
   await copyLoaded("listings-table");
-  const browser = await adminListingPage(world, name, "deactivate");
+  const browser = await listingPage(world, name, "/deactivate");
   await organiserSendsAndIsTold(
     world,
     browser,

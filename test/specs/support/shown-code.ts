@@ -11,15 +11,10 @@ import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { openAdminPage, openAsNewcomer } from "#test/specs/support/browser.ts";
-import {
-  listingIdNamed,
-  rememberListing,
-} from "#test/specs/support/listings.ts";
+import { listingIdNamed } from "#test/specs/support/listings.ts";
 import type { ActOnOneThing, TicketsWorld } from "#test/specs/support/world.ts";
 import { STUB_CHECKOUT_URL } from "#test-utils/checkout.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { enablePublicSite, setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -32,29 +27,6 @@ interface CodeWanted {
   price?: number;
   who?: string;
 }
-
-/** Something for sale that the organiser can print a code for. */
-export const somethingForSale = async (
-  world: TicketsWorld,
-  name: string,
-  options: { askForEmail?: boolean; canPayMore?: boolean; price: number },
-): Promise<void> => {
-  await enablePublicSite();
-  await setupStripe();
-  rememberListing(
-    world,
-    name,
-    await createTestListing({
-      canPayMore: options.canPayMore ?? false,
-      // Nothing beyond a name is asked for unless the story says so, which is
-      // what makes a complete code able to skip the form entirely.
-      fields: options.askForEmail ? "email" : "",
-      maxAttendees: 10,
-      name,
-      unitPrice: options.price,
-    }),
-  );
-};
 
 /** The screen the organiser is holding up, once they have put a code on it. */
 export interface CodeOnScreen {

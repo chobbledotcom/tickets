@@ -185,6 +185,11 @@ const openQuestionPage = opensAdminPageAt(
   (world) => `/admin/questions/${askedQuestion(world).id}`,
 );
 
+/** The question's Actions tab, open — where the delete lives. */
+const openQuestionActionsPage = opensAdminPageAt(
+  (world) => `/admin/questions/${askedQuestion(world).id}/actions`,
+);
+
 /** Whether the question's own page offers a way to add answer choices. A
  * written question has none to offer, so its page must not either. */
 export const questionPageOffersChoices = async (
@@ -192,32 +197,34 @@ export const questionPageOffersChoices = async (
 ): Promise<boolean> =>
   (await openQuestionPage(world)).pageText.includes("Add answer");
 
-/** The owner takes the question down from its own page, typing text to
- * confirm, and keeps what the site said. */
+/** The owner takes the question down from its own Actions tab, typing text
+ * to confirm, and keeps what the site said. */
 export const ownerTakesQuestionDown = takesDownFromOwnPage(
-  openQuestionPage,
+  openQuestionActionsPage,
   "Delete question",
 );
 
+/** Run a question-asking step and keep the question the story was acting on
+ * in place, recording the one just asked as another asked question. */
+const askingAnother =
+  (ask: AsksAChoiceQuestion): AsksAChoiceQuestion =>
+  async (world, listingName, text, answers) => {
+    const asked = requiredWorldValue(
+      world.buyerQuestion,
+      "the question the story acts on",
+    );
+    await ask(world, listingName, text, answers);
+    world.otherBuyerQuestions = [
+      ...(world.otherBuyerQuestions ?? []),
+      requiredWorldValue(world.buyerQuestion, `the question "${text}"`),
+    ];
+    world.buyerQuestion = asked;
+  };
+
 /** A second choice question with its answers, asked without disturbing the
  * question the story is acting on. */
-export const ownerAsksAnotherChoiceQuestion: AsksAChoiceQuestion = async (
-  world,
-  listingName,
-  text,
-  answers,
-) => {
-  const asked = requiredWorldValue(
-    world.buyerQuestion,
-    "the question the story acts on",
-  );
-  await ownerAsksChoiceQuestion(world, listingName, text, answers);
-  world.otherBuyerQuestions = [
-    ...(world.otherBuyerQuestions ?? []),
-    requiredWorldValue(world.buyerQuestion, `the question "${text}"`),
-  ];
-  world.buyerQuestion = asked;
-};
+export const ownerAsksAnotherChoiceQuestion: AsksAChoiceQuestion =
+  askingAnother(ownerAsksChoiceQuestion);
 
 /** The id of the question the story named by its text. */
 const questionIdFor = (world: TicketsWorld, text: string): number => {

@@ -5,14 +5,16 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { ORGANISER } from "#test/specs/support/browser.ts";
 import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
-import { somethingForSale } from "#test/specs/support/editors.ts";
 import {
   listingOffersDay,
   organiserAddsHoliday,
   organiserDeletesHoliday,
   sellsDayPlaces,
 } from "#test/specs/support/holidays.ts";
-import { listingNamed } from "#test/specs/support/listings.ts";
+import {
+  listingNamed,
+  somethingForSale,
+} from "#test/specs/support/listings.ts";
 import {
   soleBookingOn,
   visitorBooks,

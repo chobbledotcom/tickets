@@ -3,7 +3,6 @@
  * opened by somebody never signed in, because that is who these pages are for.
  */
 
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { sitePages } from "#db/site-pages.ts";
 import { t } from "#i18n";
@@ -25,7 +24,10 @@ import {
   checkboxValueOffered,
   tickedCheckboxes,
 } from "#test/specs/support/form-controls/reading.ts";
-import { fillInAndSend } from "#test/specs/support/form-controls.ts";
+import {
+  fillInAndSend,
+  sendOneBox,
+} from "#test/specs/support/form-controls.ts";
 import { movingRowsOn } from "#test/specs/support/reordering.ts";
 import {
   type ActOnOneThing,
@@ -204,9 +206,9 @@ const openPageEditor = async (
 
 /** One page's own editor, open on the screen, with its Hidden box read off the
  * served form: the value ticking the box would send, and the boxes the page
- * shows ticked already. Both of the story's Hidden-box helpers read the page
- * this way, so a form that lost the box — or came back pre-ticked — fails
- * before any step acts on it. */
+ * shows ticked already. Read by the story's "comes back showing" helper, so a
+ * form that lost the box — or came back pre-ticked — fails before any step
+ * acts on it. */
 const editorServingHiddenBox = async (world: TicketsWorld, name: string) => {
   const browser = await openPageEditor(world, name);
   return {
@@ -236,12 +238,8 @@ export const ownerSetsPageHidden: ActsOnAPagesHiddenBox = async (
   name,
   hidden,
 ) => {
-  const { browser, tick, ticked } = await editorServingHiddenBox(world, name);
-  const tickIsPresent = ticked.includes(tick);
-  assert(hidden ? !tickIsPresent : tickIsPresent);
-  await fillInAndSend(browser, {}, t("common.save_changes"), {
-    [HIDDEN_BOX]: hidden ? [tick] : [],
-  });
+  const browser = await openPageEditor(world, name);
+  await sendOneBox(browser, browser.currentHtml, HIDDEN_BOX, hidden);
   keepWhatTheyWereTold(world, OWNER, browser.pageText);
 };
 

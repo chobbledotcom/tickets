@@ -12,7 +12,11 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, withStorageEnabled } from "#test-utils/mocks.ts";
-import { adminGet, createTestEditorSession } from "#test-utils/session.ts";
+import {
+  adminFormPost,
+  adminGet,
+  createTestEditorSession,
+} from "#test-utils/session.ts";
 
 /* jscpd:ignore-end */
 
@@ -29,6 +33,25 @@ describeWithEnv("the group page", { db: true }, () => {
 
     expect(response.status).toBe(200);
     assertStringIncludes(html, "<h1>Summer Fete</h1>");
+  });
+
+  test("shows the notes banner above every tab and the add-note link", async () => {
+    const group = await createTestGroup({ name: "Noted group" });
+    await adminFormPost(`/admin/groups/${group.id}/note`, {
+      note: "Check the **wording**",
+    });
+
+    // The notes live in the page banner, so a non-overview tab shows them too.
+    const html = await (
+      await adminGet(`/admin/groups/${group.id}/actions`)
+    ).text();
+    assertStringIncludes(html, "<strong>wording</strong>");
+    // The add-note link sits beside the heading, returning to the group page.
+    assertStringIncludes(html, "Add a note");
+    assertStringIncludes(
+      html,
+      `/admin/groups/${group.id}/note?return_url=%2Fadmin%2Fgroups%2F${group.id}`,
+    );
   });
 
   test("marks the groups list as the section it belongs to", async () => {

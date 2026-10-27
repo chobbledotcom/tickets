@@ -31,6 +31,7 @@ import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
+import { noteDeleteStatement } from "#db/notes/queries.ts";
 import { clearItemEdgesStatement } from "#db/site-page-items.ts";
 import { t } from "#i18n";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
@@ -62,6 +63,7 @@ import {
   getGroupForm,
 } from "#templates/fields/group.ts";
 import type { Group } from "#types";
+import { groupNoteFeature } from "./catalog-notes.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { withGroupOrNull } from "./find-group.ts";
 import { groupPage } from "./group-page.ts";
@@ -70,6 +72,7 @@ import {
   parsePackageMembers,
   validatePackageMemberForm,
 } from "./package-member-rules.ts";
+import { bindNoteRoutes } from "./record-notes.ts";
 
 /* jscpd:ignore-end */
 
@@ -169,10 +172,13 @@ export const deleteGroup = async (id: InValue) => {
   await resetGroupListings(groupId);
   // Clear site-page membership edges atomically with the group row. A failed
   // delete must never leave a page pointing at a still-present group, nor
-  // strip edges from a group that survives.
+  // strip edges from a group that survives. The group's notes go with it: a
+  // note names the record it is about by entity_type + entity_id, so it
+  // cannot ride a plain group_id delete.
   await executeBatch([
     clearItemEdgesStatement(sitePageItemTargets.of("group")(groupId)),
     clearImageUsesForItemStatement(imageUseTargets.of("group")(groupId)),
+    noteDeleteStatement("group", { args: [groupId], sql: "?" }),
     { args: [groupId], sql: "DELETE FROM groups WHERE id = ?" },
   ]);
 };
@@ -271,6 +277,7 @@ export const adminHandlers = defineRoutes({
   // still the generic CRUD route — groupsResource handles package prices + the
   // invariant via validate/afterWrite.
   ...entityTabRoutes(adminPattern("group"), groupPage),
+  ...bindNoteRoutes("/admin/groups", "id", groupNoteFeature.routes),
   "GET /admin/groups/:id/delete": crud.deleteGet,
   "GET /admin/groups/:id/remove-listings": handleRemoveListingsGet,
   // Create uses the auto-generated-slug resource.
