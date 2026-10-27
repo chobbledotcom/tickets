@@ -160,7 +160,9 @@ const takeFacts = (): TakeFact[] => {
   for (const taker of RUNS) {
     for (const stale of [false, true]) {
       for (const [owner, existing] of owners) {
-        const staleBefore = stale ? FAR_FUTURE : existing?.writtenAt ?? FAR_FUTURE;
+        const staleBefore = stale
+          ? FAR_FUTURE
+          : (existing?.writtenAt ?? FAR_FUTURE);
         facts.push({
           admitted: holdsTheRow(decideClaim(existing, REQUEST, staleBefore)),
           existingClaimStale: stale,
