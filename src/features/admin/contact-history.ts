@@ -100,6 +100,7 @@ const contactHistoryEntityPage: EntityPage<ContactHistoryEntity, string> =
     load: (hmac) => loadContactHistoryEntity(hmac),
     navActive: { section: adminPattern("attendees") },
     proseExtra: (entity) => Promise.resolve(entityProse(entity)),
+    recordId: ({ hmac }) => hmac,
     tabs: [
       {
         intent: "write-form",

@@ -53,85 +53,67 @@ const staffOnly = (_entity: unknown, session: AuthSession): boolean =>
   isStaffRole(session.adminLevel);
 
 /** Staff-only, and only when the listing also passes an extra check: for
- * example it is still active, or it is a paid listing. */
+ * example it is still active, or its public page serves. */
 const staffAnd =
   (alsoAllowed: (entity: LoadedListing) => boolean) =>
   (entity: LoadedListing, session: AuthSession): boolean =>
     staffOnly(entity, session) && alsoAllowed(entity);
 
-/** URL of a sub-action on this listing. */
-const actionUrl = ({ listing }: LoadedListing, action: string): string =>
-  `/admin/listing/${listing.id}/${action}`;
-
-/** An action entry's href builder for a named sub-action on this listing. */
-const subAction =
-  (action: string) =>
-  (entity: LoadedListing): string =>
-    actionUrl(entity, action);
-
-/** The Actions tab entries. Each `visible` repeats the gate its target route
- * enforces, so no dead or forbidden link renders. The tab itself is open to
- * content roles (staff + editor). So every mutation-risk entry below carries
- * its own explicit role check. Only Duplicate and Export are safe for an
- * editor to use unrestricted. */
+/** The Actions tab entries. Each destination's declaration gives the action
+ * its audience and its address. A route that narrows also hides its link.
+ * The tab is open to content roles. Duplicate and Export are safe for an
+ * editor, and the rest stay staff or owner-only. `visible` keeps only the
+ * data-dependent gates the declaration cannot express. */
 const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
   {
-    href: subAction("duplicate"),
+    destination: "listingDuplicate",
     icon: "plus",
-    intent: "write-form",
     labelKey: "listings_table.duplicate",
   },
   {
     // A JSON export download (see catalog-transfer). Content-gated like the tab,
     // and a read, so — unlike duplicate — it stays available in read-only mode.
-    href: subAction("export.json"),
+    destination: "listingExportJson",
     icon: "save",
     labelKey: "catalog_transfer.export_link",
   },
   {
+    // The compose page 404s for a listing target with zero recipients, so a
+    // link without emailable attendees is a dead link (AGENTS.md: never render
+    // one). The route itself is owner-only, which the destination keeps.
+    destination: "emails",
     href: ({ listing }) =>
       `/admin/emails${targetQuery({ kind: "listing", listingId: listing.id })}`,
     icon: "arrow-right",
-    intent: "write-form",
     labelKey: "common.email",
-    // Owner-only, and only when there is someone to email. The compose page
-    // 404s for a listing target with zero recipients, so a link without
-    // emailable attendees is a dead link (AGENTS.md: never render one).
-    visible: (entity, session) =>
-      isOwnerRole(session.adminLevel) && entity.hasEmailableAttendees,
+    visible: (entity) => entity.hasEmailableAttendees,
   },
   {
     danger: true,
-    href: subAction("refund-all"),
+    destination: "listingRefundAll",
     icon: "credit-card",
-    intent: "write-form",
     labelKey: "listings_table.refund_all",
-    // Moving money is owner-only, and only applies to a paid listing.
-    visible: (entity, session) =>
-      isOwnerRole(session.adminLevel) && isPaidListing(entity.listing),
+    // Moving money only applies to a paid listing.
+    visible: (entity) => isPaidListing(entity.listing),
   },
   {
     danger: true,
-    href: subAction("deactivate"),
+    destination: "listingDeactivate",
     icon: "x",
-    intent: "write-form",
     labelKey: "listings_table.deactivate",
-    visible: staffAnd((entity) => entity.listing.active),
+    visible: (entity) => entity.listing.active,
   },
   {
-    href: subAction("reactivate"),
+    destination: "listingReactivate",
     icon: "rotate-ccw",
-    intent: "write-form",
     labelKey: "listings_table.reactivate",
-    visible: staffAnd((entity) => !entity.listing.active),
+    visible: (entity) => !entity.listing.active,
   },
   {
     danger: true,
-    href: subAction("delete"),
+    destination: "listingDelete",
     icon: "trash-2",
-    intent: "write-form",
     labelKey: "common.delete",
-    visible: staffOnly,
   },
 ];
 
@@ -193,6 +175,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
   navActive: { section: adminPattern("listings") },
   proseExtra: ({ listing }, ctx) =>
     listingNoteFeature.page.proseExtra(listing, ctx),
+  recordId: ({ listing }) => listing.id,
   tabs: [
     overviewTab,
     panelTab(

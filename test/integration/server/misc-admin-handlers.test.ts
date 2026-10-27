@@ -59,11 +59,11 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     test("createActionHandler supports custom error mapping", async () => {
       const response = await runActionHandler(
         {
-          pattern: "/admin/attendees",
           execute: () => Promise.reject(new Error("kaboom")),
           message: "unused",
           onError: (error) =>
             new Response(`mapped:${error.message}`, { status: 418 }),
+          pattern: "/admin/attendees",
           successRedirect: "/admin/attendees/1",
         },
         "/admin/attendees/1",
@@ -76,9 +76,9 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     test("createActionHandler maps non-Error throws to redirect flashes", async () => {
       const response = await runActionHandler(
         {
-          pattern: "/admin/attendees",
           execute: () => Promise.reject("plain string failure"),
           message: "unused",
+          pattern: "/admin/attendees",
           successRedirect: "/admin/attendees/1",
         },
         "/admin/attendees/1",
@@ -94,9 +94,9 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const handler = createActionHandler({
-        pattern: "/admin/backup/create",
         execute: () => Promise.resolve(),
         message: "Owner action completed",
+        pattern: "/admin/backup/create",
         successRedirect: "/admin/test-owner",
       });
 
@@ -111,16 +111,18 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       );
     });
 
-    test("createActionHandler with multipart body and any auth redirects on success", async () => {
+    test("createActionHandler with multipart body redirects on success", async () => {
       const { createActionHandler } = await import("#routes/admin/actions.ts");
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
+      // The staff route's declaration gives the policy its roles; the body
+      // mode and the redirect are the test's own.
       const handler = createActionHandler({
-        pattern: "/admin/attendees",
         bodyMode: "multipart" as const,
         execute: () => Promise.resolve(),
         message: "Multipart action completed",
+        pattern: "/admin/attendees",
         successRedirect: "/admin/test-multipart",
       });
 
@@ -139,40 +141,12 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       );
     });
 
-    test("createActionHandler with multipart body and owner auth redirects on success", async () => {
-      const { createActionHandler } = await import("#routes/admin/actions.ts");
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      const handler = createActionHandler({
-        pattern: "/admin/backup/create",
-        bodyMode: "multipart" as const,
-        execute: () => Promise.resolve(),
-        message: "Owner multipart action completed",
-        successRedirect: "/admin/test-owner-multipart",
-      });
-
-      const response = await handler(
-        mockMultipartRequest(
-          "/admin/test-owner-multipart",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-
-      expect(response.status).toBe(302);
-      assertStringIncludes(
-        response.headers.get("location") ?? "",
-        "/admin/test-owner-multipart",
-      );
-    });
-
     test("createActionHandler redacts string secret from activity log", async () => {
       const response = await runActionHandler(
         {
-          pattern: "/admin/attendees",
           execute: () => Promise.resolve(),
           message: "API key sk_test_123 created",
+          pattern: "/admin/attendees",
           redactedSecret: "sk_test_123",
           successRedirect: "/admin/keys",
         },
@@ -188,10 +162,10 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     test("createActionHandler redacts dynamic secret from activity log", async () => {
       const response = await runActionHandler(
         {
-          pattern: "/admin/attendees",
           execute: () => Promise.resolve(),
           message: (_session, form) =>
             `API key ${form.getString("api_key")} created`,
+          pattern: "/admin/attendees",
           redactedSecret: (_session, form) =>
             form.getString("api_key") || undefined,
           successRedirect: "/admin/keys",
@@ -209,10 +183,10 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     test("createActionHandler logs with fixed listingId when configured", async () => {
       const response = await runActionHandler(
         {
-          pattern: "/admin/attendees",
           execute: () => Promise.resolve(),
           listingId: 42,
           message: "Fixed listing action",
+          pattern: "/admin/attendees",
           successRedirect: "/admin/fixed-listing",
         },
         "/admin/fixed-listing",
@@ -227,11 +201,11 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     test("createActionHandler computes listingId from submitted form", async () => {
       const response = await runActionHandler(
         {
-          pattern: "/admin/attendees",
           execute: () => Promise.resolve(),
           listingId: (form) =>
             Number.parseInt(form.getString("listing_id"), 10),
           message: "Computed listing action",
+          pattern: "/admin/attendees",
           successRedirect: "/admin/computed-listing",
         },
         "/admin/computed-listing",

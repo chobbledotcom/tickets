@@ -100,7 +100,6 @@ const handleBackupGet: TypedRouteHandler<"GET /admin/backup"> = ownerPage(
 
 const handleBackupCreate: TypedRouteHandler<"POST /admin/backup/create"> =
   createActionHandler({
-    pattern: "/admin/backup/create",
     execute: async () => {
       // Refuse up front when the dump cannot fit the request's subrequest
       // allowance, instead of crashing partway through the table reads.
@@ -111,6 +110,7 @@ const handleBackupCreate: TypedRouteHandler<"POST /admin/backup/create"> =
       await createAndUploadBackup();
     },
     message: "Database backup created",
+    pattern: "/admin/backup/create",
     successRedirect: "/admin/backup",
   });
 

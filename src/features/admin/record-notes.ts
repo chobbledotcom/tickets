@@ -52,10 +52,6 @@ export interface RecordNoteRoutesConfig<Record extends { id: number }> {
    * past its own page's audience. An owner-only record passes "owner":
    * wider note routes widen the record page's own audience floor. */
   auth: AuthOption<AuthSession>;
-  /** The add-note route this kind serves, as declared. Its audience is what
-   * the shorthand resolves to, so the role is written once, in the admin
-   * surface. */
-  notePattern: string;
   /** The kind of record the notes are about. */
   entityKind: NoteEntity;
   /** Load one record by id, or null when it does not exist. */
@@ -64,6 +60,10 @@ export interface RecordNoteRoutesConfig<Record extends { id: number }> {
   nameOf: (record: Record) => string;
   /** One record's notes base path: `/admin/groups/7/note`. */
   noteBasePath: (id: number) => string;
+  /** The add-note route this kind serves, as declared. Its audience is what
+   * the shorthand resolves to, so the role is written once, in the admin
+   * surface. */
+  notePattern: string;
   /** The record's own page, where note actions return by default. */
   recordPagePath: (id: number) => string;
 }

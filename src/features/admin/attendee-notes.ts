@@ -19,11 +19,11 @@ export const attendeeNoteFeature = recordNoteFeature({
   activeSection: adminPattern("attendees"),
   auth: "any",
   entityKind: "attendee",
-  notePattern: "/admin/attendee/:attendeeId/note",
   loadRecord: async (attendeeId) =>
     getAttendeeOrNull(attendeeId, await requireRequestPrivateKey()),
   nameOf: (attendee) => attendee.name,
   noteBasePath: (attendeeId) => `/admin/attendee/${attendeeId}/note`,
+  notePattern: "/admin/attendee/:attendeeId/note",
   recordPagePath: (attendeeId) => `/admin/attendees/${attendeeId}`,
 });
 

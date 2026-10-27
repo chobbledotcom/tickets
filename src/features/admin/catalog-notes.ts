@@ -21,10 +21,10 @@ export const groupNoteFeature = recordNoteFeature({
   // decrypt notes, so the routes keep the notes system's own audience.
   auth: "any",
   entityKind: "group",
-  notePattern: "/admin/groups/:id/note",
   loadRecord: (id: number) => getGroupById(id),
   nameOf: (group: Group) => group.name,
   noteBasePath: (id: number) => `/admin/groups/${id}/note`,
+  notePattern: "/admin/groups/:id/note",
   recordPagePath: (id: number) => `/admin/groups/${id}`,
 });
 
@@ -33,9 +33,9 @@ export const listingNoteFeature = recordNoteFeature({
   activeSection: adminPattern("listings"),
   auth: "any",
   entityKind: "listing",
-  notePattern: "/admin/listing/:id/note",
   loadRecord: (id: number) => getListingWithCount(id),
   nameOf: (listing: ListingWithCount) => listing.name,
   noteBasePath: (id: number) => `/admin/listing/${id}/note`,
+  notePattern: "/admin/listing/:id/note",
   recordPagePath: (id: number) => `/admin/listing/${id}`,
 });

@@ -26,6 +26,7 @@ type Widget = { id: number; name: string };
 const WIDGET: Widget = { id: 7, name: "Widget" };
 
 const editPage = defineEditEntityPage<Widget>({
+  deleteDestination: "holidayDelete",
   deleteLabelKey: "common.delete",
   destination: "holiday",
   edit: (widget, _ctx, rejected) =>
@@ -41,6 +42,7 @@ const editPage = defineEditEntityPage<Widget>({
   ],
   load: (id) => Promise.resolve(id === 404 ? null : WIDGET),
   navActive: "/admin/holidays",
+  recordId: (widget) => widget.id,
 });
 
 describe("submittedValueProps", () => {

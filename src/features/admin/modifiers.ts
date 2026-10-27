@@ -252,6 +252,7 @@ const loadModifierEditPanel = async (
 };
 
 const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
+  deleteDestination: "modifierDelete",
   deleteLabelKey: "modifiers.delete.submit",
   destination: "modifier",
   edit: (modifier, ctx, rejected) =>
@@ -264,6 +265,7 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
   guideFooter: () => Promise.resolve(ModifiersGuideFooter()),
   load: (id) => getModifier(id),
   navActive: { section: adminPattern("modifiers") },
+  recordId: (modifier) => modifier.id,
 });
 
 // The list and entity page load the ledger-projected Modifier. Writes and

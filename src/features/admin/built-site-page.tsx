@@ -160,6 +160,7 @@ const builtSitePagerNav = async (
 };
 
 export const builtSitePage: EditEntityPage<BuiltSite> = defineEditEntityPage({
+  deleteDestination: "builtSiteDelete",
   deleteLabelKey: "built_sites.delete_this_site",
   destination: "builtSite",
   edit: (site, _ctx, rejected) =>
@@ -176,5 +177,6 @@ export const builtSitePage: EditEntityPage<BuiltSite> = defineEditEntityPage({
   guideFooter: () => Promise.resolve(<BuiltSitesGuideFooter />),
   load: (id) => builtSitesCrudTable.read.one({ id }),
   navActive: adminPattern("builtSites"),
+  recordId: (site) => site.id,
   titleNav: builtSitePagerNav,
 });

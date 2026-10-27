@@ -76,7 +76,6 @@ const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
  */
 const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
   createActionHandler({
-    pattern: "/admin/api-keys",
     execute: async (session, form) => {
       const name = form.getString("name");
       if (!name) {
@@ -108,6 +107,7 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
         .createdApiKey as string;
       return `API key created\n${apiKey}`;
     },
+    pattern: "/admin/api-keys",
     redactedSecret: (session) =>
       (session as Record<string, unknown>).createdApiKey as string | undefined,
     successRedirect: "/admin/api-keys",
@@ -145,12 +145,10 @@ const apiKeyPage: EntityPage<ApiKeyDisplay> = defineEntityPage({
     (await getApiKeysForUser(session.userId)).find((key) => key.id === id) ??
     null,
   navActive: adminPattern("apiKeys"),
+  recordId: (apiKey) => apiKey.id,
   tabs: [
     overviewTab,
-    deleteActionTab(
-      "api_keys.delete_submit",
-      (apiKey) => `/admin/api-keys/${apiKey.id}/delete`,
-    ),
+    deleteActionTab("api_keys.delete_submit", "apiKeyDelete"),
   ],
   titleOf: (apiKey) => apiKey.name,
 });

@@ -238,10 +238,7 @@ const userOverviewTab: TabDef<DisplayUser> = {
 };
 
 const userActionsTab: TabDef<DisplayUser> = {
-  ...deleteActionTab(
-    "users.delete_user.submit",
-    (user) => `/admin/users/${user.id}/delete`,
-  ),
+  ...deleteActionTab("users.delete_user.submit", "userDelete"),
   visible: (user, session) => user.id !== session.userId,
 };
 
@@ -250,6 +247,7 @@ const userPage: EntityPage<DisplayUser> = defineEntityPage({
   destination: "user",
   load: (id) => loadDisplayUser(id),
   navActive: { section: adminPattern("users") },
+  recordId: (user) => user.id,
   tabs: [
     userOverviewTab,
     {

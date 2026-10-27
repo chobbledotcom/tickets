@@ -20,6 +20,7 @@ type Leaflet = { id: number; name: string };
 const LEAFLET: Leaflet = { id: 3, name: "Opening times" };
 
 const page = defineSiteContentPage<Leaflet>({
+  deleteDestination: "sitePageDelete",
   deleteLabelKey: "site.pages.delete_submit",
   destination: "sitePage",
   editPanel: (leaflet) => Raw({ html: `<p>Edit ${leaflet.name}</p>` }),

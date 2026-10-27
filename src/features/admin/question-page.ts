@@ -27,11 +27,6 @@ import {
 } from "#templates/admin/question-detail.tsx";
 import { questionTextFlat } from "#templates/admin/questions.tsx";
 
-/** The question page is owner-only (matching the route's OWNER_AUDIENCE), so
- * the note pages highlight the Questions section. */
-const questionUrl = (questionId: number): string =>
-  `/admin/questions/${questionId}`;
-
 const loadEditPanel: SlotLoader<QuestionWithAnswers> = (question) =>
   Promise.resolve(QuestionEditPanel({ question }));
 
@@ -68,12 +63,10 @@ export const questionPage: EntityPage<QuestionWithAnswers> = defineEntityPage({
   destination: "question",
   load: (id) => getQuestionWithAnswers(id),
   navActive: { section: adminPattern("questions") },
+  recordId: (question) => question.id,
   tabs: [
     overviewTab,
-    deleteActionTab(
-      "questions.delete.submit",
-      (question) => `${questionUrl(question.id)}/delete`,
-    ),
+    deleteActionTab("questions.delete.submit", "questionDelete"),
   ],
   titleOf: (question) => questionTextFlat(question.text),
 });

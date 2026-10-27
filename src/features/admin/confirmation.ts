@@ -7,8 +7,8 @@ import { asString } from "#fp";
 import { t } from "#i18n";
 import {
   type AuthSession,
-  type Guard,
   formPolicyFor,
+  type Guard,
   pageGuardFor,
   type SessionGuard,
   withAuth,
@@ -190,8 +190,8 @@ export const resolveAuth = <TSession>(
   pattern: string,
 ) => {
   if (typeof auth === "object") return auth;
-  // The shorthand promises the route's own audience: "owner" and "any" both
-  // derive their guards from the declaration at `pattern`, so the role is
+  // The shorthand promises the route's own audience. "owner" and "any" both
+  // derive their guards from the declaration at `pattern`. The role is then
   // written once, in the admin surface, and never again beside the handler.
   const route = adminDestinationAt(pattern);
   return {

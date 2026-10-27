@@ -49,7 +49,8 @@ import {
 import { writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
 import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-problem.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
+import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
+import { adminPattern, adminRecordPath } from "#shared/admin-surface.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { withReturnUrl } from "#shared/return-url-field.tsx";
@@ -100,10 +101,6 @@ const loadAttendeePageEntity = async (
   return entity === null ? null : { ...entity, paymentMove: "not_loaded" };
 };
 
-/** The attendee-scoped action routes live under the entity's own base. */
-const actionBase = ({ attendee }: AttendeePageEntity): string =>
-  `/admin/attendees/${attendee.id}`;
-
 type AttendeeActionName = keyof typeof attendeeActions;
 type ActionVisibility = NonNullable<ActionDef<AttendeePageEntity>["visible"]>;
 const alwaysAllow: ActionVisibility = (): boolean => true;
@@ -122,14 +119,14 @@ const actionWhen =
     attendeeActions[action].isAvailable(hasBooking(entity)) &&
     allowed(entity, session);
 
-/** Show an owner action for one named durable payment state. */
+/** Show an owner action for one named durable payment state. The owner gate
+ * comes from the action's destination. This keeps only the state check. */
 const ownerPaymentStatusWhen =
   (status: PaymentWorkStatus, allowed: ActionVisibility): ActionVisibility =>
-  (entity, session) =>
-    isOwnerRole(session.adminLevel) &&
+  (entity, _session) =>
     entity.paymentMove !== "not_loaded" &&
     entity.paymentMove.work.status === status &&
-    allowed(entity, session);
+    allowed(entity, _session);
 
 /** Gate an attendee route on its action scope and durable payment state. */
 const ownerPaymentWhen = (
@@ -139,40 +136,49 @@ const ownerPaymentWhen = (
 ): ActionVisibility =>
   actionWhen(action, ownerPaymentStatusWhen(status, allowed));
 
-/** Build one attendee-scoped confirmation action. */
+/** Build one attendee-scoped confirmation action. Its address comes from the
+ * destination's declaration over the attendee. */
 const attendeeAction = (
-  segment: string,
-  config: Omit<ActionDef<AttendeePageEntity>, "href">,
+  destination: AdminDestinationId,
+  config: Omit<ActionDef<AttendeePageEntity>, "destination" | "href">,
 ): ActionDef<AttendeePageEntity> => ({
   ...config,
+  destination,
   href: (entity, ctx) =>
-    withReturnUrl(`${actionBase(entity)}/${segment}`, ctx.returnUrl),
+    withReturnUrl(
+      adminRecordPath(destination, entity.attendee.id),
+      ctx.returnUrl,
+    ),
 });
 
-/** The Actions tab entries. Every `visible` mirrors its target's own gate. */
+/** The Actions tab entries. Each destination's declaration gives the action
+ * its audience and its address. `visible` keeps only the data-dependent
+ * gates the declaration cannot express. */
 const ATTENDEE_ACTIONS: readonly ActionDef<AttendeePageEntity>[] = [
-  attendeeAction("refund", {
+  attendeeAction("attendeeRefund", {
     icon: "credit-card",
     labelKey: "attendee_form.action_refund",
     visible: ownerPaymentWhen("refund", "clear", ({ canRefund }) => canRefund),
   }),
-  attendeeAction("payment-review", {
+  attendeeAction("attendeePaymentReview", {
     icon: "check",
     labelKey: "attendee_form.action_payment_review",
     visible: ownerPaymentWhen("payment-review", "needs_review"),
   }),
   {
+    destination: "privacy",
     href: () => "/admin/privacy#refund-recovery",
     icon: "rotate-ccw",
     labelKey: "attendee_form.action_refund_recovery",
     visible: ownerPaymentStatusWhen("needs_provider_recovery", alwaysAllow),
   },
-  attendeeAction("resend-notification", {
+  attendeeAction("attendeeResend", {
     icon: "rotate-ccw",
     labelKey: "attendee_form.action_resend",
     visible: actionWhen("resend-notification"),
   }),
   {
+    destination: "sms",
     href: ({ attendee }) =>
       `/admin/sms?listing=${attendee.listing_id}&attendee=${attendee.id}`,
     icon: "arrow-right",
@@ -181,7 +187,7 @@ const ATTENDEE_ACTIONS: readonly ActionDef<AttendeePageEntity>[] = [
   },
   {
     danger: true,
-    href: (entity) => `${actionBase(entity)}/delete`,
+    destination: "attendeeDelete",
     icon: "trash-2",
     labelKey: "attendee_form.action_delete",
     visible: actionWhen(
@@ -328,6 +334,7 @@ export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
   navActive: { section: adminPattern("attendees") },
   proseExtra: ({ attendee }, ctx) =>
     attendeeNoteFeature.page.proseExtra(attendee, ctx),
+  recordId: ({ attendee }) => attendee.id,
   tabs: [
     overviewTab,
     writeFormTab<AttendeePageEntity>("edit", "entity.tab.edit", loadEditPanel),

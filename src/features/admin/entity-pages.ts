@@ -16,7 +16,11 @@ import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import type { AdminRouteIntent } from "#shared/admin-surface/definitions.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
-import { adminDestination, adminRecordPath } from "#shared/admin-surface.ts";
+import {
+  adminDestination,
+  adminDestinationAllowed,
+  adminRecordPath,
+} from "#shared/admin-surface.ts";
 import {
   type FlankingNav,
   resolveTabSlug,
@@ -83,13 +87,21 @@ export interface AdminGatedItem<E> {
   visible?: (entity: E, session: AuthSession) => boolean;
 }
 
-/** An operator action. `visible` must gate on the same condition the target
- * route enforces — a forbidden or dead action link is never rendered. */
+/** An operator action. Its destination's declaration gives the action its
+ * audience and its address. A route that narrows also hides its link, and a
+ * dead or forbidden link cannot render. `visible` keeps only the
+ * data-dependent gates the declaration cannot express. */
 export interface ActionDef<E> extends AdminGatedItem<E> {
   /** Renders in the visually separated danger zone (delete, deactivate…). */
   danger?: boolean;
   descriptionKey?: string;
-  href: (entity: E, ctx: PageCtx) => string;
+  /** The route this action leads to. Its audience hides the link from a
+   * viewer it refuses, and its path over the entity is the address. */
+  destination: AdminDestinationId;
+  /** Address override for a link the declaration cannot name: a query string
+   * or an anchor (an SMS compose link, a page section). The audience still
+   * comes from `destination`. */
+  href?: (entity: E, ctx: PageCtx) => string;
   icon?: IconName;
 }
 
@@ -156,6 +168,8 @@ export interface EntityPageDef<E, Id extends EntityId = number> {
   /** Extra content rendered inside the prose block beside the page `<h1>`
    *  (for example, the attendee page's "Add a note" link). */
   proseExtra?: SlotLoader<E>;
+  /** The record's id, for deriving an action's address from its destination. */
+  recordId: RecordIdOf<E>;
   tabs: readonly TabDef<E>[];
   /** Flanking controls around the `<h1>`, for example a built-site pager whose
    * arrows keep the viewer on the same tab. */
@@ -163,21 +177,30 @@ export interface EntityPageDef<E, Id extends EntityId = number> {
   titleOf: (entity: E) => string;
 }
 
+/** The record's id, for deriving an action's address from its destination. */
+type RecordIdOf<E> = (entity: E) => string | number;
+
 const resolveActions = <E>(
   actions: readonly ActionDef<E>[],
   entity: E,
   ctx: PageCtx,
+  recordId: RecordIdOf<E>,
 ): ResolvedAction[] =>
   actions
     .filter(
       (action) =>
-        !(isReadOnly() && action.intent === "write-form") &&
-        action.visible?.(entity, ctx.session) !== false,
+        adminDestinationAllowed(
+          action.destination,
+          ctx.session.adminLevel,
+          isReadOnly(),
+        ) && action.visible?.(entity, ctx.session) !== false,
     )
     .map((action) => ({
       danger: action.danger === true,
       descriptionKey: action.descriptionKey,
-      href: action.href(entity, ctx),
+      href: action.href
+        ? action.href(entity, ctx)
+        : adminRecordPath(action.destination, recordId(entity)),
       icon: action.icon,
       labelKey: action.labelKey,
     }));
@@ -189,6 +212,7 @@ const loadSection = async <E>(
   section: Section<E>,
   entity: E,
   ctx: PageCtx,
+  recordId: RecordIdOf<E>,
 ): Promise<LoadedSection> => {
   switch (section.kind) {
     case "summary":
@@ -207,7 +231,7 @@ const loadSection = async <E>(
         ? await section.prepare(entity, ctx)
         : entity;
       const { plain, danger } = splitActions(
-        resolveActions(section.actions, prepared, ctx),
+        resolveActions(section.actions, prepared, ctx, recordId),
       );
       return { danger, kind: "actions", plain, titleKey: section.titleKey };
     }
@@ -283,10 +307,13 @@ const loadPageSections = async <E>(
   entity: E,
   ctx: PageCtx,
   panel: SlotLoader<E> | undefined,
+  recordId: RecordIdOf<E>,
 ): Promise<LoadedSection[]> => {
   if (panel) return [{ html: await panel(entity, ctx), kind: "custom" }];
   return Promise.all(
-    active.sections.map((section) => loadSection(section, entity, ctx)),
+    active.sections.map((section) =>
+      loadSection(section, entity, ctx, recordId),
+    ),
   );
 };
 
@@ -321,6 +348,7 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
       entity,
       ctx,
       opts.panel,
+      def.recordId,
     );
     const [banner, guideFooter, proseExtra, titleNav] = await Promise.all([
       resolveSlot(def.banner, entity, ctx),
@@ -371,7 +399,7 @@ export const customSection = <E>(load: SlotLoader<E>): Section<E> => ({
  * type-the-name delete confirmation. */
 export const deleteActionTab = <E>(
   labelKey: string,
-  href: (entity: E, ctx: PageCtx) => string,
+  destination: AdminDestinationId,
 ): TabDef<E> => ({
   intent: "write-form",
   labelKey: "entity.tab.actions",
@@ -380,7 +408,7 @@ export const deleteActionTab = <E>(
       actions: [
         {
           danger: true,
-          href,
+          destination,
           icon: "trash-2",
           intent: "write-form",
           labelKey,
