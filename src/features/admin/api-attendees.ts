@@ -40,6 +40,7 @@ import {
   listPriceOrder,
   type PricedOrder,
 } from "#shared/checkout-pricing.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -246,6 +247,17 @@ const parseStatusAndToken = async (
     !v.is(v.pipe(v.string(), v.minLength(1)), ticketToken)
   ) {
     return errorResult("ticketToken must be non-empty text");
+  }
+  // The token names the buyer's ticket page and sits inside the encrypted
+  // PII blob. It shares the length cap every other create-body text field
+  // carries, so it stays bounded.
+  if (
+    typeof ticketToken === "string" &&
+    ticketToken.length > MAX_INPUT_LENGTH
+  ) {
+    return errorResult(
+      `ticketToken must be ${MAX_INPUT_LENGTH} characters or fewer`,
+    );
   }
   const statuses = await attendeeStatuses.getAll();
   const statusId = resolveStatusId(status as string | undefined, statuses);
