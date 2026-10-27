@@ -4,8 +4,8 @@
  * Statuses are owner-defined labels an attendee moves through (e.g. a public
  * reservation that later becomes paid). The flags and the reservation amount
  * are stored as plaintext so the public balance-payment page and the payment
- * webhook can reason about reserved/paid state without the private key — only
- * the human-readable `name` is encrypted at rest.
+ * webhook can read the reserved/paid state. Only the human-readable `name` is
+ * encrypted at rest.
  */
 
 /* jscpd:ignore-start -- import block */
@@ -103,7 +103,7 @@ export type StatusDeleteBlocker = Exclude<
 
 /** The prerequisite a delete of this status would be refused on, or null when
  *  the delete can proceed (freely, or through a reassign choice). The delete
- *  command refuses in exactly this order; the delete page predicts it. */
+ *  command refuses in exactly this order. The delete page predicts it. */
 export const statusDeleteBlocker = (
   status: Pick<AttendeeStatus, "is_paid_default" | "is_public_default">,
   anotherStatusExists: boolean,

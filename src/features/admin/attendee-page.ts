@@ -18,7 +18,7 @@ import {
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import type { PaymentWorkStatus } from "#payment/admit-move.ts";
-import { attendeeBookingsFromLines } from "#routes/admin/attendee-form-model.ts";
+import { attendeeBookingsFromLines } from "#routes/admin/attendee-form-dates.ts";
 import { loadAttendeeLedgerPanel } from "#routes/admin/attendee-ledger-panel.ts";
 import { loadLogisticsPanel } from "#routes/admin/attendee-logistics-tab.ts";
 import {

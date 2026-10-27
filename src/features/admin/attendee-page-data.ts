@@ -28,11 +28,11 @@ import {
 import type { BookedAnswer, QuestionWithAnswers } from "#db/question-types.ts";
 /* jscpd:ignore-start */
 import { filter, identity, mapById } from "#fp";
+import { resolveSharedDates } from "#routes/admin/attendee-form-dates.ts";
 import {
   type AttendeeFormLine,
   attendeeBalanceNotice,
   type ParsedAttendeeForm,
-  resolveSharedDates,
 } from "#routes/admin/attendee-form-model.ts";
 import { buildAttendeeLogisticsData } from "#routes/admin/attendee-logistics.ts";
 import { withDecryptedAttendee } from "#routes/admin/attendees-route-helpers.ts";
