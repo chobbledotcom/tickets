@@ -225,7 +225,7 @@ export const createTypeVisitor = (
 
   const visitProperties: VisitType = (path, type, state) => {
     for (const property of checker.getPropertiesOfType(type)) {
-      const names = writtenNames(property);
+      const names = writtenNames(property, context.root);
       const [firstName] = names;
       if (!firstName) continue;
       const value = checker.getTypeOfSymbolAtLocation(property, firstName);

@@ -221,7 +221,7 @@ describe("one line per field", () => {
     });
     const source = program.getSourceFile(file);
     if (!source) throw new Error(`The program does not hold ${file}`);
-    found = exportedFields(program.getTypeChecker())(source);
+    found = exportedFields(program.getTypeChecker(), root)(source);
   });
 
   afterAll(async () => {

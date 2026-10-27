@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   answered,
+  belongsToRepository,
   compilerOptions,
   pathIs,
   serviceHost,
@@ -101,6 +102,33 @@ describe("the compiler's view of a repository", () => {
 
     test("raises anything that is not the path being absent", () => {
       expect(() => pathIs("isFile")("a\u0000b")).toThrow(TypeError);
+    });
+  });
+
+  describe("belongsToRepository", () => {
+    test("owns a declaration file under the root", () => {
+      // A `.d.ts` file inside the repository is the repository's own code,
+      // even though the compiler flags it as a declaration file.
+      expect(belongsToRepository(root, `${root}/src/static.d.ts`)).toBe(true);
+      expect(belongsToRepository(root, file)).toBe(true);
+    });
+
+    test("leaves a library outside the root alone", () => {
+      expect(
+        belongsToRepository(root, "/home/user/.cache/deno/npm/pkg/index.d.ts"),
+      ).toBe(false);
+    });
+
+    test("leaves a vendored or cached dependency under the root alone", () => {
+      expect(
+        belongsToRepository(root, `${root}/node_modules/pkg/index.d.ts`),
+      ).toBe(false);
+      expect(
+        belongsToRepository(
+          root,
+          `${root}/.deno/npm/registry.npmjs.org/pkg/index.d.ts`,
+        ),
+      ).toBe(false);
     });
   });
 

@@ -106,7 +106,7 @@ export const fieldsOf = async (
     program.getSourceFile(`${dir}/shapes.ts`),
     "the scanned file",
   );
-  return exportedFields(program.getTypeChecker())(scanned);
+  return exportedFields(program.getTypeChecker(), dir)(scanned);
 };
 
 /** The readable reach of the first name of every field the scan found. */

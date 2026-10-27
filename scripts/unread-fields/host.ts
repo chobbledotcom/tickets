@@ -49,6 +49,19 @@ export const pathIs =
   (path) =>
     probing(false)(() => Deno.statSync(path)[kind]);
 
+/** Whether the compiler reached a file the repository wrote itself. A
+ * declaration file under `src/` is repository code, so the compiler's
+ * `isDeclarationFile` flag cannot answer this. A dependency the repository
+ * keeps under its own root — a vendored `node_modules`, or the Deno module
+ * cache — is still a library, not repository code. The cache holds modules
+ * under `npm/`, `deps/`, and `remote/`, so those path parts mark it. */
+export const belongsToRepository = (root: string, file: string): boolean =>
+  file.startsWith(`${root}/`) &&
+  !file.includes("/node_modules/") &&
+  !file.includes("/npm/") &&
+  !file.includes("/deps/") &&
+  !file.includes("/remote/");
+
 /** What the repository asks the compiler for, out of its own `deno.json`.
  * Strictness changes what a type means, so a scan that leaves it out reads a
  * different repository from the one Deno checks. */
