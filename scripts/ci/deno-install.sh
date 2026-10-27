@@ -5,11 +5,14 @@
 # The install does not resolve a new tree silently.
 #
 # The allowlist runs npm lifecycle scripts only for the packages that need
-# them. Every listed package has a "scripts": true entry in deno.lock. When a
-# dependency adds a script-bearing package, name it here too. The test at
-# test/scripts/ci/deno-install.test.ts enforces the match.
+# them. It must match the packages deno.lock records with "scripts": true,
+# sorted. When a dependency adds a script-bearing package, name it here too.
+# Deno runs lifecycle scripts only with a node_modules directory. The global
+# module cache runs none today. The list holds the policy for a future
+# node_modules setup. The test at test/scripts/ci/deno-install.test.ts
+# enforces the match.
 set -euo pipefail
 
 deno install \
   --frozen \
-  --allow-scripts=npm:esbuild,npm:sharp,npm:@parcel/watcher,npm:fsevents
+  --allow-scripts=npm:@parcel/watcher,npm:esbuild,npm:fsevents,npm:sharp
