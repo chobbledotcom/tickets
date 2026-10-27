@@ -24,7 +24,7 @@ VARIABLES
   worker2Held
 
 TypeOK ==
-  /\ storedOwner \in {"none", "w1", "w2"}
+  /\ storedOwner \in {"none"} \cup Workers
   /\ storedCommandId \in CommandIds \cup {""}
   /\ storedWrittenAt \in WrittenAts \cup {""}
   /\ storedPhase \in Phases \cup {""}
