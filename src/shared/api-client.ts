@@ -51,8 +51,6 @@ export type CheckedRequest<E, T> = (
 
 /** One configured client: the shared request, send, and raw steps. */
 export type ApiClient<E = string> = {
-  /** The full URL for a path. */
-  url: (path: string) => string;
   /** Fetch one URL with the client's base and headers, no status handling. */
   raw: (path: string, init?: RequestInit) => Promise<FetchResult>;
   /** Ask once, check the status, and hand back the whole answer. A call that
@@ -98,10 +96,8 @@ export const defineApiClient = <E = string>(
     config.unreadableError ?? ((label) => defaultUnreadableError(label) as E);
   const fetchImpl = config.fetchImpl ?? fetchText;
 
-  const url = (path: string): string => `${config.baseUrl}${path}`;
-
   const raw = (path: string, init: RequestInit = {}): Promise<FetchResult> =>
-    fetchImpl(url(path), {
+    fetchImpl(`${config.baseUrl}${path}`, {
       ...init,
       headers: {
         ...config.headers(),
@@ -141,7 +137,6 @@ export const defineApiClient = <E = string>(
       }),
     send: (path, init, label) =>
       check(path, init, label, () => okResult(undefined)),
-    url,
   };
   return client;
 };

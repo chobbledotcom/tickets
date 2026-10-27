@@ -18,10 +18,6 @@ const client = defineApiClient({
   headers: () => ({ Authorization: "Bearer tok" }),
 });
 
-test("joins the base URL and path", () => {
-  expect(client.url("/things")).toBe("https://api.example.test/things");
-});
-
 test("request sends the auth headers and returns the validated body", async () => {
   const seen: { auth: string | undefined; url: string | undefined } = {
     auth: undefined,
