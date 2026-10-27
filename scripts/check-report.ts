@@ -39,6 +39,11 @@ export const formatFinding = (
   finding: { fix: string; problem: string; rule: string },
 ): string => `${where} [${finding.rule}]: ${finding.problem} — ${finding.fix}`;
 
+/** Escape a value for the `::error`/`::warning` annotation format GitHub
+ * Actions reads from a step's log. */
+export const escapeAnnotationValue = (value: string): string =>
+  value.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
+
 /** The console, which is where both entry scripts send their output. */
 export const consoleOutput: CheckOutput = {
   log: console.log,

@@ -10,34 +10,7 @@ import {
   baseEntries,
   ratchetExit,
 } from "#scripts/check-coverage-exclusions/ratchet-run.ts";
-import type { CapturedOutput } from "#scripts/process.ts";
-
-/** A RunCommand stub that answers a fixed map of git invocations. */
-const stubRun =
-  (
-    answers: Record<string, { code: number; stderr?: string; stdout: string }>,
-  ) =>
-  (cmd: string[]): Promise<CapturedOutput> => {
-    const key = cmd.join(" ");
-    const answer = answers[key];
-    if (!answer) return Promise.reject(new Error(`unexpected command: ${key}`));
-    return Promise.resolve({
-      stderr: "",
-      ...answer,
-      success: answer.code === 0,
-    });
-  };
-
-const gitShow = (revision: string, path: string) =>
-  `git show ${revision}:${path}`;
-
-const lsTree = (revision: string, path: string) =>
-  `git ls-tree ${revision} -- ${path}`;
-
-const holds = (path: string) => ({
-  code: 0,
-  stdout: `100644 blob abc123\t${path}\n`,
-});
+import { gitShow, holds, lsTree, stubRun } from "#test-utils/git-stub.ts";
 
 const module = (entries: string[]): string =>
   `${entries.map((entry) => `  "${entry}",`).join("\n")}\n`;
