@@ -6,6 +6,7 @@ import { t } from "#i18n";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createQuestion } from "#test-utils/questions/helpers.ts";
+import { expectSingleQuestionNote } from "#test-utils/questions/notes.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("admin > question notes routes", { db: true }, () => {
@@ -34,13 +35,7 @@ describeWithEnv("admin > question notes routes", { db: true }, () => {
       true,
     )(response);
 
-    const notes = await getNoteRows("question", [id]);
-    expect(notes).toHaveLength(1);
-    expect(notes[0]).toMatchObject({
-      entity_id: id,
-      entity_type: "question",
-      type: "owner",
-    });
+    await expectSingleQuestionNote(id, "Check the wording before the season");
   });
 
   test("POST with a blank note re-renders the form with an error and saves nothing", async () => {

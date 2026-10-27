@@ -17,7 +17,7 @@ import {
   setupQuestionPageTest,
   TEST_LISTINGS,
   tShirtQuestion,
-} from "./fixtures.ts";
+} from "./questions/fixtures.ts";
 
 describe("QuestionEditPanel", () => {
   beforeAll(setupQuestionPageTest);
@@ -54,6 +54,10 @@ describe("QuestionEditPanel", () => {
       '<input name="display_type" type="hidden" value="free_text"',
     );
     assert(!html.includes("Radio buttons"));
+    // The free-text note renders inside its prose block, so a free-text
+    // question still explains why it has no answers.
+    assertStringIncludes(html, '<div class="prose">');
+    assertStringIncludes(html, "Free-text questions collect a typed answer");
   });
 
   test("hides the edit form in read-only mode", () => {

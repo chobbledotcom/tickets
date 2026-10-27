@@ -22,7 +22,8 @@ src/ui/templates/admin/attributes.tsx::adminAttributePage.count~1lrxphe  ?? → 
 
 # questions templates (ui/templates/admin/questions.tsx) — Map.get fallbacks whose
 # left operand can never be a falsy-but-non-null value, so `??` and `||` always agree.
-src/ui/templates/admin/questions.tsx::adminQuestionPage.count~13bitn3  ?? → || audited:18itvzs # `answerCounts?.get(a.id) ?? 0`: answerCounts is Map<number,number>|undefined, so the left side is a number or undefined. The only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0; undefined maps to 0 under both — no input distinguishes them (same class as attributes.tsx:173:61 and checkout-pricing.ts:85:35)
+# (the answers-count fallback moved to question-detail.tsx with the panel)
+src/ui/templates/admin/question-detail.tsx::QuestionAnswersSection.count~0zzucn2  ?? → || audited:1frzlgs # `answerCounts.get(a.id) ?? 0`: the count is a Map<number,number>, so the left side is a number or undefined. The only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0; undefined maps to 0 under both — no input distinguishes them (same class as attributes.tsx:173:61 and checkout-pricing.ts:85:35)
 # cache-registry table sets: invalidatorsByTable.get() is Set|undefined, and a
 # Set object is always truthy, so `?? new Set()` and `|| new Set()` agree.
 

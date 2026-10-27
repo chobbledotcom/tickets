@@ -345,3 +345,7 @@ src/features/admin/api-attendees.ts::parseLine.durationDays~1y2h8m9  ?? → ||  
 src/features/admin/api-attendees.ts::parseLine.durationDays~1y2h8m9  1 → 0  audited:1n1mrq1   # the fallback feeds clampDurationDays, whose floor is 1
 src/features/admin/api-attendees.ts::parseLine.durationDays~1aetpe1  1 → 0  audited:1n1mrq1   # the non-daily arm's count never escapes: a non-daily line's date is null, and the bookings map carries durationDays only for dated lines
 src/features/admin/api-attendees.ts::resolveStatusId~1ns133z  No public default status is configured→""  audited:1n1mrq1   # the seed inserts a public default and the status save and delete refuse to remove the last one, so no write path can make the state the message names
+# Shared record-note routes (features/admin/record-notes.ts): the loader
+# answers a Record object (always truthy) or null, so both operators send
+# null to the 404 response and agree on every object.
+src/features/admin/record-notes.ts::recordNoteRoutes.loadRecordOr404~0v35mfs  ?? → || audited:0cqgkdb # loadRecord answers Record | null; every Record is an object (truthy), null is not a value a 404-worthy call yields under ?? that || would not also send — both map null to notFoundResponse
