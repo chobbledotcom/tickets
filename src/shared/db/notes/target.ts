@@ -16,7 +16,7 @@ import {
 
 /** The kinds of record a note can be about. Adding one here is what lets a
  *  page carry notes; the stored values are checked against this list. */
-export const NoteEntitySchema = v.picklist(["attendee"]);
+export const NoteEntitySchema = v.picklist(["attendee", "question"]);
 
 export type NoteEntity = v.InferOutput<typeof NoteEntitySchema>;
 
@@ -33,6 +33,9 @@ export const noteTargets: RecordTargets<NoteEntity> = defineRecordTarget({
 
 /** Notes about one attendee. */
 export const attendeeNotes = noteTargets.of("attendee");
+
+/** Notes about one custom question. */
+export const questionNotes = noteTargets.of("question");
 
 /** Group notes by which record they are about — for a batch about one kind of
  *  record, where the id alone tells them apart. Input order is kept per group. */

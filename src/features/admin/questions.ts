@@ -12,7 +12,6 @@ import {
   type QuestionWithAnswers,
   requireQuestionDisplayType,
 } from "#db/question-types.ts";
-import { getAnswerSelectionTotals } from "#db/questions/aggregates.ts";
 import { deleteQuestion } from "#db/questions/delete.ts";
 import {
   getAllQuestionsWithAnswers,
@@ -24,15 +23,12 @@ import { questionsOrder, questionsTable } from "#db/questions/tables.ts";
 import { fieldById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
+import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { OWNER_FORM, ownerPage } from "#routes/auth.ts";
-import { idRouteFor, ownerFormById, ownerGetById } from "#routes/entity.ts";
+import { idRouteFor, ownerFormById } from "#routes/entity.ts";
 /* jscpd:ignore-start */
-import {
-  errorRedirect,
-  htmlResponse,
-  notFoundResponse,
-  redirect,
-} from "#routes/response.ts";
+import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import {
   createAuthedFormRoute,
   createOrderedCollectionHandlers,
@@ -40,7 +36,6 @@ import {
 import { getFlash } from "#shared/flash-context.ts";
 import {
   adminQuestionDeletePage,
-  adminQuestionPage,
   adminQuestionsPage,
   questionTextFlat,
 } from "#templates/admin/questions.tsx";
@@ -51,6 +46,8 @@ import {
   appendWithCreationLog,
   confirmDeleteWithLog,
 } from "./logged-actions.ts";
+import { questionNoteRoutes } from "./question-notes.ts";
+import { questionPage } from "./question-page.ts";
 import {
   answerOrder,
   handleAddAnswer,
@@ -64,6 +61,7 @@ import {
   redirectToQuestion,
 } from "./questions/answers.ts";
 import { questionTextForm } from "./questions/forms.ts";
+import { bindNoteRoutes } from "./record-notes.ts";
 
 /** Handle GET /admin/questions */
 const handleQuestionsGet = ownerPage(async (session) => {
@@ -115,29 +113,6 @@ const handleQuestionsPost = createAuthedFormRoute({
     );
   },
 });
-
-/** Handle GET /admin/questions/:id */
-const handleQuestionGet = ownerGetById(
-  getQuestionWithAnswers,
-  async (q, session) => {
-    const flash = getFlash();
-    const [answerCounts, allListings, assignedListingIds] = await Promise.all([
-      getAnswerSelectionTotals(q.id),
-      getAllListings(),
-      questionListings.getIds(q.id),
-    ]);
-    return htmlResponse(
-      adminQuestionPage(
-        q,
-        session,
-        flash.error,
-        answerCounts,
-        allListings,
-        new Set(assignedListingIds),
-      ),
-    );
-  },
-);
 
 /** Handle POST /admin/questions/:id/edit */
 const handleQuestionEdit = createAuthedFormRoute<
@@ -230,13 +205,14 @@ const handleListingQuestionsPost = createListingChoicePost({
 
 /** Questions routes */
 export const adminHandlers = defineRoutes({
+  ...entityTabRoutes(adminPattern("question"), questionPage),
   "GET /admin/questions": handleQuestionsGet,
-  "GET /admin/questions/:id": handleQuestionGet,
   "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
   "GET /admin/questions/:id/answers/:answerId/edit": handleEditAnswerGet,
   "GET /admin/questions/:id/answers/:answerId/recalculate":
     handleAnswerRecalculateGet,
   "GET /admin/questions/:id/delete": idRouteFor(questionDelete.get),
+  ...bindNoteRoutes("/admin/questions", "id", questionNoteRoutes),
   "POST /admin/listing/:id/questions": handleListingQuestionsPost,
   "POST /admin/questions": handleQuestionsPost,
   "POST /admin/questions/:id/answers": handleAddAnswer,

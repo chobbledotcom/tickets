@@ -54,7 +54,6 @@ import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
 import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-problem.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { isReadOnly } from "#shared/env.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { withReturnUrl } from "#shared/return-url-field.tsx";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -63,7 +62,7 @@ import {
   AttendeeBookingsTable,
 } from "#templates/admin/attendee-detail.tsx";
 import { AttendeeFormPanel } from "#templates/admin/attendee-form.tsx";
-import { AddNoteLink } from "#templates/admin/attendee-notes.tsx";
+import { addNoteLinkProse } from "#templates/admin/attendee-notes.tsx";
 import {
   attendeeBanner,
   attendeeSummaryRows,
@@ -333,8 +332,11 @@ export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
   // top-level link, but never re-open the section's "Add" sub-nav beside it.
   navActive: { section: adminPattern("attendees") },
   proseExtra: ({ attendee }) =>
-    Promise.resolve(
-      isReadOnly() ? null : AddNoteLink({ attendeeId: attendee.id }),
+    addNoteLinkProse(
+      withReturnUrl(
+        `/admin/attendee/${attendee.id}/note`,
+        `/admin/attendees/${attendee.id}`,
+      ),
     ),
   tabs: [
     overviewTab,

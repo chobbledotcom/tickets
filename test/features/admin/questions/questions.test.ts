@@ -2,6 +2,8 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
+import { createOwnerNote } from "#db/notes/queries.ts";
+import { questionNotes } from "#db/notes/target.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -263,6 +265,21 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       assertStringIncludes(
         body,
         `<a href="/admin/questions/${id}/answers/${answerId}/edit">One</a>`,
+      );
+    });
+
+    test("shows the question's notes and the add-note link", async () => {
+      const id = await createQuestion("Note carrier?");
+      await createOwnerNote(questionNotes(id), "Check the **wording**");
+      const response = await adminGet(`/admin/questions/${id}`);
+      const body = await expectHtmlResponse(response, 200, "Check the");
+      // The note renders as markdown in the page's banner, and the add-note
+      // link sits beside the heading, returning to the question page.
+      assertStringIncludes(body, "<strong>wording</strong>");
+      assertStringIncludes(body, "Add a note");
+      assertStringIncludes(
+        body,
+        `/admin/questions/${id}/note?return_url=%2Fadmin%2Fquestions%2F${id}`,
       );
     });
   });

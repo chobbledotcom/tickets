@@ -16,7 +16,7 @@ describe("what a note is about", () => {
   test("lists the kinds of record a note can be about", () => {
     // The database CHECK is built from this list, so it is also what a stored
     // note is allowed to say.
-    expect([...NOTE_ENTITIES]).toEqual(["attendee"]);
+    expect([...NOTE_ENTITIES]).toEqual(["attendee", "question"]);
   });
 
   test("asks for a note's record by the columns notes store it in", () => {

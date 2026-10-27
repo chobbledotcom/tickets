@@ -103,5 +103,11 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-10-26_attendees_pending_flags_index",
     () => import("./2026-10-26_attendees_pending_flags_index.ts"),
   ),
+  // A note can now be about a custom question as well as an attendee, so the
+  // system_notes CHECK (built from NOTE_ENTITIES) must name both kinds.
+  entry(
+    "2026-10-27_note_entities_question",
+    () => import("./2026-10-27_note_entities_question.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
