@@ -147,6 +147,76 @@ describeWithEnv(
         [{ lines: "nope", name: "Bad lines" }, "lines must be an array"],
         [
           {
+            adjustments: [{ amount: 0, description: "Zero" }],
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Zero adjust",
+          },
+          "adjustments[0].amount must be a whole number of pence or cents, not zero",
+        ],
+        [
+          {
+            adjustments: [{ amount: 100, description: "" }],
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Blank adjust",
+          },
+          "adjustments[0].description must be text",
+        ],
+        [
+          {
+            adjustments: [5],
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Shape adjust",
+          },
+          "adjustments[0] must name a description and an amount",
+        ],
+        [
+          {
+            adjustments: [{ amount: 100, description: "x".repeat(201) }],
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Long adjust",
+          },
+          "adjustments[0].description must be 200 characters or fewer",
+        ],
+        [
+          {
+            adjustments: "nope",
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Bad adjust",
+          },
+          "adjustments must be an array",
+        ],
+        [
+          {
+            lines: [{ listingId: listing.id, price: -1, quantity: 1 }],
+            name: "Bad price",
+          },
+          "lines[0].price must be a whole number of pence or cents from 0",
+        ],
+        [
+          {
+            lines: [{ listingId: listing.id, price: 1.5, quantity: 1 }],
+            name: "Fractional price",
+          },
+          "lines[0].price must be a whole number of pence or cents from 0",
+        ],
+        [
+          {
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Bad payment",
+            payments: [{ amount: 0 }],
+          },
+          "payments[0].amount must be a positive whole number of pence or cents",
+        ],
+        [
+          {
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Non-array payment",
+            payments: 5,
+          },
+          "payments must be an array",
+        ],
+        [
+          {
             lines: [{ listingId: listing.id, quantity: 1 }],
             name: "St",
             status: 5,

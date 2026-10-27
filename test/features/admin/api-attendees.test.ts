@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { accountBalance } from "#accounting/queries.ts";
+import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { PENDING_NOTIFICATION } from "#db/attendees/notification-flags.ts";
@@ -86,6 +86,128 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
     expect(
       await accountBalance(account("attendee", created.attendee.id as number)),
     ).toBe(-1000);
+  });
+
+  test("books lines at an agreed per-line price, posting the sale at that amount", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      maxQuantity: 2,
+      name: "Deal Fair",
+      unitPrice: 500,
+    });
+    const created = await assertJson(
+      createBooking(listing.id, {
+        lines: [{ listingId: listing.id, price: 400, quantity: 2 }],
+        name: "Deal Buyer",
+      }),
+      201,
+      (body) => expect(body.attendee.remaining_balance).toBe(800),
+    );
+    // The sale leg is at the agreed 400/unit (800 total), never the 500 list
+    // price, and the per-row price_paid projects it back.
+    expect(
+      await accountBalance(account("attendee", created.attendee.id as number)),
+    ).toBe(-800);
+    const roster = await assertJson(
+      apiRequest(`/api/admin/listings/${listing.id}/attendees`),
+      200,
+    );
+    const row = roster.attendees.find(
+      (candidate: { id: number }) => candidate.id === created.attendee.id,
+    ) as { price_paid: string };
+    expect(Number(row.price_paid)).toBe(800);
+  });
+
+  test("records payments received at create time against the balance", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      maxQuantity: 2,
+      name: "Paid Fair",
+      unitPrice: 500,
+    });
+    const created = await assertJson(
+      createBooking(listing.id, {
+        lines: [{ listingId: listing.id, quantity: 2 }],
+        name: "Paid Buyer",
+        payments: [{ amount: 800 }],
+      }),
+      201,
+      (body) => expect(body.attendee.remaining_balance).toBe(200),
+    );
+    // The 800 payment leg lands in the same event: the attendee owes only
+    // what the 1000 sale left after the cash came in.
+    expect(
+      await accountBalance(account("attendee", created.attendee.id as number)),
+    ).toBe(-200);
+    const legs = await transfersByAccount(
+      account("attendee", created.attendee.id as number),
+    );
+    expect(
+      legs
+        .filter((leg) => leg.kind === "payment")
+        .reduce((total, leg) => total + leg.amount, 0),
+    ).toBe(800);
+  });
+
+  test("records named adjustments: a charge adds to the balance, a writeoff reduces it", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      name: "Adjust Fair",
+      unitPrice: 500,
+    });
+    const created = await assertJson(
+      createBooking(listing.id, {
+        adjustments: [
+          { amount: 250, description: "Delivery" },
+          { amount: -100, description: "Loyalty" },
+        ],
+        name: "Adjust Buyer",
+      }),
+      201,
+      (body) => expect(body.attendee.remaining_balance).toBe(650),
+    );
+    // The 500 sale plus the 250 charge minus the 100 writeoff is what is owed.
+    expect(
+      await accountBalance(account("attendee", created.attendee.id as number)),
+    ).toBe(-650);
+    // The charge posts the manual attendee charge contra shape (attendee to
+    // writeoff); the writeoff the reverse.
+    const legs = await transfersByAccount(
+      account("attendee", created.attendee.id as number),
+    );
+    const charge = legs.find((leg) => leg.kind === "manual_attendee_charge");
+    const writeoff = legs.find(
+      (leg) => leg.kind === "manual_attendee_writeoff",
+    );
+    expect(charge).toBeDefined();
+    expect(charge!.amount).toBe(250);
+    expect(charge!.destination.type).toBe("writeoff");
+    expect(writeoff).toBeDefined();
+    expect(writeoff!.amount).toBe(100);
+    expect(writeoff!.source.type).toBe("writeoff");
+  });
+
+  test("combined custom price, payment and adjustment leave the exact balance", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      maxQuantity: 2,
+      name: "All Fair",
+      unitPrice: 500,
+    });
+    const created = await assertJson(
+      createBooking(listing.id, {
+        adjustments: [{ amount: 100, description: "Delivery" }],
+        lines: [{ listingId: listing.id, price: 400, quantity: 2 }],
+        name: "All Buyer",
+        payments: [{ amount: 600 }],
+      }),
+      201,
+      // 800 gross - 600 paid + 100 delivery = 300 owed.
+      (body) => expect(body.attendee.remaining_balance).toBe(300),
+    );
+    expect(
+      await accountBalance(account("attendee", created.attendee.id as number)),
+    ).toBe(-300);
   });
 
   test("never sends the buyer email; the owed-email flag matches a manual add", async () => {

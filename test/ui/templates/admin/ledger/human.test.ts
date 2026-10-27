@@ -1,7 +1,9 @@
 import { assert, assertStringIncludes } from "@std/assert";
+import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { KIND } from "#accounting/kinds.ts";
 import { account } from "#shared/ledger/account.ts";
+import { ledgerEntryMemo } from "#templates/admin/ledger/formatting.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { ledgerRows, names, renderLedger, transfer } from "./helpers.ts";
 
@@ -130,6 +132,18 @@ describe("HumanLedgerTable", () => {
           kind: "future_kind",
           source: account("attendee", 1),
         }),
+        transfer({
+          destination: account("attendee", 1),
+          id: 20,
+          kind: "refund_manual_attendee_charge",
+          source: account("writeoff", "default"),
+        }),
+        transfer({
+          destination: account("writeoff", "default"),
+          id: 21,
+          kind: "refund_manual_attendee_writeoff",
+          source: account("attendee", 1),
+        }),
       ],
       refs,
     );
@@ -152,6 +166,8 @@ describe("HumanLedgerTable", () => {
       "Option income reduced for",
       "Service event cost added for",
       "Service event cost reduced for",
+      "Extra amount no longer owed by",
+      "Amount owed again by",
     ]) {
       assertStringIncludes(html, phrase);
     }
@@ -171,6 +187,10 @@ describe("HumanLedgerTable", () => {
     assertStringIncludes(rows[4] ?? "", "−£50");
     assertStringIncludes(rows[18] ?? "", "−£50");
     assertStringIncludes(rows[19] ?? "", "+£50");
+    // The reversed owner charge lowers the debt. The reversed write-off
+    // raises it again.
+    assertStringIncludes(rows[21] ?? "", "−£50");
+    assertStringIncludes(rows[22] ?? "", "+£50");
   });
 
   test("uses attendee-balance wording for adjustment legs against writeoff", () => {
@@ -238,5 +258,30 @@ describe("HumanLedgerTable", () => {
     assertStringIncludes(rows[3] ?? "", "−£50");
     assertStringIncludes(rows[4] ?? "", "−£50");
     assertStringIncludes(rows[5] ?? "", "+£50");
+  });
+
+  test("the operator's description suffix names only owner-entered entries", () => {
+    // A manual attendee charge shows its memo as the description suffix.
+    expect(
+      ledgerEntryMemo(
+        transfer({
+          destination: account("writeoff", "default"),
+          id: 9,
+          kind: "manual_attendee_charge",
+          memo: "Delivery",
+          source: account("attendee", 1),
+        }),
+      ),
+    ).toBe(" Delivery.");
+    // A checkout leg with a memo (a refund reason code) shows none.
+    expect(
+      ledgerEntryMemo(
+        transfer({ id: 10, kind: KIND.refundCash, memo: "provider refund" }),
+      ),
+    ).toBe("");
+    // A leg with no memo shows none.
+    expect(ledgerEntryMemo(transfer({ id: 11 }))).toBe("");
+    // A leg with a memo but no kind at all is not an owner-entered entry.
+    expect(ledgerEntryMemo(transfer({ id: 12, memo: "stray note" }))).toBe("");
   });
 });

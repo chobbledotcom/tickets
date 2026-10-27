@@ -5,7 +5,9 @@ import type { StatementLine } from "#shared/ledger/project.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import { ledgerEntryAddHref } from "#shared/ledger-links.ts";
 import {
+  type AccountCell,
   humanDescription,
+  ledgerEntryMemo,
   shownFigure,
   statementBalanceKey,
 } from "#templates/admin/ledger/formatting.tsx";
@@ -29,6 +31,19 @@ const counterparty = (line: StatementLine, account: AccountRef): AccountRef =>
     ? line.transfer.source
     : line.transfer.destination;
 
+/** One statement row's activity line: the human description, plus the
+ * operator's own description when an owner-entered entry carries one (an
+ * API-created adjustment). The loader decrypts the memo first. */
+const statementActivity = (
+  line: StatementLine,
+  accountCell: AccountCell,
+): JSX.Element => (
+  <>
+    {humanDescription(line.transfer, accountCell)}
+    {ledgerEntryMemo(line.transfer)}
+  </>
+);
+
 export type AccountLedgerData = {
   account: AccountRef;
   lines: StatementLine[];
@@ -48,7 +63,7 @@ const AccountStatementTable = ({
     columns: [
       timeColumn((line: StatementLine) => line.transfer.occurredAt),
       {
-        cell: (line) => humanDescription(line.transfer, accountCell),
+        cell: (line) => statementActivity(line, accountCell),
         headerKey: "admin.ledger.col.activity",
         key: "activity",
       },
