@@ -4,6 +4,7 @@ import { decryptWithKey, encryptWithKey } from "#crypto/encryption.ts";
 import {
   deriveKEK,
   deriveKEKFromPassword,
+  deriveOwnerKek,
   generateDataKey,
   unwrapKey,
   unwrapKeyWithToken,
@@ -195,6 +196,23 @@ describeWithEnv("key wrapping", { encryptionKey: true }, () => {
       await expect(
         unwrapKeyWithToken("wk:1:nodatahere" as WrappedKey, sessionToken),
       ).rejects.toThrow("Invalid wrapped key format: missing IV separator");
+    });
+  });
+
+  describe("deriveOwnerKek", () => {
+    it("dispatches v2 to the password KEK and v1 to the hash KEK", async () => {
+      const key = await generateDataKey();
+      const wrapped = await wrapKey(key, await deriveOwnerKek("pw", HASH_A, 2));
+      const unwrapped = await unwrapKey(
+        wrapped,
+        await deriveKEKFromPassword("pw", HASH_A),
+      );
+      expect(unwrapped).toBeDefined();
+      // The legacy v1 scheme derives a different KEK, so it cannot unwrap a
+      // key wrapped under the v2 scheme.
+      await expect(
+        unwrapKey(wrapped, await deriveOwnerKek("pw", HASH_A, 1)),
+      ).rejects.toThrow();
     });
   });
 });

@@ -34,6 +34,7 @@
     "cpd:renamed": "deno run -A scripts/cpd.ts --config .jscpd.renamed.json --baseline .jscpd.renamed-baseline.json --fail-on-new-clones",
     "cpd:tla": "deno run -A scripts/tla-cpd.ts",
     "check:copy": "deno run --allow-read=src/locales scripts/check-copy.ts",
+    "migration-verify": "deno run --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/migration-verify.ts",
     "check:ste": "deno run --allow-read=. --allow-write=scripts/check-ste/baseline.json scripts/check-ste.ts",
     "check:alias-exports": "deno run --allow-read=src,test,scripts,cli,e2e-payments --allow-env --allow-sys --allow-ffi scripts/check-alias-exports.ts",
     "check:empty-catch": "deno run --allow-read=src,test,scripts,cli,e2e-payments --allow-env --allow-sys --allow-ffi scripts/check-empty-catch.ts",
