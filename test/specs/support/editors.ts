@@ -22,8 +22,8 @@ import {
   listingIdNamed,
   listingNamed,
   organiserSavesFields,
-  putsPlainThingOnSale,
   saveListingEdit,
+  somethingForSale,
 } from "#test/specs/support/listings.ts";
 import { invitedRoleJourney } from "#test/specs/support/staff-accounts.ts";
 import {
@@ -108,17 +108,6 @@ export const editorBrowser = (world: TicketsWorld): TestBrowser =>
 
 /** The editor opens one of their own pages. */
 const openAsEditor: OpensAPage = opensPagesAs(editorBrowser);
-
-/** Something the site already sells, kept under the name the story uses. */
-export const somethingForSale = async (
-  world: TicketsWorld,
-  name: string,
-  options: { forwardingTo?: string } = {},
-): Promise<void> => {
-  await putsPlainThingOnSale(world, name, {
-    webhookUrl: options.forwardingTo,
-  });
-};
 
 /** What one sale of this thing brought in, in pounds and pence. A round figure
  * nothing else on the page would show by accident. */

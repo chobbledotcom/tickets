@@ -4,7 +4,10 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
-import { listingNamed } from "#test/specs/support/listings.ts";
+import {
+  listingNamed,
+  somethingForSale,
+} from "#test/specs/support/listings.ts";
 import {
   customerPaysMore,
   customerScans,
@@ -12,7 +15,6 @@ import {
   expectNothingBooked,
   meddledWith,
   organiserShowsCode,
-  somethingForSale,
   takeOffSale,
 } from "#test/specs/support/shown-code.ts";
 import {

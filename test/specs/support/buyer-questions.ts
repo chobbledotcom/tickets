@@ -199,25 +199,27 @@ export const ownerTakesQuestionDown = takesDownFromOwnPage(
   "Delete question",
 );
 
+/** Run a question-asking step and keep the question the story was acting on
+ * in place, recording the one just asked as another asked question. */
+const askingAnother =
+  (ask: AsksAChoiceQuestion): AsksAChoiceQuestion =>
+  async (world, listingName, text, answers) => {
+    const asked = requiredWorldValue(
+      world.buyerQuestion,
+      "the question the story acts on",
+    );
+    await ask(world, listingName, text, answers);
+    world.otherBuyerQuestions = [
+      ...(world.otherBuyerQuestions ?? []),
+      requiredWorldValue(world.buyerQuestion, `the question "${text}"`),
+    ];
+    world.buyerQuestion = asked;
+  };
+
 /** A second choice question with its answers, asked without disturbing the
  * question the story is acting on. */
-export const ownerAsksAnotherChoiceQuestion: AsksAChoiceQuestion = async (
-  world,
-  listingName,
-  text,
-  answers,
-) => {
-  const asked = requiredWorldValue(
-    world.buyerQuestion,
-    "the question the story acts on",
-  );
-  await ownerAsksChoiceQuestion(world, listingName, text, answers);
-  world.otherBuyerQuestions = [
-    ...(world.otherBuyerQuestions ?? []),
-    requiredWorldValue(world.buyerQuestion, `the question "${text}"`),
-  ];
-  world.buyerQuestion = asked;
-};
+export const ownerAsksAnotherChoiceQuestion: AsksAChoiceQuestion =
+  askingAnother(ownerAsksChoiceQuestion);
 
 /** The id of the question the story named by its text. */
 const questionIdFor = (world: TicketsWorld, text: string): number => {

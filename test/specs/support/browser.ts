@@ -330,6 +330,17 @@ export const adminPageHtmlAt = async (
   path: string,
 ): Promise<string> => (await openAdminPage(world, path)).currentHtml;
 
+/** One named article out of a page, from its id marker to the article's
+ * close. Slicing by the id keeps the slice from accidentally matching an
+ * unrelated figure elsewhere on the page. */
+export const articleOutOf = (html: string, markerId: string): string => {
+  const start = html.indexOf(`id="${markerId}"`);
+  if (start < 0) throw new Error(`The page shows no ${markerId}`);
+  const end = html.indexOf("</article>", start);
+  if (end < 0) throw new Error(`The ${markerId} article never closes`);
+  return html.slice(start, end);
+};
+
 /** The organiser opens one of their own pages, and something is done with
  * the window they are looking at — the opening every organiser action on a
  * page shares. Whatever the act works out comes back, so a caller that reads
