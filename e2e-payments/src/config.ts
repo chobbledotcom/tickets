@@ -67,10 +67,35 @@ export const newBookerIdentity = (runId: string): BookerIdentity => ({
   name: `E2E Booker ${randomId(3)}`,
 });
 
+/** The harness config snapshot: every value the harness reads from the
+ * environment once per process, with its fallback for an unset key. */
+export interface HarnessConfig {
+  actionTimeoutMs: number;
+  artifactsDir: string;
+  chromiumExecutable: string | undefined;
+  cloudflaredBin: string;
+  dbEncryptionKey: string;
+  denoBin: string;
+  forceTunnel: string | undefined;
+  headless: boolean;
+  hostedPaymentStepTimeoutMs: number;
+  navTimeoutMs: number;
+  paymentConfirmTimeoutMs: number;
+  sentryUrl: string | undefined;
+  serverBootTimeoutMs: number;
+  setupCountry: string;
+  startupTimeoutMs: number;
+  stepTimeoutMs: number;
+  teardownTimeoutMs: number;
+  tunnelAttempts: number;
+  tunnelTimeoutMs: number;
+  unitPrice: number;
+}
+
 /** Build the harness config snapshot from an environment lookup. The lookup is
  * the injectable seam: direct tests drive the parsing branches in-process, and
  * the process reads its own environment once at module load. */
-export const readConfig = (lookup: EnvLookup) => {
+export const readConfig = (lookup: EnvLookup): HarnessConfig => {
   const env = {
     bool: (key: string, fallback: boolean): boolean =>
       envBool(envValue(lookup, key), fallback),
