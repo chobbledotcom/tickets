@@ -3,6 +3,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { RATCHET_GUIDE } from "#scripts/check-test-quality/gate.ts";
 import { gateExit } from "#scripts/check-test-quality.ts";
+import type { EnvironmentValues } from "#scripts/environment-values.ts";
+import { withEnvironment } from "#scripts/test-environment.ts";
 import { capturedCheckOutput } from "#test-utils/check-script.ts";
 import { gitShow, holds, lsTree, stubRun } from "#test-utils/git-stub.ts";
 
@@ -37,12 +39,18 @@ const cleanHeadFile = (): string =>
 describe("gateExit", () => {
   const output = capturedCheckOutput();
 
+  /** Run the gate under a fixed environment. The gate emits GitHub
+   * annotations only in CI, so the default pins `GITHUB_ACTIONS` off to keep
+   * every run here deterministic; a CI test opts back in. */
   const runGate = async (
     headRead: (path: string) => Promise<string>,
     answers: Answers,
+    environment: EnvironmentValues = { GITHUB_ACTIONS: undefined },
   ): Promise<number> => {
     output.lines.length = 0;
-    return gateExit(stubRun(answers), output, headRead);
+    return withEnvironment(environment, () =>
+      gateExit(stubRun(answers), output, headRead),
+    );
   };
 
   /** The gate must throw when a git probe fails, naming the cause. The name
@@ -82,6 +90,19 @@ describe("gateExit", () => {
     );
     expect(code).toBe(0);
     expect(output.lines).toEqual([
+      "The test quality gate finds no new weak assertions against origin/main.",
+    ]);
+  });
+
+  test("annotates an existing weak assertion as a warning in CI", async () => {
+    const code = await runGate(
+      () => Promise.resolve(weakHeadFile()),
+      baseAnswers(weakHeadFile()),
+      { GITHUB_ACTIONS: "1" },
+    );
+    expect(code).toBe(0);
+    expect(output.lines).toEqual([
+      "::warning file=test/a.test.ts,line=4::truthiness assertion; prefer an exact value or contract-specific matcher",
       "The test quality gate finds no new weak assertions against origin/main.",
     ]);
   });
