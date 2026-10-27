@@ -2,13 +2,16 @@
 
 import { executeBatch, type SqlStatement, type TxScope } from "#db/client.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
+import { noteDeleteStatement } from "#db/notes/queries.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { clearItemEdgesStatement } from "#db/site-page-items.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 
 /** Delete one listing and its listing-owned relationships in one batch. The
  *  batch runs on the caller's transaction when it runs inside one, and as its
- *  own batch otherwise. */
+ *  own batch otherwise. The listing's notes go with it: a note names the
+ *  record it is about by entity_type + entity_id, so it cannot ride a plain
+ *  listing_id delete. */
 export const deleteListing = async (
   listingId: number,
   tx?: TxScope,
@@ -41,6 +44,7 @@ export const deleteListing = async (
       args: [listingId],
       sql: "DELETE FROM listing_prices WHERE listing_id = ?",
     },
+    noteDeleteStatement("listing", { args: [listingId], sql: "?" }),
     { args: [listingId], sql: "DELETE FROM listings WHERE id = ?" },
   ];
   await (tx === undefined ? executeBatch(statements) : tx.batch(statements));

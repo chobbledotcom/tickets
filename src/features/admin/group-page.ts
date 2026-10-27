@@ -1,10 +1,12 @@
 /**
- * The tabbed /admin/groups/:id entity page. Overview is staff-only because it
- * decrypts attendee PII. Content editors reach Edit, Images, and the safe
+ * The tabbed /admin/groups/:id entity page. The banner holds the group's
+ * notes, so a note never hides behind one tab. Overview is staff-only because
+ * it decrypts attendee PII. Content editors reach Edit, Images, and the safe
  * entries on Actions. Sub-action POST handlers keep their own routes in
  * groups.ts, so this file owns only the GET surface.
  */
 
+/* jscpd:ignore-end */
 /* jscpd:ignore-start */
 import {
   type ActionDef,
@@ -24,6 +26,7 @@ import {
   isOwnerRole,
   isStaffRole,
 } from "#types";
+import { groupNoteFeature } from "./catalog-notes.ts";
 import {
   loadGroupAttendeesPanel,
   loadGroupEditPanel,
@@ -90,11 +93,13 @@ const actionsTab = (): TabDef<Group> => ({
 /** The tabbed group page. */
 export const groupPage: EntityPage<Group> = defineEntityPage({
   audience: CONTENT_ADMIN_LEVELS,
+  banner: groupNoteFeature.page.banner,
   destination: "group",
   load: (id) => loadGroupForPage(id),
   // A single group is a page *within* the Groups section — highlight the top
   // link, no "Add" sub-nav (see attendee-page.ts).
   navActive: { section: adminPattern("groups") },
+  proseExtra: groupNoteFeature.page.proseExtra,
   tabs: [
     panelTab(
       "",

@@ -100,7 +100,9 @@ describe("AddNoteLink", () => {
   beforeAll(setupAdminPageTest);
 
   test("links to the add-note page, returning to the attendee page", () => {
-    const html = String(<AddNoteLink attendeeId={7} />);
+    const html = String(
+      <AddNoteLink href="/admin/attendee/7/note?return_url=%2Fadmin%2Fattendees%2F7" />,
+    );
     assertStringIncludes(
       html,
       "/admin/attendee/7/note?return_url=%2Fadmin%2Fattendees%2F7",
@@ -183,8 +185,9 @@ describe("adminNoteNewPage", () => {
 
   test("renders the add form scoped to the attendee", () => {
     const html = adminNoteNewPage({
-      attendeeId: 5,
-      attendeeName: "Alice Example",
+      activeSection: "/admin/attendees",
+      noteAction: "/admin/attendee/5/note",
+      recordName: "Alice Example",
       returnUrl: "/admin/attendees/5",
       session: OWNER_SESSION,
     });
@@ -200,9 +203,10 @@ describe("adminNoteNewPage", () => {
 
   test("shows a flash error when re-rendered after a rejected save", () => {
     const html = adminNoteNewPage({
-      attendeeId: 5,
-      attendeeName: "Alice",
+      activeSection: "/admin/attendees",
       error: "Enter a note before saving.",
+      noteAction: "/admin/attendee/5/note",
+      recordName: "Alice",
       returnUrl: "",
       session: OWNER_SESSION,
     });
@@ -215,7 +219,10 @@ describe("adminNoteDeletePage", () => {
 
   test("asks for confirmation without a copy/paste field", () => {
     const html = adminNoteDeletePage({
+      activeSection: "/admin/attendees",
       note: note({ note: "delete this" }),
+      noteAction: (note) =>
+        `/admin/attendee/${note.entity_id}/note/${note.id}/delete`,
       returnUrl: "/admin/attendees/5",
       session: OWNER_SESSION,
     });
